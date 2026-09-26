@@ -5,12 +5,14 @@
  * WAL-mode persistence. Replaces the previous JSON file-based approach.
  */
 import { Database } from 'bun:sqlite';
+import { type Tour } from '../shared/tour.js';
 import { type CanvasThemeName } from '../shared/themes.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, CanvasSnapshot, CanvasSnapshotListOptions, ViewportState } from './canvas-state.js';
 import { type PmxAxState, type PmxAxEvent, type PmxAxEvidence, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export type CanvasTheme = CanvasThemeName;
 export declare function normalizeCanvasTheme(value: unknown, fallback?: CanvasTheme): CanvasTheme;
 export interface PersistedCanvasState {
+    tour?: Tour;
     version: number;
     theme?: CanvasTheme;
     viewport: ViewportState;

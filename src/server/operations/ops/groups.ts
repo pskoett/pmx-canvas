@@ -42,7 +42,7 @@ const groupCreateShape = {
 
 const groupCreateSchema = z.looseObject(groupCreateShape);
 
-const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, CanvasNodeState>({
+const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, ReturnType<typeof createCanvasGroup>>({
   name: 'group.create',
   mutates: true,
   input: groupCreateSchema,
@@ -69,7 +69,12 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
     formatResult: (result, input) => {
       const body = isRecord(result) ? result : {};
       const node = body.node as CanvasNodeState | undefined;
-      const payload = node ? createdNodePayloadFromNode(node, input) : { ok: true };
+      const payload = node
+        ? {
+            ...createdNodePayloadFromNode(node, input),
+            ...(body.sizeAdjustment ? { sizeAdjustment: body.sizeAdjustment } : {}),
+          }
+        : { ok: true };
       return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
     },
   },
@@ -93,7 +98,7 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
         );
       }
     }
-    const { node } = createCanvasGroup({
+    return createCanvasGroup({
       title,
       childIds,
       color,
@@ -103,9 +108,11 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
       height,
       ...(childLayout ? { childLayout } : {}),
     });
-    return node;
   },
-  serialize: (node) => buildNodeResponse(node),
+  serialize: ({ node, sizeAdjustment }) => ({
+    ...buildNodeResponse(node),
+    ...(sizeAdjustment ? { sizeAdjustment } : {}),
+  }),
 });
 
 // ── group.add ─────────────────────────────────────────────────
@@ -157,9 +164,9 @@ const groupAddOperation = defineOperation<z.infer<typeof groupAddSchema>, Record
     if (!groupId || childIds.length === 0) {
       throw new OperationError('Missing groupId or childIds.');
     }
-    const { ok } = groupCanvasNodes(groupId, childIds, childLayout ? { childLayout } : {});
+    const { ok, sizeAdjustment } = groupCanvasNodes(groupId, childIds, childLayout ? { childLayout } : {});
     if (!ok) throw new OperationError('Group not found or no valid children.');
-    return { ok: true, groupId };
+    return { ok: true, groupId, ...(sizeAdjustment ? { sizeAdjustment } : {}) };
   },
 });
 

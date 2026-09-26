@@ -27,6 +27,7 @@ import {
   MCP_APP_NODE_DEFAULT_SIZE,
   IMAGE_NODE_DEFAULT_SIZE,
   LEDGER_NODE_DEFAULT_SIZE,
+  type CanvasSizeAdjustment,
 } from '../../canvas-operations.js';
 import { normalizeNodeAxCapabilities } from '../../ax-interaction.js';
 import { applyFileContentToNodeData, readFileNodeContent } from '../../file-content.js';
@@ -377,12 +378,13 @@ export function agentSafeFullLayoutPayload(layout: CanvasLayout): Record<string,
 export function createdNodePayloadFromNode(
   node: CanvasNodeState,
   options: Record<string, unknown> = {},
+  extras: Record<string, unknown> = {},
 ): Record<string, unknown> {
   if (!wantsFullPayload(options)) {
-    return { ok: true, node: compactNodePayload(node), id: node.id, nodeId: node.id };
+    return { ok: true, node: compactNodePayload(node), id: node.id, nodeId: node.id, ...extras };
   }
   const serialized = serializeCanvasNodeForAgent(node);
-  return { ok: true, node: serialized, ...serialized, nodeId: node.id };
+  return { ok: true, node: serialized, ...serialized, nodeId: node.id, ...extras };
 }
 
 // ── Operation cores (the SDK wraps these directly) ────────────
@@ -395,7 +397,7 @@ export function createdNodePayloadFromNode(
 export function createBasicCanvasNode(
   body: Record<string, unknown>,
   options: { fileMode: 'auto' | 'path' },
-): { node: CanvasNodeState; needsCodeGraphRecompute: boolean } {
+): { node: CanvasNodeState; needsCodeGraphRecompute: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
   const type = typeof body.type === 'string' ? body.type : '';
   const extraData = isRecord(body.data) ? body.data : undefined;
   if (type === 'html') {
@@ -455,7 +457,7 @@ export function createBasicCanvasNode(
   const geometry = resolveCreateGeometry(body);
   const defaults = defaultNodeSize(type);
   try {
-    const { node, needsCodeGraphRecompute } = addCanvasNode({
+    const { node, needsCodeGraphRecompute, sizeAdjustment } = addCanvasNode({
       type: type as CanvasNodeState['type'],
       ...(typeof body.title === 'string'
         ? { title: body.title }
@@ -481,7 +483,7 @@ export function createBasicCanvasNode(
       defaultHeight: defaults.height,
       fileMode: options.fileMode,
     });
-    return { node, needsCodeGraphRecompute };
+    return { node, needsCodeGraphRecompute, ...(sizeAdjustment ? { sizeAdjustment } : {}) };
   } catch (error) {
     if (error instanceof OperationError) throw error;
     throw new OperationError(error instanceof Error ? error.message : String(error));
@@ -641,15 +643,15 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
 
   const extraData = isRecord(body.data) ? body.data : undefined;
   const geometry = resolveCreateGeometry(body);
-  const { id, node } = addCanvasNode({
+  const { id, node, sizeAdjustment } = addCanvasNode({
     type: 'webpage',
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
     content: normalizedUrl,
     ...(extraData ? { data: extraData } : {}),
     ...(body.strictSize === true ? { strictSize: true } : {}),
     ...geometry,
-    ...(geometry.width === undefined ? { width: WEBPAGE_NODE_DEFAULT_SIZE.width } : {}),
-    ...(geometry.height === undefined ? { height: WEBPAGE_NODE_DEFAULT_SIZE.height } : {}),
+    defaultWidth: WEBPAGE_NODE_DEFAULT_SIZE.width,
+    defaultHeight: WEBPAGE_NODE_DEFAULT_SIZE.height,
   });
 
   // The node should appear before the (slow) page fetch completes; the
@@ -662,6 +664,7 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
     extras: {
       fetch: refreshed.ok ? { ok: true } : { ok: false, error: refreshed.error ?? 'Failed to fetch webpage content.' },
       ...(refreshed.ok ? {} : { error: refreshed.error }),
+      ...(sizeAdjustment ? { sizeAdjustment } : {}),
     },
   };
 }
@@ -691,7 +694,7 @@ function createHtmlPrimitiveNode(body: Record<string, unknown>): NodeAddResult {
   const axCapabilities =
     normalizeNodeAxCapabilities(body.axCapabilities) ??
     (declared ? { enabled: declared.enabled, allowed: [...declared.allowed] } : undefined);
-  const { node } = addCanvasNode({
+  const { node, sizeAdjustment } = addCanvasNode({
     type: 'html',
     title: built.title,
     data: {
@@ -718,6 +721,7 @@ function createHtmlPrimitiveNode(body: Record<string, unknown>): NodeAddResult {
         htmlBytes: Buffer.byteLength(built.html, 'utf-8'),
         defaultSize: built.defaultSize,
       },
+      ...(sizeAdjustment ? { sizeAdjustment } : {}),
     },
   };
 }
@@ -733,14 +737,14 @@ function createGroupNode(body: Record<string, unknown>): NodeAddResult {
     body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
       ? body.childLayout
       : undefined;
-  const { node } = createCanvasGroup({
+  const { node, sizeAdjustment } = createCanvasGroup({
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
     childIds,
     ...(typeof body.color === 'string' ? { color: body.color } : {}),
     ...(childLayout ? { childLayout } : {}),
     ...geometry,
   });
-  return { node };
+  return { node, ...(sizeAdjustment ? { extras: { sizeAdjustment } } : {}) };
 }
 
 const nodeAddShape = {
@@ -910,7 +914,8 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
         };
       }
       const node = body.node as CanvasNodeState | undefined;
-      const payload = node ? createdNodePayloadFromNode(node, input) : { ok: true };
+      const extras = body.sizeAdjustment ? { sizeAdjustment: body.sizeAdjustment } : {};
+      const payload = node ? createdNodePayloadFromNode(node, input, extras) : { ok: true };
       return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
     },
   },
@@ -954,13 +959,13 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
     if (type === 'group') {
       return createGroupNode(body);
     }
-    const { node, needsCodeGraphRecompute } = createBasicCanvasNode(body, { fileMode: 'auto' });
+    const { node, needsCodeGraphRecompute, sizeAdjustment } = createBasicCanvasNode(body, { fileMode: 'auto' });
     if (needsCodeGraphRecompute) {
       scheduleCodeGraphRecompute(() => {
         ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
       });
     }
-    return { node };
+    return { node, ...(sizeAdjustment ? { extras: { sizeAdjustment } } : {}) };
   },
   serialize: ({ node, extras }) => ({ ...buildNodeResponse(node), ...(extras ?? {}) }),
 });
@@ -1129,7 +1134,10 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       const body = isRecord(result) ? result : {};
       const node = body.node as CanvasNodeState | undefined;
       if (node) {
-        const payload = createdNodePayloadFromNode(node, input);
+        const payload = {
+          ...createdNodePayloadFromNode(node, input),
+          ...(body.sizeAdjustment ? { sizeAdjustment: body.sizeAdjustment } : {}),
+        };
         return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
       }
       // No `node` field: a webpage-refresh result ({ ok, id, fetch?, error? }) or
@@ -1224,7 +1232,25 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       }
     }
     const updated = canvasState.getNode(id);
-    return updated ? buildNodeResponse(updated) : { ok: true, id };
+    const fitted =
+      updated &&
+      existing.type === 'group' &&
+      (updated.size.width !== (patch.size?.width ?? existing.size.width) ||
+        updated.size.height !== (patch.size?.height ?? existing.size.height));
+    return updated
+      ? {
+          ...buildNodeResponse(updated),
+          ...(fitted
+            ? {
+                sizeAdjustment: {
+                  requested: { width: patch.size?.width ?? null, height: patch.size?.height ?? null },
+                  applied: updated.size,
+                  reason: 'fit-to-children',
+                },
+              }
+            : {}),
+        }
+      : { ok: true, id };
   },
 });
 

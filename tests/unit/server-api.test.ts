@@ -1713,7 +1713,19 @@ describe('canvas server HTTP API', () => {
         width: 180,
         height: 90,
       }),
-    }).then((r) => r.json())) as { id: string };
+    }).then((r) => r.json())) as {
+      id: string;
+      sizeAdjustment: {
+        requested: { width: number; height: number };
+        applied: { width: number; height: number };
+        reason: string;
+      };
+    };
+    expect(clamped.sizeAdjustment).toEqual({
+      requested: { width: 180, height: 90 },
+      applied: { width: 360, height: 180 },
+      reason: 'clamped-to-minimum',
+    });
     const clampedState = (await fetch(`${baseUrl}/api/canvas/node/${clamped.id}`).then((r) => r.json())) as {
       size: { width: number; height: number };
     };
@@ -1759,6 +1771,28 @@ describe('canvas server HTTP API', () => {
     };
     expect(graphState.size).toEqual({ width: 420, height: 280 });
 
+    const plotHeightOnly = (await fetch(`${baseUrl}/api/canvas/graph`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        graphType: 'bar',
+        data: [{ label: 'a', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+        height: 180,
+      }),
+    }).then((r) => r.json())) as {
+      id: string;
+      sizeAdjustment: { requested: { height: null }; applied: { height: number }; reason: string };
+      warning: string;
+    };
+    expect(plotHeightOnly.sizeAdjustment).toMatchObject({
+      requested: { height: null },
+      applied: { height: 520 },
+      reason: 'defaulted',
+    });
+    expect(plotHeightOnly.warning).toContain('plot height');
+
     // The update path stays unclamped — but validate reports the undersized
     // node as an advisory sizeWarning (strictSize nodes are exempt).
     await fetch(`${baseUrl}/api/canvas/node/${clamped.id}`, {
@@ -1776,8 +1810,51 @@ describe('canvas server HTTP API', () => {
     expect(validation.sizeWarnings.some((w) => w.id === strict.id)).toBe(false);
     expect(validation.summary.sizeWarnings).toBeGreaterThanOrEqual(1);
 
-    for (const id of [clamped.id, strict.id, graph.id]) {
+    for (const id of [clamped.id, strict.id, graph.id, plotHeightOnly.id]) {
       await fetch(`${baseUrl}/api/canvas/node/${id}`, { method: 'DELETE' });
+    }
+  });
+
+  test('structured create reports only actual size adjustments; updates keep requested dimensions', async () => {
+    const spec = { root: 'text', elements: { text: { type: 'Text', props: { text: 'Size report' }, children: [] } } };
+    for (const [route, payload] of [
+      ['json-render', { spec }],
+      ['json-render/stream', { patches: [] }],
+      ['graph', { graphType: 'bar', data: [{ label: 'a', value: 2 }], xKey: 'label', yKey: 'value' }],
+    ] as const) {
+      for (const geometry of [
+        { width: 811, height: 433, nodeHeight: 433 },
+        { width: 123, height: 97, nodeHeight: 97, strictSize: true },
+        { width: 123 },
+      ]) {
+        const response = await fetch(`${baseUrl}/api/canvas/${route}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, ...geometry }),
+        });
+        expect(response.ok).toBe(true);
+        const created = (await response.json()) as {
+          id: string;
+          sizeAdjustment?: { requested: { width: number; height: number | null }; reason: string };
+        };
+        if (geometry.height === undefined) {
+          expect(created.sizeAdjustment).toMatchObject({
+            requested: { width: 123, height: null },
+            reason: 'defaulted-and-clamped-to-minimum',
+          });
+        } else {
+          expect(created.sizeAdjustment).toBeUndefined();
+        }
+        const updated = await fetch(`${baseUrl}/api/canvas/node/${created.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ size: { width: 201, height: 109 } }),
+        });
+        const body = (await updated.json()) as { size: { width: number; height: number }; sizeAdjustment?: unknown };
+        expect(body.size).toEqual({ width: 201, height: 109 });
+        expect(body.sizeAdjustment).toBeUndefined();
+        await fetch(`${baseUrl}/api/canvas/node/${created.id}`, { method: 'DELETE' });
+      }
     }
   });
 
@@ -6572,6 +6649,7 @@ describe('canvas server HTTP API', () => {
       nodeId?: string;
       url?: string;
       metadata?: Record<string, unknown>;
+      sizeAdjustment?: unknown;
     }>('/api/canvas/web-artifact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -6598,6 +6676,11 @@ describe('canvas server HTTP API', () => {
     expect(build.projectPath.replaceAll('\\', '/')).toContain('/.pmx-canvas/artifacts/.web-artifacts/http-artifact');
     expect(build.metadata?.sourcePreview).toContain('HTTP Artifact');
     expect(JSON.stringify(build.metadata)).not.toContain('<!DOCTYPE html>');
+    expect(build.sizeAdjustment).toEqual({
+      requested: { width: null, height: null },
+      applied: { width: 960, height: 720 },
+      reason: 'defaulted',
+    });
 
     const artifactResponse = await fetch(`${baseUrl}${build.url}`);
     expect(artifactResponse.ok).toBe(true);

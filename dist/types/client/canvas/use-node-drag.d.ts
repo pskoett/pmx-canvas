@@ -5,11 +5,12 @@ interface NodeDragOptions {
     viewport: Signal<ViewportState>;
     onMove: (id: string, x: number, y: number) => void;
     onDragEnd: () => void;
+    onClick?: () => void;
 }
 /**
  * Hook for dragging canvas nodes by their title bar.
  * Converts screen-space pointer delta to canvas-space position delta
  * (accounting for current viewport scale).
  */
-export declare function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOptions): (e: PointerEvent, currentX: number, currentY: number) => void;
+export declare function useNodeDrag({ nodeId, viewport, onMove, onDragEnd, onClick }: NodeDragOptions): (e: PointerEvent, currentX: number, currentY: number) => void;
 export {};

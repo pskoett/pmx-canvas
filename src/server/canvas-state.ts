@@ -13,6 +13,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
 import { isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -223,6 +224,7 @@ export interface CanvasAnnotation {
 }
 
 export interface CanvasLayout {
+  tour?: Tour;
   viewport: ViewportState;
   theme: CanvasTheme;
   nodes: CanvasNodeState[];
@@ -333,6 +335,7 @@ class CanvasStateManager {
   private edges = new Map<string, CanvasEdge>();
   private annotations = new Map<string, CanvasAnnotation>();
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
+  private _tour: Tour | undefined;
   private _theme: CanvasTheme = 'dark';
   private _contextPinnedNodeIds = new Set<string>();
   private _workspaceRoot = process.cwd();
@@ -899,6 +902,7 @@ class CanvasStateManager {
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
         theme: this._theme,
+        tour: this._tour,
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
@@ -957,6 +961,7 @@ class CanvasStateManager {
   }
 
   private applyPersistedState(state: PersistedCanvasState): void {
+    this._tour = state.tour ? structuredClone(state.tour) : undefined;
     this.nodes.clear();
     this.edges.clear();
     this.annotations.clear();
@@ -1091,7 +1096,7 @@ class CanvasStateManager {
         contextPins: Array.from(this._contextPinnedNodeIds),
         ax: this.getAxState(),
       });
-      saveSnapshotToDB(this._db, snapshot, payload);
+      saveSnapshotToDB(this._db, snapshot, { ...payload, tour: this._tour });
       snapshot.nodeCount = payload.nodes.length;
       snapshot.edgeCount = payload.edges.length;
       return snapshot;
@@ -1176,6 +1181,7 @@ class CanvasStateManager {
 
     const previousState: PersistedCanvasState = this.externalizePersistedStateBlobs({
       version: 1,
+      tour: this._tour,
       theme: this._theme,
       viewport: structuredClone(this._viewport),
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
@@ -1186,6 +1192,7 @@ class CanvasStateManager {
     });
     const nextState: PersistedCanvasState = {
       version: 1,
+      tour: resolved.state.tour,
       theme: normalizeCanvasTheme(resolved.state.theme, this._theme),
       viewport: structuredClone(resolved.state.viewport),
       nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
@@ -1620,6 +1627,7 @@ class CanvasStateManager {
 
   getLayout(): CanvasLayout {
     return {
+      tour: this.getTour(),
       viewport: structuredClone(this._viewport),
       theme: this._theme,
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(this.nodeForRead(node))),
@@ -1630,12 +1638,31 @@ class CanvasStateManager {
 
   getLayoutForPersistence(): CanvasLayout {
     return {
+      tour: this.getTour(),
       viewport: structuredClone(this._viewport),
       theme: this._theme,
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(this.externalizeNodeDataBlobs(node))),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       annotations: this.getAnnotations(),
     };
+  }
+
+  getTour(): Tour | undefined {
+    return this._tour ? structuredClone(this._tour) : undefined;
+  }
+
+  setTour(tour: Tour | null): void {
+    const previous = this.getTour();
+    this._tour = tour === null ? undefined : tourSchema.parse(tour);
+    const next = this.getTour();
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'viewport',
+      description: 'Updated board tour',
+      forward: this.suppressed(() => this.setTour(next ?? null)),
+      inverse: this.suppressed(() => this.setTour(previous ?? null)),
+    });
   }
 
   applyUpdates(updates: CanvasNodeUpdate[], options: ApplyUpdatesOptions = {}): { applied: number; skipped: number } {
@@ -2246,6 +2273,8 @@ class CanvasStateManager {
   }
 
   clear(): void {
+    const oldTour = this.getTour();
+    this._tour = undefined;
     const oldNodes = Array.from(this.nodes.values()).map((n) => structuredClone(n));
     const oldEdges = Array.from(this.edges.values()).map((e) => structuredClone(e));
     const oldAnnotations = Array.from(this.annotations.values()).map((annotation) => structuredClone(annotation));
@@ -2274,6 +2303,7 @@ class CanvasStateManager {
         for (const e of oldEdges) this.addEdge(structuredClone(e));
         for (const annotation of oldAnnotations) this.addAnnotation(structuredClone(annotation));
         this.setContextPins(oldPins);
+        this.setTour(oldTour ?? null);
         this.ax.applyPersistedAx(oldAxState);
         this.setViewport(oldViewport);
         this.notifyChange('ax');

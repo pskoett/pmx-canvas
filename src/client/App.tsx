@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { Presentation } from './canvas/Presentation';
+import { presenting } from './state/presentation';
 import { AttentionHistory } from './canvas/AttentionHistory';
 import { AttentionToast } from './canvas/AttentionToast';
 import { registerCanvasArea, canvasArea } from './canvas/canvas-area';
@@ -324,7 +326,11 @@ export function App() {
   const area = canvasArea();
 
   return (
-    <div class="app-shell" data-session-active={sessionIsActive ? 'true' : 'false'}>
+    <div
+      class={`app-shell${presenting.value ? ' is-presenting' : ''}`}
+      data-session-active={sessionIsActive ? 'true' : 'false'}
+    >
+      <Presentation />
       <ToolRail
         minimapVisible={minimapVisible}
         onToggleMinimap={handleToggleMinimap}

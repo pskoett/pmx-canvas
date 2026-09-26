@@ -386,6 +386,9 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
   const counts = data.counts as Partial<SessionReceipt['counts']> | undefined;
   const snapshot = data.snapshot as SessionReceipt['snapshot'] | undefined;
   if (typeof data.label !== 'string' || typeof data.endedAt !== 'string') return;
+  // Keep history/timeline intact, but only interrupt for a changed top-level
+  // session. Quiet endings must not replace an existing useful receipt.
+  if (data.unchanged === true || typeof data.parentAgentId === 'string') return;
   sessionReceipt.value = {
     label: data.label,
     endedAt: data.endedAt,

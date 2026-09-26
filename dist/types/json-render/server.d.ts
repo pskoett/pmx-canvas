@@ -65,6 +65,8 @@ export declare const GRAPH_NODE_SIZE: {
 export type GraphChartType = 'LineChart' | 'BarChart' | 'PieChart' | 'AreaChart' | 'ScatterChart' | 'RadarChart' | 'StackedBarChart' | 'ComposedChart' | 'Sparkline' | 'DotPlot' | 'BulletChart' | 'Slopegraph';
 export declare function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback?: string): string;
 export declare function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec;
+/** shadcn 0.21 ignores these props unless the renderer supplies a two-way binding. */
+export declare function jsonRenderFormWarnings(spec: JsonRenderSpec): string[];
 export declare function normalizeGraphType(value: string): GraphChartType;
 export declare function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec;
 export declare function buildGraphConfig(input: GraphNodeInput): Record<string, unknown>;

@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { presenting } from '../state/presentation';
 import { useEffect, useState } from 'preact/hooks';
 import { IconFitAll, IconZoomIn, IconZoomOut } from '../icons';
 import {
@@ -42,8 +43,19 @@ function AgentChip() {
   // bar and over the session panel, and the total was invisible): the most
   // active few wear their own chips and the rest fold into a census chip
   // that always names the total.
-  const sessions = attachedSessions.value;
-  if (sessions.length === 0) return null;
+  const allSessions = attachedSessions.value;
+  if (allSessions.length === 0) return null;
+  // Attached workers are represented by their orchestrator's roll-up, not a
+  // second top-level chip of their own. Orphans remain visible.
+  const sessions = allSessions.filter(
+    (session) =>
+      !session.parentAgentId ||
+      !allSessions.some(
+        (candidate) =>
+          candidate.sessionId !== session.sessionId &&
+          (candidate.sessionId === session.parentAgentId || candidate.source === session.parentAgentId),
+      ),
+  );
   const ranked = [...sessions].sort((a, b) => (AGENT_PHASE_RANK[a.phase] ?? 4) - (AGENT_PHASE_RANK[b.phase] ?? 4));
   const visible = ranked.slice(0, AGENT_CHIP_LIMIT);
   const overflow = ranked.slice(AGENT_CHIP_LIMIT);
@@ -318,6 +330,20 @@ export function TopBar() {
 
       <div class="top-bar-sep" />
 
+      <BarHint
+        label="Present board"
+        body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
+      >
+        <button
+          type="button"
+          class="present-button"
+          onClick={() => {
+            presenting.value = true;
+          }}
+        >
+          Present
+        </button>
+      </BarHint>
       <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
         <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
           <IconZoomOut />

@@ -11,6 +11,7 @@
  * `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of 0.4.0 —
  * the one-shot boot migration into SQLite was retired.
  */
+import { type Tour } from '../shared/tour.js';
 import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
@@ -102,6 +103,7 @@ export interface CanvasAnnotation {
     createdAt: string;
 }
 export interface CanvasLayout {
+    tour?: Tour;
     viewport: ViewportState;
     theme: CanvasTheme;
     nodes: CanvasNodeState[];
@@ -140,6 +142,7 @@ declare class CanvasStateManager {
     private edges;
     private annotations;
     private _viewport;
+    private _tour;
     private _theme;
     private _contextPinnedNodeIds;
     private _workspaceRoot;
@@ -261,6 +264,8 @@ declare class CanvasStateManager {
     private removeEdgesForNode;
     getLayout(): CanvasLayout;
     getLayoutForPersistence(): CanvasLayout;
+    getTour(): Tour | undefined;
+    setTour(tour: Tour | null): void;
     applyUpdates(updates: CanvasNodeUpdate[], options?: ApplyUpdatesOptions): {
         applied: number;
         skipped: number;

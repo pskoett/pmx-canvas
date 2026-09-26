@@ -13,6 +13,91 @@ pmx-canvas node list --port 4750                      # target a non-default dae
 pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
 ```
 
+## Tour and presentation
+
+This is the small tour slice of the [vision's “board is the presentation”](product-vision-2026-09.md#12-tours-the-board-is-the-presentation-m):
+the existing cards remain the content, rather than being rebuilt as a separate deck.
+The same stops and camera interpolation drive interactive presentation and optional capture.
+A visual stop editor and carrying tours into static exports/share links are not implemented here.
+
+Click **Present** in the top bar, or open `/workbench?present=1` for a chrome-free
+embedded/capture view. Right/Down/Space advances, Left/Up goes back, Esc exits.
+The camera is local to the viewer; board content continues updating over SSE.
+Stops do not auto-advance. Missing targets show an error and can be skipped.
+
+Save this as `tour.json` (replace the IDs with IDs from `pmx-canvas node list`):
+
+```json
+{
+  "stops": [
+    { "target": { "nodeId": "overview-group" }, "duration": 1.5, "padding": 60 },
+    { "target": { "nodeId": "detail-note" }, "duration": 2, "easing": "ease-in-out", "pullback": 0.7 },
+    { "target": { "viewport": { "x": 80, "y": 100, "scale": 0.5 } }, "duration": 1 }
+  ]
+}
+```
+
+```bash
+pmx-canvas tour set --file tour.json
+pmx-canvas tour get
+```
+
+A stop targets either a node ID (including a group ID) or an explicit viewport.
+Viewport translation is screen-space: `screen = world * scale + offset`.
+`duration` is transition time in seconds (default 1, zero jumps); `padding` is
+screen pixels around a target (default 40). Easing is `linear`, `ease-in-out`
+(default), or `ease-out`. Zoom interpolates logarithmically about the moving
+world-space centre. `pullback` (0–4, default 0) subtracts a sinusoidal log-zoom
+offset mid-move without changing endpoints. Tours allow at most 1000 stops.
+
+Tours persist with the board and snapshots, participate in undo, and clear with
+the board. A file containing `null` resets the tour: when none is saved, groups
+are sorted by y, then x, then ID. A saved empty `stops` array deliberately has no
+stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`.
+
+### Optional capture of the same tour
+
+`record` is an optional local utility, not a second presentation model. It reads
+the saved/derived tour, or the identical tour JSON supplied with `--tour-file`.
+Start the server first. Capture launches its own Bun.WebView Chrome session;
+it does not replace a server automation session or move other viewers' cameras.
+
+```bash
+# Capture the saved/derived board tour
+pmx-canvas record --mode deterministic --present --fps 30 --resolution 1920x1080 --output tour.mp4
+
+# Try the same tour model from a file without changing the saved tour
+pmx-canvas record --mode deterministic --tour-file tour.json --present --output frames
+
+# Alternatively, sample the live presentation while agents update the board
+pmx-canvas record --duration 10 --present --theme light --output activity.mp4
+
+# Keep recording until SIGINT (Ctrl+C) or SIGTERM, then encode
+pmx-canvas record --stop-on-signal --output live.mp4
+```
+
+Options: `--mode realtime|deterministic` (default realtime), `--resolution WIDTHxHEIGHT`
+(default 1280x720), `--fps` (1–120, default 30), `--theme`, `--present`,
+`--duration SECONDS` or `--stop-on-signal` for realtime, `--tour-file FILE`
+for deterministic mode, `--chrome-path PATH`, and required `--output PATH`.
+Global `--port` / `--server-url` work here too. Existing output paths are refused.
+
+An `.mp4` output uses ffmpeg/H.264; any other path is a PNG sequence directory.
+Frames and `recording.json` are retained at `<output>.frames` even after video
+encoding. If ffmpeg is missing, the command clearly reports the PNG fallback
+and returns that directory. Encoding failures retain frames and exit nonzero.
+
+Deterministic mode resolves target geometry once and writes
+`max(1, ceil(duration × fps))` frames per stop, including each endpoint. It sets
+the camera, waits for two animation frames, checks the applied camera, then
+captures. Duplicate a target to hold it. This makes **camera timing** deterministic,
+not animated iframe content, fonts loaded later, network assets, or concurrent
+board edits. Realtime mode samples the live board; slow captures repeat frames
+to preserve wall-clock speed, with the repeated-frame count in `recording.json`.
+Capture has no audio. Chrome and a Bun runtime with WebView support are required.
+Recording is a local CLI/file operation, not a remote HTTP/MCP file-writing API;
+HTTP/MCP manage tours and retain their existing screenshot/automation surfaces.
+
 ## pump — reactive steering for CLI agents
 
 `pmx-canvas pump` turns any CLI agent (Codex, Amp, a script) into a steerable
@@ -98,6 +183,10 @@ pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work tre
 pmx-canvas node update <node-id> --width 840 --height 620
 pmx-canvas node update <node-id> --title "Renamed" --full
 ```
+
+Mermaid `node add` and `node update` accept `--fit contain|none`, stored as
+`data.fit`. Contain is the default and shrinks only overflowing diagrams;
+none keeps 100% with scrolling. [Sizing and readability](node-types.md#mermaid-nodes).
 
 `--from-search` / `--to-search` must each resolve to exactly one node — broad
 queries fail rather than guess. Use the full visible title.

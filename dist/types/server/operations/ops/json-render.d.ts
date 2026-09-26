@@ -1,3 +1,4 @@
+import { type CanvasSizeAdjustment } from '../../canvas-operations.js';
 import { type Operation } from '../types.js';
 /** Legacy server.ts parseGraphPayloadData: a graph dataset must be an array of records. */
 export declare function parseGraphPayloadData(value: unknown): Array<Record<string, unknown>> | null;
@@ -21,6 +22,7 @@ export interface StreamJsonRenderResult {
     specVersion: number;
     elementCount: number;
     streamStatus: 'open' | 'closed';
+    sizeAdjustment?: CanvasSizeAdjustment;
 }
 /**
  * Create-or-append core for streaming json-render nodes (the SDK's

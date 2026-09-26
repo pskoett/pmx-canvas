@@ -1148,10 +1148,16 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
     })
     .toEqual({ nodeIds: [batch.refs.beta.id], source: 'codex' });
 
+  // Focus marks the node active before its animation commits the viewport.
+  // Finish that history entry before creating the later undo target.
+  const focusCommitted = page.waitForResponse(
+    (response) => response.url().endsWith('/api/canvas/viewport') && response.request().method() === 'POST',
+  );
   await request.post('/api/canvas/focus', {
     data: { id: batch.refs.beta.id },
   });
   await expect(betaNode).toHaveClass(/active/);
+  expect((await focusCommitted).ok()).toBe(true);
 
   const beforeArrange = await currentCanvasState(request);
   const beforeAlpha = beforeArrange.nodes.find((node) => node.id === batch.refs.alpha.id)?.position;
@@ -1734,9 +1740,10 @@ test('json-render streaming renders partial content then reloads the completed s
   const { id } = await created.json();
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Streaming compatibility' });
-  const frame = node.frameLocator('iframe');
+  const painted = node.locator('iframe:visible');
+  const frame = painted.contentFrame();
   await expect(frame.getByText('Receiving content', { exact: true })).toBeVisible();
-  const oldSrc = await node.locator('iframe').getAttribute('src');
+  const oldSrc = await painted.getAttribute('src');
   const updated = await request.post('/api/canvas/json-render/stream', {
     data: {
       nodeId: id,
@@ -1749,7 +1756,7 @@ test('json-render streaming renders partial content then reloads the completed s
     },
   });
   expect(updated.ok(), await updated.text()).toBe(true);
-  await expect(node.locator('iframe')).not.toHaveAttribute('src', oldSrc!);
+  await expect(painted).not.toHaveAttribute('src', oldSrc!);
   await expect(frame.getByText('Completed panel', { exact: true })).toBeVisible();
   await expect(frame.getByText('Stream complete with preserved state', { exact: true })).toBeVisible();
   await node.screenshot({ path: testInfo.outputPath('json-render-stream.png') });
@@ -1894,6 +1901,151 @@ test('ax-board primitive: clicking Add task creates real AX work and the board r
 
   await request.delete(`/api/canvas/node/${nodeId}`);
   await expect(node).toHaveCount(0);
+});
+
+for (const counts of [
+  [1, 3, 6],
+  [2, 4, 5],
+] as const) {
+  for (const width of [600, 1000]) {
+    for (const theme of ['dark', 'light']) {
+      test(`live workboard fills ${width}px with equal columns in ${theme} (${counts.join('/')})`, async ({
+        page,
+        request,
+      }, testInfo) => {
+        for (const [status, count] of [
+          ['todo', counts[0]],
+          ['in-progress', counts[1]],
+          ['done', counts[2]],
+        ] as const) {
+          for (let index = 0; index < count; index++) {
+            const response = await request.post('/api/canvas/ax/work', {
+              data: {
+                title: index === 0 ? 'Roll back validator for 10% of mobile' : `Task ${index + 1}: verify release`,
+                status,
+                agentId: 'reviewer',
+              },
+            });
+            expect(response.ok()).toBe(true);
+          }
+        }
+        const created = await request.post('/api/canvas/workboard', { data: { x: 100, y: 80 } });
+        expect(created.ok()).toBe(true);
+        const { id } = (await created.json()) as { id: string };
+        await request.patch(`/api/canvas/node/${id}`, { data: { size: { width, height: 1200 } } });
+        await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+        await page.setViewportSize({ width: 1280, height: 1500 });
+        await page.goto(`/workbench?theme=${theme}`);
+        const node = page.locator('.canvas-node').filter({ hasText: 'Work Board' });
+        const frame = node.frameLocator('iframe');
+        await expect(frame.getByText(`Done (${counts[2]})`, { exact: true })).toBeVisible();
+        const grid = frame.locator('.grid').filter({ has: frame.getByText(`To Do (${counts[0]})`, { exact: true }) });
+        await expect(grid).toHaveCount(1);
+        const geometry = await grid.evaluate((element) => ({
+          width: element.getBoundingClientRect().width,
+          columns: Array.from(element.children, (column) => ({
+            width: column.getBoundingClientRect().width,
+            cards: Array.from(
+              column.querySelectorAll('[data-slot="card"]'),
+              (card) => card.getBoundingClientRect().width,
+            ),
+          })),
+        }));
+        expect(geometry.width).toBeGreaterThan(width - 80);
+        expect(geometry.columns).toHaveLength(3);
+        expect(geometry.columns.map((column) => column.cards.length)).toEqual(counts);
+        for (const column of geometry.columns) {
+          expect(Math.abs(column.width - (geometry.width - 24) / 3)).toBeLessThan(1);
+          for (const cardWidth of column.cards) expect(Math.abs(cardWidth - column.width)).toBeLessThan(1);
+        }
+        await node.screenshot({ path: testInfo.outputPath(`workboard-${width}-${theme}.png`) });
+      });
+    }
+  }
+}
+
+test.describe('viewer refresh continuity', () => {
+  for (const type of ['html', 'json-render'] as const) {
+    for (const theme of ['dark', 'light']) {
+      test(`${type} retains painted content through repeated updates in ${theme}`, async ({
+        browser,
+        request,
+      }, testInfo) => {
+        const context = await browser.newContext({
+          baseURL: `http://127.0.0.1:${playwrightPort}`,
+          viewport: { width: 1280, height: 720 },
+          recordVideo: { dir: testInfo.outputPath('recording'), size: { width: 1280, height: 720 } },
+        });
+        const page = await context.newPage();
+        const content = (version: number) =>
+          type === 'html'
+            ? {
+                html: `<html><body style="margin:0;background:${theme === 'dark' ? '#172033' : '#e0e8f0'};color:${theme === 'dark' ? 'white' : '#172033'};height:100vh;padding:32px;box-sizing:border-box"><h1>Revision ${version}</h1><p>Persistent viewer content</p></body></html>`,
+              }
+            : {
+                spec: {
+                  root: 'card',
+                  elements: {
+                    card: { type: 'Card', props: { title: `Revision ${version}` }, children: ['text'] },
+                    text: { type: 'Text', props: { text: 'Persistent viewer content' }, children: [] },
+                  },
+                },
+              };
+        const created = await request.post(type === 'html' ? '/api/canvas/node' : '/api/canvas/json-render', {
+          data: {
+            type,
+            title: 'Refresh continuity',
+            x: 80,
+            y: 80,
+            width: 640,
+            height: 400,
+            nodeHeight: 400,
+            strictSize: true,
+            ...content(1),
+          },
+        });
+        expect(created.ok()).toBe(true);
+        const { id } = (await created.json()) as { id: string };
+        await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+        await page.goto(`/workbench?theme=${theme}`);
+        const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+        const visible = () => node.locator('iframe:visible').contentFrame();
+        await expect(visible().getByText('Revision 1', { exact: true })).toBeVisible();
+        // Hold each replacement response so a screenshot and DOM assertion
+        // exercise the navigation window, not just the final loaded frame.
+        for (let version = 2; version <= 6; version++) {
+          let release!: () => void;
+          const gate = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          let intercepted!: () => void;
+          const requested = new Promise<void>((resolve) => {
+            intercepted = resolve;
+          });
+          const pattern = type === 'html' ? `**/api/canvas/surface/${id}?**` : '**/api/canvas/json-render/view?**';
+          await page.route(pattern, async (route) => {
+            intercepted();
+            await gate;
+            await route.continue();
+          });
+          try {
+            expect((await request.patch(`/api/canvas/node/${id}`, { data: content(version) })).ok()).toBe(true);
+            await requested;
+            await expect(node.locator('iframe')).toHaveCount(2);
+            await expect(visible().getByText(`Revision ${version - 1}`, { exact: true })).toBeVisible();
+            await node.screenshot({ path: testInfo.outputPath(`revision-${version}-loading.png`) });
+          } finally {
+            release();
+          }
+          await expect(visible().getByText(`Revision ${version}`, { exact: true })).toBeVisible();
+          await expect(node.locator('iframe')).toHaveCount(1);
+          await node.screenshot({ path: testInfo.outputPath(`revision-${version}-painted.png`) });
+          await page.unroute(pattern);
+        }
+        await context.close();
+      });
+    }
+  }
 });
 
 test('ax-board primitive: a bounded loop advances on done, stops on Stop, and never double-advances', async ({
@@ -2622,8 +2774,7 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
   // The whole gutter is a target — a click on the row LEFT of the text (not on
   // the 15px input itself) toggles too, for imprecise surfaces.
   const row3 = card.locator('.node-body li').nth(2);
-  const rowBox = (await row3.boundingBox())!;
-  await page.mouse.click(rowBox.x + 2, rowBox.y + 10);
+  await row3.click({ position: { x: 2, y: 10 } });
   await expect
     .poll(async () => {
       const state = (await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string };
@@ -4221,6 +4372,28 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
   expect(goIdle.ok()).toBe(true);
   await expect(cursor).toBeHidden();
   await expect(cursor).toHaveCount(1);
+  await request.post('/api/canvas/ax/presence', {
+    data: { source: 'copilot', cursor: { x: 500, y: 320 } },
+  });
+  await expect(cursor).toHaveClass(/phase-idle.*has-explicit-cursor/);
+  await expect(cursor).toBeVisible();
+  await request.post('/api/canvas/ax/presence', {
+    data: {
+      source: 'api',
+      agentId: 'worker',
+      label: 'Review worker',
+      parentAgentId: 'copilot',
+      attached: true,
+      phase: 'idle',
+      cursor: { x: 600, y: 340 },
+    },
+  });
+  await expect(page.locator('.agent-chip')).toHaveCount(1);
+  await expect(page.locator('.agent-chip-workers')).toHaveText('+1 worker');
+  await expect(page.locator('.agent-cursor.is-worker')).toBeVisible();
+  await page.screenshot({ path: 'test-results/presence-worker-rollup.png' });
+  await request.post('/api/canvas/ax/presence', { data: { source: 'api', agentId: 'worker', attached: false } });
+  await expect(page.locator('.agent-cursor.is-worker')).toHaveCount(0);
   const wake = await request.post('/api/canvas/ax/presence', { data: { source: 'copilot', phase: 'thinking' } });
   expect(wake.ok()).toBe(true);
   await expect(cursor).toBeVisible();

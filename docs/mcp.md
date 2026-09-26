@@ -13,6 +13,15 @@ nodes in the browser, agents are notified immediately.
 > snapshot standalones — each step per [`api-stability.md`](api-stability.md)'s
 > deprecate-one-minor-before-removal rule. **Prefer the composites.**
 
+## Board tours
+
+`canvas_view { action: "get-tour" }` returns `{ tour, derived }`, using group
+reading order when there is no saved tour. `canvas_view { action: "set-tour",
+tour: { stops: [...] } }` persists an ordered tour; `tour: null` resets it.
+See the [tour model and CLI walkthrough](cli.md#tour-and-presentation) for stop
+fields. Recording is a local CLI operation; no remote recording/file-writing
+tool is added.
+
 ## Connect
 
 Add to your agent's MCP config:
@@ -42,7 +51,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_edge` | `add` · `update` · `remove` | `canvas_add_edge`, `canvas_update_edge`, `canvas_remove_edge` |
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
-| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
 | `canvas_query` | `search` · `layout` · `validate` | `canvas_search`, `canvas_get_layout`, `canvas_validate` |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_resize`, `canvas_evaluate` |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_build_web_artifact` |
@@ -53,6 +62,11 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
+
+For Mermaid nodes, `canvas_node` actions `add` and `update` accept
+`data: { fit: "contain" | "none" }`. Contain is the default, shrinking overflow
+uniformly; none keeps 100% with scrolling. Use Open as site for 100% without
+changing the node setting. [Sizing and readability](node-types.md#mermaid-nodes).
 
 ### `canvas_intent` — Ghost Cursor of Intent
 
@@ -91,6 +105,16 @@ fixing `node.update`'s `formatResult` to surface a FAILED refresh as `isError` +
 `{ ok:false, error }` instead of masking it as a false `{ ok:true }`.) The snapshot
 fold completed in v0.4.0: `canvas_snapshot { action: "save" | "list" | "restore" |
 "delete" | "gc" | "diff" }` replaced the 6 deprecated snapshot standalones.
+
+### Viewport coordinates
+
+`canvas_view { action: "focus" | "fit" }` controls the camera without counting
+as a writer operation or refreshing agent presence. Viewport translation uses
+screen-space canvas-area coordinates (`screen = world * scale + viewport`). Fit
+dimensions and padding likewise refer to the canvas area after excluding the
+tool rail, top bar, and surrounding page chrome—not the full browser window.
+Use `canvas_ax_state { action: "set-presence", cursor, focusNodeId }` when the
+agent intends to publish its own cursor or attention target.
 
 ## Standalone tools
 

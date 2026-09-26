@@ -36,6 +36,7 @@ import {
   createCanvasGraphNode,
   createCanvasJsonRenderNode,
   createCanvasStreamingJsonRenderNode,
+  type CanvasSizeAdjustment,
 } from '../../canvas-operations.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from '../../canvas-schema.js';
 import { isHtmlPrimitiveKind } from '../../html-primitives.js';
@@ -84,9 +85,13 @@ function structuredNodeToolResult(result: unknown): { content: Array<{ type: 'te
   const body = isRecord(result) ? result : {};
   const node = body.node as CanvasNodeState | undefined;
   const payload = {
-    ...(node ? createdNodePayloadFromNode(node) : { ok: true }),
+    ...(node
+      ? createdNodePayloadFromNode(node, {}, body.sizeAdjustment ? { sizeAdjustment: body.sizeAdjustment } : {})
+      : { ok: true }),
     url: body.url,
     spec: body.spec,
+    ...(Array.isArray(body.warnings) ? { warnings: body.warnings } : {}),
+    ...(body.warning ? { warning: body.warning } : {}),
   };
   return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
 }
@@ -168,7 +173,13 @@ const jsonRenderAddOperation = defineOperation<
       throw new OperationError(error instanceof Error ? error.message : String(error));
     }
   },
-  serialize: (result) => ({ ...buildNodeResponse(result.node), url: result.url, spec: result.spec }),
+  serialize: (result) => ({
+    ...buildNodeResponse(result.node),
+    url: result.url,
+    spec: result.spec,
+    warnings: result.warnings,
+    ...(result.sizeAdjustment ? { sizeAdjustment: result.sizeAdjustment } : {}),
+  }),
 });
 
 // ── jsonrender.stream ─────────────────────────────────────────
@@ -194,6 +205,7 @@ export interface StreamJsonRenderResult {
   specVersion: number;
   elementCount: number;
   streamStatus: 'open' | 'closed';
+  sizeAdjustment?: CanvasSizeAdjustment;
 }
 
 /**
@@ -206,6 +218,7 @@ export function streamJsonRenderCore(input: StreamJsonRenderInput): StreamJsonRe
   const done = input.done === true;
   let nodeId = typeof input.nodeId === 'string' && input.nodeId ? input.nodeId : undefined;
   let url = '';
+  let sizeAdjustment: CanvasSizeAdjustment | undefined;
   if (!nodeId) {
     const created = createCanvasStreamingJsonRenderNode({
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
@@ -217,11 +230,17 @@ export function streamJsonRenderCore(input: StreamJsonRenderInput): StreamJsonRe
     });
     nodeId = created.id;
     url = created.url;
+    sizeAdjustment = created.sizeAdjustment;
   }
   const result = appendCanvasJsonRenderStream(nodeId, patches, done);
   if (!result.ok) throw new OperationError(result.error);
   const node = canvasState.getNode(nodeId);
-  return { id: nodeId, url: url || String(node?.data.url ?? ''), ...result };
+  return {
+    id: nodeId,
+    url: url || String(node?.data.url ?? ''),
+    ...result,
+    ...(sizeAdjustment ? { sizeAdjustment } : {}),
+  };
 }
 
 const jsonRenderStreamShape = {
@@ -303,6 +322,7 @@ const jsonRenderStreamOperation = defineOperation<z.infer<typeof jsonRenderStrea
         specVersion: body.specVersion,
         elementCount: body.elementCount,
         streamStatus: body.streamStatus,
+        ...(body.sizeAdjustment ? { sizeAdjustment: body.sizeAdjustment } : {}),
       };
       return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
     },
@@ -558,7 +578,7 @@ const graphAddOperation = defineOperation<z.infer<typeof graphAddSchema>, Return
           ? body.highlight
           : undefined;
       const sort = body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
-      return createCanvasGraphNode({
+      const created = createCanvasGraphNode({
         title,
         graphType,
         data,
@@ -600,12 +620,24 @@ const graphAddOperation = defineOperation<z.infer<typeof graphAddSchema>, Return
         ...(width !== undefined ? { width } : {}),
         ...(nodeHeight !== undefined ? { heightPx: nodeHeight } : {}),
       });
+      return {
+        ...created,
+        ...(typeof body.height === 'number' && nodeHeight === undefined
+          ? { warning: '`height` controls graph plot height; use `nodeHeight` to set the node frame height.' }
+          : {}),
+      };
     } catch (error) {
       if (error instanceof OperationError) throw error;
       throw new OperationError(error instanceof Error ? error.message : String(error));
     }
   },
-  serialize: (result) => ({ ...buildNodeResponse(result.node), url: result.url, spec: result.spec }),
+  serialize: (result) => ({
+    ...buildNodeResponse(result.node),
+    url: result.url,
+    spec: result.spec,
+    ...(result.sizeAdjustment ? { sizeAdjustment: result.sizeAdjustment } : {}),
+    ...('warning' in result ? { warning: result.warning } : {}),
+  }),
 });
 
 // ── schema.describe ───────────────────────────────────────────

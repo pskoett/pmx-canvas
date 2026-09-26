@@ -71,12 +71,29 @@ describe('phase overlay + identity (joint-gaps presence fixes)', () => {
     expect(registry.snapshot(T0 + 60_000).presences[0]?.phase).toBe('thinking');
     // 3+ minutes of silence → the chip stops claiming work is happening.
     expect(registry.snapshot(T0 + 3 * 60_000 + 5_000).presences[0]?.phase).toBe('idle');
-    // A fresh touch keeps a genuinely-working agent thinking.
+    // A fresh explicit phase report keeps a genuinely-working agent thinking.
     registry.touch({ source: 'copilot', attached: true, phase: 'thinking' }, T0);
-    registry.touch({ source: 'copilot', op: true }, T0 + 2 * 60_000);
+    registry.touch({ source: 'copilot', phase: 'thinking' }, T0 + 2 * 60_000);
     expect(registry.snapshot(T0 + 3 * 60_000 + 5_000).presences.find((p) => p.sessionId === 'copilot')?.phase).toBe(
       'thinking',
     );
+  });
+
+  test('cursor-only heartbeats keep the writer live without keeping an explicit phase alive', () => {
+    registry.touch({ source: 'codex', attached: true, phase: 'thinking', cursor: { x: 1, y: 1 } }, T0);
+    registry.touch({ source: 'codex', cursor: { x: 2, y: 2 } }, T0 + 2 * 60_000);
+    registry.touch({ source: 'codex', cursor: { x: 3, y: 3 } }, T0 + 3 * 60_000 + 1);
+    expect(registry.snapshot(T0 + 3 * 60_000 + 2).presences[0]).toMatchObject({
+      phase: 'idle',
+      cursor: { x: 3, y: 3 },
+      attached: true,
+    });
+
+    registry.touch({ source: 'copilot', attached: true, phase: 'tooling', cursor: { x: 4, y: 4 } }, T0);
+    registry.touch({ source: 'copilot', cursor: { x: 5, y: 5 } }, T0 + PRESENCE_TOOLING_SETTLE_MS + 1);
+    expect(
+      registry.snapshot(T0 + PRESENCE_TOOLING_SETTLE_MS + 2).presences.find((p) => p.sessionId === 'copilot'),
+    ).toMatchObject({ phase: 'idle', cursor: { x: 5, y: 5 }, attached: true });
   });
 
   test('an attached writer with no focus parks at the last node its activity touched', () => {
@@ -90,11 +107,11 @@ describe('phase overlay + identity (joint-gaps presence fixes)', () => {
 });
 
 describe('worker presence footguns (orchestration review)', () => {
-  test('attached:false on a never-attached worker keeps its presence (no silent deletion)', () => {
+  test('attached:false removes a never-attached worker instead of refreshing its external presence', () => {
     registry.touch({ source: 'mcp', agentId: 'luna-sync-a', op: true }, T0);
     registry.touch({ source: 'mcp', agentId: 'luna-sync-a', attached: false }, T0 + 5);
     const snap = registry.snapshot(T0 + 10);
-    expect(snap.presences.some((p) => p.sessionId === 'luna-sync-a')).toBe(true);
+    expect(snap.presences.some((p) => p.sessionId === 'luna-sync-a')).toBe(false);
   });
 });
 

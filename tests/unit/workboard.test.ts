@@ -41,7 +41,8 @@ describe('buildWorkboardSpec', () => {
     ]);
     expect(() => normalizeAndValidateJsonRenderSpec(spec)).not.toThrow();
     const board = elementRecord(spec, spec.root);
-    expect(board.type).toBe('Stack');
+    expect(board.type).toBe('Grid');
+    expect(board.props).toEqual({ columns: 1, gap: 'md' });
     expect(board.children).toEqual(['col-todo']);
     expect(spec.elements['col-in-progress']).toBeUndefined();
     expect(spec.elements['col-done']).toBeUndefined();
@@ -60,6 +61,11 @@ describe('buildWorkboardSpec', () => {
     expect(() => normalizeAndValidateJsonRenderSpec(spec)).not.toThrow();
     const board = elementRecord(spec, spec.root);
     expect(board.children).toEqual(['col-todo', 'col-in-progress', 'col-done']);
+    expect(board.type).toBe('Grid');
+    expect(board.props).toEqual({ columns: 3, gap: 'md' });
+    for (const id of ['col-todo', 'col-in-progress', 'col-done']) {
+      expect(elementRecord(spec, id).props).toEqual({ direction: 'vertical', gap: 'sm', align: 'stretch' });
+    }
     expect(spec.elements['col-blocked']).toBeUndefined();
     expect(spec.elements['col-cancelled']).toBeUndefined();
   });

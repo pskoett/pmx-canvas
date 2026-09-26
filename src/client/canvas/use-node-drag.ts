@@ -7,6 +7,7 @@ interface NodeDragOptions {
   viewport: Signal<ViewportState>;
   onMove: (id: string, x: number, y: number) => void;
   onDragEnd: () => void;
+  onClick?: () => void;
 }
 
 /**
@@ -14,7 +15,7 @@ interface NodeDragOptions {
  * Converts screen-space pointer delta to canvas-space position delta
  * (accounting for current viewport scale).
  */
-export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOptions) {
+export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd, onClick }: NodeDragOptions) {
   const isDragging = useRef(false);
   const startPointer = useRef({ x: 0, y: 0 });
   const startPosition = useRef({ x: 0, y: 0 });
@@ -30,6 +31,7 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOpt
       startPosition.current = { x: currentX, y: currentY };
       let pendingPointer: { x: number; y: number } | null = null;
       let frameId: number | null = null;
+      let moved = false;
 
       const flushMove = () => {
         frameId = null;
@@ -44,12 +46,14 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOpt
 
       const onPointerMove = (ev: PointerEvent) => {
         if (!isDragging.current) return;
+        if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
+        moved = true;
         pendingPointer = { x: ev.clientX, y: ev.clientY };
         if (frameId !== null) return;
         frameId = window.requestAnimationFrame(flushMove);
       };
 
-      const finishDrag = () => {
+      const finishDrag = (ev: PointerEvent) => {
         if (frameId !== null) {
           window.cancelAnimationFrame(frameId);
           flushMove();
@@ -60,13 +64,14 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOpt
         document.removeEventListener('pointerup', finishDrag);
         document.removeEventListener('pointercancel', finishDrag);
         onDragEnd();
+        if (!moved && ev.type === 'pointerup') onClick?.();
       };
 
       document.addEventListener('pointermove', onPointerMove);
       document.addEventListener('pointerup', finishDrag);
       document.addEventListener('pointercancel', finishDrag);
     },
-    [nodeId, viewport, onMove, onDragEnd],
+    [nodeId, viewport, onMove, onDragEnd, onClick],
   );
 
   return handlePointerDown;

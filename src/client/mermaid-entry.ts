@@ -29,6 +29,41 @@ function showError(container: HTMLElement, message: string): void {
 
 let renderSeq = 0;
 
+function fitDiagram(container: HTMLElement): void {
+  const svg = container.querySelector('svg');
+  const box = svg?.viewBox.baseVal;
+  if (!svg || !box?.width || !box.height) return;
+  const source = document.querySelector<HTMLElement>('.mermaid-source');
+  // Only canvas frames carry a nonce. A standalone site may itself be inside
+  // a host browser pane's iframe; it must still offer natural-size viewing.
+  const token = source?.dataset.frameToken;
+  const embedded = !!token && window.parent !== window;
+  const contain = embedded && source?.dataset.fit !== 'none';
+  const width = document.documentElement.clientWidth;
+  const height = document.documentElement.clientHeight;
+  const scale = contain ? Math.min(1, width / box.width, height / box.height) : 1;
+  svg.style.maxWidth = 'none';
+  svg.style.width = `${box.width * scale}px`;
+  svg.style.height = `${box.height * scale}px`;
+  svg.style.display = 'block';
+  svg.style.margin = contain ? '0 auto' : '0';
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  // Report the unconstrained, width-fitted height, not the visually contained
+  // height. Auto-grow remains useful; strictSize/userResized keep their frame.
+  if (embedded && token) {
+    window.parent.postMessage(
+      {
+        source: 'pmx-canvas-frame',
+        type: 'content-height',
+        token,
+        height: box.height * (contain ? Math.min(1, width / box.width) : 1),
+      },
+      '*',
+    );
+  }
+}
+
 async function renderDiagram(source: string, container: HTMLElement): Promise<void> {
   const scheme = documentScheme();
   mermaid.initialize({
@@ -40,6 +75,7 @@ async function renderDiagram(source: string, container: HTMLElement): Promise<vo
   try {
     const { svg } = await mermaid.render(`pmx-mermaid-${renderSeq}`, source);
     container.innerHTML = svg;
+    fitDiagram(container);
   } catch (error) {
     // Never leave a blank/black frame: show the parse/render error instead.
     showError(container, error instanceof Error ? error.message : String(error));
@@ -51,7 +87,10 @@ function boot(): void {
   const source = sourceEl?.textContent ?? '';
   const container = document.createElement('div');
   container.className = 'mermaid-diagram';
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
   document.body.appendChild(container);
+  window.addEventListener('resize', () => fitDiagram(container));
   if (!source.trim()) {
     showError(container, 'Empty mermaid diagram');
     return;

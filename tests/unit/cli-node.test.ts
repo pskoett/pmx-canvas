@@ -67,6 +67,28 @@ describe('agent CLI node commands', () => {
     mutationHistory.reset();
   });
 
+  test('Mermaid --fit survives CLI creation and update and reaches the HTTP surface', async () => {
+    const log = mock((..._args: unknown[]) => {});
+    const originalLog = console.log;
+    console.log = log;
+    try {
+      await runAgentCli(['node', 'add', '--type', 'mermaid', '--content', 'graph TD; A-->B;', '--fit', 'none']);
+      const created = JSON.parse(log.mock.calls[0]?.[0] as string) as { id: string };
+      const surface = await fetch(`${baseUrl}/api/canvas/surface/${created.id}`);
+      expect(await surface.text()).toContain('data-fit="none"');
+      await runAgentCli(['node', 'update', created.id, '--fit', 'contain']);
+      expect(canvasState.getNode(created.id)?.data.fit).toBe('contain');
+      expect(canvasState.getNode(created.id)?.data.content).toBe('graph TD; A-->B;');
+      const updated = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?frameToken=test-frame`);
+      const html = await updated.text();
+      expect(html).toContain('data-fit="contain"');
+      expect(html).toContain('data-frame-token="test-frame"');
+      expect(html).not.toContain('data-pmx-canvas-content-height');
+    } finally {
+      console.log = originalLog;
+    }
+  });
+
   test('node update merges partial geometry flags with existing node state', async () => {
     const created = await jsonRequest<{
       ok: boolean;

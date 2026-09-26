@@ -32,6 +32,7 @@
  */
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
+import { describeCreateSize, type CanvasSizeAdjustment } from '../../canvas-operations.js';
 import {
   closeMcpAppSession,
   openMcpApp as openExternalMcpApp,
@@ -75,6 +76,7 @@ export interface OpenMcpAppCoreResult {
   toolCallId: string;
   sessionId: string;
   resourceUri: string;
+  sizeAdjustment?: CanvasSizeAdjustment;
 }
 
 /**
@@ -121,6 +123,7 @@ export async function openMcpAppCore(input: OpenMcpAppCoreInput, ctx: OperationC
   const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
     ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
     : opened.toolResult;
+  const existingNodeIds = new Set(canvasState.getLayout().nodes.map((node) => node.id));
   ctx.emit('ext-app-open', {
     toolCallId,
     nodeId: nodeIdSeed,
@@ -158,6 +161,11 @@ export async function openMcpAppCore(input: OpenMcpAppCoreInput, ctx: OperationC
       getNode: (id) => canvasState.getNode(id),
       listNodes: () => canvasState.getLayout().nodes,
     });
+  const node = nodeId ? canvasState.getNode(nodeId) : undefined;
+  const sizeAdjustment =
+    node && !existingNodeIds.has(node.id)
+      ? describeCreateSize(input.width, input.height, node.size.width, node.size.height, node.size)
+      : undefined;
   return {
     ok: true,
     ...(nodeId ? { id: nodeId } : {}),
@@ -165,6 +173,7 @@ export async function openMcpAppCore(input: OpenMcpAppCoreInput, ctx: OperationC
     toolCallId,
     sessionId: opened.sessionId,
     resourceUri: opened.resourceUri,
+    ...(sizeAdjustment ? { sizeAdjustment } : {}),
   };
 }
 
@@ -388,6 +397,7 @@ function webArtifactEnvelope(result: WebArtifactCanvasBuildResult, includeLogs: 
     ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
     nodeId: result.nodeId,
     url: result.url,
+    ...(result.sizeAdjustment ? { sizeAdjustment: result.sizeAdjustment } : {}),
     metadata: result.metadata,
     logs: result.logs,
     ...(includeLogs ? { stdout: result.stdout, stderr: result.stderr } : {}),

@@ -31,7 +31,7 @@
  *    ids — the committed fixture then diffs cleanly between regenerations.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { listHtmlPrimitiveDescriptors } from '../src/server/html-primitives.js';
@@ -473,17 +473,12 @@ async function bandFiles(): Promise<void> {
   await node('file-csv', {
     type: 'file',
     title: 'weekly-throughput.csv',
-    content: CSV_FILE_CONTENT,
+    content: 'weekly-throughput.csv',
     x: cx(1296),
     y: top,
     width: 520,
     height: 420,
   });
-  // Delimited-table rendering keys off the file NAME, and the node was created
-  // inline (title + multi-line content) so nothing is ever read from disk. The
-  // path is a synthetic absolute path: it never exists, so no watcher is
-  // registered and the cached `fileContent` is what renders.
-  await patch('file-csv', { data: { path: '/workspace/reports/weekly-throughput.csv' } });
 
   await node('image', {
     type: 'image',
@@ -1996,7 +1991,12 @@ async function exportFixture(outputPath: string, workspace: string): Promise<{ n
     contextPins: pins,
     ax,
   };
-  const serialized = `${JSON.stringify(fixture, null, 2)}\n`;
+  // Rewrite the CSV path everywhere, including provenance and AX references.
+  // The file itself was read through the real API; its cached bytes stay intact.
+  const serialized = `${JSON.stringify(fixture, null, 2)}\n`.replaceAll(
+    join(workspace, 'weekly-throughput.csv'),
+    '/workspace/reports/weekly-throughput.csv',
+  );
   // The board has to be reproducible on any machine: nothing may capture the
   // generator's throwaway workspace (or a leftover server id).
   if (serialized.includes(workspace)) {
@@ -2028,6 +2028,8 @@ async function waitForServer(timeoutMs = 30_000): Promise<void> {
 async function main(): Promise<void> {
   const repoRoot = new URL('..', import.meta.url).pathname;
   const workspace = mkdtempSync(join(tmpdir(), 'pmx-demo-gen-'));
+  writeFileSync(join(workspace, 'weekly-throughput.csv'), CSV_FILE_CONTENT);
+  utimesSync(join(workspace, 'weekly-throughput.csv'), new Date(FIXTURE_TIMESTAMP), new Date(FIXTURE_TIMESTAMP));
   const server = Bun.spawn(['bun', 'run', join(repoRoot, 'src/cli/index.ts'), '--no-open', `--port=${PORT}`], {
     cwd: workspace,
     env: {

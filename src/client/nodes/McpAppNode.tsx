@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from 'preact/hooks';
+import type { RefObject } from 'preact';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { canvasThemeScheme } from '../../shared/themes.js';
 import type { CanvasNodeState } from '../types';
@@ -52,6 +53,106 @@ export function isSameOriginFrameDocumentUrl(url: string, origin = window.locati
   } catch {
     return false;
   }
+}
+
+type ViewerFrameSource = { src?: string; srcdoc?: string };
+
+/**
+ * Keep the last painted viewer in front while its replacement navigates. Viewer
+ * specs are immutable documents, so updates normally change `?v=` and reload the
+ * iframe; putting the new document in a hidden sibling avoids exposing Chromium's
+ * white navigation paint. Two animation frames after load gives the new document
+ * a composited paint before the old one is removed.
+ */
+export function RefreshingViewerFrame({
+  source,
+  iframeRef,
+  onLoad,
+  title,
+  className = 'mcp-app-frame',
+  sandbox = 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox',
+  allow = 'clipboard-read; clipboard-write',
+  tabIndex,
+}: {
+  source: ViewerFrameSource;
+  iframeRef: RefObject<HTMLIFrameElement>;
+  onLoad: () => void;
+  title: string;
+  className?: string;
+  sandbox?: string;
+  allow?: string;
+  tabIndex?: number;
+}) {
+  const sourceKey = source.src ?? source.srcdoc ?? '';
+  const [painted, setPainted] = useState({ key: sourceKey, source });
+  const [pending, setPending] = useState<{ key: string; source: ViewerFrameSource } | null>(null);
+  const promotionRef = useRef(0);
+
+  useEffect(() => {
+    promotionRef.current += 1;
+    if (!sourceKey || sourceKey === painted.key) {
+      setPending(null);
+      return;
+    }
+    if (!painted.key) {
+      setPainted({ key: sourceKey, source });
+      return;
+    }
+    setPending({ key: sourceKey, source });
+  }, [sourceKey, painted.key]);
+
+  useEffect(
+    () => () => {
+      promotionRef.current += 1;
+    },
+    [],
+  );
+
+  const frame = (entry: { key: string; source: ViewerFrameSource }, isPending: boolean) => (
+    <iframe
+      key={entry.key}
+      ref={isPending ? undefined : iframeRef}
+      {...entry.source}
+      class={className}
+      sandbox={sandbox}
+      allow={allow}
+      tabIndex={tabIndex}
+      loading={iframeMode.value === 'srcdoc' ? undefined : 'lazy'}
+      onLoad={(event) => {
+        if (!isPending) {
+          onLoad();
+          return;
+        }
+        const token = ++promotionRef.current;
+        const loadedFrame = event.currentTarget;
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            if (promotionRef.current !== token) return;
+            iframeRef.current = loadedFrame;
+            setPainted(entry);
+            setPending(null);
+            onLoad();
+          }),
+        );
+      }}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        visibility: isPending ? 'hidden' : 'visible',
+        background: 'var(--c-panel-soft)',
+      }}
+      title={title}
+    />
+  );
+
+  return (
+    <div class="mcp-app-frame-stack">
+      {frame(painted, false)}
+      {pending && frame(pending, true)}
+    </div>
+  );
 }
 
 export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
@@ -180,19 +281,10 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
       {/* Plain iframe-backed viewers stay on an opaque origin. Hosted ext-apps use
           the explicit postMessage bridge instead, which is the only path that needs
           app/host RPC and broader capabilities. */}
-      <iframe
-        ref={iframeRef}
-        {...surfaceFrame}
-        class="mcp-app-frame"
-        sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-        allow="clipboard-read; clipboard-write"
-        // Lazy loading only helps src mode (defers the HTTP request for
-        // off-screen nodes). In srcdoc mode the content is already inline —
-        // lazy would just delay PAINTING until the node scrolls near the
-        // viewport, which reads as "blank until opened" (Amp portal report).
-        loading={iframeMode.value === 'srcdoc' ? undefined : 'lazy'}
+      <RefreshingViewerFrame
+        source={surfaceFrame}
+        iframeRef={iframeRef}
         onLoad={pushAxState}
-        style={{ flex: 1, minHeight: 0, width: '100%' }}
         title={`MCP App: ${sourceServer}`}
       />
     </div>

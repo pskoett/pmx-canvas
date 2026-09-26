@@ -6,6 +6,7 @@
  */
 
 import { Database } from 'bun:sqlite';
+import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -260,6 +261,7 @@ function parsePersistedAxState(raw: string | null | undefined): PmxAxState {
 // ── Persisted State Interface ───────────────────────────────────
 
 export interface PersistedCanvasState {
+  tour?: Tour;
   version: number;
   theme?: CanvasTheme;
   viewport: ViewportState;
@@ -268,6 +270,11 @@ export interface PersistedCanvasState {
   annotations?: CanvasAnnotation[];
   contextPins: string[];
   ax?: PmxAxState;
+}
+
+function readTour(raw: string | undefined): Tour | undefined {
+  if (!raw || raw === 'null') return undefined;
+  return tourSchema.parse(JSON.parse(raw));
 }
 
 // ── Database Management ─────────────────────────────────────────
@@ -394,6 +401,7 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
        WHERE value IS NOT excluded.value`,
     );
     upsertMeta.run('theme', normalizeCanvasTheme(state.theme));
+    upsertMeta.run('tour', JSON.stringify(state.tour ?? null));
     upsertMeta.run('viewport_x', String(state.viewport.x));
     upsertMeta.run('viewport_y', String(state.viewport.y));
     upsertMeta.run('viewport_scale', String(state.viewport.scale));
@@ -610,6 +618,7 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
   return {
     version: 1,
     theme,
+    tour: readTour(db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('tour')?.value),
     viewport,
     nodes,
     edges,
@@ -632,6 +641,11 @@ export function saveSnapshotToDB(db: Database, snapshot: CanvasSnapshot, state: 
       state.edges.length,
     ]);
 
+    db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [
+      snapshot.id,
+      'tour',
+      JSON.stringify(state.tour ?? null),
+    ]);
     // Insert snapshot viewport meta
     db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [
       snapshot.id,
@@ -859,6 +873,7 @@ export function loadSnapshotFromDB(
     snapshot,
     state: {
       version: 1,
+      tour: readTour(metaMap.get('tour')),
       viewport,
       nodes,
       edges,

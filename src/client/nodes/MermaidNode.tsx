@@ -21,7 +21,8 @@ export function MermaidNode({ node, expanded = false }: { node: CanvasNodeState;
   // Per-mount nonce for the content-height reporter (node grows to fit content).
   const frameToken = useMemo(() => `frame-${crypto.randomUUID()}`, []);
   const source = typeof node.data.content === 'string' ? node.data.content : '';
-  const v = useMemo(() => surfaceContentHash(source), [source]);
+  const fit = node.data.fit === 'none' ? 'none' : 'contain';
+  const v = useMemo(() => surfaceContentHash(`${fit}:${source}`), [source, fit]);
 
   // `theme` is intentionally excluded from the deps: live theme changes are
   // pushed via postMessage below (no reload), while `v` reloads the frame when
@@ -70,7 +71,7 @@ export function MermaidNode({ node, expanded = false }: { node: CanvasNodeState;
       style={{
         width: '100%',
         height: '100%',
-        minHeight: expanded ? '70vh' : '300px',
+        minHeight: expanded ? '70vh' : '0',
         border: 'none',
         background: 'var(--c-bg)',
         borderRadius: '6px',

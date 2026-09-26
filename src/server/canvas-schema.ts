@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describeJsonRenderCatalog, type JsonRenderComponentDescriptor } from '../json-render/catalog.js';
 import {
   buildGraphSpec,
+  jsonRenderFormWarnings,
   normalizeAndValidateJsonRenderSpec,
   normalizeGraphType,
   type GraphNodeInput,
@@ -38,6 +39,7 @@ export interface StructuredValidationResult {
   ok: true;
   type: 'json-render' | 'graph' | 'html-primitive';
   normalizedSpec?: JsonRenderSpec;
+  warnings?: string[];
   normalizedPrimitive?: {
     kind: string;
     title: string;
@@ -235,6 +237,13 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
       { name: 'content', type: 'string', required: false, description: 'Mermaid diagram source text.' },
+      {
+        name: 'data.fit',
+        type: '"contain" | "none"',
+        required: false,
+        description:
+          'Default contain: shrink overflowing diagrams proportionally, without enlarging. none: 100% with scrolling. Open as site always uses 100%. CLI: --fit contain|none.',
+      },
     ],
     example: {
       type: 'mermaid',
@@ -1013,6 +1022,7 @@ export function validateStructuredCanvasPayload(input: {
       ok: true,
       type: 'json-render',
       normalizedSpec,
+      warnings: jsonRenderFormWarnings(normalizedSpec),
       summary: {
         root: normalizedSpec.root,
         elementCount: Object.keys(normalizedSpec.elements).length,

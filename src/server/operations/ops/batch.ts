@@ -145,7 +145,11 @@ function createInternalBatchNode(args: Record<string, unknown>): Record<string, 
     defaultHeight: 200,
   });
 
-  return { ok: true, ...serializeCanvasNodeCompact(created.node) };
+  return {
+    ok: true,
+    ...serializeCanvasNodeCompact(created.node),
+    ...(created.sizeAdjustment ? { sizeAdjustment: created.sizeAdjustment } : {}),
+  };
 }
 
 /**
@@ -165,7 +169,7 @@ function shapeBatchEntry(op: string, result: unknown): Record<string, unknown> {
     const id = typeof body.id === 'string' ? body.id : '';
     const node = id ? canvasState.getNode(id) : undefined;
     const extras: Record<string, unknown> = {};
-    for (const key of ['fetch', 'error', 'url', 'spec']) {
+    for (const key of ['fetch', 'error', 'url', 'spec', 'sizeAdjustment']) {
       if (body[key] !== undefined) extras[key] = body[key];
     }
     if (node) return { ok: true, ...serializeCanvasNodeCompact(node), ...extras };
@@ -183,7 +187,11 @@ function shapeBatchEntry(op: string, result: unknown): Record<string, unknown> {
   if (op === 'group.add') {
     const groupId = typeof body.groupId === 'string' ? body.groupId : '';
     const group = groupId ? canvasState.getNode(groupId) : undefined;
-    return { ok: true, ...(group ? serializeCanvasNode(group) : { id: groupId }) };
+    return {
+      ok: true,
+      ...(group ? serializeCanvasNode(group) : { id: groupId }),
+      ...(body.sizeAdjustment ? { sizeAdjustment: body.sizeAdjustment } : {}),
+    };
   }
 
   // pin.set/add/remove: legacy pushed { ok:true, ...{ count, nodeIds } }; wire shape drops nodeIds.
@@ -305,6 +313,7 @@ function compactBatchValue(value: unknown): unknown {
     'content',
     'position',
     'size',
+    'sizeAdjustment',
     'fetch',
     'error',
     'from',

@@ -13,6 +13,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
+import { tourSchema, derivedTour } from '../../../shared/tour.js';
 import { canvasState } from '../../canvas-state.js';
 import { arrangeCanvasNodes, clearCanvas, fitCanvasView, setClientViewportSize } from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
@@ -272,7 +273,38 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
   },
 });
 
+const tourSetShape = { tour: tourSchema.nullable().describe('Ordered camera stops, or null to derive from groups') };
+const tourSetOperation = defineOperation({
+  name: 'tour.set',
+  mutates: true,
+  input: z.object(tourSetShape),
+  inputShape: tourSetShape,
+  http: { method: 'POST', path: '/api/canvas/tour' },
+  mcp: { toolName: 'canvas_set_tour', description: 'Persist an ordered board presentation tour.' },
+  handler: (input) => {
+    canvasState.setTour(input.tour);
+    return { ok: true };
+  },
+});
+const tourGetOperation = defineOperation({
+  name: 'tour.get',
+  mutates: false,
+  input: z.object({}),
+  inputShape: {},
+  http: { method: 'GET', path: '/api/canvas/tour' },
+  mcp: {
+    toolName: 'canvas_get_tour',
+    description: 'Read the board tour, deriving groups in reading order when absent.',
+  },
+  handler: () => ({
+    tour: canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes),
+    derived: !canvasState.getTour(),
+  }),
+});
+
 export const viewportOperations: Operation[] = [
+  tourSetOperation,
+  tourGetOperation,
   arrangeOperation,
   focusOperation,
   fitOperation,

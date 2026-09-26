@@ -82,14 +82,14 @@ export function buildWorkboardSpec(workItems: PmxAxWorkItem[]): JsonRenderSpec {
     }
     elements[columnId] = {
       type: 'Stack',
-      props: { direction: 'vertical', gap: 'sm' },
+      props: { direction: 'vertical', gap: 'sm', align: 'stretch' },
       children: columnChildren,
     };
     columnIds.push(columnId);
   }
   elements.board = {
-    type: 'Stack',
-    props: { direction: 'horizontal', gap: 'md', align: 'start' },
+    type: 'Grid',
+    props: { columns: columnIds.length, gap: 'md' },
     children: columnIds,
   };
   return { root: 'board', elements };

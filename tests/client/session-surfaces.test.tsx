@@ -431,12 +431,19 @@ describe('session receipt', () => {
     const { queryByText, getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
     expect(queryByText('View diff')).toBeNull();
     expect(getByTestId('session-receipt').textContent).toContain('nothing to restore');
-    cleanup();
-    // An UNCHANGED session says so instead (its snapshot was dropped on purpose).
-    act(() => applySessionReceipt({ ...ended, snapshot: null, unchanged: true }));
-    const { queryByText: query2, getByTestId: get2 } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
-    expect(query2('View diff')).toBeNull();
-    expect(get2('session-receipt').textContent).toContain('changed nothing on the board — no snapshot kept');
+  });
+
+  test('unchanged and worker endings stay quiet and never replace a useful receipt', () => {
+    const { container } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    act(() => applySessionReceipt({ ...ended, unchanged: true }));
+    expect(container.innerHTML).toBe('');
+    act(() => applySessionReceipt({ ...ended, parentAgentId: 'orchestrator' }));
+    expect(container.innerHTML).toBe('');
+    act(() => applySessionReceipt(ended));
+    const useful = sessionReceipt.value;
+    act(() => applySessionReceipt({ ...ended, label: 'Quiet session', unchanged: true }));
+    act(() => applySessionReceipt({ ...ended, label: 'Worker', parentAgentId: 'orchestrator' }));
+    expect(sessionReceipt.value).toBe(useful);
   });
 
   test('dismiss clears the receipt; a malformed frame is ignored', () => {

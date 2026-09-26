@@ -13,7 +13,7 @@ import {
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ensureArtifactsDir, getWorkspaceRoot } from './artifact-paths.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
-import { emitCanvasLayoutUpdate } from './canvas-operations.js';
+import { emitCanvasLayoutUpdate, type CanvasSizeAdjustment } from './canvas-operations.js';
 import { findOpenCanvasPosition } from './placement.js';
 
 const BUNDLED_WEB_ARTIFACT_SCRIPTS_DIR = join(import.meta.dir, 'web-artifacts', 'scripts');
@@ -95,12 +95,14 @@ export interface WebArtifactSourceContext {
 export interface WebArtifactCanvasOpenResult {
   nodeId: string;
   url: string;
+  sizeAdjustment: CanvasSizeAdjustment;
 }
 
 export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
   openedInCanvas: boolean;
   nodeId?: string;
   url?: string;
+  sizeAdjustment?: CanvasSizeAdjustment;
   startedAt: string;
   completedAt: string;
   durationMs: number;
@@ -740,7 +742,11 @@ export function openWebArtifactInCanvas(input: {
   // This keeps web-artifacts.ts server-independent so the registry op
   // (operations/ops/app.ts) can import it without pulling in server.ts.
   emitCanvasLayoutUpdate();
-  return { nodeId: id, url };
+  return {
+    nodeId: id,
+    url,
+    sizeAdjustment: { requested: { width: null, height: null }, applied: node.size, reason: 'defaulted' },
+  };
 }
 
 export async function buildWebArtifactOnCanvas(
@@ -778,6 +784,7 @@ export async function buildWebArtifactOnCanvas(
     openedInCanvas: true,
     nodeId: opened.nodeId,
     url: opened.url,
+    sizeAdjustment: opened.sizeAdjustment,
     ...timing,
   };
 }

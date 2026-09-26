@@ -441,7 +441,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
-| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete a human-drawn annotation by id |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order) |
 | `canvas_query` | `search` · `layout` · `validate` | Find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | Headless Bun.WebView automation for the workbench (folds the `canvas_webview_*` / `canvas_resize` / `canvas_evaluate` tools) |

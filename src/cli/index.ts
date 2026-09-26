@@ -32,6 +32,8 @@ if (args.includes('--version') || args.includes('-v')) {
 // ── Agent CLI subcommands ────────────────────────────────────
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.
 const AGENT_COMMANDS = new Set([
+  'tour',
+  'record',
   'node',
   'edge',
   'json-render',

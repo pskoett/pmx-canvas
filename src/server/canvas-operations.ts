@@ -33,6 +33,7 @@ import {
   emptyStreamingSpec,
   GRAPH_NODE_SIZE,
   inferJsonRenderNodeTitle,
+  jsonRenderFormWarnings,
   JSON_RENDER_NODE_SIZE,
   normalizeAndValidateJsonRenderSpec,
   type GraphNodeInput,
@@ -117,6 +118,29 @@ export const MCP_APP_NODE_DEFAULT_SIZE = { width: 960, height: 600 };
 // width bump is the reliable lever.
 export const IMAGE_NODE_DEFAULT_SIZE = { width: 480, height: 360 };
 export const LEDGER_NODE_DEFAULT_SIZE = { width: 420, height: 280 };
+
+export interface CanvasSizeAdjustment {
+  requested: { width: number | null; height: number | null };
+  applied: { width: number; height: number };
+  reason: 'defaulted' | 'clamped-to-minimum' | 'defaulted-and-clamped-to-minimum' | 'fit-to-children';
+}
+
+export function describeCreateSize(
+  requestedWidth: number | undefined,
+  requestedHeight: number | undefined,
+  resolvedWidth: number,
+  resolvedHeight: number,
+  applied: { width: number; height: number },
+): CanvasSizeAdjustment | undefined {
+  const defaulted = requestedWidth === undefined || requestedHeight === undefined;
+  const clamped = applied.width !== resolvedWidth || applied.height !== resolvedHeight;
+  if (!defaulted && !clamped) return undefined;
+  return {
+    requested: { width: requestedWidth ?? null, height: requestedHeight ?? null },
+    applied,
+    reason: defaulted && clamped ? 'defaulted-and-clamped-to-minimum' : clamped ? 'clamped-to-minimum' : 'defaulted',
+  };
+}
 
 // Per-type minimum creation sizes + clamp live in canvas-validation.ts
 // (NODE_MIN_CREATE_SIZES / clampCreateNodeSize) — shared with the validate
@@ -923,17 +947,15 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
   id: string;
   node: CanvasNodeState;
   needsCodeGraphRecompute: boolean;
+  sizeAdjustment?: CanvasSizeAdjustment;
 } {
   if (input.type === 'json-render' || input.type === 'graph') {
     throw new Error(`Use the dedicated ${input.type} node APIs for structured viewer nodes.`);
   }
 
-  const { width, height } = clampCreateNodeSize(
-    input.type,
-    input.width ?? input.defaultWidth ?? 720,
-    input.height ?? input.defaultHeight ?? 600,
-    input.strictSize,
-  );
+  const resolvedWidth = input.width ?? input.defaultWidth ?? 720;
+  const resolvedHeight = input.height ?? input.defaultHeight ?? 600;
+  const { width, height } = clampCreateNodeSize(input.type, resolvedWidth, resolvedHeight, input.strictSize);
   const position =
     input.x !== undefined && input.y !== undefined
       ? { x: input.x, y: input.y }
@@ -959,7 +981,16 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     watchFileForNode(id, filePath);
   }
 
-  return { id, node: storedNode, needsCodeGraphRecompute: input.type === 'file' };
+  const sizeAdjustment = describeCreateSize(input.width, input.height, resolvedWidth, resolvedHeight, {
+    width,
+    height,
+  });
+  return {
+    id,
+    node: storedNode,
+    needsCodeGraphRecompute: input.type === 'file',
+    ...(sizeAdjustment ? { sizeAdjustment } : {}),
+  };
 }
 
 export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput):
@@ -1508,7 +1539,11 @@ export function removeCanvasEdge(id: string): { removed: boolean } {
   return { removed: canvasState.removeEdge(id) };
 }
 
-export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string; node: CanvasNodeState } {
+export function createCanvasGroup(input: CanvasCreateGroupInput): {
+  id: string;
+  node: CanvasNodeState;
+  sizeAdjustment?: CanvasSizeAdjustment;
+} {
   let x = input.x;
   let y = input.y;
   let width = input.width ?? 600;
@@ -1566,22 +1601,42 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string; 
   if (!node) {
     throw new Error(`Group "${id}" was not created.`);
   }
-  return { id, node };
+  const adjusted = input.width !== node.size.width || input.height !== node.size.height;
+  const fitted = childIds.length > 0 && ((input.x === undefined && input.y === undefined) || !explicitFrame);
+  return {
+    id,
+    node,
+    ...(adjusted
+      ? {
+          sizeAdjustment: {
+            requested: { width: input.width ?? null, height: input.height ?? null },
+            applied: node.size,
+            reason: fitted ? ('fit-to-children' as const) : ('defaulted' as const),
+          },
+        }
+      : {}),
+  };
 }
 
 export function groupCanvasNodes(
   groupId: string,
   childIds: string[],
   options: { childLayout?: CanvasArrangeMode } = {},
-): { ok: boolean } {
+): { ok: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
+  const before = canvasState.getNode(groupId)?.size;
+  const ok = canvasState.groupNodes(groupId, childIds, {
+    // Preserve existing child positions unless an explicit layout is asked
+    // for — matching createCanvasGroup and the batch group.add path. Without
+    // this, grouping silently auto-packs the nodes into a grid.
+    preservePositions: options.childLayout === undefined,
+    ...(options.childLayout ? { layout: options.childLayout } : {}),
+  });
+  const applied = canvasState.getNode(groupId)?.size;
   return {
-    ok: canvasState.groupNodes(groupId, childIds, {
-      // Preserve existing child positions unless an explicit layout is asked
-      // for — matching createCanvasGroup and the batch group.add path. Without
-      // this, grouping silently auto-packs the nodes into a grid.
-      preservePositions: options.childLayout === undefined,
-      ...(options.childLayout ? { layout: options.childLayout } : {}),
-    }),
+    ok,
+    ...(before && applied && (before.width !== applied.width || before.height !== applied.height)
+      ? { sizeAdjustment: { requested: before, applied, reason: 'fit-to-children' as const } }
+      : {}),
   };
 }
 
@@ -1600,6 +1655,8 @@ export function createCanvasJsonRenderNode(input: JsonRenderNodeInput): {
   url: string;
   spec: JsonRenderSpec;
   node: CanvasNodeState;
+  warnings: string[];
+  sizeAdjustment?: CanvasSizeAdjustment;
 } {
   const spec = normalizeAndValidateJsonRenderSpec(input.spec);
   const { width, height } = clampCreateNodeSize(
@@ -1628,7 +1685,24 @@ export function createCanvasJsonRenderNode(input: JsonRenderNodeInput): {
   };
 
   canvasState.addJsonRenderNode(node);
-  return { id, url: String(node.data.url), spec, node };
+  const sizeAdjustment = describeCreateSize(
+    input.width,
+    input.height,
+    input.width ?? JSON_RENDER_NODE_SIZE.width,
+    input.height ?? JSON_RENDER_NODE_SIZE.height,
+    {
+      width,
+      height,
+    },
+  );
+  return {
+    id,
+    url: String(node.data.url),
+    spec,
+    node,
+    warnings: jsonRenderFormWarnings(spec),
+    ...(sizeAdjustment ? { sizeAdjustment } : {}),
+  };
 }
 
 /**
@@ -1643,7 +1717,7 @@ export function createCanvasStreamingJsonRenderNode(input: {
   width?: number;
   height?: number;
   strictSize?: boolean;
-}): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
+}): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState; sizeAdjustment?: CanvasSizeAdjustment } {
   const spec = emptyStreamingSpec();
   const { width, height } = clampCreateNodeSize(
     'json-render',
@@ -1673,7 +1747,17 @@ export function createCanvasStreamingJsonRenderNode(input: {
   };
 
   canvasState.addJsonRenderNode(node);
-  return { id, url: String(node.data.url), spec, node };
+  const sizeAdjustment = describeCreateSize(
+    input.width,
+    input.height,
+    input.width ?? JSON_RENDER_NODE_SIZE.width,
+    input.height ?? JSON_RENDER_NODE_SIZE.height,
+    {
+      width,
+      height,
+    },
+  );
+  return { id, url: String(node.data.url), spec, node, ...(sizeAdjustment ? { sizeAdjustment } : {}) };
 }
 
 /**
@@ -1717,6 +1801,7 @@ export function createCanvasGraphNode(input: GraphNodeInput): {
   url: string;
   spec: JsonRenderSpec;
   node: CanvasNodeState;
+  sizeAdjustment?: CanvasSizeAdjustment;
 } {
   const title = input.title?.trim() || 'Graph';
   const spec = buildGraphSpec(input);
@@ -1747,7 +1832,14 @@ export function createCanvasGraphNode(input: GraphNodeInput): {
   };
 
   canvasState.addGraphNode(node);
-  return { id, url: String(node.data.url), spec, node };
+  const sizeAdjustment = describeCreateSize(
+    input.width,
+    input.heightPx,
+    input.width ?? GRAPH_NODE_SIZE.width,
+    input.heightPx ?? GRAPH_NODE_SIZE.height,
+    { width, height },
+  );
+  return { id, url: String(node.data.url), spec, node, ...(sizeAdjustment ? { sizeAdjustment } : {}) };
 }
 
 /**

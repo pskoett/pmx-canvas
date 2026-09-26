@@ -497,7 +497,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function text(value: unknown, fallback = ''): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return fallback;
+  return value === undefined ? fallback : '';
 }
 
 function records(value: unknown): Record<string, unknown>[] {
@@ -514,8 +514,9 @@ function fieldRecords(
   key: string,
   fallback: Record<string, unknown>[],
 ): Record<string, unknown>[] {
-  const found = records(data[key]);
-  return found.length > 0 ? found : fallback;
+  // Document rule: examples fill an omitted field only. An explicitly present
+  // empty (or invalid) value is caller intent and must not resurrect examples.
+  return Object.hasOwn(data, key) ? records(data[key]) : fallback;
 }
 
 const DEFAULT_DECK_SLIDES: Record<string, unknown>[] = [
@@ -573,8 +574,22 @@ function enrichPresentationData(kind: HtmlPrimitiveKind, data: Record<string, un
 }
 
 function fieldStrings(data: Record<string, unknown>, key: string, fallback: string[]): string[] {
-  const found = strings(data[key]);
-  return found.length > 0 ? found : fallback;
+  return Object.hasOwn(data, key) ? strings(data[key]) : fallback;
+}
+
+/** Omitted fields may use examples; explicitly empty fields omit their entire UI section. */
+function fieldSection(data: Record<string, unknown>, keys: string | string[], markup: string): string {
+  const empty = (key: string) => {
+    if (!Object.hasOwn(data, key)) return false;
+    const value = data[key];
+    return (
+      value == null ||
+      (typeof value === 'string' && !value.trim()) ||
+      (Array.isArray(value) && value.length === 0) ||
+      (isRecord(value) && Object.keys(value).length === 0)
+    );
+  };
+  return (Array.isArray(keys) ? keys : [keys]).every(empty) ? '' : markup;
 }
 
 function escapeHtml(value: string): string {
@@ -910,19 +925,22 @@ function renderChoiceGrid({ title, data, descriptor }: Parameters<PrimitiveRende
       cons: ['More maintenance'],
     },
   ]);
-  const body = `<section class="grid">${items
-    .map(
-      (item, index) => `
+  const body =
+    items.length > 0
+      ? `<section class="grid">${items
+          .map(
+            (item, index) => `
     <article class="card ${index === 0 ? 'emphasis' : ''}">
       <div class="small">Choice ${index + 1}</div>
       <h2>${escapeHtml(itemTitle(item, `Option ${index + 1}`))}</h2>
-      <p>${escapeHtml(text(item.summary, 'Summarize the approach here.'))}</p>
+      ${fieldSection(item, 'summary', `<p>${escapeHtml(text(item.summary, 'Summarize the approach here.'))}</p>`)}
       ${text(item.tradeoff) ? `<p><strong>Tradeoff:</strong> ${escapeHtml(text(item.tradeoff))}</p>` : ''}
-      <div class="two"><div><h3>Pros</h3>${list(strings(item.pros))}</div><div><h3>Cons</h3>${list(strings(item.cons))}</div></div>
+      ${fieldSection(item, ['pros', 'cons'], `<div class="two">${fieldSection(item, 'pros', `<div><h3>Pros</h3>${list(strings(item.pros))}</div>`)}${fieldSection(item, 'cons', `<div><h3>Cons</h3>${list(strings(item.cons))}</div>`)}</div>`)}
       ${codeBlock(item.code)}
     </article>`,
-    )
-    .join('')}</section>`;
+          )
+          .join('')}</section>`
+      : '';
   return page({ title, kind: 'choice-grid', summary: descriptor.description, data, body });
 }
 
@@ -942,13 +960,20 @@ function renderPlanTimeline({ title, data, descriptor }: Parameters<PrimitiveRen
     { risk: 'Overly generic output', mitigation: 'Use named primitives with clear use cases.' },
   ]);
   const snippets = fieldRecords(data, 'snippets', []);
-  const body = `<section class="two"><div class="panel"><h2>Milestones</h2><div class="timeline">${milestones
-    .map(
-      (item, index) => `
+  const milestonesSection =
+    milestones.length > 0
+      ? `<div class="panel"><h2>Milestones</h2><div class="timeline">${milestones
+          .map(
+            (item, index) => `
     <div class="step"><div class="dot">${index + 1}</div><div class="card"><h3>${escapeHtml(itemTitle(item, `Milestone ${index + 1}`))} ${badge(text(item.status, 'planned'))}</h3><p>${escapeHtml(text(item.detail, 'Add implementation detail.'))}</p></div></div>`,
-    )
-    .join('')}</div></div>
-    <div class="panel"><h2>Data Flow</h2><div class="flow">${flow.map((item, index) => `<div class="flow-node"><h3>${escapeHtml(text(item.from, `Step ${index + 1}`))}</h3><p>${escapeHtml(text(item.label, 'flows to'))}</p><strong>${escapeHtml(text(item.to, 'Next'))}</strong></div>${index < flow.length - 1 ? '<div class="arrow">-></div>' : ''}`).join('')}</div><h2 style="margin-top:18px">Risks</h2>${risks.map((item) => `<div class="card"><strong>${escapeHtml(text(item.risk, 'Risk'))}</strong><p>${escapeHtml(text(item.mitigation, 'Mitigation'))}</p></div>`).join('')}</div></section>
+          )
+          .join('')}</div></div>`
+      : '';
+  const flowAndRisksSection =
+    flow.length > 0 || risks.length > 0
+      ? `<div class="panel">${flow.length > 0 ? `<h2>Data Flow</h2><div class="flow">${flow.map((item, index) => `<div class="flow-node"><h3>${escapeHtml(text(item.from, `Step ${index + 1}`))}</h3><p>${escapeHtml(text(item.label, 'flows to'))}</p><strong>${escapeHtml(text(item.to, 'Next'))}</strong></div>${index < flow.length - 1 ? '<div class="arrow">-></div>' : ''}`).join('')}</div>` : ''}${risks.length > 0 ? `<h2 style="margin-top:18px">Risks</h2>${risks.map((item) => `<div class="card"><strong>${escapeHtml(text(item.risk, 'Risk'))}</strong><p>${escapeHtml(text(item.mitigation, 'Mitigation'))}</p></div>`).join('')}` : ''}</div>`
+      : '';
+  const body = `${milestonesSection || flowAndRisksSection ? `<section class="two">${milestonesSection}${flowAndRisksSection}</section>` : ''}
     ${snippets.length > 0 ? `<section class="panel" style="margin-top:14px"><h2>Code Checkpoints</h2>${snippets.map((item) => `<h3>${escapeHtml(itemTitle(item, 'Snippet'))}</h3>${codeBlock(item.code)}`).join('')}</section>` : ''}`;
   return page({ title, kind: 'plan-timeline', summary: descriptor.description, data, body });
 }
@@ -965,13 +990,21 @@ function renderReviewSheet({ title, data, descriptor }: Parameters<PrimitiveRend
   ]);
   const files = fieldRecords(data, 'files', []);
   const diff = text(data.diff);
-  const body = `<section class="two"><div class="panel"><h2>Findings</h2>${findings
-    .map(
-      (item) => `
+  const body = `${fieldSection(
+    data,
+    ['findings', 'files'],
+    `<section class="two">${fieldSection(
+      data,
+      'findings',
+      `<div class="panel"><h2>Findings</h2>${findings
+        .map(
+          (item) => `
     <article class="card"><h3>${badge(text(item.severity, 'info'))} ${escapeHtml(itemTitle(item, 'Finding'))}</h3><p class="small">${escapeHtml([text(item.file), text(item.line)].filter(Boolean).join(':'))}</p><p>${escapeHtml(text(item.detail, 'Add review note.'))}</p></article>`,
-    )
-    .join('')}</div>
-    <div class="panel"><h2>Review Tour</h2>${files.length > 0 ? files.map((item) => `<article class="card"><h3>${escapeHtml(text(item.path, 'File'))}</h3><p>${escapeHtml(text(item.why, 'Why this file matters.'))}</p></article>`).join('') : '<p class="muted">Add files with path and why fields for a guided review.</p>'}</div></section>
+        )
+        .join('')}</div>`,
+    )}
+    ${fieldSection(data, 'files', `<div class="panel"><h2>Review Tour</h2>${files.length > 0 ? files.map((item) => `<article class="card"><h3>${escapeHtml(text(item.path, 'File'))}</h3><p>${escapeHtml(text(item.why, 'Why this file matters.'))}</p></article>`).join('') : '<p class="muted">Add files with path and why fields for a guided review.</p>'}</div>`)}</section>`,
+  )}
     ${diff ? `<section class="panel" style="margin-top:14px"><h2>Diff Excerpt</h2>${codeBlock(diff)}</section>` : ''}`;
   return page({ title, kind: 'review-sheet', summary: descriptor.description, data, body });
 }
@@ -980,11 +1013,15 @@ function renderPrWriteup({ title, data, descriptor }: Parameters<PrimitiveRender
   const files = fieldRecords(data, 'files', [
     { path: 'src/example.ts', why: 'Core behavior changed here.', focus: 'Review edge cases and tests.' },
   ]);
-  const body = `<section class="panel"><h2>Summary</h2><p>${escapeHtml(text(data.summary, 'Summarize the change in one reviewer-friendly paragraph.'))}</p><p>${escapeHtml(text(data.why, 'Explain why this change matters now.'))}</p></section>
-    <section class="two" style="margin-top:14px"><div class="card"><h2>Before</h2>${list(fieldStrings(data, 'before', ['Current behavior or pain point.']))}</div><div class="card emphasis"><h2>After</h2>${list(fieldStrings(data, 'after', ['New behavior or reviewer-visible outcome.']))}</div></section>
-    <section class="three" style="margin-top:14px"><div class="panel"><h2>File Tour</h2>${files.map((file) => `<details open><summary><strong>${escapeHtml(text(file.path, 'File'))}</strong></summary><p>${escapeHtml(text(file.why, 'Why this file matters.'))}</p><p class="small">Focus: ${escapeHtml(text(file.focus, 'Review behavior and tests.'))}</p></details>`).join('')}</div>
-    <div class="panel"><h2>Review Focus</h2>${list(fieldStrings(data, 'reviewFocus', ['Correctness of changed behavior.', 'Missing regression coverage.']))}<h2 style="margin-top:18px">Tests</h2>${list(fieldStrings(data, 'tests', ['Add or run targeted tests.']))}</div>
-    <div class="panel sticky"><h2>Rollout</h2>${list(fieldStrings(data, 'rollout', ['Merge behind normal release flow.']))}<button type="button" data-copy-markdown style="margin-top:12px">Copy PR markdown</button></div></section>`;
+  const body = `${fieldSection(data, ['summary', 'why'], `<section class="panel">${fieldSection(data, 'summary', `<h2>Summary</h2><p>${escapeHtml(text(data.summary, 'Summarize the change in one reviewer-friendly paragraph.'))}</p>`)}${fieldSection(data, 'why', `<p>${escapeHtml(text(data.why, 'Explain why this change matters now.'))}</p>`)}</section>`)}
+    ${fieldSection(data, ['before', 'after'], `<section class="two" style="margin-top:14px">${fieldSection(data, 'before', `<div class="card"><h2>Before</h2>${list(fieldStrings(data, 'before', ['Current behavior or pain point.']))}</div>`)}${fieldSection(data, 'after', `<div class="card emphasis"><h2>After</h2>${list(fieldStrings(data, 'after', ['New behavior or reviewer-visible outcome.']))}</div>`)}</section>`)}
+    ${fieldSection(
+      data,
+      ['files', 'reviewFocus', 'tests', 'rollout'],
+      `<section class="three" style="margin-top:14px">${fieldSection(data, 'files', `<div class="panel"><h2>File Tour</h2>${files.map((file) => `<details open><summary><strong>${escapeHtml(text(file.path, 'File'))}</strong></summary><p>${escapeHtml(text(file.why, 'Why this file matters.'))}</p>${fieldSection(file, 'focus', `<p class="small">Focus: ${escapeHtml(text(file.focus, 'Review behavior and tests.'))}</p>`)}</details>`).join('')}</div>`)}
+    ${fieldSection(data, ['reviewFocus', 'tests'], `<div class="panel">${fieldSection(data, 'reviewFocus', `<h2>Review Focus</h2>${list(fieldStrings(data, 'reviewFocus', ['Correctness of changed behavior.', 'Missing regression coverage.']))}`)}${fieldSection(data, 'tests', `<h2 style="margin-top:18px">Tests</h2>${list(fieldStrings(data, 'tests', ['Add or run targeted tests.']))}`)}</div>`)}
+    ${fieldSection(data, 'rollout', `<div class="panel sticky"><h2>Rollout</h2>${list(fieldStrings(data, 'rollout', ['Merge behind normal release flow.']))}<button type="button" data-copy-markdown style="margin-top:12px">Copy PR markdown</button></div>`)}</section>`,
+    )}`;
   return page({
     title,
     kind: 'pr-writeup',
@@ -1020,9 +1057,9 @@ function renderSystemMap({ title, data, descriptor }: Parameters<PrimitiveRender
     { from: 'state', to: 'browser', label: 'SSE update' },
   ]);
   const entryPoints = fieldStrings(data, 'entryPoints', ['MCP tools', 'CLI commands', 'HTTP API']);
-  const body = `<section class="panel"><h2>Entry Points</h2><div class="swatches">${entryPoints.map((entry) => badge(entry)).join('')}</div></section>
-    <section class="grid" style="margin-top:14px">${modules.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.role, text(item.id, 'module')))}</div><h2>${escapeHtml(itemTitle(item, 'Module'))}</h2><p>${escapeHtml(text(item.detail, 'Describe this module.'))}</p></article>`).join('')}</section>
-    <section class="panel" style="margin-top:14px"><h2>Relationships</h2><div class="flow">${edges.map((item) => `<div class="flow-node"><strong>${escapeHtml(text(item.from, 'from'))}</strong><p>${escapeHtml(text(item.label, 'connects'))}</p><strong>${escapeHtml(text(item.to, 'to'))}</strong></div>`).join('<div class="arrow">+</div>')}</div></section>`;
+  const body = `${fieldSection(data, 'entryPoints', `<section class="panel"><h2>Entry Points</h2><div class="swatches">${entryPoints.map((entry) => badge(entry)).join('')}</div></section>`)}
+    ${fieldSection(data, 'modules', `<section class="grid" style="margin-top:14px">${modules.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.role, text(item.id, 'module')))}</div><h2>${escapeHtml(itemTitle(item, 'Module'))}</h2><p>${escapeHtml(text(item.detail, 'Describe this module.'))}</p></article>`).join('')}</section>`)}
+    ${fieldSection(data, 'edges', `<section class="panel" style="margin-top:14px"><h2>Relationships</h2><div class="flow">${edges.map((item) => `<div class="flow-node"><strong>${escapeHtml(text(item.from, 'from'))}</strong><p>${escapeHtml(text(item.label, 'connects'))}</p><strong>${escapeHtml(text(item.to, 'to'))}</strong></div>`).join('<div class="arrow">+</div>')}</div></section>`)}`;
   return page({ title, kind: 'system-map', summary: descriptor.description, data, body });
 }
 
@@ -1037,10 +1074,14 @@ function renderCodeWalkthrough({ title, data, descriptor }: Parameters<Primitive
   ]);
   const keyFiles = fieldRecords(data, 'keyFiles', []);
   const edges = fieldRecords(data, 'edges', []);
-  const body = `<section class="panel"><h2>Path Summary</h2><p>${escapeHtml(text(data.summary, 'Explain the code path this walkthrough covers.'))}</p><div class="flow" style="margin-top:12px">${modules.map((module) => `<div class="flow-node"><div class="small">${escapeHtml(text(module.role, text(module.id, 'module')))}</div><h3>${escapeHtml(itemTitle(module, 'Module'))}</h3><p>${escapeHtml(text(module.detail, ''))}</p></div>`).join('<div class="arrow">-></div>')}</div>${edges.length > 0 ? `<p class="small" style="margin-top:10px">Edges: ${escapeHtml(edges.map((edge) => `${text(edge.from)} -> ${text(edge.to)}${text(edge.label) ? ` (${text(edge.label)})` : ''}`).join(', '))}</p>` : ''}</section>
-    <section class="three" style="margin-top:14px"><div class="panel"><h2>Walkthrough</h2>${steps.map((step, index) => `<details ${index === 0 ? 'open' : ''}><summary><strong>${index + 1}. ${escapeHtml(itemTitle(step, 'Step'))}</strong></summary><p class="small">${escapeHtml(text(step.file, ''))}</p><p>${escapeHtml(text(step.detail, ''))}</p>${codeBlock(step.code)}</details>`).join('')}</div>
-    <div class="panel"><h2>Key Files</h2>${keyFiles.length > 0 ? keyFiles.map((file) => `<article class="card"><h3>${escapeHtml(text(file.path, 'File'))}</h3><p>${escapeHtml(text(file.description, text(file.why, '')))}</p></article>`).join('') : '<p class="muted">No key files listed.</p>'}</div>
-    <div class="panel sticky"><h2>Gotchas</h2>${list(fieldStrings(data, 'gotchas', ['Watch for hidden state, async boundaries, and validation gaps.']))}</div></section>`;
+  const body = `${fieldSection(data, ['summary', 'modules', 'edges'], `<section class="panel">${fieldSection(data, 'summary', `<h2>Path Summary</h2><p>${escapeHtml(text(data.summary, 'Explain the code path this walkthrough covers.'))}</p>`)}${fieldSection(data, 'modules', `<div class="flow" style="margin-top:12px">${modules.map((module) => `<div class="flow-node"><div class="small">${escapeHtml(text(module.role, text(module.id, 'module')))}</div><h3>${escapeHtml(itemTitle(module, 'Module'))}</h3><p>${escapeHtml(text(module.detail, ''))}</p></div>`).join('<div class="arrow">-></div>')}</div>`)}${edges.length > 0 ? `<p class="small" style="margin-top:10px">Edges: ${escapeHtml(edges.map((edge) => `${text(edge.from)} -> ${text(edge.to)}${text(edge.label) ? ` (${text(edge.label)})` : ''}`).join(', '))}</p>` : ''}</section>`)}
+    ${fieldSection(
+      data,
+      ['steps', 'keyFiles', 'gotchas'],
+      `<section class="three" style="margin-top:14px">${fieldSection(data, 'steps', `<div class="panel"><h2>Walkthrough</h2>${steps.map((step, index) => `<details ${index === 0 ? 'open' : ''}><summary><strong>${index + 1}. ${escapeHtml(itemTitle(step, 'Step'))}</strong></summary><p class="small">${escapeHtml(text(step.file, ''))}</p><p>${escapeHtml(text(step.detail, ''))}</p>${codeBlock(step.code)}</details>`).join('')}</div>`)}
+    ${fieldSection(data, 'keyFiles', `<div class="panel"><h2>Key Files</h2>${keyFiles.length > 0 ? keyFiles.map((file) => `<article class="card"><h3>${escapeHtml(text(file.path, 'File'))}</h3><p>${escapeHtml(text(file.description, text(file.why, '')))}</p></article>`).join('') : '<p class="muted">No key files listed.</p>'}</div>`)}
+    ${fieldSection(data, 'gotchas', `<div class="panel sticky"><h2>Gotchas</h2>${list(fieldStrings(data, 'gotchas', ['Watch for hidden state, async boundaries, and validation gaps.']))}</div>`)}</section>`,
+    )}`;
   return page({ title, kind: 'code-walkthrough', summary: descriptor.description, data, body });
 }
 
@@ -1060,18 +1101,22 @@ function renderDesignSheet({ title, data, descriptor }: Parameters<PrimitiveRend
     },
   ]);
   const tokens = fieldRecords(data, 'tokens', []);
-  const body = `<section class="grid">${directions
-    .map((item) => {
-      const palette = strings(item.palette);
-      return `<article class="card"><h2>${escapeHtml(itemTitle(item, 'Direction'))}</h2><p>${escapeHtml(text(item.tone, 'Tone'))}</p><div class="swatches">${palette.map((color) => `<span class="swatch" title="${escapeHtml(color)}" style="background:${safeCssColor(color)}"></span>`).join('')}</div><p>${escapeHtml(text(item.rationale, 'Rationale'))}</p></article>`;
-    })
-    .join('')}</section>
+  const body = `${fieldSection(
+    data,
+    'directions',
+    `<section class="grid">${directions
+      .map((item) => {
+        const palette = strings(item.palette);
+        return `<article class="card"><h2>${escapeHtml(itemTitle(item, 'Direction'))}</h2><p>${escapeHtml(text(item.tone, 'Tone'))}</p><div class="swatches">${palette.map((color) => `<span class="swatch" title="${escapeHtml(color)}" style="background:${safeCssColor(color)}"></span>`).join('')}</div><p>${escapeHtml(text(item.rationale, 'Rationale'))}</p></article>`;
+      })
+      .join('')}</section>`,
+  )}
     ${tokens.length > 0 ? `<section class="panel" style="margin-top:14px"><h2>Tokens</h2><div class="grid">${tokens.map((item) => `<div class="card"><strong>${escapeHtml(itemTitle(item, 'Token'))}</strong><p>${escapeHtml(text(item.value, ''))}</p></div>`).join('')}</div></section>` : ''}`;
   return page({ title, kind: 'design-sheet', summary: descriptor.description, data, body });
 }
 
 function renderComponentGallery({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const component = text(data.component, 'Component');
+  const component = text(data.component, 'Component').trim();
   const variants = fieldRecords(data, 'variants', [
     { label: 'Primary', state: 'default', intent: 'Main action', example: 'Continue', note: 'High emphasis.' },
     { label: 'Secondary', state: 'hover', intent: 'Alternative action', example: 'Back', note: 'Lower emphasis.' },
@@ -1083,8 +1128,8 @@ function renderComponentGallery({ title, data, descriptor }: Parameters<Primitiv
       note: 'Requires confirmation.',
     },
   ]);
-  const body = `<section class="panel"><h2>${escapeHtml(component)}</h2><p>Variant contact sheet for fast visual review.</p></section>
-    <section class="grid" style="margin-top:14px">${variants.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.state, 'state'))} / ${escapeHtml(text(item.intent, 'intent'))}</div><h2>${escapeHtml(itemTitle(item, 'Variant'))}</h2><button type="button">${escapeHtml(text(item.example, itemTitle(item, 'Example')))}</button><p>${escapeHtml(text(item.note, ''))}</p></article>`).join('')}</section>`;
+  const body = `${component ? `<section class="panel"><h2>${escapeHtml(component)}</h2><p>Variant contact sheet for fast visual review.</p></section>` : ''}
+    ${variants.length > 0 ? `<section class="grid" style="margin-top:14px">${variants.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.state, 'state'))} / ${escapeHtml(text(item.intent, 'intent'))}</div><h2>${escapeHtml(itemTitle(item, 'Variant'))}</h2><button type="button">${escapeHtml(text(item.example, itemTitle(item, 'Example')))}</button><p>${escapeHtml(text(item.note, ''))}</p></article>`).join('')}</section>` : ''}`;
   return page({ title, kind: 'component-gallery', summary: descriptor.description, data, body });
 }
 
@@ -1100,9 +1145,13 @@ function renderInteractionPrototype({ title, data, descriptor }: Parameters<Prim
   const annotations = fieldRecords(data, 'annotations', [
     { title: 'Decision', detail: 'Tune the values until this feels right.' },
   ]);
-  const body = `<section class="three"><div class="panel"><h2>Stage</h2><p>${escapeHtml(text(data.scenario, 'Describe the interaction this prototype evaluates.'))}</p><div class="flow" style="margin-top:16px">${screens.map((screen, index) => `<button class="flow-node" type="button" data-screen="${index}"><h3>${escapeHtml(itemTitle(screen, 'Screen'))}</h3><p>${escapeHtml(text(screen.detail, ''))}</p></button>`).join('<div class="arrow">-></div>')}</div><div class="card emphasis" id="prototype-readout" style="margin-top:14px">Select a screen to inspect it.</div></div>
-    <div class="panel"><h2>Controls</h2>${controls.map((control, index) => `<label class="card"><span class="small">${escapeHtml(text(control.key, `control${index}`))}</span><h3>${escapeHtml(text(control.label, 'Control'))}: <span data-control-value="${index}">${escapeHtml(text(control.value, '0'))}</span>${escapeHtml(text(control.unit, ''))}</h3><input type="range" data-control="${index}" min="${number(control.min, 0)}" max="${number(control.max, 1000)}" value="${number(control.value, 0)}"></label>`).join('')}</div>
-    <div class="panel sticky"><h2>Notes</h2>${annotations.map((item) => `<article class="card"><h3>${escapeHtml(itemTitle(item, 'Note'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></article>`).join('')}<h2 style="margin-top:18px">Questions</h2>${list(fieldStrings(data, 'questions', ['Does the timing feel responsive?', 'What should persist after completion?']))}${codeBlock(data.snippet)}</div></section>`;
+  const body = fieldSection(
+    data,
+    ['scenario', 'screens', 'controls', 'annotations', 'questions', 'snippet'],
+    `<section class="three">${fieldSection(data, ['scenario', 'screens'], `<div class="panel">${fieldSection(data, 'scenario', `<h2>Stage</h2><p>${escapeHtml(text(data.scenario, 'Describe the interaction this prototype evaluates.'))}</p>`)}${fieldSection(data, 'screens', `<div class="flow" style="margin-top:16px">${screens.map((screen, index) => `<button class="flow-node" type="button" data-screen="${index}"><h3>${escapeHtml(itemTitle(screen, 'Screen'))}</h3><p>${escapeHtml(text(screen.detail, ''))}</p></button>`).join('<div class="arrow">-></div>')}</div><div class="card emphasis" id="prototype-readout" style="margin-top:14px">Select a screen to inspect it.</div>`)}</div>`)}
+    ${fieldSection(data, 'controls', `<div class="panel"><h2>Controls</h2>${controls.map((control, index) => `<label class="card"><span class="small">${escapeHtml(text(control.key, `control${index}`))}</span><h3>${escapeHtml(text(control.label, 'Control'))}: <span data-control-value="${index}">${escapeHtml(text(control.value, '0'))}</span>${escapeHtml(text(control.unit, ''))}</h3><input type="range" data-control="${index}" min="${number(control.min, 0)}" max="${number(control.max, 1000)}" value="${number(control.value, 0)}"></label>`).join('')}</div>`)}
+    ${fieldSection(data, ['annotations', 'questions', 'snippet'], `<div class="panel sticky">${fieldSection(data, 'annotations', `<h2>Notes</h2>${annotations.map((item) => `<article class="card"><h3>${escapeHtml(itemTitle(item, 'Note'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></article>`).join('')}`)}${fieldSection(data, 'questions', `<h2 style="margin-top:18px">Questions</h2>${list(fieldStrings(data, 'questions', ['Does the timing feel responsive?', 'What should persist after completion?']))}`)}${codeBlock(data.snippet)}</div>`)}</section>`,
+  );
   return page({
     title,
     kind: 'interaction-prototype',
@@ -1129,8 +1178,12 @@ function renderFlowchart({ title, data, descriptor }: Parameters<PrimitiveRender
     { title: 'Emit event', detail: 'Notify browser and agents through SSE/resources.', status: 'ok', duration: '5ms' },
   ]);
   const failurePaths = fieldRecords(data, 'failurePaths', []);
-  const body = `<section class="flow">${steps.map((item, index) => `<button class="flow-node" type="button" data-step="${index}"><h3>${escapeHtml(itemTitle(item, `Step ${index + 1}`))}</h3><p>${badge(text(item.status, 'step'))} ${escapeHtml(text(item.duration))}</p></button>${index < steps.length - 1 ? '<div class="arrow">-></div>' : ''}`).join('')}</section>
-    <section class="panel" style="margin-top:14px"><h2 id="step-title">${escapeHtml(itemTitle(steps[0] ?? {}, 'Step'))}</h2><p id="step-detail">${escapeHtml(text((steps[0] ?? {}).detail, 'Select a step.'))}</p></section>
+  const body = `${
+    steps.length > 0
+      ? `<section class="flow">${steps.map((item, index) => `<button class="flow-node" type="button" data-step="${index}"><h3>${escapeHtml(itemTitle(item, `Step ${index + 1}`))}</h3><p>${badge(text(item.status, 'step'))} ${escapeHtml(text(item.duration))}</p></button>${index < steps.length - 1 ? '<div class="arrow">-></div>' : ''}`).join('')}</section>
+    <section class="panel" style="margin-top:14px"><h2 id="step-title">${escapeHtml(itemTitle(steps[0] ?? {}, 'Step'))}</h2><p id="step-detail">${escapeHtml(text(steps[0]?.detail, 'Select a step.'))}</p></section>`
+      : ''
+  }
     ${failurePaths.length > 0 ? `<section class="panel" style="margin-top:14px"><h2>Failure Paths</h2>${failurePaths.map((item) => `<article class="card"><h3>${escapeHtml(text(item.from, 'Step'))}: ${escapeHtml(text(item.label, 'failure'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></article>`).join('')}</section>` : ''}`;
   return page({
     title,
@@ -1160,12 +1213,16 @@ function renderIllustrationSet({ title, data, descriptor }: Parameters<Primitive
       ],
     },
   ]);
-  const body = `<section class="grid">${figures
-    .map((figure, index) => {
-      const shapes = records(figure.shapes);
-      return `<article class="card figure"><h2>${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}</h2><svg viewBox="0 0 560 260" role="img" aria-label="${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}" data-figure="${index}"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="currentColor"></path></marker></defs>${shapes.map(inlineSvgShape).join('')}</svg><p>${escapeHtml(text(figure.caption, ''))}</p><button type="button" data-copy-svg="${index}">Copy SVG</button></article>`;
-    })
-    .join('')}</section>`;
+  const body = fieldSection(
+    data,
+    'figures',
+    `<section class="grid">${figures
+      .map((figure, index) => {
+        const shapes = records(figure.shapes);
+        return `<article class="card figure"><h2>${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}</h2><svg viewBox="0 0 560 260" role="img" aria-label="${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}" data-figure="${index}"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="currentColor"></path></marker></defs>${shapes.map(inlineSvgShape).join('')}</svg><p>${escapeHtml(text(figure.caption, ''))}</p><button type="button" data-copy-svg="${index}">Copy SVG</button></article>`;
+      })
+      .join('')}</section>`,
+  );
   return page({
     title,
     kind: 'illustration-set',
@@ -1182,7 +1239,11 @@ document.querySelectorAll('[data-copy-svg]').forEach((button) => button.addEvent
 
 function renderDeck({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
   const slides = presentationSlides(data, DEFAULT_DECK_SLIDES);
-  const body = `<section class="panel"><div class="small"><span id="slide-count">1</span> / ${slides.length} - use left/right arrows</div>${slides.map((item, index) => `<article class="slide ${index === 0 ? 'active' : ''}" data-slide="${index}"><div><div class="kicker">${escapeHtml(text(item.kicker, `Slide ${index + 1}`))}</div><h2>${escapeHtml(itemTitle(item, 'Slide'))}</h2><p>${escapeHtml(text(item.body, ''))}</p>${list(strings(item.bullets))}<p class="small">${escapeHtml(text(item.note, ''))}</p></div></article>`).join('')}</section>`;
+  const body = fieldSection(
+    data,
+    'slides',
+    `<section class="panel"><div class="small"><span id="slide-count">1</span> / ${slides.length} - use left/right arrows</div>${slides.map((item, index) => `<article class="slide ${index === 0 ? 'active' : ''}" data-slide="${index}"><div><div class="kicker">${escapeHtml(text(item.kicker, `Slide ${index + 1}`))}</div><h2>${escapeHtml(itemTitle(item, 'Slide'))}</h2><p>${escapeHtml(text(item.body, ''))}</p>${list(strings(item.bullets))}<p class="small">${escapeHtml(text(item.note, ''))}</p></div></article>`).join('')}</section>`,
+  );
   return page({
     title,
     kind: 'deck',
@@ -1193,6 +1254,7 @@ function renderDeck({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0
 let currentSlide = 0;
 const slides = Array.from(document.querySelectorAll('[data-slide]'));
 function showSlide(index) {
+  if (!slides.length) return;
   currentSlide = Math.max(0, Math.min(slides.length - 1, index));
   slides.forEach((slide, i) => slide.classList.toggle('active', i === currentSlide));
   document.getElementById('slide-count').textContent = String(currentSlide + 1);
@@ -1281,14 +1343,18 @@ function renderPresentation({ title, data, descriptor }: Parameters<PrimitiveRen
 <body>
 <main class="deck">
   <header class="topbar">
-    <div class="brand"><div class="eyebrow">PMX presentation</div><div class="title">${escapeHtml(title)}</div><p>${escapeHtml(subtitle)}</p></div>
+    <div class="brand"><div class="eyebrow">PMX presentation</div><div class="title">${escapeHtml(title)}</div>${fieldSection(data, 'subtitle', `<p>${escapeHtml(subtitle)}</p>`)}</div>
   </header>
-  <section class="slides">${slideMarkup}</section>
+  ${fieldSection(
+    data,
+    'slides',
+    `<section class="slides">${slideMarkup}</section>
   <footer class="bottombar">
     <div class="dots">${slides.map((_, index) => `<button class="dot ${index === 0 ? 'active' : ''}" type="button" data-dot="${index}" aria-label="Go to slide ${index + 1}"></button>`).join('')}</div>
     <div class="hint"><span id="slide-current">1</span> / ${slides.length} - Arrow keys, Space, Page Up/Down</div>
     <div class="progress" aria-hidden="true"><span id="slide-progress"></span></div>
-  </footer>
+  </footer>`,
+  )}
 </main>
 <script type="application/json" id="pmx-data">${safeJson(data)}</script>
 <script>
@@ -1296,6 +1362,7 @@ let currentSlide = 0;
 const slides = Array.from(document.querySelectorAll('[data-slide]'));
 const dots = Array.from(document.querySelectorAll('[data-dot]'));
 function showSlide(index) {
+  if (!slides.length) return;
   currentSlide = Math.max(0, Math.min(slides.length - 1, index));
   slides.forEach((slide, i) => slide.classList.toggle('active', i === currentSlide));
   dots.forEach((dot, i) => dot.classList.toggle('active', i === currentSlide));
@@ -1333,10 +1400,10 @@ function renderExplainer({ title, data, descriptor }: Parameters<PrimitiveRender
   const snippets = fieldRecords(data, 'snippets', []);
   const faq = fieldRecords(data, 'faq', []);
   const glossary = fieldRecords(data, 'glossary', []);
-  const body = `<section class="panel"><h2>TLDR</h2><p>${escapeHtml(text(data.summary, 'Add the one-paragraph explanation a reader should remember.'))}</p></section>
-    <section class="grid" style="margin-top:14px">${steps.map((item, index) => `<details open><summary><strong>${index + 1}. ${escapeHtml(itemTitle(item, 'Step'))}</strong></summary><p>${escapeHtml(text(item.detail, ''))}</p></details>`).join('')}</section>
+  const body = `${fieldSection(data, 'summary', `<section class="panel"><h2>TLDR</h2><p>${escapeHtml(text(data.summary, 'Add the one-paragraph explanation a reader should remember.'))}</p></section>`)}
+    ${fieldSection(data, 'steps', `<section class="grid" style="margin-top:14px">${steps.map((item, index) => `<details open><summary><strong>${index + 1}. ${escapeHtml(itemTitle(item, 'Step'))}</strong></summary><p>${escapeHtml(text(item.detail, ''))}</p></details>`).join('')}</section>`)}
     ${snippets.length > 0 ? `<section class="panel" style="margin-top:14px"><h2>Annotated Snippets</h2>${snippets.map((item) => `<h3>${escapeHtml(itemTitle(item, 'Snippet'))}</h3><p>${escapeHtml(text(item.note, ''))}</p>${codeBlock(item.code)}`).join('')}</section>` : ''}
-    <section class="two" style="margin-top:14px"><div class="panel"><h2>FAQ</h2>${faq.map((item) => `<details><summary>${escapeHtml(text(item.q, 'Question'))}</summary><p>${escapeHtml(text(item.a, 'Answer'))}</p></details>`).join('') || '<p class="muted">No FAQ entries yet.</p>'}</div><div class="panel"><h2>Glossary</h2>${glossary.map((item) => `<div class="card"><strong>${escapeHtml(text(item.term, 'Term'))}</strong><p>${escapeHtml(text(item.definition, 'Definition'))}</p></div>`).join('') || '<p class="muted">No glossary entries yet.</p>'}</div></section>`;
+    ${fieldSection(data, ['faq', 'glossary'], `<section class="two" style="margin-top:14px">${fieldSection(data, 'faq', `<div class="panel"><h2>FAQ</h2>${faq.map((item) => `<details><summary>${escapeHtml(text(item.q, 'Question'))}</summary><p>${escapeHtml(text(item.a, 'Answer'))}</p></details>`).join('') || '<p class="muted">No FAQ entries yet.</p>'}</div>`)}${fieldSection(data, 'glossary', `<div class="panel"><h2>Glossary</h2>${glossary.map((item) => `<div class="card"><strong>${escapeHtml(text(item.term, 'Term'))}</strong><p>${escapeHtml(text(item.definition, 'Definition'))}</p></div>`).join('') || '<p class="muted">No glossary entries yet.</p>'}</div>`)}</section>`)}`;
   return page({ title, kind: 'explainer', summary: descriptor.description, data, body });
 }
 
@@ -1345,8 +1412,8 @@ function renderStatusReport({ title, data, descriptor }: Parameters<PrimitiveRen
     { label: 'Health', value: 'on track', tone: 'ok' },
     { label: 'Risk', value: 'medium', tone: 'warn' },
   ]);
-  const body = `<section class="grid">${metrics.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.label, 'Metric'))}</div><h2>${escapeHtml(text(item.value, 'Value'))}</h2>${badge(text(item.tone, 'info'))}</article>`).join('')}</section>
-    <section class="grid" style="margin-top:14px"><article class="card"><h2>Shipped</h2>${list(fieldStrings(data, 'shipped', ['Add shipped items.']))}</article><article class="card"><h2>Slipped</h2>${list(fieldStrings(data, 'slipped', ['Add slipped items.']))}</article><article class="card"><h2>Risks</h2>${list(fieldStrings(data, 'risks', ['Add risks.']))}</article><article class="card"><h2>Next</h2>${list(fieldStrings(data, 'next', ['Add next actions.']))}</article></section>`;
+  const body = `${fieldSection(data, 'metrics', `<section class="grid">${metrics.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.label, 'Metric'))}</div><h2>${escapeHtml(text(item.value, 'Value'))}</h2>${badge(text(item.tone, 'info'))}</article>`).join('')}</section>`)}
+    ${fieldSection(data, ['shipped', 'slipped', 'risks', 'next'], `<section class="grid" style="margin-top:14px">${fieldSection(data, 'shipped', `<article class="card"><h2>Shipped</h2>${list(fieldStrings(data, 'shipped', ['Add shipped items.']))}</article>`)}${fieldSection(data, 'slipped', `<article class="card"><h2>Slipped</h2>${list(fieldStrings(data, 'slipped', ['Add slipped items.']))}</article>`)}${fieldSection(data, 'risks', `<article class="card"><h2>Risks</h2>${list(fieldStrings(data, 'risks', ['Add risks.']))}</article>`)}${fieldSection(data, 'next', `<article class="card"><h2>Next</h2>${list(fieldStrings(data, 'next', ['Add next actions.']))}</article>`)}</section>`)}`;
   return page({ title, kind: 'status-report', summary: descriptor.description, data, body });
 }
 
@@ -1362,11 +1429,25 @@ function renderIncidentReport({ title, data, descriptor }: Parameters<PrimitiveR
   const actions = fieldRecords(data, 'actions', [
     { done: false, owner: 'Unassigned', description: 'Add follow-up action.', due: 'TBD' },
   ]);
-  const body = `<section class="grid">${impact.map((item) => `<article class="card metric"><div class="small">${escapeHtml(text(item.label, 'Metric'))}</div><strong>${escapeHtml(text(item.value, 'Value'))}</strong>${badge(text(item.tone, 'info'))}</article>`).join('')}</section>
-    <section class="panel" style="margin-top:14px"><h2>Executive Summary</h2><p>${escapeHtml(text(data.summary, 'Summarize user impact, detection, and resolution.'))}</p></section>
-    <section class="three" style="margin-top:14px"><div class="panel"><h2>Timeline</h2><div class="timeline">${timeline.map((item, index) => `<div class="step"><div class="dot">${escapeHtml(text(item.time, String(index + 1)))}</div><div class="card"><h3>${escapeHtml(text(item.event, 'Event'))} ${badge(text(item.tone, 'info'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></div></div>`).join('')}</div></div>
-    <div class="panel"><h2>Root Cause</h2><p>${escapeHtml(text(data.rootCause, 'Add confirmed or suspected root cause.'))}</p>${codeBlock(data.logs)}</div>
-    <div class="panel sticky"><h2>Actions</h2>${actions.map((action) => `<label class="card"><h3><input type="checkbox" data-action ${action.done === true ? 'checked' : ''}> ${escapeHtml(text(action.description, 'Action'))}</h3><p class="small">${escapeHtml(text(action.owner, 'Owner'))} / ${escapeHtml(text(action.due, 'Due'))}</p></label>`).join('')}<button type="button" data-copy-actions>Copy actions</button></div></section>`;
+  const body = `${fieldSection(
+    data,
+    'impact',
+    `<section class="grid">${impact
+      .filter((item) => text(item.value).trim())
+      .map(
+        (item) =>
+          `<article class="card metric"><div class="small">${escapeHtml(text(item.label, 'Metric'))}</div><strong>${escapeHtml(text(item.value, 'Value'))}</strong>${badge(text(item.tone, 'info'))}</article>`,
+      )
+      .join('')}</section>`,
+  )}
+    ${fieldSection(data, 'summary', `<section class="panel" style="margin-top:14px"><h2>Executive Summary</h2><p>${escapeHtml(text(data.summary, 'Summarize user impact, detection, and resolution.'))}</p></section>`)}
+    ${fieldSection(
+      data,
+      ['timeline', 'rootCause', 'logs', 'actions'],
+      `<section class="three" style="margin-top:14px">${fieldSection(data, 'timeline', `<div class="panel"><h2>Timeline</h2><div class="timeline">${timeline.map((item, index) => `<div class="step"><div class="dot">${escapeHtml(text(item.time, String(index + 1)))}</div><div class="card"><h3>${escapeHtml(text(item.event, 'Event'))} ${badge(text(item.tone, 'info'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></div></div>`).join('')}</div></div>`)}
+    ${fieldSection(data, ['rootCause', 'logs'], `<div class="panel">${fieldSection(data, 'rootCause', `<h2>Root Cause</h2><p>${escapeHtml(text(data.rootCause, 'Add confirmed or suspected root cause.'))}</p>`)}${codeBlock(data.logs)}</div>`)}
+    ${fieldSection(data, 'actions', `<div class="panel sticky"><h2>Actions</h2>${actions.map((action) => `<label class="card"><h3><input type="checkbox" data-action ${action.done === true ? 'checked' : ''}> ${escapeHtml(text(action.description, 'Action'))}</h3><p class="small">${escapeHtml(text(action.owner, 'Owner'))} / ${escapeHtml(text(action.due, 'Due'))}</p></label>`).join('')}<button type="button" data-copy-actions>Copy actions</button></div>`)}</section>`,
+    )}`;
   return page({
     title,
     kind: 'incident-report',
@@ -1398,20 +1479,28 @@ function renderTriageBoard({ title, data, descriptor }: Parameters<PrimitiveRend
       rationale: 'Useful but not blocking.',
     },
   ]);
-  const body = `<section class="columns">${columns
-    .map(
-      (column) =>
-        `<div class="column" data-column="${escapeHtml(column)}"><h2>${escapeHtml(column)}</h2>${items
-          .filter((item) => text(item.column, columns[0]) === column)
-          .map(
-            (item, index) =>
-              `<article class="card ticket" draggable="true" data-ticket="${index}"><h3>${escapeHtml(itemTitle(item, 'Item'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p><p class="small">${escapeHtml(text(item.rationale, ''))}</p></article>`,
-          )
-          .join('')}</div>`,
-    )
-    .join(
-      '',
-    )}</section><p class="small" style="margin-top:12px">Drag cards between columns, then copy JSON or markdown.</p><button type="button" data-copy-markdown>Copy markdown</button>`;
+  const body = fieldSection(
+    data,
+    'columns',
+    fieldSection(
+      data,
+      'items',
+      `<section class="columns">${columns
+        .map(
+          (column) =>
+            `<div class="column" data-column="${escapeHtml(column)}"><h2>${escapeHtml(column)}</h2>${items
+              .filter((item) => text(item.column, columns[0]) === column)
+              .map(
+                (item, index) =>
+                  `<article class="card ticket" draggable="true" data-ticket="${index}"><h3>${escapeHtml(itemTitle(item, 'Item'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p><p class="small">${escapeHtml(text(item.rationale, ''))}</p></article>`,
+              )
+              .join('')}</div>`,
+        )
+        .join(
+          '',
+        )}</section><p class="small" style="margin-top:12px">Drag cards between columns, then copy JSON or markdown.</p><button type="button" data-copy-markdown>Copy markdown</button>`,
+    ),
+  );
   return page({
     title,
     kind: 'triage-board',
@@ -1465,12 +1554,16 @@ function renderConfigEditor({ title, data, descriptor }: Parameters<PrimitiveRen
       description: 'Routes users through the new flow.',
     },
   ]);
-  const body = `<section class="grid">${flags.map((flag, index) => `<label class="card"><div class="small">${escapeHtml(text(flag.area, 'General'))}</div><h3><input type="checkbox" data-flag="${index}" ${flag.enabled === true ? 'checked' : ''}> ${escapeHtml(text(flag.label, text(flag.key, `Flag ${index + 1}`)))}</h3><p>${escapeHtml(text(flag.description, ''))}</p><p class="small">Key: ${escapeHtml(text(flag.key, 'unknown'))}${strings(flag.requires).length > 0 ? ` / requires: ${escapeHtml(strings(flag.requires).join(', '))}` : ''}</p><p class="small" data-warning="${index}"></p></label>`).join('')}</section><button type="button" data-copy-diff style="margin-top:12px">Copy diff</button>`;
+  const body = fieldSection(
+    data,
+    'flags',
+    `<section class="grid">${flags.map((flag, index) => `<label class="card"><div class="small">${escapeHtml(text(flag.area, 'General'))}</div><h3><input type="checkbox" data-flag="${index}" ${flag.enabled === true ? 'checked' : ''}> ${escapeHtml(text(flag.label, text(flag.key, `Flag ${index + 1}`)))}</h3><p>${escapeHtml(text(flag.description, ''))}</p><p class="small">Key: ${escapeHtml(text(flag.key, 'unknown'))}${strings(flag.requires).length > 0 ? ` / requires: ${escapeHtml(strings(flag.requires).join(', '))}` : ''}</p><p class="small" data-warning="${index}"></p></label>`).join('')}</section><button type="button" data-copy-diff style="margin-top:12px">Copy diff</button>`,
+  );
   return page({
     title,
     kind: 'config-editor',
     summary: descriptor.description,
-    data,
+    data: { ...data, flags },
     body,
     script: `
 const originalFlags = PMX_DATA.flags || [];
@@ -1503,7 +1596,11 @@ function renderPromptTuner({ title, data, descriptor }: Parameters<PrimitiveRend
   const samples = fieldRecords(data, 'samples', [
     { name: 'Default', variables: { feature: 'PMX Canvas pins', audience: 'coding agents' } },
   ]);
-  const body = `<section class="two"><div class="panel"><h2>Template</h2><textarea id="template">${escapeHtml(template)}</textarea><p class="small"><span id="char-count">0</span> characters</p></div><div class="panel"><h2>Live Samples</h2><div id="previews"></div><button type="button" data-copy-template>Copy template</button></div></section>`;
+  const body = fieldSection(
+    data,
+    'template',
+    `<section class="two"><div class="panel"><h2>Template</h2><textarea id="template">${escapeHtml(template)}</textarea><p class="small"><span id="char-count">0</span> characters</p></div>${fieldSection(data, 'samples', `<div class="panel"><h2>Live Samples</h2><div id="previews"></div><button type="button" data-copy-template>Copy template</button></div>`)}</section>`,
+  );
   return page({
     title,
     kind: 'prompt-tuner',
@@ -1518,12 +1615,14 @@ function fill(template, vars) {
   return template.replace(/{{\\s*([\\w.-]+)\\s*}}/g, (_, key) => vars?.[key] ?? '{{' + key + '}}');
 }
 function renderPreviews() {
+  if (!templateEl) return;
   const value = templateEl.value;
   document.getElementById('char-count').textContent = String(value.length);
+  if (!previewsEl) return;
   previewsEl.innerHTML = samples.map((sample) => '<div class="card"><h3>' + (sample.name || 'Sample') + '</h3><div class="preview">' + fill(value, sample.variables || {}).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div></div>').join('');
 }
-templateEl.addEventListener('input', renderPreviews);
-window.__pmxGetCopyJson = () => ({ ...PMX_DATA, template: templateEl.value });
+templateEl?.addEventListener('input', renderPreviews);
+window.__pmxGetCopyJson = () => ({ ...PMX_DATA, template: templateEl?.value ?? '' });
 document.querySelector('[data-copy-template]')?.addEventListener('click', () => copyText(templateEl.value));
 renderPreviews();`,
   });
@@ -1742,7 +1841,7 @@ function renderAxBoard({ title, data, descriptor }: Parameters<PrimitiveRenderer
 <section class="two">
   <div class="panel">
     <h2>Give the agent a task</h2>
-    <p class="small">${escapeHtml(note)}</p>
+    ${fieldSection(data, 'note', `<p class="small">${escapeHtml(note)}</p>`)}
     <div class="ax-field"><input type="text" id="ax-task-title" placeholder="What should the agent do?"></div>
     <div class="ax-field"><textarea id="ax-task-detail" placeholder="Optional detail" style="min-height:64px"></textarea></div>
     <div class="ax-row"><button type="button" id="ax-add-task">Add task</button><span class="small" id="ax-task-status"></span></div>
@@ -1882,6 +1981,15 @@ function renderAxFlow({ title, data, descriptor }: Parameters<PrimitiveRenderer>
       const detail = text(step.detail).trim().slice(0, 2000);
       return detail ? { title: stepTitle, detail } : { title: stepTitle };
     });
+  if (steps.length === 0) {
+    return page({
+      title,
+      kind: 'ax-flow',
+      summary: descriptor.description,
+      data,
+      body: fieldSection(data, 'note', `<p class="small">${escapeHtml(note)}</p>`),
+    });
+  }
   const loopRecord = isRecord(data.loop) ? data.loop : {};
   const loopEnabled = loopRecord.enabled === true;
   const maxRuns = Math.min(20, Math.max(1, Math.round(number(loopRecord.maxRuns, 3))));
@@ -1918,7 +2026,7 @@ function renderAxFlow({ title, data, descriptor }: Parameters<PrimitiveRenderer>
 <section class="panel" id="ax-offline" hidden><h2>AX bridge unavailable</h2><p class="small">This flow is not running as an AX-enabled canvas node, so its controls are inert.</p></section>
 <section class="panel">
   <div class="ax-work-head"><h2>${escapeHtml(title)}</h2><span class="small" id="ax-flow-counts"></span></div>
-  <p class="small">${escapeHtml(note)}</p>
+  ${fieldSection(data, 'note', `<p class="small">${escapeHtml(note)}</p>`)}
   <div class="ax-flow-scroll">
     <div class="ax-flow-wrap${loopEnabled ? ' looping' : ''}" id="ax-flow-wrap">
       <div class="ax-flow-diagram" id="ax-flow-diagram"></div>

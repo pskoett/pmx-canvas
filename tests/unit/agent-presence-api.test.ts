@@ -159,6 +159,25 @@ describe('agent presence over HTTP', () => {
     expect((await getPresence()).presences).toEqual([]);
   });
 
+  test('camera, fit, and focus-only requests do not create or refresh writer presence', async () => {
+    const created = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'Camera target' }, { 'x-pmx-workbench': '1' })
+    ).json()) as { id: string };
+    await postJson('/api/canvas/ax/presence', { source: 'codex', phase: 'idle', cursor: { x: 10, y: 20 } });
+    const before = await getPresence();
+    const lastSeenAt = before.presences[0]?.lastSeenAt;
+    expect(before.presences[0]?.opCount).toBe(0);
+
+    expect((await postJson('/api/canvas/viewport', { x: 12, y: 34, scale: 0.8 })).ok).toBe(true);
+    expect((await postJson('/api/canvas/fit', { nodeIds: [created.id] })).ok).toBe(true);
+    expect((await postJson('/api/canvas/focus', { id: created.id, noPan: true })).ok).toBe(true);
+    expect((await postJson('/api/canvas/ax/focus', { nodeIds: [created.id], source: 'api' })).ok).toBe(true);
+
+    const after = await getPresence();
+    expect(after.presences).toHaveLength(1);
+    expect(after.presences[0]).toMatchObject({ sessionId: 'codex', opCount: 0, lastSeenAt });
+  });
+
   test('a custom writer label attaches under itself, so its own writes fold into the session (live-board finding)', async () => {
     // PMX_CANVAS_AGENT_SOURCE=claude-code: the MCP server labels its writes
     // `claude-code` AND attaches under it. Normalizing the attach through the
@@ -482,7 +501,10 @@ describe('agent presence over SSE', () => {
     const receipt = readSseEvent('agent-session-ended', () => true);
     await new Promise((resolve) => setTimeout(resolve, 50));
     await postJson('/api/canvas/ax/presence', { source: 'codex', attached: false });
-    expect((await receipt).snapshot).toBeNull();
+    const payload = await receipt;
+    expect(payload.snapshot).toBeNull();
+    expect(payload.unchanged).toBe(true);
+    expect(payload.parentAgentId).toBeNull();
   });
 
   test('an agent mutation broadcasts the writer without a session', async () => {

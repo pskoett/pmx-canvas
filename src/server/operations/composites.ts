@@ -203,8 +203,10 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
     toolName: 'canvas_view',
     description:
       'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas; "remove-annotation" deletes a human-drawn annotation by id.',
-    actionSummary: 'arrange | focus | fit | clear | remove-annotation',
+    actionSummary: 'arrange | focus | fit | clear | remove-annotation | get-tour | set-tour',
     actions: {
+      'get-tour': 'tour.get',
+      'set-tour': 'tour.set',
       arrange: 'arrange',
       focus: 'node.focus',
       fit: 'view.fit',

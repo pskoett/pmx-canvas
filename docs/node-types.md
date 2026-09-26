@@ -26,6 +26,17 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `web-artifact` | Bundled React/Tailwind artifact (full single-file app) |
 | `group` | Spatial container/frame around other nodes |
 
+Creation applies per-type frame defaults and readability minimums. When a
+dimension is defaulted or clamped, HTTP and MCP create responses include a
+`sizeAdjustment` with requested and applied dimensions plus the reason.
+`strictSize: true` bypasses minimum-size clamping; it does not change defaults
+for omitted dimensions.
+
+For `graph` nodes, `height` controls the chart plot inside the viewer.
+`nodeHeight` controls the canvas node frame (`heightPx` is the SDK alias). If
+only `height` is supplied, the frame keeps its default height and the create
+response warns about the distinction.
+
 Thread node types `prompt` and `response` exist internally for agent
 conversation rendering and are not created through public APIs.
 
@@ -63,6 +74,34 @@ different type by extension:
   decoding bytes into mojibake.
 - **Text files over 2 MB** render truncated with a banner saying so, so a huge
   log can never exhaust memory.
+
+## Mermaid nodes
+
+Mermaid diagrams default to `data.fit: "contain"`: when the diagram overflows
+the available body, it shrinks uniformly until the entire diagram fits. Small
+diagrams stay at 100%; aspect ratio, labels, and edges are preserved, in both
+dark and light themes. Resizing a card or expanding it recalculates the fit.
+`strictSize` keeps the requested node geometry while the diagram fits inside it;
+ordinary cards retain their grow-only automatic sizing.
+
+Fitting a large diagram makes its text smaller. Use **Expand** for more space,
+or **Open as site** for a 100% natural-size diagram with scrolling. Set
+`data.fit: "none"` to use that natural-size, scrollable view inside the card too.
+This setting is independent of the canvas camera's **Fit view** action.
+
+```ts
+canvas_node({ action: 'add', type: 'mermaid', content: 'flowchart TD; A-->B-->C-->D',
+  width: 920, height: 870, strictSize: true, data: { fit: 'contain' } })
+canvas_node({ action: 'update', id: 'node-id', data: { fit: 'none' } })
+```
+
+HTTP uses the same `data` object in `POST /api/canvas/node` and
+`PATCH /api/canvas/node/:id`. CLI creation and updates expose `--fit`:
+
+```bash
+pmx-canvas node add --type mermaid --content 'flowchart TD; A-->B-->C-->D' --fit contain --width 920 --height 870 --strict-size
+pmx-canvas node update node-id --fit none
+```
 
 ## Image nodes
 
@@ -162,6 +201,40 @@ Specs preserve top-level `state` and element-level `repeat`, `watch`, and
 `slots`. Use `$bindState` with JSON Pointer paths for editable form values;
 `$state` only reads a value. Nested repeats can use `statePath: { "$item": "tasks" }`
 to iterate the current item's tasks. Watchers run after changes, not on mount.
+
+**Seed form values through bindings, not literal `value` props.** In shadcn
+0.21, `Input`, `Textarea`, `Select`, `Radio`, `Slider`, `ToggleGroup`, and
+`Tabs` ignore an unbound `value`; `ButtonGroup` ignores unbound `selected`.
+This includes read-only `$state` expressions. PMX returns a `warnings` array
+from `POST /api/canvas/json-render`, `POST /api/canvas/schema/validate`, and
+`canvas_render` actions `add-json-render` and `validate`. Warnings name the
+element/property; they do not reject or rewrite the spec. PMX does not invent
+state paths because repeated controls and existing actions may need distinct
+or deliberately shared state.
+
+```json
+{
+  "root": "postcode",
+  "state": { "form": { "postcode": "nw1 6xe" } },
+  "elements": {
+    "postcode": {
+      "type": "Input",
+      "props": {
+        "label": "Postcode",
+        "name": "postcode",
+        "value": { "$bindState": "/form/postcode" }
+      }
+    }
+  }
+}
+```
+
+Inside repeats, use `$bindItem` with seeded item data. `Checkbox`/`Switch`
+honor literal `checked`, `Toggle` honors literal `pressed`, and `Tabs` honors
+`defaultValue` for an uncontrolled initial tab. `Pagination` reads `page`
+directly; `DropdownMenu.value` is an output binding for selection, not a
+displayed selection. These do not require the same ignored-value warning.
+Use two-way bindings whenever edits or form checks must participate in state.
 
 Cards keep their body in `children` and accept
 `slots: { header: ['headingId'], footer: ['actionsId'] }`. Slot IDs reference
@@ -276,6 +349,13 @@ review sheet, PR writeup, code walkthrough, system map, design sheet,
 component gallery, interaction prototype, flowchart, SVG illustration set,
 presentation, explainer, status report, incident report, triage board, config
 editor, or prompt tuner.
+
+Omitted fields may use the template's examples. Explicit empty arrays, empty
+strings, or `null` mean “show nothing”: the field's section, heading, and
+dependent controls are omitted rather than replaced with sample content.
+Other populated or omitted fields keep their normal behavior. Empty `slides`
+or flow `steps` also omit navigation/run controls; an AX board's live task
+controls remain available when only its optional note is empty.
 
 Two kinds are **live AX control surfaces** rather than static documents, and are
 the only primitives created with AX enabled:

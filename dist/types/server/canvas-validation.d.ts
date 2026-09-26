@@ -26,6 +26,8 @@ export interface CanvasValidationResult {
     collisions: CanvasValidationPair[];
     containments: CanvasContainmentIssue[];
     containmentViolations: CanvasContainmentIssue[];
+    /** Group frames overlapping nodes that are not members (advisory). */
+    groupFrameOverlaps: CanvasValidationPair[];
     missingEdgeEndpoints: Array<{
         edgeId: string;
         from: string;
@@ -39,6 +41,7 @@ export interface CanvasValidationResult {
         collisions: number;
         containments: number;
         containmentViolations: number;
+        groupFrameOverlaps: number;
         missingEdgeEndpoints: number;
         sizeWarnings: number;
     };

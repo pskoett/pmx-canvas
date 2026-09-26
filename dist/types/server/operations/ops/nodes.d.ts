@@ -1,4 +1,5 @@
 import { type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
+import { type CanvasSizeAdjustment } from '../../canvas-operations.js';
 import { type Operation } from '../types.js';
 export declare const NODE_TYPES: readonly ["markdown", "status", "context", "ledger", "trace", "file", "diff", "mermaid", "image", "mcp-app", "webpage", "html", "group"];
 /** Per-type default node frame size (formerly copy-pasted ladders). */
@@ -30,7 +31,7 @@ export declare function agentSafeFullLayoutPayload(layout: CanvasLayout): Record
  * agents using either key (or a cached schema) work — matching the
  * external-app / web-artifact responses that already return both.
  */
-export declare function createdNodePayloadFromNode(node: CanvasNodeState, options?: Record<string, unknown>): Record<string, unknown>;
+export declare function createdNodePayloadFromNode(node: CanvasNodeState, options?: Record<string, unknown>, extras?: Record<string, unknown>): Record<string, unknown>;
 /**
  * Create a basic (non-webpage / non-group / non-primitive) node. Union of the
  * legacy handleCanvasAddNode generic branch; the SDK passes fileMode 'path',
@@ -41,6 +42,7 @@ export declare function createBasicCanvasNode(body: Record<string, unknown>, opt
 }): {
     node: CanvasNodeState;
     needsCodeGraphRecompute: boolean;
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 /**
  * Build a node patch with the full HTTP superset semantics (webpage

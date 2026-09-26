@@ -18,6 +18,12 @@ structured panel into place as they generate it — not as a separate tooling
 project. Pin what matters and the agent reads your spatial curation as
 structured context.
 
+**The board is the presentation.** Click **Present** to step through a saved tour
+(or groups in reading order), with chrome hidden and smooth camera moves.
+Optionally capture that same tour with
+`pmx-canvas record --mode deterministic --present --output tour.mp4`. See the
+[tour model and CLI walkthrough](docs/cli.md#tour-and-presentation).
+
 <p align="center">
   <img src="docs/screenshots/workbench-live-dark.png" alt="Live multi-agent workbench — dark theme: two agents on the board, review cards, an architecture diagram, and the writers pill" width="49%" />
   <img src="docs/screenshots/workbench-live-light.png" alt="Live multi-agent workbench — light theme" width="49%" />

@@ -41,4 +41,13 @@ describe('MermaidNode render', () => {
     expect(getByText('No diagram source set')).toBeTruthy();
     expect(container.querySelector('iframe')).toBeNull();
   });
+
+  test('reloads the surface when fit changes and allows short node bodies', () => {
+    const node = makeMermaidNode({ content: 'graph TD; A-->B;' });
+    const { container, rerender } = render(<MermaidNode node={node} />);
+    const before = container.querySelector('iframe')?.src;
+    expect(container.querySelector('iframe')?.style.minHeight).toBe('0');
+    rerender(<MermaidNode node={{ ...node, data: { ...node.data, fit: 'none' } }} />);
+    expect(container.querySelector('iframe')?.src).not.toBe(before);
+  });
 });

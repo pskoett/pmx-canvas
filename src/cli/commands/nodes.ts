@@ -27,6 +27,12 @@ import {
 
 const TRACE_NODE_FIELDS = ['toolName', 'category', 'status', 'duration', 'resultSummary', 'error'] as const;
 
+function applyMermaidFitFlag(body: Record<string, unknown>, flags: Record<string, string | boolean>): void {
+  if (flags.fit === undefined) return;
+  if (flags.fit !== 'contain' && flags.fit !== 'none') die('Use --fit contain or --fit none (Mermaid nodes).');
+  body.data = { ...(isRecord(body.data) ? body.data : {}), fit: flags.fit };
+}
+
 interface CanvasSchemaField {
   name: string;
   type: string;
@@ -483,6 +489,7 @@ cmd(
     'pmx-canvas node add --type html --title "Showcase" --content ./report.html   (a .html path is read from disk; otherwise --content is raw HTML)',
     'pmx-canvas node add --type html --primitive choice-grid --data-file ./options.json --title "Options"',
     'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
+    'pmx-canvas node add --type mermaid --content "graph TD; A-->B" --fit contain',
     'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
     'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
     'pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx',
@@ -530,6 +537,7 @@ cmd(
     }
 
     const body: Record<string, unknown> = { type };
+    applyMermaidFitFlag(body, flags);
     if (flags.title) body.title = flags.title;
     const webpageUrl = getStringFlag(flags, 'url');
     const imagePath = getStringFlag(flags, 'path');
@@ -821,6 +829,7 @@ cmd(
   [
     'pmx-canvas node update <node-id> --title "New Title"',
     'pmx-canvas node update <node-id> --content "Updated content"',
+    'pmx-canvas node update <mermaid-id> --fit none',
     'pmx-canvas node update <node-id> --title "Moved" --x 500 --y 300',
     'pmx-canvas node update <node-id> --width 840 --height 620',
     'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
@@ -838,6 +847,7 @@ cmd(
 
     const body: Record<string, unknown> = {};
     await applyStructuredNodeUpdateFlags(body, flags);
+    applyMermaidFitFlag(body, flags);
     if (flags.title && flags.title !== true) body.title = flags.title;
     if (flags.content && flags.content !== true) body.content = flags.content;
     if (flags.stdin) body.content = await readStdin();

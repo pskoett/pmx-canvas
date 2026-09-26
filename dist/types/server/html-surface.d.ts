@@ -60,7 +60,7 @@ export declare function buildContentHeightReporter(frameToken: string): string;
  * of the main SPA bundle). Escaping is mandatory: the source is arbitrary node
  * data and must not be parsed as markup.
  */
-export declare function buildMermaidSurfaceHtml(source: string, inlineEntry?: string | null): string;
+export declare function buildMermaidSurfaceHtml(source: string, inlineEntry?: string | null, fit?: 'contain' | 'none', frameToken?: string): string;
 export interface HtmlSurfaceOptions {
     theme: SurfaceTheme;
     /**

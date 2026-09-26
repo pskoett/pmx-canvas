@@ -21,6 +21,7 @@ import './commands/history.js';
 import './commands/ax.js';
 import './commands/pump.js';
 import './commands/webview.js';
+import './commands/record.js';
 import './commands/apps.js';
 import './commands/copilot.js';
 import './commands/skills.js';

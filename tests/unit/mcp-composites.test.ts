@@ -81,6 +81,30 @@ afterEach(async () => {
 });
 
 describe('MCP composite tools (plan-006)', () => {
+  test('canvas_node transports Mermaid fit data on add and update', async () => {
+    const { client, port } = await createMcpSession();
+    try {
+      const added = parseJsonText<{ id: string }>(
+        await call(client, 'canvas_node', {
+          action: 'add',
+          type: 'mermaid',
+          content: 'flowchart TD; A-->B',
+          data: { fit: 'none' },
+        }),
+      );
+      const baseUrl = await resolveBaseUrl(port);
+      const before = await (await fetch(`${baseUrl}/api/canvas/surface/${added.id}`)).text();
+      expect(before).toContain('data-fit="none"');
+      const update = await call(client, 'canvas_node', { action: 'update', id: added.id, data: { fit: 'contain' } });
+      expect(update.isError).not.toBe(true);
+      const after = await (await fetch(`${baseUrl}/api/canvas/surface/${added.id}`)).text();
+      expect(after).toContain('data-fit="contain"');
+      expect(after).toContain('flowchart TD; A--&gt;B');
+    } finally {
+      await client.close();
+    }
+  }, 30000);
+
   test('canvas_node folds add/get/update/remove', async () => {
     const { client } = await createMcpSession();
 
@@ -206,6 +230,20 @@ describe('MCP composite tools (plan-006)', () => {
     expect(schemaComposite.source).toBe('running-server');
     expect(schemaComposite.mcp?.nodeTypeRouting).toBeTruthy();
 
+    const formSpec = { type: 'Input', props: { label: 'Postcode', value: 'nw1 6xe' } };
+    const formValidation = parseJsonText<{ ok: boolean; warnings: string[] }>(
+      await call(client, 'canvas_render', { action: 'validate', type: 'json-render', spec: formSpec }),
+    );
+    expect(formValidation.ok).toBe(true);
+    expect(formValidation.warnings).toHaveLength(1);
+    expect(formValidation.warnings[0]).toContain('elements.root.props.value');
+    expect(formValidation.warnings[0]).toContain('$bindState');
+    const formCreated = parseJsonText<{ warnings: string[]; sizeAdjustment: { reason: string } }>(
+      await call(client, 'canvas_render', { action: 'add-json-render', spec: formSpec }),
+    );
+    expect(formCreated.warnings).toEqual(formValidation.warnings);
+    expect(formCreated.sizeAdjustment.reason).toBe('defaulted');
+
     const valid = parseJsonText<{ ok?: boolean }>(
       await call(client, 'canvas_render', {
         action: 'validate',
@@ -218,7 +256,15 @@ describe('MCP composite tools (plan-006)', () => {
     );
     expect(valid.ok).toBe(true);
 
-    const graph = parseJsonText<{ id?: string; url?: string }>(
+    const graph = parseJsonText<{
+      id?: string;
+      url?: string;
+      sizeAdjustment?: {
+        requested: { width: number | null; height: number | null };
+        applied: { width: number; height: number };
+        reason: string;
+      };
+    }>(
       await call(client, 'canvas_render', {
         action: 'add-graph',
         title: 'Bars',
@@ -230,6 +276,36 @@ describe('MCP composite tools (plan-006)', () => {
     );
     expect(graph.id).toBeTruthy();
     expect(graph.url).toContain('/api/canvas/json-render/view?nodeId=');
+    expect(graph.sizeAdjustment).toEqual({
+      requested: { width: null, height: null },
+      applied: { width: 760, height: 520 },
+      reason: 'defaulted',
+    });
+  }, 30000);
+
+  test('canvas_node reports clamped creation and the actual unclamped update size', async () => {
+    const { client } = await createMcpSession();
+    const created = parseJsonText<{ id: string; sizeAdjustment?: unknown }>(
+      await call(client, 'canvas_node', {
+        action: 'add',
+        type: 'markdown',
+        content: 'Size receipt',
+        width: 123,
+        height: 97,
+      }),
+    );
+    expect(created.sizeAdjustment).toEqual({
+      requested: { width: 123, height: 97 },
+      applied: { width: 360, height: 180 },
+      reason: 'clamped-to-minimum',
+    });
+    for (const full of [false, true]) {
+      const updated = parseJsonText<{ node: { size: { width: number; height: number } }; sizeAdjustment?: unknown }>(
+        await call(client, 'canvas_node', { action: 'update', id: created.id, width: 201, height: 109, full }),
+      );
+      expect(updated.node.size).toEqual({ width: 201, height: 109 });
+      expect(updated.sizeAdjustment).toBeUndefined();
+    }
   }, 30000);
 
   test('canvas_edge folds add/remove', async () => {
@@ -284,6 +360,113 @@ describe('MCP composite tools (plan-006)', () => {
     const wrongField = await call(client, 'canvas_snapshot', { action: 'diff', id: saved.id });
     expect(wrongField.isError).toBe(true);
     expect(textOf(wrongField)).toContain('"snapshot"');
+  }, 30000);
+
+  test('group size reports survive both create routes, HTTP, compact/full MCP, updates and batch', async () => {
+    const { client, port } = await createMcpSession();
+    await call(client, 'canvas_node', { action: 'add', type: 'markdown' });
+    const baseUrl = await resolveBaseUrl(port);
+    type Result = { id: string; size: { width: number; height: number }; sizeAdjustment?: unknown };
+    for (const route of ['group', 'node']) {
+      for (const mode of ['http', 'compact', 'full']) {
+        const create = async (args: Record<string, unknown>): Promise<Result> => {
+          const body = { ...(route === 'node' ? { type: 'group' } : {}), ...args };
+          if (mode === 'http') {
+            const response = await fetch(`${baseUrl}/api/canvas/${route}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            expect(response.ok).toBe(true);
+            return (await response.json()) as Result;
+          }
+          return parseJsonText<Result>(
+            await call(client, `canvas_${route}`, {
+              action: route === 'node' ? 'add' : 'create',
+              full: mode === 'full',
+              ...body,
+            }),
+          );
+        };
+        const empty = await create({ width: 123 });
+        expect(empty.sizeAdjustment).toEqual({
+          requested: { width: 123, height: null },
+          applied: { width: 123, height: 400 },
+          reason: 'defaulted',
+        });
+        const child = parseJsonText<Result>(
+          await call(client, 'canvas_node', {
+            action: 'add',
+            type: 'markdown',
+            x: 100,
+            y: 200,
+            width: 400,
+            height: 210,
+          }),
+        );
+        const derived = await create({ childIds: [child.id], width: 999, height: 777 });
+        expect(derived.sizeAdjustment).toEqual({
+          requested: { width: 999, height: 777 },
+          applied: { width: 512, height: 354 },
+          reason: 'fit-to-children',
+        });
+        const exact = await create({ x: 0, y: 0, width: 123, height: 97, childIds: [child.id], childLayout: 'grid' });
+        expect(exact.sizeAdjustment).toBeUndefined();
+        const fitted = await create({ childIds: [child.id] });
+        expect(fitted.sizeAdjustment).toEqual({
+          requested: { width: null, height: null },
+          applied: { width: 512, height: 354 },
+          reason: 'fit-to-children',
+        });
+        const second = parseJsonText<Result>(
+          await call(client, 'canvas_node', {
+            action: 'add',
+            type: 'markdown',
+            x: 900,
+            y: 700,
+            width: 250,
+            height: 190,
+            strictSize: true,
+          }),
+        );
+        const added = parseJsonText<Result>(
+          await call(client, 'canvas_group', { action: 'add', groupId: fitted.id, childIds: [second.id] }),
+        );
+        // The manual layout above moved the first child to (56,88).
+        expect(added.sizeAdjustment).toEqual({
+          requested: { width: 512, height: 354 },
+          applied: { width: 1206, height: 946 },
+          reason: 'fit-to-children',
+        });
+        const updated = parseJsonText<Result>(
+          await call(client, 'canvas_node', {
+            action: 'update',
+            id: fitted.id,
+            childIds: [second.id],
+            full: mode === 'full',
+          }),
+        );
+        expect(updated.sizeAdjustment).toEqual({
+          requested: { width: null, height: null },
+          applied: { width: 362, height: 334 },
+          reason: 'fit-to-children',
+        });
+      }
+    }
+    const batch = parseJsonText<{ results: Array<{ sizeAdjustment?: unknown }> }>(
+      await call(client, 'canvas_batch', {
+        operations: [
+          { op: 'group.create', args: {} },
+          { op: 'node.add', args: { type: 'prompt' } },
+          { op: 'node.add', args: { type: 'markdown', width: 10, height: 20 } },
+        ],
+      }),
+    );
+    expect(batch.results.map((entry) => entry.sizeAdjustment)).toEqual([
+      { requested: { width: null, height: null }, applied: { width: 600, height: 400 }, reason: 'defaulted' },
+      { requested: { width: null, height: null }, applied: { width: 360, height: 200 }, reason: 'defaulted' },
+      { requested: { width: 10, height: 20 }, applied: { width: 360, height: 180 }, reason: 'clamped-to-minimum' },
+    ]);
   }, 30000);
 
   test('canvas_group create/ungroup and canvas_view focus/fit/arrange', async () => {
@@ -439,6 +622,7 @@ describe('MCP composite tools (plan-006)', () => {
       toolCallId: string;
       sessionId: string;
       resourceUri: string;
+      sizeAdjustment?: unknown;
     }>(
       await call(client, 'canvas_app', {
         action: 'open-mcp-app',
@@ -452,6 +636,20 @@ describe('MCP composite tools (plan-006)', () => {
     expect(viaComposite.id).toBe(viaComposite.nodeId!);
     expect(viaComposite.resourceUri).toBe('ui://fixture/counter.html');
     expect(viaComposite.sessionId).toContain('mcp-app-session');
+    expect(viaComposite.sizeAdjustment).toEqual({
+      requested: { width: null, height: null },
+      applied: { width: 720, height: 500 },
+      reason: 'defaulted',
+    });
+    const reused = parseJsonText<{ sizeAdjustment?: unknown }>(
+      await call(client, 'canvas_app', {
+        action: 'open-mcp-app',
+        toolName: 'show_counter',
+        transport,
+        nodeId: viaComposite.nodeId,
+      }),
+    );
+    expect(reused.sizeAdjustment).toBeUndefined();
   }, 30000);
 
   test('canvas_app diagram dispatches to diagram.open (preset-parse-error, no live Excalidraw; canvas_add_diagram no longer exists standalone)', async () => {

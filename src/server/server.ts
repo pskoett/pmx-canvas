@@ -143,7 +143,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
   let snapshot = startSnapshotId
     ? (canvasState.listSnapshots({ all: true }).find((entry) => entry.id === startSnapshotId) ?? null)
     : null;
-  let unchanged = false;
+  let unchanged = !startSnapshotId && canvasState.getLayout().nodes.length === 0;
   // A session that changed NOTHING on the board leaves no snapshot behind —
   // session churn (idle timeouts, receipt tests, attach/detach cycles) was
   // flooding the History drawer with identical boards.
@@ -184,6 +184,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
   // workbench session and would overwrite it. The label is what the receipt shows.
   emitPrimaryWorkbenchEvent('agent-session-ended', {
     label: presence.label,
+    parentAgentId: presence.parentAgentId ?? null,
     endedAt,
     endedBy,
     counts,
@@ -1431,15 +1432,17 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     // escaped diagram source, rendered by /canvas/mermaid-entry.js.
     const inlineAssets = url.searchParams.get('inline-assets') === '1';
     const doc = buildHtmlSurfaceDocument(
-      buildMermaidSurfaceHtml(source, inlineAssets ? mermaidEntryJsInline() : null),
+      buildMermaidSurfaceHtml(
+        source,
+        inlineAssets ? mermaidEntryJsInline() : null,
+        node.data.fit === 'none' ? 'none' : 'contain',
+        url.searchParams.get('frameToken') ?? '',
+      ),
       {
         theme,
         title: surfaceTitle,
         themeToken: url.searchParams.get('themeToken') ?? undefined,
-        // Content-height reporter nonce (lets the node grow to fit the diagram).
-        ...(url.searchParams.get('frameToken')
-          ? { contentHeightToken: url.searchParams.get('frameToken') as string }
-          : {}),
+        // Mermaid reports its natural height itself, before contain scaling.
         // Inline the theme tokens so srcdoc-rendered surfaces (Amp orb portals)
         // are styled without depending on the <link> subresource.
         ...(surfaceThemeCssInline() ? { inlineThemeCss: surfaceThemeCssInline() as string } : {}),

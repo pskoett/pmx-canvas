@@ -65,6 +65,39 @@ function getNodeType(type: string): CanvasCreateTypeSchema {
   return entry;
 }
 
+test('json-render warns about ignored form values without rewriting bindings or state', () => {
+  const state = { postcode: 'nw1 6xe' };
+  const elements = {
+    input: { type: 'Input', props: { label: 'Postcode', value: 'nw1 6xe' } },
+    textarea: { type: 'Textarea', props: { label: 'Notes', value: 'Keep this' } },
+    select: { type: 'Select', props: { label: 'City', options: ['A', 'B'], value: 'B' } },
+    radio: { type: 'Radio', props: { label: 'City', options: ['A', 'B'], value: 'B' } },
+    slider: { type: 'Slider', props: { min: -10, value: 0 } },
+    toggleGroup: { type: 'ToggleGroup', props: { items: [{ label: 'A', value: 'a' }], value: '' } },
+    buttonGroup: { type: 'ButtonGroup', props: { buttons: [{ label: 'A', value: 'a' }], selected: 'b' } },
+    tabs: { type: 'Tabs', props: { tabs: [{ label: 'A', value: 'a' }], value: 'b' } },
+    read: { type: 'Input', props: { label: 'Read only expression', value: { $state: '/postcode' } } },
+    bound: { type: 'Input', props: { label: 'Bound', value: { $bindState: '/postcode' } } },
+    repeated: { type: 'Input', props: { label: 'Item', value: { $bindItem: 'postcode' } } },
+    empty: { type: 'Input', props: { label: 'Empty' } },
+    checkbox: { type: 'Checkbox', props: { label: 'Check', checked: true } },
+    switch: { type: 'Switch', props: { label: 'Switch', checked: false } },
+    toggle: { type: 'Toggle', props: { label: 'Toggle', pressed: true } },
+    defaultTab: { type: 'Tabs', props: { tabs: [{ label: 'A', value: 'a' }], defaultValue: 'a' } },
+    pagination: { type: 'Pagination', props: { page: 2, totalPages: 3 } },
+  };
+  const result = validateStructuredCanvasPayload({ type: 'json-render', spec: { root: 'input', state, elements } });
+  const warnings = result.warnings ?? [];
+  expect(warnings).toHaveLength(9);
+  for (const key of ['input', 'textarea', 'select', 'radio', 'slider', 'toggleGroup', 'buttonGroup', 'tabs', 'read']) {
+    expect(warnings.some((warning) => warning.includes(`elements.${key}.props.`))).toBe(true);
+  }
+  expect(warnings[0]).toContain('$bindState');
+  expect(warnings[0]).toContain('state');
+  expect(result.normalizedSpec?.state).toEqual(state);
+  expect(result.normalizedSpec?.elements.input).toMatchObject({ props: { value: 'nw1 6xe' } });
+});
+
 describe('describeCanvasSchema — MCP tool surface', () => {
   test('advertised mcp.tools and resources match the frozen public surface', () => {
     const { mcp } = describeCanvasSchema();

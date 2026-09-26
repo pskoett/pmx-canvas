@@ -20,7 +20,7 @@ import {
   AX_SURFACE_EMIT_SOURCE,
   HTML_SURFACE_PUSH_SOURCE,
 } from '../shared/ax-surface-protocol.js';
-import { contentHeightReporterTag } from '../shared/content-height-reporter.js';
+import { contentHeightReporterTag, sanitizeFrameToken } from '../shared/content-height-reporter.js';
 import { type CanvasThemeName, normalizeCanvasThemeName } from '../shared/themes.js';
 
 export type SurfaceTheme = CanvasThemeName;
@@ -218,7 +218,12 @@ function escapeSurfaceHtml(value: string): string {
  * of the main SPA bundle). Escaping is mandatory: the source is arbitrary node
  * data and must not be parsed as markup.
  */
-export function buildMermaidSurfaceHtml(source: string, inlineEntry?: string | null): string {
+export function buildMermaidSurfaceHtml(
+  source: string,
+  inlineEntry?: string | null,
+  fit: 'contain' | 'none' = 'contain',
+  frameToken = '',
+): string {
   // srcdoc-rendered surfaces in hosts that block sub-frame subresources (the
   // Claude Code desktop browser blocks the script request too, not just the
   // frame document) get the renderer embedded as a data: URL — no network
@@ -228,7 +233,7 @@ export function buildMermaidSurfaceHtml(source: string, inlineEntry?: string | n
   const entry = inlineEntry
     ? `<script src="data:text/javascript;charset=utf-8;base64,${Buffer.from(inlineEntry, 'utf-8').toString('base64')}"></script>`
     : '<script src="/canvas/mermaid-entry.js"></script>';
-  return `<pre class="mermaid-source" style="display:none">${escapeSurfaceHtml(source)}</pre>${entry}`;
+  return `<pre class="mermaid-source" data-fit="${fit}" data-frame-token="${sanitizeFrameToken(frameToken)}" style="display:none">${escapeSurfaceHtml(source)}</pre>${entry}`;
 }
 
 export interface HtmlSurfaceOptions {

@@ -1210,13 +1210,13 @@ body,
   font-size: 9px;
   padding: 1px 6px;
 }
-/* Idle cursors leave the board (user feedback, 0.5.1 cycle): with many agents
+/* Parked idle cursors leave the board (user feedback, 0.5.1 cycle): with many agents
    attached, a wall of parked "Idle" pills covers real node content. The
    element stays MOUNTED — counts, twin-merge, and cursor-follow logic are
    untouched, and visibility (not display) keeps its layout box so position
-   polls still resolve — but it paints nothing; any non-idle phase fades it
-   back in. Placed after .is-worker so opacity: 0 wins that collision. */
-.agent-cursor.phase-idle {
+   polls still resolve — but it paints nothing. An explicitly reported cursor
+   remains visible even while idle so cursor-only movement cannot disappear. */
+.agent-cursor.phase-idle:not(.has-explicit-cursor) {
   opacity: 0;
   visibility: hidden;
   transition:
@@ -4211,6 +4211,33 @@ html.is-node-resizing .ext-app-preview-catcher {
 }
 
 /* MCP app iframe */
+.mcp-app-frame-stack {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--c-panel-soft);
+  overflow: hidden;
+  border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px);
+}
+
+.mcp-app-frame-stack:has(.html-node-frame) {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  background: var(--c-bg);
+  border-radius: 6px;
+}
+
+.mcp-app-frame-stack:has(.html-node-frame-presentation) {
+  min-height: 0;
+  border-radius: 0;
+}
+
+.mcp-app-frame-stack:has(.html-node-frame-expanded) {
+  min-height: 70vh;
+}
+
 .mcp-app-frame {
   width: 100%;
   height: 100%;
@@ -6807,4 +6834,31 @@ html.is-node-resizing .ext-app-preview-catcher {
 html.is-node-dragging .intent-ghost,
 html.is-node-dragging .intent-line-layer {
   opacity: 0.5;
+}
+
+.present-button {
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.is-presenting > :not(.app-main):not(.presentation-error),
+.is-presenting .app-main > :not(.canvas-region),
+.is-presenting .canvas-region > :not(.canvas-viewport) {
+  display: none !important;
+}
+.is-presenting .canvas-viewport { pointer-events: none; }
+.presentation-error {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 100;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  background: var(--c-panel);
+  color: var(--c-text);
 }

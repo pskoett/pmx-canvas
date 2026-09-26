@@ -187,6 +187,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     viewport,
     onMove: handleMove,
     onDragEnd: handleDragEnd,
+    onClick: () => {
+      selectedNodeIds.value = new Set([node.id]);
+    },
   });
 
   // ── Resize ────────────────────────────────────────────
@@ -236,6 +239,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     (e: PointerEvent) => {
       if (e.button !== 0) return;
       if (renaming) return;
+      // Title controls act on the node without selecting or dragging it.
+      if (e.target instanceof Element && e.target.closest('button, input')) {
+        e.stopPropagation();
+        return;
+      }
       if (canvasTool.value === 'connect') {
         startEdgeDrag(e);
         return;

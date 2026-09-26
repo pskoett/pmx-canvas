@@ -1,3 +1,4 @@
+import { type CanvasSizeAdjustment } from '../../canvas-operations.js';
 import { type ExternalMcpTransportConfig } from '../../mcp-app-runtime.js';
 import { type Operation, type OperationContext } from '../types.js';
 export interface OpenMcpAppCoreInput {
@@ -20,6 +21,7 @@ export interface OpenMcpAppCoreResult {
     toolCallId: string;
     sessionId: string;
     resourceUri: string;
+    sizeAdjustment?: CanvasSizeAdjustment;
 }
 /**
  * Open an external MCP app: connect + call + read resource (openExternalMcpApp),

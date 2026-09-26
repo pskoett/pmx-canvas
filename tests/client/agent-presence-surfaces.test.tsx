@@ -139,11 +139,14 @@ describe('idle cursors leave the board', () => {
     expect(cursors.filter((el) => el.className.includes('phase-idle'))).toHaveLength(1);
   });
 
-  test('the stylesheet hides phase-idle cursors', async () => {
+  test('the stylesheet hides only parked phase-idle cursors, not explicit moving cursors', async () => {
     const css = await Bun.file(new URL('../../src/client/theme/global.css', import.meta.url)).text();
-    const rule = css.match(/\.agent-cursor\.phase-idle\s*\{[^}]*\}/);
+    const rule = css.match(/\.agent-cursor\.phase-idle:not\(\.has-explicit-cursor\)\s*\{[^}]*\}/);
     expect(rule?.[0]).toContain('opacity: 0');
     expect(rule?.[0]).toContain('visibility: hidden');
+    applyPresenceSnapshot({ presences: [presence({ phase: 'idle', cursor: { x: 8, y: 9 } })] });
+    const { container } = render(<AgentPresenceLayer />);
+    expect(container.querySelector('.agent-cursor.phase-idle.has-explicit-cursor')).not.toBeNull();
   });
 });
 
@@ -194,6 +197,18 @@ describe('fleet roll-up', () => {
     expect(
       [...container.querySelectorAll('.agent-cursor')].filter((el) => el.className.includes('is-worker')).length,
     ).toBe(2);
+  });
+
+  test('an attached worker rolls up only under its orchestrator and gets no duplicate chip', () => {
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'copilot', source: 'copilot', phase: 'thinking' }),
+        presence({ sessionId: 'worker', source: 'worker', parentAgentId: 'copilot', phase: 'tooling' }),
+      ],
+    });
+    const { container } = render(<TopBar />);
+    expect(container.querySelectorAll('.agent-chip:not(.agent-chip-more)')).toHaveLength(1);
+    expect(container.querySelector('.agent-chip-workers')?.textContent).toBe('+1 worker');
   });
 });
 

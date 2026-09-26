@@ -111,7 +111,7 @@ function createTarget(input: Record<string, unknown>, extraNodeIds: string[] = [
 }
 
 /** Ops that rewrite the whole board — never allowed under a fence. */
-const BOARD_WIDE_OPS = new Set(['arrange', 'canvas.clear', 'snapshot.restore', 'render.workboard']);
+const BOARD_WIDE_OPS = new Set(['arrange', 'canvas.clear', 'snapshot.restore', 'render.workboard', 'tour.set']);
 
 /** Describe what a registry op would write, in fence terms. */
 export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget {

@@ -1,4 +1,5 @@
 import { findOpenCanvasPosition } from '../utils/placement.js';
+import { ownsCamera } from './presentation';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState } from '../types';
 import {
@@ -945,6 +946,7 @@ function reconnectDelayMs(attempt: number): number {
 }
 
 function handleCanvasFocusNode(data: Record<string, unknown>): void {
+  if (ownsCamera()) return;
   const nodeId = data.nodeId as string;
   if (nodeId && nodes.value.has(nodeId)) {
     if (data.noPan === true) {
@@ -956,6 +958,7 @@ function handleCanvasFocusNode(data: Record<string, unknown>): void {
 }
 
 function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
+  if (ownsCamera()) return;
   const viewport = data.viewport as Record<string, unknown> | undefined;
   if (!viewport) return;
   const x = typeof viewport.x === 'number' ? viewport.x : 0;

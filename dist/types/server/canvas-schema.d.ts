@@ -22,6 +22,7 @@ export interface StructuredValidationResult {
     ok: true;
     type: 'json-render' | 'graph' | 'html-primitive';
     normalizedSpec?: JsonRenderSpec;
+    warnings?: string[];
     normalizedPrimitive?: {
         kind: string;
         title: string;

@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { derivedTour, type Tour } from '../shared/tour.js';
+export type { Tour, TourStop } from '../shared/tour.js';
 import { agentPresence } from './agent-presence.js';
 import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
@@ -545,6 +547,16 @@ export class PmxCanvas extends EventEmitter {
       },
       () => groupId,
     );
+  }
+
+  getTour(): Tour {
+    return canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes);
+  }
+
+  setTour(tour: Tour | null): void {
+    assertInsideFence('tour.set', { boardWide: true });
+    canvasState.setTour(tour);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
   clear(): void {

@@ -16,6 +16,14 @@ PMX Canvas is a server-authoritative spatial workbench controlled through MCP, H
 Humans curate agent context by pinning nodes; agents read that curation through
 `canvas://pinned-context`. State survives browser refresh.
 
+For presentations, `canvas_view { action: "set-tour", tour: { stops: [...] } }`
+persists ordered camera stops; `get-tour` reads them (or derived group order).
+Each stop targets `{ nodeId }` (including groups) or `{ viewport: { x, y, scale } }`,
+with optional `duration` seconds, `easing`, screen-pixel `padding`, and `pullback`.
+Open `/workbench?present=1` for chrome-free viewing. Optionally capture that same
+tour with `pmx-canvas record --mode deterministic --present --output tour.mp4`.
+There is no separate recording model. See `docs/cli.md` for the full tour model.
+
 ## Runtime prerequisites
 
 PMX Canvas 0.6.4 requires **Bun >=1.4.2**, including when installed through npm.

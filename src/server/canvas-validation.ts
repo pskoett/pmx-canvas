@@ -36,6 +36,8 @@ export interface CanvasValidationResult {
   collisions: CanvasValidationPair[];
   containments: CanvasContainmentIssue[];
   containmentViolations: CanvasContainmentIssue[];
+  /** Group frames overlapping nodes that are not members (advisory). */
+  groupFrameOverlaps: CanvasValidationPair[];
   missingEdgeEndpoints: Array<{ edgeId: string; from: string; to: string }>;
   /** Nodes below their type's readable minimum (advisory — does not fail `ok`). */
   sizeWarnings: CanvasSizeWarning[];
@@ -45,6 +47,7 @@ export interface CanvasValidationResult {
     collisions: number;
     containments: number;
     containmentViolations: number;
+    groupFrameOverlaps: number;
     missingEdgeEndpoints: number;
     sizeWarnings: number;
   };
@@ -97,6 +100,7 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
   const collisions: CanvasValidationPair[] = [];
   const containments: CanvasContainmentIssue[] = [];
   const containmentViolations: CanvasContainmentIssue[] = [];
+  const groupFrameOverlaps: CanvasValidationPair[] = [];
 
   for (let i = 0; i < layout.nodes.length; i++) {
     const a = layout.nodes[i]!;
@@ -113,7 +117,9 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
         continue;
       }
 
-      collisions.push(pair(a, b));
+      const overlap = pair(a, b);
+      collisions.push(overlap);
+      if (a.type === 'group' || b.type === 'group') groupFrameOverlaps.push(overlap);
     }
   }
 
@@ -150,6 +156,7 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
     collisions,
     containments,
     containmentViolations,
+    groupFrameOverlaps,
     missingEdgeEndpoints,
     sizeWarnings,
     summary: {
@@ -158,6 +165,7 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
       collisions: collisions.length,
       containments: containments.length,
       containmentViolations: containmentViolations.length,
+      groupFrameOverlaps: groupFrameOverlaps.length,
       missingEdgeEndpoints: missingEdgeEndpoints.length,
       sizeWarnings: sizeWarnings.length,
     },

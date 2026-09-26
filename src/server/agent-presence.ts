@@ -198,6 +198,8 @@ const presenceSetSchema = z.object(PRESENCE_SET_SHAPE);
 
 interface StoredPresence extends AgentPresence {
   lastSeenMs: number;
+  /** Last explicit phase report; cursor/focus heartbeats must not keep a stale phase alive. */
+  phaseSetMs: number;
   /** Explicit phases (`thinking`) hold until the next touch; derived `tooling` decays. */
   toolingUntilMs: number | null;
   lastActivityNodeId: string | null;
@@ -381,6 +383,7 @@ export class AgentPresenceRegistry {
       contextUsage: null,
       lastSeenAt: new Date(now).toISOString(),
       lastSeenMs: now,
+      phaseSetMs: now,
       toolingUntilMs: null,
       startSnapshotId: null,
     };
@@ -458,10 +461,12 @@ export class AgentPresenceRegistry {
       }
       stored.startSnapshotId = inheritedSnapshotId ?? this.onSessionStart(this.publicView(stored, now));
     }
-    if (wasAttached && input.attached === false) {
-      this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId, input.endedBy ?? 'agent');
-      // An ended session is gone — like `session-end` on the activity feed, it
-      // must not linger as an "external writer" until the activity TTL.
+    if (input.attached === false) {
+      if (wasAttached)
+        this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId, input.endedBy ?? 'agent');
+      // An explicit detach always removes the presence. In particular, a
+      // worker that reports attached:false must not be refreshed into another
+      // full activity TTL as an external writer.
       this.presences.delete(key);
       this.dropAliasesTo(key);
       this.maybeStopSweeper();
@@ -481,6 +486,7 @@ export class AgentPresenceRegistry {
       if (input.detail !== undefined) stored.detail = input.detail;
     } else if (input.phase !== undefined) {
       stored.phase = input.phase;
+      stored.phaseSetMs = now;
       stored.detail = input.detail !== undefined ? input.detail : input.phase === 'tooling' ? stored.detail : null;
       stored.toolingUntilMs = input.phase === 'tooling' ? now + PRESENCE_TOOLING_SETTLE_MS : null;
     } else if (input.detail !== undefined) {
@@ -607,6 +613,7 @@ export class AgentPresenceRegistry {
   private publicView(stored: StoredPresence, now: number): AgentPresence {
     const {
       lastSeenMs: _lastSeenMs,
+      phaseSetMs: _phaseSetMs,
       toolingUntilMs,
       startSnapshotId: _startSnapshotId,
       lastActivityNodeId,
@@ -691,11 +698,10 @@ export class AgentPresenceRegistry {
         changed = true;
         continue;
       }
-      // Explicit thinking that nothing refreshed settles to idle: the host set
-      // it at turn start and never sent the turn-end idle (three "Thinking"
-      // chips on a silent board). Any touch bumps lastSeenMs, so an agent
-      // that IS doing canvas work keeps its thinking chip.
-      if (presence.phase === 'thinking' && now - presence.lastSeenMs > PRESENCE_THINKING_SETTLE_MS) {
+      // Cursor/focus heartbeats keep the writer live, but cannot keep a stale
+      // explicit phase alive. Only another explicit phase report resets this
+      // clock; operation-derived tooling remains its own short overlay.
+      if (presence.phase === 'thinking' && now - presence.phaseSetMs > PRESENCE_THINKING_SETTLE_MS) {
         presence.phase = 'idle';
         presence.detail = null;
         changed = true;

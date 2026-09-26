@@ -542,6 +542,35 @@ export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpe
   return propsValidation.data as JsonRenderSpec;
 }
 
+/** shadcn 0.21 ignores these props unless the renderer supplies a two-way binding. */
+export function jsonRenderFormWarnings(spec: JsonRenderSpec): string[] {
+  const bindingOnlyProps: Record<string, string> = {
+    Input: 'value',
+    Textarea: 'value',
+    Select: 'value',
+    Radio: 'value',
+    Slider: 'value',
+    ToggleGroup: 'value',
+    ButtonGroup: 'selected',
+    Tabs: 'value',
+  };
+  const warnings: string[] = [];
+  for (const [key, rawElement] of Object.entries(spec.elements)) {
+    const element = asRecord(rawElement);
+    const type = typeof element?.type === 'string' ? element.type : '';
+    const prop = bindingOnlyProps[type];
+    if (!prop) continue;
+    const value = asRecord(element?.props)?.[prop];
+    if (value === undefined || value === null) continue;
+    const expression = asRecord(value);
+    if (hasString(expression?.$bindState) || hasString(expression?.$bindItem)) continue;
+    warnings.push(
+      `elements.${key}.props.${prop}: ${type} ignores an unbound ${prop} (including literal values and $state expressions). Use { "$bindState": "/form/field" } and seed spec.state.form.field with the initial value; inside a repeat use $bindItem with seeded item data.${type === 'Tabs' ? ' For an uncontrolled initial tab, use defaultValue instead.' : ''}`,
+    );
+  }
+  return warnings;
+}
+
 export function normalizeGraphType(value: string): GraphChartType {
   const normalized = value.toLowerCase().replace(/[-_\s]/g, '');
   return GRAPH_TYPE_ALIASES[normalized] ?? 'LineChart';

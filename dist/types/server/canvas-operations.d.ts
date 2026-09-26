@@ -73,6 +73,21 @@ export declare const LEDGER_NODE_DEFAULT_SIZE: {
     width: number;
     height: number;
 };
+export interface CanvasSizeAdjustment {
+    requested: {
+        width: number | null;
+        height: number | null;
+    };
+    applied: {
+        width: number;
+        height: number;
+    };
+    reason: 'defaulted' | 'clamped-to-minimum' | 'defaulted-and-clamped-to-minimum' | 'fit-to-children';
+}
+export declare function describeCreateSize(requestedWidth: number | undefined, requestedHeight: number | undefined, resolvedWidth: number, resolvedHeight: number, applied: {
+    width: number;
+    height: number;
+}): CanvasSizeAdjustment | undefined;
 interface CanvasCreateGroupInput {
     title?: string;
     childIds?: string[];
@@ -146,6 +161,7 @@ export declare function addCanvasNode(input: CanvasAddNodeInput): {
     id: string;
     node: CanvasNodeState;
     needsCodeGraphRecompute: boolean;
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 export declare function resolveCanvasNode(nodeRef: CanvasNodeLookupInput): {
     ok: true;
@@ -213,11 +229,13 @@ export declare function removeCanvasEdge(id: string): {
 export declare function createCanvasGroup(input: CanvasCreateGroupInput): {
     id: string;
     node: CanvasNodeState;
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 export declare function groupCanvasNodes(groupId: string, childIds: string[], options?: {
     childLayout?: CanvasArrangeMode;
 }): {
     ok: boolean;
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 export declare function ungroupCanvasNodes(groupId: string): {
     ok: boolean;
@@ -230,6 +248,8 @@ export declare function createCanvasJsonRenderNode(input: JsonRenderNodeInput): 
     url: string;
     spec: JsonRenderSpec;
     node: CanvasNodeState;
+    warnings: string[];
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 /**
  * Create an empty streaming json-render node. Unlike createCanvasJsonRenderNode
@@ -248,6 +268,7 @@ export declare function createCanvasStreamingJsonRenderNode(input: {
     url: string;
     spec: JsonRenderSpec;
     node: CanvasNodeState;
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 /**
  * Apply a batch of SpecStream patches to an existing json-render node, bumping
@@ -269,6 +290,7 @@ export declare function createCanvasGraphNode(input: GraphNodeInput): {
     url: string;
     spec: JsonRenderSpec;
     node: CanvasNodeState;
+    sizeAdjustment?: CanvasSizeAdjustment;
 };
 export declare function setClientViewportSize(width: unknown, height: unknown): void;
 export declare function getClientViewportSize(): {

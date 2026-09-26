@@ -1,3 +1,4 @@
+import { type CanvasSizeAdjustment } from './canvas-operations.js';
 export interface WebArtifactBuildInput {
     title: string;
     appTsx: string;
@@ -41,11 +42,13 @@ export interface WebArtifactSourceContext {
 export interface WebArtifactCanvasOpenResult {
     nodeId: string;
     url: string;
+    sizeAdjustment: CanvasSizeAdjustment;
 }
 export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
     openedInCanvas: boolean;
     nodeId?: string;
     url?: string;
+    sizeAdjustment?: CanvasSizeAdjustment;
     startedAt: string;
     completedAt: string;
     durationMs: number;

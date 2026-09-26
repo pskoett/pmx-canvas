@@ -296,6 +296,12 @@ const PRESENCE_EXEMPT_OPS = new Set([
   'ax.activity.ingest',
   'human.presence.set',
   'human.presence.get',
+  // Camera and attention controls are observation/navigation, not edits.
+  // They must not create a writer, bump opCount, or refresh an existing one.
+  'viewport.set',
+  'view.fit',
+  'node.focus',
+  'ax.focus.set',
 ]);
 
 /** Layout mutations AND non-GET AX writes (work items, gates, evidence, steering) are agent activity. */

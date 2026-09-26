@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { type Tour } from '../shared/tour.js';
+export type { Tour, TourStop } from '../shared/tour.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
@@ -140,6 +142,8 @@ export declare class PmxCanvas extends EventEmitter {
     ungroupNodes(groupId: string, options?: {
         intentId?: string;
     }): boolean;
+    getTour(): Tour;
+    setTour(tour: Tour | null): void;
     clear(): void;
     arrange(layout?: 'grid' | 'column' | 'flow'): void;
     focusNode(id: string, options?: {

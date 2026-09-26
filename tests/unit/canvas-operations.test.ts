@@ -241,6 +241,20 @@ describe('canvas operations', () => {
     expect(validation.collisions).toEqual([]);
     expect(validation.containments).toEqual([expect.objectContaining({ groupId: 'group-a', childId: 'child-a' })]);
   });
+
+  test('validation identifies group frame overlap with a non-child node', () => {
+    canvasState.addNode(
+      makeNode({ id: 'group-a', type: 'group', position: { x: 40, y: 40 }, size: { width: 600, height: 360 } }),
+    );
+    canvasState.addNode(
+      makeNode({ id: 'outsider', type: 'markdown', position: { x: 100, y: 100 }, size: { width: 360, height: 200 } }),
+    );
+
+    const validation = validateCanvasLayout(canvasState.getLayout());
+
+    expect(validation.groupFrameOverlaps).toEqual([expect.objectContaining({ aId: 'group-a', bId: 'outsider' })]);
+    expect(validation.summary.groupFrameOverlaps).toBe(1);
+  });
 });
 
 describe('image node validation', () => {

@@ -9,6 +9,40 @@ bodies are treated as an empty request. As of 0.4.0 every error response is a
 JSON envelope of that same shape (`{ ok: false, error }`, status unchanged) —
 no plain-text errors remain.
 
+Node-create responses include `sizeAdjustment` when a frame dimension was
+defaulted or raised to its node type's readability floor. It contains the
+`requested` dimensions (`null` when omitted), the final `applied` dimensions,
+and a `reason` (`defaulted`, `clamped-to-minimum`, or
+`defaulted-and-clamped-to-minimum`; groups also use `fit-to-children`). `strictSize: true`
+still bypasses the readability clamp, but omitted dimensions are reported as
+defaulted. MCP create actions return the same size report.
+Updates preserve explicit dimensions without applying creation floors; their
+returned node `size` is the applied size. Omitted update dimensions retain the
+existing size and are not reported as defaulted adjustments.
+
+Both group-create routes report defaults or final child-derived dimensions, including
+when children override supplied width/height because x/y were omitted. Explicit manual
+frames retain their existing semantics. Group child replacement reports `fit-to-children`
+when it changes the frame; `group.add` reports the previous frame as `requested` and
+the final frame as `applied`. Reports survive compact/full MCP and batch responses.
+External MCP app creation and web-artifact builds that open a node report their default
+frames too; reusing an existing app node or building without opening does not report a
+creation default. These reports describe the synchronous operation, not later browser
+content auto-height or indirect parent-group reflow after editing a child.
+
+## Board tours
+
+- `GET /api/canvas/tour` → `{ tour: { stops: [...] }, derived: boolean }`.
+- `POST /api/canvas/tour` with `{ "tour": { "stops": [...] } }` persists the tour;
+  `{ "tour": null }` resets to derived group reading order. Returns `{ "ok": true }`.
+- `GET /api/canvas/state` includes optional `tour`. Tour writes broadcast a layout
+  update and are included in snapshots/undo. They are board-wide writes under a scope fence.
+
+The [tour model and recording walkthrough](cli.md#tour-and-presentation) describes
+targets, duration, easing, padding, and pullback. Open `/workbench?present=1` to hide
+chrome; camera movement is local to that viewer. Recording writes local files via
+the CLI, not an HTTP job endpoint.
+
 ## Canvas state
 
 ```bash
@@ -34,6 +68,10 @@ curl -X POST http://localhost:4313/api/canvas/schema/validate \
 curl -X POST http://localhost:4313/api/canvas/json-render \
   -H "Content-Type: application/json" \
   -d '{"title":"Panel","nodeHeight":280,"spec":{"root":"card","elements":{"card":{"type":"Card","props":{"title":"Live"},"children":[]}}}}'
+
+# For graph nodes, `height` is the chart's plot height, not the node frame.
+# Set the frame with `nodeHeight` (`heightPx` in the SDK). A graph request that
+# supplies only `height` gets the default frame height and a response warning.
 
 # Validate an HTML primitive without creating a node
 curl -X POST http://localhost:4313/api/canvas/schema/validate \
@@ -69,6 +107,11 @@ curl -X POST http://localhost:4313/api/canvas/node \
 A node creation request must resolve a `type` — pass it in the body (`{ "type":
 ... }`) or as a `?type=` query param. An empty / type-less body returns `400`
 rather than silently creating a markdown node.
+
+Mermaid nodes accept `data: { "fit": "contain" | "none" }` on both
+`POST /api/canvas/node` and `PATCH /api/canvas/node/:id`. The default, `contain`,
+shrinks overflowing diagrams without changing aspect ratio; `none` keeps 100%
+with scrolling. [Mermaid sizing and readability](node-types.md#mermaid-nodes).
 
 ### File node content and bytes
 
@@ -144,6 +187,31 @@ curl -X DELETE http://localhost:4313/api/canvas/annotation/ann-123
 
 Agent-readable context reports annotation IDs, targets, and bounds. Use WebView
 inspection or screenshots when the drawn shape matters.
+
+## Viewport
+
+```bash
+# Set the camera transform (screen = world * scale + {x,y})
+curl -X POST http://localhost:4313/api/canvas/viewport \
+  -H "Content-Type: application/json" \
+  -d '{"x":64,"y":96,"scale":0.8}'
+
+# Fit selected nodes (omit nodeIds to fit the whole canvas)
+curl -X POST http://localhost:4313/api/canvas/fit \
+  -H "Content-Type: application/json" \
+  -d '{"nodeIds":["node-1"],"width":1200,"height":700}'
+
+# Focus without moving the camera
+curl -X POST http://localhost:4313/api/canvas/focus \
+  -H "Content-Type: application/json" \
+  -d '{"id":"node-1","noPan":true}'
+```
+
+Viewport `x`/`y`, fit `width`/`height`, and fit padding are interpreted against
+the **canvas area**, excluding the tool rail, top bar, and other surrounding
+page chrome—not the full browser window. Camera, fit, and focus-only requests
+do not create or refresh agent writer presence. Use the explicit presence API
+when an agent should publish a cursor or `focusNodeId`.
 
 ## Pins
 
@@ -341,13 +409,20 @@ When that session ends (`attached: false`, `session-end`, or the idle expiry)
 the stream carries one `agent-session-ended` frame:
 
 ```json
-{ "label": "Copilot", "endedAt": "…", "counts": { "items": 4, "done": 3, "vetoed": 1 },
+{ "label": "Copilot", "parentAgentId": null, "endedAt": "…", "endedBy": "agent",
+  "unchanged": false, "counts": { "items": 4, "done": 3, "cancelled": 1, "rejected": 0, "held": 0 },
   "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00" } }
 ```
 
-`items`/`done` count the work items on the board; `vetoed` counts cancelled
-items plus rejected or held gates. `snapshot` is null when the board was
-empty at attach. The browser renders this as the session receipt; its *View
+`items`/`done` count the work items on the board; cancelled items, rejected
+gates, and held gates have separate counts. `snapshot` is null when the board was
+empty at attach or unchanged at end (the redundant snapshot is removed).
+The browser shows a receipt only for a changed top-level session: `unchanged: true`
+and worker endings (`parentAgentId` set) never open or replace a popup. An empty
+board that stays empty is unchanged too. This only filters the popup: session-end
+events, timeline records, and changed-session snapshots remain available.
+There is at most one receipt, replaced by the next qualifying ending and kept until
+dismissed so restore/diff actions do not disappear on a timer. Its *View
 diff* is `GET /api/canvas/snapshots/<id>/diff` against that snapshot, and
 restoring the snapshot undoes the session. Adapters should end their session
 explicitly so the human gets the receipt promptly rather than after the idle

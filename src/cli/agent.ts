@@ -30,6 +30,7 @@ import './commands/history.js';
 import './commands/ax.js';
 import './commands/pump.js';
 import './commands/webview.js';
+import './commands/record.js';
 import './commands/apps.js';
 import './commands/copilot.js';
 import './commands/skills.js';
@@ -45,6 +46,10 @@ function showTopLevelHelp(): void {
 Usage:
   pmx-canvas <command> [options]
   pmx-canvas [server-options]
+
+Presentation and capture:
+  pmx-canvas tour get|set             Read or persist ordered camera stops
+  pmx-canvas record --help            Optionally capture the same board tour or live presentation
 
 Server:
   pmx-canvas                          Start server + open browser

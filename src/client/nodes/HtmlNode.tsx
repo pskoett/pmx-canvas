@@ -3,6 +3,7 @@ import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
 import type { CanvasNodeState } from '../types';
 import { nodeSurfaceUrl, surfaceContentHash } from './surface-url';
+import { RefreshingViewerFrame } from './McpAppNode';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
 import { useSurfaceFrame } from './use-surface-frame';
@@ -148,23 +149,21 @@ export function HtmlNode({
   // standalone tab. The whole html-node tier assumes arbitrary author code runs
   // inside this exact sandbox.
   return (
-    <iframe
-      ref={iframeRef}
-      class={presentation ? 'html-node-frame html-node-frame-presentation' : 'html-node-frame'}
+    <RefreshingViewerFrame
+      source={surfaceFrame}
+      iframeRef={iframeRef}
+      className={
+        presentation
+          ? 'html-node-frame html-node-frame-presentation'
+          : expanded
+            ? 'html-node-frame html-node-frame-expanded'
+            : 'html-node-frame'
+      }
       title={typeof node.data.title === 'string' ? node.data.title : 'HTML node'}
       sandbox="allow-scripts"
-      {...surfaceFrame}
+      allow=""
       tabIndex={autoFocus ? 0 : undefined}
       onLoad={handleFrameLoad}
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: presentation ? 0 : expanded ? '70vh' : '300px',
-        border: 'none',
-        background: 'var(--c-bg)',
-        borderRadius: presentation ? 0 : '6px',
-        display: 'block',
-      }}
     />
   );
 }
