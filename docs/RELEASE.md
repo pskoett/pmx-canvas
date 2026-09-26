@@ -40,6 +40,11 @@ bun run pack:dry-run        # confirms the tarball shape
 do not call `bun x playwright test` directly; it fails before test
 discovery with a `.esm.preflight` loader error (ERR-20260508-001).
 
+The Playwright run includes the `pane-600` project
+(`tests/e2e/reference-pane.pw.ts`): the reference surface, Chromium at
+600 px. Every node type must paint there or the release does not ship.
+Embedded WebKit panes (the Copilot app) stay best-effort.
+
 `bun run test:e2e-cli` starts a local server in a fresh temp workspace
 and exercises the CLI flows from
 [`docs/evals/e2e-cli-coverage.md`](evals/e2e-cli-coverage.md).

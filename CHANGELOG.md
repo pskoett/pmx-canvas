@@ -3,6 +3,12 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Internal
+
+- The e2e gate now checks that every node type paints in a 600 px Chromium pane, the width of the agent-host panels the workbench lives in.
+
 ## [0.6.5] - 2026-09-26
 
 ### Added

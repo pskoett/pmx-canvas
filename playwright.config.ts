@@ -22,11 +22,21 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    viewport: {
-      width: 1440,
-      height: 900,
-    },
   },
+  projects: [
+    {
+      name: 'desktop',
+      testIgnore: '**/reference-pane.pw.ts',
+      use: { viewport: { width: 1440, height: 900 } },
+    },
+    // The release reference surface: every node type must paint at the width of
+    // the agent-host panes the workbench actually lives in (reference-pane.pw.ts).
+    {
+      name: 'pane-600',
+      testMatch: '**/reference-pane.pw.ts',
+      use: { viewport: { width: 600, height: 900 } },
+    },
+  ],
   webServer: {
     command: `PMX_CANVAS_STATE_FILE=${stateFile} PMX_CANVAS_DB_PATH=${dbPath} bun run src/cli/index.ts --no-open --port=${port}`,
     url: `http://127.0.0.1:${port}/health`,
