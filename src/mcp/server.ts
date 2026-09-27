@@ -235,6 +235,7 @@ export async function startMcpServer(): Promise<void> {
     channel: 'mcp-resource' | 'mcp-prompt',
     resource: string,
     text: string,
+    target: { boardId: string | null; pinnedNodeIds: string[] },
   ): Promise<void> {
     try {
       const read = contextReadFromPayload(
@@ -244,7 +245,8 @@ export async function startMcpServer(): Promise<void> {
           source: agentSourceLabel('mcp'),
           consumer: server.server.getClientVersion()?.name ?? null,
           agentId: null,
-          pinnedNodeIds: await c.getPinnedNodeIds(),
+          pinnedNodeIds: target.pinnedNodeIds,
+          boardId: target.boardId,
         },
         text,
       );
@@ -509,8 +511,10 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const pinnedIds = new Set(await c.getPinnedNodeIds());
-      const layout = await c.getLayout();
+      const readTarget = await c.prepareContextRead();
+      const board = readTarget.boardId ?? undefined;
+      const pinnedIds = new Set(readTarget.pinnedNodeIds);
+      const layout = await c.getLayout(board);
 
       const pinnedNodes = layout.nodes.filter((n) => pinnedIds.has(n.id));
       const pinnedEdges = layout.edges.filter((e) => pinnedIds.has(e.from) && pinnedIds.has(e.to));
@@ -542,7 +546,7 @@ export async function startMcpServer(): Promise<void> {
       };
 
       const text = JSON.stringify(context, null, 2);
-      await recordContextRead(c, 'mcp-resource', 'canvas://pinned-context', text);
+      await recordContextRead(c, 'mcp-resource', 'canvas://pinned-context', text, readTarget);
       return {
         contents: [
           {
@@ -589,7 +593,10 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       const context = await c.getAxContext({ consumer: 'mcp' });
       const text = JSON.stringify(context, null, 2);
-      await recordContextRead(c, 'mcp-resource', 'canvas://ax-context', text);
+      await recordContextRead(c, 'mcp-resource', 'canvas://ax-context', text, {
+        boardId: context.boardId,
+        pinnedNodeIds: context.pinned.nodeIds,
+      });
       return {
         contents: [
           {
@@ -714,7 +721,10 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       const context = await c.getAxContext({ consumer: 'mcp' });
       const text = `Current PMX Canvas context:\n\n${JSON.stringify(context, null, 2)}`;
-      await recordContextRead(c, 'mcp-prompt', 'pmx-current-context', text);
+      await recordContextRead(c, 'mcp-prompt', 'pmx-current-context', text, {
+        boardId: context.boardId,
+        pinnedNodeIds: context.pinned.nodeIds,
+      });
       return {
         messages: [
           {
@@ -737,9 +747,10 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const layout = agentSafeFullLayoutPayload(await c.getLayout());
+      const readTarget = await c.prepareContextRead();
+      const layout = agentSafeFullLayoutPayload(await c.getLayout(readTarget.boardId ?? undefined));
       const text = JSON.stringify(layout, null, 2);
-      await recordContextRead(c, 'mcp-resource', 'canvas://layout', text);
+      await recordContextRead(c, 'mcp-resource', 'canvas://layout', text, readTarget);
       return {
         contents: [
           {
@@ -781,8 +792,13 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const text = JSON.stringify(buildSummaryFromLayout(await c.getLayout(), await c.getPinnedNodeIds()), null, 2);
-      await recordContextRead(c, 'mcp-resource', 'canvas://summary', text);
+      const readTarget = await c.prepareContextRead();
+      const text = JSON.stringify(
+        buildSummaryFromLayout(await c.getLayout(readTarget.boardId ?? undefined), readTarget.pinnedNodeIds),
+        null,
+        2,
+      );
+      await recordContextRead(c, 'mcp-resource', 'canvas://summary', text, readTarget);
       return {
         contents: [
           {
@@ -809,15 +825,16 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const layout = await c.getLayout();
+      const readTarget = await c.prepareContextRead();
+      const layout = await c.getLayout(readTarget.boardId ?? undefined);
       const spatial = buildSpatialContext(
         layout.nodes,
         layout.edges,
-        new Set(await c.getPinnedNodeIds()),
+        new Set(readTarget.pinnedNodeIds),
         layout.annotations ?? [],
       );
       const text = JSON.stringify(spatial, null, 2);
-      await recordContextRead(c, 'mcp-resource', 'canvas://spatial-context', text);
+      await recordContextRead(c, 'mcp-resource', 'canvas://spatial-context', text, readTarget);
       return {
         contents: [
           {
@@ -959,10 +976,10 @@ export async function startMcpServer(): Promise<void> {
   const shutdown = (): void => {
     try {
       stopCanvasServer();
-    } catch {
-      // Exit regardless — a failed cleanup must not resurrect the orphan.
+      process.exit(0);
+    } catch (error) {
+      console.error('Shutdown refused: canvas changes could not be saved. Fix persistence and retry shutdown.', error);
     }
-    process.exit(0);
   };
   server.server.onclose = shutdown;
   process.stdin.on('end', shutdown);

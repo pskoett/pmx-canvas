@@ -24,7 +24,8 @@ import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
 import { defineOperation, type Operation, type OperationMcpToolHost } from '../types.js';
-import { isRecord } from './nodes.js';
+import { buildSummaryFromLayout, isRecord } from './nodes.js';
+import { readTargetBoard } from './boards.js';
 
 // ── pin.set ───────────────────────────────────────────────────
 
@@ -258,7 +259,7 @@ const redoOperation = defineOperation<z.infer<typeof undoRedoSchema>, Record<str
 
 // ── spatial.get (HTTP only — canvas://spatial-context stays a resource) ──
 
-const spatialGetShape = {};
+const spatialGetShape = { board: z.unknown().optional().describe('Board id to read without opening it.') };
 
 const spatialGetSchema = z.looseObject(spatialGetShape);
 
@@ -271,12 +272,13 @@ const spatialGetOperation = defineOperation<z.infer<typeof spatialGetSchema>, Re
     method: 'GET',
     path: '/api/canvas/spatial-context',
   },
-  handler: () => {
-    const layout = canvasState.getLayout();
+  handler: ({ board }) => {
+    const target = readTargetBoard(board);
+    const layout = target.layout;
     return buildSpatialContext(
       layout.nodes,
       layout.edges,
-      canvasState.contextPinnedNodeIds,
+      target.pinnedNodeIds,
       layout.annotations,
     ) as unknown as Record<string, unknown>;
   },
@@ -284,7 +286,7 @@ const spatialGetOperation = defineOperation<z.infer<typeof spatialGetSchema>, Re
 
 // ── summary.get (HTTP only — canvas://summary stays a resource) ──
 
-const summaryGetShape = {};
+const summaryGetShape = { board: z.unknown().optional().describe('Board id to read without opening it.') };
 
 const summaryGetSchema = z.looseObject(summaryGetShape);
 
@@ -297,7 +299,11 @@ const summaryGetOperation = defineOperation<z.infer<typeof summaryGetSchema>, Re
     method: 'GET',
     path: '/api/canvas/summary',
   },
-  handler: () => buildCanvasSummary() as unknown as Record<string, unknown>,
+  handler: ({ board }) => {
+    if (typeof board !== 'string' || !board.trim()) return buildCanvasSummary() as unknown as Record<string, unknown>;
+    const target = readTargetBoard(board);
+    return buildSummaryFromLayout(target.layout, [...target.pinnedNodeIds]);
+  },
 });
 
 export const queryOperations: Operation[] = [

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { act, cleanup, fireEvent, render } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { BoardSwitcher } from '../../src/client/canvas/BoardSwitcher.tsx';
 import { HomeView } from '../../src/client/canvas/HomeView.tsx';
 import { activeBoardId, boardList, boardsLoaded, type BoardSummary } from '../../src/client/state/boards-store.ts';
@@ -19,7 +19,13 @@ const board = (id: string, name: string, nodeCount: number, category: string | n
 beforeAll(() => {
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
-    return new Response(JSON.stringify({ ok: true, activeBoardId: null, boards: boardList.value }), {
+    const updated =
+      init?.method === 'PATCH'
+        ? boardList.value.map((entry) =>
+            url.endsWith(`/${entry.id}`) ? { ...entry, ...JSON.parse(String(init.body)) } : entry,
+          )
+        : boardList.value;
+    return new Response(JSON.stringify({ ok: true, activeBoardId: null, boards: updated }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -73,28 +79,42 @@ describe('Home categories', () => {
   test('boards are grouped by category, migrated snapshots start folded, and a board can be moved', async () => {
     localStorage.removeItem('pmx-canvas-home-collapsed');
     boardList.value = [
-      board('b-okr', 'C4 OKR planning', 26, 'Planning'),
+      board('b-okr', 'C4 OKR planning', 26, 'Planning/Quarterly'),
       board('b-loose', 'Scratch', 2),
       board('b-old', 'Before session · Copilot · 14:00', 9, 'From old snapshots'),
     ];
     const { getAllByTestId, getByRole, getByText, queryByText } = render(<HomeView />);
     expect(
       getAllByTestId('home-section').map((section) => section.querySelector('.home-section-name')?.textContent),
-    ).toEqual(['From old snapshots', 'Planning', 'No category']);
+    ).toEqual(['From old snapshots', 'Planning', 'Quarterly']);
+    expect(getByRole('region', { name: 'Unfiled boards' }).textContent).toContain('Scratch');
+    expect(queryByText('Back up now')).toBeNull();
     // The migrated shelf is folded until opened.
     expect(queryByText('Before session · Copilot · 14:00')).toBeNull();
     fireEvent.click(getByRole('button', { name: /From old snapshots/ }));
     expect(getByText('Before session · Copilot · 14:00')).toBeTruthy();
 
-    // Move "Scratch" into Planning from its Category menu.
+    // Create a child under an implicit parent folder; it need not hold a board itself.
     const scratchRow = getByText('Scratch').closest('li') as HTMLElement;
-    fireEvent.click(scratchRow.querySelector('.home-board-category button') as HTMLElement);
+    fireEvent.click(scratchRow.querySelector('.home-board-action') as HTMLElement);
+    fireEvent.click(getByRole('radio', { name: 'Planning', exact: true }));
+    fireEvent.input(getByRole('textbox', { name: 'New folder name' }), { target: { value: '../Bad' } });
     await act(async () => {
-      fireEvent.click(getByRole('menuitem', { name: 'Planning' }));
+      fireEvent.click(getByRole('button', { name: 'Move board', exact: true }));
+    });
+    expect(getByRole('alert').textContent).toContain('Use one folder name');
+    expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false);
+    fireEvent.input(getByRole('textbox', { name: 'New folder name' }), { target: { value: 'Monthly' } });
+    await act(async () => {
+      fireEvent.click(getByRole('button', { name: 'Move board', exact: true }));
     });
     const patch = calls.find((call) => call.init?.method === 'PATCH');
     expect(patch?.url).toBe('/api/canvas/boards/b-loose');
-    expect(JSON.parse(String(patch?.init?.body))).toEqual({ category: 'Planning' });
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({ category: 'Planning/Monthly' });
+    expect(new Headers(patch?.init?.headers).get('X-PMX-Workbench')).toBe('1');
+    await waitFor(() => {
+      expect(getByRole('region', { name: 'Planning/Monthly', exact: true }).textContent).toContain('Scratch');
+    });
   });
 });
 

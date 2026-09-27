@@ -50,6 +50,8 @@ export declare const activeNeighborNodeIds: import("@preact/signals-core").Reado
 export declare function toggleSelected(id: string): void;
 export declare function selectNodes(ids: string[]): void;
 export declare function clearSelection(): void;
+/** Clear transient UI state that must never follow a node id onto another board. */
+export declare function resetCanvasInteractionState(): void;
 /**
  * Membership feedback while a node is being dragged: the group it would join
  * on release (`add`), or the parent it would leave (`remove`). Membership

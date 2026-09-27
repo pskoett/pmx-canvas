@@ -48,6 +48,60 @@ describe('context read log', () => {
     expect(read.deliveredNodeIds).toEqual(['node-b']);
   });
 
+  test('counts only complete serialized node objects when a later node is clipped', () => {
+    const payload = '{"nodes":[{"id":"node-a","content":"complete"},{"id":"node-b","content":"clipped';
+    const read = contextReadFromPayload(
+      {
+        channel: 'adapter',
+        resource: 'copilot:prompt-context',
+        source: 'copilot',
+        consumer: 'copilot',
+        agentId: null,
+        pinnedNodeIds: ['node-a', 'node-b'],
+      },
+      payload,
+    );
+    expect(read.deliveredNodeIds).toEqual(['node-a']);
+  });
+
+  test('does not count an id when clipping happens immediately after its value', () => {
+    const payload = '{"nodes":[{"id":"node-a"},{"id":"node-b"';
+    const read = contextReadFromPayload(
+      {
+        channel: 'adapter',
+        resource: 'copilot:prompt-context',
+        source: 'copilot',
+        consumer: 'copilot',
+        agentId: null,
+        pinnedNodeIds: ['node-a', 'node-b'],
+      },
+      payload,
+    );
+    expect(read.deliveredNodeIds).toEqual(['node-a']);
+  });
+
+  test('ignores escaped id-shaped content and handles escaped braces, quotes, and Unicode ids', () => {
+    const unicodeId = '节点-🧭';
+    const payload = JSON.stringify({
+      nodes: [
+        { id: unicodeId, content: 'text with } and an escaped "quote"' },
+        { id: 'other', content: '{"id":"embedded-id"}' },
+      ],
+    });
+    const read = contextReadFromPayload(
+      {
+        channel: 'operation',
+        resource: 'ax.context.get',
+        source: 'api',
+        consumer: null,
+        agentId: null,
+        pinnedNodeIds: [unicodeId, 'embedded-id'],
+      },
+      payload,
+    );
+    expect(read.deliveredNodeIds).toEqual([unicodeId]);
+  });
+
   test('keeps the newest rows and summarizes per consumer', () => {
     const db = new Database(':memory:');
     db.exec(CONTEXT_READS_SCHEMA_SQL);
@@ -73,6 +127,27 @@ describe('context read log', () => {
     const byConsumer = new Map(summary.map((entry) => [entry.consumer, entry]));
     expect(byConsumer.get('claude')?.reads).toBe(CONTEXT_READ_RETENTION - 2);
     expect(byConsumer.get('codex')).toMatchObject({ reads: 2, readsWithPins: 1, readsDeliveringAllPins: 0 });
+  });
+
+  test('all-pins summary requires the delivered ids to be the same unique subset', () => {
+    const read = {
+      seq: 1,
+      id: 'read-1',
+      at: new Date().toISOString(),
+      channel: 'operation' as const,
+      resource: 'layout.get',
+      source: 'mcp',
+      consumer: 'client',
+      agentId: null,
+      pinnedNodeIds: ['a', 'b'],
+      deliveredNodeIds: ['a', 'a'],
+      bytes: 1,
+      boardId: 'board-1',
+    };
+    const db = new Database(':memory:');
+    db.exec(CONTEXT_READS_SCHEMA_SQL);
+    appendContextReadToDB(db, read, read.boardId);
+    expect(loadContextReadsFromDB(db).summary[0]?.readsDeliveringAllPins).toBe(0);
   });
 });
 

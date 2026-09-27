@@ -18,6 +18,12 @@ export interface ExportManifest {
     embeddedImages: number;
     /** Web images the file loads when opened. */
     remoteImages: string[];
+    /** Navigable links present in markdown and webpage cards. */
+    links: string[];
+    /** Statically visible network destinations in sandboxed HTML frames. */
+    frameNetworkDestinations: string[];
+    /** Scripts in embedded frames can make requests that static inspection cannot enumerate. */
+    embeddedCodeCanAccessNetwork: boolean;
     includeFiles: boolean;
 }
 /** What an export of `boardId` would put in the file, without building it. */

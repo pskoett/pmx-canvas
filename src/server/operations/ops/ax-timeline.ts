@@ -503,6 +503,7 @@ const axReadsRecordShape = {
   pinnedNodeIds: z.array(z.string()).optional().describe('Pins at read time; defaults to the current pins.'),
   deliveredNodeIds: z.array(z.string()).describe('Pinned ids present in what the agent received.'),
   bytes: z.number().int().nonnegative().describe('Size of what the agent received.'),
+  boardId: z.string().nullable().optional().describe('Board that was read, captured before delivery.'),
 };
 const axReadsRecordSchema = z.object(axReadsRecordShape);
 
@@ -517,16 +518,19 @@ const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchem
     path: '/api/canvas/ax/context-reads',
   },
   handler: (input) => {
-    const read = canvasState.recordContextRead({
-      channel: input.channel,
-      resource: input.resource,
-      source: input.source ?? 'api',
-      consumer: input.consumer ?? null,
-      agentId: input.agentId ?? null,
-      pinnedNodeIds: input.pinnedNodeIds ?? [...canvasState.contextPinnedNodeIds],
-      deliveredNodeIds: input.deliveredNodeIds,
-      bytes: input.bytes,
-    });
+    const read = canvasState.recordContextRead(
+      {
+        channel: input.channel,
+        resource: input.resource,
+        source: input.source ?? 'api',
+        consumer: input.consumer ?? null,
+        agentId: input.agentId ?? null,
+        pinnedNodeIds: input.pinnedNodeIds ?? [...canvasState.contextPinnedNodeIds],
+        deliveredNodeIds: input.deliveredNodeIds,
+        bytes: input.bytes,
+      },
+      input.boardId === undefined ? canvasState.activeBoardId : input.boardId,
+    );
     return { ok: true, read };
   },
 });

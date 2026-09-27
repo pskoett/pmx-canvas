@@ -905,6 +905,8 @@ describe('MCP parity with CLI', () => {
         consumer: string | null;
         pinnedNodeIds: string[];
         deliveredNodeIds: string[];
+        bytes: number;
+        boardId: string | null;
       }>;
     };
 
@@ -923,6 +925,11 @@ describe('MCP parity with CLI', () => {
     await local.client.callTool({ name: 'canvas_pin_nodes', arguments: { nodeIds: [localNode.id], mode: 'set' } });
     await local.client.readResource({ uri: 'canvas://pinned-context' });
     await local.client.readResource({ uri: 'canvas://summary' });
+    const localLayoutResult = (await local.client.callTool({
+      name: 'canvas_query',
+      arguments: { action: 'layout' },
+    })) as ToolResultShape;
+    const localLayoutText = textOf(localLayoutResult);
     const localLog = parseJsonText<ReadLog>(
       (await local.client.callTool({
         name: 'canvas_ax_timeline',
@@ -939,6 +946,14 @@ describe('MCP parity with CLI', () => {
       pinnedNodeIds: [localNode.id],
       deliveredNodeIds: [localNode.id],
     });
+    expect(localLog.reads.filter((read) => read.resource === 'layout.get')).toEqual([
+      expect.objectContaining({
+        consumer: 'pmx-canvas-mcp-test',
+        pinnedNodeIds: [localNode.id],
+        deliveredNodeIds: [localNode.id],
+        bytes: Buffer.byteLength(localLayoutText),
+      }),
+    ]);
 
     // Attached: the daemon owns the state; the MCP server's internal fetches are
     // proxied reads, and it posts exactly one record per agent read.
@@ -946,7 +961,9 @@ describe('MCP parity with CLI', () => {
     const port = await getAvailablePort();
     const baseUrl = startCanvasServer({ workspaceRoot, port, autoOpenBrowser: false });
     if (!baseUrl) throw new Error('Failed to start daemon for MCP context read test.');
-    const attached = await createMcpSessionForWorkspace(workspaceRoot, port);
+    const attached = await createMcpSessionForWorkspace(workspaceRoot, port, {
+      PMX_CANVAS_AGENT_SOURCE: 'review-host',
+    });
     cleanup.push(async () => {
       await closeTransportAndReapChild(attached.transport);
       stopCanvasServer();
@@ -965,16 +982,152 @@ describe('MCP parity with CLI', () => {
       body: JSON.stringify({ nodeIds: [created.id] }),
     });
     await attached.client.readResource({ uri: 'canvas://ax-context' });
+    const daemonLayoutResult = (await attached.client.callTool({
+      name: 'canvas_query',
+      arguments: { action: 'layout' },
+    })) as ToolResultShape;
+    const daemonLayoutText = textOf(daemonLayoutResult);
 
     const daemonLog = (await (await fetch(`${baseUrl}/api/canvas/ax/context-reads`)).json()) as ReadLog;
-    expect(daemonLog.reads).toHaveLength(1);
-    expect(daemonLog.reads[0]).toMatchObject({
+    expect(daemonLog.reads).toHaveLength(2);
+    expect(daemonLog.reads.find((read) => read.resource === 'canvas://ax-context')).toMatchObject({
       channel: 'mcp-resource',
       resource: 'canvas://ax-context',
       consumer: 'pmx-canvas-mcp-test',
       pinnedNodeIds: [created.id],
       deliveredNodeIds: [created.id],
     });
+    expect(daemonLog.reads.filter((read) => read.resource === 'layout.get')).toEqual([
+      expect.objectContaining({
+        channel: 'operation',
+        consumer: 'pmx-canvas-mcp-test',
+        pinnedNodeIds: [created.id],
+        deliveredNodeIds: [created.id],
+        bytes: Buffer.byteLength(daemonLayoutText),
+      }),
+    ]);
+  });
+
+  test('attributes delayed AX context resource and prompt reads to the board in their returned payload', async () => {
+    type ContextPayload = { boardId: string; pinned: { nodeIds: string[] } };
+    type ReadLog = {
+      reads: Array<{ resource: string; boardId: string | null; pinnedNodeIds: string[]; deliveredNodeIds: string[] }>;
+    };
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-read-snapshot-');
+    const daemonPort = await getAvailablePort();
+    const daemonUrl = startCanvasServer({ workspaceRoot, port: daemonPort, autoOpenBrowser: false });
+    if (!daemonUrl) throw new Error('Failed to start daemon for MCP context snapshot test.');
+
+    let intercepted: (() => void) | undefined;
+    let release: (() => void) | undefined;
+    const proxyPort = await getAvailablePort();
+    const proxy = Bun.serve({
+      port: proxyPort,
+      async fetch(request) {
+        const url = new URL(request.url);
+        if (request.method === 'GET' && url.pathname === '/api/canvas/ax/context') {
+          intercepted?.();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        return fetch(`${daemonUrl}${url.pathname}${url.search}`, request);
+      },
+    });
+    const attached = await createMcpSessionForWorkspace(workspaceRoot, proxyPort);
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(attached.transport);
+      proxy.stop(true);
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    });
+
+    const human = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
+    const nodeA = (await (
+      await fetch(`${daemonUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ type: 'markdown', title: 'A pin', content: 'payload from A' }),
+      })
+    ).json()) as { id: string };
+    await fetch(`${daemonUrl}/api/canvas/context-pins`, {
+      method: 'POST',
+      headers: human,
+      body: JSON.stringify({ nodeIds: [nodeA.id] }),
+    });
+    const boardsA = (await (await fetch(`${daemonUrl}/api/canvas/boards`)).json()) as { activeBoardId: string };
+    const boardA = boardsA.activeBoardId;
+    const createdB = (await (
+      await fetch(`${daemonUrl}/api/canvas/boards`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ name: 'Board B' }),
+      })
+    ).json()) as { board: { id: string } };
+    const boardB = createdB.board.id;
+
+    async function open(boardId: string): Promise<void> {
+      const response = await fetch(`${daemonUrl}/api/canvas/boards/open`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ id: boardId }),
+      });
+      expect(response.status).toBe(200);
+    }
+
+    await open(boardB);
+    const nodeB = (await (
+      await fetch(`${daemonUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ type: 'markdown', title: 'B pin', content: 'payload from B' }),
+      })
+    ).json()) as { id: string };
+    await fetch(`${daemonUrl}/api/canvas/context-pins`, {
+      method: 'POST',
+      headers: human,
+      body: JSON.stringify({ nodeIds: [nodeB.id] }),
+    });
+
+    for (const surface of ['canvas://ax-context', 'pmx-current-context'] as const) {
+      await open(boardA);
+      const reachedContext = new Promise<void>((resolve) => {
+        intercepted = resolve;
+      });
+      const read =
+        surface === 'canvas://ax-context'
+          ? attached.client.readResource({ uri: surface })
+          : attached.client.getPrompt({ name: surface });
+      await reachedContext;
+      await open(boardB);
+      release?.();
+      const result = await read;
+      const text =
+        surface === 'canvas://ax-context'
+          ? (result as { contents: Array<{ uri: string; text?: string }> }).contents.find(
+              (entry) => typeof entry.text === 'string',
+            )?.text
+          : (result as { messages: Array<{ content: { type: string; text?: string } }> }).messages[0]?.content.type ===
+              'text'
+            ? (result as { messages: Array<{ content: { text: string } }> }).messages[0]?.content.text.replace(
+                /^Current PMX Canvas context:\n\n/,
+                '',
+              )
+            : undefined;
+      const payload = JSON.parse(text ?? '{}') as ContextPayload;
+      expect(payload).toMatchObject({ boardId: boardB, pinned: { nodeIds: [nodeB.id] } });
+      intercepted = undefined;
+      release = undefined;
+    }
+
+    const log = (await (await fetch(`${daemonUrl}/api/canvas/ax/context-reads`)).json()) as ReadLog;
+    for (const resource of ['canvas://ax-context', 'pmx-current-context']) {
+      expect(log.reads.find((read) => read.resource === resource)).toMatchObject({
+        boardId: boardB,
+        pinnedNodeIds: [nodeB.id],
+        deliveredNodeIds: [nodeB.id],
+      });
+    }
   });
 
   test('preserves structured webview start failures through a daemon-backed MCP session', async () => {

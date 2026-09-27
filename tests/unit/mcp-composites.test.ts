@@ -137,6 +137,36 @@ describe('MCP composite tools (plan-006)', () => {
     expect(missing.isError).toBe(true);
   }, 30000);
 
+  test('layout and node reads target inactive boards without opening them', async () => {
+    const { client, port } = await createMcpSession();
+    const added = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Target', content: 'Target body' }),
+    );
+    expect((await call(client, 'canvas_pin_nodes', { nodeIds: [added.id] })).isError).not.toBe(true);
+    const base = await resolveBaseUrl(port);
+    const original = (await (await fetch(`${base}/api/canvas/boards`)).json()) as { activeBoardId: string };
+    const other = parseJsonText<{ board: { id: string } }>(
+      await call(client, 'canvas_board', { action: 'create', name: 'Other' }),
+    );
+    await fetch(`${base}/api/canvas/boards/open`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ id: other.board.id }),
+    });
+    const layout = parseJsonText<{ summary: { pinnedCount: number }; nodes: Array<{ id: string }> }>(
+      await call(client, 'canvas_query', { action: 'layout', board: original.activeBoardId }),
+    );
+    expect(layout.nodes.map((node) => node.id)).toEqual([added.id]);
+    expect(layout.summary.pinnedCount).toBe(1);
+    const node = parseJsonText<{ id: string; data: { content: string } }>(
+      await call(client, 'canvas_node', { action: 'get', id: added.id, board: original.activeBoardId, full: true }),
+    );
+    expect(node.data.content).toBe('Target body');
+    const active = (await (await fetch(`${base}/api/canvas/boards`)).json()) as { activeBoardId: string };
+    expect(active.activeBoardId).toBe(other.board.id);
+    expect((await call(client, 'canvas_query', { action: 'layout', board: 'missing' })).isError).toBe(true);
+  }, 30000);
+
   test('canvas_query folds search/layout', async () => {
     const { client } = await createMcpSession();
     const added = parseJsonText<{ id: string }>(

@@ -28,8 +28,8 @@ export interface CanvasAccess {
     readonly remoteBaseUrl: string | null;
     /** Operation-registry invoker (plan-005): local in-process or HTTP, matching the access mode. */
     invoker(): OperationInvoker;
-    getLayout(): Promise<CanvasLayout>;
-    getNode(id: string): Promise<CanvasNodeState | undefined>;
+    getLayout(board?: string): Promise<CanvasLayout>;
+    getNode(id: string, board?: string): Promise<CanvasNodeState | undefined>;
     getAxState(): Promise<AxStateResult>;
     getAxContext(options?: {
         consumer?: string;
@@ -52,7 +52,11 @@ export interface CanvasAccess {
     }): Promise<IngestActivityResult>;
     getPolicy(): Promise<GetPolicyResult>;
     getHistory(): Promise<HistoryResult>;
-    getPinnedNodeIds(): Promise<string[]>;
+    getPinnedNodeIds(board?: string): Promise<string[]>;
+    prepareContextRead(board?: string): Promise<{
+        boardId: string | null;
+        pinnedNodeIds: string[];
+    }>;
     /** Record a context read the agent made through this MCP server (plan-011). */
     recordContextRead(read: ContextReadInput): Promise<void>;
     runBatch(operations: RunBatchInput): Promise<RunBatchResult>;

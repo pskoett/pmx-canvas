@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 import {
   boardList,
   createAndOpenBoard,
@@ -7,9 +8,9 @@ import {
   updateBoard,
   type BoardSummary,
 } from '../state/boards-store';
-import { MIGRATED_SNAPSHOT_CATEGORY } from '../../shared/boards.js';
-import { requestJson } from '../state/intent-bridge';
+import { categoryAncestors, MIGRATED_SNAPSHOT_CATEGORY } from '../../shared/boards.js';
 import { askText } from './TextPrompt';
+import { BoardFolderDialog } from './BoardFolderDialog';
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'never opened';
@@ -27,56 +28,12 @@ function nodesLabel(count: number): string {
   return `${count} node${count !== 1 ? 's' : ''}`;
 }
 
-interface BackupInfo {
-  folder: string;
-  everyMs: number | null;
-  lastAt: string | null;
-}
-
-function everyLabel(ms: number): string {
-  if (ms % 86_400_000 === 0) return `${ms / 86_400_000}d`;
-  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
-  return `${Math.round(ms / 60_000)}m`;
-}
-
-/** Last backup and "Back up now" — the whole library, every board, in one file. */
-function BackupLine() {
-  const [info, setInfo] = useState<BackupInfo | null>(null);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    void requestJson<BackupInfo | null>('backupStatus', '/api/canvas/backup', null).then(setInfo);
-  }, []);
-  if (!info) return null;
-
-  const backUp = async () => {
-    setBusy(true);
-    const result = await requestJson<{ status?: BackupInfo } | null>('backupNow', '/api/canvas/backup', null, {
-      method: 'POST',
-    });
-    if (result?.status) setInfo(result.status);
-    setBusy(false);
-  };
-
-  return (
-    <div class="home-view-backup" data-testid="home-backup">
-      <span>
-        {info.lastAt ? `Last backup ${timeAgo(info.lastAt)}` : 'Not backed up yet'}
-        {info.everyMs ? ` · every ${everyLabel(info.everyMs)}` : ''}
-      </span>
-      <button type="button" class="home-board-action" disabled={busy} onClick={() => void backUp()}>
-        {busy ? 'Backing up…' : 'Back up now'}
-      </button>
-    </div>
-  );
-}
-
 export async function promptNewBoard(): Promise<void> {
   const name = await askText('New board', 'Board name', { confirm: 'Create' });
   if (name) await createAndOpenBoard(name);
 }
 
 const COLLAPSED_KEY = 'pmx-canvas-home-collapsed';
-const UNCATEGORIZED = 'No category';
 
 /** Which categories this viewer folded away; the migrated-snapshot shelf starts folded. */
 function readCollapsed(): Set<string> {
@@ -97,57 +54,6 @@ function writeCollapsed(collapsed: Set<string>): void {
   }
 }
 
-/** Categories in name order, the uncategorized boards last; boards keep their recent-first order. */
-function sections(boards: BoardSummary[]): Array<{ name: string; boards: BoardSummary[] }> {
-  const byName = new Map<string, BoardSummary[]>();
-  for (const board of boards) {
-    const name = board.category ?? UNCATEGORIZED;
-    byName.set(name, [...(byName.get(name) ?? []), board]);
-  }
-  return [...byName.entries()]
-    .sort(([a], [b]) => (a === UNCATEGORIZED ? 1 : b === UNCATEGORIZED ? -1 : a.localeCompare(b)))
-    .map(([name, list]) => ({ name, boards: list }));
-}
-
-function CategoryMenu({
-  board,
-  categories,
-  onClose,
-}: {
-  board: BoardSummary;
-  categories: string[];
-  onClose: () => void;
-}) {
-  const move = (category: string | null) => {
-    onClose();
-    void updateBoard(board.id, { category });
-  };
-  const newCategory = async () => {
-    onClose();
-    const name = await askText('New category', 'Category name', { confirm: 'Move' });
-    if (name) await updateBoard(board.id, { category: name });
-  };
-  return (
-    <div class="toolbar-menu home-category-menu" role="menu" aria-label={`Category for ${board.name}`}>
-      {categories
-        .filter((category) => category !== board.category)
-        .map((category) => (
-          <button key={category} type="button" role="menuitem" class="toolbar-menu-item" onClick={() => move(category)}>
-            {category}
-          </button>
-        ))}
-      <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => void newCategory()}>
-        New category…
-      </button>
-      {board.category && (
-        <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => move(null)}>
-          Remove from “{board.category}”
-        </button>
-      )}
-    </div>
-  );
-}
-
 /**
  * Home (plan 012): the view when no board is open — every board, filed under
  * its category (most recently opened first within each). Categories keep the
@@ -158,29 +64,16 @@ function CategoryMenu({
 export function HomeView() {
   const boards = boardList.value;
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
-  const [categoryMenu, setCategoryMenu] = useState<string | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
-  const categories = [...new Set(boards.map((board) => board.category).filter((c): c is string => c !== null))].sort(
-    (a, b) => a.localeCompare(b),
-  );
-  const grouped = sections(boards);
-  const showHeaders = grouped.length > 1 || grouped[0]?.name !== UNCATEGORIZED;
-
-  useEffect(() => {
-    if (!categoryMenu) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.target instanceof Element && !e.target.closest('.home-board-category')) setCategoryMenu(null);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setCategoryMenu(null);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [categoryMenu]);
+  const folders = [
+    ...new Set(boards.flatMap((board) => (board.category ? categoryAncestors(board.category) : []))),
+  ].sort((a, b) => a.localeCompare(b));
+  const query = search.trim().toLocaleLowerCase();
+  const visible = boards.filter((board) => `${board.name} ${board.category ?? ''}`.toLocaleLowerCase().includes(query));
+  const visibleFolders = new Set(visible.flatMap((board) => (board.category ? categoryAncestors(board.category) : [])));
+  const movingBoard = boards.find((board) => board.id === moving);
 
   const toggle = (name: string) => {
     const next = new Set(collapsed);
@@ -227,20 +120,9 @@ export function HomeView() {
           </span>
         </button>
         <div class="home-board-actions">
-          <span class="home-board-category">
-            <button
-              type="button"
-              class="home-board-action"
-              aria-haspopup="menu"
-              aria-expanded={categoryMenu === board.id}
-              onClick={() => setCategoryMenu(categoryMenu === board.id ? null : board.id)}
-            >
-              Category
-            </button>
-            {categoryMenu === board.id && (
-              <CategoryMenu board={board} categories={categories} onClose={() => setCategoryMenu(null)} />
-            )}
-          </span>
+          <button type="button" class="home-board-action" aria-haspopup="dialog" onClick={() => setMoving(board.id)}>
+            Move
+          </button>
           <button type="button" class="home-board-action" onClick={() => void rename(board)}>
             Rename
           </button>
@@ -251,6 +133,37 @@ export function HomeView() {
       </li>
     );
 
+  const folder = (path: string, depth: number): ComponentChildren => {
+    const children = folders.filter(
+      (candidate) => candidate.slice(0, candidate.lastIndexOf('/')) === path && candidate.includes('/'),
+    );
+    const direct = visible.filter((board) => board.category === path);
+    const count = visible.filter((board) => board.category === path || board.category?.startsWith(`${path}/`)).length;
+    const expanded = !!query || !collapsed.has(path);
+    return (
+      <section key={path} class="home-section" data-testid="home-section" data-folder={path} aria-label={path}>
+        <button type="button" class="home-section-head" aria-expanded={expanded} onClick={() => toggle(path)}>
+          <span class="home-section-caret" aria-hidden="true">
+            {expanded ? '▾' : '▸'}
+          </span>
+          <span aria-hidden="true">▱</span>
+          <span class="home-section-name">{path.split('/').at(-1)}</span>
+          <span class="home-section-count">{count}</span>
+        </button>
+        {expanded && (
+          <div class="home-folder-children" style={{ marginLeft: depth < 5 ? '14px' : '0' }}>
+            {children.filter((child) => visibleFolders.has(child)).map((child) => folder(child, depth + 1))}
+            {direct.length > 0 && (
+              <ul class="home-view-list" aria-label={`Boards in ${path}`}>
+                {direct.map(row)}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   return (
     <div class="home-view" data-testid="home-view">
       <div class="home-view-inner">
@@ -260,35 +173,35 @@ export function HomeView() {
             New board
           </button>
         </div>
-        <BackupLine />
+        <input
+          class="text-prompt-input home-search"
+          type="search"
+          aria-label="Find boards and folders"
+          placeholder="Find boards and folders…"
+          value={search}
+          onInput={(event) => setSearch(event.currentTarget.value)}
+        />
         {boards.length === 0 ? (
           <div class="home-view-empty">No boards yet. Create one, or let an agent start writing — it opens one.</div>
+        ) : visible.length === 0 ? (
+          <div class="home-view-empty" role="status">
+            No boards match “{search}”.
+          </div>
         ) : (
-          grouped.map((section) => (
-            <section key={section.name} class="home-section" data-testid="home-section">
-              {showHeaders && (
-                <button
-                  type="button"
-                  class="home-section-head"
-                  aria-expanded={!collapsed.has(section.name)}
-                  onClick={() => toggle(section.name)}
-                >
-                  <span class="home-section-caret" aria-hidden="true">
-                    {collapsed.has(section.name) ? '▸' : '▾'}
-                  </span>
-                  <span class="home-section-name">{section.name}</span>
-                  <span class="home-section-count">{section.boards.length}</span>
-                </button>
-              )}
-              {!(showHeaders && collapsed.has(section.name)) && (
-                <ul class="home-view-list" aria-label={section.name}>
-                  {section.boards.map(row)}
-                </ul>
-              )}
-            </section>
-          ))
+          <>
+            {folders.filter((path) => !path.includes('/') && visibleFolders.has(path)).map((path) => folder(path, 0))}
+            {visible.some((board) => !board.category) && (
+              <section aria-label="Unfiled boards">
+                {folders.length > 0 && <div class="home-folder-hint">Unfiled boards</div>}
+                <ul class="home-view-list">{visible.filter((board) => !board.category).map(row)}</ul>
+              </section>
+            )}
+          </>
         )}
       </div>
+      {movingBoard && (
+        <BoardFolderDialog key={movingBoard.id} board={movingBoard} folders={folders} onClose={() => setMoving(null)} />
+      )}
     </div>
   );
 }

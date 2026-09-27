@@ -433,14 +433,15 @@ Examples:
   console.log('    pmx-canvas --help          (all commands)');
   console.log('\n  Press Ctrl+C to stop\n');
 
-  process.on('SIGINT', () => {
+  const shutdown = () => {
     console.log('\nShutting down...');
-    canvas.stop();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', () => {
-    canvas.stop();
-    process.exit(0);
-  });
+    try {
+      canvas.stop();
+      process.exit(0);
+    } catch (error) {
+      console.error('Shutdown refused: canvas changes could not be saved. Fix persistence and retry shutdown.', error);
+    }
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }

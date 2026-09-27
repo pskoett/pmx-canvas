@@ -1,8 +1,10 @@
 import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { requestJson } from '../state/intent-bridge';
+import { activeBoardId } from '../state/boards-store';
 
 interface ExportManifest {
+  boardId: string;
   boardName: string;
   cards: number;
   connections: number;
@@ -11,6 +13,9 @@ interface ExportManifest {
   files: Array<{ nodeId: string; path: string; included: boolean }>;
   embeddedImages: number;
   remoteImages: string[];
+  links: string[];
+  frameNetworkDestinations: string[];
+  embeddedCodeCanAccessNetwork: boolean;
 }
 
 interface ExportResult {
@@ -36,16 +41,24 @@ export function ExportDialog() {
   const [result, setResult] = useState<ExportResult | null>(null);
   const [busy, setBusy] = useState(false);
   const open = exportDialogOpen.value;
+  const boardId = activeBoardId.value;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !boardId) return;
+    let current = true;
     setResult(null);
+    setManifest(null);
     void requestJson<{ manifest?: ExportManifest } | null>(
       'exportPreview',
-      `/api/canvas/export/preview?includeFiles=${includeFiles}`,
+      `/api/canvas/export/preview?board=${encodeURIComponent(boardId)}&includeFiles=${includeFiles}`,
       null,
-    ).then((body) => setManifest(body?.manifest ?? null));
-  }, [open, includeFiles]);
+    ).then((body) => {
+      if (current) setManifest(body?.manifest ?? null);
+    });
+    return () => {
+      current = false;
+    };
+  }, [open, includeFiles, boardId]);
 
   useEffect(() => {
     if (!open) return;
@@ -61,14 +74,15 @@ export function ExportDialog() {
   if (!open) return null;
 
   const write = async () => {
+    if (!manifest || manifest.boardId !== activeBoardId.value) return;
     setBusy(true);
     const body = await requestJson<ExportResult | null>('exportBoard', '/api/canvas/export', null, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ includeFiles }),
+      body: JSON.stringify({ board: manifest.boardId, includeFiles }),
     });
     setBusy(false);
-    if (body?.path) setResult(body);
+    if (body?.path && activeBoardId.value === manifest.boardId) setResult(body);
   };
 
   return (
@@ -99,12 +113,24 @@ export function ExportDialog() {
               {manifest.embeddedImages > 0 && <li>{manifest.embeddedImages} local images</li>}
               {manifest.placeholders.length > 0 && (
                 <li>
-                  Shown as placeholders (they need a live app):{' '}
-                  {manifest.placeholders.map((entry) => entry.title).join(', ')}
+                  Shown as placeholders:{' '}
+                  {manifest.placeholders.map((entry) => `${entry.title} (${entry.reason})`).join(', ')}
                 </li>
               )}
               {manifest.remoteImages.length > 0 && (
-                <li>{manifest.remoteImages.length} web images, loaded from the internet when the file is opened</li>
+                <li>Web images loaded when opened: {manifest.remoteImages.join(', ')}</li>
+              )}
+              {manifest.links.length > 0 && <li>Links included in cards: {manifest.links.join(', ')}</li>}
+              {manifest.frameNetworkDestinations.length > 0 && (
+                <li>
+                  Network destinations referenced by embedded pages: {manifest.frameNetworkDestinations.join(', ')}
+                </li>
+              )}
+              {manifest.embeddedCodeCanAccessNetwork && (
+                <li>
+                  Warning: embedded code can access the network. Scripts may contact destinations that cannot be listed
+                  in advance.
+                </li>
               )}
             </ul>
             {manifest.files.length > 0 && (

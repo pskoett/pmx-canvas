@@ -1,5 +1,8 @@
 import { lookup } from 'node:dns/promises';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
+import { Readable } from 'node:stream';
 
 const FETCH_TIMEOUT_MS = 10000;
 const MAX_HTML_LENGTH = 1_000_000;
@@ -248,9 +251,16 @@ export type AddressScope = 'public' | 'private' | 'link-local';
  * (169.254.169.254) and is refused on every hop.
  */
 export function classifyAddress(address: string): AddressScope {
-  const ip = address.toLowerCase().replace(/^\[|\]$/g, '');
-  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return classifyAddress(mapped[1]);
+  let ip = address.toLowerCase().replace(/^\[|\]$/g, '');
+  // URL canonicalization also covers expanded IPv6 and dotted mapped IPv4.
+  // Checking only ::ffff:a.b.c.d misses the hex form used by URL.hostname.
+  if (isIP(ip) === 6) ip = new URL(`http://[${ip}]/`).hostname.slice(1, -1);
+  const mapped = ip.match(/^::ffff:([\da-f]+):([\da-f]+)$/);
+  if (mapped) {
+    const high = Number.parseInt(mapped[1], 16);
+    const low = Number.parseInt(mapped[2], 16);
+    return classifyAddress(`${high >>> 8}.${high & 255}.${low >>> 8}.${low & 255}`);
+  }
   if (isIP(ip) === 4) {
     const [a, b] = ip.split('.').map(Number);
     if (a === 169 && b === 254) return 'link-local';
@@ -265,13 +275,99 @@ export function classifyAddress(address: string): AddressScope {
   return 'public';
 }
 
-/** The narrowest scope any of the host's addresses reaches. */
-async function resolveHostScope(url: URL): Promise<AddressScope> {
+interface ResolvedHop {
+  addresses: string[];
+  scope: AddressScope;
+}
+
+type ResolveHost = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
+
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+    if (signal.aborted) return abort();
+    signal.addEventListener('abort', abort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+
+/** Resolves a hop once, retaining the narrowest scope any returned address reaches. */
+async function resolveHop(url: URL, resolveHost: ResolveHost): Promise<ResolvedHop> {
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  const addresses = isIP(host) ? [host] : (await lookup(host, { all: true })).map((entry) => entry.address);
-  const scopes = addresses.map(classifyAddress);
-  if (scopes.includes('link-local')) return 'link-local';
-  return scopes.includes('private') ? 'private' : 'public';
+  const addresses = isIP(host) ? [{ address: host, family: isIP(host) }] : await resolveHost(host);
+  const selected = addresses[0];
+  if (!selected || (selected.family !== 4 && selected.family !== 6)) {
+    throw new WebpageFetchError(`Could not resolve ${host}.`);
+  }
+  const scopes = addresses.map((entry) => classifyAddress(entry.address));
+  const scope = scopes.includes('link-local') ? 'link-local' : scopes.includes('private') ? 'private' : 'public';
+  return { addresses: addresses.map((entry) => entry.address), scope };
+}
+
+async function requestHop(url: URL, resolved: ResolvedHop, signal: AbortSignal): Promise<Response> {
+  let failure: unknown;
+  for (const address of resolved.addresses) {
+    try {
+      return await requestAddress(url, address, signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      failure = error;
+    }
+  }
+  throw failure;
+}
+
+function requestAddress(url: URL, address: string, signal: AbortSignal): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(
+      url,
+      {
+        method: 'GET',
+        hostname: address,
+        servername: isIP(url.hostname.replace(/^\[|\]$/g, '')) ? undefined : url.hostname,
+        signal,
+        headers: {
+          Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
+          Host: url.host,
+          'User-Agent': 'pmx-canvas webpage node',
+        },
+      },
+      (incoming) => {
+        const headers = new Headers();
+        for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
+          headers.append(incoming.rawHeaders[index], incoming.rawHeaders[index + 1]);
+        }
+        const status = incoming.statusCode ?? 500;
+        const empty = status === 204 || status === 205 || status === 304;
+        // Node and DOM declare separate types for the same web-stream API.
+        const body = empty ? null : (Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>);
+        if (empty) incoming.resume();
+        resolve(new Response(body, { status, statusText: incoming.statusMessage, headers }));
+      },
+    );
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+async function readBoundedBody(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  const decoder = new TextDecoder();
+  let body = '';
+  let bytes = 0;
+  while (bytes < MAX_HTML_LENGTH) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const remaining = MAX_HTML_LENGTH - bytes;
+    body += decoder.decode(value.subarray(0, remaining), { stream: value.byteLength <= remaining });
+    bytes += Math.min(value.byteLength, remaining);
+    if (value.byteLength > remaining || bytes === MAX_HTML_LENGTH) {
+      await reader.cancel();
+      break;
+    }
+  }
+  return body + decoder.decode();
 }
 
 /**
@@ -288,36 +384,36 @@ export function checkWebpageHop(originScope: AddressScope, hopScope: AddressScop
   }
 }
 
-export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSnapshot> {
+export async function fetchWebpageSnapshot(
+  inputUrl: string,
+  options: { resolveHost?: ResolveHost; timeoutMs?: number } = {},
+): Promise<WebpageSnapshot> {
   const url = normalizeWebpageUrl(inputUrl);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const resolveHost = options.resolveHost ?? ((host) => lookup(host, { all: true }));
 
   try {
     // Redirects are followed by hand so every hop's host is checked before it is fetched.
-    const originScope = await resolveHostScope(new URL(url));
+    let resolved = await abortable(resolveHop(new URL(url), resolveHost), controller.signal);
+    const originScope = resolved.scope;
     let hopUrl = url;
     let response: Response;
     for (let hop = 0; ; hop++) {
-      checkWebpageHop(originScope, hop === 0 ? originScope : await resolveHostScope(new URL(hopUrl)), hopUrl);
-      response = await fetch(hopUrl, {
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: {
-          Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
-          'User-Agent': 'pmx-canvas webpage node',
-        },
-      });
+      checkWebpageHop(originScope, resolved.scope, hopUrl);
+      response = await requestHop(new URL(hopUrl), resolved, controller.signal);
       const location = response.headers.get('location');
       if (response.status < 300 || response.status >= 400 || !location) break;
-      if (hop === MAX_REDIRECTS) throw new WebpageFetchError(`Too many redirects while fetching ${url}.`);
       await response.body?.cancel();
+      if (hop === MAX_REDIRECTS) throw new WebpageFetchError(`Too many redirects while fetching ${url}.`);
       hopUrl = normalizeWebpageUrl(new URL(location, hopUrl).toString());
+      resolved = await abortable(resolveHop(new URL(hopUrl), resolveHost), controller.signal);
     }
 
     const contentType = response.headers.get('content-type');
     const responseUrl = hopUrl;
-    const body = (await response.text()).slice(0, MAX_HTML_LENGTH);
+    const body = await readBoundedBody(response);
 
     if (!response.ok) {
       throw new WebpageFetchError(`Request failed with ${response.status} ${response.statusText}`.trim(), {
@@ -356,7 +452,7 @@ export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSna
   } catch (error) {
     if (error instanceof WebpageFetchError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new WebpageFetchError(`Timed out after ${FETCH_TIMEOUT_MS}ms while fetching ${url}.`);
+      throw new WebpageFetchError(`Timed out after ${timeoutMs}ms while fetching ${url}.`);
     }
     throw new WebpageFetchError(error instanceof Error ? error.message : `Failed to fetch ${url}.`);
   } finally {

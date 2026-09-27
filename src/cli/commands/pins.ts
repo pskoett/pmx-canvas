@@ -17,7 +17,9 @@ cmd(
     if (flags.help || flags.h) return showCommandHelp('pin');
 
     if (flags.list) {
-      const result = await invokeOperation('pinned-context.get', {});
+      const result = await invokeOperation('pinned-context.get', {
+        board: typeof flags.board === 'string' ? flags.board : undefined,
+      });
       output(result);
       return;
     }
@@ -36,7 +38,9 @@ cmd(
     }
 
     // Default: list
-    const result = await invokeOperation('pinned-context.get', {});
+    const result = await invokeOperation('pinned-context.get', {
+      board: typeof flags.board === 'string' ? flags.board : undefined,
+    });
     output(result);
   },
 );

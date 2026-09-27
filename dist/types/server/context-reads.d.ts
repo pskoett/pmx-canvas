@@ -26,7 +26,10 @@ export interface ContextRead {
     /** The board open when the read happened (null on Home). */
     boardId: string | null;
 }
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'>;
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'> & {
+    /** Explicit read target, captured before asynchronous formatting/proxy work. */
+    boardId?: string | null;
+};
 export interface ContextReadConsumerSummary {
     consumer: string;
     reads: number;

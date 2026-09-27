@@ -26,6 +26,8 @@ export const activeBoardId = signal<string | null>(null);
 export const boardsLoaded = signal(false);
 
 let onBoardSwitched: (() => void) | null = null;
+let boardsRevision = 0;
+let openRequestSequence = 0;
 
 /** The SSE bridge resyncs the canvas when the open board changes under it. */
 export function setBoardSwitchHandler(handler: (() => void) | null): void {
@@ -34,6 +36,7 @@ export function setBoardSwitchHandler(handler: (() => void) | null): void {
 
 export function applyBoards(data: { activeBoardId?: unknown; boards?: unknown; reloaded?: unknown } | null): void {
   if (!data || !Array.isArray(data.boards)) return;
+  boardsRevision += 1;
   const nextActive = typeof data.activeBoardId === 'string' ? data.activeBoardId : null;
   // `reloaded`: the library was restored, so even the same board id holds new content.
   const switched = boardsLoaded.value && (nextActive !== activeBoardId.value || data.reloaded === true);
@@ -44,31 +47,37 @@ export function applyBoards(data: { activeBoardId?: unknown; boards?: unknown; r
 }
 
 export async function loadBoards(): Promise<void> {
+  const revision = boardsRevision;
   const payload = await requestJson<BoardsPayload | null>('loadBoards', '/api/canvas/boards', null);
-  applyBoards(payload);
+  if (revision === boardsRevision) applyBoards(payload);
 }
 
-function post(action: string, url: string, method: string, body?: unknown): Promise<BoardsPayload | null> {
-  return requestJson<BoardsPayload | null>(action, url, null, {
+async function post(action: string, url: string, method: string, body?: unknown): Promise<BoardsPayload | null> {
+  const revision = boardsRevision;
+  const payload = await requestJson<BoardsPayload | null>(action, url, null, {
     method,
     headers: { 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  return revision === boardsRevision ? payload : null;
 }
 
 /** Open a board, or Home with null. */
 export async function openBoard(id: string | null): Promise<void> {
+  const sequence = ++openRequestSequence;
   const payload = await post('openBoard', '/api/canvas/boards/open', 'POST', { id });
-  applyBoards(payload);
+  // post drops replies superseded by SSE; also ignore an older open request.
+  if (sequence === openRequestSequence) applyBoards(payload);
 }
 
 export async function createAndOpenBoard(name: string): Promise<void> {
+  const sequence = ++openRequestSequence;
   const created = await requestJson<{ board?: BoardSummary } | null>('createBoard', '/api/canvas/boards', null, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  if (created?.board) await openBoard(created.board.id);
+  if (created?.board && sequence === openRequestSequence) await openBoard(created.board.id);
 }
 
 /** Rename and/or re-file a board; `category: null` removes it from its category. */

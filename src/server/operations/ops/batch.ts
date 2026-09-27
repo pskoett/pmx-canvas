@@ -250,7 +250,14 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       // ghost-cursor exemption for batch operations). No `fromWorkbench`: the
       // browser never issues batches, so inner writes are agent writes and the
       // scope fence applies to each of them.
-      const raw = await executeOperation(dispatch.name, dispatch.args, { suppressAutoGhost: true });
+      const pending = executeOperation(dispatch.name, dispatch.args, { suppressAutoGhost: true });
+      // The first write may synchronously open a board from Home. Capture after
+      // dispatch, then refuse to continue a partially completed batch elsewhere.
+      const boardGeneration = canvasState.boardGeneration;
+      const raw = await pending;
+      if (canvasState.boardGeneration !== boardGeneration) {
+        throw new Error('The board changed while the batch was running.');
+      }
       const result = shapeBatchEntry(operation.op, raw);
       results.push(result);
       if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {

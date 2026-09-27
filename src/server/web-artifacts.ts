@@ -754,6 +754,7 @@ export async function buildWebArtifactOnCanvas(
     openInCanvas?: boolean;
   },
 ): Promise<WebArtifactCanvasBuildResult> {
+  const boardGeneration = canvasState.boardGeneration;
   const startedMs = Date.now();
   const startedAt = new Date(startedMs).toISOString();
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -765,7 +766,7 @@ export async function buildWebArtifactOnCanvas(
     durationMs: completedMs - startedMs,
     timeoutMs,
   };
-  if (input.openInCanvas === false) {
+  if (input.openInCanvas === false || canvasState.boardGeneration !== boardGeneration) {
     return { ...build, openedInCanvas: false, ...timing };
   }
   const opened = openWebArtifactInCanvas({

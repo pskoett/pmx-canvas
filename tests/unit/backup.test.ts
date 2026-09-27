@@ -2,9 +2,11 @@ import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runDueBackup } from '../../src/server/backup.ts';
+import { canvasState } from '../../src/server/canvas-state.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
-import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const HUMAN = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
 const roots: string[] = [];
@@ -39,6 +41,64 @@ const boardNames = async () =>
   ((await call('GET', '/api/canvas/boards')).body.boards as Array<{ name: string }>).map((b) => b.name).sort();
 
 describe('library backup', () => {
+  test('CLI shutdown stays alive on save failure and exits durably after recovery', async () => {
+    const root = createTestWorkspace('pmx-canvas-shutdown-');
+    roots.push(root);
+    const port = await getAvailablePort();
+    const url = `http://127.0.0.1:${port}`;
+    const path = join(root, 'canvas.db');
+    const proc = Bun.spawn(
+      ['bun', fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)), '--no-open', `--port=${port}`],
+      {
+        cwd: root,
+        env: { ...process.env, PMX_CANVAS_DB_PATH: path, PMX_CANVAS_DISABLE_BROWSER_OPEN: '1' },
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    let db: Database | undefined;
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (
+          await fetch(`${url}/health`)
+            .then((r) => r.ok)
+            .catch(() => false)
+        )
+          break;
+        await Bun.sleep(20);
+      }
+      db = new Database(path);
+      db.exec("CREATE TRIGGER reject_save BEFORE INSERT ON nodes BEGIN SELECT RAISE(FAIL, 'shutdown blocked'); END");
+      const result = await fetch(`${url}/api/canvas/node`, {
+        method: 'POST',
+        headers: HUMAN,
+        body: JSON.stringify({ type: 'markdown', title: 'Keep through shutdown', content: 'durable' }),
+      });
+      expect(result.ok).toBe(true);
+      proc.kill('SIGTERM');
+      await Bun.sleep(100);
+      expect(proc.exitCode).toBeNull();
+      const state = (await (await fetch(`${url}/api/canvas/state`)).json()) as {
+        nodes: Array<{ data: { title: string } }>;
+      };
+      expect(state.nodes.map((node) => node.data.title)).toEqual(['Keep through shutdown']);
+      db.exec('DROP TRIGGER reject_save');
+      proc.kill('SIGTERM');
+      expect(await proc.exited).toBe(0);
+      expect(
+        db
+          .query<{ data: string }, []>('SELECT data FROM nodes')
+          .all()
+          .map((row) => JSON.parse(row.data).title),
+      ).toEqual(['Keep through shutdown']);
+    } finally {
+      db?.exec('DROP TRIGGER IF EXISTS reject_save');
+      db?.close();
+      if (proc.exitCode === null) proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
+
   test('a backup holds every board, and old backups beyond keep are removed', async () => {
     const root = startWorkspace();
     await addNote('On the first board');
@@ -77,7 +137,58 @@ describe('library backup', () => {
     expect(await boardNames()).toEqual([expect.stringMatching(/^Board /), 'Discovery']);
     const state = (await call('GET', '/api/canvas/state')).body as { nodes: Array<{ data: { title?: string } }> };
     expect(state.nodes.map((node) => node.data.title)).toEqual(['Objective one']);
-    expect(existsSync(join(target, '.pmx-canvas', 'canvas.db.before-restore'))).toBe(true);
+    const previous = restored.body.previous as string;
+    expect(previous).toBe(join(target, '.pmx-canvas', 'canvas.db.before-restore'));
+    expect(existsSync(previous)).toBe(true);
+
+    const restoredPrevious = await call('POST', '/api/canvas/backup/restore', { file: previous });
+    expect(restoredPrevious.status).toBe(200);
+    const previousState = (await call('GET', '/api/canvas/state')).body as {
+      nodes: Array<{ data: { title?: string } }>;
+    };
+    expect(previousState.nodes.map((node) => node.data.title)).toEqual(['Scratch']);
+    expect(existsSync(previous)).toBe(true);
+  });
+
+  test('backup and restore fail instead of claiming success when pending state cannot be flushed', async () => {
+    const root = startWorkspace();
+    await addNote('Durable');
+    const backup = (
+      (await call('POST', '/api/canvas/backup', { to: join(root, 'backups') })).body.backup as { path: string }
+    ).path;
+    await addNote('Unsaved');
+
+    const db = new Database(canvasState.databasePath as string);
+    db.exec("CREATE TRIGGER reject_node_save BEFORE INSERT ON nodes BEGIN SELECT RAISE(FAIL, 'save rejected'); END");
+    try {
+      expect((await call('POST', '/api/canvas/backup', { to: join(root, 'failed-backups') })).status).toBe(500);
+      expect((await call('POST', '/api/canvas/backup/restore', { file: backup })).status).toBe(500);
+      const state = (await call('GET', '/api/canvas/state')).body as { nodes: Array<{ data: { title?: string } }> };
+      expect(state.nodes.map((node) => node.data.title)).toEqual(['Durable', 'Unsaved']);
+    } finally {
+      db.exec('DROP TRIGGER reject_node_save');
+      db.close();
+    }
+  });
+
+  test('restore rolls back when a SQLite backup cannot load its board', async () => {
+    const root = startWorkspace();
+    await addNote('Keep the live board');
+    const backup = ((await call('POST', '/api/canvas/backup')).body.backup as { path: string }).path;
+    const broken = new Database(backup);
+    broken.run('UPDATE nodes SET data = ?', ['{invalid json']);
+    broken.close();
+    const active = canvasState.activeBoardId;
+    const result = await call('POST', '/api/canvas/backup/restore', { file: backup });
+    expect(result.status).toBe(500);
+    expect(canvasState.activeBoardId).toBe(active);
+    expect(canvasState.getLayout().nodes.map((node) => node.data.title)).toEqual(['Keep the live board']);
+    // Recovery is durable, not merely the old in-memory view.
+    stopCanvasServer();
+    resetCanvasForTests(root);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    expect(canvasState.getLayout().nodes.map((node) => node.data.title)).toEqual(['Keep the live board']);
+    expect(readdirSync(join(root, '.pmx-canvas')).some((name) => name.includes('.restore-'))).toBe(false);
   });
 
   test('restore refuses files that are not canvas databases', async () => {

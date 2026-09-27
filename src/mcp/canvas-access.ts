@@ -1,14 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
-import {
-  createCanvas,
-  canvasState,
-  type CanvasEdge,
-  type CanvasLayout,
-  type CanvasNodeState,
-  type PmxCanvas,
-} from '../server/index.js';
+import { createCanvas, canvasState, type CanvasLayout, type CanvasNodeState, type PmxCanvas } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
 import type { ContextReadInput } from '../server/context-reads.js';
 import { HttpOperationInvoker, LocalOperationInvoker, type OperationInvoker } from '../server/operations/index.js';
@@ -55,8 +48,8 @@ export interface CanvasAccess {
   readonly remoteBaseUrl: string | null;
   /** Operation-registry invoker (plan-005): local in-process or HTTP, matching the access mode. */
   invoker(): OperationInvoker;
-  getLayout(): Promise<CanvasLayout>;
-  getNode(id: string): Promise<CanvasNodeState | undefined>;
+  getLayout(board?: string): Promise<CanvasLayout>;
+  getNode(id: string, board?: string): Promise<CanvasNodeState | undefined>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
@@ -73,7 +66,8 @@ export interface CanvasAccess {
   ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult>;
   getPolicy(): Promise<GetPolicyResult>;
   getHistory(): Promise<HistoryResult>;
-  getPinnedNodeIds(): Promise<string[]>;
+  getPinnedNodeIds(board?: string): Promise<string[]>;
+  prepareContextRead(board?: string): Promise<{ boardId: string | null; pinnedNodeIds: string[] }>;
   /** Record a context read the agent made through this MCP server (plan-011). */
   recordContextRead(read: ContextReadInput): Promise<void>;
   runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
@@ -102,11 +96,15 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.operationInvoker;
   }
 
-  async getLayout(): Promise<CanvasLayout> {
-    return this.canvas.getLayout();
+  async getLayout(board?: string): Promise<CanvasLayout> {
+    return board
+      ? ((await this.operationInvoker.invoke('layout.get', { board, includeBlobs: true })) as CanvasLayout)
+      : this.canvas.getLayout();
   }
 
-  async getNode(id: string): Promise<CanvasNodeState | undefined> {
+  async getNode(id: string, board?: string): Promise<CanvasNodeState | undefined> {
+    if (board)
+      return (await this.operationInvoker.invoke('node.get', { id, board, includeBlobs: true })) as CanvasNodeState;
     return this.canvas.getNode(id);
   }
 
@@ -165,12 +163,21 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getHistory();
   }
 
-  async getPinnedNodeIds(): Promise<string[]> {
+  async getPinnedNodeIds(board?: string): Promise<string[]> {
+    if (board) {
+      const result = (await this.operationInvoker.invoke('pinned-context.get', { board })) as { nodeIds?: string[] };
+      return result.nodeIds ?? [];
+    }
     return Array.from(canvasState.contextPinnedNodeIds);
   }
 
+  async prepareContextRead(board?: string): Promise<{ boardId: string | null; pinnedNodeIds: string[] }> {
+    const boardId = board ?? canvasState.activeBoardId;
+    return { boardId, pinnedNodeIds: boardId ? await this.getPinnedNodeIds(boardId) : [] };
+  }
+
   async recordContextRead(read: ContextReadInput): Promise<void> {
-    canvasState.recordContextRead(read);
+    canvasState.recordContextRead(read, read.boardId === undefined ? canvasState.activeBoardId : read.boardId);
   }
 
   async runBatch(operations: RunBatchInput): Promise<RunBatchResult> {
@@ -239,12 +246,16 @@ class RemoteCanvasAccess implements CanvasAccess {
     return parsed as T;
   }
 
-  async getLayout(): Promise<CanvasLayout> {
-    return await this.requestJson<CanvasLayout>('GET', '/api/canvas/state?includeBlobs=true');
+  async getLayout(board?: string): Promise<CanvasLayout> {
+    const params = new URLSearchParams({ includeBlobs: 'true' });
+    if (board) params.set('board', board);
+    return await this.requestJson<CanvasLayout>('GET', `/api/canvas/state?${params}`);
   }
 
-  async getNode(id: string): Promise<CanvasNodeState | undefined> {
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/node/${encodeURIComponent(id)}?includeBlobs=true`);
+  async getNode(id: string, board?: string): Promise<CanvasNodeState | undefined> {
+    const params = new URLSearchParams({ includeBlobs: 'true' });
+    if (board) params.set('board', board);
+    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/node/${encodeURIComponent(id)}?${params}`);
     if (response.status === 404) return undefined;
     const text = await response.text();
     let parsed: unknown;
@@ -358,9 +369,19 @@ class RemoteCanvasAccess implements CanvasAccess {
     return response.reviewAnnotations ?? [];
   }
 
-  async getPinnedNodeIds(): Promise<string[]> {
-    const response = await this.requestJson<{ nodeIds?: string[] }>('GET', '/api/canvas/pinned-context');
+  async getPinnedNodeIds(board?: string): Promise<string[]> {
+    const qs = board ? `?board=${encodeURIComponent(board)}` : '';
+    const response = await this.requestJson<{ nodeIds?: string[] }>('GET', `/api/canvas/pinned-context${qs}`);
     return Array.isArray(response.nodeIds) ? response.nodeIds : [];
+  }
+
+  async prepareContextRead(board?: string): Promise<{ boardId: string | null; pinnedNodeIds: string[] }> {
+    let boardId = board;
+    if (!boardId) {
+      const boards = await this.requestJson<{ activeBoardId?: string | null }>('GET', '/api/canvas/boards');
+      boardId = boards.activeBoardId ?? undefined;
+    }
+    return { boardId: boardId ?? null, pinnedNodeIds: boardId ? await this.getPinnedNodeIds(boardId) : [] };
   }
 
   async recordContextRead(read: ContextReadInput): Promise<void> {

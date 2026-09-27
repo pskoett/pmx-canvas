@@ -28,6 +28,7 @@ import {
 import { canvasState, type CanvasNodeState } from '../../canvas-state.js';
 import { buildCodeGraphSummary } from '../../code-graph.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
+import { readTargetBoard } from './boards.js';
 import { normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
 import { isRecord } from './nodes.js';
 
@@ -153,19 +154,22 @@ const axSurfaceSnapshotOperation = defineOperation<z.infer<typeof emptySchema>, 
 
 // ── pinned-context.get ────────────────────────────────────────
 
-const pinnedContextOperation = defineOperation<z.infer<typeof emptySchema>, Record<string, unknown>>({
+const pinnedContextShape = { board: z.unknown().optional().describe('Board id to read without opening it.') };
+const pinnedContextSchema = z.looseObject(pinnedContextShape);
+const pinnedContextOperation = defineOperation<z.infer<typeof pinnedContextSchema>, Record<string, unknown>>({
   name: 'pinned-context.get',
   mutates: false,
-  input: emptySchema,
-  inputShape: emptyShape,
+  input: pinnedContextSchema,
+  inputShape: pinnedContextShape,
   http: {
     method: 'GET',
     path: '/api/canvas/pinned-context',
   },
-  handler: () => {
-    const pinnedIds = Array.from(canvasState.contextPinnedNodeIds);
+  handler: ({ board }) => {
+    const target = readTargetBoard(board);
+    const pinnedIds = Array.from(target.pinnedNodeIds);
     const nodes = pinnedIds
-      .map((id) => canvasState.getNode(id))
+      .map((id) => target.layout.nodes.find((node) => node.id === id))
       .filter((node): node is CanvasNodeState => node !== undefined);
     const preamble =
       pinnedIds.length > 0 ? buildAgentContextPreamble(nodes, { defaultTextLength: 700, webpageTextLength: 1600 }) : '';

@@ -42,16 +42,17 @@ cmd('open', 'Open the current workbench in the browser', ['pmx-canvas open'], as
 cmd(
   'layout',
   'Get the full canvas layout (nodes, edges, viewport)',
-  ['pmx-canvas layout', 'pmx-canvas layout --summary'],
+  ['pmx-canvas layout', 'pmx-canvas layout --board <id>', 'pmx-canvas layout --summary'],
   async (args) => {
     const { flags } = parseFlags(args, { boolFlags: ['summary'] });
     if (flags.help || flags.h) return showCommandHelp('layout');
 
+    const board = typeof flags.board === 'string' ? flags.board : undefined;
     if (flags.summary || flags.compact) {
-      output(await invokeOperation('summary.get', {}));
+      output(await invokeOperation('summary.get', { board }));
       return;
     }
-    const result = await invokeOperation('layout.get', {});
+    const result = await invokeOperation('layout.get', { board });
     output(result);
   },
 );
@@ -61,12 +62,13 @@ cmd('status', 'Quick canvas summary', ['pmx-canvas status'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('status');
 
-  const layout = (await invokeOperation('layout.get', {})) as {
+  const board = typeof flags.board === 'string' ? flags.board : undefined;
+  const layout = (await invokeOperation('layout.get', { board })) as {
     nodes: Array<Record<string, unknown>>;
     edges: unknown[];
     viewport: unknown;
   };
-  const pinned = (await invokeOperation('pinned-context.get', {})) as { count: number; nodeIds: string[] };
+  const pinned = (await invokeOperation('pinned-context.get', { board })) as { count: number; nodeIds: string[] };
 
   const typeCounts: Record<string, number> = {};
   for (const n of layout.nodes) {

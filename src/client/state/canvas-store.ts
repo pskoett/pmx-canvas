@@ -144,6 +144,28 @@ export function clearSelection(): void {
   selectedNodeIds.value = new Set();
 }
 
+/** Clear transient UI state that must never follow a node id onto another board. */
+export function resetCanvasInteractionState(): void {
+  if (expandedCloseTimer !== null) {
+    clearTimeout(expandedCloseTimer);
+    expandedCloseTimer = null;
+  }
+  batch(() => {
+    activeNodeId.value = null;
+    expandedNodeId.value = null;
+    pendingExpandedNodeCloseId.value = null;
+    pendingCloseInitialCheckpointAt = undefined;
+    selectedNodeIds.value = new Set();
+    selectedEdgeId.value = null;
+    pendingConnection.value = null;
+    draggingEdge.value = null;
+    searchHighlightIds.value = null;
+    dragDropTarget.value = null;
+    contextPinnedNodeIds.value = new Set();
+  });
+  dropSuppressedForDrag = false;
+}
+
 // ── Groups v2 (rail-chrome-v2 phase 7, item 20) ──────────────────────
 
 /**

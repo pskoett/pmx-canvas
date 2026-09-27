@@ -204,10 +204,14 @@ const callToolOperation = defineOperation<z.infer<typeof callToolSchema>, Record
         canReadLocalCheckpoint && toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL
           ? getLocalExcalidrawCheckpointData(requestedNode, args)
           : null;
+      const boardGeneration = canvasState.boardGeneration;
       const result =
         localCheckpointData === null
           ? await callMcpAppTool(sessionId, toolName, args)
           : ({ content: [{ type: 'text', text: localCheckpointData }] } satisfies CallToolResult);
+      if (canvasState.boardGeneration !== boardGeneration) {
+        throw new OperationError('The board changed while the MCP app tool was running.', 409);
+      }
       if (nodeId) {
         const node = canvasState.getNode(nodeId);
         if (node?.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === sessionId) {

@@ -52,6 +52,7 @@ import {
 } from '../../canvas-serialization.js';
 import { WEBPAGE_NODE_DEFAULT_SIZE, normalizeWebpageUrl } from '../../webpage-node.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
+import { readTargetBoard } from './boards.js';
 
 // ── Node types ────────────────────────────────────────────────
 // Single definition site for the basic node-type list: drives the HTTP type
@@ -657,7 +658,11 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
   // The node should appear before the (slow) page fetch completes; the
   // registry emits the final layout update after the handler returns.
   ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+  const boardGeneration = canvasState.boardGeneration;
   const refreshed = await refreshCanvasWebpageNode(id);
+  if (canvasState.boardGeneration !== boardGeneration) {
+    throw new OperationError('The board changed while the webpage was loading.', 409);
+  }
   const created = canvasState.getNode(id) ?? node;
   return {
     node: created,
@@ -974,6 +979,7 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
 
 const nodeGetShape = {
   id: z.string().describe('The node ID to retrieve'),
+  board: z.unknown().optional().describe('Board id to read without opening it.'),
   includeBlobs: z.unknown().optional().describe('Include full blob payloads instead of blob summaries.'),
 };
 
@@ -993,18 +999,25 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
     description:
       'Get a single node by ID. Defaults to compact metadata; pass full:true to include full data/tool results.',
     extraShape: {
+      board: z.string().optional().describe('Board id to read without opening it.'),
       full: z.boolean().optional().describe('Include full node data, including mcp-app tool results. Default false.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
-    buildInput: (input) => ({ id: input.id, includeBlobs: true }),
+    buildInput: (input) => ({ id: input.id, board: input.board, includeBlobs: true }),
     formatResult: (result, input) => {
       const node = result as CanvasNodeState;
       const payload = wantsFullPayload(input) ? serializeCanvasNodeForAgent(node) : compactNodePayload(node);
       return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
     },
   },
-  handler: ({ id, includeBlobs }) => {
+  handler: ({ id, includeBlobs, board }) => {
     const full = includeBlobs === true || includeBlobs === 'true';
+    if (typeof board === 'string' && board.trim()) {
+      const target = readTargetBoard(board, full);
+      const node = target.layout.nodes.find((candidate) => candidate.id === id);
+      if (!node) throw new OperationError(`Node "${id}" not found on board "${board}".`, 404);
+      return full ? serializeCanvasNode(node) : serializeCanvasNodeWithBlobSummaries(node);
+    }
     const node = full ? canvasState.getNode(id) : canvasState.getNodeForPersistence(id);
     if (!node) throw new OperationError(`Node "${id}" not found.`, 404);
     const responseNode = withContextPinReadState(node);
@@ -1297,6 +1310,7 @@ const nodeRemoveOperation = defineOperation<z.infer<typeof nodeRemoveSchema>, Re
 // ── layout.get ────────────────────────────────────────────────
 
 const layoutGetShape = {
+  board: z.unknown().optional().describe('Board id to read without opening it.'),
   includeBlobs: z.unknown().optional().describe('Include full blob payloads instead of blob summaries.'),
 };
 
@@ -1316,23 +1330,33 @@ const layoutGetOperation = defineOperation<z.infer<typeof layoutGetSchema>, Reco
     description:
       'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data.',
     extraShape: {
+      board: z.string().optional().describe('Board id to read without opening it.'),
       full: z
         .boolean()
         .optional()
         .describe('Return the full layout including node data. Default false keeps responses compact.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
-    buildInput: () => ({ includeBlobs: true }),
+    buildInput: (input) => ({ board: input.board, includeBlobs: true }),
     formatResult: async (result, input, host) => {
       const layout = result as CanvasLayout;
       const payload = wantsFullPayload(input)
         ? agentSafeFullLayoutPayload(layout)
-        : compactLayoutPayload(layout, await host.getPinnedNodeIds());
+        : compactLayoutPayload(
+            layout,
+            await host.getPinnedNodeIds(typeof input.board === 'string' ? input.board : undefined),
+          );
       return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
     },
   },
-  handler: ({ includeBlobs }) => {
+  handler: ({ includeBlobs, board }) => {
     const full = includeBlobs === true || includeBlobs === 'true';
+    if (typeof board === 'string' && board.trim()) {
+      const target = readTargetBoard(board, full);
+      return (full
+        ? serializeCanvasLayout(target.layout)
+        : serializeCanvasLayoutWithBlobSummaries(target.layout)) as unknown as Record<string, unknown>;
+    }
     return (full
       ? serializeCanvasLayout(canvasState.getLayout())
       : serializeCanvasLayoutWithBlobSummaries(

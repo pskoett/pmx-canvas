@@ -41,7 +41,10 @@ export interface ContextRead {
   boardId: string | null;
 }
 
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'>;
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'> & {
+  /** Explicit read target, captured before asynchronous formatting/proxy work. */
+  boardId?: string | null;
+};
 
 export interface ContextReadConsumerSummary {
   consumer: string;
@@ -58,9 +61,46 @@ export interface ContextReadConsumerSummary {
  * not count — the agent got the pin's name, not its content.
  */
 export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[] {
-  return pinnedNodeIds.filter((id) =>
-    new RegExp(`"id"\\s*:\\s*${JSON.stringify(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(payloadText),
-  );
+  const pinned = new Set(pinnedNodeIds);
+  const delivered = new Set<string>();
+  const objectStarts: number[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < payloadText.length; index += 1) {
+    const character = payloadText[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      objectStarts.push(index);
+    } else if (character === '}' && objectStarts.length > 0) {
+      const start = objectStarts.pop();
+      if (start === undefined) continue;
+      try {
+        const value = JSON.parse(payloadText.slice(start, index + 1)) as unknown;
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value) &&
+          Object.hasOwn(value, 'id') &&
+          typeof (value as { id?: unknown }).id === 'string' &&
+          pinned.has((value as { id: string }).id)
+        ) {
+          delivered.add((value as { id: string }).id);
+        }
+      } catch {
+        // An inner object may be complete even when its containing object was clipped.
+      }
+    }
+  }
+
+  return pinnedNodeIds.filter((id) => delivered.has(id));
 }
 
 export function contextReadFromPayload(
@@ -177,7 +217,11 @@ export function summarizeContextReads(reads: ContextRead[]): ContextReadConsumer
     entry.reads += 1;
     if (read.pinnedNodeIds.length > 0) {
       entry.readsWithPins += 1;
-      if (read.deliveredNodeIds.length === read.pinnedNodeIds.length) entry.readsDeliveringAllPins += 1;
+      const pins = new Set(read.pinnedNodeIds);
+      const delivered = new Set(read.deliveredNodeIds);
+      if (delivered.size === pins.size && [...delivered].every((id) => pins.has(id))) {
+        entry.readsDeliveringAllPins += 1;
+      }
     }
     if (read.at > entry.lastReadAt) entry.lastReadAt = read.at;
     entry.resources[read.resource] = (entry.resources[read.resource] ?? 0) + 1;

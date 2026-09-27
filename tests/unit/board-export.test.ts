@@ -1,6 +1,8 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { buildBoardExport, writeBoardExport } from '../../src/server/board-export.ts';
+import { canvasState } from '../../src/server/canvas-state.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -35,18 +37,70 @@ interface Manifest {
   frames: number;
   placeholders: Array<{ title: string }>;
   files: Array<{ nodeId: string; path: string; included: boolean }>;
+  links: string[];
+  frameNetworkDestinations: string[];
+  embeddedCodeCanAccessNetwork: boolean;
 }
 
 describe('static board export', () => {
+  test('does not overwrite exports whose timestamp names collide and serves their suffixed URLs', async () => {
+    const clock = spyOn(Date.prototype, 'toISOString').mockReturnValue('2026-09-27T00:00:00.000Z');
+    let paths: string[];
+    try {
+      paths = Array.from({ length: 20 }, (_, index) => writeBoardExport(`export ${index}`, 'Collision'));
+    } finally {
+      clock.mockRestore();
+    }
+    expect(new Set(paths).size).toBe(paths.length);
+    paths.forEach((path, index) => {
+      expect(readFileSync(path, 'utf-8')).toBe(`export ${index}`);
+    });
+    const suffixed = paths.find((path) => /-\d+\.html$/.test(path));
+    expect(suffixed).toBeDefined();
+    const served = await fetch(`${baseUrl}/api/canvas/exports/${basename(suffixed ?? '')}`);
+    expect(served.status).toBe(200);
+    expect(await served.text()).toStartWith('export ');
+  });
+
+  test('does not serve an export symlink that escapes the exports folder', async () => {
+    const secretPath = join(root, 'export-route-secret.txt');
+    writeFileSync(secretPath, 'must not be served');
+    const exported = writeBoardExport('safe export', 'Escape');
+    const symlink = join(exported, '..', 'escape-20000101T000000000Z.html');
+    symlinkSync(secretPath, symlink);
+
+    const served = await fetch(`${baseUrl}/api/canvas/exports/${basename(symlink)}`);
+    expect(served.status).toBe(404);
+    expect(await served.text()).not.toContain('must not be served');
+  });
+
   test('writes one self-contained, read-only file and lists what leaves the machine', async () => {
     const secretPath = join(root, 'notes.txt');
     writeFileSync(secretPath, 'private file body');
+    const artifactDir = join(root, '.pmx-canvas', 'artifacts', 'reviewed-app');
+    mkdirSync(artifactDir, { recursive: true });
+    const artifactPath = join(artifactDir, 'bundle.html');
+    writeFileSync(
+      artifactPath,
+      '<h1>Owned artifact body</h1><img src="https://cdn.example/artifact.png"><script>fetch(dynamicUrl)</script>',
+    );
+    const artifactSymlink = join(root, '.pmx-canvas', 'artifacts', 'escaped.html');
+    symlinkSync(secretPath, artifactSymlink);
     await call('POST', '/api/canvas/node', {
       type: 'markdown',
       title: 'Plan',
       content: '# Plan\n\n<script>alert(1)</script>\n\n[bad](javascript:alert(1)) [good](https://example.com)',
     });
-    await call('POST', '/api/canvas/node', { type: 'html', title: 'Widget', html: '<h1>Widget body</h1>' });
+    await call('POST', '/api/canvas/node', {
+      type: 'webpage',
+      title: 'Reference',
+      url: 'http://127.0.0.1:1/reviewed-export',
+    });
+    await call('POST', '/api/canvas/node', {
+      type: 'html',
+      title: 'Widget',
+      html: '<h1>Widget body</h1><script src="https://scripts.example/widget.js"></script>',
+    });
     for (const title of ['Chart A', 'Chart B']) {
       await call('POST', '/api/canvas/graph', {
         title,
@@ -62,12 +116,33 @@ describe('static board export', () => {
       title: 'Live app',
       data: { url: 'https://apps.example/app', title: 'Live app' },
     });
+    await call('POST', '/api/canvas/node', {
+      type: 'mcp-app',
+      title: 'Owned app',
+      data: { viewerType: 'web-artifact', path: artifactPath },
+    });
+    await call('POST', '/api/canvas/node', {
+      type: 'mcp-app',
+      title: 'Forged app',
+      data: { viewerType: 'web-artifact', path: secretPath },
+    });
+    await call('POST', '/api/canvas/node', {
+      type: 'mcp-app',
+      title: 'Symlink app',
+      data: { viewerType: 'web-artifact', path: artifactSymlink },
+    });
 
     const preview = (await call('GET', '/api/canvas/export/preview')).body.manifest as Manifest;
-    expect(preview.cards).toBe(6);
-    expect(preview.frames).toBe(3);
-    expect(preview.placeholders.map((entry) => entry.title)).toEqual(['Live app']);
+    expect(preview.cards).toBe(10);
+    expect(preview.frames).toBe(4);
+    expect(preview.placeholders.map((entry) => entry.title)).toEqual(['Live app', 'Forged app', 'Symlink app']);
     expect(preview.files).toEqual([{ nodeId: expect.any(String), path: secretPath, included: false }]);
+    expect(preview.links).toEqual(['https://example.com', 'http://127.0.0.1:1/reviewed-export']);
+    expect(preview.frameNetworkDestinations).toEqual([
+      'https://scripts.example/widget.js',
+      'https://cdn.example/artifact.png',
+    ]);
+    expect(preview.embeddedCodeCanAccessNetwork).toBe(true);
 
     const exported = await call('POST', '/api/canvas/export', {});
     expect(exported.status).toBe(200);
@@ -79,6 +154,7 @@ describe('static board export', () => {
     expect(html).toContain('href=\\"https://example.com\\"');
     // File contents stay out unless the owner opts in.
     expect(html).not.toContain('private file body');
+    expect(html).toContain('Owned artifact body');
     // The chart viewer bundle is stored once, shared by both charts.
     const marker = '__PMX_EXPORT_JSONRENDER_JS__';
     expect(html.split(marker).length - 1).toBe(3); // two frames + one asset key
@@ -92,12 +168,40 @@ describe('static board export', () => {
 
   test('file contents are included only on request, and any board can be exported', async () => {
     const withFiles = await call('POST', '/api/canvas/export', { includeFiles: true });
-    expect(readFileSync(withFiles.body.path as string, 'utf-8')).toContain('private file body');
+    const html = readFileSync(withFiles.body.path as string, 'utf-8');
+    expect(html).toContain('private file body');
+    // The content appears once as the opted-in file card, never again through either forged app path.
+    expect(html.split('private file body')).toHaveLength(2);
 
     const other = (await call('POST', '/api/canvas/boards', { name: 'Quiet board' })).body.board as { id: string };
     const exported = await call('POST', '/api/canvas/export', { board: other.id });
     expect((exported.body.manifest as Manifest & { boardName: string }).boardName).toBe('Quiet board');
     expect((exported.body.manifest as Manifest).cards).toBe(0);
     expect((await call('POST', '/api/canvas/export', { board: 'board-missing' })).status).toBe(404);
+  });
+
+  test('uses one board snapshot when state changes while export collection awaits', async () => {
+    const boardId = canvasState.activeBoardId;
+    if (!boardId) throw new Error('Expected an active board.');
+    canvasState.setTheme('dark');
+    const before = canvasState.getLayout();
+    const [from, to] = before.nodes;
+    if (!from || !to) throw new Error('Expected at least two nodes.');
+
+    const pending = buildBoardExport(boardId, false);
+    canvasState.setTheme('light');
+    const edgeId = 'edge-added-while-export-awaits';
+    expect(canvasState.addEdge({ id: edgeId, from: from.id, to: to.id, type: 'relation' })).toBe(true);
+
+    const exported = await pending;
+    expect(exported).not.toBeNull();
+    expect(exported?.manifest.connections).toBe(before.edges.length);
+    expect(exported?.html).toContain('<html lang="en" data-scheme="dark">');
+    const boardJson = exported?.html.match(/<script type="application\/json" id="pmx-board">(.*?)<\/script>/s)?.[1];
+    expect(boardJson).toBeDefined();
+    expect((JSON.parse(boardJson ?? '{}') as { edges: unknown[] }).edges).toHaveLength(before.edges.length);
+
+    canvasState.removeEdge(edgeId);
+    canvasState.setTheme('dark');
   });
 });

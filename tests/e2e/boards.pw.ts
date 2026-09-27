@@ -59,16 +59,15 @@ test('switch boards from the top bar, go Home, delete with a confirm, and reopen
   const secondRow = home.getByTestId('home-board').filter({ hasText: 'E2E Second' });
   await expect(secondRow).toBeInViewport();
 
-  // Back up the whole library from Home.
-  await home.getByRole('button', { name: 'Back up now' }).click();
-  await expect(home.getByTestId('home-backup')).toContainText('Last backup just now');
+  // Boards save automatically; backup maintenance is not a Home action.
+  await expect(home.getByRole('button', { name: 'Back up now' })).toHaveCount(0);
+  await expect(home.getByTestId('home-backup')).toHaveCount(0);
 
   // File a board under a new category: Home shows it in its own section.
   const firstRow = home.getByTestId('home-board').filter({ hasText: 'E2E First' });
-  await firstRow.getByRole('button', { name: 'Category' }).click();
-  await page.getByRole('menuitem', { name: 'New category…' }).click();
-  await page.getByTestId('text-prompt').locator('input').fill('E2E Planning');
-  await page.keyboard.press('Enter');
+  await firstRow.getByRole('button', { name: 'Move', exact: true }).click();
+  await page.getByRole('textbox', { name: 'New folder name' }).fill('E2E Planning');
+  await page.getByRole('button', { name: 'Move board', exact: true }).click();
   const planning = home.getByTestId('home-section').filter({ hasText: 'E2E Planning' });
   await expect(planning.getByTestId('home-board').filter({ hasText: 'E2E First' })).toBeInViewport();
 
@@ -84,3 +83,154 @@ test('switch boards from the top bar, go Home, delete with a confirm, and reopen
   await expect(home).toHaveCount(0);
   await expect(page.locator('.canvas-node').filter({ hasText: 'First board note' })).toBeInViewport();
 });
+
+test('a delayed new-board response preserves a newer board choice', async ({ page, request }) => {
+  const existing = (await (await request.post('/api/canvas/boards', { data: { name: 'Keep my choice' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: existing.id } });
+  await note(request, 'Chosen board content');
+  await page.goto('/workbench');
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reached!: () => void;
+  const created = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  await page.route('**/api/canvas/boards', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const response = await route.fetch();
+    reached();
+    await held;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: /^Board: Keep my choice/ }).click();
+  await page.getByRole('menuitem', { name: 'New board…' }).click();
+  await page.getByTestId('text-prompt').locator('input').fill('Delayed creation');
+  await page.keyboard.press('Enter');
+  await created;
+  await page.getByRole('button', { name: /^Board: Keep my choice/ }).click();
+  await page.getByRole('menuitem', { name: 'All boards (Home)' }).click();
+  await expect(page.getByTestId('home-view')).toBeVisible();
+  await page
+    .getByTestId('home-view')
+    .getByRole('button', { name: /Keep my choice/ })
+    .click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Chosen board content' })).toBeVisible();
+  release();
+  await page.unrouteAll({ behavior: 'wait' });
+  // Let the released create response and its continuation settle before asserting.
+  await page.waitForTimeout(200);
+  await expect(page.getByRole('button', { name: /^Board: Keep my choice/ })).toBeVisible();
+  expect((await boards(request)).activeBoardId).toBe(existing.id);
+});
+
+test('nested folders move boards, retain collapse state, and search across closed branches', async ({
+  page,
+  request,
+}) => {
+  const created = await (
+    await request.post('/api/canvas/boards', {
+      data: { name: 'Architecture decisions', category: 'Engineering/Canvas' },
+    })
+  ).json();
+  await request.post('/api/canvas/boards', { data: { name: 'Other decisions', category: 'Research/Decisions' } });
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: null } });
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto('/workbench');
+  const row = page.getByTestId('home-board').filter({ hasText: 'Architecture decisions' });
+  await row.getByRole('button', { name: 'Move', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move Architecture decisions' });
+  await dialog.getByRole('radio', { name: 'Engineering/Canvas', exact: true }).check();
+  await dialog.getByRole('textbox', { name: 'New folder name' }).fill('Decisions');
+  await dialog.getByRole('button', { name: 'Move board', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const branch = page.locator('[data-folder="Engineering/Canvas/Decisions"]');
+  await expect(branch.getByTestId('home-board')).toContainText('Architecture decisions');
+  expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.category).toBe(
+    'Engineering/Canvas/Decisions',
+  );
+  const engineering = page.locator('[data-folder="Engineering"] > button');
+  await engineering.click();
+  await expect(row).toHaveCount(0);
+  await page.reload();
+  await expect(engineering).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('searchbox', { name: 'Find boards and folders' }).fill('Architecture');
+  await expect(branch.getByTestId('home-board')).toBeVisible();
+  await expect(page.getByTestId('home-board').filter({ hasText: 'Other decisions' })).toHaveCount(0);
+  await row.getByRole('button', { name: 'Move', exact: true }).click();
+  await dialog.getByRole('radio', { name: 'Engineering', exact: true }).check();
+  await dialog.getByRole('button', { name: 'Move board', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.category).toBe(
+    'Engineering',
+  );
+  await expect(branch).toHaveCount(0);
+  await expect(page.locator('[data-folder="Engineering"]')).toContainText('Architecture decisions');
+});
+
+for (const sameBoard of [false, true]) {
+  test(`late board responses cannot repaint ${sameBoard ? 'newer same-board edits' : 'a newer board'}`, async ({
+    page,
+    request,
+  }) => {
+    const ids: string[] = [];
+    for (const name of ['Race A', 'Race B', 'Race C']) {
+      const created = await (
+        await request.post('/api/canvas/boards', { data: { name: `${name} ${sameBoard}` } })
+      ).json();
+      ids.push(created.board.id);
+      await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: created.board.id } });
+      await note(request, `${name} note`);
+    }
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: ids[0] } });
+    await page.goto('/workbench');
+    await expect(page.locator('.canvas-node').filter({ hasText: 'Race A note' })).toBeVisible();
+
+    let release!: () => void;
+    let held!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const captured = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    let intercepted = false;
+    await page.route('**/api/canvas/state?includeBlobs=true', async (route) => {
+      if (intercepted) return route.continue();
+      intercepted = true;
+      const response = await route.fetch();
+      held();
+      await hold;
+      await route.fulfill({ response });
+    });
+    try {
+      await page.getByRole('button', { name: /^Board: Race A/ }).click();
+      await page.getByRole('menuitem', { name: new RegExp(`Race B ${sameBoard}`) }).click();
+      await captured;
+      if (sameBoard) {
+        await note(request, 'Race B latest', 500, 200);
+      } else {
+        await page.getByRole('button', { name: /^Board: Race B/ }).click();
+        await page.getByRole('menuitem', { name: new RegExp(`Race C ${sameBoard}`) }).click();
+      }
+      const expectedTitle = sameBoard ? 'Race B latest' : 'Race C note';
+      await expect(page.locator('.canvas-node').filter({ hasText: expectedTitle })).toBeVisible();
+      const staleResponse = page.waitForResponse((response) =>
+        response.url().includes('/api/canvas/state?includeBlobs=true'),
+      );
+      release();
+      await staleResponse;
+      // Let the response body and the client's promise continuations settle.
+      await page.waitForTimeout(150);
+      await expect(page.getByRole('button', { name: sameBoard ? /^Board: Race B/ : /^Board: Race C/ })).toBeVisible();
+      await expect(page.locator('.canvas-node').filter({ hasText: expectedTitle })).toBeVisible();
+      if (!sameBoard) await expect(page.locator('.canvas-node').filter({ hasText: 'Race B note' })).toHaveCount(0);
+      expect((await boards(request)).activeBoardId).toBe(ids[sameBoard ? 1 : 2]);
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+}

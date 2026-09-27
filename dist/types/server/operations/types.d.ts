@@ -45,7 +45,7 @@ export interface OperationHttpRoute {
 }
 /** Host capabilities available to MCP result formatters. */
 export interface OperationMcpToolHost {
-    getPinnedNodeIds(): Promise<string[]>;
+    getPinnedNodeIds(board?: string): Promise<string[]>;
     /**
      * Invoke another registered operation over the host's transport (local or
      * HTTP) — structural subset of OperationInvoker to avoid an import cycle.

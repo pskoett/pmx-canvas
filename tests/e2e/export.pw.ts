@@ -12,7 +12,7 @@ test('export a board from the top bar and open the file with no server', async (
     data: {
       type: 'markdown',
       title: 'Export note',
-      content: 'Readable **everywhere**',
+      content: 'Readable **everywhere** — [project](https://project.example/docs)',
       x: 0,
       y: 0,
       width: 320,
@@ -33,12 +33,28 @@ test('export a board from the top bar and open the file with no server', async (
       y: 0,
     },
   });
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'Network widget',
+      html: '<script src="https://widgets.example/embed.js"></script>',
+      x: 760,
+      y: 0,
+      width: 320,
+      height: 180,
+    },
+  });
 
   await page.goto('/workbench');
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   const dialog = page.getByTestId('export-dialog');
-  await expect(dialog).toContainText('2 cards');
-  await expect(dialog).toContainText('1 embedded pages, charts or diagrams');
+  await expect(dialog).toContainText('3 cards');
+  await expect(dialog).toContainText('2 embedded pages, charts or diagrams');
+  await expect(dialog).toContainText('Links included in cards: https://project.example/docs');
+  await expect(dialog).toContainText(
+    'Network destinations referenced by embedded pages: https://widgets.example/embed.js',
+  );
+  await expect(dialog).toContainText('embedded code can access the network');
   await dialog.getByRole('button', { name: 'Export', exact: true }).click();
   const result = dialog.getByTestId('export-result');
   await expect(result).toContainText('Saved');

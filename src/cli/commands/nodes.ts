@@ -796,7 +796,10 @@ cmd(
     const id = positional[0];
     if (!id) die('Missing node ID', 'pmx-canvas node get <node-id>');
 
-    const result = (await invokeOperation('node.get', { id })) as Record<string, unknown>;
+    const result = (await invokeOperation('node.get', {
+      id,
+      board: typeof flags.board === 'string' ? flags.board : undefined,
+    })) as Record<string, unknown>;
     const requestedFields = collectRequestedFields(args, flags);
     if (requestedFields.length > 0) {
       const picked = Object.fromEntries(requestedFields.map((field) => [field, resolveNodeFieldValue(result, field)]));

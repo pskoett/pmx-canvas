@@ -602,7 +602,7 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getAxState();
   }
 
-  getAxContext(options?: { consumer?: string }): PmxAxContext {
+  getAxContext(options?: { consumer?: string }): PmxAxContext & { boardId: string | null } {
     return buildCanvasAxContext(options?.consumer);
   }
 
@@ -1093,12 +1093,19 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
-  getLayout(): CanvasLayout {
+  getLayout(options?: { board?: string }): CanvasLayout {
+    if (options?.board) {
+      const read = canvasState.readBoard(options.board);
+      if (!read) throw new Error(`Board "${options.board}" not found.`);
+      return read.layout;
+    }
     return canvasState.getLayout();
   }
 
-  getNode(id: string): SdkCanvasNode | undefined {
-    const node = canvasState.getNode(id);
+  getNode(id: string, options?: { board?: string }): SdkCanvasNode | undefined {
+    const node = options?.board
+      ? this.getLayout(options).nodes.find((candidate) => candidate.id === id)
+      : canvasState.getNode(id);
     return node ? toSdkNode(node) : undefined;
   }
 

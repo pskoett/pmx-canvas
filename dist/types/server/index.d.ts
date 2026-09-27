@@ -157,7 +157,9 @@ export declare class PmxCanvas extends EventEmitter {
     getAxState(): PmxAxState;
     getAxContext(options?: {
         consumer?: string;
-    }): PmxAxContext;
+    }): PmxAxContext & {
+        boardId: string | null;
+    };
     setAxFocus(nodeIds: string[], options?: {
         source?: PmxAxSource;
     }): PmxAxFocusState;
@@ -434,8 +436,12 @@ export declare class PmxCanvas extends EventEmitter {
         maxScale?: number;
         nodeIds?: string[];
     }): ReturnType<typeof fitCanvasView>;
-    getLayout(): CanvasLayout;
-    getNode(id: string): SdkCanvasNode | undefined;
+    getLayout(options?: {
+        board?: string;
+    }): CanvasLayout;
+    getNode(id: string, options?: {
+        board?: string;
+    }): SdkCanvasNode | undefined;
     search(query: string): ReturnType<typeof searchNodes>;
     getSpatialContext(): import("./spatial-analysis.js").SpatialContext;
     undo(): Promise<{

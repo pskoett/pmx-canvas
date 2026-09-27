@@ -29,14 +29,19 @@ function defaultPresenceSource(name: string, input: Record<string, unknown>, sou
 /** Runs operations in-process against the shared canvasState singleton. */
 export class LocalOperationInvoker implements OperationInvoker {
   private readonly source: string;
+  private readonly proxiedRead: boolean;
 
   /** `source` labels this caller's agent presence ('mcp', 'sdk', …). */
   constructor(source = 'api') {
     this.source = agentSourceLabel(source);
+    this.proxiedRead = source === 'mcp';
   }
 
   async invoke(name: string, input: Record<string, unknown>): Promise<unknown> {
-    return await executeOperation(name, defaultPresenceSource(name, input, this.source), { source: this.source });
+    return await executeOperation(name, defaultPresenceSource(name, input, this.source), {
+      source: this.source,
+      proxiedRead: this.proxiedRead,
+    });
   }
 }
 
@@ -48,11 +53,13 @@ function toOperationErrorStatus(status: number): OperationErrorStatus {
 export class HttpOperationInvoker implements OperationInvoker {
   private readonly baseUrl: string;
   private readonly source: string;
+  private readonly proxiedRead: boolean;
 
   /** `source` labels this caller's agent presence on the server ('cli', 'mcp', …). */
   constructor(baseUrl: string, source = 'api') {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.source = agentSourceLabel(source);
+    this.proxiedRead = source === 'mcp';
   }
 
   async invoke(name: string, rawInput: Record<string, unknown>): Promise<unknown> {
@@ -79,7 +86,11 @@ export class HttpOperationInvoker implements OperationInvoker {
     }
 
     let url = `${this.baseUrl}${path}`;
-    const init: RequestInit = { method: route.method, headers: { 'x-pmx-source': this.source } };
+    const proxyHeaders: Record<string, string> = this.proxiedRead ? { 'x-pmx-proxied-read': '1' } : {};
+    const init: RequestInit = {
+      method: route.method,
+      headers: { 'x-pmx-source': this.source, ...proxyHeaders },
+    };
     if (route.method === 'GET' || route.method === 'DELETE') {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(rest)) {
@@ -88,7 +99,7 @@ export class HttpOperationInvoker implements OperationInvoker {
       const query = params.toString();
       if (query) url += `?${query}`;
     } else {
-      init.headers = { 'Content-Type': 'application/json', 'x-pmx-source': this.source };
+      init.headers = { 'Content-Type': 'application/json', 'x-pmx-source': this.source, ...proxyHeaders };
       init.body = JSON.stringify(rest);
     }
 

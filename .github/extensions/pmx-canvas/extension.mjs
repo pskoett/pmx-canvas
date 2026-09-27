@@ -431,6 +431,40 @@ async function getAxContext(baseUrl, workspaceRoot, input = {}, options = {}) {
     return await fetchJson(resolved.baseUrl, "/api/canvas/ax/context", { headers, timeoutMs: 2_000 });
 }
 
+function deliveredPinnedIds(pinnedNodeIds, payloadText) {
+    const pinned = new Set(pinnedNodeIds);
+    const delivered = new Set();
+    const objectStarts = [];
+    let inString = false;
+    let escaped = false;
+    for (let index = 0; index < payloadText.length; index += 1) {
+        const character = payloadText[index];
+        if (inString) {
+            if (escaped) escaped = false;
+            else if (character === "\\") escaped = true;
+            else if (character === '"') inString = false;
+            continue;
+        }
+        if (character === '"') {
+            inString = true;
+        } else if (character === "{") {
+            objectStarts.push(index);
+        } else if (character === "}" && objectStarts.length > 0) {
+            const start = objectStarts.pop();
+            try {
+                const value = JSON.parse(payloadText.slice(start, index + 1));
+                if (value && !Array.isArray(value) && typeof value === "object" &&
+                    Object.hasOwn(value, "id") && typeof value.id === "string" && pinned.has(value.id)) {
+                    delivered.add(value.id);
+                }
+            } catch {
+                // An inner object may be complete even when its containing object was clipped.
+            }
+        }
+    }
+    return pinnedNodeIds.filter((id) => delivered.has(id));
+}
+
 /** Records what the per-prompt hook injected, so delivery is measured on what Copilot received. */
 async function recordInjectedContext(baseUrl, context, injected) {
     const pinnedNodeIds = Array.isArray(context?.pinned?.nodeIds) ? context.pinned.nodeIds : [];
@@ -444,11 +478,10 @@ async function recordInjectedContext(baseUrl, context, injected) {
                 resource: "copilot:prompt-context",
                 source: "copilot",
                 consumer: "copilot",
+                boardId: context.boardId,
                 pinnedNodeIds,
                 // Same rule as the server (context-reads.ts): a node object with that id, not a bare id list.
-                deliveredNodeIds: pinnedNodeIds.filter((id) =>
-                    new RegExp(`"id"\\s*:\\s*${JSON.stringify(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(text),
-                ),
+                deliveredNodeIds: deliveredPinnedIds(pinnedNodeIds, text),
                 bytes: Buffer.byteLength(text, "utf-8"),
             }),
             timeoutMs: 1_500,

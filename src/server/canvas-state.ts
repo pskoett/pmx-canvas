@@ -939,12 +939,38 @@ class CanvasStateManager {
     const dbPath = this.databasePath;
     if (!dbPath) throw new Error('No workspace database to restore into.');
     const root = this._workspaceRoot;
-    this.close();
-    copyFileSync(dbPath, `${dbPath}.before-restore`);
-    for (const suffix of ['-wal', '-shm']) rmSync(`${dbPath}${suffix}`, { force: true });
-    copyFileSync(file, dbPath);
-    this.setWorkspaceRoot(root);
-    this.loadFromDisk({ clearExisting: true });
+    const recoveryPath = `${dbPath}.before-restore`;
+    const stagedPath = `${dbPath}.restore-${process.pid}-${Date.now()}`;
+    this.flushToDisk();
+    copyFileSync(file, stagedPath);
+    let closed = false;
+    let recoveryReady = false;
+    try {
+      this.close();
+      closed = true;
+      copyFileSync(dbPath, recoveryPath);
+      recoveryReady = true;
+      for (const suffix of ['-wal', '-shm']) rmSync(`${dbPath}${suffix}`, { force: true });
+      copyFileSync(stagedPath, dbPath);
+      this.setWorkspaceRoot(root);
+      if (!this._db) throw new Error('Could not open the restored database.');
+      const expectedBoard = getActiveBoardIdFromDB(this._db);
+      const loaded = this.loadFromDisk({ clearExisting: true });
+      if (expectedBoard && !loaded) throw new Error('Could not load the restored board.');
+    } catch (error) {
+      if (closed) {
+        this.close();
+        if (recoveryReady) {
+          for (const suffix of ['-wal', '-shm']) rmSync(`${dbPath}${suffix}`, { force: true });
+          copyFileSync(recoveryPath, dbPath);
+        }
+        this.setWorkspaceRoot(root);
+        this.loadFromDisk({ clearExisting: true });
+      }
+      throw error;
+    } finally {
+      rmSync(stagedPath, { force: true });
+    }
     this.notifyChange('nodes');
     this.notifyChange('pins');
     this.notifyChange('ax');
@@ -953,6 +979,12 @@ class CanvasStateManager {
   // ── Boards ──────────────────────────────────────────────────
 
   private _activeBoardId: string | null = null;
+  private _boardGeneration = 0;
+
+  /** Invalidates asynchronous work whenever the loaded board state is replaced. */
+  get boardGeneration(): number {
+    return this._boardGeneration;
+  }
 
   /** The open board, or null on Home. */
   get activeBoardId(): string | null {
@@ -969,17 +1001,28 @@ class CanvasStateManager {
    * One board's content without opening it: the open board from memory, any
    * other straight from SQLite. Null when there is no such board.
    */
-  readBoard(id: string): { board: CanvasBoard; state: PersistedCanvasState } | null {
+  readBoard(
+    id: string,
+    includeBlobs = true,
+  ): { board: CanvasBoard; state: PersistedCanvasState; layout: CanvasLayout } | null {
     if (!this._db) return null;
     const board = this.listBoards().find((entry) => entry.id === id);
     if (!board) return null;
     if (id === this._activeBoardId) {
-      const layout = this.getLayout();
+      const layout = includeBlobs ? this.getLayout() : this.getLayoutForPersistence();
+      if (!includeBlobs)
+        layout.nodes = layout.nodes.map((node) => ({
+          ...node,
+          pinned: node.pinned || this._contextPinnedNodeIds.has(node.id),
+        }));
       return {
         board,
+        layout,
         state: {
           version: 1,
           theme: this._theme,
+          tour: layout.tour,
+          ax: this.getAxState(),
           viewport: layout.viewport,
           nodes: layout.nodes,
           edges: layout.edges,
@@ -989,7 +1032,24 @@ class CanvasStateManager {
       };
     }
     const state = loadStateFromDB(this._db, id);
-    return state ? { board, state } : null;
+    if (!state) return null;
+    const pins = new Set(state.contextPins);
+    state.nodes = state.nodes.map((node) => ({
+      ...(includeBlobs ? this.resolveNodeDataBlobs(node) : node),
+      pinned: node.pinned || pins.has(node.id),
+    }));
+    return {
+      board,
+      state,
+      layout: {
+        tour: state.tour,
+        theme: state.theme ?? this._theme,
+        viewport: state.viewport,
+        nodes: state.nodes,
+        edges: state.edges,
+        annotations: state.annotations ?? [],
+      },
+    };
   }
 
   /** Every board in the workspace, most recently opened first. */
@@ -1013,7 +1073,7 @@ class CanvasStateManager {
   /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
   deleteBoard(id: string): boolean {
     if (!this._db) return false;
-    if (id === this._activeBoardId) this.switchBoard(null);
+    if (id === this._activeBoardId && !this.switchBoard(null)) return false;
     return deleteBoardFromDB(this._db, id);
   }
 
@@ -1028,7 +1088,9 @@ class CanvasStateManager {
       clearTimeout(this._saveTimer);
       this._saveTimer = null;
     }
-    this.saveToDisk();
+    if (!this.saveToDisk()) {
+      throw new Error(this._lastPersistenceError?.message ?? 'Failed to save canvas state before switching boards.');
+    }
     let next = this.emptyPersistedState();
     if (id) {
       const state = loadStateFromDB(this._db, id);
@@ -1081,31 +1143,35 @@ class CanvasStateManager {
   }
 
   flushToDisk(): void {
+    if (!this._db) return;
     if (this._saveTimer) {
       clearTimeout(this._saveTimer);
       this._saveTimer = null;
     }
-    this.saveToDisk();
+    if (!this.saveToDisk()) {
+      throw new Error(this._lastPersistenceError?.message ?? 'Failed to save canvas state.');
+    }
     if (this._db) {
       try {
         checkpointCanvasDb(this._db);
       } catch (error) {
         logCanvasStateWarning('checkpoint database failed', error, {});
+        throw error;
       }
     }
   }
 
   /** Write current state to SQLite immediately. */
-  private saveToDisk(): void {
-    if (!this._db) return;
+  private saveToDisk(): boolean {
+    if (!this._db) return false;
     try {
       if (!this._activeBoardId && !this.hasBoardContent()) {
         saveThemeToDB(this._db, this._theme);
         this._lastPersistenceError = null;
-        return;
+        return true;
       }
       const boardId = this.ensureActiveBoard();
-      if (!boardId) return;
+      if (!boardId) return false;
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
         theme: this._theme,
@@ -1119,6 +1185,7 @@ class CanvasStateManager {
       });
       saveStateToDB(this._db, boardId, payload);
       this._lastPersistenceError = null;
+      return true;
     } catch (error) {
       // Persistence failures are otherwise warn-and-continue (the canvas keeps
       // working from memory) — record the failure so /health can report a
@@ -1128,6 +1195,7 @@ class CanvasStateManager {
         at: new Date().toISOString(),
       };
       logCanvasStateWarning('save state to sqlite failed', error, {});
+      return false;
     }
   }
 
@@ -1140,11 +1208,9 @@ class CanvasStateManager {
 
   /** Close the SQLite database cleanly. Call on server shutdown. */
   close(): void {
-    if (this._saveTimer) {
-      clearTimeout(this._saveTimer);
-      this._saveTimer = null;
-      this.saveToDisk();
-    }
+    // A failed debounce has no timer left, but its edits still need saving.
+    // Leave the database and memory intact if the retry fails.
+    if (this._saveTimer || this._lastPersistenceError) this.flushToDisk();
     if (this._db) {
       try {
         finalizeCanvasDbForClose(this._db);
@@ -1159,6 +1225,7 @@ class CanvasStateManager {
       this._db = null;
     }
     this._activeBoardId = null;
+    this._boardGeneration += 1;
   }
 
   // ── Snapshots ───────────────────────────────────────────────
@@ -1169,6 +1236,7 @@ class CanvasStateManager {
   }
 
   private applyPersistedState(state: PersistedCanvasState): void {
+    this._boardGeneration += 1;
     this._tour = state.tour ? structuredClone(state.tour) : undefined;
     this.nodes.clear();
     this.edges.clear();
@@ -2343,10 +2411,10 @@ class CanvasStateManager {
   }
 
   /** Records one agent context read (diagnostics; never notifies, so a read cannot trigger reads). */
-  recordContextRead(input: ContextReadInput): ContextRead | null {
+  recordContextRead(input: ContextReadInput, boardId: string | null = this._activeBoardId): ContextRead | null {
     if (!this._db) return null;
     try {
-      return appendContextReadToDB(this._db, input, this._activeBoardId);
+      return appendContextReadToDB(this._db, input, boardId);
     } catch (error) {
       logCanvasStateWarning('record context read failed', error);
       return null;

@@ -1,6 +1,11 @@
+import { Database } from 'bun:sqlite';
 import { describe, expect, test } from 'bun:test';
-import { spawn } from 'node:child_process';
+import { Client } from '@modelcontextprotocol/sdk/client';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
 
 const mcpEntry = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
 
@@ -53,5 +58,76 @@ describe('MCP stdio lifecycle', () => {
       });
     });
     expect(exitCode).toBe(0);
+  }, 25_000);
+
+  test('shutdown refusal keeps unsaved MCP state alive and a retry exits durably', async () => {
+    const root = createTestWorkspace('pmx-canvas-mcp-shutdown-');
+    const dbPath = join(root, 'canvas.db');
+    const port = await getAvailablePort();
+    const transport = new StdioClientTransport({
+      command: 'bun',
+      args: ['run', mcpEntry],
+      cwd: root,
+      env: {
+        ...process.env,
+        PMX_CANVAS_DB_PATH: dbPath,
+        PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+        PMX_CANVAS_PORT: String(port),
+        PMX_CANVAS_WORKSPACE_ROOT: root,
+      },
+      stderr: 'pipe',
+    });
+    const client = new Client({ name: 'shutdown-recovery-test', version: '0' }, { capabilities: {} });
+    let db: Database | undefined;
+    let child: ChildProcess | undefined;
+    let stderr = '';
+
+    try {
+      await client.connect(transport);
+      child = (transport as unknown as { _process?: ChildProcess })._process;
+      if (!child?.pid) throw new Error('MCP stdio transport did not expose its subprocess');
+      transport.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf-8');
+      });
+
+      // The real MCP tool starts the local canvas server and initializes its DB.
+      const started = await client.callTool({ name: 'canvas_query', arguments: { action: 'layout' } });
+      expect(started.isError).not.toBe(true);
+      db = new Database(dbPath);
+      db.exec("CREATE TRIGGER reject_save BEFORE INSERT ON nodes BEGIN SELECT RAISE(FAIL, 'shutdown blocked'); END");
+
+      const added = await client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', type: 'markdown', title: 'Keep through MCP shutdown', content: 'durable' },
+      });
+      expect(added.isError).not.toBe(true);
+
+      child.kill('SIGTERM');
+      for (let attempt = 0; attempt < 100 && !stderr.includes('Shutdown refused:'); attempt++) {
+        await Bun.sleep(20);
+      }
+      expect(stderr).toContain('Shutdown refused: canvas changes could not be saved.');
+      expect(child.exitCode).toBeNull();
+
+      db.exec('DROP TRIGGER reject_save');
+      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+        child?.once('exit', (code, signal) => resolve({ code, signal }));
+      });
+      child.kill('SIGTERM');
+      expect(await exited).toEqual({ code: 0, signal: null });
+      expect(
+        db
+          .query<{ data: string }, []>('SELECT data FROM nodes')
+          .all()
+          .map((row) => JSON.parse(row.data).title),
+      ).toEqual(['Keep through MCP shutdown']);
+    } finally {
+      db?.exec('DROP TRIGGER IF EXISTS reject_save');
+      db?.close();
+      if (child?.exitCode === null) child.kill('SIGKILL');
+      await client.close().catch(() => undefined);
+      await transport.close().catch(() => undefined);
+      removeTestWorkspace(root);
+    }
   }, 25_000);
 });

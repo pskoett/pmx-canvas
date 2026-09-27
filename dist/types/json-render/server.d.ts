@@ -63,6 +63,7 @@ export declare const GRAPH_NODE_SIZE: {
     height: number;
 };
 export type GraphChartType = 'LineChart' | 'BarChart' | 'PieChart' | 'AreaChart' | 'ScatterChart' | 'RadarChart' | 'StackedBarChart' | 'ComposedChart' | 'Sparkline' | 'DotPlot' | 'BulletChart' | 'Slopegraph';
+export declare function escapeInlineScriptSource(source: string): string;
 export declare function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback?: string): string;
 export declare function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec;
 /** shadcn 0.21 ignores these props unless the renderer supplies a two-way binding. */
@@ -86,6 +87,11 @@ export declare function applyJsonRenderStreamPatches(currentSpec: JsonRenderSpec
     skipped: number;
 };
 export declare function createJsonRenderNodeData(nodeId: string, title: string, spec: JsonRenderSpec, extra?: Record<string, unknown>): Record<string, unknown>;
+/** The viewer bundle's script and stylesheet, as the viewer document inlines them. */
+export declare function readJsonRenderBundle(): Promise<{
+    js: string;
+    css: string;
+}>;
 export declare function buildJsonRenderViewerHtml(options: {
     title: string;
     spec: JsonRenderSpec;

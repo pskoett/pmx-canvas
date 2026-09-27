@@ -7,8 +7,20 @@ const server = Bun.serve({
   fetch(req) {
     const path = new URL(req.url).pathname;
     if (path === '/to-metadata') return Response.redirect('http://169.254.169.254/latest/meta-data/', 302);
+    if (path === '/to-mapped-metadata') return Response.redirect('http://[::ffff:169.254.169.254]/', 302);
     if (path === '/to-local') return Response.redirect('/page', 302);
     if (path === '/loop') return Response.redirect('/loop', 302);
+    if (path === '/empty') return new Response(null, { status: 204 });
+    if (path === '/large')
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`<title>Bounded</title>${'x'.repeat(1_100_000)}`));
+            // Never finish: buffering the entire response would time out.
+          },
+        }),
+      );
+    if (path === '/host') return new Response(`<title>${req.headers.get('host')}</title>`);
     return new Response('<html><head><title>Local page</title></head><body>hi</body></html>', {
       headers: { 'content-type': 'text/html' },
     });
@@ -19,6 +31,19 @@ const base = `http://127.0.0.1:${server.port}`;
 afterAll(() => server.stop(true));
 
 describe('classifyAddress', () => {
+  test('classifies canonical and expanded mapped IPv4 using the IPv4 scope', () => {
+    for (const [ip, scope] of [
+      ['::ffff:127.0.0.1', 'private'],
+      ['0:0:0:0:0:ffff:a9fe:a9fe', 'link-local'],
+      ['::ffff:10.23.45.67', 'private'],
+      ['::ffff:93.184.216.34', 'public'],
+      ['0:0:0:0:0:0:0:1', 'private'],
+    ] as const) {
+      expect(classifyAddress(ip)).toBe(scope);
+      expect(classifyAddress(new URL(`http://[${ip}]/`).hostname)).toBe(scope);
+    }
+  });
+
   test('separates link-local, private and public addresses', () => {
     expect(classifyAddress('169.254.169.254')).toBe('link-local');
     expect(classifyAddress('fe80::1')).toBe('link-local');
@@ -58,6 +83,47 @@ describe('checkWebpageHop', () => {
 });
 
 describe('fetchWebpageSnapshot redirects', () => {
+  test('uses another validated address when the first connection is refused', async () => {
+    const snapshot = await fetchWebpageSnapshot(`http://pinned.test:${server.port}/host`, {
+      resolveHost: async () => [
+        { address: '::1', family: 6 },
+        { address: '127.0.0.1', family: 4 },
+      ],
+    });
+    expect(snapshot.pageTitle).toBe(`pinned.test:${server.port}`);
+  });
+
+  test('accepts an empty successful response', async () => {
+    expect((await fetchWebpageSnapshot(`${base}/empty`)).content).toBe('');
+  });
+
+  test('connects to the one validated DNS result while retaining the original Host header', async () => {
+    let resolutions = 0;
+    const snapshot = await fetchWebpageSnapshot(`http://pinned.test:${server.port}/host`, {
+      resolveHost: async () => {
+        resolutions += 1;
+        return [{ address: '127.0.0.1', family: 4 }];
+      },
+    });
+    expect(resolutions).toBe(1);
+    expect(snapshot.pageTitle).toBe(`pinned.test:${server.port}`);
+  });
+
+  test('the timeout includes DNS resolution', async () => {
+    await expect(
+      fetchWebpageSnapshot('http://slow-dns.test/', {
+        timeoutMs: 10,
+        resolveHost: () => new Promise(() => {}),
+      }),
+    ).rejects.toThrow('Timed out after 10ms');
+  });
+
+  test('bounds response buffering', async () => {
+    const snapshot = await fetchWebpageSnapshot(`${base}/large`, { timeoutMs: 1000 });
+    expect(snapshot.pageTitle).toBe('Bounded');
+    expect(snapshot.content.length).toBeLessThanOrEqual(50_000);
+  });
+
   test('a local dev server the caller points at still loads, through a local redirect', async () => {
     const snapshot = await fetchWebpageSnapshot(`${base}/to-local`);
     expect(snapshot.pageTitle).toBe('Local page');
@@ -66,6 +132,7 @@ describe('fetchWebpageSnapshot redirects', () => {
 
   test('a redirect to cloud metadata is refused before it is fetched', async () => {
     await expect(fetchWebpageSnapshot(`${base}/to-metadata`)).rejects.toThrow('link-local');
+    await expect(fetchWebpageSnapshot(`${base}/to-mapped-metadata`)).rejects.toThrow('link-local');
   });
 
   test('a link-local URL is refused outright', async () => {

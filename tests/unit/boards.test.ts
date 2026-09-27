@@ -2,10 +2,12 @@ import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { openCanvasBoard } from '../../src/server/canvas-operations.ts';
+import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
+import { runCanvasBatchOperation } from '../../src/server/operations/index.ts';
+import { isEmitSuppressed } from '../../src/server/operations/registry.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 /** The one-board layout every 0.6.x workspace has on disk (schema 1). */
@@ -252,5 +254,124 @@ describe('boards', () => {
     expect(await openCanvasBoard('board-missing')).toEqual({ ok: false });
     expect(canvasState.activeBoardId).toBe(before);
     expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual(['stay']);
+  });
+
+  test('a failed save prevents switching and keeps the unsaved board in memory', () => {
+    canvasState.addNode(note('saved', 'Saved'));
+    canvasState.flushToDisk();
+    const current = canvasState.activeBoardId;
+    const other = canvasState.createBoard('Other');
+    canvasState.addNode(note('unsaved', 'Unsaved'));
+
+    const db = new Database(canvasState.databasePath as string);
+    db.exec("CREATE TRIGGER reject_node_save BEFORE INSERT ON nodes BEGIN SELECT RAISE(FAIL, 'save rejected'); END");
+    try {
+      expect(() => openCanvasBoard(other?.id ?? '')).toThrow('save rejected');
+      expect(canvasState.activeBoardId).toBe(current);
+      expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual(['saved', 'unsaved']);
+      expect(canvasState.persistenceHealth.ok).toBe(false);
+    } finally {
+      db.exec('DROP TRIGGER reject_node_save');
+      db.close();
+    }
+  });
+
+  test('a batch stops at a board switch without suppressing concurrent human events', async () => {
+    canvasState.addNode(note('anchor', 'A'));
+    canvasState.flushToDisk();
+    const a = canvasState.activeBoardId as string;
+    const b = canvasState.createBoard('B')!;
+    const pending = runCanvasBatchOperation([
+      { op: 'node.add', args: { type: 'markdown', title: 'first' } },
+      { op: 'node.add', args: { type: 'markdown', title: 'must not appear on B' } },
+    ]);
+    expect(isEmitSuppressed()).toBe(false);
+    canvasState.switchBoard(b.id);
+    expect(await pending).toMatchObject({
+      ok: false,
+      failedIndex: 0,
+      error: 'The board changed while the batch was running.',
+    });
+    expect(canvasState.getLayout().nodes).toEqual([]);
+    expect(canvasState.readBoard(a)?.layout.nodes.map((node) => node.data.title)).toContain('first');
+  });
+
+  test('close refuses a failed pending save, then retries a failed debounce after recovery', async () => {
+    canvasState.addNode(note('saved', 'Saved'));
+    canvasState.flushToDisk();
+    const path = canvasState.databasePath as string;
+    const db = new Database(path);
+    db.exec("CREATE TRIGGER reject_node_save BEFORE INSERT ON nodes BEGIN SELECT RAISE(FAIL, 'save rejected'); END");
+    try {
+      canvasState.addNode(note('unsaved', 'Unsaved'));
+      expect(() => canvasState.close()).toThrow('save rejected');
+      expect(canvasState.databasePath).toBe(path);
+      expect(canvasState.getNode('unsaved')).toBeDefined();
+      canvasState.addNode(note('after-failure', 'After failure'));
+      await Bun.sleep(650);
+      expect(canvasState.persistenceHealth.ok).toBe(false);
+    } finally {
+      db.exec('DROP TRIGGER reject_node_save');
+      db.close();
+    }
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    expect(
+      canvasState
+        .getLayout()
+        .nodes.map((node) => node.id)
+        .sort(),
+    ).toEqual(['after-failure', 'saved', 'unsaved']);
+  });
+
+  test.each([
+    false,
+    true,
+  ])('an in-flight webpage refresh is invalidated by a board switch (return=%s)', async (returnToA) => {
+    let release!: (response: Response) => void;
+    let started!: () => void;
+    const received = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const response = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch() {
+        started();
+        return response;
+      },
+    });
+    const url = `http://127.0.0.1:${server.port}/a`;
+    const webpage = (title: string): CanvasNodeState => ({
+      ...note('shared', title),
+      type: 'webpage',
+      data: { title, url, status: 'ready' },
+    });
+    canvasState.addNode(webpage('A original'));
+    canvasState.flushToDisk();
+    const a = canvasState.activeBoardId as string;
+    const b = canvasState.createBoard('B')!;
+    canvasState.switchBoard(b.id);
+    canvasState.addNode(webpage('B original'));
+    canvasState.switchBoard(a);
+    const pending = refreshCanvasWebpageNode('shared');
+    try {
+      await received;
+      canvasState.switchBoard(b.id);
+      if (returnToA) canvasState.switchBoard(a);
+      release(new Response('<title>Fetched A</title><p>Fetched content</p>'));
+      expect(await pending).toMatchObject({ ok: false, error: 'The board changed during webpage refresh.' });
+      expect(canvasState.getNode('shared')?.data.title).toBe(returnToA ? 'A original' : 'B original');
+      expect(canvasState.readBoard(a)?.layout.nodes[0]?.data.status).toBe('ready');
+      expect(canvasState.readBoard(b.id)?.layout.nodes[0]?.data.title).toBe('B original');
+    } finally {
+      release(new Response('cancelled'));
+      await pending;
+      server.stop(true);
+    }
   });
 });

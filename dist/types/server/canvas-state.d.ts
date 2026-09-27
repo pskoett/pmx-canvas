@@ -223,6 +223,9 @@ declare class CanvasStateManager {
      */
     replaceDatabase(file: string): void;
     private _activeBoardId;
+    private _boardGeneration;
+    /** Invalidates asynchronous work whenever the loaded board state is replaced. */
+    get boardGeneration(): number;
     /** The open board, or null on Home. */
     get activeBoardId(): string | null;
     getActiveBoard(): CanvasBoard | null;
@@ -230,9 +233,10 @@ declare class CanvasStateManager {
      * One board's content without opening it: the open board from memory, any
      * other straight from SQLite. Null when there is no such board.
      */
-    readBoard(id: string): {
+    readBoard(id: string, includeBlobs?: boolean): {
         board: CanvasBoard;
         state: PersistedCanvasState;
+        layout: CanvasLayout;
     } | null;
     /** Every board in the workspace, most recently opened first. */
     listBoards(): CanvasBoard[];
@@ -530,7 +534,7 @@ declare class CanvasStateManager {
     getPendingSteeringCount(consumer?: string): number;
     getAxTimelineSummary(): PmxAxTimelineSummary;
     /** Records one agent context read (diagnostics; never notifies, so a read cannot trigger reads). */
-    recordContextRead(input: ContextReadInput): ContextRead | null;
+    recordContextRead(input: ContextReadInput, boardId?: string | null): ContextRead | null;
     getContextReads(limit?: number): {
         reads: ContextRead[];
         summary: ContextReadConsumerSummary[];

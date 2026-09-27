@@ -10,12 +10,59 @@
 import { z, type ZodRawShape, type ZodTypeAny } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getOperation, listOperations } from './registry.js';
-import type { OperationInvoker } from './invoker.js';
+import { agentSourceLabel, type OperationInvoker } from './invoker.js';
 import { OperationError, type Operation, type OperationMcpToolHost } from './types.js';
+import { CONTEXT_READ_OPS, contextReadFromPayload, type ContextReadInput } from '../context-reads.js';
 import { compositeFoldedOpNames, compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';
 
 export interface OperationToolHost extends OperationMcpToolHost {
   invoker(): OperationInvoker;
+  prepareContextRead(board?: string): Promise<{ boardId: string | null; pinnedNodeIds: string[] }>;
+  recordContextRead(read: ContextReadInput): Promise<void>;
+}
+
+async function invokeMcpOperation(
+  host: OperationToolHost,
+  op: Operation,
+  opInput: Record<string, unknown>,
+  formatInput: Record<string, unknown>,
+  consumer: string | null,
+) {
+  const board = typeof opInput.board === 'string' && opInput.board.trim() ? opInput.board.trim() : undefined;
+  const readTarget = CONTEXT_READ_OPS.has(op.name) ? await host.prepareContextRead(board) : null;
+  if (readTarget?.boardId && 'board' in op.inputShape) {
+    opInput = { ...opInput, board: readTarget.boardId };
+    formatInput = { ...formatInput, board: readTarget.boardId };
+  }
+  const result = await host.invoker().invoke(op.name, opInput);
+  const formatted = op.mcp?.formatResult
+    ? await op.mcp.formatResult(result, formatInput, host)
+    : { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+  if (readTarget) {
+    const text = formatted.content
+      .filter((item): item is Extract<(typeof formatted.content)[number], { type: 'text' }> => item.type === 'text')
+      .map((item) => item.text)
+      .join('');
+    try {
+      await host.recordContextRead(
+        contextReadFromPayload(
+          {
+            channel: 'operation',
+            resource: op.name,
+            source: agentSourceLabel('mcp'),
+            consumer,
+            agentId: null,
+            pinnedNodeIds: readTarget.pinnedNodeIds,
+            boardId: readTarget.boardId,
+          },
+          text,
+        ),
+      );
+    } catch (error) {
+      console.error('[pmx-canvas mcp] recording a context read failed:', error);
+    }
+  }
+  return formatted;
 }
 
 export function registerOperationTools(server: McpServer, getHost: () => Promise<OperationToolHost>): void {
@@ -43,11 +90,7 @@ export function registerOperationTools(server: McpServer, getHost: () => Promise
         try {
           const host = await getHost();
           const opInput = tool.buildInput ? tool.buildInput(input) : input;
-          const result = await host.invoker().invoke(op.name, opInput);
-          if (tool.formatResult) {
-            return await tool.formatResult(result, input, host);
-          }
-          return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+          return await invokeMcpOperation(host, op, opInput, input, server.server.getClientVersion()?.name ?? null);
         } catch (error) {
           return {
             content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
@@ -261,11 +304,7 @@ export function registerCompositeTools(
             );
           }
           const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
-          const result = await host.invoker().invoke(opName, opInput);
-          if (op.mcp?.formatResult) {
-            return await op.mcp.formatResult(result, rest, host);
-          }
-          return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+          return await invokeMcpOperation(host, op, opInput, rest, server.server.getClientVersion()?.name ?? null);
         } catch (error) {
           return {
             content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],

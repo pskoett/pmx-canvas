@@ -107,6 +107,7 @@ export async function openMcpAppCore(input: OpenMcpAppCoreInput, ctx: OperationC
     throw new OperationError(`Node "${input.nodeId}" is not an external app node.`);
   }
 
+  const boardGeneration = canvasState.boardGeneration;
   const opened = await openExternalMcpApp({
     transport: input.transport,
     toolName: input.toolName,
@@ -114,6 +115,10 @@ export async function openMcpAppCore(input: OpenMcpAppCoreInput, ctx: OperationC
     ...(input.serverName ? { serverName: input.serverName } : {}),
     ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
   });
+  if (canvasState.boardGeneration !== boardGeneration) {
+    closeMcpAppSession(opened.sessionId);
+    throw new OperationError('The board changed while the MCP app was opening.', 409);
+  }
   const toolCallId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const previousSessionId = targetNode?.data.appSessionId;
   if (typeof previousSessionId === 'string' && previousSessionId.trim().length > 0) {

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { CanvasBoard } from '../../src/server/canvas-db.ts';
+import { canvasState } from '../../src/server/canvas-state.ts';
+import { createCanvas } from '../../src/server/index.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -85,6 +87,25 @@ describe('boards over HTTP', () => {
     expect(after.boards.find((board) => board.id === planning)?.nodeCount).toBe(2);
   });
 
+  test('resolving a pending approval from Home reopens its recent board', async () => {
+    const created = await call('POST', '/api/canvas/ax/approval', AGENT, {
+      title: 'Ship release',
+      detail: 'Approve deployment',
+    });
+    const approvalId = String((created.body.approvalGate as { id: string }).id);
+    const recentBoardId = (await boards()).activeBoardId;
+
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: null });
+    expect((await boards()).activeBoardId).toBeNull();
+
+    const resolved = await call('POST', `/api/canvas/ax/approval/${approvalId}/resolve`, HUMAN, {
+      decision: 'approved',
+    });
+    expect(resolved.status).toBe(200);
+    expect((await boards()).activeBoardId).toBe(recentBoardId);
+    expect((resolved.body.approvalGate as { status: string }).status).toBe('approved');
+  });
+
   test('boards are filed under categories, which can be changed and cleared', async () => {
     const created = await call('POST', '/api/canvas/boards', AGENT, { name: 'OKR April', category: 'Planning' });
     const id = (created.body.board as CanvasBoard).id;
@@ -99,6 +120,25 @@ describe('boards over HTTP', () => {
     expect((await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: 'x'.repeat(61) })).status).toBe(400);
   });
 
+  test('nested folder paths normalize, persist and reject ambiguous segments without changing the board', async () => {
+    const created = await call('POST', '/api/canvas/boards', AGENT, {
+      name: 'Decision record',
+      category: ' Engineering / Canvas / Decisions ',
+    });
+    expect(created.status).toBe(200);
+    const board = created.body.board as CanvasBoard;
+    expect(board.category).toBe('Engineering/Canvas/Decisions');
+    const deep = Array.from({ length: 8 }, (_, index) => `Folder ${index}`).join('/');
+    expect((await call('PATCH', `/api/canvas/boards/${board.id}`, AGENT, { category: deep })).status).toBe(200);
+    for (const category of ['A//B', '/A', 'A/', 'A/../B', `${deep}/Ninth`, `A/${'x'.repeat(61)}`]) {
+      expect(
+        (await call('PATCH', `/api/canvas/boards/${board.id}`, AGENT, { category, name: 'Must not rename' })).status,
+      ).toBe(400);
+    }
+    const read = await call('GET', `/api/canvas/boards/${board.id}`, AGENT);
+    expect(read.body.board).toMatchObject({ id: board.id, name: 'Decision record', category: deep });
+  });
+
   test('rename, get, and deleting the open board returns to Home', async () => {
     const { activeBoardId } = await boards();
     const id = activeBoardId as string;
@@ -111,5 +151,66 @@ describe('boards over HTTP', () => {
     expect(deleted.body.activeBoardId).toBeNull();
     expect(deleted.body.boards.some((board) => board.id === id)).toBe(false);
     expect((await call('GET', `/api/canvas/boards/${id}`, AGENT)).status).toBe(404);
+  });
+
+  test('reads an inactive board without switching the active board', async () => {
+    const first = await call('POST', '/api/canvas/boards', AGENT, { name: 'Read target' });
+    const targetId = (first.body.board as CanvasBoard).id;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: targetId });
+    const inactiveCreated = await call('POST', '/api/canvas/node', AGENT, {
+      type: 'markdown',
+      title: 'Inactive title',
+      content: 'inactive content',
+    });
+    const inactiveNodeId = String(inactiveCreated.body.id);
+    const inactiveNode = canvasState.getNode(inactiveNodeId)!;
+    const blob = 'inactive tool result '.repeat(300);
+    canvasState.addNode({ ...inactiveNode, id: 'blob-node', type: 'mcp-app', data: { toolResult: blob } });
+    await call('POST', '/api/canvas/context-pins', HUMAN, { nodeIds: [inactiveNodeId] });
+
+    const second = await call('POST', '/api/canvas/boards', AGENT, { name: 'Still active' });
+    const activeId = (second.body.board as CanvasBoard).id;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: activeId });
+    canvasState.addNode({ ...inactiveNode, data: { title: 'Same id, active board', content: 'different' } });
+    await call('POST', '/api/canvas/node', AGENT, {
+      type: 'markdown',
+      title: 'Active title',
+      content: 'active content',
+    });
+
+    const targetNode = await call('GET', `/api/canvas/node/${inactiveNodeId}?board=${targetId}`, AGENT);
+    expect(targetNode.body).toMatchObject({ id: inactiveNodeId, title: 'Inactive title' });
+    const targetLayout = await call('GET', `/api/canvas/state?board=${targetId}`, AGENT);
+    expect(
+      (targetLayout.body.nodes as Array<{ id: string; title: string }>).find((node) => node.id === inactiveNodeId)
+        ?.title,
+    ).toBe('Inactive title');
+    const targetPins = await call('GET', `/api/canvas/pinned-context?board=${targetId}`, AGENT);
+    expect(targetPins.body).toMatchObject({ count: 1, nodeIds: [inactiveNodeId] });
+    expect((await call('GET', `/api/canvas/summary?board=${targetId}`, AGENT)).body).toMatchObject({
+      totalNodes: 2,
+      pinnedCount: 1,
+    });
+    const full = await call('GET', `/api/canvas/node/blob-node?board=${targetId}&includeBlobs=true`, AGENT);
+    expect(full.body.data).toMatchObject({ toolResult: blob });
+    const compact = await call('GET', `/api/canvas/node/blob-node?board=${targetId}`, AGENT);
+    expect(compact.body.data).toMatchObject({ toolResult: { stored: 'sidecar' } });
+    const sdk = createCanvas();
+    expect(sdk.getNode('blob-node', { board: targetId })?.data.toolResult).toBe(blob);
+    expect(sdk.getLayout({ board: targetId }).nodes.find((node) => node.id === inactiveNodeId)?.pinned).toBe(true);
+    const log = (await call('GET', '/api/canvas/ax/context-reads', HUMAN)).body.reads as Array<{
+      boardId: string;
+      resource: string;
+      pinnedNodeIds: string[];
+      deliveredNodeIds: string[];
+    }>;
+    expect(log.find((read) => read.resource === 'pinned-context.get')).toMatchObject({
+      boardId: targetId,
+      pinnedNodeIds: [inactiveNodeId],
+      deliveredNodeIds: [inactiveNodeId],
+    });
+    expect((await boards()).activeBoardId).toBe(activeId);
+    expect((await call('GET', `/api/canvas/node/${inactiveNodeId}`, AGENT)).body.title).toBe('Same id, active board');
+    expect((await call('GET', '/api/canvas/state?board=missing', AGENT)).status).toBe(404);
   });
 });

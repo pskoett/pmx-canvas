@@ -94,10 +94,14 @@ console.log(canvas.getAxContext());
 // Boards — the SDK is the embedding host, so it may open and delete boards.
 // Writes made on Home (no board open) land on a new board; open one first.
 const board = await canvas.createBoard('Q4 planning', 'Planning'); // optional category
-await canvas.updateBoard(board.id, { category: 'Quarterly' }); // or { name }, or { category: null }
+await canvas.updateBoard(board.id, { category: 'Planning/Quarterly' }); // nested folders; null unfiles it
 await canvas.openBoard(board.id);
 console.log(canvas.listBoards()); // { activeBoardId, boards }
 await canvas.openBoard(null); // Home
+
+// Read another board without opening it; unknown board IDs throw.
+console.log(canvas.getLayout({ board: board.id }));
+console.log(canvas.getNode('node-id', { board: board.id }));
 
 // Export — one self-contained HTML file of a board, readable with no install
 const { path } = await canvas.exportBoard({ board: board.id });

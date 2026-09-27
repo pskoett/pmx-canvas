@@ -7,6 +7,7 @@
  * Handlers never emit `canvas-layout-update` themselves for the final state —
  * `mutates: true` is the single source; extra events go through `ctx.emit`.
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
 import { humanPresence } from '../human-presence.js';
@@ -46,18 +47,12 @@ export function setOperationEventEmitter(emitter: OperationEventEmitter | null):
   operationEventEmitter = emitter;
 }
 
-// Depth-counted EMIT suppression (same pattern as, but deliberately distinct
-// state from, canvasState's recording suppression: batch suppresses SSE emits
-// while sub-ops still record history; undo/redo suppresses recording while
-// still emitting SSE — merging the two counters would break one or the other).
-// While > 0, emitOperationEvent is a no-op so a meta-op (canvas.batch) can run
-// many sub-ops without producing per-entry SSE frames, then emit ONE final
-// layout frame itself. Both the `mutates` auto-emit and `ctx.emit` route through
-// emitOperationEvent, so this covers both. Re-entrant-safe via the depth counter.
-let suppressEmitDepth = 0;
+// Batch suppression belongs to its async call chain, never concurrent human
+// operations (especially board switches while a batch waits on the network).
+const suppressedEmits = new AsyncLocalStorage<boolean>();
 
 function emitOperationEvent(event: string, payload: Record<string, unknown> = {}): void {
-  if (suppressEmitDepth > 0) return;
+  if (isEmitSuppressed()) return;
   operationEventEmitter?.(event, payload);
 }
 
@@ -66,17 +61,12 @@ function emitOperationEvent(event: string, payload: Record<string, unknown> = {}
  * mcpapp.open, whose canvas node is created as a side-effect of `ext-app-open` —
  * use this to reject loudly instead of silently no-op'ing in a suppressed run. */
 export function isEmitSuppressed(): boolean {
-  return suppressEmitDepth > 0;
+  return suppressedEmits.getStore() === true;
 }
 
-/** Run `fn` with all operation SSE emits suppressed; restores depth on finally. */
+/** Suppress this call chain's per-entry frames; the batch emits its final frame afterward. */
 export async function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T> {
-  suppressEmitDepth++;
-  try {
-    return await fn();
-  } finally {
-    suppressEmitDepth--;
-  }
+  return suppressedEmits.run(true, fn);
 }
 
 const operationContext: OperationContext = { emit: emitOperationEvent };
@@ -378,9 +368,20 @@ export async function executeOperation(
       : (meta.source ?? 'api');
   setMutationActor(meta.fromWorkbench ? 'human' : 'agent', historyWriter);
   try {
+    const recordRead = CONTEXT_READ_OPS.has(name) && !meta.fromWorkbench && !meta.proxiedRead;
+    const input = asRecord(rawInput);
+    const requestedBoard =
+      recordRead && 'board' in getOperation(name).inputShape && isString(input.board) && input.board.trim()
+        ? input.board.trim()
+        : null;
+    const readBoardId = requestedBoard ?? canvasState.activeBoardId;
+    const readPins = recordRead
+      ? requestedBoard
+        ? (canvasState.readBoard(requestedBoard, false)?.state.contextPins ?? [])
+        : [...canvasState.contextPinnedNodeIds]
+      : [];
     const result = await executeOperationInner(name, rawInput, meta);
-    if (CONTEXT_READ_OPS.has(name) && !meta.fromWorkbench && !meta.proxiedRead) {
-      const input = asRecord(rawInput);
+    if (recordRead) {
       canvasState.recordContextRead(
         contextReadFromPayload(
           {
@@ -389,10 +390,11 @@ export async function executeOperation(
             source: meta.source ?? 'api',
             consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
             agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
-            pinnedNodeIds: [...canvasState.contextPinnedNodeIds],
+            pinnedNodeIds: readPins,
           },
           result,
         ),
+        readBoardId,
       );
     }
     return result;
@@ -409,22 +411,24 @@ const HUMAN_ONLY_OPS = new Set(['board.open', 'board.delete']);
  * pins, snapshots and app nodes. `canvas.clear` on Home clears nothing, so it
  * never opens a board it would then wipe.
  */
-const BOARD_WRITE_OPS = new Set([
-  'pin.set',
-  'snapshot.save',
-  'ax.work.create',
-  'ax.review.add',
-  'ax.approval.request',
-  'ax.elicitation.request',
-  'ax.mode.request',
-  'mcpapp.open',
-  'diagram.open',
-  'webartifact.build',
-]);
+const BOARD_WRITE_OPS = new Set(['pin.set', 'snapshot.save', 'mcpapp.open', 'diagram.open', 'webartifact.build']);
+
+const CANVAS_BOUND_AX_WRITE_PREFIXES = [
+  'ax.work.',
+  'ax.review.',
+  'ax.approval.',
+  'ax.elicitation.',
+  'ax.mode.',
+] as const;
+
+function isCanvasBoundAxWrite(name: string): boolean {
+  if (name === 'ax.focus.set' || name === 'ax.policy.set') return true;
+  return CANVAS_BOUND_AX_WRITE_PREFIXES.some((prefix) => name.startsWith(prefix)) && !name.endsWith('.await');
+}
 
 function needsOpenBoard(op: Operation): boolean {
   if (op.name === 'canvas.clear' || PRESENCE_EXEMPT_OPS.has(op.name)) return false;
-  return op.mutates || BOARD_WRITE_OPS.has(op.name);
+  return op.mutates || BOARD_WRITE_OPS.has(op.name) || isCanvasBoundAxWrite(op.name);
 }
 
 async function executeOperationInner(name: string, rawInput: unknown, meta: ExecuteOperationMeta): Promise<unknown> {

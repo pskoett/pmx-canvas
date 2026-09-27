@@ -65,6 +65,16 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_board` | `list` · `get` · `create` · `update` | _(new in 0.7 — many boards; `update` renames or files a board under a category)_ |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
+Board categories are nested folder paths: `canvas_board { action: "update", id:
+"<id>", category: "Engineering/Canvas/Decisions" }`. Use `category: ""` to
+unfile a board. Moving preserves its ID and content; list results expose the
+full path for navigating the memory library.
+
+Target another board without opening it with `canvas_query { action: "layout",
+board: "<id>" }` or `canvas_node { action: "get", id: "<node-id>", board:
+"<id>" }`. Unknown boards error, and full inactive-board reads resolve stored
+blob references.
+
 For Mermaid nodes, `canvas_node` actions `add` and `update` accept
 `data: { fit: "contain" | "none" }`. Contain is the default, shrinking overflow
 uniformly; none keeps 100% with scrolling. Use Open as site for 100% without

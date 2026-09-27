@@ -8,6 +8,19 @@ wins over `--port`, and both win over the environment variables). An invalid
 value for either flag is a hard error — the CLI never falls back silently to
 the default port.
 
+Read commands accept `--board <board-id>` without switching the active board:
+`layout` (including `--summary`), `status`, `spatial`, `pin --list`, and
+`node get`. Writes and presence still target the board open in the workbench;
+unknown board IDs fail rather than falling back to it.
+
+An in-flight asynchronous write stops if the board changes; subsequent calls use
+the newly open board. Batches stop rather than continuing on another board, and
+already-completed entries remain applied.
+
+On SIGINT or SIGTERM, the server saves before exiting. If saving fails, it reports
+the error and stays running so the in-memory edits can be recovered. Fix the
+storage failure and retry shutdown; a forced process kill can still lose edits.
+
 ```bash
 pmx-canvas node list --port 4750                      # target a non-default daemon
 pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
@@ -269,13 +282,17 @@ pmx-canvas board list                          # most recently opened first; act
 pmx-canvas board create "Q4 planning"          # created, not opened
 pmx-canvas board rename <board-id> "New name"
 pmx-canvas board create "Q4 planning" --category Planning
-pmx-canvas board category <board-id> "Planning"      # --clear removes it
+pmx-canvas board category <board-id> "Planning/Quarterly" # nested folders; --clear unfiles it
 ```
 
 Commands write to the board open in the workbench. Opening, switching and
 deleting boards happens in the workbench (the human's call).
 
 ## Backup and restore
+
+Boards save automatically. Backups are separate recovery copies of the whole library,
+configured through the CLI or HTTP API rather than the Home screen. Scheduled backups
+run while the server is running; scheduling is off until configured.
 
 ```bash
 pmx-canvas backup                                   # every board, now; into .pmx-canvas/backups

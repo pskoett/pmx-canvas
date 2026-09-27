@@ -1,9 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { OperationInvoker } from './invoker.js';
+import { type OperationInvoker } from './invoker.js';
 import { type OperationMcpToolHost } from './types.js';
+import { type ContextReadInput } from '../context-reads.js';
 import { type CompositeToolDefinition } from './composites.js';
 export interface OperationToolHost extends OperationMcpToolHost {
     invoker(): OperationInvoker;
+    prepareContextRead(board?: string): Promise<{
+        boardId: string | null;
+        pinnedNodeIds: string[];
+    }>;
+    recordContextRead(read: ContextReadInput): Promise<void>;
 }
 export declare function registerOperationTools(server: McpServer, getHost: () => Promise<OperationToolHost>): void;
 /**

@@ -7,7 +7,7 @@
 
 import { Database } from 'bun:sqlite';
 import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
-import { MIGRATED_SNAPSHOT_CATEGORY } from '../shared/boards.js';
+import { MIGRATED_SNAPSHOT_CATEGORY, normalizeBoardCategory } from '../shared/boards.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -882,6 +882,7 @@ export function getBoardFromDB(db: Database, id: string): CanvasBoard | null {
 }
 
 export function createBoardInDB(db: Database, name: string, category: string | null = null): CanvasBoard {
+  category = normalizeBoardCategory(category);
   const id = createBoardId();
   const createdAt = new Date().toISOString();
   db.run('INSERT INTO boards (id, name, category, created_at) VALUES (?, ?, ?, ?)', [id, name, category, createdAt]);
@@ -890,9 +891,10 @@ export function createBoardInDB(db: Database, name: string, category: string | n
 
 /** Rename and/or re-shelve a board; `category: null` removes it from its category. */
 export function updateBoardInDB(db: Database, id: string, patch: { name?: string; category?: string | null }): boolean {
+  const category = patch.category === undefined ? undefined : normalizeBoardCategory(patch.category);
   if (!db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id)) return false;
   if (patch.name !== undefined) db.run('UPDATE boards SET name = ? WHERE id = ?', [patch.name, id]);
-  if (patch.category !== undefined) db.run('UPDATE boards SET category = ? WHERE id = ?', [patch.category, id]);
+  if (category !== undefined) db.run('UPDATE boards SET category = ? WHERE id = ?', [category, id]);
   return true;
 }
 

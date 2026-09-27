@@ -9,7 +9,7 @@ export declare function setOperationEventEmitter(emitter: OperationEventEmitter 
  * mcpapp.open, whose canvas node is created as a side-effect of `ext-app-open` —
  * use this to reject loudly instead of silently no-op'ing in a suppressed run. */
 export declare function isEmitSuppressed(): boolean;
-/** Run `fn` with all operation SSE emits suppressed; restores depth on finally. */
+/** Suppress this call chain's per-entry frames; the batch emits its final frame afterward. */
 export declare function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T>;
 export interface ExecuteOperationMeta {
     /**

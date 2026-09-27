@@ -119,7 +119,7 @@ function buildHumanAnnotations(layout: CanvasLayout): PmxAxHumanAnnotation[] {
   });
 }
 
-export function buildCanvasAxContext(consumer?: string): PmxAxContext {
+export function buildCanvasAxContext(consumer?: string): PmxAxContext & { boardId: string | null } {
   const layout = canvasState.getLayout();
   const ax = canvasState.getAxState();
   const focusNodes = ax.focus.nodeIds
@@ -130,7 +130,7 @@ export function buildCanvasAxContext(consumer?: string): PmxAxContext {
   // The FIFO claim/ack queue (getPendingSteering) stays oldest-first for processing.
   const pendingSteering = canvasState.getPendingSteeringForContext({ consumer, limit: AX_CONTEXT_STEERING_LIMIT });
   const totalPending = canvasState.getPendingSteeringCount(consumer);
-  return buildAxContext({
+  const context = buildAxContext({
     layout,
     delivery: {
       pendingSteering,
@@ -151,4 +151,6 @@ export function buildCanvasAxContext(consumer?: string): PmxAxContext {
     timeline: canvasState.getAxTimelineSummary(),
     host: canvasState.getHostCapability(),
   });
+  // Capture attribution with the payload, before any transport awaits or board switches.
+  return { ...context, boardId: canvasState.activeBoardId };
 }

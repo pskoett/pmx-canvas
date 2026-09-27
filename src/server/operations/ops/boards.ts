@@ -12,12 +12,39 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { canvasState } from '../../canvas-state.js';
+import { normalizeBoardCategory } from '../../../shared/boards.js';
+import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 
 export function boardsPayload(): Record<string, unknown> {
   return { activeBoardId: canvasState.activeBoardId, boards: canvasState.listBoards() };
+}
+
+/** Read a board without opening it. Omitted board preserves the active-board contract. */
+export function readTargetBoard(
+  boardId?: unknown,
+  includeBlobs = true,
+): {
+  boardId: string | null;
+  layout: CanvasLayout;
+  pinnedNodeIds: Set<string>;
+} {
+  const requested = typeof boardId === 'string' && boardId.trim() ? boardId.trim() : null;
+  if (!requested) {
+    return {
+      boardId: canvasState.activeBoardId,
+      layout: canvasState.getLayout(),
+      pinnedNodeIds: new Set(canvasState.contextPinnedNodeIds),
+    };
+  }
+  const read = canvasState.readBoard(requested, includeBlobs);
+  if (!read) throw new OperationError(`Board "${requested}" not found.`, 404);
+  return {
+    boardId: requested,
+    layout: read.layout,
+    pinnedNodeIds: new Set(read.state.contextPins),
+  };
 }
 
 function emitBoardsChanged(ctx: OperationContext): void {
@@ -31,9 +58,11 @@ const jsonResult = (result: unknown) => ({
 /** '' or null clears the category; undefined leaves it alone. */
 function boardCategory(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
-  const category = typeof value === 'string' ? value.trim() : '';
-  if (category.length > 60) throw new OperationError('Categories are at most 60 characters.');
-  return category || null;
+  try {
+    return normalizeBoardCategory(typeof value === 'string' ? value : null);
+  } catch (error) {
+    throw new OperationError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function boardName(value: unknown): string {
@@ -94,7 +123,7 @@ const boardGetOperation = defineOperation<z.infer<typeof getSchema>, Record<stri
 
 const createShape = {
   name: z.unknown().optional().describe('Board name'),
-  category: z.unknown().optional().describe('Category to file it under on Home'),
+  category: z.unknown().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
 };
 const createSchema = z.looseObject(createShape);
 
@@ -110,7 +139,7 @@ const boardCreateOperation = defineOperation<z.infer<typeof createSchema>, Recor
       'Create a new empty board. It is NOT opened: only the human opens boards, so ask them to open it before writing to it.',
     extraShape: {
       name: z.string().describe('Board name'),
-      category: z.string().optional().describe('Category to file it under on Home'),
+      category: z.string().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
     },
     formatResult: jsonResult,
   },
@@ -148,7 +177,7 @@ const boardOpenOperation = defineOperation<z.infer<typeof openSchema>, Record<st
 const updateShape = {
   id: z.unknown().optional().describe('Board id'),
   name: z.unknown().optional().describe('New name'),
-  category: z.unknown().optional().describe('Category on Home; "" or null removes it'),
+  category: z.unknown().optional().describe('Folder path on Home; "" or null unfiles it'),
 };
 const updateSchema = z.looseObject(updateShape);
 
@@ -161,11 +190,11 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
   mcp: {
     toolName: 'canvas_update_board',
     description:
-      'Rename a board or file it under a category on Home (category "" removes it). Categories group related boards so the library stays findable.',
+      'Rename a board or move it into a nested folder on Home (e.g. Engineering/Canvas; category "" unfiles it). Moving preserves the board ID and content.',
     extraShape: {
       id: z.string().describe('Board id'),
       name: z.string().optional().describe('New name'),
-      category: z.string().optional().describe('Category; "" removes it'),
+      category: z.string().optional().describe('Folder path, up to 8 levels of 1–60 characters; "" unfiles it'),
     },
     formatResult: jsonResult,
   },

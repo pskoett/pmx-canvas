@@ -27,6 +27,7 @@ import {
   workbenchConnectionEpoch,
   reconnectAttempt,
   reconnectDelay,
+  resetCanvasInteractionState,
 } from './canvas-store';
 import { applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
 import {
@@ -458,6 +459,9 @@ function handleAgentSessionEnded(data: Record<string, unknown>): void {
 }
 
 let stopHumanPresence: (() => void) | null = null;
+let boardResyncGeneration = 0;
+let layoutRevision = 0;
+let pinsRevision = 0;
 
 function handleHumanPresence(data: Record<string, unknown>): void {
   applyHumanSnapshot(data as Partial<HumanPresenceSnapshot>);
@@ -469,13 +473,21 @@ function handleHumanPresence(data: Record<string, unknown>): void {
  * camera included — and drop what belonged to the old board.
  */
 function resyncForBoardSwitch(): void {
+  const generation = ++boardResyncGeneration;
   savedLayout = null;
   hasInitialServerLayout.value = false;
   resetIntents();
-  void fetchCanvasState().then((layout) => handleCanvasLayoutUpdate({ layout }));
-  void requestJson<{ nodeIds?: unknown }>('fetchPinnedContext', '/api/canvas/pinned-context', {}).then((data) =>
-    handleContextPinsChanged({ nodeIds: data.nodeIds }),
-  );
+  resetCanvasInteractionState();
+  const layoutAtRequest = layoutRevision;
+  const pinsAtRequest = pinsRevision;
+  void fetchCanvasState().then((layout) => {
+    if (generation === boardResyncGeneration && layoutAtRequest === layoutRevision)
+      handleCanvasLayoutUpdate({ layout });
+  });
+  void requestJson<{ nodeIds?: unknown }>('fetchPinnedContext', '/api/canvas/pinned-context', {}).then((data) => {
+    if (generation === boardResyncGeneration && pinsAtRequest === pinsRevision)
+      handleContextPinsChanged({ nodeIds: data.nodeIds });
+  });
 }
 setBoardSwitchHandler(resyncForBoardSwitch);
 
@@ -922,6 +934,7 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
       }
     | undefined;
   if (!layout?.nodes) return;
+  layoutRevision += 1;
   const shouldApplyViewport = !hasInitialServerLayout.value;
   hasInitialServerLayout.value = true;
 
@@ -1012,6 +1025,7 @@ function handleThemeChanged(data: Record<string, unknown>): void {
 }
 
 function handleContextPinsChanged(data: Record<string, unknown>): void {
+  pinsRevision += 1;
   const nodeIds = Array.isArray(data.nodeIds) ? data.nodeIds.filter((id): id is string => typeof id === 'string') : [];
   replaceContextPinsFromServer(nodeIds);
   syncAttentionFromSse({ event: 'context-pins-changed', data });

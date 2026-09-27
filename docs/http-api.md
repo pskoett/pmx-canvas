@@ -52,6 +52,13 @@ recently opened board, or creates one when the workspace has none;
 opens or deletes a board — anyone else gets 403. Every change emits a
 `boards-changed` SSE frame with `{ activeBoardId, boards }`.
 
+`category` is a folder path, for example `Engineering/Canvas/Decisions`.
+Home renders nested, collapsible folders and searches board names and paths.
+Paths support up to eight levels, each with 1–60 characters; surrounding spaces
+are trimmed. Empty segments and `.`/`..` are rejected. `null` or `""` unfiles a
+board. Folders are derived from boards, so empty folders do not persist. Moving
+a board changes its path, not its ID or content.
+
 ```bash
 # List boards (most recently opened first) and which is open (null = Home)
 curl http://localhost:4313/api/canvas/boards
@@ -109,7 +116,12 @@ opens with no server or install. Cards render as escaped text; html cards,
 charts, diagrams and built apps run in sandboxed iframes, with viewer bundles
 stored once per file. Live MCP apps become placeholders; local file contents
 are left out unless `includeFiles` is true. Files are written to `exports/`
-beside the database. Not exposed over MCP — sharing is the human's act.
+beside the database. Built-app files are only embedded when they are regular,
+bounded-size files inside the board's owned `.pmx-canvas/artifacts/` directory.
+The preview manifest lists card links, remote images, and statically visible
+network destinations in embedded HTML. Embedded scripts can make additional
+network requests that cannot be inventoried in advance. Not exposed over MCP —
+sharing is the human's act.
 
 ```bash
 # What the file would contain (defaults to the open board; ?board=<id> for another)
@@ -124,6 +136,13 @@ curl "http://localhost:4313/api/canvas/exports/<file>.html?download=1" -o board.
 ```
 
 ## Canvas state
+
+Read endpoints accept an optional `board=<board-id>` query parameter without
+opening that board or changing where writes go. This is supported by
+`/api/canvas/state`, `/api/canvas/node/:id`, `/api/canvas/summary`,
+`/api/canvas/spatial-context`, and `/api/canvas/pinned-context`. Unknown boards
+return 404. Omit `board` to read the active board. Live AX session/delivery reads
+and fixed MCP resources continue to describe the open board.
 
 ```bash
 # Get canvas state
@@ -311,6 +330,10 @@ AX context is the host-agnostic agent-experience layer. It combines existing
 context pins with a persisted focus node set that adapters can inject into
 their native prompt/context hooks.
 
+The context response includes `boardId` (`null` on Home), captured with its content
+and pins. Adapters should send that ID when recording a proxied context read, rather
+than looking up whichever board is active after delivery.
+
 ```bash
 # Get persisted AX state
 curl http://localhost:4313/api/canvas/ax
@@ -366,6 +389,8 @@ curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 # Context reads — a proxy (an MCP server attached to this daemon, a host adapter)
 # records the read its agent actually made. Its own fetches send
 # `x-pmx-proxied-read: 1` so they are not recorded twice.
+# Pass boardId captured at read time (null for Home); omitting it uses the
+# currently open board. MCP bytes measure the final formatted text response.
 curl -X POST http://localhost:4313/api/canvas/ax/context-reads \
   -H "Content-Type: application/json" \
   -d '{"channel":"adapter","resource":"copilot:prompt-context","consumer":"copilot","pinnedNodeIds":["node-1"],"deliveredNodeIds":["node-1"],"bytes":2048}'

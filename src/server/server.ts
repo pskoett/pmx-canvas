@@ -41,7 +41,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, extname, join, relative, resolve } from 'node:path';
+import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import * as marked from 'marked';
 import { type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import {
@@ -1565,14 +1565,23 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
 // Only names the exporter writes, only from the exports folder. The page runs
 // its own viewer script, so it is served with an opaque-origin sandbox: it can
 // never reach this server's API as the workbench.
-const EXPORT_FILE_NAME = /^[a-z0-9-]+-\d{8}T\d{9}Z\.html$/;
+const EXPORT_FILE_NAME = /^[a-z0-9-]+-\d{8}T\d{9}Z(?:-\d+)?\.html$/;
 
 function handleBoardExportFile(url: URL): Response {
   const name = decodeURIComponent(url.pathname.slice('/api/canvas/exports/'.length));
   const folder = exportsFolder();
   if (!folder || !EXPORT_FILE_NAME.test(name)) return responseText('Export not found', 404);
-  const path = join(folder, name);
-  if (!existsSync(path) || !statSync(path).isFile()) return responseText('Export not found', 404);
+  let path: string;
+  try {
+    const realFolder = realpathSync(folder);
+    path = realpathSync(join(folder, name));
+    const rel = relative(realFolder, path);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel) || !statSync(path).isFile()) {
+      return responseText('Export not found', 404);
+    }
+  } catch {
+    return responseText('Export not found', 404);
+  }
   const download = url.searchParams.get('download') === '1';
   return new Response(Bun.file(path), {
     headers: {
@@ -3463,12 +3472,13 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  // A failed flush must leave the live server and its runtime state available for recovery.
+  canvasState.close();
   stopGateTtlSweeper();
   stopBackupScheduler();
   agentPresence.reset();
   humanPresence.reset();
   intentRegistry.reset();
-  canvasState.close();
   closeAllMcpAppSessions();
   cancelCodeGraphRecompute();
   setCanvasLayoutUpdateEmitter(null);

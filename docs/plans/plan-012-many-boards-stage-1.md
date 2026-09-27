@@ -12,8 +12,9 @@
   links to become the top level instead (move 0 levels, 0.8/0.9).
 - **Deleting a board needs a confirm** — in-page, never a browser dialog (they are no-ops in agent panes).
 - **Backup is built in**, including the schedule, not left to cron.
-- **Categories on Home** (added 2026-09-27): a board may be filed under one category; Home shows a
-  foldable section per category, with uncategorized boards last. Boards migrated from old snapshots land
+- **Categories on Home** (revised 2026-09-27): a board may be filed under a nested folder path; Home shows an
+  expandable outline with name/path search and a parent-folder picker, with unfiled boards last.
+  Paths are stored on boards; empty folders are not independent objects. Boards migrated from old snapshots land
   in a "From old snapshots" category that starts folded. Agents see and set categories through
   `canvas_board` (`list`, `create`, `update`) — the library is the working memory, and its categories are
   the first structure the cross-board brief (0.8) can read.
@@ -23,8 +24,8 @@
 1. **Top bar:** the board name replaces the workspace name. Clicking it opens a menu: recent boards, New
    board, Home.
 2. **Home view** (no board open): a list of boards with name, last opened, node count; New board; Open;
-   Rename; Delete (with an in-page confirm naming the board and its node count). Last backup time and
-   "Back up now".
+   Rename; Delete (with an in-page confirm naming the board and its node count). Boards save automatically;
+   backup schedules and manual recovery copies are backend/CLI maintenance, not Home controls.
 3. **Startup** opens the board that was open last. A fresh workspace starts on Home.
 4. **Existing workspaces migrate:** the current board becomes a board named after the workspace folder and
    stays open, so nothing looks different at first. **Every old snapshot becomes a board of its own**, named

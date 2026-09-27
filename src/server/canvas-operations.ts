@@ -647,6 +647,7 @@ export function primeCanvasRuntimeBackends(options: { forceRehydrateExtApps?: bo
 export async function syncCanvasRuntimeBackends(
   options: { forceRehydrateExtApps?: boolean; alreadyPrimed?: boolean } = {},
 ): Promise<{ rehydrated: number; failed: number }> {
+  const boardGeneration = canvasState.boardGeneration;
   const targetIds =
     options.alreadyPrimed === true
       ? canvasState
@@ -658,6 +659,7 @@ export async function syncCanvasRuntimeBackends(
   let failed = 0;
 
   for (const nodeId of targetIds) {
+    if (canvasState.boardGeneration !== boardGeneration) break;
     const current = canvasState.getNode(nodeId);
     if (!isExtAppNode(current)) continue;
 
@@ -685,6 +687,10 @@ export async function syncCanvasRuntimeBackends(
           ? { serverName: current.data.serverName.trim() }
           : {}),
       });
+      if (canvasState.boardGeneration !== boardGeneration) {
+        closeMcpAppSession(opened.sessionId);
+        continue;
+      }
       const toolInput = resolveExtAppRehydratedToolInput(current, opened.toolInput);
       const storedCheckpointId = getStoredExcalidrawCheckpointId(current);
       const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
@@ -709,6 +715,7 @@ export async function syncCanvasRuntimeBackends(
       });
       rehydrated++;
     } catch (error) {
+      if (canvasState.boardGeneration !== boardGeneration) continue;
       canvasState.withSuppressedRecording(() => {
         setExtAppRuntimeState(nodeId, {
           appSessionId: null,
@@ -1062,6 +1069,7 @@ export async function refreshCanvasWebpageNode(
   }
 
   const currentData = existing.data;
+  const boardGeneration = canvasState.boardGeneration;
   const configuredUrl =
     typeof options.url === 'string' && options.url.trim().length > 0
       ? options.url
@@ -1087,16 +1095,11 @@ export async function refreshCanvasWebpageNode(
     };
   }
 
-  const fetchingData: Record<string, unknown> = {
-    ...currentData,
-    url: normalizedUrl,
-    status: 'fetching',
-  };
-  delete fetchingData.error;
-  canvasState.updateNode(id, { data: fetchingData });
-
   try {
     const snapshot = await fetchWebpageSnapshot(normalizedUrl);
+    if (canvasState.boardGeneration !== boardGeneration) {
+      return { ok: false, id, error: 'The board changed during webpage refresh.' };
+    }
     const latest = canvasState.getNode(id);
     if (!latest || latest.type !== 'webpage') {
       return { ok: false, id, error: `Webpage node "${id}" disappeared during refresh.` };
@@ -1130,6 +1133,9 @@ export async function refreshCanvasWebpageNode(
     canvasState.updateNode(id, { data: nextData });
     return { ok: true, id };
   } catch (error) {
+    if (canvasState.boardGeneration !== boardGeneration) {
+      return { ok: false, id, error: 'The board changed during webpage refresh.' };
+    }
     const details = getWebpageFetchErrorDetails(error);
     const latest = canvasState.getNode(id);
     if (latest?.type === 'webpage') {
@@ -1464,8 +1470,9 @@ export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boo
   const ok = canvasState.restoreSnapshot(idOrName);
   if (ok) {
     primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
+    const boardGeneration = canvasState.boardGeneration;
     void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
-      emitCanvasLayoutUpdate();
+      if (canvasState.boardGeneration === boardGeneration) emitCanvasLayoutUpdate();
     });
     canvasState.flushToDisk();
   }
@@ -1493,8 +1500,9 @@ function startBoardRuntime(): void {
   scheduleCodeGraphRecompute();
   emitCanvasLayoutUpdate();
   // App rehydration can take a network round trip; it finishes in the background.
+  const boardGeneration = canvasState.boardGeneration;
   void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
-    emitCanvasLayoutUpdate();
+    if (canvasState.boardGeneration === boardGeneration) emitCanvasLayoutUpdate();
   });
 }
 

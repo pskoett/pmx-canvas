@@ -10,6 +10,7 @@ export declare function agentSourceLabel(fallback: string): string;
 /** Runs operations in-process against the shared canvasState singleton. */
 export declare class LocalOperationInvoker implements OperationInvoker {
     private readonly source;
+    private readonly proxiedRead;
     /** `source` labels this caller's agent presence ('mcp', 'sdk', …). */
     constructor(source?: string);
     invoke(name: string, input: Record<string, unknown>): Promise<unknown>;
@@ -18,6 +19,7 @@ export declare class LocalOperationInvoker implements OperationInvoker {
 export declare class HttpOperationInvoker implements OperationInvoker {
     private readonly baseUrl;
     private readonly source;
+    private readonly proxiedRead;
     /** `source` labels this caller's agent presence on the server ('cli', 'mcp', …). */
     constructor(baseUrl: string, source?: string);
     invoke(name: string, rawInput: Record<string, unknown>): Promise<unknown>;

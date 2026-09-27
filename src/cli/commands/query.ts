@@ -114,13 +114,20 @@ cmd('code-graph', 'Show auto-detected file dependency graph', ['pmx-canvas code-
 });
 
 // ── spatial ──────────────────────────────────────────────────
-cmd('spatial', 'Spatial analysis: clusters, reading order, neighborhoods', ['pmx-canvas spatial'], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('spatial');
+cmd(
+  'spatial',
+  'Spatial analysis: clusters, reading order, neighborhoods',
+  ['pmx-canvas spatial', 'pmx-canvas spatial --board <id>'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('spatial');
 
-  const result = await invokeOperation('spatial.get', {});
-  output(result);
-});
+    const result = await invokeOperation('spatial.get', {
+      board: typeof flags.board === 'string' ? flags.board : undefined,
+    });
+    output(result);
+  },
+);
 
 // ── watch ────────────────────────────────────────────────────
 cmd(

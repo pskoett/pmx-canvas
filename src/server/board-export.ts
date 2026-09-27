@@ -9,8 +9,8 @@
  * same-origin, exactly as on the canvas. The chart and diagram viewer bundles
  * are stored once in the file and spliced into each iframe at open time.
  */
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Marked, type RendererThis, type Tokens } from 'marked';
 import { canvasThemeScheme } from '../shared/themes.js';
 import { buildJsonRenderViewerHtml, escapeInlineScriptSource, readJsonRenderBundle } from '../json-render/server.js';
@@ -37,6 +37,12 @@ export interface ExportManifest {
   embeddedImages: number;
   /** Web images the file loads when opened. */
   remoteImages: string[];
+  /** Navigable links present in markdown and webpage cards. */
+  links: string[];
+  /** Statically visible network destinations in sandboxed HTML frames. */
+  frameNetworkDestinations: string[];
+  /** Scripts in embedded frames can make requests that static inspection cannot enumerate. */
+  embeddedCodeCanAccessNetwork: boolean;
   includeFiles: boolean;
 }
 
@@ -56,6 +62,8 @@ interface ExportCard {
 interface Collected {
   manifest: ExportManifest;
   cards: ExportCard[];
+  edges: CanvasEdge[];
+  scheme: 'dark' | 'light';
   needsJsonRender: boolean;
   needsMermaid: boolean;
 }
@@ -72,7 +80,7 @@ function escapeHtml(value: string): string {
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 const isSafeLink = (href: string): boolean => /^(https?:|mailto:|#)/i.test(href.trim());
 
-function createMarkdown(remoteImages: Set<string>): Marked {
+function createMarkdown(remoteImages: Set<string>, links: Set<string>): Marked {
   return new Marked({
     renderer: {
       // Raw HTML in a card is shown as text: the export's own page must run no author script.
@@ -81,6 +89,7 @@ function createMarkdown(remoteImages: Set<string>): Marked {
       },
       link(this: RendererThis, { href, tokens }: Tokens.Link) {
         const inner = this.parser.parseInline(tokens);
+        if (/^https?:/i.test(href)) links.add(href);
         return isSafeLink(href)
           ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
           : inner;
@@ -95,6 +104,30 @@ function createMarkdown(remoteImages: Set<string>): Marked {
       },
     },
   });
+}
+
+function collectFrameNetworkDestinations(html: string, destinations: Set<string>): void {
+  const patterns = [
+    /\b(?:src|href|action|poster)\s*=\s*["'](https?:\/\/[^"']+)["']/gi,
+    /\burl\(\s*["']?(https?:\/\/[^)'"\s]+)["']?\s*\)/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of html.matchAll(pattern)) destinations.add(match[1]);
+  }
+}
+
+function ownedArtifactHtml(path: string): string | null {
+  try {
+    const artifactRoot = realpathSync(resolve(canvasState.workspaceRoot, PMX_CANVAS_DIR, 'artifacts'));
+    const candidate = realpathSync(resolve(path));
+    const rel = relative(artifactRoot, candidate);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
+    const stat = statSync(candidate);
+    if (!stat.isFile() || stat.size > MAX_FILE_BYTES) return null;
+    return readFileSync(candidate, 'utf-8');
+  } catch {
+    return null;
+  }
 }
 
 function pre(value: string, className = ''): string {
@@ -147,7 +180,9 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
   const { board, state } = read;
   const theme = canvasThemeScheme(state.theme ?? canvasState.theme);
   const remoteImages = new Set<string>();
-  const markdown = createMarkdown(remoteImages);
+  const links = new Set<string>();
+  const frameNetworkDestinations = new Set<string>();
+  const markdown = createMarkdown(remoteImages, links);
   const manifest: ExportManifest = {
     boardId,
     boardName: board.name,
@@ -158,6 +193,9 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
     files: [],
     embeddedImages: 0,
     remoteImages: [],
+    links: [],
+    frameNetworkDestinations: [],
+    embeddedCodeCanAccessNetwork: false,
     includeFiles,
   };
   const cards: ExportCard[] = [];
@@ -241,6 +279,7 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
         break;
       case 'webpage': {
         const url = text(data.url);
+        if (/^https?:/i.test(url)) links.add(url);
         card.html = `${url && isSafeLink(url) ? `<p><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></p>` : ''}${
           text(data.description) ? `<p>${escapeHtml(text(data.description))}</p>` : ''
         }${text(data.excerpt) ? `<p class="dim">${escapeHtml(text(data.excerpt))}</p>` : ''}`;
@@ -283,6 +322,7 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
       }
       case 'html': {
         const html = text(data.html) || text(data.content);
+        collectFrameNetworkDestinations(html, frameNetworkDestinations);
         manifest.frames += 1;
         if (withFrames) card.frame = buildHtmlSurfaceDocument(html, { theme, title, inlineThemeCss: themeCss });
         break;
@@ -319,11 +359,17 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
         break;
       case 'mcp-app': {
         const artifactPath = data.viewerType === 'web-artifact' ? text(data.path) : '';
-        if (artifactPath && existsSync(artifactPath)) {
+        const artifactHtml = artifactPath ? ownedArtifactHtml(artifactPath) : null;
+        if (artifactHtml !== null) {
+          collectFrameNetworkDestinations(artifactHtml, frameNetworkDestinations);
           manifest.frames += 1;
-          if (withFrames) card.frame = readFileSync(artifactPath, 'utf-8');
+          if (withFrames) card.frame = artifactHtml;
         } else {
-          placeholder('Live app — open this board in PMX Canvas to use it.');
+          placeholder(
+            artifactPath
+              ? 'Built app is unavailable or is not an owned PMX Canvas artifact.'
+              : 'Live app — open this board in PMX Canvas to use it.',
+          );
         }
         break;
       }
@@ -333,7 +379,10 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
   }
 
   manifest.remoteImages = [...remoteImages];
-  return { manifest, cards, needsJsonRender, needsMermaid };
+  manifest.links = [...links];
+  manifest.frameNetworkDestinations = [...frameNetworkDestinations];
+  manifest.embeddedCodeCanAccessNetwork = manifest.frames > 0;
+  return { manifest, cards, edges: state.edges, scheme: theme, needsJsonRender, needsMermaid };
 }
 
 /** What an export of `boardId` would put in the file, without building it. */
@@ -351,7 +400,7 @@ export async function buildBoardExport(
 ): Promise<{ html: string; manifest: ExportManifest } | null> {
   const collected = await collect(boardId, includeFiles, true);
   if (!collected) return null;
-  const { manifest, cards, needsJsonRender, needsMermaid } = collected;
+  const { manifest, cards, edges: snapshotEdges, scheme, needsJsonRender, needsMermaid } = collected;
 
   // Store each viewer bundle once; frames reference it by placeholder.
   const assets: Record<string, string> = {};
@@ -370,9 +419,7 @@ export async function buildBoardExport(
     assets[MERMAID_SRC] = `data:text/javascript;charset=utf-8;base64,${Buffer.from(entry, 'utf-8').toString('base64')}`;
   }
 
-  const read = canvasState.readBoard(boardId);
-  const scheme = canvasThemeScheme(read?.state.theme ?? canvasState.theme);
-  const edges = (read?.state.edges ?? []).map((edge: CanvasEdge) => ({
+  const edges = snapshotEdges.map((edge: CanvasEdge) => ({
     from: edge.from,
     to: edge.to,
     label: edge.label ?? '',
@@ -402,9 +449,16 @@ export function writeBoardExport(html: string, boardName: string): string {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 60) || 'board';
-  const path = join(folder, `${slug}-${new Date().toISOString().replace(/[-:.]/g, '')}.html`);
-  writeFileSync(path, html);
-  return path;
+  const stem = `${slug}-${new Date().toISOString().replace(/[-:.]/g, '')}`;
+  for (let attempt = 0; ; attempt++) {
+    const path = join(folder, `${stem}${attempt === 0 ? '' : `-${attempt}`}.html`);
+    try {
+      writeFileSync(path, html, { flag: 'wx' });
+      return path;
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+    }
+  }
 }
 
 export function exportsFolder(): string | null {
