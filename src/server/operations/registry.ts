@@ -14,6 +14,8 @@ import { setMutationActor } from '../mutation-history.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
 import { CONTEXT_READ_OPS, contextReadFromPayload } from '../context-reads.js';
+import { openBoardForWrite } from '../canvas-operations.js';
+import { boardsPayload } from './ops/boards.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
 
@@ -393,8 +395,44 @@ export async function executeOperation(
   }
 }
 
+/** Opening, switching and deleting boards is the human's; an agent asks for another board. */
+const HUMAN_ONLY_OPS = new Set(['board.open', 'board.delete']);
+
+/**
+ * Writes that need a board beyond the layout mutations: canvas-bound AX items,
+ * pins, snapshots and app nodes. `canvas.clear` on Home clears nothing, so it
+ * never opens a board it would then wipe.
+ */
+const BOARD_WRITE_OPS = new Set([
+  'pin.set',
+  'snapshot.save',
+  'ax.work.create',
+  'ax.review.add',
+  'ax.approval.request',
+  'ax.elicitation.request',
+  'ax.mode.request',
+  'mcpapp.open',
+  'diagram.open',
+  'webartifact.build',
+]);
+
+function needsOpenBoard(op: Operation): boolean {
+  if (op.name === 'canvas.clear' || PRESENCE_EXEMPT_OPS.has(op.name)) return false;
+  return op.mutates || BOARD_WRITE_OPS.has(op.name);
+}
+
 async function executeOperationInner(name: string, rawInput: unknown, meta: ExecuteOperationMeta): Promise<unknown> {
   const op = getOperation(name);
+  if (HUMAN_ONLY_OPS.has(name) && !meta.fromWorkbench) {
+    throw new OperationError(
+      'Only the human opens or deletes boards. Ask them in the chat to open the board you need.',
+      403,
+    );
+  }
+  if (!canvasState.activeBoardId && needsOpenBoard(op)) {
+    openBoardForWrite();
+    if (canvasState.activeBoardId) emitOperationEvent('boards-changed', boardsPayload());
+  }
   // Scope fence (design item 4): an attached agent's writes must stay inside
   // the fence the human granted. Reads and the human's own writes pass, and
   // the fence itself is the human's to set — an agent cannot clear or widen it.

@@ -37,7 +37,7 @@ import type {
   PmxAxWorkItem,
   PmxAxWorkItemStatus,
 } from './ax-state.js';
-import type { AxTimelineQuery } from './canvas-db.js';
+import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
@@ -680,6 +680,33 @@ export class PmxCanvas extends EventEmitter {
 
   getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline> {
     return canvasState.getAxTimeline(query);
+  }
+
+  // ── Boards (plan 012) ─────────────────────────────────────────
+  // The SDK is the embedding host, so it may open and delete boards like the
+  // human's workbench. SDK writes made while no board is open (Home) land on a
+  // new board; open one first to write to an existing board.
+
+  listBoards(): { activeBoardId: string | null; boards: CanvasBoard[] } {
+    return { activeBoardId: canvasState.activeBoardId, boards: canvasState.listBoards() };
+  }
+
+  async createBoard(name: string): Promise<CanvasBoard> {
+    const result = (await executeOperation('board.create', { name }, { source: 'sdk' })) as { board: CanvasBoard };
+    return result.board;
+  }
+
+  async renameBoard(id: string, name: string): Promise<void> {
+    await executeOperation('board.rename', { id, name }, { source: 'sdk' });
+  }
+
+  /** Open a board, or Home with null. */
+  async openBoard(id: string | null): Promise<void> {
+    await executeOperation('board.open', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });
+  }
+
+  async deleteBoard(id: string): Promise<void> {
+    await executeOperation('board.delete', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });
   }
 
   /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
@@ -1440,6 +1467,7 @@ export {
   screenshotCanvasAutomationWebView,
 } from './server.js';
 export { canvasState } from './canvas-state.js';
+export type { CanvasBoard } from './canvas-db.js';
 export type {
   CanvasAnnotation,
   CanvasSnapshot,

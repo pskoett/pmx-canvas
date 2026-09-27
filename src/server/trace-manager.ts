@@ -88,6 +88,7 @@ class TraceManager {
     mcpToolName?: string | null;
   }): void {
     if (!this._enabled) return;
+    this.dropStaleChain();
 
     const id = nextTraceNodeId();
     const category = categorize(payload.name, payload.mcpServerName);
@@ -178,6 +179,7 @@ class TraceManager {
 
   onSubagentStarted(payload: { agentName: string; agentDisplayName?: string }): void {
     if (!this._enabled) return;
+    this.dropStaleChain();
 
     const id = nextTraceNodeId();
     const origin = this.getOrigin();
@@ -264,7 +266,15 @@ class TraceManager {
     this.broadcastUpdate();
   }
 
-  /** Forget the trace chain without touching nodes: the board it lived on was closed. */
+  /**
+   * The chain's last node is gone (another board was opened, or it was
+   * deleted): start a new chain instead of wiring edges to a missing node.
+   */
+  private dropStaleChain(): void {
+    if (this.lastTraceNodeId && !canvasState.getNode(this.lastTraceNodeId)) this.resetChain();
+  }
+
+  /** Forget the trace chain without touching nodes. */
   resetChain(): void {
     this.traceNodeIds = [];
     this.lastTraceNodeId = null;

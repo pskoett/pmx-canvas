@@ -142,6 +142,17 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
     },
   },
   {
+    toolName: 'canvas_board',
+    description:
+      'Boards in this workspace. Your writes always go to the board the human has open (activeBoardId); on Home (no board open) your first write opens their most recent board, or a new one when there are none. Action "list" returns every board, most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it. Only the human opens, switches or deletes boards — if you need another board, ask them in the chat to open it.',
+    actionSummary: 'list | get | create',
+    actions: {
+      list: 'board.list',
+      get: 'board.get',
+      create: 'board.create',
+    },
+  },
+  {
     toolName: 'canvas_node',
     description:
       'Create, read, update, or remove a canvas node. One tool for node CRUD: action "add" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); "get" reads one node by id; "update" patches an existing node (title, content, position, size, data); "remove" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use canvas_app (actions: open-mcp-app, diagram, build-artifact).',

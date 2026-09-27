@@ -257,6 +257,11 @@ export interface CanvasNodeUpdate {
 
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 
+/** Name for a board nobody named yet: when it was made, to the minute. */
+export function defaultBoardName(): string {
+  return `Board ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+}
+
 export interface MutationRecordInfo {
   operationType:
     | 'addNode'
@@ -964,7 +969,7 @@ class CanvasStateManager {
   private ensureActiveBoard(): string | null {
     if (!this._db) return null;
     if (this._activeBoardId) return this._activeBoardId;
-    const board = createBoardInDB(this._db, `Board ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`);
+    const board = createBoardInDB(this._db, defaultBoardName());
     this._activeBoardId = board.id;
     setActiveBoardIdInDB(this._db, board.id);
     return board.id;

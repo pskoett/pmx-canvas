@@ -138,8 +138,8 @@ describe('MCP parity with CLI', () => {
     // into the canvas_snapshot composite and removed the 6 deprecated snapshot
     // standalones. Registry ops folded into a composite are not registered as
     // standalone tools (see `compositeFoldedOpNames` in
-    // src/server/operations/composites.ts). This list is the 22-tool surface:
-    // 16 action-discriminated composites + 6 standalones.
+    // src/server/operations/composites.ts). This list is the 23-tool surface:
+    // 17 action-discriminated composites + 6 standalones.
     const expectedTools = [
       // Composites (plan-006/plan-007/plan-008).
       'canvas_node',
@@ -157,6 +157,7 @@ describe('MCP parity with CLI', () => {
       'canvas_ax_timeline',
       'canvas_ax_delivery',
       'canvas_intent',
+      'canvas_board',
       // Standalones.
       'canvas_batch',
       'canvas_pin_nodes',
@@ -256,6 +257,7 @@ describe('MCP parity with CLI', () => {
       'canvas://spatial-context',
       'canvas://history',
       'canvas://code-graph',
+      'canvas://boards',
     ];
     for (const uri of expectedResources) {
       expect(resourceUris.has(uri)).toBe(true);
@@ -863,6 +865,36 @@ describe('MCP parity with CLI', () => {
     const httpLayout = (await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as { nodes: Array<{ id: string }> };
     expect(httpLayout.nodes.some((node) => node.id === created.id)).toBe(true);
     expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
+  });
+
+  test('canvas_board lists and creates boards; created boards do not open', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(session.transport);
+      removeTestWorkspace(session.workspaceRoot);
+    });
+    await session.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', title: 'Opens a board', content: 'x' },
+    });
+    const created = parseJsonText<{ board: { id: string; name: string } }>(
+      (await session.client.callTool({
+        name: 'canvas_board',
+        arguments: { action: 'create', name: 'Later' },
+      })) as ToolResultShape,
+    );
+    expect(created.board.name).toBe('Later');
+
+    const listed = parseJsonText<{ activeBoardId: string; boards: Array<{ id: string; nodeCount: number }> }>(
+      (await session.client.callTool({ name: 'canvas_board', arguments: { action: 'list' } })) as ToolResultShape,
+    );
+    expect(listed.boards).toHaveLength(2);
+    expect(listed.activeBoardId).not.toBe(created.board.id);
+    expect(listed.boards.find((board) => board.id === listed.activeBoardId)?.nodeCount).toBe(1);
+
+    const resource = await session.client.readResource({ uri: 'canvas://boards' });
+    const text = resource.contents.find((entry): entry is { uri: string; text: string } => 'text' in entry)?.text;
+    expect(JSON.parse(text ?? '{}')).toMatchObject({ activeBoardId: listed.activeBoardId });
   });
 
   test('records each MCP context read once, with the client name and pinned delivery (local and daemon-attached)', async () => {

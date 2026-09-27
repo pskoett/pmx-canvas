@@ -58,7 +58,7 @@ export interface CanvasBoard {
     lastOpenedAt: string | null;
     nodeCount: number;
 }
-/** Most recently opened first; never-opened boards by creation time. */
+/** Most recently opened first, then never-opened boards, newest first. */
 export declare function listBoardsFromDB(db: Database): CanvasBoard[];
 export declare function getBoardFromDB(db: Database, id: string): CanvasBoard | null;
 export declare function createBoardInDB(db: Database, name: string): CanvasBoard;

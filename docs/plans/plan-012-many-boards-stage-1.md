@@ -21,8 +21,10 @@
    Rename; Delete (with an in-page confirm naming the board and its node count). Last backup time and
    "Back up now".
 3. **Startup** opens the board that was open last. A fresh workspace starts on Home.
-4. **Existing workspaces migrate** to one board named after the workspace folder, opened on startup — so
-   nothing looks different until a second board is created.
+4. **Existing workspaces migrate:** the current board becomes a board named after the workspace folder and
+   stays open, so nothing looks different at first. **Every old snapshot becomes a board of its own**, named
+   after the snapshot and dated when it was taken (maintainer, 2026-09-27: in 0.6 each session replaced the
+   one board, so a snapshot is effectively a past board). This is how the nine real boards come back.
 
 ## What agents see
 
@@ -57,10 +59,10 @@ keyed by board.
 
 ## Restoring the nine boards
 
-A general tool, not a one-off script: **"Open snapshot as new board"** — HTTP/CLI
-(`pmx-canvas board from-snapshot <snapshot-id> --name "…"`) and a button in the Snapshots panel. The
-maintainer picks the nine snapshots from their own workspace's history (that database is on their machine,
-not in this repo); this plan builds and tests the tool against a copy.
+The migration does it: every old snapshot becomes a board, so the nine real boards (and every other
+session's board) appear on Home the first time the maintainer's workspace opens in 0.7. The real
+databases hold a hundred or more snapshots each, many of them the same board a few minutes apart, so Home
+will list many boards at first; the maintainer renames the keepers and deletes the rest (slice 3).
 
 ## Backup and restore (built in)
 
@@ -79,8 +81,7 @@ not in this repo); this plan builds and tests the tool against a copy.
    most recent board before an agent write lands on Home (in `executeOperation`), docs.
 3. **Browser:** top-bar switcher, Home view, delete confirm, per-board localStorage; e2e at desktop and
    600 px.
-4. **Snapshot → board**, then restore the nine boards with the maintainer.
-5. **Backup, restore and the schedule.**
+4. **Backup, restore and the schedule.**
 
 ## Risks
 

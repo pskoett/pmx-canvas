@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **22 tools** + **14 core resources**,
+PMX Canvas ships an MCP stdio server with **23 tools** + **15 core resources**,
 plus per-skill resources at `canvas://skills/<name>` and `skill://<name>/SKILL.md`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -11,7 +11,8 @@ nodes in the browser, agents are notified immediately.
 > composites replaced were removed in v0.3.0, and v0.4.0 finished the fold by
 > shipping the `canvas_snapshot` composite and removing the 6 deprecated
 > snapshot standalones — each step per [`api-stability.md`](api-stability.md)'s
-> deprecate-one-minor-before-removal rule. **Prefer the composites.**
+> deprecate-one-minor-before-removal rule. 0.7 adds the `canvas_board` composite
+> (23 tools). **Prefer the composites.**
 
 ## Board tours
 
@@ -61,6 +62,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is new — the context read log) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
+| `canvas_board` | `list` · `get` · `create` | _(new in 0.7 — many boards)_ |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 For Mermaid nodes, `canvas_node` actions `add` and `update` accept
@@ -218,6 +220,7 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent-events, evidence, and steering messages |
 | `canvas://ax-pending-steering` | Undelivered steering an adapterless MCP client can claim, act on, and mark delivered |
 | `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
+| `canvas://boards` | Boards in the workspace, most recently opened first, and which one is open (`activeBoardId`; null = Home) |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |

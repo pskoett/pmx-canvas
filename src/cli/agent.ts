@@ -26,6 +26,7 @@ import './commands/groups.js';
 import './commands/view.js';
 import './commands/query.js';
 import './commands/pins.js';
+import './commands/boards.js';
 import './commands/history.js';
 import './commands/ax.js';
 import './commands/pump.js';

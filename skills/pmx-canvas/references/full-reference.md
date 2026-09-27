@@ -421,8 +421,8 @@ When you do set a color (group/graph), use this palette consistently to convey m
 
 ## MCP Tools Reference
 
-PMX Canvas exposes **16 action-discriminated composites** (the whole recommended surface) plus
-**6 first-class standalones** — 22 tools total. The composites fold the older
+PMX Canvas exposes **17 action-discriminated composites** (the whole recommended surface) plus
+**6 first-class standalones** — 23 tools total. The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
 
@@ -431,7 +431,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 > registered — use the composites instead. The authoritative legacy→composite mapping table lives
 > in [`docs/mcp.md`](../../../docs/mcp.md) — this skill does not re-enumerate the removed names.
 
-### The 16 composites
+### The 17 composites
 
 | Composite | `action` values | What it does |
 |-----------|-----------------|--------------|
@@ -440,6 +440,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
+| `canvas_board` | `list` · `get` · `create` | Boards in the workspace. Your writes go to the board the human has open; `create` does not open. Ask the human to open another board |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order) |
 | `canvas_query` | `search` · `layout` · `validate` | Find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |

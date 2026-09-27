@@ -124,6 +124,8 @@ export interface CanvasNodeUpdate {
     collapsed?: boolean;
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
+/** Name for a board nobody named yet: when it was made, to the minute. */
+export declare function defaultBoardName(): string;
 export interface MutationRecordInfo {
     operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'updateEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'releaseGroupChildren' | 'viewport';
     description: string;

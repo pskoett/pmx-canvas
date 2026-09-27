@@ -43,6 +43,38 @@ targets, duration, easing, padding, and pullback. Open `/workbench?present=1` to
 chrome; camera movement is local to that viewer. Recording writes local files via
 the CLI, not an HTTP job endpoint.
 
+## Boards
+
+A workspace holds many named boards; one is open at a time. Agent writes go to
+the open board. While no board is open (Home), the first write opens the most
+recently opened board, or creates one when the workspace has none;
+`canvas.clear` on Home opens nothing. Only the human (`x-pmx-workbench`)
+opens or deletes a board — anyone else gets 403. Every change emits a
+`boards-changed` SSE frame with `{ activeBoardId, boards }`.
+
+```bash
+# List boards (most recently opened first) and which is open (null = Home)
+curl http://localhost:4313/api/canvas/boards
+
+# Read one board
+curl http://localhost:4313/api/canvas/boards/<board-id>
+
+# Create a board — it is NOT opened
+curl -X POST http://localhost:4313/api/canvas/boards \
+  -H "Content-Type: application/json" -d '{"name":"Q4 planning"}'
+
+# Rename
+curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
+  -H "Content-Type: application/json" -d '{"name":"Q4 planning (final)"}'
+
+# Open a board, or Home with {"id":null} — workbench only
+curl -X POST http://localhost:4313/api/canvas/boards/open \
+  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" -d '{"id":"<board-id>"}'
+
+# Delete a board and its snapshots — workbench only; deleting the open board returns to Home
+curl -X DELETE http://localhost:4313/api/canvas/boards/<board-id> -H "x-pmx-workbench: 1"
+```
+
 ## Canvas state
 
 ```bash

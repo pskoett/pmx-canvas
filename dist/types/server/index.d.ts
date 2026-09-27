@@ -7,7 +7,7 @@ import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from
 import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
 import type { PmxAxIntent } from '../shared/ax-intent.js';
 import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
-import type { AxTimelineQuery } from './canvas-db.js';
+import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
@@ -201,6 +201,15 @@ export declare class PmxCanvas extends EventEmitter {
         source?: PmxAxSource;
     }): AxInteractionPublicResult;
     getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline>;
+    listBoards(): {
+        activeBoardId: string | null;
+        boards: CanvasBoard[];
+    };
+    createBoard(name: string): Promise<CanvasBoard>;
+    renameBoard(id: string, name: string): Promise<void>;
+    /** Open a board, or Home with null. */
+    openBoard(id: string | null): Promise<void>;
+    deleteBoard(id: string): Promise<void>;
     /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
     getContextReads(limit?: number): ReturnType<typeof canvasState.getContextReads>;
     listWorkItems(): PmxAxWorkItem[];
@@ -594,6 +603,7 @@ export type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from '.
 export type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus, PrimaryWorkbenchCanvasPromptRequest, PrimaryWorkbenchIntent, } from './server.js';
 export { emitPrimaryWorkbenchEvent, consumePrimaryWorkbenchIntents, setPrimaryWorkbenchAutoOpenEnabled, setPrimaryWorkbenchCanvasPromptHandler, startCanvasServer, stopCanvasServer, getCanvasServerPort, openUrlInExternalBrowser, getCanvasAutomationWebViewStatus, startCanvasAutomationWebView, stopCanvasAutomationWebView, evaluateCanvasAutomationWebView, resizeCanvasAutomationWebView, screenshotCanvasAutomationWebView, } from './server.js';
 export { canvasState } from './canvas-state.js';
+export type { CanvasBoard } from './canvas-db.js';
 export type { CanvasAnnotation, CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions, } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';

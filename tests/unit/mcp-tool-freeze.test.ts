@@ -32,7 +32,8 @@
 // v0.4.0 completed the fold: the canvas_snapshot COMPOSITE ships (actions
 // save | list | restore | delete | gc | diff), repurposing the freed name and
 // removing the 6 deprecated snapshot standalones the same way v0.3.0 folded
-// everything else. Surface: 22 tools = 16 composites + canvas_batch,
+// everything else. 0.7 added the canvas_board composite (plan 012).
+// Surface: 23 tools = 17 composites + canvas_batch,
 // canvas_pin_nodes, canvas_invoke_command, canvas_ax_interaction,
 // canvas_ingest_activity, canvas_screenshot.
 import { afterAll, describe, expect, test } from 'bun:test';
@@ -52,6 +53,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_ax_timeline',
   'canvas_ax_work',
   'canvas_batch',
+  'canvas_board',
   'canvas_edge',
   'canvas_group',
   'canvas_history',
@@ -75,6 +77,7 @@ const FROZEN_RESOURCE_URIS = [
   'canvas://ax-pending-steering',
   'canvas://ax-timeline',
   'canvas://ax-work',
+  'canvas://boards',
   'canvas://code-graph',
   'canvas://history',
   'canvas://layout',
@@ -119,15 +122,15 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 22-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 23-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(22);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(23);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 
-  test('the fixed resource URI list matches the frozen 14-resource list exactly', async () => {
+  test('the fixed resource URI list matches the frozen 15-resource list exactly', async () => {
     const client = await createMcpSession();
     const resources = await client.listResources();
     const uris = resources.resources.map((resource) => resource.uri);
@@ -139,7 +142,7 @@ describe('MCP public surface freeze', () => {
     const fixedUris = uris.filter((uri) => !isSkill(uri)).sort();
     const skillUris = uris.filter(isSkill);
 
-    expect(FROZEN_RESOURCE_URIS).toHaveLength(14);
+    expect(FROZEN_RESOURCE_URIS).toHaveLength(15);
     expect(fixedUris).toEqual(FROZEN_RESOURCE_URIS);
     expect(fixedUris.length + skillUris.length).toBe(uris.length);
   }, 30000);

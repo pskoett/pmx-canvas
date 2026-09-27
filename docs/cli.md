@@ -262,6 +262,17 @@ pmx-canvas fit <id-a> <id-b>          # Fit to just these nodes
 `--width` / `--height`. After creating output a human should see, focus a single
 node or fit the new ids — auto-placement is board-relative, not camera-relative.
 
+## Boards
+
+```bash
+pmx-canvas board list                          # most recently opened first; activeBoardId null = Home
+pmx-canvas board create "Q4 planning"          # created, not opened
+pmx-canvas board rename <board-id> "New name"
+```
+
+Commands write to the board open in the workbench. Opening, switching and
+deleting boards happens in the workbench (the human's call).
+
 ## Snapshots
 
 ```bash

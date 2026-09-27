@@ -91,6 +91,13 @@ canvas.setAxFocus([n1], { source: 'sdk' });
 console.log(canvas.getAxState());
 console.log(canvas.getAxContext());
 
+// Boards — the SDK is the embedding host, so it may open and delete boards.
+// Writes made on Home (no board open) land on a new board; open one first.
+const board = await canvas.createBoard('Q4 planning');
+await canvas.openBoard(board.id);
+console.log(canvas.listBoards()); // { activeBoardId, boards }
+await canvas.openBoard(null); // Home
+
 // AX primitives — host-agnostic agent-experience layer
 // Timeline (persisted for diagnostics, retention-bounded, not snapshotted)
 canvas.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { source: 'sdk' });

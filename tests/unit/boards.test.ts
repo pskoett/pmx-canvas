@@ -30,6 +30,14 @@ const SCHEMA_1 = `
     id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL,
     node_count INTEGER NOT NULL, edge_count INTEGER NOT NULL
   );
+  CREATE TABLE snapshot_nodes (
+    snapshot_id TEXT NOT NULL, id TEXT NOT NULL, type TEXT NOT NULL, pos_x REAL NOT NULL, pos_y REAL NOT NULL,
+    width REAL NOT NULL, height REAL NOT NULL, z_index INTEGER NOT NULL DEFAULT 0,
+    collapsed INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL,
+    PRIMARY KEY (snapshot_id, id)
+  );
+  CREATE TABLE snapshot_pins (snapshot_id TEXT NOT NULL, node_id TEXT NOT NULL, PRIMARY KEY (snapshot_id, node_id));
+  CREATE TABLE snapshot_meta (snapshot_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (snapshot_id, key));
 `;
 
 function writeSchema1Workspace(root: string): string {
@@ -58,9 +66,25 @@ function writeSchema1Workspace(root: string): string {
   node('okr-2', 'Objective two');
   db.run("INSERT INTO edges (id, from_node, to_node, type) VALUES ('e1', 'okr-1', 'okr-2', 'flow')");
   db.run("INSERT INTO context_pins (node_id) VALUES ('okr-1')");
-  db.run(
-    "INSERT INTO snapshots (id, name, created_at, node_count, edge_count) VALUES ('snap-old', 'April', '2026-04-15T00:00:00.000Z', 2, 1)",
-  );
+  // Two past boards that survive only as snapshots, one sharing a node id with the live board.
+  const snapshot = (id: string, name: string, at: string, nodeIds: string[]) => {
+    db.run('INSERT INTO snapshots (id, name, created_at, node_count, edge_count) VALUES (?, ?, ?, ?, 0)', [
+      id,
+      name,
+      at,
+      nodeIds.length,
+    ]);
+    for (const nodeId of nodeIds) {
+      db.run(
+        "INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, data) VALUES (?, ?, 'markdown', 0, 0, 360, 200, ?)",
+        [id, nodeId, JSON.stringify({ title: `${name} ${nodeId}` })],
+      );
+    }
+    db.run("INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, 'viewport_scale', '0.75')", [id]);
+  };
+  snapshot('snap-april', 'April OKRs', '2026-04-15T00:00:00.000Z', ['okr-1', 'metric-1', 'metric-2']);
+  snapshot('snap-june', 'Discovery', '2026-06-22T00:00:00.000Z', ['card-1']);
+  db.run("INSERT INTO snapshot_pins (snapshot_id, node_id) VALUES ('snap-june', 'card-1')");
   db.close();
   return dbPath;
 }
@@ -90,13 +114,18 @@ afterEach(() => {
 });
 
 describe('migrating a one-board workspace', () => {
-  test('the existing board becomes a named, open board with its snapshots, and a copy is kept', () => {
+  test('the live board stays open, every old snapshot becomes its own board, and a copy is kept', async () => {
     const dbPath = writeSchema1Workspace(root);
     resetCanvasForTests(root);
 
     expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
-    const [board] = canvasState.listBoards();
-    expect(board).toMatchObject({ name: basename(root), nodeCount: 2 });
+    const boards = canvasState.listBoards();
+    expect(boards.map((entry) => [entry.name, entry.nodeCount])).toEqual([
+      [basename(root), 2],
+      ['Discovery', 1],
+      ['April OKRs', 3],
+    ]);
+    const [board] = boards;
     expect(canvasState.activeBoardId).toBe(board.id);
     expect(
       canvasState
@@ -108,13 +137,23 @@ describe('migrating a one-board workspace', () => {
     expect([...canvasState.contextPinnedNodeIds]).toEqual(['okr-1']);
     expect(canvasState.viewport).toEqual({ x: -120, y: 40, scale: 0.5 });
     expect(canvasState.theme).toBe('sepia');
-    expect(canvasState.listSnapshots({ all: true }).map((snapshot) => snapshot.id)).toEqual(['snap-old']);
+    // The snapshots are boards now, not snapshots of the live board.
+    expect(canvasState.listSnapshots({ all: true })).toEqual([]);
     expect(existsSync(`${dbPath}.pre-boards`)).toBe(true);
 
-    // Opening again is a no-op: no second board, same data.
+    // A past board opens whole, with its own pins and viewport.
+    const discovery = boards.find((entry) => entry.name === 'Discovery');
+    expect(openCanvasBoard(discovery?.id ?? '')).toEqual({ ok: true });
+    expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual(['card-1']);
+    expect([...canvasState.contextPinnedNodeIds]).toEqual(['card-1']);
+    expect(canvasState.viewport.scale).toBe(0.75);
+    await openCanvasBoard(board.id);
+
+    // Opening again is a no-op: same boards, same data.
+    canvasState.close();
     resetCanvasForTests(root);
     expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
-    expect(canvasState.listBoards().map((entry) => entry.id)).toEqual([board.id]);
+    expect(canvasState.listBoards().map((entry) => entry.id)).toEqual(boards.map((entry) => entry.id));
   });
 });
 

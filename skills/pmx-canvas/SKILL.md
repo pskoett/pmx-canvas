@@ -175,7 +175,7 @@ json-render, a graph, or an HTML primitive is sufficient.
 
 ## Current MCP Composites
 
-The live MCP surface is **22 tools**: the 16 composites below plus 6 standalones. This table is
+The live MCP surface is **23 tools**: the 17 composites below plus 6 standalones. This table is
 kept in sync with the server's composite registry; `tools/list` on a fresh `pmx-canvas --mcp` is
 always authoritative, independent of the installed release version.
 
@@ -195,6 +195,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads` |
 | `canvas_ax_delivery` | `claim`, `mark` |
+| `canvas_board` | `list`, `get`, `create` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 

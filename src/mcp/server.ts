@@ -104,6 +104,7 @@ function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-tim
       server.server.sendResourceUpdated({ uri: 'canvas://ax-delivery' });
     }
     server.server.sendResourceUpdated({ uri: 'canvas://layout' });
+    server.server.sendResourceUpdated({ uri: 'canvas://boards' });
     server.server.sendResourceUpdated({ uri: 'canvas://summary' });
     server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
     server.server.sendResourceUpdated({ uri: 'canvas://history' });
@@ -747,6 +748,24 @@ export async function startMcpServer(): Promise<void> {
             text,
           },
         ],
+      };
+    },
+  );
+
+  server.resource(
+    'canvas-boards',
+    'canvas://boards',
+    {
+      description:
+        'The boards in this workspace, most recently opened first, and which one the human has open ' +
+        '(activeBoardId; null = Home). Your writes go to the open board; ask the human to open another.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const boards = await c.invoker().invoke('board.list', {});
+      return {
+        contents: [{ uri: 'canvas://boards', mimeType: 'application/json', text: JSON.stringify(boards, null, 2) }],
       };
     },
   );

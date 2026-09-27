@@ -45,6 +45,7 @@ const AGENT_COMMANDS = new Set([
   'fit',
   'screenshot',
   'pin',
+  'board',
   'ax',
   'pump',
   'undo',
@@ -306,6 +307,7 @@ Agent CLI (works against running server):
   diagram add                         Add an Excalidraw diagram node
   html primitive add|schema           Add or inspect HTML communication primitives
   pin <ids...> | --list | --clear     Manage context pins
+  board list|create|rename            Manage boards (the human opens them in the workbench)
   undo / redo / history               Time travel
   snapshot save|list|restore|diff|delete
                                       Manage snapshots

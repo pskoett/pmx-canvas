@@ -37,7 +37,12 @@ declare class TraceManager {
         durationMs?: number;
         failed?: boolean;
     }): void;
-    /** Forget the trace chain without touching nodes: the board it lived on was closed. */
+    /**
+     * The chain's last node is gone (another board was opened, or it was
+     * deleted): start a new chain instead of wiring edges to a missing node.
+     */
+    private dropStaleChain;
+    /** Forget the trace chain without touching nodes. */
     resetChain(): void;
     clearTrace(): void;
     getTraceNodeCount(): number;

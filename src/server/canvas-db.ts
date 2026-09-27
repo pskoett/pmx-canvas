@@ -353,20 +353,22 @@ export function createBoardId(): string {
 }
 
 /**
- * Moves a one-board (0.6.x) database into the boards layout: the current board
- * becomes a named board and stays the open one, and every snapshot belongs to
- * it. SQLite cannot change a primary key in place, so the board-scoped tables
- * are rebuilt. A copy of the file is written first (`<db>.pre-boards`), and the
- * rebuild runs in one transaction.
+ * Moves a one-board (0.6.x) database into the boards layout. The current board
+ * becomes a named board and stays the open one. Every snapshot becomes a board
+ * of its own: in 0.6 each session replaced the one board, so a snapshot is
+ * effectively a past board (the real work of earlier sessions survives only
+ * there). SQLite cannot change a primary key in place, so the board-scoped
+ * tables are rebuilt. A copy of the file is written first (`<db>.pre-boards`),
+ * and everything runs in one transaction.
  */
 function migrateToBoards(db: Database, dbPath: string, boardName: string): void {
   const metaValue = (key: string): string | undefined =>
     db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get(key)?.value;
   // Schema 1 always created `snapshots` alongside `nodes`.
   const snapshotCount = db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM snapshots').get()?.n ?? 0;
-  const hasBoard = metaValue('state_populated') === '1' || snapshotCount > 0;
+  const hasBoard = metaValue('state_populated') === '1';
 
-  if (hasBoard && dbPath !== ':memory:') {
+  if ((hasBoard || snapshotCount > 0) && dbPath !== ':memory:') {
     const backupPath = `${dbPath}.pre-boards`;
     if (!existsSync(backupPath)) db.run('VACUUM INTO ?', [backupPath]);
   }
@@ -412,12 +414,12 @@ function migrateToBoards(db: Database, dbPath: string, boardName: string): void 
         if (!existing.has(table)) continue;
         db.run(`INSERT INTO ${table} (board_id, ${columns}) SELECT ?, ${columns} FROM ${table}_v1`, [boardId]);
       }
-      db.run('UPDATE snapshots SET board_id = ? WHERE board_id IS NULL', [boardId]);
       db.run(
         "INSERT INTO meta (key, value) VALUES ('active_board', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         [boardId],
       );
     }
+    snapshotsToBoards(db);
     for (const { table } of rebuilt) {
       if (existing.has(table)) db.exec(`DROP TABLE ${table}_v1`);
     }
@@ -425,6 +427,61 @@ function migrateToBoards(db: Database, dbPath: string, boardName: string): void 
     db.run("UPDATE meta SET value = ? WHERE key = 'schema_version'", [String(SCHEMA_VERSION)]);
   });
   migrate();
+}
+
+/** Each schema-1 snapshot becomes a board named after it; the snapshot rows are then removed. */
+function snapshotsToBoards(db: Database): void {
+  interface SnapshotRow {
+    id: string;
+    name: string;
+    created_at: string;
+  }
+  const snapshots = db
+    .query<SnapshotRow, []>('SELECT id, name, created_at FROM snapshots WHERE board_id IS NULL ORDER BY created_at')
+    .all();
+  for (const snapshot of snapshots) {
+    const meta = new Map(
+      db
+        .query<{ key: string; value: string }, [string]>('SELECT key, value FROM snapshot_meta WHERE snapshot_id = ?')
+        .all(snapshot.id)
+        .map((row) => [row.key, row.value]),
+    );
+    const boardId = createBoardId();
+    db.run(
+      'INSERT INTO boards (id, name, created_at, viewport_x, viewport_y, viewport_scale, tour) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        boardId,
+        snapshot.name,
+        snapshot.created_at,
+        Number(meta.get('viewport_x') ?? 0),
+        Number(meta.get('viewport_y') ?? 0),
+        Number(meta.get('viewport_scale') ?? 1) || 1,
+        meta.get('tour') ?? 'null',
+      ],
+    );
+    const nodeColumns = 'id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data';
+    const edgeColumns = 'id, from_node, to_node, type, label, style, animated';
+    const annotationColumns = 'id, type, points, bounds, color, width, text, label, created_at';
+    db.run(
+      `INSERT INTO nodes (board_id, ${nodeColumns}) SELECT ?, ${nodeColumns} FROM snapshot_nodes WHERE snapshot_id = ?`,
+      [boardId, snapshot.id],
+    );
+    db.run(
+      `INSERT INTO edges (board_id, ${edgeColumns}) SELECT ?, ${edgeColumns} FROM snapshot_edges WHERE snapshot_id = ?`,
+      [boardId, snapshot.id],
+    );
+    db.run(
+      `INSERT INTO annotations (board_id, ${annotationColumns}) SELECT ?, ${annotationColumns} FROM snapshot_annotations WHERE snapshot_id = ?`,
+      [boardId, snapshot.id],
+    );
+    db.run('INSERT INTO context_pins (board_id, node_id) SELECT ?, node_id FROM snapshot_pins WHERE snapshot_id = ?', [
+      boardId,
+      snapshot.id,
+    ]);
+    const ax = meta.get('ax_state');
+    if (ax) db.run("INSERT INTO ax_state (board_id, key, value) VALUES (?, 'state', ?)", [boardId, ax]);
+    deleteSnapshotFromDB(db, snapshot.id);
+  }
 }
 
 export function checkpointCanvasDb(db: Database): void {
@@ -803,10 +860,10 @@ function rowToBoard(row: BoardListRow): CanvasBoard {
   };
 }
 
-/** Most recently opened first; never-opened boards by creation time. */
+/** Most recently opened first, then never-opened boards, newest first. */
 export function listBoardsFromDB(db: Database): CanvasBoard[] {
   return db
-    .query<BoardListRow, []>(`${BOARD_LIST_SQL} ORDER BY COALESCE(b.last_opened_at, b.created_at) DESC`)
+    .query<BoardListRow, []>(`${BOARD_LIST_SQL} ORDER BY b.last_opened_at DESC NULLS LAST, b.created_at DESC`)
     .all()
     .map(rowToBoard);
 }

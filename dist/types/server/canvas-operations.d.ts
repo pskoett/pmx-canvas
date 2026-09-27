@@ -211,13 +211,21 @@ export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
 /**
  * Open a board (or Home for null): the state layer saves the current board and
  * loads the next, and everything else that holds the old board in memory is
- * reset — undo closures, pending intents, the trace chain, file watchers, app
- * sessions and the code graph. Agent and human presence are kept: they belong
- * to the people and agents, not to a board.
+ * reset — undo closures, pending intents, file watchers, app sessions and the
+ * code graph (the trace chain restarts itself when its last node is gone).
+ * Agent and human presence are kept: they belong to the people and agents,
+ * not to a board.
  */
-export declare function openCanvasBoard(id: string | null): Promise<{
+export declare function openCanvasBoard(id: string | null): {
     ok: boolean;
-}>;
+};
+/**
+ * A write that arrives while no board is open (Home) lands on the most recently
+ * opened board, or on a new board when the workspace has none — nothing on
+ * Home is displaced, because Home holds nothing. Intents and undo history are
+ * kept: whatever was signalled on Home was aimed at the board this opens.
+ */
+export declare function openBoardForWrite(): void;
 export declare function deleteCanvasSnapshot(id: string): {
     ok: boolean;
 };

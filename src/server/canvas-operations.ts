@@ -5,6 +5,7 @@ import { recomputeCodeGraph } from './code-graph.js';
 import { diffLayouts } from './mutation-history.js';
 import {
   canvasState,
+  defaultBoardName,
   type CanvasEdge,
   type CanvasNodeState,
   type CanvasNodeUpdate,
@@ -21,7 +22,6 @@ import {
 } from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
 import { intentRegistry } from './intent-registry.js';
-import { traceManager } from './trace-manager.js';
 import { clampCreateNodeSize } from './canvas-validation.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
@@ -1475,21 +1475,39 @@ export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boo
 /**
  * Open a board (or Home for null): the state layer saves the current board and
  * loads the next, and everything else that holds the old board in memory is
- * reset — undo closures, pending intents, the trace chain, file watchers, app
- * sessions and the code graph. Agent and human presence are kept: they belong
- * to the people and agents, not to a board.
+ * reset — undo closures, pending intents, file watchers, app sessions and the
+ * code graph (the trace chain restarts itself when its last node is gone).
+ * Agent and human presence are kept: they belong to the people and agents,
+ * not to a board.
  */
-export async function openCanvasBoard(id: string | null): Promise<{ ok: boolean }> {
+export function openCanvasBoard(id: string | null): { ok: boolean } {
   if (!canvasState.switchBoard(id)) return { ok: false };
   mutationHistory.reset();
   intentRegistry.reset();
-  traceManager.resetChain();
+  startBoardRuntime();
+  return { ok: true };
+}
+
+function startBoardRuntime(): void {
   primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
   scheduleCodeGraphRecompute();
   emitCanvasLayoutUpdate();
-  await syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true });
-  emitCanvasLayoutUpdate();
-  return { ok: true };
+  // App rehydration can take a network round trip; it finishes in the background.
+  void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
+    emitCanvasLayoutUpdate();
+  });
+}
+
+/**
+ * A write that arrives while no board is open (Home) lands on the most recently
+ * opened board, or on a new board when the workspace has none — nothing on
+ * Home is displaced, because Home holds nothing. Intents and undo history are
+ * kept: whatever was signalled on Home was aimed at the board this opens.
+ */
+export function openBoardForWrite(): void {
+  if (canvasState.activeBoardId) return;
+  const recent = canvasState.listBoards()[0] ?? canvasState.createBoard(defaultBoardName());
+  if (recent && canvasState.switchBoard(recent.id)) startBoardRuntime();
 }
 
 export function deleteCanvasSnapshot(id: string): { ok: boolean } {
