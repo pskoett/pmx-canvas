@@ -37,6 +37,8 @@ declare class TraceManager {
         durationMs?: number;
         failed?: boolean;
     }): void;
+    /** Forget the trace chain without touching nodes: the board it lived on was closed. */
+    resetChain(): void;
     clearTrace(): void;
     getTraceNodeCount(): number;
     private getOrigin;

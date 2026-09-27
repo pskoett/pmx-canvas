@@ -264,6 +264,15 @@ class TraceManager {
     this.broadcastUpdate();
   }
 
+  /** Forget the trace chain without touching nodes: the board it lived on was closed. */
+  resetChain(): void {
+    this.traceNodeIds = [];
+    this.lastTraceNodeId = null;
+    this.toolCallToNodeId.clear();
+    this.traceOrigin = null;
+    this.chainIndex = 0;
+  }
+
   clearTrace(): void {
     const traceNodeIds = new Set(this.traceNodeIds);
     for (const node of canvasState.getLayout().nodes) {

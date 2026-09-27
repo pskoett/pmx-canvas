@@ -22,7 +22,12 @@ export interface PersistedCanvasState {
     contextPins: string[];
     ax?: PmxAxState;
 }
-export declare function openCanvasDb(dbPath: string): Database;
+export interface OpenCanvasDbOptions {
+    /** Name for the board a pre-boards (0.6.x) database migrates into. */
+    migratedBoardName?: string;
+}
+export declare function openCanvasDb(dbPath: string, options?: OpenCanvasDbOptions): Database;
+export declare function createBoardId(): string;
 export declare function checkpointCanvasDb(db: Database): void;
 /**
  * Delete blob rows nothing references any more. Blobs are content-addressed and
@@ -39,16 +44,37 @@ export declare function checkpointCanvasDb(db: Database): void;
  */
 export declare function gcBlobsInDB(db: Database): number;
 export declare function finalizeCanvasDbForClose(db: Database): void;
-export declare function saveStateToDB(db: Database, state: PersistedCanvasState): void;
-/** Check if the DB has been populated with canvas state at least once. */
-export declare function isDbPopulated(db: Database): boolean;
-export declare function loadStateFromDB(db: Database): PersistedCanvasState | null;
-export declare function saveSnapshotToDB(db: Database, snapshot: CanvasSnapshot, state: PersistedCanvasState): void;
-export declare function loadSnapshotFromDB(db: Database, idOrName: string): {
+/** The theme is workspace-wide: it is saved even while no board is open. */
+export declare function saveThemeToDB(db: Database, theme: CanvasTheme | undefined): void;
+export declare function readThemeFromDB(db: Database): CanvasTheme | undefined;
+/** Saves one board's state; every other board's rows are untouched. */
+export declare function saveStateToDB(db: Database, boardId: string, state: PersistedCanvasState): void;
+/** Loads one board (the open board when `boardId` is omitted); null when there is no such board. */
+export declare function loadStateFromDB(db: Database, boardId?: string): PersistedCanvasState | null;
+export interface CanvasBoard {
+    id: string;
+    name: string;
+    createdAt: string;
+    lastOpenedAt: string | null;
+    nodeCount: number;
+}
+/** Most recently opened first; never-opened boards by creation time. */
+export declare function listBoardsFromDB(db: Database): CanvasBoard[];
+export declare function getBoardFromDB(db: Database, id: string): CanvasBoard | null;
+export declare function createBoardInDB(db: Database, name: string): CanvasBoard;
+export declare function renameBoardInDB(db: Database, id: string, name: string): boolean;
+/** Deletes a board with its rows and its snapshots. */
+export declare function deleteBoardFromDB(db: Database, id: string): boolean;
+/** The board that was open last, if it still exists. */
+export declare function getActiveBoardIdFromDB(db: Database): string | null;
+export declare function setActiveBoardIdInDB(db: Database, id: string | null): void;
+export declare function saveSnapshotToDB(db: Database, boardId: string, snapshot: CanvasSnapshot, state: PersistedCanvasState): void;
+/** By id on any board, else by name (most recent match) on `boardId`. */
+export declare function loadSnapshotFromDB(db: Database, idOrName: string, boardId: string | null): {
     snapshot: CanvasSnapshot;
     state: PersistedCanvasState;
 } | null;
-export declare function listSnapshotsFromDB(db: Database, options?: CanvasSnapshotListOptions): CanvasSnapshot[];
+export declare function listSnapshotsFromDB(db: Database, boardId: string, options?: CanvasSnapshotListOptions): CanvasSnapshot[];
 export declare function renameSnapshotInDB(db: Database, id: string, name: string): boolean;
 export declare function deleteSnapshotFromDB(db: Database, id: string): boolean;
 export declare function writeBlobToDB(db: Database, sha256: string, jsonValue: string): number;

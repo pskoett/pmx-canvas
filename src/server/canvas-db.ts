@@ -43,7 +43,7 @@ import {
 
 // ── Schema ──────────────────────────────────────────────────────
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export type CanvasTheme = CanvasThemeName;
 
@@ -57,8 +57,20 @@ const SCHEMA_SQL = `
     value TEXT NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS nodes (
+  CREATE TABLE IF NOT EXISTS boards (
     id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_opened_at TEXT,
+    viewport_x REAL NOT NULL DEFAULT 0,
+    viewport_y REAL NOT NULL DEFAULT 0,
+    viewport_scale REAL NOT NULL DEFAULT 1,
+    tour TEXT NOT NULL DEFAULT 'null'
+  );
+
+  CREATE TABLE IF NOT EXISTS nodes (
+    board_id TEXT NOT NULL,
+    id TEXT NOT NULL,
     type TEXT NOT NULL,
     pos_x REAL NOT NULL,
     pos_y REAL NOT NULL,
@@ -67,21 +79,25 @@ const SCHEMA_SQL = `
     z_index INTEGER NOT NULL DEFAULT 0,
     collapsed INTEGER NOT NULL DEFAULT 0,
     pinned INTEGER NOT NULL DEFAULT 0,
-    data TEXT NOT NULL
+    data TEXT NOT NULL,
+    PRIMARY KEY (board_id, id)
   );
 
   CREATE TABLE IF NOT EXISTS edges (
-    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL,
+    id TEXT NOT NULL,
     from_node TEXT NOT NULL,
     to_node TEXT NOT NULL,
     type TEXT NOT NULL,
     label TEXT,
     style TEXT,
-    animated INTEGER NOT NULL DEFAULT 0
+    animated INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (board_id, id)
   );
 
   CREATE TABLE IF NOT EXISTS annotations (
-    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL,
+    id TEXT NOT NULL,
     type TEXT NOT NULL,
     points TEXT NOT NULL,
     bounds TEXT NOT NULL,
@@ -89,20 +105,26 @@ const SCHEMA_SQL = `
     width REAL NOT NULL,
     text TEXT,
     label TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (board_id, id)
   );
 
   CREATE TABLE IF NOT EXISTS context_pins (
-    node_id TEXT PRIMARY KEY
+    board_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    PRIMARY KEY (board_id, node_id)
   );
 
   CREATE TABLE IF NOT EXISTS ax_state (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    board_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (board_id, key)
   );
 
   CREATE TABLE IF NOT EXISTS snapshots (
     id TEXT PRIMARY KEY,
+    board_id TEXT,
     name TEXT NOT NULL,
     created_at TEXT NOT NULL,
     node_count INTEGER NOT NULL,
@@ -280,7 +302,12 @@ function readTour(raw: string | undefined): Tour | undefined {
 
 // ── Database Management ─────────────────────────────────────────
 
-export function openCanvasDb(dbPath: string): Database {
+export interface OpenCanvasDbOptions {
+  /** Name for the board a pre-boards (0.6.x) database migrates into. */
+  migratedBoardName?: string;
+}
+
+export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}): Database {
   const dir = dirname(dbPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
@@ -294,6 +321,7 @@ export function openCanvasDb(dbPath: string): Database {
   // worth the fsync.
   db.exec('PRAGMA synchronous=FULL');
   db.exec('PRAGMA busy_timeout=5000');
+  if (needsBoardsMigration(db)) migrateToBoards(db, dbPath, options.migratedBoardName ?? 'Board');
   db.exec(SCHEMA_SQL);
   db.exec(CONTEXT_READS_SCHEMA_SQL);
 
@@ -301,6 +329,7 @@ export function openCanvasDb(dbPath: string): Database {
   ensureColumn(db, 'ax_events', 'agent_id', 'agent_id TEXT');
   ensureColumn(db, 'ax_steering', 'agent_id', 'agent_id TEXT');
   ensureColumn(db, 'ax_steering', 'target', 'target TEXT');
+  ensureColumn(db, 'context_reads', 'board_id', 'board_id TEXT');
 
   // Set schema version if not present
   const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('schema_version');
@@ -309,6 +338,93 @@ export function openCanvasDb(dbPath: string): Database {
   }
 
   return db;
+}
+
+// ── Many boards migration (schema 1 → 2) ────────────────────────
+
+/** A pre-boards database has a `nodes` table without a `board_id` column. */
+function needsBoardsMigration(db: Database): boolean {
+  const columns = db.query<{ name: string }, []>('PRAGMA table_info(nodes)').all();
+  return columns.length > 0 && !columns.some((column) => column.name === 'board_id');
+}
+
+export function createBoardId(): string {
+  return `board-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/**
+ * Moves a one-board (0.6.x) database into the boards layout: the current board
+ * becomes a named board and stays the open one, and every snapshot belongs to
+ * it. SQLite cannot change a primary key in place, so the board-scoped tables
+ * are rebuilt. A copy of the file is written first (`<db>.pre-boards`), and the
+ * rebuild runs in one transaction.
+ */
+function migrateToBoards(db: Database, dbPath: string, boardName: string): void {
+  const metaValue = (key: string): string | undefined =>
+    db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get(key)?.value;
+  // Schema 1 always created `snapshots` alongside `nodes`.
+  const snapshotCount = db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM snapshots').get()?.n ?? 0;
+  const hasBoard = metaValue('state_populated') === '1' || snapshotCount > 0;
+
+  if (hasBoard && dbPath !== ':memory:') {
+    const backupPath = `${dbPath}.pre-boards`;
+    if (!existsSync(backupPath)) db.run('VACUUM INTO ?', [backupPath]);
+  }
+
+  const boardId = createBoardId();
+  const rebuilt: Array<{ table: string; columns: string }> = [
+    { table: 'nodes', columns: 'id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data' },
+    { table: 'edges', columns: 'id, from_node, to_node, type, label, style, animated' },
+    { table: 'annotations', columns: 'id, type, points, bounds, color, width, text, label, created_at' },
+    { table: 'context_pins', columns: 'node_id' },
+    { table: 'ax_state', columns: 'key, value' },
+  ];
+
+  const migrate = db.transaction(() => {
+    const existing = new Set(
+      db
+        .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all()
+        .map((r) => r.name),
+    );
+    for (const { table } of rebuilt) {
+      if (existing.has(table)) db.exec(`ALTER TABLE ${table} RENAME TO ${table}_v1`);
+    }
+    if (existing.has('snapshots')) ensureColumn(db, 'snapshots', 'board_id', 'board_id TEXT');
+    db.exec(SCHEMA_SQL);
+
+    if (hasBoard) {
+      const now = new Date().toISOString();
+      db.run(
+        'INSERT INTO boards (id, name, created_at, last_opened_at, viewport_x, viewport_y, viewport_scale, tour) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          boardId,
+          boardName,
+          now,
+          now,
+          Number(metaValue('viewport_x') ?? 0),
+          Number(metaValue('viewport_y') ?? 0),
+          Number(metaValue('viewport_scale') ?? 1) || 1,
+          metaValue('tour') ?? 'null',
+        ],
+      );
+      for (const { table, columns } of rebuilt) {
+        if (!existing.has(table)) continue;
+        db.run(`INSERT INTO ${table} (board_id, ${columns}) SELECT ?, ${columns} FROM ${table}_v1`, [boardId]);
+      }
+      db.run('UPDATE snapshots SET board_id = ? WHERE board_id IS NULL', [boardId]);
+      db.run(
+        "INSERT INTO meta (key, value) VALUES ('active_board', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [boardId],
+      );
+    }
+    for (const { table } of rebuilt) {
+      if (existing.has(table)) db.exec(`DROP TABLE ${table}_v1`);
+    }
+    db.run("DELETE FROM meta WHERE key IN ('viewport_x', 'viewport_y', 'viewport_scale', 'tour', 'state_populated')");
+    db.run("UPDATE meta SET value = ? WHERE key = 'schema_version'", [String(SCHEMA_VERSION)]);
+  });
+  migrate();
 }
 
 export function checkpointCanvasDb(db: Database): void {
@@ -376,17 +492,36 @@ function deleteMissingRows(
   db: Database,
   table: 'nodes' | 'edges' | 'annotations' | 'context_pins',
   idColumn: 'id' | 'node_id',
+  boardId: string,
   keep: Set<string>,
 ): void {
-  const rows = db.query<{ id: string }, []>(`SELECT ${idColumn} AS id FROM ${table}`).all();
+  const rows = db
+    .query<{ id: string }, [string]>(`SELECT ${idColumn} AS id FROM ${table} WHERE board_id = ?`)
+    .all(boardId);
   if (rows.length === 0) return;
-  const remove = db.prepare(`DELETE FROM ${table} WHERE ${idColumn} = ?`);
+  const remove = db.prepare(`DELETE FROM ${table} WHERE board_id = ? AND ${idColumn} = ?`);
   for (const row of rows) {
-    if (!keep.has(row.id)) remove.run(row.id);
+    if (!keep.has(row.id)) remove.run(boardId, row.id);
   }
 }
 
-export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
+/** The theme is workspace-wide: it is saved even while no board is open. */
+export function saveThemeToDB(db: Database, theme: CanvasTheme | undefined): void {
+  db.run(
+    `INSERT INTO meta (key, value) VALUES ('theme', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value
+     WHERE value IS NOT excluded.value`,
+    [normalizeCanvasTheme(theme)],
+  );
+}
+
+export function readThemeFromDB(db: Database): CanvasTheme | undefined {
+  const value = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('theme')?.value;
+  return value ? normalizeCanvasTheme(value) : undefined;
+}
+
+/** Saves one board's state; every other board's rows are untouched. */
+export function saveStateToDB(db: Database, boardId: string, state: PersistedCanvasState): void {
   const transaction = db.transaction(() => {
     // Rows are upserted only when a column actually differs, and rows that are
     // gone are deleted by id. This used to be DELETE-all + INSERT-all, which
@@ -397,24 +532,29 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     // no-op — SQLite performs no update, so no page is written. The comparison
     // is against the DB itself rather than an in-memory cache, so nothing can
     // go stale and silently skip a write that was actually needed.
-    const upsertMeta = db.prepare(
-      `INSERT INTO meta (key, value) VALUES (?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value
-       WHERE value IS NOT excluded.value`,
+    saveThemeToDB(db, state.theme);
+    const tour = JSON.stringify(state.tour ?? null);
+    db.run(
+      `UPDATE boards SET viewport_x = ?, viewport_y = ?, viewport_scale = ?, tour = ?
+       WHERE id = ? AND (viewport_x IS NOT ? OR viewport_y IS NOT ? OR viewport_scale IS NOT ? OR tour IS NOT ?)`,
+      [
+        state.viewport.x,
+        state.viewport.y,
+        state.viewport.scale,
+        tour,
+        boardId,
+        state.viewport.x,
+        state.viewport.y,
+        state.viewport.scale,
+        tour,
+      ],
     );
-    upsertMeta.run('theme', normalizeCanvasTheme(state.theme));
-    upsertMeta.run('tour', JSON.stringify(state.tour ?? null));
-    upsertMeta.run('viewport_x', String(state.viewport.x));
-    upsertMeta.run('viewport_y', String(state.viewport.y));
-    upsertMeta.run('viewport_scale', String(state.viewport.scale));
-    // Mark DB as populated (for migration detection)
-    upsertMeta.run('state_populated', '1');
 
     // Save nodes
     const upsertNode = db.prepare(
-      `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
+      `INSERT INTO nodes (board_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(board_id, id) DO UPDATE SET
          type = excluded.type, pos_x = excluded.pos_x, pos_y = excluded.pos_y,
          width = excluded.width, height = excluded.height, z_index = excluded.z_index,
          collapsed = excluded.collapsed, pinned = excluded.pinned, data = excluded.data
@@ -426,6 +566,7 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     );
     for (const node of state.nodes) {
       upsertNode.run(
+        boardId,
         node.id,
         node.type,
         node.position.x,
@@ -438,13 +579,13 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         JSON.stringify(node.data),
       );
     }
-    deleteMissingRows(db, 'nodes', 'id', new Set(state.nodes.map((node) => node.id)));
+    deleteMissingRows(db, 'nodes', 'id', boardId, new Set(state.nodes.map((node) => node.id)));
 
     // Save edges
     const upsertEdge = db.prepare(
-      `INSERT INTO edges (id, from_node, to_node, type, label, style, animated)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
+      `INSERT INTO edges (board_id, id, from_node, to_node, type, label, style, animated)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(board_id, id) DO UPDATE SET
          from_node = excluded.from_node, to_node = excluded.to_node, type = excluded.type,
          label = excluded.label, style = excluded.style, animated = excluded.animated
        WHERE from_node IS NOT excluded.from_node OR to_node IS NOT excluded.to_node
@@ -453,6 +594,7 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     );
     for (const edge of state.edges) {
       upsertEdge.run(
+        boardId,
         edge.id,
         edge.from,
         edge.to,
@@ -462,14 +604,14 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         edge.animated ? 1 : 0,
       );
     }
-    deleteMissingRows(db, 'edges', 'id', new Set(state.edges.map((edge) => edge.id)));
+    deleteMissingRows(db, 'edges', 'id', boardId, new Set(state.edges.map((edge) => edge.id)));
 
     // Save annotations
     const annotations = state.annotations ?? [];
     const upsertAnnotation = db.prepare(
-      `INSERT INTO annotations (id, type, points, bounds, color, width, text, label, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
+      `INSERT INTO annotations (board_id, id, type, points, bounds, color, width, text, label, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(board_id, id) DO UPDATE SET
          type = excluded.type, points = excluded.points, bounds = excluded.bounds,
          color = excluded.color, width = excluded.width, text = excluded.text,
          label = excluded.label, created_at = excluded.created_at
@@ -480,6 +622,7 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     );
     for (const annotation of annotations) {
       upsertAnnotation.run(
+        boardId,
         annotation.id,
         annotation.type,
         JSON.stringify(annotation.points),
@@ -491,51 +634,47 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         annotation.createdAt,
       );
     }
-    deleteMissingRows(db, 'annotations', 'id', new Set(annotations.map((annotation) => annotation.id)));
+    deleteMissingRows(db, 'annotations', 'id', boardId, new Set(annotations.map((annotation) => annotation.id)));
 
     // Save context pins (node_id is the whole row — nothing to update)
-    const insertPin = db.prepare('INSERT OR IGNORE INTO context_pins (node_id) VALUES (?)');
+    const insertPin = db.prepare('INSERT OR IGNORE INTO context_pins (board_id, node_id) VALUES (?, ?)');
     for (const pinId of state.contextPins) {
-      insertPin.run(pinId);
+      insertPin.run(boardId, pinId);
     }
-    deleteMissingRows(db, 'context_pins', 'node_id', new Set(state.contextPins));
+    deleteMissingRows(db, 'context_pins', 'node_id', boardId, new Set(state.contextPins));
 
     db.run(
-      `INSERT INTO ax_state (key, value) VALUES (?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `INSERT INTO ax_state (board_id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(board_id, key) DO UPDATE SET value = excluded.value
        WHERE value IS NOT excluded.value`,
-      ['state', JSON.stringify(state.ax ?? createEmptyAxState())],
+      [boardId, 'state', JSON.stringify(state.ax ?? createEmptyAxState())],
     );
   });
 
   transaction();
 }
 
-/** Check if the DB has been populated with canvas state at least once. */
-export function isDbPopulated(db: Database): boolean {
-  const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('state_populated');
-  return row?.value === '1';
-}
-
-export function loadStateFromDB(db: Database): PersistedCanvasState | null {
-  const schemaVersion = db
-    .query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?')
-    .get('schema_version');
-  if (!schemaVersion) return null;
-
-  // Load viewport
-  const getMetaValue = (key: string): number => {
-    const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get(key);
-    return row ? Number(row.value) : 0;
-  };
+/** Loads one board (the open board when `boardId` is omitted); null when there is no such board. */
+export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvasState | null {
+  const id = boardId ?? getActiveBoardIdFromDB(db);
+  if (!id) return null;
+  interface BoardRow {
+    viewport_x: number;
+    viewport_y: number;
+    viewport_scale: number;
+    tour: string;
+  }
+  const board = db
+    .query<BoardRow, [string]>('SELECT viewport_x, viewport_y, viewport_scale, tour FROM boards WHERE id = ?')
+    .get(id);
+  if (!board) return null;
 
   const viewport: ViewportState = {
-    x: getMetaValue('viewport_x'),
-    y: getMetaValue('viewport_y'),
-    scale: getMetaValue('viewport_scale') || 1,
+    x: board.viewport_x,
+    y: board.viewport_y,
+    scale: board.viewport_scale || 1,
   };
-  const themeValue = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('theme')?.value;
-  const theme = themeValue ? normalizeCanvasTheme(themeValue) : undefined;
+  const theme = readThemeFromDB(db);
 
   // Load nodes
   interface NodeRow {
@@ -550,7 +689,7 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     pinned: number;
     data: string;
   }
-  const nodeRows = db.query<NodeRow, []>('SELECT * FROM nodes').all();
+  const nodeRows = db.query<NodeRow, [string]>('SELECT * FROM nodes WHERE board_id = ?').all(id);
   const nodes: CanvasNodeState[] = nodeRows.map((row) => ({
     id: row.id,
     type: row.type as CanvasNodeState['type'],
@@ -572,7 +711,7 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     style: string | null;
     animated: number;
   }
-  const edgeRows = db.query<EdgeRow, []>('SELECT * FROM edges').all();
+  const edgeRows = db.query<EdgeRow, [string]>('SELECT * FROM edges WHERE board_id = ?').all(id);
   const edges: CanvasEdge[] = edgeRows.map((row) => ({
     id: row.id,
     from: row.from_node,
@@ -595,7 +734,7 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     label: string | null;
     created_at: string;
   }
-  const annotationRows = db.query<AnnotationRow, []>('SELECT * FROM annotations').all();
+  const annotationRows = db.query<AnnotationRow, [string]>('SELECT * FROM annotations WHERE board_id = ?').all(id);
   const annotations: CanvasAnnotation[] = annotationRows.map((row) => ({
     id: row.id,
     type: row.type as CanvasAnnotation['type'],
@@ -612,15 +751,17 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
   interface PinRow {
     node_id: string;
   }
-  const pinRows = db.query<PinRow, []>('SELECT node_id FROM context_pins').all();
+  const pinRows = db.query<PinRow, [string]>('SELECT node_id FROM context_pins WHERE board_id = ?').all(id);
   const contextPins = pinRows.map((row) => row.node_id);
 
-  const axRow = db.query<{ value: string }, [string]>('SELECT value FROM ax_state WHERE key = ?').get('state');
+  const axRow = db
+    .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
+    .get(id, 'state');
 
   return {
     version: 1,
     theme,
-    tour: readTour(db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('tour')?.value),
+    tour: readTour(board.tour),
     viewport,
     nodes,
     edges,
@@ -630,13 +771,111 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
   };
 }
 
+// ── Boards ──────────────────────────────────────────────────────
+
+export interface CanvasBoard {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastOpenedAt: string | null;
+  nodeCount: number;
+}
+
+interface BoardListRow {
+  id: string;
+  name: string;
+  created_at: string;
+  last_opened_at: string | null;
+  node_count: number;
+}
+
+const BOARD_LIST_SQL = `SELECT b.id, b.name, b.created_at, b.last_opened_at,
+    (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count
+  FROM boards b`;
+
+function rowToBoard(row: BoardListRow): CanvasBoard {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    lastOpenedAt: row.last_opened_at,
+    nodeCount: row.node_count,
+  };
+}
+
+/** Most recently opened first; never-opened boards by creation time. */
+export function listBoardsFromDB(db: Database): CanvasBoard[] {
+  return db
+    .query<BoardListRow, []>(`${BOARD_LIST_SQL} ORDER BY COALESCE(b.last_opened_at, b.created_at) DESC`)
+    .all()
+    .map(rowToBoard);
+}
+
+export function getBoardFromDB(db: Database, id: string): CanvasBoard | null {
+  const row = db.query<BoardListRow, [string]>(`${BOARD_LIST_SQL} WHERE b.id = ?`).get(id);
+  return row ? rowToBoard(row) : null;
+}
+
+export function createBoardInDB(db: Database, name: string): CanvasBoard {
+  const id = createBoardId();
+  const createdAt = new Date().toISOString();
+  db.run('INSERT INTO boards (id, name, created_at) VALUES (?, ?, ?)', [id, name, createdAt]);
+  return { id, name, createdAt, lastOpenedAt: null, nodeCount: 0 };
+}
+
+export function renameBoardInDB(db: Database, id: string, name: string): boolean {
+  return db.run('UPDATE boards SET name = ? WHERE id = ?', [name, id]).changes > 0;
+}
+
+/** Deletes a board with its rows and its snapshots. */
+export function deleteBoardFromDB(db: Database, id: string): boolean {
+  const transaction = db.transaction(() => {
+    for (const table of ['nodes', 'edges', 'annotations', 'context_pins', 'ax_state']) {
+      db.run(`DELETE FROM ${table} WHERE board_id = ?`, [id]);
+    }
+    const snapshotIds = db
+      .query<{ id: string }, [string]>('SELECT id FROM snapshots WHERE board_id = ?')
+      .all(id)
+      .map((row) => row.id);
+    for (const snapshotId of snapshotIds) deleteSnapshotFromDB(db, snapshotId);
+    db.run("DELETE FROM meta WHERE key = 'active_board' AND value = ?", [id]);
+    return db.run('DELETE FROM boards WHERE id = ?', [id]).changes > 0;
+  });
+  return transaction();
+}
+
+/** The board that was open last, if it still exists. */
+export function getActiveBoardIdFromDB(db: Database): string | null {
+  const id = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('active_board')?.value;
+  if (!id) return null;
+  return db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id) ? id : null;
+}
+
+export function setActiveBoardIdInDB(db: Database, id: string | null): void {
+  if (!id) {
+    db.run("DELETE FROM meta WHERE key = 'active_board'");
+    return;
+  }
+  db.run(
+    "INSERT INTO meta (key, value) VALUES ('active_board', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    [id],
+  );
+  db.run('UPDATE boards SET last_opened_at = ? WHERE id = ?', [new Date().toISOString(), id]);
+}
+
 // ── Snapshot Persistence ────────────────────────────────────────
 
-export function saveSnapshotToDB(db: Database, snapshot: CanvasSnapshot, state: PersistedCanvasState): void {
+export function saveSnapshotToDB(
+  db: Database,
+  boardId: string,
+  snapshot: CanvasSnapshot,
+  state: PersistedCanvasState,
+): void {
   const transaction = db.transaction(() => {
     // Insert snapshot metadata
-    db.run('INSERT INTO snapshots (id, name, created_at, node_count, edge_count) VALUES (?, ?, ?, ?, ?)', [
+    db.run('INSERT INTO snapshots (id, board_id, name, created_at, node_count, edge_count) VALUES (?, ?, ?, ?, ?, ?)', [
       snapshot.id,
+      boardId,
       snapshot.name,
       snapshot.createdAt,
       state.nodes.length,
@@ -739,11 +978,12 @@ export function saveSnapshotToDB(db: Database, snapshot: CanvasSnapshot, state: 
   transaction();
 }
 
+/** By id on any board, else by name (most recent match) on `boardId`. */
 export function loadSnapshotFromDB(
   db: Database,
   idOrName: string,
+  boardId: string | null,
 ): { snapshot: CanvasSnapshot; state: PersistedCanvasState } | null {
-  // Try by ID first, then by name (most recent match)
   interface SnapshotRow {
     id: string;
     name: string;
@@ -753,10 +993,12 @@ export function loadSnapshotFromDB(
   }
   let snapshotRow = db.query<SnapshotRow, [string]>('SELECT * FROM snapshots WHERE id = ?').get(idOrName);
 
-  if (!snapshotRow) {
+  if (!snapshotRow && boardId) {
     snapshotRow = db
-      .query<SnapshotRow, [string]>('SELECT * FROM snapshots WHERE name = ? ORDER BY created_at DESC LIMIT 1')
-      .get(idOrName);
+      .query<SnapshotRow, [string, string]>(
+        'SELECT * FROM snapshots WHERE board_id = ? AND name = ? ORDER BY created_at DESC LIMIT 1',
+      )
+      .get(boardId, idOrName);
   }
 
   if (!snapshotRow) return null;
@@ -886,14 +1128,18 @@ export function loadSnapshotFromDB(
   };
 }
 
-export function listSnapshotsFromDB(db: Database, options: CanvasSnapshotListOptions = {}): CanvasSnapshot[] {
+export function listSnapshotsFromDB(
+  db: Database,
+  boardId: string,
+  options: CanvasSnapshotListOptions = {},
+): CanvasSnapshot[] {
   const query = options.query?.trim().toLowerCase();
   const before = normalizeSnapshotTimestamp(options.before);
   const after = normalizeSnapshotTimestamp(options.after);
   const limit = options.all ? undefined : (normalizePositiveInteger(options.limit) ?? 20);
 
-  let sql = 'SELECT * FROM snapshots WHERE 1=1';
-  const params: string[] = [];
+  let sql = 'SELECT * FROM snapshots WHERE board_id = ?';
+  const params: string[] = [boardId];
 
   if (query) {
     sql += ' AND (LOWER(id) LIKE ? OR LOWER(name) LIKE ?)';

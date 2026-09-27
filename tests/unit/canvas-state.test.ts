@@ -148,7 +148,8 @@ describe('canvas state manager', () => {
     expect(persisted.theme).toBe('light');
 
     resetCanvasForTests(workspaceRoot);
-    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    // An empty workspace has no board to open (Home); the theme is workspace-wide.
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(false);
     expect(canvasState.theme).toBe('light');
     expect(canvasState.getLayout().theme).toBe('light');
   });

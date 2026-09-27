@@ -208,6 +208,16 @@ export declare function saveCanvasSnapshot(name: string): CanvasSnapshot | null;
 export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
     ok: boolean;
 }>;
+/**
+ * Open a board (or Home for null): the state layer saves the current board and
+ * loads the next, and everything else that holds the old board in memory is
+ * reset — undo closures, pending intents, the trace chain, file watchers, app
+ * sessions and the code graph. Agent and human presence are kept: they belong
+ * to the people and agents, not to a board.
+ */
+export declare function openCanvasBoard(id: string | null): Promise<{
+    ok: boolean;
+}>;
 export declare function deleteCanvasSnapshot(id: string): {
     ok: boolean;
 };

@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
-import { isAbsolute, join, dirname, relative } from 'node:path';
+import { basename, isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
 import {
@@ -29,8 +29,17 @@ import {
   renameSnapshotInDB,
   writeBlobToDB,
   readBlobFromDB,
-  isDbPopulated,
   checkpointCanvasDb,
+  createBoardInDB,
+  deleteBoardFromDB,
+  getActiveBoardIdFromDB,
+  getBoardFromDB,
+  listBoardsFromDB,
+  readThemeFromDB,
+  renameBoardInDB,
+  saveThemeToDB,
+  setActiveBoardIdInDB,
+  type CanvasBoard,
   finalizeCanvasDbForClose,
   type PersistedCanvasState,
   type CanvasTheme,
@@ -684,7 +693,7 @@ class CanvasStateManager {
     // 0.4.0 — the one-shot boot migration that copied them into SQLite and
     // renamed the originals to `.bak` was retired.
     try {
-      this._db = openCanvasDb(dbPath);
+      this._db = openCanvasDb(dbPath, { migratedBoardName: basename(workspaceRoot) || 'Board' });
     } catch (error) {
       logCanvasStateWarning('open canvas database failed', error, { dbPath });
     }
@@ -853,19 +862,23 @@ class CanvasStateManager {
     };
   }
 
-  /** Load canvas state from SQLite. Call once on server startup. */
+  /**
+   * Load the board that was open last. Call once on server startup. With no
+   * such board the workspace starts on Home (no board open).
+   */
   loadFromDisk(options: LoadFromDiskOptions = {}): boolean {
     // Host capability lives in its own table (not snapshotted / not in PmxAxState).
     this.ax.loadHostCapabilityFromDb();
-    // Only a populated DB counts as saved state (legacy `state.json` loading was
-    // retired with the 0.4.0 boot-migration removal).
-    if (this._db && isDbPopulated(this._db)) {
+    if (this._db) {
       try {
-        const state = loadStateFromDB(this._db);
-        if (state) {
+        const boardId = getActiveBoardIdFromDB(this._db);
+        const state = boardId ? loadStateFromDB(this._db, boardId) : null;
+        if (boardId && state) {
           this.applyPersistedState(state);
+          this._activeBoardId = boardId;
           return true;
         }
+        this._theme = normalizeCanvasTheme(readThemeFromDB(this._db), this._theme);
       } catch (error) {
         logCanvasStateWarning('load state from sqlite failed', error, {});
       }
@@ -875,6 +888,99 @@ class CanvasStateManager {
       this.applyPersistedState(this.emptyPersistedState());
     }
     return false;
+  }
+
+  // ── Boards ──────────────────────────────────────────────────
+
+  private _activeBoardId: string | null = null;
+
+  /** The open board, or null on Home. */
+  get activeBoardId(): string | null {
+    return this._activeBoardId;
+  }
+
+  getActiveBoard(): CanvasBoard | null {
+    if (!this._db || !this._activeBoardId) return null;
+    const board = getBoardFromDB(this._db, this._activeBoardId);
+    return board ? { ...board, nodeCount: this.nodes.size } : null;
+  }
+
+  /** Every board in the workspace, most recently opened first. */
+  listBoards(): CanvasBoard[] {
+    if (!this._db) return [];
+    return listBoardsFromDB(this._db).map((board) =>
+      board.id === this._activeBoardId ? { ...board, nodeCount: this.nodes.size } : board,
+    );
+  }
+
+  /** Creates a board without opening it. */
+  createBoard(name: string): CanvasBoard | null {
+    if (!this._db) return null;
+    return createBoardInDB(this._db, name);
+  }
+
+  renameBoard(id: string, name: string): boolean {
+    return this._db ? renameBoardInDB(this._db, id, name) : false;
+  }
+
+  /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
+  deleteBoard(id: string): boolean {
+    if (!this._db) return false;
+    if (id === this._activeBoardId) this.switchBoard(null);
+    return deleteBoardFromDB(this._db, id);
+  }
+
+  /**
+   * Save the open board, then open `id` (or Home for null). The canvas state is
+   * replaced wholesale; callers own the runtime side (undo history, app
+   * sessions, watchers, SSE) — see `openCanvasBoard` in canvas-operations.
+   */
+  switchBoard(id: string | null): boolean {
+    if (!this._db) return false;
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    this.saveToDisk();
+    let next = this.emptyPersistedState();
+    if (id) {
+      const state = loadStateFromDB(this._db, id);
+      if (!state) return false;
+      next = state;
+    }
+    this.applyPersistedState(next);
+    this._activeBoardId = id;
+    setActiveBoardIdInDB(this._db, id);
+    this.notifyChange('nodes');
+    this.notifyChange('pins');
+    this.notifyChange('ax');
+    return true;
+  }
+
+  /**
+   * Content written while no board is open (Home) lands on a new board, which
+   * opens: nothing the human was looking at is displaced.
+   */
+  private ensureActiveBoard(): string | null {
+    if (!this._db) return null;
+    if (this._activeBoardId) return this._activeBoardId;
+    const board = createBoardInDB(this._db, `Board ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`);
+    this._activeBoardId = board.id;
+    setActiveBoardIdInDB(this._db, board.id);
+    return board.id;
+  }
+
+  private hasBoardContent(): boolean {
+    const ax = this.getAxState();
+    return (
+      this._tour !== undefined ||
+      this.nodes.size > 0 ||
+      this.edges.size > 0 ||
+      this.annotations.size > 0 ||
+      ax.workItems.length > 0 ||
+      ax.approvalGates.length > 0 ||
+      ax.reviewAnnotations.length > 0
+    );
   }
 
   /** Debounced save — coalesces rapid mutations into a single write. */
@@ -906,6 +1012,13 @@ class CanvasStateManager {
   private saveToDisk(): void {
     if (!this._db) return;
     try {
+      if (!this._activeBoardId && !this.hasBoardContent()) {
+        saveThemeToDB(this._db, this._theme);
+        this._lastPersistenceError = null;
+        return;
+      }
+      const boardId = this.ensureActiveBoard();
+      if (!boardId) return;
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
         theme: this._theme,
@@ -917,7 +1030,7 @@ class CanvasStateManager {
         contextPins: Array.from(this._contextPinnedNodeIds),
         ax: this.getAxState(),
       });
-      saveStateToDB(this._db, payload);
+      saveStateToDB(this._db, boardId, payload);
       this._lastPersistenceError = null;
     } catch (error) {
       // Persistence failures are otherwise warn-and-continue (the canvas keeps
@@ -958,6 +1071,7 @@ class CanvasStateManager {
       }
       this._db = null;
     }
+    this._activeBoardId = null;
   }
 
   // ── Snapshots ───────────────────────────────────────────────
@@ -1013,7 +1127,7 @@ class CanvasStateManager {
   } | null {
     // Try SQLite first
     if (this._db) {
-      const result = loadSnapshotFromDB(this._db, idOrName);
+      const result = loadSnapshotFromDB(this._db, idOrName, this._activeBoardId);
       if (result) return result;
     }
 
@@ -1103,7 +1217,9 @@ class CanvasStateManager {
         contextPins: Array.from(this._contextPinnedNodeIds),
         ax: this.getAxState(),
       });
-      saveSnapshotToDB(this._db, snapshot, { ...payload, tour: this._tour });
+      const boardId = this.ensureActiveBoard();
+      if (!boardId) return null;
+      saveSnapshotToDB(this._db, boardId, snapshot, { ...payload, tour: this._tour });
       snapshot.nodeCount = payload.nodes.length;
       snapshot.edgeCount = payload.edges.length;
       return snapshot;
@@ -1117,7 +1233,7 @@ class CanvasStateManager {
   listSnapshots(options: CanvasSnapshotListOptions = {}): CanvasSnapshot[] {
     if (this._db) {
       try {
-        return listSnapshotsFromDB(this._db, options);
+        return this._activeBoardId ? listSnapshotsFromDB(this._db, this._activeBoardId, options) : [];
       } catch (error) {
         logCanvasStateWarning('list snapshots from db failed', error, {});
       }
@@ -2143,7 +2259,7 @@ class CanvasStateManager {
   recordContextRead(input: ContextReadInput): ContextRead | null {
     if (!this._db) return null;
     try {
-      return appendContextReadToDB(this._db, input);
+      return appendContextReadToDB(this._db, input, this._activeBoardId);
     } catch (error) {
       logCanvasStateWarning('record context read failed', error);
       return null;

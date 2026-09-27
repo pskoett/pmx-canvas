@@ -27,11 +27,11 @@
 ## What agents see
 
 - `canvas://boards` resource and a `canvas_board` tool (22 → 23): `list`, `get`, `create`.
-- **Only the human opens, switches or deletes a board** (browser). An agent may create a board; it opens
-  only if the human is on Home, otherwise it waits in the list.
-- **An agent session binds to the board open when it starts.** Every write carries that board (MCP binds
-  it, CLI `--board`, HTTP `x-pmx-board`); a write to a board that is no longer open is refused (409) with
-  "ask the human to open <board>". Writes with no board are refused while Home is showing.
+- **Agent writes go to the open board** (revised with the maintainer, 2026-09-27 — no per-session
+  binding, no refusal when the human switches). When no board is open (Home), an agent's first write opens
+  the most recently opened board; when the workspace has no boards yet, it creates one. An agent that wants
+  a *different* board asks the human; only the human opens, switches or deletes a board. An agent may
+  create a board; it does not open it.
 - Reads without a board read the open board; `board` on a read reads that board straight from SQLite.
 
 ## Data
@@ -75,8 +75,8 @@ not in this repo); this plan builds and tests the tool against a copy.
 
 1. **Storage and switching:** schema + migration, board-scoped save/load/snapshots, `switchBoard`, unit
    tests including migrating a copy of a real 0.6.x database.
-2. **Surfaces:** HTTP routes, `canvas_board` + `canvas://boards`, CLI `board` commands and `--board`, SDK
-   `board` option, the board guard in `executeOperation`, docs.
+2. **Surfaces:** HTTP routes, `canvas_board` + `canvas://boards`, CLI `board` commands, SDK, opening the
+   most recent board before an agent write lands on Home (in `executeOperation`), docs.
 3. **Browser:** top-bar switcher, Home view, delete confirm, per-board localStorage; e2e at desktop and
    600 px.
 4. **Snapshot → board**, then restore the nine boards with the maintainer.

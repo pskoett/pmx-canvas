@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { canvasState, type CanvasAnnotation, type CanvasNodeState } from '../../src/server/canvas-state.ts';
-import type { PmxAxState } from '../../src/server/ax-state.ts';
+import { createEmptyAxState, type PmxAxState } from '../../src/server/ax-state.ts';
 import type { CanvasTheme } from '../../src/server/canvas-db.ts';
-import { loadStateFromDB } from '../../src/server/canvas-db.ts';
+import { loadStateFromDB, readThemeFromDB } from '../../src/server/canvas-db.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
 
@@ -147,6 +147,15 @@ export function readPersistedCanvasState(workspaceRoot: string): {
           ax: state.ax,
         };
       }
+      // No board open (Home): only the workspace-wide theme is persisted.
+      return {
+        nodes: [],
+        edges: [],
+        annotations: [],
+        contextPins: [],
+        theme: readThemeFromDB(db),
+        ax: createEmptyAxState(),
+      };
     } finally {
       db.close();
     }

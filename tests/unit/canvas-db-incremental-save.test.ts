@@ -4,7 +4,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createEmptyAxState } from '../../src/server/ax-state.js';
-import { loadStateFromDB, openCanvasDb, saveStateToDB } from '../../src/server/canvas-db.js';
+import { createBoardInDB, loadStateFromDB, openCanvasDb, saveStateToDB } from '../../src/server/canvas-db.js';
 import { removeTempDirWithRetry } from './helpers.js';
 import type { PersistedCanvasState } from '../../src/server/canvas-state.js';
 
@@ -14,6 +14,7 @@ import type { PersistedCanvasState } from '../../src/server/canvas-state.js';
 
 let dir: string;
 let db: Database;
+let boardId: string;
 
 function makeState(nodeCount: number, htmlBytes = 64): PersistedCanvasState {
   return {
@@ -48,6 +49,7 @@ function rowsWrittenBy(save: () => void): number {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'pmx-db-'));
   db = openCanvasDb(join(dir, 'canvas.db'));
+  boardId = createBoardInDB(db, 'Board').id;
 });
 
 afterEach(() => {
@@ -58,40 +60,51 @@ afterEach(() => {
 describe('saveStateToDB writes only what changed', () => {
   test('re-saving identical state writes nothing', () => {
     const state = makeState(50, 20_000);
-    saveStateToDB(db, state);
-    expect(rowsWrittenBy(() => saveStateToDB(db, state))).toBe(0);
+    saveStateToDB(db, boardId, state);
+    expect(rowsWrittenBy(() => saveStateToDB(db, boardId, state))).toBe(0);
   });
 
   test('moving one node on a 50-node board writes exactly one row', () => {
     const state = makeState(50, 20_000);
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
     state.nodes[7].position = { x: 999, y: 42 };
-    expect(rowsWrittenBy(() => saveStateToDB(db, state))).toBe(1);
+    expect(rowsWrittenBy(() => saveStateToDB(db, boardId, state))).toBe(1);
   });
 
   test('editing one node body writes exactly one row', () => {
     const state = makeState(50, 20_000);
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
     state.nodes[3].data = { html: 'y'.repeat(20_000) };
-    expect(rowsWrittenBy(() => saveStateToDB(db, state))).toBe(1);
+    expect(rowsWrittenBy(() => saveStateToDB(db, boardId, state))).toBe(1);
   });
 
   test('a changed viewport does not drag the nodes along', () => {
     const state = makeState(50, 20_000);
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
     state.viewport = { x: -120, y: 64, scale: 0.8 };
-    // Three meta rows, no node rows.
-    expect(rowsWrittenBy(() => saveStateToDB(db, state))).toBe(3);
+    // One board row, no node rows.
+    expect(rowsWrittenBy(() => saveStateToDB(db, boardId, state))).toBe(1);
+  });
+
+  test('saving one board never touches another board', () => {
+    const other = createBoardInDB(db, 'Other').id;
+    saveStateToDB(db, other, makeState(3));
+    const state = makeState(2);
+    saveStateToDB(db, boardId, state);
+    state.nodes = [];
+    saveStateToDB(db, boardId, state);
+    expect(loadStateFromDB(db, other)?.nodes.map((n) => n.id)).toEqual(['n0', 'n1', 'n2']);
+    expect(loadStateFromDB(db, boardId)?.nodes).toEqual([]);
   });
 
   test('removed nodes, edges and pins are deleted', () => {
     const state = makeState(6);
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
     state.nodes = state.nodes.slice(0, 4);
     state.edges = [];
     state.contextPins = [];
-    saveStateToDB(db, state);
-    const loaded = loadStateFromDB(db);
+    saveStateToDB(db, boardId, state);
+    const loaded = loadStateFromDB(db, boardId);
     expect(loaded?.nodes.map((n) => n.id)).toEqual(['n0', 'n1', 'n2', 'n3']);
     expect(loaded?.edges).toEqual([]);
     expect(loaded?.contextPins).toEqual([]);
@@ -99,7 +112,7 @@ describe('saveStateToDB writes only what changed', () => {
 
   test('round-trips every field after an incremental save — no silently skipped write', () => {
     const state = makeState(4);
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
     state.nodes[1].position = { x: 77, y: 88 };
     state.nodes[1].size = { width: 512, height: 256 };
     state.nodes[1].collapsed = true;
@@ -126,9 +139,9 @@ describe('saveStateToDB writes only what changed', () => {
         animated: true,
       } as unknown as (typeof state.edges)[number],
     ];
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
 
-    const loaded = loadStateFromDB(db);
+    const loaded = loadStateFromDB(db, boardId);
     const moved = loaded?.nodes.find((n) => n.id === 'n1');
     expect(moved?.position).toEqual({ x: 77, y: 88 });
     expect(moved?.size).toEqual({ width: 512, height: 256 });
@@ -152,11 +165,11 @@ describe('saveStateToDB writes only what changed', () => {
         animated: false,
       } as unknown as (typeof state.edges)[number],
     ];
-    saveStateToDB(db, state);
+    saveStateToDB(db, boardId, state);
     state.edges = [
       { id: 'e0', from: 'n0', to: 'n1', type: 'flow', animated: false } as unknown as (typeof state.edges)[number],
     ];
-    expect(rowsWrittenBy(() => saveStateToDB(db, state))).toBe(1);
-    expect(loadStateFromDB(db)?.edges[0].label).toBeUndefined();
+    expect(rowsWrittenBy(() => saveStateToDB(db, boardId, state))).toBe(1);
+    expect(loadStateFromDB(db, boardId)?.edges[0].label).toBeUndefined();
   });
 });

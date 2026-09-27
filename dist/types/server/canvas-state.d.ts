@@ -12,7 +12,7 @@
  * the one-shot boot migration into SQLite was retired.
  */
 import { type Tour } from '../shared/tour.js';
-import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
+import { type CanvasBoard, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 import { type ContextRead, type ContextReadConsumerSummary, type ContextReadInput } from './context-reads.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
@@ -202,8 +202,34 @@ declare class CanvasStateManager {
     private externalizePersistedStateBlobs;
     getWorkspaceRoot(): string;
     private emptyPersistedState;
-    /** Load canvas state from SQLite. Call once on server startup. */
+    /**
+     * Load the board that was open last. Call once on server startup. With no
+     * such board the workspace starts on Home (no board open).
+     */
     loadFromDisk(options?: LoadFromDiskOptions): boolean;
+    private _activeBoardId;
+    /** The open board, or null on Home. */
+    get activeBoardId(): string | null;
+    getActiveBoard(): CanvasBoard | null;
+    /** Every board in the workspace, most recently opened first. */
+    listBoards(): CanvasBoard[];
+    /** Creates a board without opening it. */
+    createBoard(name: string): CanvasBoard | null;
+    renameBoard(id: string, name: string): boolean;
+    /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
+    deleteBoard(id: string): boolean;
+    /**
+     * Save the open board, then open `id` (or Home for null). The canvas state is
+     * replaced wholesale; callers own the runtime side (undo history, app
+     * sessions, watchers, SSE) — see `openCanvasBoard` in canvas-operations.
+     */
+    switchBoard(id: string | null): boolean;
+    /**
+     * Content written while no board is open (Home) lands on a new board, which
+     * opens: nothing the human was looking at is displaced.
+     */
+    private ensureActiveBoard;
+    private hasBoardContent;
     /** Debounced save — coalesces rapid mutations into a single write. */
     private scheduleSave;
     flushToDisk(): void;

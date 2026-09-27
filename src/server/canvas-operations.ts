@@ -20,6 +20,8 @@ import {
   type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
+import { intentRegistry } from './intent-registry.js';
+import { traceManager } from './trace-manager.js';
 import { clampCreateNodeSize } from './canvas-validation.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
@@ -1468,6 +1470,26 @@ export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boo
     canvasState.flushToDisk();
   }
   return { ok };
+}
+
+/**
+ * Open a board (or Home for null): the state layer saves the current board and
+ * loads the next, and everything else that holds the old board in memory is
+ * reset — undo closures, pending intents, the trace chain, file watchers, app
+ * sessions and the code graph. Agent and human presence are kept: they belong
+ * to the people and agents, not to a board.
+ */
+export async function openCanvasBoard(id: string | null): Promise<{ ok: boolean }> {
+  if (!canvasState.switchBoard(id)) return { ok: false };
+  mutationHistory.reset();
+  intentRegistry.reset();
+  traceManager.resetChain();
+  primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
+  scheduleCodeGraphRecompute();
+  emitCanvasLayoutUpdate();
+  await syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true });
+  emitCanvasLayoutUpdate();
+  return { ok: true };
 }
 
 export function deleteCanvasSnapshot(id: string): { ok: boolean } {

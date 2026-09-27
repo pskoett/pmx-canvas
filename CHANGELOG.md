@@ -5,6 +5,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- The canvas database now stores many named boards; your existing board is migrated to a board named after the workspace on first start, and a copy of the old file is kept as `canvas.db.pre-boards` (older versions cannot open the migrated file).
+
 ### Added
 
 - The canvas now records which context each agent reads and whether your pinned nodes were in it, readable with `pmx-canvas ax reads`, `canvas_ax_timeline { action: "reads" }`, or `GET /api/canvas/ax/context-reads`.

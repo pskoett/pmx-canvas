@@ -23,8 +23,10 @@ export interface ContextRead {
     pinnedNodeIds: string[];
     deliveredNodeIds: string[];
     bytes: number;
+    /** The board open when the read happened (null on Home). */
+    boardId: string | null;
 }
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at'>;
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'>;
 export interface ContextReadConsumerSummary {
     consumer: string;
     reads: number;
@@ -40,8 +42,8 @@ export interface ContextReadConsumerSummary {
  */
 export declare function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[];
 export declare function contextReadFromPayload(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes'>, payload: unknown): ContextReadInput;
-export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS context_reads (\n    seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    id TEXT NOT NULL UNIQUE,\n    at TEXT NOT NULL,\n    channel TEXT NOT NULL,\n    resource TEXT NOT NULL,\n    source TEXT NOT NULL,\n    consumer TEXT,\n    agent_id TEXT,\n    pinned_node_ids TEXT NOT NULL DEFAULT '[]',\n    delivered_node_ids TEXT NOT NULL DEFAULT '[]',\n    bytes INTEGER NOT NULL DEFAULT 0\n  );\n";
-export declare function appendContextReadToDB(db: Database, input: ContextReadInput): ContextRead;
+export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS context_reads (\n    seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    id TEXT NOT NULL UNIQUE,\n    at TEXT NOT NULL,\n    channel TEXT NOT NULL,\n    resource TEXT NOT NULL,\n    source TEXT NOT NULL,\n    consumer TEXT,\n    agent_id TEXT,\n    pinned_node_ids TEXT NOT NULL DEFAULT '[]',\n    delivered_node_ids TEXT NOT NULL DEFAULT '[]',\n    bytes INTEGER NOT NULL DEFAULT 0,\n    board_id TEXT\n  );\n";
+export declare function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null): ContextRead;
 /** Newest first. The summary covers every retained row, not just the returned page. */
 export declare function loadContextReadsFromDB(db: Database, limit?: number): {
     reads: ContextRead[];

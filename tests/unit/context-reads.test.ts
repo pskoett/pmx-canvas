@@ -59,10 +59,14 @@ describe('context read log', () => {
       bytes: 10,
     };
     for (let i = 0; i < CONTEXT_READ_RETENTION + 3; i++) {
-      appendContextReadToDB(db, { ...base, consumer: 'claude', pinnedNodeIds: ['n1'], deliveredNodeIds: ['n1'] });
+      appendContextReadToDB(db, { ...base, consumer: 'claude', pinnedNodeIds: ['n1'], deliveredNodeIds: ['n1'] }, null);
     }
-    appendContextReadToDB(db, { ...base, consumer: 'codex', pinnedNodeIds: ['n1', 'n2'], deliveredNodeIds: ['n1'] });
-    appendContextReadToDB(db, { ...base, consumer: 'codex', pinnedNodeIds: [], deliveredNodeIds: [] });
+    appendContextReadToDB(
+      db,
+      { ...base, consumer: 'codex', pinnedNodeIds: ['n1', 'n2'], deliveredNodeIds: ['n1'] },
+      null,
+    );
+    appendContextReadToDB(db, { ...base, consumer: 'codex', pinnedNodeIds: [], deliveredNodeIds: [] }, null);
 
     const { reads, summary } = loadContextReadsFromDB(db, 2);
     expect(reads.map((read) => read.consumer)).toEqual(['codex', 'codex']);

@@ -34,8 +34,8 @@ let nodeSeq = 0;
 function addNodeRow(data: string): void {
   nodeSeq += 1;
   db.run(
-    `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
-     VALUES (?, 'mcp-app', 0, 0, 100, 100, 0, 0, 0, ?)`,
+    `INSERT INTO nodes (board_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
+     VALUES ('board-1', ?, 'mcp-app', 0, 0, 100, 100, 0, 0, 0, ?)`,
     [`node-${nodeSeq}`, data],
   );
 }

@@ -37,9 +37,11 @@ export interface ContextRead {
   pinnedNodeIds: string[];
   deliveredNodeIds: string[];
   bytes: number;
+  /** The board open when the read happened (null on Home). */
+  boardId: string | null;
 }
 
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at'>;
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'>;
 
 export interface ContextReadConsumerSummary {
   consumer: string;
@@ -85,15 +87,16 @@ export const CONTEXT_READS_SCHEMA_SQL = `
     agent_id TEXT,
     pinned_node_ids TEXT NOT NULL DEFAULT '[]',
     delivered_node_ids TEXT NOT NULL DEFAULT '[]',
-    bytes INTEGER NOT NULL DEFAULT 0
+    bytes INTEGER NOT NULL DEFAULT 0,
+    board_id TEXT
   );
 `;
 
-export function appendContextReadToDB(db: Database, input: ContextReadInput): ContextRead {
+export function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null): ContextRead {
   const id = `read-${randomUUID()}`;
   const at = new Date().toISOString();
   db.run(
-    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       id,
       at,
@@ -105,11 +108,12 @@ export function appendContextReadToDB(db: Database, input: ContextReadInput): Co
       JSON.stringify(input.pinnedNodeIds),
       JSON.stringify(input.deliveredNodeIds),
       input.bytes,
+      boardId,
     ],
   );
   const seq = Number(db.query<{ seq: number }, []>('SELECT last_insert_rowid() AS seq').get()?.seq ?? 0);
   db.run('DELETE FROM context_reads WHERE seq <= ?', [seq - CONTEXT_READ_RETENTION]);
-  return { ...input, seq, id, at };
+  return { ...input, seq, id, at, boardId };
 }
 
 interface ContextReadRow {
@@ -124,6 +128,7 @@ interface ContextReadRow {
   pinned_node_ids: string;
   delivered_node_ids: string;
   bytes: number;
+  board_id: string | null;
 }
 
 function rowToContextRead(row: ContextReadRow): ContextRead {
@@ -139,6 +144,7 @@ function rowToContextRead(row: ContextReadRow): ContextRead {
     pinnedNodeIds: JSON.parse(row.pinned_node_ids) as string[],
     deliveredNodeIds: JSON.parse(row.delivered_node_ids) as string[],
     bytes: row.bytes,
+    boardId: row.board_id,
   };
 }
 
