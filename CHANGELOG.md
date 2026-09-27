@@ -11,6 +11,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- The top bar shows the open board; click it to switch to a recent board, create a new one, or go Home, where you can open, rename, and delete boards (deleting asks first).
 - Agents can list, read and create boards with `canvas_board`, `canvas://boards`, `pmx-canvas board list|create|rename`, and the `/api/canvas/boards` routes; only you open, switch or delete a board.
 - Agent writes go to the board you have open; on Home, an agent's first write opens your most recent board, or creates one if there are none.
 - The canvas now records which context each agent reads and whether your pinned nodes were in it, readable with `pmx-canvas ax reads`, `canvas_ax_timeline { action: "reads" }`, or `GET /api/canvas/ax/context-reads`.

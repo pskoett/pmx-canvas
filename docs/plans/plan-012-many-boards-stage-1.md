@@ -1,6 +1,6 @@
 # Plan 012 — Many boards, stage 1, and built-in backup
 
-**Status:** Proposed
+**Status:** In progress — slices 1–3 shipped (storage, surfaces, browser); slice 4 (backup) next
 **Date:** 2026-09-27
 **Source:** [Product vision, move 0](../product-vision-2026-09.md#0-many-boards-and-boards-are-the-wiki-m-then-m-then-l), stage 1, plus library backup. The last item of 0.7.
 **Done when:** the nine real boards open by name; a backup restores them on a clean machine; a new session never overwrites an existing board.
@@ -53,9 +53,9 @@
 One `switchBoard(id | null)` on `CanvasStateManager`, keeping the singleton (1,000+ call sites untouched):
 flush the current board → `applyPersistedState` from the new one (or empty for Home) → reset undo history,
 intents, presence, trace and the ext-app call registry → rewatch file nodes, close/rehydrate app sessions,
-recompute the code graph → broadcast `board-changed`. The client treats `board-changed` like a reconnect
-(fresh connect snapshot, `hasInitialServerLayout = false`). The client's localStorage layout overrides are
-keyed by board.
+recompute the code graph → broadcast `boards-changed`. The client treats `boards-changed` with a new open board
+like a reconnect: it refetches the board's layout and pins with `hasInitialServerLayout = false`, so the
+camera comes with it, and drops the connection's saved layout overrides (they belonged to the old board).
 
 ## Restoring the nine boards
 

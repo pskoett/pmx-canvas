@@ -28,9 +28,11 @@ import {
   reconnectAttempt,
   reconnectDelay,
 } from './canvas-store';
+import { applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
 import {
   fetchAgentPresence,
   fetchAxSurfaceState,
+  fetchCanvasState,
   reportClientViewportSize,
   requestJson,
   tabAgentKey,
@@ -461,9 +463,26 @@ function handleHumanPresence(data: Record<string, unknown>): void {
   applyHumanSnapshot(data as Partial<HumanPresenceSnapshot>);
 }
 
+/**
+ * The open board changed (this tab, another tab, or a restart): the canvas is
+ * a different board now, so take its layout like a fresh connection would —
+ * camera included — and drop what belonged to the old board.
+ */
+function resyncForBoardSwitch(): void {
+  savedLayout = null;
+  hasInitialServerLayout.value = false;
+  resetIntents();
+  void fetchCanvasState().then((layout) => handleCanvasLayoutUpdate({ layout }));
+  void requestJson<{ nodeIds?: unknown }>('fetchPinnedContext', '/api/canvas/pinned-context', {}).then((data) =>
+    handleContextPinsChanged({ nodeIds: data.nodeIds }),
+  );
+}
+setBoardSwitchHandler(resyncForBoardSwitch);
+
 function handleConnected(data: Record<string, unknown>): void {
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
+  void loadBoards();
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
   reloadIfServerUpgraded(data.version, data.bundleStamp);
@@ -1064,6 +1083,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ext-app-update': handleExtAppUpdate,
   'ext-app-result': handleExtAppResult,
   'context-pins-changed': handleContextPinsChanged,
+  'boards-changed': applyBoards,
   'canvas-layout-update': handleCanvasLayoutUpdate,
   'canvas-focus-node': handleCanvasFocusNode,
   'canvas-viewport-update': handleCanvasViewportUpdate,

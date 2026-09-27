@@ -11,6 +11,8 @@ import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
 import { EmptyState } from './canvas/EmptyState';
+import { HomeView } from './canvas/HomeView';
+import { activeBoardId, boardsLoaded } from './state/boards-store';
 import { createNodeInView } from './canvas/create-in-view';
 import { undoFromKeyboard } from './state/session-store';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
@@ -72,6 +74,7 @@ export function App() {
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openNodeMenu, openCanvasMenu, openEdgeMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
+  const onHome = boardsLoaded.value && activeBoardId.value === null;
   // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
   // as a data attribute so styling and tests can key on it; the quiet board
   // (no attached session) must stay byte-clean of agent chrome.
@@ -357,8 +360,12 @@ export function App() {
           <AttentionHistory />
           <ActivityFeed />
           <WritersSheet />
-          {hasInitialLayout && allNodes.length === 0 && intents.value.size === 0 && (
-            <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
+          {onHome ? (
+            <HomeView />
+          ) : (
+            hasInitialLayout &&
+            allNodes.length === 0 &&
+            intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}
           {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
@@ -366,7 +373,7 @@ export function App() {
           <TextPrompt />
           {expandedNodeId.value && <ExpandedNodeOverlay />}
           <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
-          {minimapVisible && (
+          {minimapVisible && !onHome && (
             <Minimap
               viewport={viewport}
               nodes={nodes}

@@ -1,3 +1,4 @@
+import { BoardSwitcher } from './BoardSwitcher';
 import type { ComponentChildren } from 'preact';
 import { presenting } from '../state/presentation';
 import { useEffect, useState } from 'preact/hooks';
@@ -264,8 +265,8 @@ export function TopBar() {
   const isTraceOn = traceEnabled.value;
   const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
 
-  // Board identity = workspace basename, fetched once from /health. The
-  // canvas has no board-name concept — the workspace IS the board.
+  // Until the board list arrives, the switcher shows the workspace basename
+  // (fetched once from /health).
   const [workspaceName, setWorkspaceName] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
@@ -314,9 +315,7 @@ export function TopBar() {
       >
         <span class={`connection-dot ${degraded ?? status}`} aria-label={`Canvas status: ${statusTitle}`} />
       </BarHint>
-      <span class="top-bar-title" title={workspaceName || 'PMX Canvas'}>
-        {workspaceName || 'PMX Canvas'}
-      </span>
+      <BoardSwitcher fallbackName={workspaceName || 'PMX Canvas'} />
       <span class="top-bar-meta hud-collapsible-text">{sessionId.value ? sessionId.value.slice(0, 12) : '…'}</span>
       <span class="top-bar-meta hud-collapsible-text">{countsLabel}</span>
 
