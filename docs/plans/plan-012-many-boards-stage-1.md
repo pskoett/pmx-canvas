@@ -51,9 +51,10 @@
 ## Switching boards (server)
 
 One `switchBoard(id | null)` on `CanvasStateManager`, keeping the singleton (1,000+ call sites untouched):
-flush the current board → `applyPersistedState` from the new one (or empty for Home) → reset undo history,
-intents, presence, trace and the ext-app call registry → rewatch file nodes, close/rehydrate app sessions,
-recompute the code graph → broadcast `boards-changed`. The client treats `boards-changed` with a new open board
+flush the current board → `applyPersistedState` from the new one (or empty for Home) → reset undo history
+and intents → rewatch file nodes, close/rehydrate app sessions, recompute the code graph → broadcast
+`boards-changed`. Agent and human presence are kept (they belong to people, not boards), and the trace
+chain restarts itself when its last node is gone. The client treats `boards-changed` with a new open board
 like a reconnect: it refetches the board's layout and pins with `hasInitialServerLayout = false`, so the
 camera comes with it, and drops the connection's saved layout overrides (they belonged to the old board).
 
