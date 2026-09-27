@@ -21,6 +21,7 @@ artifacts/*.html
 .pmx-canvas/canvas.db.pre-boards
 .pmx-canvas/canvas.db.before-restore
 .pmx-canvas/backups/
+.pmx-canvas/exports/
 .pmx-canvas/gauntlet.*
 .pmx-canvas/wf-wave*.js
 .pmx-canvas/daemon-*.log

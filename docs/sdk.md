@@ -98,6 +98,9 @@ await canvas.openBoard(board.id);
 console.log(canvas.listBoards()); // { activeBoardId, boards }
 await canvas.openBoard(null); // Home
 
+// Export — one self-contained HTML file of a board, readable with no install
+const { path } = await canvas.exportBoard({ board: board.id });
+
 // Backup — every board in one file; restore keeps canvas.db.before-restore
 await canvas.backup({ to: '/Users/me/Backups/pmx', keep: 14 });
 await canvas.setBackupSchedule({ every: '24h' });

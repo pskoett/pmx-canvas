@@ -149,7 +149,7 @@ function bundleDir(): string {
   return candidates[candidates.length - 1];
 }
 
-function escapeInlineScriptSource(source: string): string {
+export function escapeInlineScriptSource(source: string): string {
   return source.replace(/<\/script/gi, '<\\/script');
 }
 
@@ -956,6 +956,20 @@ export function createJsonRenderNodeData(
   };
 }
 
+/** The viewer bundle's script and stylesheet, as the viewer document inlines them. */
+export async function readJsonRenderBundle(): Promise<{ js: string; css: string }> {
+  await ensureJsonRenderBundle();
+  const dir = bundleDir();
+  const jsPath = join(dir, 'index.js');
+  const cssPath = join(dir, 'index.css');
+  return {
+    js: existsSync(jsPath)
+      ? readFileSync(jsPath, 'utf-8')
+      : 'document.body.innerHTML = "<pre>json-render bundle missing</pre>";',
+    css: existsSync(cssPath) ? readFileSync(cssPath, 'utf-8') : '',
+  };
+}
+
 export async function buildJsonRenderViewerHtml(options: {
   title: string;
   spec: JsonRenderSpec;
@@ -975,14 +989,7 @@ export async function buildJsonRenderViewerHtml(options: {
   const sanitizeAxValue = (v?: string): string =>
     typeof v === 'string' ? v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) : '';
   try {
-    await ensureJsonRenderBundle();
-    const dir = bundleDir();
-    const jsPath = join(dir, 'index.js');
-    const cssPath = join(dir, 'index.css');
-    const jsBundle = existsSync(jsPath)
-      ? readFileSync(jsPath, 'utf-8')
-      : 'document.body.innerHTML = "<pre>json-render bundle missing</pre>";';
-    const cssBundle = existsSync(cssPath) ? readFileSync(cssPath, 'utf-8') : '';
+    const { js: jsBundle, css: cssBundle } = await readJsonRenderBundle();
     const boot = [
       `window.__PMX_CANVAS_JSON_RENDER_SPEC__ = ${JSON.stringify(options.spec)};`,
       ...(options.theme ? [`window.__PMX_CANVAS_JSON_RENDER_THEME__ = ${JSON.stringify(options.theme)};`] : []),

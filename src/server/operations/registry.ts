@@ -311,6 +311,8 @@ const PRESENCE_EXEMPT_OPS = new Set([
   'backup.run',
   'backup.schedule',
   'backup.restore',
+  // Writing an export file shares nothing by itself and edits nothing.
+  'export.run',
   // Camera and attention controls are observation/navigation, not edits.
   // They must not create a writer, bump opCount, or refresh an existing one.
   'viewport.set',

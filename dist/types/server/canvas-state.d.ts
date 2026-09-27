@@ -226,6 +226,14 @@ declare class CanvasStateManager {
     /** The open board, or null on Home. */
     get activeBoardId(): string | null;
     getActiveBoard(): CanvasBoard | null;
+    /**
+     * One board's content without opening it: the open board from memory, any
+     * other straight from SQLite. Null when there is no such board.
+     */
+    readBoard(id: string): {
+        board: CanvasBoard;
+        state: PersistedCanvasState;
+    } | null;
     /** Every board in the workspace, most recently opened first. */
     listBoards(): CanvasBoard[];
     /** Creates a board without opening it. */

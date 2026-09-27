@@ -9,6 +9,7 @@ import type { PmxAxIntent } from '../shared/ax-intent.js';
 import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
 import type { BackupFile, BackupStatus } from './backup.js';
+import type { ExportManifest } from './board-export.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
@@ -211,6 +212,16 @@ export declare class PmxCanvas extends EventEmitter {
     /** Open a board, or Home with null. */
     openBoard(id: string | null): Promise<void>;
     deleteBoard(id: string): Promise<void>;
+    /** Write a self-contained HTML file of a board (default: the open board). */
+    exportBoard(options?: {
+        board?: string;
+        includeFiles?: boolean;
+    }): Promise<{
+        path: string;
+        url: string;
+        bytes: number;
+        manifest: ExportManifest;
+    }>;
     getBackupStatus(): Promise<BackupStatus>;
     /** Back up every board now; `to` and `keep` default to the configured folder and count. */
     backup(options?: {
@@ -623,6 +634,7 @@ export { emitPrimaryWorkbenchEvent, consumePrimaryWorkbenchIntents, setPrimaryWo
 export { canvasState } from './canvas-state.js';
 export type { CanvasBoard } from './canvas-db.js';
 export type { BackupFile, BackupStatus } from './backup.js';
+export type { ExportManifest } from './board-export.js';
 export type { CanvasAnnotation, CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions, } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';

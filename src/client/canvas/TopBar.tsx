@@ -1,3 +1,5 @@
+import { exportDialogOpen } from './ExportDialog';
+import { activeBoardId } from '../state/boards-store';
 import { BoardSwitcher } from './BoardSwitcher';
 import type { ComponentChildren } from 'preact';
 import { presenting } from '../state/presentation';
@@ -329,6 +331,19 @@ export function TopBar() {
 
       <div class="top-bar-sep" />
 
+      {activeBoardId.value && (
+        <BarHint label="Export board" body="One HTML file of this board that anyone can open, no install needed.">
+          <button
+            type="button"
+            class="present-button"
+            onClick={() => {
+              exportDialogOpen.value = true;
+            }}
+          >
+            Export
+          </button>
+        </BarHint>
+      )}
       <BarHint
         label="Present board"
         body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."

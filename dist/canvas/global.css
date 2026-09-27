@@ -7054,3 +7054,44 @@ html.is-node-dragging .intent-line-layer {
   font: 12px var(--mono);
   color: var(--c-text-soft);
 }
+
+/* ── Board export dialog (plan 013) ── */
+.export-dialog {
+  width: min(520px, calc(100% - 32px));
+}
+.export-dialog-note {
+  font-size: 12px;
+  color: var(--c-text-soft);
+}
+.export-dialog-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--c-text);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.export-dialog-files {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--c-text);
+  word-break: break-all;
+}
+.export-dialog-result {
+  font-size: 12px;
+  color: var(--c-text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  word-break: break-all;
+}
+.export-dialog-links {
+  display: flex;
+  gap: 12px;
+}
+.export-dialog-links a {
+  color: var(--c-accent);
+}

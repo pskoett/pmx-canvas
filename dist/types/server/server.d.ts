@@ -23,6 +23,7 @@
  * - POST /api/canvas/graph        -> create a native graph node
  * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
  * - GET  /api/canvas/file-bytes?nodeId=... -> raw bytes for a file node
+ * - GET  /api/canvas/exports/<file>        -> a written static board export (sandboxed)
  * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/poll     -> proxy-safe polling transport (same events, JSON)

@@ -23,6 +23,7 @@
  * - POST /api/canvas/graph        -> create a native graph node
  * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
  * - GET  /api/canvas/file-bytes?nodeId=... -> raw bytes for a file node
+ * - GET  /api/canvas/exports/<file>        -> a written static board export (sandboxed)
  * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/poll     -> proxy-safe polling transport (same events, JSON)
@@ -80,6 +81,7 @@ import { diffLayouts } from './mutation-history.js';
 import { humanPresence } from './human-presence.js';
 import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
 import { startBackupScheduler, stopBackupScheduler } from './backup.js';
+import { exportsFolder } from './board-export.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import { traceManager } from './trace-manager.js';
@@ -1555,6 +1557,30 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
     headers: {
       'Content-Type': contentType,
       'Cache-Control': 'no-cache',
+    },
+  });
+}
+
+// ── Serve a written board export (plan 013) ─────────────────
+// Only names the exporter writes, only from the exports folder. The page runs
+// its own viewer script, so it is served with an opaque-origin sandbox: it can
+// never reach this server's API as the workbench.
+const EXPORT_FILE_NAME = /^[a-z0-9-]+-\d{8}T\d{9}Z\.html$/;
+
+function handleBoardExportFile(url: URL): Response {
+  const name = decodeURIComponent(url.pathname.slice('/api/canvas/exports/'.length));
+  const folder = exportsFolder();
+  if (!folder || !EXPORT_FILE_NAME.test(name)) return responseText('Export not found', 404);
+  const path = join(folder, name);
+  if (!existsSync(path) || !statSync(path).isFile()) return responseText('Export not found', 404);
+  const download = url.searchParams.get('download') === '1';
+  return new Response(Bun.file(path), {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Security-Policy': 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox',
+      'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${name}"`,
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-store',
     },
   });
 }
@@ -3398,6 +3424,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           // HEAD answers like GET (see the standalone-surface note above): a PDF
           // viewer probes this URL for type/length before fetching the bytes.
+          if (url.pathname.startsWith('/api/canvas/exports/') && (req.method === 'GET' || req.method === 'HEAD')) {
+            return handleBoardExportFile(url);
+          }
+
           if (url.pathname === '/api/canvas/file-bytes' && (req.method === 'GET' || req.method === 'HEAD')) {
             return await handleCanvasFileBytes(url);
           }

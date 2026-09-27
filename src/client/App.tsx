@@ -12,6 +12,7 @@ import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
 import { EmptyState } from './canvas/EmptyState';
 import { HomeView } from './canvas/HomeView';
+import { ExportDialog } from './canvas/ExportDialog';
 import { activeBoardId, boardsLoaded } from './state/boards-store';
 import { createNodeInView } from './canvas/create-in-view';
 import { undoFromKeyboard } from './state/session-store';
@@ -371,6 +372,7 @@ export function App() {
           {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
           <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
           <TextPrompt />
+          <ExportDialog />
           {expandedNodeId.value && <ExpandedNodeOverlay />}
           <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
           {minimapVisible && !onHome && (

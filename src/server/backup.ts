@@ -52,7 +52,9 @@ function resolveFolder(folder: string): string {
 /** Beside the database: `.pmx-canvas/backups` unless PMX_CANVAS_DB_PATH moved it. */
 function defaultFolder(): string {
   const dbPath = canvasState.databasePath;
-  return dbPath ? join(dirname(dbPath), 'backups') : join(canvasState.workspaceRoot, PMX_CANVAS_DIR, 'backups');
+  return resolve(
+    dbPath ? join(dirname(dbPath), 'backups') : join(canvasState.workspaceRoot, PMX_CANVAS_DIR, 'backups'),
+  );
 }
 
 function listBackupFiles(folder: string): BackupFile[] {

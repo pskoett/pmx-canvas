@@ -284,6 +284,14 @@ pmx-canvas backup status
 pmx-canvas restore ~/Backups/pmx/canvas-20260927T090000000Z.db    # keeps canvas.db.before-restore
 ```
 
+## Export
+
+```bash
+pmx-canvas export                                  # the open board → .pmx-canvas/exports/<board>-<time>.html
+pmx-canvas export --board <board-id> --out ~/Desktop/okrs.html
+pmx-canvas export --include-files                  # include local file contents (left out by default)
+```
+
 ## Snapshots
 
 ```bash

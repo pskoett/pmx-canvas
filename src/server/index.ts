@@ -39,6 +39,7 @@ import type {
 } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
 import type { BackupFile, BackupStatus } from './backup.js';
+import type { ExportManifest } from './board-export.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
@@ -708,6 +709,20 @@ export class PmxCanvas extends EventEmitter {
 
   async deleteBoard(id: string): Promise<void> {
     await executeOperation('board.delete', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });
+  }
+
+  // ── Static export (plan 013) ─────────────────────────────────
+
+  /** Write a self-contained HTML file of a board (default: the open board). */
+  async exportBoard(
+    options: { board?: string; includeFiles?: boolean } = {},
+  ): Promise<{ path: string; url: string; bytes: number; manifest: ExportManifest }> {
+    return (await executeOperation('export.run', options, { source: 'sdk' })) as {
+      path: string;
+      url: string;
+      bytes: number;
+      manifest: ExportManifest;
+    };
   }
 
   // ── Library backup (plan 012) ─────────────────────────────────
@@ -1494,6 +1509,7 @@ export {
 export { canvasState } from './canvas-state.js';
 export type { CanvasBoard } from './canvas-db.js';
 export type { BackupFile, BackupStatus } from './backup.js';
+export type { ExportManifest } from './board-export.js';
 export type {
   CanvasAnnotation,
   CanvasSnapshot,

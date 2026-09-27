@@ -965,6 +965,33 @@ class CanvasStateManager {
     return board ? { ...board, nodeCount: this.nodes.size } : null;
   }
 
+  /**
+   * One board's content without opening it: the open board from memory, any
+   * other straight from SQLite. Null when there is no such board.
+   */
+  readBoard(id: string): { board: CanvasBoard; state: PersistedCanvasState } | null {
+    if (!this._db) return null;
+    const board = this.listBoards().find((entry) => entry.id === id);
+    if (!board) return null;
+    if (id === this._activeBoardId) {
+      const layout = this.getLayout();
+      return {
+        board,
+        state: {
+          version: 1,
+          theme: this._theme,
+          viewport: layout.viewport,
+          nodes: layout.nodes,
+          edges: layout.edges,
+          annotations: layout.annotations,
+          contextPins: Array.from(this._contextPinnedNodeIds),
+        },
+      };
+    }
+    const state = loadStateFromDB(this._db, id);
+    return state ? { board, state } : null;
+  }
+
   /** Every board in the workspace, most recently opened first. */
   listBoards(): CanvasBoard[] {
     if (!this._db) return [];

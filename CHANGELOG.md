@@ -11,6 +11,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- Export a board as one HTML file anyone can open without installing anything, from **Export** in the top bar or `pmx-canvas export`; the dialog lists what goes into the file first, and local file contents stay out unless you include them.
 - Back up every board with `pmx-canvas backup` or "Back up now" on Home, on a schedule with `pmx-canvas backup schedule --every 24h`, and bring a backup back with `pmx-canvas restore` (the replaced file is kept).
 - The top bar shows the open board; click it to switch to a recent board, create a new one, or go Home, where you can open, rename, and delete boards (deleting asks first).
 - Agents can list, read and create boards with `canvas_board`, `canvas://boards`, `pmx-canvas board list|create|rename`, and the `/api/canvas/boards` routes; only you open, switch or delete a board.

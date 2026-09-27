@@ -102,6 +102,27 @@ curl -X POST http://localhost:4313/api/canvas/backup/restore \
   -H "Content-Type: application/json" -d '{"file":"/Users/me/Backups/pmx/canvas-20260927T090000000Z.db"}'
 ```
 
+## Static board export
+
+One self-contained, read-only HTML file of one board (pan, zoom, expand) that
+opens with no server or install. Cards render as escaped text; html cards,
+charts, diagrams and built apps run in sandboxed iframes, with viewer bundles
+stored once per file. Live MCP apps become placeholders; local file contents
+are left out unless `includeFiles` is true. Files are written to `exports/`
+beside the database. Not exposed over MCP — sharing is the human's act.
+
+```bash
+# What the file would contain (defaults to the open board; ?board=<id> for another)
+curl "http://localhost:4313/api/canvas/export/preview?includeFiles=false"
+
+# Write it → { path, url, bytes, manifest }
+curl -X POST http://localhost:4313/api/canvas/export \
+  -H "Content-Type: application/json" -d '{"board":"<board-id>","includeFiles":false}'
+
+# Serve a written export (opaque-origin sandbox; ?download=1 as an attachment)
+curl "http://localhost:4313/api/canvas/exports/<file>.html?download=1" -o board.html
+```
+
 ## Canvas state
 
 ```bash
