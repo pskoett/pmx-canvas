@@ -91,6 +91,9 @@ function runExec(template: string, steer: PendingSteer, consumer: string): Promi
         PMX_STEER_CONSUMER: consumer,
       },
     });
+    // A command that exits without reading stdin (`exit 1`, a notifier) closes
+    // the pipe first; the EPIPE is not the command's result — its exit code is.
+    child.stdin.on('error', () => {});
     child.stdin.write(steer.message);
     child.stdin.end();
     child.on('close', (code) => resolve(code ?? 1));

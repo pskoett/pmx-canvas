@@ -11,6 +11,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- Sort boards into categories on Home; each category is its own section you can fold away, and boards migrated from old snapshots start in a folded "From old snapshots" section.
 - Export a board as one HTML file anyone can open without installing anything, from **Export** in the top bar or `pmx-canvas export`; the dialog lists what goes into the file first, and local file contents stay out unless you include them.
 - Back up every board with `pmx-canvas backup` or "Back up now" on Home, on a schedule with `pmx-canvas backup schedule --every 24h`, and bring a backup back with `pmx-canvas restore` (the replaced file is kept).
 - The top bar shows the open board; click it to switch to a recent board, create a new one, or go Home, where you can open, rename, and delete boards (deleting asks first).
@@ -20,6 +21,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- `pmx-canvas pump` no longer crashes when its command exits without reading the steer; the exit code decides, as intended.
 - A change the server refuses in the browser now shows a toast with the reason instead of failing silently.
 - Webpage nodes refuse redirects that move a public page onto a private or loopback address, and never fetch link-local (cloud metadata) addresses.
 
