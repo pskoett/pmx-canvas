@@ -268,6 +268,8 @@ node or fit the new ids — auto-placement is board-relative, not camera-relativ
 pmx-canvas board list                          # most recently opened first; activeBoardId null = Home
 pmx-canvas board create "Q4 planning"          # created, not opened
 pmx-canvas board rename <board-id> "New name"
+pmx-canvas board create "Q4 planning" --category Planning
+pmx-canvas board category <board-id> "Planning"      # --clear removes it
 ```
 
 Commands write to the board open in the workbench. Opening, switching and

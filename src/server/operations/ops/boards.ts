@@ -1,6 +1,6 @@
 /**
  * Many boards (plan 012): board.list / board.get / board.create /
- * board.rename / board.open / board.delete.
+ * board.update / board.open / board.delete.
  *
  * Agents list, read and create boards. Opening, switching and deleting are the
  * human's (HUMAN_ONLY_OPS in registry.ts): an agent that wants another board
@@ -27,6 +27,14 @@ function emitBoardsChanged(ctx: OperationContext): void {
 const jsonResult = (result: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
 });
+
+/** '' or null clears the category; undefined leaves it alone. */
+function boardCategory(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  const category = typeof value === 'string' ? value.trim() : '';
+  if (category.length > 60) throw new OperationError('Categories are at most 60 characters.');
+  return category || null;
+}
 
 function boardName(value: unknown): string {
   const name = typeof value === 'string' ? value.trim() : '';
@@ -86,6 +94,7 @@ const boardGetOperation = defineOperation<z.infer<typeof getSchema>, Record<stri
 
 const createShape = {
   name: z.unknown().optional().describe('Board name'),
+  category: z.unknown().optional().describe('Category to file it under on Home'),
 };
 const createSchema = z.looseObject(createShape);
 
@@ -99,11 +108,14 @@ const boardCreateOperation = defineOperation<z.infer<typeof createSchema>, Recor
     toolName: 'canvas_create_board',
     description:
       'Create a new empty board. It is NOT opened: only the human opens boards, so ask them to open it before writing to it.',
-    extraShape: { name: z.string().describe('Board name') },
+    extraShape: {
+      name: z.string().describe('Board name'),
+      category: z.string().optional().describe('Category to file it under on Home'),
+    },
     formatResult: jsonResult,
   },
   handler: (input, ctx) => {
-    const board = canvasState.createBoard(boardName(input.name));
+    const board = canvasState.createBoard(boardName(input.name), boardCategory(input.category) ?? null);
     if (!board) throw new OperationError('Boards need a workspace database.', 409);
     emitBoardsChanged(ctx);
     return { ok: true, board };
@@ -131,23 +143,39 @@ const boardOpenOperation = defineOperation<z.infer<typeof openSchema>, Record<st
   },
 });
 
-// ── board.rename ──────────────────────────────────────────────
+// ── board.update ──────────────────────────────────────────────
 
-const renameShape = {
+const updateShape = {
   id: z.unknown().optional().describe('Board id'),
   name: z.unknown().optional().describe('New name'),
+  category: z.unknown().optional().describe('Category on Home; "" or null removes it'),
 };
-const renameSchema = z.looseObject(renameShape);
+const updateSchema = z.looseObject(updateShape);
 
-const boardRenameOperation = defineOperation<z.infer<typeof renameSchema>, Record<string, unknown>>({
-  name: 'board.rename',
+const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Record<string, unknown>>({
+  name: 'board.update',
   mutates: false,
-  input: renameSchema,
-  inputShape: renameShape,
+  input: updateSchema,
+  inputShape: updateShape,
   http: { method: 'PATCH', path: '/api/canvas/boards/:id' },
+  mcp: {
+    toolName: 'canvas_update_board',
+    description:
+      'Rename a board or file it under a category on Home (category "" removes it). Categories group related boards so the library stays findable.',
+    extraShape: {
+      id: z.string().describe('Board id'),
+      name: z.string().optional().describe('New name'),
+      category: z.string().optional().describe('Category; "" removes it'),
+    },
+    formatResult: jsonResult,
+  },
   handler: (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id : '';
-    if (!canvasState.renameBoard(id, boardName(input.name))) {
+    const patch = {
+      ...(input.name !== undefined ? { name: boardName(input.name) } : {}),
+      ...(input.category !== undefined ? { category: boardCategory(input.category) ?? null } : {}),
+    };
+    if (!canvasState.updateBoard(id, patch)) {
       throw new OperationError(`Board "${id}" not found.`, 404);
     }
     emitBoardsChanged(ctx);
@@ -183,6 +211,6 @@ export const boardOperations: Operation[] = [
   boardOpenOperation,
   boardGetOperation,
   boardCreateOperation,
-  boardRenameOperation,
+  boardUpdateOperation,
   boardDeleteOperation,
 ];

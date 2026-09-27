@@ -693,13 +693,20 @@ export class PmxCanvas extends EventEmitter {
     return { activeBoardId: canvasState.activeBoardId, boards: canvasState.listBoards() };
   }
 
-  async createBoard(name: string): Promise<CanvasBoard> {
-    const result = (await executeOperation('board.create', { name }, { source: 'sdk' })) as { board: CanvasBoard };
+  async createBoard(name: string, category?: string): Promise<CanvasBoard> {
+    const result = (await executeOperation(
+      'board.create',
+      { name, ...(category ? { category } : {}) },
+      { source: 'sdk' },
+    )) as {
+      board: CanvasBoard;
+    };
     return result.board;
   }
 
-  async renameBoard(id: string, name: string): Promise<void> {
-    await executeOperation('board.rename', { id, name }, { source: 'sdk' });
+  /** Rename a board and/or file it under a category (`category: null` removes it). */
+  async updateBoard(id: string, patch: { name?: string; category?: string | null }): Promise<void> {
+    await executeOperation('board.update', { id, ...patch }, { source: 'sdk' });
   }
 
   /** Open a board, or Home with null. */

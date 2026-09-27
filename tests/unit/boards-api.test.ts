@@ -85,6 +85,20 @@ describe('boards over HTTP', () => {
     expect(after.boards.find((board) => board.id === planning)?.nodeCount).toBe(2);
   });
 
+  test('boards are filed under categories, which can be changed and cleared', async () => {
+    const created = await call('POST', '/api/canvas/boards', AGENT, { name: 'OKR April', category: 'Planning' });
+    const id = (created.body.board as CanvasBoard).id;
+    expect((created.body.board as CanvasBoard).category).toBe('Planning');
+
+    await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: 'Quarterly' });
+    const moved = (await boards()).boards.find((board) => board.id === id);
+    expect(moved).toMatchObject({ name: 'OKR April', category: 'Quarterly' });
+
+    await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: '' });
+    expect((await boards()).boards.find((board) => board.id === id)?.category).toBeNull();
+    expect((await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: 'x'.repeat(61) })).status).toBe(400);
+  });
+
   test('rename, get, and deleting the open board returns to Home', async () => {
     const { activeBoardId } = await boards();
     const id = activeBoardId as string;

@@ -9,6 +9,7 @@ import { requestJson } from './intent-bridge';
 export interface BoardSummary {
   id: string;
   name: string;
+  category: string | null;
   createdAt: string;
   lastOpenedAt: string | null;
   nodeCount: number;
@@ -70,8 +71,12 @@ export async function createAndOpenBoard(name: string): Promise<void> {
   if (created?.board) await openBoard(created.board.id);
 }
 
-export async function renameBoard(id: string, name: string): Promise<void> {
-  const payload = await post('renameBoard', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', { name });
+/** Rename and/or re-file a board; `category: null` removes it from its category. */
+export async function updateBoard(id: string, patch: { name?: string; category?: string | null }): Promise<void> {
+  const payload = await post('updateBoard', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', {
+    ...patch,
+    ...(patch.category === null ? { category: '' } : {}),
+  });
   applyBoards(payload);
 }
 

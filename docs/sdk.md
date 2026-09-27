@@ -93,7 +93,8 @@ console.log(canvas.getAxContext());
 
 // Boards — the SDK is the embedding host, so it may open and delete boards.
 // Writes made on Home (no board open) land on a new board; open one first.
-const board = await canvas.createBoard('Q4 planning');
+const board = await canvas.createBoard('Q4 planning', 'Planning'); // optional category
+await canvas.updateBoard(board.id, { category: 'Quarterly' }); // or { name }, or { category: null }
 await canvas.openBoard(board.id);
 console.log(canvas.listBoards()); // { activeBoardId, boards }
 await canvas.openBoard(null); // Home

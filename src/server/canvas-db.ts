@@ -7,6 +7,7 @@
 
 import { Database } from 'bun:sqlite';
 import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
+import { MIGRATED_SNAPSHOT_CATEGORY } from '../shared/boards.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -65,7 +66,8 @@ const SCHEMA_SQL = `
     viewport_x REAL NOT NULL DEFAULT 0,
     viewport_y REAL NOT NULL DEFAULT 0,
     viewport_scale REAL NOT NULL DEFAULT 1,
-    tour TEXT NOT NULL DEFAULT 'null'
+    tour TEXT NOT NULL DEFAULT 'null',
+    category TEXT
   );
 
   CREATE TABLE IF NOT EXISTS nodes (
@@ -330,6 +332,7 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'ax_steering', 'agent_id', 'agent_id TEXT');
   ensureColumn(db, 'ax_steering', 'target', 'target TEXT');
   ensureColumn(db, 'context_reads', 'board_id', 'board_id TEXT');
+  ensureColumn(db, 'boards', 'category', 'category TEXT');
 
   // Set schema version if not present
   const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('schema_version');
@@ -448,10 +451,11 @@ function snapshotsToBoards(db: Database): void {
     );
     const boardId = createBoardId();
     db.run(
-      'INSERT INTO boards (id, name, created_at, viewport_x, viewport_y, viewport_scale, tour) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO boards (id, name, category, created_at, viewport_x, viewport_y, viewport_scale, tour) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         boardId,
         snapshot.name,
+        MIGRATED_SNAPSHOT_CATEGORY,
         snapshot.created_at,
         Number(meta.get('viewport_x') ?? 0),
         Number(meta.get('viewport_y') ?? 0),
@@ -833,6 +837,8 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
 export interface CanvasBoard {
   id: string;
   name: string;
+  /** A human-chosen shelf on Home ("Planning", "Research"); null is uncategorized. */
+  category: string | null;
   createdAt: string;
   lastOpenedAt: string | null;
   nodeCount: number;
@@ -841,12 +847,13 @@ export interface CanvasBoard {
 interface BoardListRow {
   id: string;
   name: string;
+  category: string | null;
   created_at: string;
   last_opened_at: string | null;
   node_count: number;
 }
 
-const BOARD_LIST_SQL = `SELECT b.id, b.name, b.created_at, b.last_opened_at,
+const BOARD_LIST_SQL = `SELECT b.id, b.name, b.category, b.created_at, b.last_opened_at,
     (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count
   FROM boards b`;
 
@@ -854,6 +861,7 @@ function rowToBoard(row: BoardListRow): CanvasBoard {
   return {
     id: row.id,
     name: row.name,
+    category: row.category,
     createdAt: row.created_at,
     lastOpenedAt: row.last_opened_at,
     nodeCount: row.node_count,
@@ -873,15 +881,19 @@ export function getBoardFromDB(db: Database, id: string): CanvasBoard | null {
   return row ? rowToBoard(row) : null;
 }
 
-export function createBoardInDB(db: Database, name: string): CanvasBoard {
+export function createBoardInDB(db: Database, name: string, category: string | null = null): CanvasBoard {
   const id = createBoardId();
   const createdAt = new Date().toISOString();
-  db.run('INSERT INTO boards (id, name, created_at) VALUES (?, ?, ?)', [id, name, createdAt]);
-  return { id, name, createdAt, lastOpenedAt: null, nodeCount: 0 };
+  db.run('INSERT INTO boards (id, name, category, created_at) VALUES (?, ?, ?, ?)', [id, name, category, createdAt]);
+  return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0 };
 }
 
-export function renameBoardInDB(db: Database, id: string, name: string): boolean {
-  return db.run('UPDATE boards SET name = ? WHERE id = ?', [name, id]).changes > 0;
+/** Rename and/or re-shelve a board; `category: null` removes it from its category. */
+export function updateBoardInDB(db: Database, id: string, patch: { name?: string; category?: string | null }): boolean {
+  if (!db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id)) return false;
+  if (patch.name !== undefined) db.run('UPDATE boards SET name = ? WHERE id = ?', [patch.name, id]);
+  if (patch.category !== undefined) db.run('UPDATE boards SET category = ? WHERE id = ?', [patch.category, id]);
+  return true;
 }
 
 /** Deletes a board with its rows and its snapshots. */

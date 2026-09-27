@@ -7,9 +7,10 @@ import { activeBoardId, boardList, boardsLoaded, type BoardSummary } from '../..
 const realFetch = globalThis.fetch;
 const calls: Array<{ url: string; init?: RequestInit }> = [];
 
-const board = (id: string, name: string, nodeCount: number): BoardSummary => ({
+const board = (id: string, name: string, nodeCount: number, category: string | null = null): BoardSummary => ({
   id,
   name,
+  category,
   createdAt: '2026-09-01T00:00:00.000Z',
   lastOpenedAt: '2026-09-20T00:00:00.000Z',
   nodeCount,
@@ -65,6 +66,35 @@ describe('Home', () => {
       fireEvent.click(getByText('Delete board'));
     });
     expect(writes().map((call) => [call.init?.method, call.url])).toEqual([['DELETE', '/api/canvas/boards/b-okr']]);
+  });
+});
+
+describe('Home categories', () => {
+  test('boards are grouped by category, migrated snapshots start folded, and a board can be moved', async () => {
+    localStorage.removeItem('pmx-canvas-home-collapsed');
+    boardList.value = [
+      board('b-okr', 'C4 OKR planning', 26, 'Planning'),
+      board('b-loose', 'Scratch', 2),
+      board('b-old', 'Before session · Copilot · 14:00', 9, 'From old snapshots'),
+    ];
+    const { getAllByTestId, getByRole, getByText, queryByText } = render(<HomeView />);
+    expect(
+      getAllByTestId('home-section').map((section) => section.querySelector('.home-section-name')?.textContent),
+    ).toEqual(['From old snapshots', 'Planning', 'No category']);
+    // The migrated shelf is folded until opened.
+    expect(queryByText('Before session · Copilot · 14:00')).toBeNull();
+    fireEvent.click(getByRole('button', { name: /From old snapshots/ }));
+    expect(getByText('Before session · Copilot · 14:00')).toBeTruthy();
+
+    // Move "Scratch" into Planning from its Category menu.
+    const scratchRow = getByText('Scratch').closest('li') as HTMLElement;
+    fireEvent.click(scratchRow.querySelector('.home-board-category button') as HTMLElement);
+    await act(async () => {
+      fireEvent.click(getByRole('menuitem', { name: 'Planning' }));
+    });
+    const patch = calls.find((call) => call.init?.method === 'PATCH');
+    expect(patch?.url).toBe('/api/canvas/boards/b-loose');
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({ category: 'Planning' });
   });
 });
 

@@ -1,7 +1,7 @@
-// Board commands (plan 012): board list, board create, board rename.
+// Board commands (plan 012): board list, board create, board rename, board category.
 // Opening, switching and deleting boards is the human's, in the workbench.
 
-import { cmd, die, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
+import { cmd, die, getStringFlag, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
 
 cmd('board list', 'List boards, most recently opened first', ['pmx-canvas board list'], async (args) => {
   const { flags } = parseFlags(args);
@@ -12,13 +12,14 @@ cmd('board list', 'List boards, most recently opened first', ['pmx-canvas board 
 cmd(
   'board create',
   'Create an empty board (the human opens it in the workbench)',
-  ['pmx-canvas board create "Q4 planning"'],
+  ['pmx-canvas board create "Q4 planning"', 'pmx-canvas board create "Q4 planning" --category Planning'],
   async (args) => {
     const { positional, flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('board create');
     const name = positional.join(' ').trim();
-    if (!name) die('Usage: pmx-canvas board create <name>');
-    output(await invokeOperation('board.create', { name }));
+    if (!name) die('Usage: pmx-canvas board create <name> [--category <category>]');
+    const category = getStringFlag(flags, 'category');
+    output(await invokeOperation('board.create', { name, ...(category ? { category } : {}) }));
   },
 );
 
@@ -28,5 +29,19 @@ cmd('board rename', 'Rename a board', ['pmx-canvas board rename board-abc123 "Q4
   const [id, ...rest] = positional;
   const name = rest.join(' ').trim();
   if (!id || !name) die('Usage: pmx-canvas board rename <board-id> <name>');
-  output(await invokeOperation('board.rename', { id, name }));
+  output(await invokeOperation('board.update', { id, name }));
 });
+
+cmd(
+  'board category',
+  'File a board under a category on Home (--clear removes it)',
+  ['pmx-canvas board category board-abc123 "Planning"', 'pmx-canvas board category board-abc123 --clear'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('board category');
+    const [id, ...rest] = positional;
+    const category = flags.clear ? '' : rest.join(' ').trim();
+    if (!id || (!category && !flags.clear)) die('Usage: pmx-canvas board category <board-id> <category> | --clear');
+    output(await invokeOperation('board.update', { id, category }));
+  },
+);

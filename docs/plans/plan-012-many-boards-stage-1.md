@@ -12,6 +12,11 @@
   links to become the top level instead (move 0 levels, 0.8/0.9).
 - **Deleting a board needs a confirm** — in-page, never a browser dialog (they are no-ops in agent panes).
 - **Backup is built in**, including the schedule, not left to cron.
+- **Categories on Home** (added 2026-09-27): a board may be filed under one category; Home shows a
+  foldable section per category, with uncategorized boards last. Boards migrated from old snapshots land
+  in a "From old snapshots" category that starts folded. Agents see and set categories through
+  `canvas_board` (`list`, `create`, `update`) — the library is the working memory, and its categories are
+  the first structure the cross-board brief (0.8) can read.
 
 ## What the human sees
 

@@ -310,7 +310,7 @@ Agent CLI (works against running server):
   diagram add                         Add an Excalidraw diagram node
   html primitive add|schema           Add or inspect HTML communication primitives
   pin <ids...> | --list | --clear     Manage context pins
-  board list|create|rename            Manage boards (the human opens them in the workbench)
+  board list|create|rename|category   Manage boards (the human opens them in the workbench)
   backup [status|schedule]            Back up every board, now or on a schedule
   restore <backup-file>               Replace every board with a backup
   export [--board id] [--out file]    Export a board as one HTML file anyone can open

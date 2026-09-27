@@ -54,6 +54,8 @@ export declare function loadStateFromDB(db: Database, boardId?: string): Persist
 export interface CanvasBoard {
     id: string;
     name: string;
+    /** A human-chosen shelf on Home ("Planning", "Research"); null is uncategorized. */
+    category: string | null;
     createdAt: string;
     lastOpenedAt: string | null;
     nodeCount: number;
@@ -61,8 +63,12 @@ export interface CanvasBoard {
 /** Most recently opened first, then never-opened boards, newest first. */
 export declare function listBoardsFromDB(db: Database): CanvasBoard[];
 export declare function getBoardFromDB(db: Database, id: string): CanvasBoard | null;
-export declare function createBoardInDB(db: Database, name: string): CanvasBoard;
-export declare function renameBoardInDB(db: Database, id: string, name: string): boolean;
+export declare function createBoardInDB(db: Database, name: string, category?: string | null): CanvasBoard;
+/** Rename and/or re-shelve a board; `category: null` removes it from its category. */
+export declare function updateBoardInDB(db: Database, id: string, patch: {
+    name?: string;
+    category?: string | null;
+}): boolean;
 /** Deletes a board with its rows and its snapshots. */
 export declare function deleteBoardFromDB(db: Database, id: string): boolean;
 export declare function readMetaFromDB(db: Database, key: string): string | null;

@@ -757,8 +757,8 @@ export async function startMcpServer(): Promise<void> {
     'canvas://boards',
     {
       description:
-        'The boards in this workspace, most recently opened first, and which one the human has open ' +
-        '(activeBoardId; null = Home). Your writes go to the open board; ask the human to open another.',
+        'The boards in this workspace with their categories, most recently opened first, and which one the ' +
+        'human has open (activeBoardId; null = Home). Your writes go to the open board; ask the human to open another.',
       mimeType: 'application/json',
     },
     async () => {

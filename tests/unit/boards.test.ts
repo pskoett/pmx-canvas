@@ -120,6 +120,8 @@ describe('migrating a one-board workspace', () => {
 
     expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
     const boards = canvasState.listBoards();
+    // Migrated snapshots are filed on their own shelf; the live board is not.
+    expect(boards.map((entry) => entry.category)).toEqual([null, 'From old snapshots', 'From old snapshots']);
     expect(boards.map((entry) => [entry.name, entry.nodeCount])).toEqual([
       [basename(root), 2],
       ['Discovery', 1],

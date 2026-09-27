@@ -59,13 +59,13 @@ curl http://localhost:4313/api/canvas/boards
 # Read one board
 curl http://localhost:4313/api/canvas/boards/<board-id>
 
-# Create a board — it is NOT opened
+# Create a board (optionally in a category) — it is NOT opened
 curl -X POST http://localhost:4313/api/canvas/boards \
-  -H "Content-Type: application/json" -d '{"name":"Q4 planning"}'
+  -H "Content-Type: application/json" -d '{"name":"Q4 planning","category":"Planning"}'
 
-# Rename
+# Rename and/or file under a category on Home ("category": "" removes it)
 curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
-  -H "Content-Type: application/json" -d '{"name":"Q4 planning (final)"}'
+  -H "Content-Type: application/json" -d '{"name":"Q4 planning (final)","category":"Planning"}'
 
 # Open a board, or Home with {"id":null} — workbench only
 curl -X POST http://localhost:4313/api/canvas/boards/open \

@@ -46,7 +46,7 @@ import {
   listBoardsFromDB,
   readMetaFromDB,
   readThemeFromDB,
-  renameBoardInDB,
+  updateBoardInDB,
   writeMetaToDB,
   saveThemeToDB,
   setActiveBoardIdInDB,
@@ -1001,13 +1001,13 @@ class CanvasStateManager {
   }
 
   /** Creates a board without opening it. */
-  createBoard(name: string): CanvasBoard | null {
+  createBoard(name: string, category: string | null = null): CanvasBoard | null {
     if (!this._db) return null;
-    return createBoardInDB(this._db, name);
+    return createBoardInDB(this._db, name, category);
   }
 
-  renameBoard(id: string, name: string): boolean {
-    return this._db ? renameBoardInDB(this._db, id, name) : false;
+  updateBoard(id: string, patch: { name?: string; category?: string | null }): boolean {
+    return this._db ? updateBoardInDB(this._db, id, patch) : false;
   }
 
   /** Deletes a board and its snapshots; deleting the open board returns to Home first. */

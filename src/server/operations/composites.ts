@@ -144,12 +144,13 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_board',
     description:
-      'Boards in this workspace. Your writes always go to the board the human has open (activeBoardId); on Home (no board open) your first write opens their most recent board, or a new one when there are none. Action "list" returns every board, most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it. Only the human opens, switches or deletes boards — if you need another board, ask them in the chat to open it.',
-    actionSummary: 'list | get | create',
+      'Boards in this workspace — the library of the human\'s and your working memory, filed in categories on Home. Your writes always go to the board the human has open (activeBoardId); on Home (no board open) your first write opens their most recent board, or a new one when there are none. Action "list" returns every board (with its category), most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it (optional category); "update" renames a board or files it under a category (category "" removes it). Only the human opens, switches or deletes boards — if you need another board, ask them in the chat to open it.',
+    actionSummary: 'list | get | create | update',
     actions: {
       list: 'board.list',
       get: 'board.get',
       create: 'board.create',
+      update: 'board.update',
     },
   },
   {

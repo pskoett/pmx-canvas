@@ -7095,3 +7095,45 @@ html.is-node-dragging .intent-line-layer {
 .export-dialog-links a {
   color: var(--c-accent);
 }
+
+/* ── Home categories ── */
+.home-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.home-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  background: none;
+  border: none;
+  color: var(--c-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  text-align: left;
+}
+.home-section-head:hover {
+  color: var(--c-text);
+}
+.home-section-count {
+  font: 11px var(--mono);
+  text-transform: none;
+}
+.home-board-category {
+  position: relative;
+  display: inline-flex;
+}
+.home-category-menu {
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+}
+.home-section-head:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}

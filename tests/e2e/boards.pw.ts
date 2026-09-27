@@ -63,6 +63,15 @@ test('switch boards from the top bar, go Home, delete with a confirm, and reopen
   await home.getByRole('button', { name: 'Back up now' }).click();
   await expect(home.getByTestId('home-backup')).toContainText('Last backup just now');
 
+  // File a board under a new category: Home shows it in its own section.
+  const firstRow = home.getByTestId('home-board').filter({ hasText: 'E2E First' });
+  await firstRow.getByRole('button', { name: 'Category' }).click();
+  await page.getByRole('menuitem', { name: 'New category…' }).click();
+  await page.getByTestId('text-prompt').locator('input').fill('E2E Planning');
+  await page.keyboard.press('Enter');
+  const planning = home.getByTestId('home-section').filter({ hasText: 'E2E Planning' });
+  await expect(planning.getByTestId('home-board').filter({ hasText: 'E2E First' })).toBeInViewport();
+
   // Delete asks in place first.
   await secondRow.getByRole('button', { name: 'Delete' }).click();
   await expect(home.getByText(/Delete E2E Second and its 1 node and snapshots/)).toBeVisible();

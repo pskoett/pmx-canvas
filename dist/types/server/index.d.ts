@@ -207,8 +207,12 @@ export declare class PmxCanvas extends EventEmitter {
         activeBoardId: string | null;
         boards: CanvasBoard[];
     };
-    createBoard(name: string): Promise<CanvasBoard>;
-    renameBoard(id: string, name: string): Promise<void>;
+    createBoard(name: string, category?: string): Promise<CanvasBoard>;
+    /** Rename a board and/or file it under a category (`category: null` removes it). */
+    updateBoard(id: string, patch: {
+        name?: string;
+        category?: string | null;
+    }): Promise<void>;
     /** Open a board, or Home with null. */
     openBoard(id: string | null): Promise<void>;
     deleteBoard(id: string): Promise<void>;

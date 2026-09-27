@@ -6,6 +6,7 @@
 export interface BoardSummary {
     id: string;
     name: string;
+    category: string | null;
     createdAt: string;
     lastOpenedAt: string | null;
     nodeCount: number;
@@ -25,6 +26,10 @@ export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */
 export declare function openBoard(id: string | null): Promise<void>;
 export declare function createAndOpenBoard(name: string): Promise<void>;
-export declare function renameBoard(id: string, name: string): Promise<void>;
+/** Rename and/or re-file a board; `category: null` removes it from its category. */
+export declare function updateBoard(id: string, patch: {
+    name?: string;
+    category?: string | null;
+}): Promise<void>;
 export declare function deleteBoard(id: string): Promise<void>;
 export declare function activeBoard(): BoardSummary | null;

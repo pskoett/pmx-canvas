@@ -237,8 +237,11 @@ declare class CanvasStateManager {
     /** Every board in the workspace, most recently opened first. */
     listBoards(): CanvasBoard[];
     /** Creates a board without opening it. */
-    createBoard(name: string): CanvasBoard | null;
-    renameBoard(id: string, name: string): boolean;
+    createBoard(name: string, category?: string | null): CanvasBoard | null;
+    updateBoard(id: string, patch: {
+        name?: string;
+        category?: string | null;
+    }): boolean;
     /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
     deleteBoard(id: string): boolean;
     /**
