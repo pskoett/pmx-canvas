@@ -1,6 +1,6 @@
 # Plan 012 — Many boards, stage 1, and built-in backup
 
-**Status:** In progress — slices 1–3 shipped (storage, surfaces, browser); slice 4 (backup) next
+**Status:** Done (2026-09-27) — storage, surfaces, browser, backup
 **Date:** 2026-09-27
 **Source:** [Product vision, move 0](../product-vision-2026-09.md#0-many-boards-and-boards-are-the-wiki-m-then-m-then-l), stage 1, plus library backup. The last item of 0.7.
 **Done when:** the nine real boards open by name; a backup restores them on a clean machine; a new session never overwrites an existing board.

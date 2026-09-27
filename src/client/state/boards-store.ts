@@ -31,10 +31,11 @@ export function setBoardSwitchHandler(handler: (() => void) | null): void {
   onBoardSwitched = handler;
 }
 
-export function applyBoards(data: { activeBoardId?: unknown; boards?: unknown } | null): void {
+export function applyBoards(data: { activeBoardId?: unknown; boards?: unknown; reloaded?: unknown } | null): void {
   if (!data || !Array.isArray(data.boards)) return;
   const nextActive = typeof data.activeBoardId === 'string' ? data.activeBoardId : null;
-  const switched = boardsLoaded.value && nextActive !== activeBoardId.value;
+  // `reloaded`: the library was restored, so even the same board id holds new content.
+  const switched = boardsLoaded.value && (nextActive !== activeBoardId.value || data.reloaded === true);
   boardList.value = data.boards as BoardSummary[];
   activeBoardId.value = nextActive;
   boardsLoaded.value = true;

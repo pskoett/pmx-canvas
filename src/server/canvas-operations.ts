@@ -1499,6 +1499,17 @@ function startBoardRuntime(): void {
 }
 
 /**
+ * Restore the whole library from a backup file (the current file is kept as
+ * `<db>.before-restore`); the restored library opens on its last open board.
+ */
+export function restoreCanvasLibrary(file: string): void {
+  canvasState.replaceDatabase(file);
+  mutationHistory.reset();
+  intentRegistry.reset();
+  startBoardRuntime();
+}
+
+/**
  * A write that arrives while no board is open (Home) lands on the most recently
  * opened board, or on a new board when the workspace has none — nothing on
  * Home is displaced, because Home holds nothing. Intents and undo history are

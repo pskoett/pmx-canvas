@@ -75,6 +75,33 @@ curl -X POST http://localhost:4313/api/canvas/boards/open \
 curl -X DELETE http://localhost:4313/api/canvas/boards/<board-id> -H "x-pmx-workbench: 1"
 ```
 
+## Backup and restore
+
+A backup is one SQLite file holding every board, its snapshots and blobs,
+written with `VACUUM INTO` (safe while the server runs) to
+`canvas-<timestamp>.db` in the backup folder — by default `backups/` beside the
+database (`.pmx-canvas/backups`). Keeping the newest `keep` (default 14)
+removes older backups in that folder. The schedule is stored in the database
+and runs inside the server. Not exposed over MCP.
+
+```bash
+# Folder, schedule, last backup and the backups on disk
+curl http://localhost:4313/api/canvas/backup
+
+# Back up now (optional folder and keep)
+curl -X POST http://localhost:4313/api/canvas/backup \
+  -H "Content-Type: application/json" -d '{"to":"/Users/me/Backups/pmx","keep":14}'
+
+# Back up every 24h ("30m", "7d"; at least once a minute; "off" stops it)
+curl -X POST http://localhost:4313/api/canvas/backup/schedule \
+  -H "Content-Type: application/json" -d '{"every":"24h","keep":14,"to":"/Users/me/Backups/pmx"}'
+
+# Replace every board with a backup; the current file is kept as canvas.db.before-restore.
+# Refuses files that are not PMX Canvas databases, and the live database itself.
+curl -X POST http://localhost:4313/api/canvas/backup/restore \
+  -H "Content-Type: application/json" -d '{"file":"/Users/me/Backups/pmx/canvas-20260927T090000000Z.db"}'
+```
+
 ## Canvas state
 
 ```bash

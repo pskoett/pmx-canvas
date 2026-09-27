@@ -273,6 +273,17 @@ pmx-canvas board rename <board-id> "New name"
 Commands write to the board open in the workbench. Opening, switching and
 deleting boards happens in the workbench (the human's call).
 
+## Backup and restore
+
+```bash
+pmx-canvas backup                                   # every board, now; into .pmx-canvas/backups
+pmx-canvas backup --to ~/Backups/pmx --keep 14
+pmx-canvas backup schedule --every 24h --keep 14 --to ~/Backups/pmx   # run by the server
+pmx-canvas backup schedule --off
+pmx-canvas backup status
+pmx-canvas restore ~/Backups/pmx/canvas-20260927T090000000Z.db    # keeps canvas.db.before-restore
+```
+
 ## Snapshots
 
 ```bash

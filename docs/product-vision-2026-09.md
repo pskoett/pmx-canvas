@@ -41,7 +41,7 @@ Human attention helps select the agent's context; it does not define the whole p
 - **Tours (move 12) shipped early** in 0.6.5, ahead of their 0.9 slot: saved or group-derived stops, keyboard navigation, optional PNG/MP4 capture.
 - **0.7 has started on `main`:** the Chromium 600 px reference project is in the e2e gate, refused writes show a toast with the reason, the webpage fetcher filters redirect hops, and agent context reads are recorded with pinned delivery per consumer ([plan 011](plans/plan-011-context-read-instrumentation.md)).
 - **Gate answers moved to 0.8** as attribution rather than a lock (move 7, decided 2026-09-26).
-- **Still open for 0.7:** many boards stage 1 with backup.
+- **Many boards stage 1 and backup are on `main`** ([plan 012](plans/plan-012-many-boards-stage-1.md)): named boards, Home, the top-bar switcher, old snapshots migrated into boards, and built-in backup, schedule and restore. Every 0.7 item is now built; the release waits on the maintainer.
 
 ## Status at 0.6.3 (2026-09-23)
 

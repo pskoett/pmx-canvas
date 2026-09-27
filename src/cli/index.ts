@@ -46,6 +46,8 @@ const AGENT_COMMANDS = new Set([
   'screenshot',
   'pin',
   'board',
+  'backup',
+  'restore',
   'ax',
   'pump',
   'undo',
@@ -308,6 +310,8 @@ Agent CLI (works against running server):
   html primitive add|schema           Add or inspect HTML communication primitives
   pin <ids...> | --list | --clear     Manage context pins
   board list|create|rename            Manage boards (the human opens them in the workbench)
+  backup [status|schedule]            Back up every board, now or on a schedule
+  restore <backup-file>               Replace every board with a backup
   undo / redo / history               Time travel
   snapshot save|list|restore|diff|delete
                                       Manage snapshots

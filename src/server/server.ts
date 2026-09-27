@@ -79,6 +79,7 @@ import { HUMAN_STARTED_SESSION_LABEL } from '../shared/agent-presence.js';
 import { diffLayouts } from './mutation-history.js';
 import { humanPresence } from './human-presence.js';
 import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
+import { startBackupScheduler, stopBackupScheduler } from './backup.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import { traceManager } from './trace-manager.js';
@@ -3220,6 +3221,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   const loaded = canvasState.loadFromDisk({ clearExisting: true });
   // Unattended-approval policy: hold pending gates whose TTL elapsed.
   startGateTtlSweeper((event, payload) => emitPrimaryWorkbenchEvent(event, payload));
+  startBackupScheduler();
   setCanvasLayoutUpdateEmitter(() => {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   });
@@ -3432,6 +3434,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
 export function stopCanvasServer(): void {
   stopGateTtlSweeper();
+  stopBackupScheduler();
   agentPresence.reset();
   humanPresence.reset();
   intentRegistry.reset();

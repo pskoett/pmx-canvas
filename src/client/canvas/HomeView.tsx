@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import {
   boardList,
   createAndOpenBoard,
@@ -7,6 +7,7 @@ import {
   renameBoard,
   type BoardSummary,
 } from '../state/boards-store';
+import { requestJson } from '../state/intent-bridge';
 import { askText } from './TextPrompt';
 
 function timeAgo(iso: string | null): string {
@@ -23,6 +24,49 @@ function timeAgo(iso: string | null): string {
 
 function nodesLabel(count: number): string {
   return `${count} node${count !== 1 ? 's' : ''}`;
+}
+
+interface BackupInfo {
+  folder: string;
+  everyMs: number | null;
+  lastAt: string | null;
+}
+
+function everyLabel(ms: number): string {
+  if (ms % 86_400_000 === 0) return `${ms / 86_400_000}d`;
+  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
+  return `${Math.round(ms / 60_000)}m`;
+}
+
+/** Last backup and "Back up now" — the whole library, every board, in one file. */
+function BackupLine() {
+  const [info, setInfo] = useState<BackupInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void requestJson<BackupInfo | null>('backupStatus', '/api/canvas/backup', null).then(setInfo);
+  }, []);
+  if (!info) return null;
+
+  const backUp = async () => {
+    setBusy(true);
+    const result = await requestJson<{ status?: BackupInfo } | null>('backupNow', '/api/canvas/backup', null, {
+      method: 'POST',
+    });
+    if (result?.status) setInfo(result.status);
+    setBusy(false);
+  };
+
+  return (
+    <div class="home-view-backup" data-testid="home-backup">
+      <span>
+        {info.lastAt ? `Last backup ${timeAgo(info.lastAt)}` : 'Not backed up yet'}
+        {info.everyMs ? ` · every ${everyLabel(info.everyMs)}` : ''}
+      </span>
+      <button type="button" class="home-board-action" disabled={busy} onClick={() => void backUp()}>
+        {busy ? 'Backing up…' : 'Back up now'}
+      </button>
+    </div>
+  );
 }
 
 export async function promptNewBoard(): Promise<void> {
@@ -53,6 +97,7 @@ export function HomeView() {
             New board
           </button>
         </div>
+        <BackupLine />
         {boards.length === 0 ? (
           <div class="home-view-empty">No boards yet. Create one, or let an agent start writing — it opens one.</div>
         ) : (

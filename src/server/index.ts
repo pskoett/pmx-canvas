@@ -38,6 +38,7 @@ import type {
   PmxAxWorkItemStatus,
 } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
+import type { BackupFile, BackupStatus } from './backup.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
@@ -707,6 +708,30 @@ export class PmxCanvas extends EventEmitter {
 
   async deleteBoard(id: string): Promise<void> {
     await executeOperation('board.delete', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });
+  }
+
+  // ── Library backup (plan 012) ─────────────────────────────────
+
+  async getBackupStatus(): Promise<BackupStatus> {
+    return (await executeOperation('backup.status', {}, { source: 'sdk' })) as BackupStatus;
+  }
+
+  /** Back up every board now; `to` and `keep` default to the configured folder and count. */
+  async backup(options: { to?: string; keep?: number } = {}): Promise<{ backup: BackupFile; removed: string[] }> {
+    return (await executeOperation('backup.run', options, { source: 'sdk' })) as {
+      backup: BackupFile;
+      removed: string[];
+    };
+  }
+
+  /** Back up on a schedule run by the server; `every: 'off'` stops it. */
+  async setBackupSchedule(options: { every: string; to?: string; keep?: number }): Promise<BackupStatus> {
+    return (await executeOperation('backup.schedule', options, { source: 'sdk' })) as BackupStatus;
+  }
+
+  /** Replace every board with a backup file; the current file is kept as `canvas.db.before-restore`. */
+  async restoreBackup(file: string): Promise<void> {
+    await executeOperation('backup.restore', { file }, { source: 'sdk' });
   }
 
   /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
@@ -1468,6 +1493,7 @@ export {
 } from './server.js';
 export { canvasState } from './canvas-state.js';
 export type { CanvasBoard } from './canvas-db.js';
+export type { BackupFile, BackupStatus } from './backup.js';
 export type {
   CanvasAnnotation,
   CanvasSnapshot,

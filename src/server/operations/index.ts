@@ -12,6 +12,7 @@ import { validateOperations } from './ops/validate.js';
 import { annotationOperations } from './ops/annotation.js';
 import { snapshotOperations } from './ops/snapshots.js';
 import { boardOperations } from './ops/boards.js';
+import { backupOperations } from './ops/backup.js';
 import { jsonRenderOperations } from './ops/json-render.js';
 import { axStateOperations } from './ops/ax-state.js';
 import { axWorkOperations } from './ops/ax-work.js';
@@ -37,6 +38,7 @@ for (const op of [
   ...annotationOperations,
   ...snapshotOperations,
   ...boardOperations,
+  ...backupOperations,
   ...jsonRenderOperations,
   ...axStateOperations,
   ...axWorkOperations,

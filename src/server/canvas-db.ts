@@ -901,6 +901,22 @@ export function deleteBoardFromDB(db: Database, id: string): boolean {
   return transaction();
 }
 
+export function readMetaFromDB(db: Database, key: string): string | null {
+  return db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get(key)?.value ?? null;
+}
+
+/** Write a workspace-wide meta value; null removes it. */
+export function writeMetaToDB(db: Database, key: string, value: string | null): void {
+  if (value === null) {
+    db.run('DELETE FROM meta WHERE key = ?', [key]);
+    return;
+  }
+  db.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
+    key,
+    value,
+  ]);
+}
+
 /** The board that was open last, if it still exists. */
 export function getActiveBoardIdFromDB(db: Database): string | null {
   const id = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('active_board')?.value;

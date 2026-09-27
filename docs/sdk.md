@@ -98,6 +98,11 @@ await canvas.openBoard(board.id);
 console.log(canvas.listBoards()); // { activeBoardId, boards }
 await canvas.openBoard(null); // Home
 
+// Backup — every board in one file; restore keeps canvas.db.before-restore
+await canvas.backup({ to: '/Users/me/Backups/pmx', keep: 14 });
+await canvas.setBackupSchedule({ every: '24h' });
+console.log(await canvas.getBackupStatus());
+
 // AX primitives — host-agnostic agent-experience layer
 // Timeline (persisted for diagnostics, retention-bounded, not snapshotted)
 canvas.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { source: 'sdk' });

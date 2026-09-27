@@ -187,6 +187,7 @@ declare class CanvasStateManager {
     private recomputeParentGroupBounds;
     private compactGroupChildren;
     private _db;
+    private _dbPath;
     private _saveTimer;
     /** Workspace root backing persistence and workspace-relative path resolution. */
     get workspaceRoot(): string;
@@ -209,6 +210,18 @@ declare class CanvasStateManager {
      * such board the workspace starts on Home (no board open).
      */
     loadFromDisk(options?: LoadFromDiskOptions): boolean;
+    /** The SQLite file holding every board, or null without a workspace database. */
+    get databasePath(): string | null;
+    readWorkspaceMeta(key: string): string | null;
+    writeWorkspaceMeta(key: string, value: string | null): void;
+    /** A consistent copy of the whole library, safe while the server runs. */
+    backupDatabaseTo(path: string): void;
+    /**
+     * Replace the library with `file`: the current file is kept beside it as
+     * `<db>.before-restore`, then the restored file opens (migrating an older
+     * layout) on the board it had open last.
+     */
+    replaceDatabase(file: string): void;
     private _activeBoardId;
     /** The open board, or null on Home. */
     get activeBoardId(): string | null;

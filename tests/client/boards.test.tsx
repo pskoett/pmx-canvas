@@ -52,9 +52,10 @@ describe('Home', () => {
 
   test('delete asks in place, naming the board and what it holds, before deleting', async () => {
     const { getAllByText, getByText, queryByText } = render(<HomeView />);
+    const writes = () => calls.filter((call) => call.init?.method);
     fireEvent.click(getAllByText('Delete')[0]);
     expect(getByText(/and its 26 nodes and snapshots/)).toBeTruthy();
-    expect(calls).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
 
     fireEvent.click(getByText('Cancel'));
     expect(queryByText(/and its 26 nodes/)).toBeNull();
@@ -63,7 +64,7 @@ describe('Home', () => {
     await act(async () => {
       fireEvent.click(getByText('Delete board'));
     });
-    expect(calls.map((call) => [call.init?.method, call.url])).toEqual([['DELETE', '/api/canvas/boards/b-okr']]);
+    expect(writes().map((call) => [call.init?.method, call.url])).toEqual([['DELETE', '/api/canvas/boards/b-okr']]);
   });
 });
 

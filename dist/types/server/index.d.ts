@@ -8,6 +8,7 @@ import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-in
 import type { PmxAxIntent } from '../shared/ax-intent.js';
 import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
+import type { BackupFile, BackupStatus } from './backup.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
@@ -210,6 +211,23 @@ export declare class PmxCanvas extends EventEmitter {
     /** Open a board, or Home with null. */
     openBoard(id: string | null): Promise<void>;
     deleteBoard(id: string): Promise<void>;
+    getBackupStatus(): Promise<BackupStatus>;
+    /** Back up every board now; `to` and `keep` default to the configured folder and count. */
+    backup(options?: {
+        to?: string;
+        keep?: number;
+    }): Promise<{
+        backup: BackupFile;
+        removed: string[];
+    }>;
+    /** Back up on a schedule run by the server; `every: 'off'` stops it. */
+    setBackupSchedule(options: {
+        every: string;
+        to?: string;
+        keep?: number;
+    }): Promise<BackupStatus>;
+    /** Replace every board with a backup file; the current file is kept as `canvas.db.before-restore`. */
+    restoreBackup(file: string): Promise<void>;
     /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
     getContextReads(limit?: number): ReturnType<typeof canvasState.getContextReads>;
     listWorkItems(): PmxAxWorkItem[];
@@ -604,6 +622,7 @@ export type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus, Pri
 export { emitPrimaryWorkbenchEvent, consumePrimaryWorkbenchIntents, setPrimaryWorkbenchAutoOpenEnabled, setPrimaryWorkbenchCanvasPromptHandler, startCanvasServer, stopCanvasServer, getCanvasServerPort, openUrlInExternalBrowser, getCanvasAutomationWebViewStatus, startCanvasAutomationWebView, stopCanvasAutomationWebView, evaluateCanvasAutomationWebView, resizeCanvasAutomationWebView, screenshotCanvasAutomationWebView, } from './server.js';
 export { canvasState } from './canvas-state.js';
 export type { CanvasBoard } from './canvas-db.js';
+export type { BackupFile, BackupStatus } from './backup.js';
 export type { CanvasAnnotation, CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions, } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';

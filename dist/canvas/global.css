@@ -6923,7 +6923,8 @@ html.is-node-dragging .intent-line-layer {
 .home-view {
   position: absolute;
   inset: 0;
-  z-index: 40;
+  /* Above the canvas's floating chrome (the updates tab sits at 60), below menus and prompts. */
+  z-index: 70;
   overflow-y: auto;
   background: var(--c-bg);
   padding: 32px 16px;
@@ -7043,4 +7044,13 @@ html.is-node-dragging .intent-line-layer {
 .board-switcher-button:focus-visible {
   outline: 2px solid var(--c-accent);
   outline-offset: 2px;
+}
+.home-view-backup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 12px var(--mono);
+  color: var(--c-text-soft);
 }

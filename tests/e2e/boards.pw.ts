@@ -59,6 +59,10 @@ test('switch boards from the top bar, go Home, delete with a confirm, and reopen
   const secondRow = home.getByTestId('home-board').filter({ hasText: 'E2E Second' });
   await expect(secondRow).toBeInViewport();
 
+  // Back up the whole library from Home.
+  await home.getByRole('button', { name: 'Back up now' }).click();
+  await expect(home.getByTestId('home-backup')).toContainText('Last backup just now');
+
   // Delete asks in place first.
   await secondRow.getByRole('button', { name: 'Delete' }).click();
   await expect(home.getByText(/Delete E2E Second and its 1 node and snapshots/)).toBeVisible();

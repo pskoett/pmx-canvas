@@ -14,7 +14,16 @@
 
 import { createHash } from 'node:crypto';
 import { tourSchema, type Tour } from '../shared/tour.js';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  unlinkSync,
+} from 'node:fs';
 import { basename, isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
@@ -35,8 +44,10 @@ import {
   getActiveBoardIdFromDB,
   getBoardFromDB,
   listBoardsFromDB,
+  readMetaFromDB,
   readThemeFromDB,
   renameBoardInDB,
+  writeMetaToDB,
   saveThemeToDB,
   setActiveBoardIdInDB,
   type CanvasBoard,
@@ -661,6 +672,7 @@ class CanvasStateManager {
 
   // ── Persistence ────────────────────────────────────────────
   private _db: import('bun:sqlite').Database | null = null;
+  private _dbPath: string | null = null;
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Workspace root backing persistence and workspace-relative path resolution. */
@@ -699,6 +711,7 @@ class CanvasStateManager {
     // renamed the originals to `.bak` was retired.
     try {
       this._db = openCanvasDb(dbPath, { migratedBoardName: basename(workspaceRoot) || 'Board' });
+      this._dbPath = dbPath;
     } catch (error) {
       logCanvasStateWarning('open canvas database failed', error, { dbPath });
     }
@@ -893,6 +906,48 @@ class CanvasStateManager {
       this.applyPersistedState(this.emptyPersistedState());
     }
     return false;
+  }
+
+  // ── Library file (backup / restore) ─────────────────────────
+
+  /** The SQLite file holding every board, or null without a workspace database. */
+  get databasePath(): string | null {
+    return this._db ? this._dbPath : null;
+  }
+
+  readWorkspaceMeta(key: string): string | null {
+    return this._db ? readMetaFromDB(this._db, key) : null;
+  }
+
+  writeWorkspaceMeta(key: string, value: string | null): void {
+    if (this._db) writeMetaToDB(this._db, key, value);
+  }
+
+  /** A consistent copy of the whole library, safe while the server runs. */
+  backupDatabaseTo(path: string): void {
+    if (!this._db) throw new Error('No workspace database to back up.');
+    this.flushToDisk();
+    this._db.run('VACUUM INTO ?', [path]);
+  }
+
+  /**
+   * Replace the library with `file`: the current file is kept beside it as
+   * `<db>.before-restore`, then the restored file opens (migrating an older
+   * layout) on the board it had open last.
+   */
+  replaceDatabase(file: string): void {
+    const dbPath = this.databasePath;
+    if (!dbPath) throw new Error('No workspace database to restore into.');
+    const root = this._workspaceRoot;
+    this.close();
+    copyFileSync(dbPath, `${dbPath}.before-restore`);
+    for (const suffix of ['-wal', '-shm']) rmSync(`${dbPath}${suffix}`, { force: true });
+    copyFileSync(file, dbPath);
+    this.setWorkspaceRoot(root);
+    this.loadFromDisk({ clearExisting: true });
+    this.notifyChange('nodes');
+    this.notifyChange('pins');
+    this.notifyChange('ax');
   }
 
   // ── Boards ──────────────────────────────────────────────────

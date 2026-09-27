@@ -19,6 +19,7 @@ export declare function setBoardSwitchHandler(handler: (() => void) | null): voi
 export declare function applyBoards(data: {
     activeBoardId?: unknown;
     boards?: unknown;
+    reloaded?: unknown;
 } | null): void;
 export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */

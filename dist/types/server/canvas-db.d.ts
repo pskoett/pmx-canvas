@@ -65,6 +65,9 @@ export declare function createBoardInDB(db: Database, name: string): CanvasBoard
 export declare function renameBoardInDB(db: Database, id: string, name: string): boolean;
 /** Deletes a board with its rows and its snapshots. */
 export declare function deleteBoardFromDB(db: Database, id: string): boolean;
+export declare function readMetaFromDB(db: Database, key: string): string | null;
+/** Write a workspace-wide meta value; null removes it. */
+export declare function writeMetaToDB(db: Database, key: string, value: string | null): void;
 /** The board that was open last, if it still exists. */
 export declare function getActiveBoardIdFromDB(db: Database): string | null;
 export declare function setActiveBoardIdInDB(db: Database, id: string | null): void;

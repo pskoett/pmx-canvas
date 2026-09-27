@@ -166,7 +166,8 @@ All generated files live under `.pmx-canvas/` in the workspace root:
 
 ```
 .pmx-canvas/
-  canvas.db            # SQLite state, snapshots, context pins, and blobs — git-committable
+  canvas.db            # SQLite: every board, snapshots, context pins, and blobs — git-committable
+  backups/             # `pmx-canvas backup` copies (canvas-<timestamp>.db), newest N kept
   artifacts/           # web-artifact HTML bundles
     .web-artifacts/    # reusable per-artifact build projects
   daemon-<port>.log    # daemon stdout/stderr (when started with `serve --daemon`)
