@@ -1,4 +1,6 @@
-import { createNodeFromClient } from '../state/intent-bridge';
+import { createNodeFromClient, requestJson } from '../state/intent-bridge';
+import { activeBoardId } from '../state/boards-store';
+import { showToast } from '../state/attention-bridge';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
 const MD_EXTS = new Set(['md', 'mdx', 'markdown']);
@@ -17,6 +19,7 @@ export function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file
  * markdown, everything else a file node with the text inlined.
  */
 export async function importFiles(files: File[], baseWx: number, baseWy: number): Promise<void> {
+  const boardId = activeBoardId.value;
   const nodeW = 400;
   const nodeH = 300;
   const spacing = 20;
@@ -32,6 +35,17 @@ export async function importFiles(files: File[], baseWx: number, baseWy: number)
     const type = nodeTypeFromFilename(file.name);
     const fileName = file.name;
 
+    if (/\.(pdf|pptx?|xlsx?|docx?|od[pts])$/i.test(fileName)) {
+      if (!boardId || file.size === 0 || file.size > 20 * 1024 * 1024) {
+        showToast('remove', 'File not attached', 'Open a board and choose a nonempty file under 20 MiB.');
+        continue;
+      }
+      const query = new URLSearchParams({ boardId, name: fileName, mime: file.type, x: String(wx), y: String(wy) });
+      showToast('context', 'Attaching document', fileName);
+      await requestJson('attachDocument', `/api/canvas/attachments?${query}`, null, { method: 'POST', body: file });
+      continue;
+    }
+    if (activeBoardId.value !== boardId) return;
     if (type === 'image') {
       const reader = new FileReader();
       const dataUri: string = await new Promise((resolve) => {

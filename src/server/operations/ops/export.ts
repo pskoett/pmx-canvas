@@ -14,6 +14,10 @@ import { defineOperation, OperationError, type Operation } from '../types.js';
 const shape = {
   board: z.unknown().optional().describe('Board id (default: the open board)'),
   includeFiles: z.unknown().optional().describe('Include the contents of file cards (default: false)'),
+  includeDerivedText: z
+    .unknown()
+    .optional()
+    .describe('Include imported document text (default: false; originals remain excluded)'),
 };
 const schema = z.looseObject(shape);
 
@@ -32,7 +36,11 @@ const exportPreviewOperation = defineOperation<z.infer<typeof schema>, Record<st
   http: { method: 'GET', path: '/api/canvas/export/preview' },
   handler: async (input) => {
     const { boardId, includeFiles } = target(input);
-    const manifest = await previewBoardExport(boardId, includeFiles);
+    const manifest = await previewBoardExport(
+      boardId,
+      includeFiles,
+      input.includeDerivedText === true || input.includeDerivedText === 'true',
+    );
     if (!manifest) throw new OperationError(`Board "${boardId}" not found.`, 404);
     return { ok: true, manifest };
   },
@@ -46,7 +54,11 @@ const exportRunOperation = defineOperation<z.infer<typeof schema>, Record<string
   http: { method: 'POST', path: '/api/canvas/export' },
   handler: async (input) => {
     const { boardId, includeFiles } = target(input);
-    const built = await buildBoardExport(boardId, includeFiles);
+    const built = await buildBoardExport(
+      boardId,
+      includeFiles,
+      input.includeDerivedText === true || input.includeDerivedText === 'true',
+    );
     if (!built) throw new OperationError(`Board "${boardId}" not found.`, 404);
     const path = writeBoardExport(built.html, built.manifest.boardName);
     return {

@@ -172,6 +172,7 @@ describe('MCP parity with CLI', () => {
       // v0.4.0: the canvas_snapshot COMPOSITE (save|list|restore|delete|gc|diff)
       // replaced the 6 legacy snapshot standalones.
       'canvas_snapshot',
+      'canvas_import',
     ];
     for (const tool of expectedTools) {
       expect(toolNames.has(tool)).toBe(true);

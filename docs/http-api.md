@@ -128,21 +128,66 @@ are left out unless `includeFiles` is true. Files are written to `exports/`
 beside the database. Built-app files are only embedded when they are regular,
 bounded-size files inside the board's owned `.pmx-canvas/artifacts/` directory.
 The preview manifest lists card links, remote images, and statically visible
-network destinations in embedded HTML. Embedded scripts can make additional
+network destinations in embedded HTML. Imported source-linked Markdown is also
+excluded unless `includeDerivedText=true`, independently of `includeFiles`;
+editing it does not remove that classification. Original attachment bytes are
+never embedded in v1. Embedded scripts can make additional
 network requests that cannot be inventoried in advance. Not exposed over MCP —
 sharing is the human's act.
 
 ```bash
 # What the file would contain (defaults to the open board; ?board=<id> for another)
-curl "http://localhost:4313/api/canvas/export/preview?includeFiles=false"
+curl "http://localhost:4313/api/canvas/export/preview?includeFiles=false&includeDerivedText=false"
 
 # Write it → { path, url, bytes, manifest }
 curl -X POST http://localhost:4313/api/canvas/export \
-  -H "Content-Type: application/json" -d '{"board":"<board-id>","includeFiles":false}'
+  -H "Content-Type: application/json" \
+  -d '{"board":"<board-id>","includeFiles":false,"includeDerivedText":false}'
 
 # Serve a written export (opaque-origin sandbox; ?download=1 as an attachment)
 curl "http://localhost:4313/api/canvas/exports/<file>.html?download=1" -o board.html
 ```
+
+## Agent-assisted document imports
+
+PDF and Office uploads are raw bytes, not JSON. Upload requires the trusted
+workbench token, an active captured board, a non-empty body of at most 20 MiB,
+and creates both an original file card and an `attached` import. The original
+remains board-owned until board deletion; snapshot restore does not remove it,
+and whole-database backups include it.
+
+```bash
+curl -X POST \
+  "http://localhost:4313/api/canvas/attachments?boardId=<board-id>&name=report.pdf&mime=application/pdf&x=40&y=40" \
+  -H "x-pmx-workbench-token: <token>" --data-binary @report.pdf
+
+# Human-only: explicit consent asks the connected agent; captured board must be open
+curl -X POST http://localhost:4313/api/canvas/imports/<import-id>/request \
+  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" \
+  -H "x-pmx-workbench-token: <token>" \
+  -d '{"consent":true}'
+
+# Agent reads metadata and a controlled byte path; inline=true adds base64 only <=2 MiB
+curl "http://localhost:4313/api/canvas/imports/<import-id>?inline=true"
+curl http://localhost:4313/api/canvas/attachments/<attachment-id>/bytes -o source.bin
+
+# Agent submits a reviewable draft (allowed even if another board is active)
+curl -X POST http://localhost:4313/api/canvas/imports/<import-id>/submit \
+  -H "Content-Type: application/json" \
+  -d '{"sections":[{"title":"Summary","markdown":"...","reference":"page 1"}],"warnings":[],"agentDescription":"Extracted with the connected host PDF reader"}'
+
+# Human-only review/commit; the original captured board must be open
+curl -X POST http://localhost:4313/api/canvas/imports/<import-id>/commit \
+  -H "x-pmx-workbench: 1" -H "x-pmx-workbench-token: <token>"
+```
+
+`GET /api/canvas/imports?boardId=...` lists jobs. An agent that cannot access or
+interpret the source posts `{ "reason": "..." }` to
+`/api/canvas/imports/:id/unavailable`; a human may later request a new attempt.
+Humans can cancel requested or drafted jobs at `/cancel`. There is no bundled
+converter, OCR, automatic agent launch, or guarantee for charts, scans, and
+host-specific formats. A remote agent may need the human/host to transfer the
+bytes before it can submit a draft.
 
 ## Canvas state
 

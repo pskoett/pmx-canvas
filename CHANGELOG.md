@@ -23,11 +23,12 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Designate a Markdown card as a board README, add text-only board-link cards, inspect outgoing links and backlinks, and search cards across the library without switching boards.
 - Preview and create an inactive board from selected reusable cards and optional groups/README; copied cards receive fresh IDs and omit pins, AX state and history.
 - Read a character-bounded cross-board brief with source IDs over MCP, HTTP, CLI or SDK; a durable cursor is used only when a stable consumer ID is supplied.
+- Attach PDF and Office originals up to 20 MiB, explicitly ask the connected agent to draft source-linked Markdown, and review it before adding it to the board; Canvas does not bundle conversion or launch an agent automatically.
 
 ### Known limitations
 
 - The connected-memory work is not released or deployed yet.
-- PDF, PowerPoint and Excel conversion is not implemented. No converter has been selected, and the preference remains to avoid a new required dependency.
+- Document extraction depends on the connected agent's available tools; remote byte transfer, OCR, unreadable charts, and some host formats may be unavailable.
 - A graph map, direct card-to-card edges across boards, and wiki-link syntax are not implemented.
 
 ### Fixed

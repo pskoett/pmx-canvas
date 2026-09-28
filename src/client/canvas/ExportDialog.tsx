@@ -11,6 +11,8 @@ interface ExportManifest {
   frames: number;
   placeholders: Array<{ nodeId: string; title: string; reason: string }>;
   files: Array<{ nodeId: string; path: string; included: boolean }>;
+  attachments: Array<{ nodeId: string; name: string }>;
+  sourceDerivedCards: Array<{ nodeId: string; included: boolean }>;
   embeddedImages: number;
   remoteImages: string[];
   links: string[];
@@ -37,6 +39,7 @@ function sizeLabel(bytes: number): string {
  */
 export function ExportDialog() {
   const [includeFiles, setIncludeFiles] = useState(false);
+  const [includeDerivedText, setIncludeDerivedText] = useState(false);
   const [manifest, setManifest] = useState<ExportManifest | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,7 +53,7 @@ export function ExportDialog() {
     setManifest(null);
     void requestJson<{ manifest?: ExportManifest } | null>(
       'exportPreview',
-      `/api/canvas/export/preview?board=${encodeURIComponent(boardId)}&includeFiles=${includeFiles}`,
+      `/api/canvas/export/preview?board=${encodeURIComponent(boardId)}&includeFiles=${includeFiles}&includeDerivedText=${includeDerivedText}`,
       null,
     ).then((body) => {
       if (current) setManifest(body?.manifest ?? null);
@@ -58,7 +61,11 @@ export function ExportDialog() {
     return () => {
       current = false;
     };
-  }, [open, includeFiles, boardId]);
+  }, [open, includeFiles, includeDerivedText, boardId]);
+
+  useEffect(() => {
+    setIncludeDerivedText(false);
+  }, [open, boardId]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +86,7 @@ export function ExportDialog() {
     const body = await requestJson<ExportResult | null>('exportBoard', '/api/canvas/export', null, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ board: manifest.boardId, includeFiles }),
+      body: JSON.stringify({ board: manifest.boardId, includeFiles, includeDerivedText }),
     });
     setBusy(false);
     if (body?.path && activeBoardId.value === manifest.boardId) setResult(body);
@@ -133,6 +140,19 @@ export function ExportDialog() {
                 </li>
               )}
             </ul>
+            {(manifest.attachments?.length ?? 0) > 0 && (
+              <p>Original attachments are excluded. Their filenames remain visible.</p>
+            )}
+            {(manifest.sourceDerivedCards?.length ?? 0) > 0 && (
+              <label class="export-dialog-files">
+                <input
+                  type="checkbox"
+                  checked={includeDerivedText}
+                  onChange={(event) => setIncludeDerivedText(event.currentTarget.checked)}
+                />
+                <span>Include imported document text ({manifest.sourceDerivedCards.length} cards)</span>
+              </label>
+            )}
             {manifest.files.length > 0 && (
               <label class="export-dialog-files">
                 <input

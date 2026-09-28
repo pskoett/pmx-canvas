@@ -124,6 +124,13 @@ const GATE_OPS: Array<{ op: string; kind: string; action: string }> = GATE_KINDS
 
 export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
+    toolName: 'canvas_import',
+    description:
+      'Agent-assisted document ingestion. List jobs, read attachment metadata/download bytes, submit bounded Markdown extraction, or report unavailable. Request, commit, and cancel are human-only HTTP actions.',
+    actionSummary: 'list | read | submit | unavailable',
+    actions: { list: 'import.list', read: 'import.read', submit: 'import.submit', unavailable: 'import.unavailable' },
+  },
+  {
     // v0.4.0: the long-deferred snapshot composite (plan-006 #7). The name was
     // held by the legacy save-snapshot standalone through v0.3.x; listing the
     // composite here suppresses all 6 legacy snapshot standalones via

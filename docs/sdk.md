@@ -110,6 +110,28 @@ await canvas.openBoard(null); // Home
 console.log(canvas.getLayout({ board: board.id }));
 console.log(canvas.getNode('node-id', { board: board.id }));
 
+// Agent-assisted document import. attachDocument requires the target board open
+// and accepts at most 20 MiB. Human request/cancel/commit also require the
+// workbench token; no SDK call launches an agent or bundles conversion.
+const attached = canvas.attachDocument({
+  boardId: board.id,
+  name: 'report.pdf',
+  mime: 'application/pdf',
+  bytes: await Bun.file('report.pdf').bytes(),
+});
+await canvas.requestImport(attached.import.id, true, trustedHumanToken);
+const source = canvas.readImport(attached.import.id); // bytes only when <=2 MiB
+// An agent/tool reads source.bytes or the HTTP download path, then drafts:
+await canvas.submitImport(
+  attached.import.id,
+  [{ title: 'Summary', markdown: '...', reference: 'page 1' }],
+  'Extracted with the connected host PDF reader',
+  ['Chart on page 2 was not readable'],
+);
+// Drafting may occur with another board open; commit requires this original board.
+await canvas.openBoard(board.id);
+await canvas.commitImport(attached.import.id, trustedHumanToken);
+
 // Export — one self-contained HTML file of a board, readable with no install
 const { path } = await canvas.exportBoard({ board: board.id });
 

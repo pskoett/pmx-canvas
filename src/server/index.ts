@@ -38,6 +38,8 @@ import type {
   PmxAxWorkItemStatus,
 } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
+import type { Attachment, DocumentImport, ImportSection } from './document-import.js';
+import { workbenchToken } from './workbench-auth.js';
 import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
 import { onFileNodeChanged } from './file-watcher.js';
@@ -693,6 +695,103 @@ export class PmxCanvas extends EventEmitter {
     return { activeBoardId: canvasState.activeBoardId, boards: canvasState.listBoards() };
   }
 
+  listImports(boardId?: string): DocumentImport[] {
+    return canvasState.listDocumentImports(boardId);
+  }
+  readImport(
+    id: string,
+  ): { import: DocumentImport; attachment: Attachment; downloadPath: string; bytes?: Uint8Array } | null {
+    const job = canvasState.getDocumentImport(id);
+    if (!job) return null;
+    const attachment = canvasState.getAttachment(job.attachmentId);
+    if (!attachment) return null;
+    const bytes =
+      attachment.size <= 2 * 1024 * 1024 ? (canvasState.readAttachmentBytes(attachment.id) ?? undefined) : undefined;
+    return {
+      import: job,
+      attachment,
+      downloadPath: `/api/canvas/attachments/${attachment.id}/bytes`,
+      ...(bytes ? { bytes } : {}),
+    };
+  }
+  async submitImport(
+    id: string,
+    sections: ImportSection[],
+    agentDescription: string,
+    warnings?: string[],
+  ): Promise<DocumentImport> {
+    const result = (await executeOperation(
+      'import.submit',
+      { id, sections, agentDescription, warnings },
+      { source: 'sdk' },
+    )) as { import: DocumentImport };
+    return result.import;
+  }
+  async markImportUnavailable(id: string, reason: string): Promise<DocumentImport> {
+    const result = (await executeOperation('import.unavailable', { id, reason }, { source: 'sdk' })) as {
+      import: DocumentImport;
+    };
+    return result.import;
+  }
+
+  attachDocument(input: { boardId: string; name: string; mime?: string; bytes: Uint8Array; x?: number; y?: number }): {
+    attachment: Attachment;
+    import: DocumentImport;
+    nodeId: string;
+  } {
+    if (canvasState.activeBoardId !== input.boardId) throw new Error('The captured target board is not active.');
+    assertInsideFence('node.add', createTarget(input));
+    const attachment = canvasState.storeAttachment({ ...input, mime: input.mime ?? 'application/octet-stream' });
+    if (!attachment) throw new Error('Board not found.');
+    const { id: nodeId, node } = addCanvasNode({
+      type: 'file',
+      title: input.name,
+      data: { attachmentId: attachment.id, mime: attachment.mime, size: attachment.size },
+      x: input.x,
+      y: input.y,
+      defaultWidth: 440,
+      defaultHeight: 360,
+      fileMode: 'auto',
+    });
+    const job = canvasState.createDocumentImport(attachment.id, { x: node.position.x, y: node.position.y + 400 });
+    if (!job) throw new Error('Could not create import.');
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return {
+      attachment,
+      import: job,
+      nodeId,
+    };
+  }
+
+  async requestImport(id: string, consent: true, trustedHumanToken: string): Promise<DocumentImport> {
+    if (trustedHumanToken !== workbenchToken) throw new Error('A trusted human token is required.');
+    const result = (await executeOperation(
+      'import.request',
+      { id, consent },
+      { source: 'sdk', fromWorkbench: true, humanAuthor: true },
+    )) as { import: DocumentImport };
+    return result.import;
+  }
+
+  async cancelImport(id: string, trustedHumanToken: string): Promise<DocumentImport> {
+    if (trustedHumanToken !== workbenchToken) throw new Error('A trusted human token is required.');
+    const result = (await executeOperation(
+      'import.cancel',
+      { id },
+      { source: 'sdk', fromWorkbench: true, humanAuthor: true },
+    )) as { import: DocumentImport };
+    return result.import;
+  }
+
+  async commitImport(id: string, trustedHumanToken: string): Promise<{ import: DocumentImport; nodeIds: string[] }> {
+    if (trustedHumanToken !== workbenchToken) throw new Error('A trusted human token is required.');
+    return (await executeOperation(
+      'import.commit',
+      { id },
+      { source: 'sdk', fromWorkbench: true, humanAuthor: true },
+    )) as { import: DocumentImport; nodeIds: string[] };
+  }
+
   async createBoard(name: string, category?: string): Promise<CanvasBoard> {
     const result = (await executeOperation(
       'board.create',
@@ -752,7 +851,7 @@ export class PmxCanvas extends EventEmitter {
 
   /** Write a self-contained HTML file of a board (default: the open board). */
   async exportBoard(
-    options: { board?: string; includeFiles?: boolean } = {},
+    options: { board?: string; includeFiles?: boolean; includeDerivedText?: boolean } = {},
   ): Promise<{ path: string; url: string; bytes: number; manifest: ExportManifest }> {
     return (await executeOperation('export.run', options, { source: 'sdk' })) as {
       path: string;

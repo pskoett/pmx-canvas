@@ -8,6 +8,7 @@ import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-in
 import type { PmxAxIntent } from '../shared/ax-intent.js';
 import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
+import type { Attachment, DocumentImport, ImportSection } from './document-import.js';
 import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
 import { searchNodes } from './spatial-analysis.js';
@@ -209,6 +210,33 @@ export declare class PmxCanvas extends EventEmitter {
         activeBoardId: string | null;
         boards: CanvasBoard[];
     };
+    listImports(boardId?: string): DocumentImport[];
+    readImport(id: string): {
+        import: DocumentImport;
+        attachment: Attachment;
+        downloadPath: string;
+        bytes?: Uint8Array;
+    } | null;
+    submitImport(id: string, sections: ImportSection[], agentDescription: string, warnings?: string[]): Promise<DocumentImport>;
+    markImportUnavailable(id: string, reason: string): Promise<DocumentImport>;
+    attachDocument(input: {
+        boardId: string;
+        name: string;
+        mime?: string;
+        bytes: Uint8Array;
+        x?: number;
+        y?: number;
+    }): {
+        attachment: Attachment;
+        import: DocumentImport;
+        nodeId: string;
+    };
+    requestImport(id: string, consent: true, trustedHumanToken: string): Promise<DocumentImport>;
+    cancelImport(id: string, trustedHumanToken: string): Promise<DocumentImport>;
+    commitImport(id: string, trustedHumanToken: string): Promise<{
+        import: DocumentImport;
+        nodeIds: string[];
+    }>;
     createBoard(name: string, category?: string): Promise<CanvasBoard>;
     /** Rename a board and/or file it under a category (`category: null` removes it). */
     updateBoard(id: string, patch: {
@@ -239,6 +267,7 @@ export declare class PmxCanvas extends EventEmitter {
     exportBoard(options?: {
         board?: string;
         includeFiles?: boolean;
+        includeDerivedText?: boolean;
     }): Promise<{
         path: string;
         url: string;

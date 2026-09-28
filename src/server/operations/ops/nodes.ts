@@ -404,6 +404,12 @@ export function createBasicCanvasNode(
 ): { node: CanvasNodeState; needsCodeGraphRecompute: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
   const type = typeof body.type === 'string' ? body.type : '';
   const extraData = isRecord(body.data) ? body.data : undefined;
+  if (
+    extraData &&
+    ('attachmentId' in extraData || (isRecord(extraData.source) && 'attachmentId' in extraData.source))
+  ) {
+    throw new OperationError('Attachment identity and import provenance are server-managed.');
+  }
   if (type === 'html') {
     if ('html' in body && typeof body.html !== 'string') {
       throw new OperationError('HTML node field "html" must be a string.');
@@ -504,6 +510,25 @@ export function buildNodePatch(
   existing: CanvasNodeState,
   body: Record<string, unknown>,
 ): { patch: Partial<CanvasNodeState>; groupChildIds?: string[] } {
+  if (body.type !== undefined && body.type !== existing.type) throw new OperationError('Node type is immutable.');
+  if (
+    existing.type === 'file' &&
+    typeof existing.data.attachmentId === 'string' &&
+    (body.path !== undefined || body.content !== undefined)
+  ) {
+    throw new OperationError('Attached file nodes cannot be repointed or changed into disk-backed files.');
+  }
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    const data = body.data as Record<string, unknown>;
+    const source = data.source;
+    const importedSource = source && typeof source === 'object' && 'attachmentId' in source;
+    const attachedFileContent =
+      existing.type === 'file' &&
+      typeof existing.data.attachmentId === 'string' &&
+      ('path' in data || 'content' in data || 'fileContent' in data);
+    if ('attachmentId' in data || importedSource || attachedFileContent)
+      throw new OperationError('Attachment identity and import provenance are immutable.');
+  }
   // Same dead-field traps as create (gauntlet, 2026-08-27): reject loudly
   // instead of dropping — and note that patching `content` on a file node
   // updates the FILE CONTENT snapshot, it does not re-point the node.

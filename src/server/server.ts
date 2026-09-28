@@ -39,7 +39,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { workbenchToken } from './workbench-auth.js';
+import { isWorkbenchToken, workbenchToken } from './workbench-auth.js';
+import { withCurrentActor } from './attribution.js';
 import { existsSync, readFileSync, realpathSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -69,11 +70,13 @@ import { canvasThemeScheme, isCanvasTheme } from '../shared/themes.js';
 import { canOpenNodeAsSurface } from '../shared/surface.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
+  addCanvasNode,
   cancelCodeGraphRecompute,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
 } from './canvas-operations.js';
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_NAME_LENGTH } from './document-import.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
 import { agentPresence } from './agent-presence.js';
@@ -975,6 +978,39 @@ function normalizeMarkdownExternalUrls(markdown: string): string {
 const CANVAS_ASSET_VERSION = Date.now().toString(36);
 const MAX_FRAME_DOCUMENTS = 128;
 const MAX_FRAME_DOCUMENT_BYTES = 5 * 1024 * 1024;
+
+async function readBoundedBody(req: Request, limit: number): Promise<Uint8Array | null> {
+  if (!req.body) return new Uint8Array();
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+function attachmentDisposition(name: string): string {
+  const fallback = name.replace(/[^\x20-\x7e]|["\\]/g, '_');
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
 const DEFAULT_FRAME_DOCUMENT_SANDBOX = 'allow-scripts';
 const SAFE_FRAME_DOCUMENT_SANDBOX_TOKENS = new Set([
   'allow-downloads',
@@ -3412,6 +3448,69 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // theme/update/viewport/annotation/refresh (plan-009 C1 slices 1-3). A
           // null return falls through to the remaining hand-written routes
           // (SSE, binary, HTML/static serving, and the server-coupled handlers).
+          if (url.pathname === '/api/canvas/attachments' && req.method === 'POST') {
+            const boardId = url.searchParams.get('boardId')?.trim() ?? '';
+            const name = url.searchParams.get('name')?.trim() ?? '';
+            const mime = url.searchParams.get('mime')?.trim() || 'application/octet-stream';
+            const x = Number(url.searchParams.get('x') ?? 40);
+            const y = Number(url.searchParams.get('y') ?? 40);
+            if (!boardId || !name || !Number.isFinite(x) || !Number.isFinite(y))
+              return responseJson({ ok: false, error: 'boardId, name, and finite x/y are required.' }, 400);
+            if (name.length > MAX_ATTACHMENT_NAME_LENGTH)
+              return responseJson(
+                { ok: false, error: `Attachment name exceeds ${MAX_ATTACHMENT_NAME_LENGTH} characters.` },
+                400,
+              );
+            if (Number(req.headers.get('content-length') ?? 0) > MAX_ATTACHMENT_BYTES)
+              return responseJson({ ok: false, error: 'Attachment exceeds the 20 MiB limit.' }, 413);
+            const bytes = await readBoundedBody(req, MAX_ATTACHMENT_BYTES);
+            if (!bytes) return responseJson({ ok: false, error: 'Attachment exceeds the 20 MiB limit.' }, 413);
+            if (bytes.byteLength === 0) return responseJson({ ok: false, error: 'Attachment is empty.' }, 400);
+            if (canvasState.activeBoardId !== boardId)
+              return responseJson({ ok: false, error: 'The captured target board is no longer active.' }, 409);
+            if (!isWorkbenchToken(req.headers.get('x-pmx-workbench-token')))
+              return responseJson({ ok: false, error: 'A trusted human upload is required.' }, 403);
+            const attachment = withCurrentActor({ actor: 'human', source: 'browser' }, () =>
+              canvasState.storeAttachment({ boardId, name, mime, bytes }),
+            );
+            if (!attachment) return responseJson({ ok: false, error: 'Board not found.' }, 404);
+            const { node } = withCurrentActor({ actor: 'human', source: 'browser' }, () =>
+              addCanvasNode({
+                type: 'file',
+                title: name,
+                data: { attachmentId: attachment.id, mime, size: attachment.size },
+                x,
+                y,
+                defaultWidth: 440,
+                defaultHeight: 360,
+                fileMode: 'auto',
+              }),
+            );
+            const created = canvasState.createDocumentImport(attachment.id, { x, y: y + 400 });
+            const documentImport = created;
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            return responseJson({ ok: true, attachment, nodeId: node.id, import: documentImport }, 201);
+          }
+
+          const attachmentBytesMatch = url.pathname.match(/^\/api\/canvas\/attachments\/([^/]+)\/bytes$/);
+          if (attachmentBytesMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+            const id = decodeURIComponent(attachmentBytesMatch[1]!);
+            const attachment = canvasState.getAttachment(id);
+            if (!attachment || !canvasState.listBoards().some((board) => board.id === attachment.boardId))
+              return responseJson({ ok: false, error: 'Attachment not found.' }, 404);
+            const bytes = canvasState.readAttachmentBytes(id);
+            if (!bytes) return responseJson({ ok: false, error: 'Attachment bytes are missing.' }, 404);
+            return new Response(req.method === 'HEAD' ? null : new Blob([Uint8Array.from(bytes)]), {
+              headers: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Length': String(bytes.byteLength),
+                'Content-Disposition': attachmentDisposition(attachment.name),
+                'X-Content-Type-Options': 'nosniff',
+                'Cache-Control': 'no-store',
+              },
+            });
+          }
+
           if (url.pathname.startsWith('/api/')) {
             const operationResponse = await dispatchOperationRoute(req, url);
             if (operationResponse) return operationResponse;

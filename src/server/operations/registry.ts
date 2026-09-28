@@ -406,7 +406,8 @@ export async function executeOperation(
 }
 
 /** Opening, switching and deleting boards is the human's; an agent asks for another board. */
-const HUMAN_ONLY_OPS = new Set(['board.open', 'board.delete']);
+const HUMAN_ONLY_OPS = new Set(['board.open', 'board.delete', 'import.request', 'import.cancel', 'import.commit']);
+const TRUSTED_HUMAN_ONLY_OPS = new Set(['import.request', 'import.cancel', 'import.commit']);
 
 /**
  * Writes that need a board beyond the layout mutations: canvas-bound AX items,
@@ -440,6 +441,9 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
       'Only the human opens or deletes boards. Ask them in the chat to open the board you need.',
       403,
     );
+  }
+  if (TRUSTED_HUMAN_ONLY_OPS.has(name) && !meta.humanAuthor) {
+    throw new OperationError('This import action requires the trusted human workbench.', 403);
   }
   if (!canvasState.activeBoardId && needsOpenBoard(op)) {
     openBoardForWrite();

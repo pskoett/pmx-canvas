@@ -381,6 +381,20 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Empty node</div>
         )}
       </div>
+      {node.data.source && typeof node.data.source === 'object' && 'attachmentId' in node.data.source && (
+        <div class="md-import-source">
+          Source material ·{' '}
+          <a
+            href={`/api/canvas/attachments/${encodeURIComponent(String(node.data.source.attachmentId))}/bytes`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {String((node.data.source as Record<string, unknown>).filename ?? 'Original')}
+          </a>
+          {' · '}
+          {String((node.data.source as Record<string, unknown>).reference ?? 'Location not supplied')}
+        </div>
+      )}
       <div class="md-card-actions">
         {board && (
           <button

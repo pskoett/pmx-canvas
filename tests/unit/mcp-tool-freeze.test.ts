@@ -33,7 +33,7 @@
 // save | list | restore | delete | gc | diff), repurposing the freed name and
 // removing the 6 deprecated snapshot standalones the same way v0.3.0 folded
 // everything else. 0.7 added the canvas_board composite (plan 012).
-// Surface: 23 tools = 17 composites + canvas_batch,
+// Surface: 24 tools = 18 composites + canvas_batch,
 // canvas_pin_nodes, canvas_invoke_command, canvas_ax_interaction,
 // canvas_ingest_activity, canvas_screenshot.
 import { afterAll, describe, expect, test } from 'bun:test';
@@ -57,6 +57,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_edge',
   'canvas_group',
   'canvas_history',
+  'canvas_import',
   'canvas_ingest_activity',
   'canvas_intent',
   'canvas_invoke_command',
@@ -122,11 +123,11 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 23-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 24-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(23);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(24);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 

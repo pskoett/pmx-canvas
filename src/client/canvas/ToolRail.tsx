@@ -30,7 +30,10 @@ import {
   forceDirectedArrange,
   nodes,
   traceEnabled,
+  viewport,
 } from '../state/canvas-store';
+import { importFiles } from './import-files';
+import { canvasArea } from './canvas-area';
 import { saveCanvasTheme } from '../state/intent-bridge';
 import { openBoard } from '../state/boards-store';
 import { createNodeInView } from './create-in-view';
@@ -176,6 +179,7 @@ export function ToolRail({
   const [openMenu, setOpenMenu] = useState<null | 'theme' | 'annotate'>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; bottom: number; right: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const documentInput = useRef<HTMLInputElement>(null);
 
   const toggleMenu = (menu: 'theme' | 'annotate') => (e: MouseEvent) => {
     if (openMenu === menu) {
@@ -332,6 +336,27 @@ export function ToolRail({
         <RailButton label="File" shortcut="Shift+F" onClick={() => promptedCreate('file')}>
           <IconNodeFile size={15} />
         </RailButton>
+        <RailButton label="Attach document" onClick={() => documentInput.current?.click()}>
+          <span aria-hidden="true">↥</span>
+        </RailButton>
+        <input
+          ref={documentInput}
+          type="file"
+          hidden
+          multiple
+          accept=".pdf,.ppt,.pptx,.xls,.xlsx,.doc,.docx,.odt,.ods,.odp"
+          aria-label="Attach documents"
+          onChange={(event) => {
+            const area = canvasArea();
+            const view = viewport.value;
+            void importFiles(
+              Array.from(event.currentTarget.files ?? []),
+              (area.width / 2 - view.x) / view.scale,
+              (area.height / 2 - view.y) / view.scale,
+            );
+            event.currentTarget.value = '';
+          }}
+        />
         <RailButton label="Webpage" shortcut="W" onClick={() => promptedCreate('webpage')}>
           <IconNodeWebpage size={15} />
         </RailButton>

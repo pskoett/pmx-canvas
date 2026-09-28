@@ -191,12 +191,13 @@ json-render, a graph, or an HTML primitive is sufficient.
 
 ## Current MCP Composites
 
-The live MCP surface is **23 tools**: the 17 composites below plus 6 standalones. This table is
+The live MCP surface is **24 tools**: the 18 composites below plus 6 standalones. This table is
 kept in sync with the server's composite registry; `tools/list` on a fresh `pmx-canvas --mcp` is
 always authoritative, independent of the installed release version.
 
 | Composite | Actions |
 |-----------|---------|
+| `canvas_import` | `list`, `read`, `submit`, `unavailable` |
 | `canvas_node` | `add`, `get`, `update`, `remove` |
 | `canvas_render` | `describe-schema`, `validate`, `add-json-render`, `stream-json-render`, `add-graph` |
 | `canvas_edge` | `add`, `update`, `remove` |
@@ -529,8 +530,18 @@ changes do not advance content revisions, while semantic edits and undo do.
 
 ## Known Limitations
 
-- PDF/PPTX/XLSX document conversion is not implemented and no converter is
-  selected. Do not claim that dropping one produces Markdown context.
+- PDF/Office drops attach the original (maximum 20 MiB); they do not convert it
+  or launch an agent automatically. A human must explicitly consent and request
+  import. For a `requested` job, use `canvas_import read`, fetch the controlled
+  HTTP bytes (or inline base64 only at 2 MiB or below), and submit truthful
+  sections, references, warnings, and `agentDescription` for human review. A
+  remote host may require manual transfer. Report `unavailable` rather than
+  claiming OCR, unreadable charts, or unsupported host formats worked. Drafting
+  is allowed after a board switch; human commit requires the original board open.
+- Original attachments persist until board deletion, survive snapshot restore,
+  and are included in database backups. Static export v1 never includes their
+  bytes; source-linked Markdown is separately gated by `includeDerivedText`,
+  not `includeFiles`, even after edits.
 - Board-map graph views, wiki-link syntax, and direct card edges across boards
   are future work. Static exports lock board links and omit target titles.
 

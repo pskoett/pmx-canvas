@@ -4,6 +4,7 @@ import { iframeMode } from '../state/iframe-mode';
 import { fetchFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { runNodeAxInteraction } from './ax-node-actions';
+import { AttachmentNode } from './AttachmentNode';
 
 /** Guess a language label from a file extension for display. */
 function langFromPath(path: string): string {
@@ -134,6 +135,11 @@ export function formatBytes(bytes: number): string {
 }
 
 export function FileNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
+  if (typeof node.data.attachmentId === 'string') return <AttachmentNode node={node} expanded={expanded} />;
+  return <TextFileNode node={node} expanded={expanded} />;
+}
+
+function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const filePath = (node.data.path as string) || (node.data.content as string) || '';
   const title = (node.data.title as string) || filePath.split('/').pop() || 'File';
   const cachedContent = node.data.fileContent as string | undefined;

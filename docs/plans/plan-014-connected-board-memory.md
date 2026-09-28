@@ -1,10 +1,10 @@
 # Plan 014 — Connected board memory
 
-**Status:** Shared text, attribution/revisions, README and board links, library
-search, create-from preview/copy, and the first cross-board brief are implemented
-in the current uncommitted batch. Browser E2E passes all 149 headed tests and
-the 600px copy/link/search screenshot has been inspected. Document conversion and the future graph/wiki slices
-remain unimplemented. Nothing in this batch is released or deployed.
+**Status:** The earlier shared-text, attribution/revision, README/link, library
+search, create-from, and cross-board brief work is committed. The current
+agent-assisted import implementation has passed targeted checks and is not released:
+it retains originals and stages agent-authored Markdown for human review, rather
+than providing bundled document conversion. Future graph/wiki slices remain.
 **Date:** 2026-09-27
 **Source:** Product vision moves 0, 1, 7, 14 and 15; maintainer requested an oracle review before implementation.
 
@@ -14,7 +14,7 @@ remain unimplemented. Nothing in this batch is released or deployed.
 2. **Attribution and revisions.** Implement plan 010 with server-stamped creator/last-editor identities and content revisions. Cover SDK/direct state writes as well as registry operations; never accept caller-provided authorship. Existing authors are unknown, not retroactively human. Preserve creation provenance through snapshots and distinguish restoration from a new edit. Geometry-only changes must not masquerade as content edits.
 3. **Board introductions, links and library search.** Designate one README via a board-owned node reference; add text-only board-link cards and derived backlinks. Extend existing `canvas://boards`, not a duplicate resource. Search inactive boards without opening them and overlay unsaved active state. Results carry board/card IDs; only explicit human navigation opens a result.
 4. **New board from this board.** Preview reusable structure/cards, allocate fresh IDs, remap internal references and add a previous-board link. Create the new board transactionally without opening it; do not copy asks, execution state or history. This is a bounded create operation, not a general inactive-board mutation API.
-5. **Document ingestion — agent-assisted v1 selected, not implemented.** Canvas receives and retains file bytes as board-owned attachments. The human asks the connected agent to read an attachment with its existing file tools and submit source-linked Markdown for review. No bundled converter, Python installation, OCR engine or automatic agent execution. An unavailable or incapable agent leaves a usable attachment with an explicit status, not a failed upload. See the v1 contract below.
+5. **Document ingestion — agent-assisted v1 implemented, under verification.** Canvas receives and retains file bytes as board-owned attachments. The human asks the connected agent to read an attachment with its existing file tools and submit source-linked Markdown for review. No bundled converter, Python installation, OCR engine or automatic agent execution. An unavailable or incapable agent leaves a usable attachment with an explicit status, not a failed upload. See the v1 contract below.
 6. **Cross-board brief — initial implementation and controlled retrieval check complete.** Local pins, useful local changes and asks, then bounded linked/same-folder board context; folders are a relevance tiebreak, not an instruction to include everything. Every entry carries source IDs and inclusion reason. Durable cursors are opt-in through an explicit consumer; no consumer starts from the beginning. In the fixed noisy-board fixture, a 1,000-code-unit budget fully delivers both pinned decisions versus neither without pins, preserves source IDs, and does not advance over omitted revisions. This is a retrieval regression check, not the vision's real-agent workflow evaluation; that remains pending.
 
 Binary distribution, cheap-tool restructuring, wiki-link syntax, the board map, renderer consolidation, the full journal and concurrent board managers remain separate work.
@@ -35,21 +35,23 @@ The user-facing flow is **Attach file → ask agent to import → review → add
 board**, not guaranteed automatic conversion on drop.
 
 - Canvas owns the original bytes in board-scoped attachment storage; node
-  payloads contain references, never the whole binary. Originals survive restart
-  and participate in library backups.
+  payloads contain references, never the whole binary. Uploads are limited to
+  20 MiB. Originals survive restart, snapshot restore, and library backups until
+  their board is deleted.
 - Reuse existing agent steering/delivery for the explicit import request; do
   not add a converter service, host-specific agent launcher or agent framework.
 - Expose an attachment ID and controlled download/read path. A same-machine
-  agent can obtain a working copy; remote hosts must transfer the bytes into
+  agent can obtain a working copy; reads may include inline base64 only through
+  2 MiB. Remote hosts may need to transfer the bytes manually into
   their own environment. Do not assume MCP connectivity implies filesystem
   access or PDF/Office-reading capability. Automatic host transfer is not a
   prerequisite for v1: unavailable access is reported clearly.
 - The agent returns draft Markdown sections with available page, slide or
-  sheet references and extraction warnings. Missing references or unreadable
+  sheet references, extraction warnings, and an `agentDescription`. Missing references or unreadable
   content must be disclosed rather than invented. Preview and explicit commit
   create ordinary searchable, pinnable cards linked to the original.
 - Capture the destination board at upload. If the human switches boards before
-  completion, keep the draft with its source board and require reopening it to
+  completion, allow draft submission, keep it with its source board, and require reopening it to
   commit. Agent output cannot retarget the import or overwrite human edits.
 - Show that processing uses the connected agent's tools and model provider;
   a local attachment does not mean model processing stays local. Requesting
@@ -59,7 +61,9 @@ board**, not guaranteed automatic conversion on drop.
   combination. Treat source text as data, never instructions or approval.
 
 Attachment size limits, safe byte serving, draft validation, cancellation,
-snapshot retention, and explicit export choices remain required. Defer local
+snapshot retention, and explicit export choices are implemented for verification:
+original bytes are never exported in v1, while source-linked edited Markdown is
+excluded unless `includeDerivedText=true`, separately from `includeFiles`. Defer local
 converter installation, OCR pipelines, automatic retries and rich spreadsheet
 editing. This adds no converter dependency to Canvas; it still depends on the
 connected host's available tools for extraction.
@@ -89,7 +93,7 @@ If an optional converter is chosen, prefer a narrow cancellable worker over embe
 
 Each slice is verified before proceeding. This plan does not authorize publishing, releasing or pushing the new batch.
 
-## Verification recorded for this batch
+## Verification recorded for the previous committed batch
 
 - `bun run test`: 1,205 passed, zero failed.
 - `bun run test:client`: 173 passed, zero failed.
@@ -104,8 +108,28 @@ Each slice is verified before proceeding. This plan does not authorize publishin
   README updates, and copied blob storage. Board creation remains inactive,
   matching the existing `board.create` contract.
 
-The earlier full browser run exposed four test assumptions (filtered folder
+These results predate the current import implementation and are not verification
+of it. The earlier full browser run exposed four test assumptions (filtered folder
 tree, repeated link-summary text, viewport timing before undo, and Mermaid aspect
 ratio); focused reruns and the final full run pass after correcting them. A unit
 run collided with the browser server on its deliberately unreachable port 4549;
 the final unit run above was performed after that server stopped.
+
+## Agent-assisted import verification — 2026-09-28
+
+- Unit suite: 1,218 passing; client suite: 174 passing. Build and typecheck pass;
+  lint passes with existing warnings. Import storage checks cover restart,
+  snapshots, selective-copy ownership, deletion retention, cancellation, late
+  submissions, immutable source references, and export redaction.
+- Headed browser checks passed at 1440 px and 600 px: upload, consent, waiting,
+  review, commit, reload, search, and the separate imported-text export choice.
+  The nine board workflow tests also passed after the Home-screen refinement.
+  The final full headed browser suite passed all 154 tests in 11.1 minutes.
+- Live Amp extraction used `view_media` for a single-page text PDF and Python's
+  standard-library ZIP/XML inspection for simple PPTX/XLSX fixtures downloaded
+  from Canvas. The three drafts were submitted through `canvas_import`, reviewed
+  and committed in the browser. Q1=12, Q2=47 and budget=23 credits survived into
+  readable cards, library search and source-labelled MCP pinned context.
+- This validates those simple fixtures and that named agent/tool combination,
+  not general Office fidelity, OCR, speaker notes, charts or formula evaluation.
+  Originals remain downloadable when a host reports conversion unavailable.

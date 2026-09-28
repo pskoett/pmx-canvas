@@ -82,6 +82,14 @@ the canvas is the union of its [built-in node types](docs/node-types.md) and
 **whatever your agent's harness already has access to** — MCP servers, CLIs,
 file reads, web fetch, anything on its toolbelt.
 
+Dropping a PDF or Office document attaches the original (up to 20 MiB). It does
+not bundle a converter or automatically launch an agent. After you explicitly
+request agent-assisted import and consent to processing by the connected host's
+tools/model provider, the agent fetches the controlled bytes, returns Markdown
+sections with references and warnings, and you review before adding them to the
+board. Remote hosts may require manual transfer; OCR, charts, and host format
+support are not guaranteed.
+
 JSON-render panels support bound form state, nested repeats, watchers, and Card
 header/footer slots. Form edits remain viewer-local until explicitly submitted;
 see [JSON-render nodes](docs/node-types.md#json-render-nodes). Authored iframe cards
@@ -198,7 +206,7 @@ the DB so SQLite WAL data is checkpointed into the file.
 
 ### 07 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (23 tools,
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (24 tools,
 15 static canvas resources plus one context resource template, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
 [environment variables documented here](docs/environment.md). Works with
@@ -459,7 +467,7 @@ paths, screenshots, or logs are attached automatically.
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 23 tools, 15 static canvas resources, one
+- **[MCP reference](docs/mcp.md)** — 24 tools, 15 static canvas resources, one
   context resource template, plus bundled
   skill resources, Skills extension, change notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations

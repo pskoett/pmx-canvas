@@ -15,6 +15,14 @@ export interface ExportManifest {
         path: string;
         included: boolean;
     }>;
+    attachments: Array<{
+        nodeId: string;
+        name: string;
+    }>;
+    sourceDerivedCards: Array<{
+        nodeId: string;
+        included: boolean;
+    }>;
     embeddedImages: number;
     /** Web images the file loads when opened. */
     remoteImages: string[];
@@ -27,8 +35,8 @@ export interface ExportManifest {
     includeFiles: boolean;
 }
 /** What an export of `boardId` would put in the file, without building it. */
-export declare function previewBoardExport(boardId: string, includeFiles: boolean): Promise<ExportManifest | null>;
-export declare function buildBoardExport(boardId: string, includeFiles: boolean): Promise<{
+export declare function previewBoardExport(boardId: string, includeFiles: boolean, includeDerivedText?: boolean): Promise<ExportManifest | null>;
+export declare function buildBoardExport(boardId: string, includeFiles: boolean, includeDerivedText?: boolean): Promise<{
     html: string;
     manifest: ExportManifest;
 } | null>;

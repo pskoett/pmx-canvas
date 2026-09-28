@@ -6952,7 +6952,7 @@ html.is-node-dragging .intent-line-layer {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 .home-view-head {
   display: flex;
@@ -6985,13 +6985,13 @@ html.is-node-dragging .intent-line-layer {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 .home-board {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 4px;
+  padding: 7px 8px 7px 5px;
   border: 1px solid var(--c-line);
   border-radius: 10px;
   background: var(--c-panel);
@@ -7038,17 +7038,22 @@ html.is-node-dragging .intent-line-layer {
 }
 .home-board-actions {
   display: flex;
-  gap: 6px;
+  gap: 2px;
   flex-shrink: 0;
 }
 .home-board-action {
-  padding: 5px 10px;
-  border-radius: 7px;
-  border: 1px solid var(--c-line);
+  padding: 6px 7px;
+  border-radius: 6px;
+  border: 1px solid transparent;
   background: none;
-  color: var(--c-text-soft);
-  font-size: 12px;
+  color: var(--c-dim);
+  font-size: 11px;
   cursor: pointer;
+}
+.home-board-action:hover {
+  border-color: var(--c-line);
+  background: color-mix(in srgb, var(--c-text) 5%, transparent);
+  color: var(--c-text-soft);
 }
 .home-board-action.is-danger {
   border-color: var(--c-danger);
@@ -7109,15 +7114,18 @@ html.is-node-dragging .intent-line-layer {
 .home-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .home-section-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 2px;
+  gap: 9px;
+  min-height: 42px;
+  width: 100%;
+  padding: 9px 10px;
   background: none;
   border: none;
+  border-radius: 8px;
   color: var(--c-text-soft);
   font-size: 12px;
   font-weight: 600;
@@ -7128,10 +7136,28 @@ html.is-node-dragging .intent-line-layer {
 }
 .home-section-head:hover {
   color: var(--c-text);
+  background: color-mix(in srgb, var(--c-text) 5%, transparent);
 }
+.home-section-chevron,
+.home-section-folder {
+  flex: 0 0 18px;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.home-section-chevron {
+  transition: transform 120ms ease;
+}
+.home-section-head[aria-expanded='true'] .home-section-chevron {
+  transform: rotate(90deg);
+}
+.home-section-folder { color: var(--c-dim); }
 .home-section-count {
   font: 11px var(--mono);
   text-transform: none;
+  color: var(--c-dim);
+  margin-left: auto;
 }
 .home-section-head:focus-visible {
   outline: 2px solid var(--c-accent);
@@ -7143,13 +7169,15 @@ html.is-node-dragging .intent-line-layer {
   max-width: 100%;
 }
 .home-section-name {
+  font-size: 13px;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
 .home-folder-children {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-left: 10px;
+  gap: 10px;
+  padding-left: 12px;
   border-left: 1px solid var(--c-line);
 }
 .home-search { width: 100%; box-sizing: border-box; }
@@ -7235,6 +7263,16 @@ html.is-node-dragging .intent-line-layer {
 .home-folder-option:has(input:checked) { background: color-mix(in srgb, var(--c-accent) 12%, transparent); }
 .home-folder-option input { accent-color: var(--c-accent); flex-shrink: 0; }
 .home-folder-new { display: flex; flex-direction: column; gap: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.attachment-node { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; font-size: 13px; overflow: auto; height: 100%; box-sizing: border-box; }
+.attachment-node p { margin: 0; color: var(--c-text-soft); line-height: 1.5; }
+.attachment-node a, .md-import-source a { color: var(--c-accent); }
+.attachment-status { font-weight: 600; }
+.attachment-node .home-board-action { border-color: var(--c-line); color: var(--c-text); min-height: 34px; }
+.attachment-node .home-board-action:hover { background: var(--c-panel); border-color: var(--c-accent); }
+.attachment-review { width: 100%; border-top: 1px solid var(--c-line); padding-top: 12px; }
+.attachment-review pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--mono); padding: 12px; background: var(--c-bg); border-radius: 8px; }
+.attachment-review h4 { margin-bottom: 6px; }
+.md-import-source { padding: 6px 12px; font-size: 11px; overflow-wrap: anywhere; color: var(--c-text-soft); border-top: 1px solid var(--c-line); }
 @media (max-width: 640px) {
   .home-board { flex-wrap: wrap; }
   .home-board-open { flex-basis: 100%; }

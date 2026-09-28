@@ -34,6 +34,8 @@ export interface ExportManifest {
   frames: number;
   placeholders: Array<{ nodeId: string; title: string; reason: string }>;
   files: Array<{ nodeId: string; path: string; included: boolean }>;
+  attachments: Array<{ nodeId: string; name: string }>;
+  sourceDerivedCards: Array<{ nodeId: string; included: boolean }>;
   embeddedImages: number;
   /** Web images the file loads when opened. */
   remoteImages: string[];
@@ -174,7 +176,12 @@ function fileText(node: CanvasNodeState, path: string): string | null {
   }
 }
 
-async function collect(boardId: string, includeFiles: boolean, withFrames: boolean): Promise<Collected | null> {
+async function collect(
+  boardId: string,
+  includeFiles: boolean,
+  withFrames: boolean,
+  includeDerivedText = false,
+): Promise<Collected | null> {
   const read = canvasState.readBoard(boardId);
   if (!read) return null;
   const { board, state } = read;
@@ -191,6 +198,8 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
     frames: 0,
     placeholders: [],
     files: [],
+    attachments: [],
+    sourceDerivedCards: [],
     embeddedImages: 0,
     remoteImages: [],
     links: [],
@@ -216,10 +225,27 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
     };
     const data = node.data;
     const placeholder = (reason: string) => {
-      manifest.placeholders.push({ nodeId: node.id, title, reason });
+      manifest.placeholders.push({ nodeId: node.id, title: card.title, reason });
       card.html = `<div class="placeholder">${escapeHtml(reason)}</div>`;
     };
 
+    if (data.source && typeof data.source === 'object' && 'attachmentId' in data.source) {
+      manifest.sourceDerivedCards.push({ nodeId: node.id, included: includeDerivedText });
+      if (!includeDerivedText) {
+        card.title = 'Imported document content';
+        placeholder('Imported document text excluded.');
+        manifest.cards += 1;
+        cards.push(card);
+        continue;
+      }
+    }
+    if (typeof data.attachmentId === 'string') {
+      manifest.attachments.push({ nodeId: node.id, name: title });
+      placeholder('Original attachment is not included in this export.');
+      manifest.cards += 1;
+      cards.push(card);
+      continue;
+    }
     switch (node.type) {
       case 'board':
         placeholder('Linked board is not included in this export.');
@@ -389,8 +415,12 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
 }
 
 /** What an export of `boardId` would put in the file, without building it. */
-export async function previewBoardExport(boardId: string, includeFiles: boolean): Promise<ExportManifest | null> {
-  return (await collect(boardId, includeFiles, false))?.manifest ?? null;
+export async function previewBoardExport(
+  boardId: string,
+  includeFiles: boolean,
+  includeDerivedText = false,
+): Promise<ExportManifest | null> {
+  return (await collect(boardId, includeFiles, false, includeDerivedText))?.manifest ?? null;
 }
 
 function scriptJson(value: unknown): string {
@@ -400,8 +430,9 @@ function scriptJson(value: unknown): string {
 export async function buildBoardExport(
   boardId: string,
   includeFiles: boolean,
+  includeDerivedText = false,
 ): Promise<{ html: string; manifest: ExportManifest } | null> {
-  const collected = await collect(boardId, includeFiles, true);
+  const collected = await collect(boardId, includeFiles, true, includeDerivedText);
   if (!collected) return null;
   const { manifest, cards, edges: snapshotEdges, scheme, needsJsonRender, needsMermaid } = collected;
 

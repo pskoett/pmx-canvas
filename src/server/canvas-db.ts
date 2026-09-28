@@ -201,6 +201,39 @@ const SCHEMA_SQL = `
     json_bytes INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS attachment_bytes (
+    sha256 TEXT PRIMARY KEY,
+    data BLOB NOT NULL,
+    size INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS attachments (
+    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    name TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_attachments_board ON attachments (board_id);
+
+  CREATE TABLE IF NOT EXISTS document_imports (
+    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL,
+    attachment_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    position_x REAL NOT NULL,
+    position_y REAL NOT NULL,
+    sections TEXT,
+    warnings TEXT,
+    agent_description TEXT,
+    reason TEXT,
+    committed_node_ids TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS ax_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
     id TEXT NOT NULL UNIQUE,
@@ -373,6 +406,7 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'nodes', 'content_revision', 'content_revision INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'snapshot_nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");
   ensureColumn(db, 'snapshot_nodes', 'content_revision', 'content_revision INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'document_imports', 'committed_node_ids', 'committed_node_ids TEXT');
 
   // Set schema version if not present
   const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('schema_version');
@@ -1000,6 +1034,9 @@ export function deleteBoardFromDB(db: Database, id: string): boolean {
       .all(id)
       .map((row) => row.id);
     for (const snapshotId of snapshotIds) deleteSnapshotFromDB(db, snapshotId);
+    db.run('DELETE FROM document_imports WHERE board_id = ?', [id]);
+    db.run('DELETE FROM attachments WHERE board_id = ?', [id]);
+    db.run('DELETE FROM attachment_bytes WHERE sha256 NOT IN (SELECT sha256 FROM attachments)');
     db.run("DELETE FROM meta WHERE key = 'active_board' AND value = ?", [id]);
     return db.run('DELETE FROM boards WHERE id = ?', [id]).changes > 0;
   });

@@ -197,10 +197,12 @@ export function HomeView() {
     return (
       <section key={path} class="home-section" data-testid="home-section" data-folder={path} aria-label={path}>
         <button type="button" class="home-section-head" aria-expanded={expanded} onClick={() => toggle(path)}>
-          <span class="home-section-caret" aria-hidden="true">
-            {expanded ? '▾' : '▸'}
-          </span>
-          <span aria-hidden="true">▱</span>
+          <svg class="home-section-chevron" viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true">
+            <path d="m7.5 4.75 5.25 5.25-5.25 5.25" />
+          </svg>
+          <svg class="home-section-folder" viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true">
+            <path d="M2.75 5.75A1.75 1.75 0 0 1 4.5 4h3l1.75 2h6.25a1.75 1.75 0 0 1 1.75 1.75v6.5A1.75 1.75 0 0 1 15.5 16h-11a1.75 1.75 0 0 1-1.75-1.75v-8.5Z" />
+          </svg>
           <span class="home-section-name">{path.split('/').at(-1)}</span>
           <span class="home-section-count">{count}</span>
         </button>

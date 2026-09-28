@@ -74,6 +74,19 @@ automatically via `fs.watch()`.
 canvas_node({ action: 'add', type: 'file', content: 'src/server/index.ts' })
 ```
 
+A PDF or Office file dropped in the browser follows a different, attachment-
+backed path: Canvas stores the original bytes (maximum 20 MiB) in SQLite and
+shows a file card. The human may explicitly consent to ask the connected agent
+for Markdown sections, then review and commit them as ordinary source-linked
+Markdown cards. Drop alone does not launch an agent. Canvas includes no document
+converter or OCR; remote access may require manual transfer, and charts, scans,
+or host-specific formats may remain unreadable. Originals persist until board
+deletion (including across snapshot restore and in database backups).
+
+Static export never embeds those original bytes in v1. Source-linked Markdown
+is separately excluded unless `includeDerivedText=true`; `includeFiles` controls
+ordinary local file contents and does not override that choice.
+
 The same node type handles non-source files, so you never have to pick a
 different type by extension:
 

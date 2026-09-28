@@ -13,6 +13,7 @@
  */
 import { type Tour } from '../shared/tour.js';
 import { type CanvasBoard, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
+import { type DocumentImport, type DocumentImportStatus, type ImportSection, type Attachment } from './document-import.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 import { type ActorAttribution } from './attribution.js';
 import { type ContextRead, type ContextReadConsumerSummary, type ContextReadInput } from './context-reads.js';
@@ -274,6 +275,28 @@ declare class CanvasStateManager {
     } | null;
     /** Every board in the workspace, most recently opened first. */
     listBoards(): CanvasBoard[];
+    storeAttachment(input: {
+        boardId: string;
+        name: string;
+        mime: string;
+        bytes: Uint8Array;
+    }): Attachment | null;
+    getAttachment(id: string): Attachment | null;
+    readAttachmentBytes(id: string): Uint8Array | null;
+    createDocumentImport(attachmentId: string, position: {
+        x: number;
+        y: number;
+    }): DocumentImport | null;
+    getDocumentImport(id: string): DocumentImport | null;
+    listDocumentImports(boardId?: string): DocumentImport[];
+    updateDocumentImport(id: string, status: DocumentImportStatus, fields?: {
+        sections?: ImportSection[];
+        warnings?: string[];
+        agentDescription?: string;
+        reason?: string;
+        committedNodeIds?: string[];
+    }): DocumentImport | null;
+    commitDocumentImport(id: string, nodeIds: string[]): DocumentImport | null;
     getContextBriefCursor(boardId: string, consumer: string): number | null;
     advanceContextBriefCursor(boardId: string, consumer: string, revision: number): void;
     /** Creates a board without opening it. */

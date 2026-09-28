@@ -28,6 +28,7 @@ import { axReadOperations } from './ops/ax-read.js';
 import { axPresenceOperations } from './ops/ax-presence.js';
 import { humanPresenceOperations } from './ops/human-presence.js';
 import { canvasWireOperations } from './ops/canvas-wire.js';
+import { importOperations } from './ops/imports.js';
 
 for (const op of [
   ...nodeOperations,
@@ -55,6 +56,7 @@ for (const op of [
   ...axPresenceOperations,
   ...humanPresenceOperations,
   ...canvasWireOperations,
+  ...importOperations,
 ]) {
   registerOperation(op);
 }

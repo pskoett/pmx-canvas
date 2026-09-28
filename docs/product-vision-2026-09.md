@@ -237,11 +237,19 @@ The real boards are full of numbers from elsewhere: 13 metric charts, developer-
 
 The same OKR board appears in April and again for C4. "New board from this board" copies the structure (groups, the README card, recipe cards) without the content and links the new board to the old one as its previous board. Recurring work forms chains on the board map without anyone filing it, "what changed since the April OKRs?" becomes answerable, and any board becomes a template for the next.
 
-### 15. Drop documents to make board context (M, delivered by format)
+### 15. Drop documents to make board context (M, agent-assisted v1 under verification)
 
 **Direction decided with the maintainer, 2026-09-27.** A human drops a PDF, PowerPoint deck, Excel workbook or other document onto the board to bring its knowledge into the work. The default outcome for supported documents is readable, editable Markdown cards, searchable and available through the same context path as authored cards—not a filename, binary text or an opaque attachment. Keep image and file nodes as capabilities; Markdown is the context representation, not a replacement for the original source.
 
-Today the browser imports Markdown as Markdown and images as images, but reads other dropped files with `File.text()` into file nodes (`src/client/canvas/import-files.ts`). This is not document extraction. Build one server-owned import path shared by drag-and-drop, an accessible file picker and agent transports; accept file bytes rather than assuming the server can read a browser-local path. SQLite remains canonical. An import captures its target board before asynchronous conversion and must never land on a different board after navigation.
+The current checkout implements the first, explicitly agent-assisted path. A PDF
+or Office drop stores the original (maximum 20 MiB) as a board attachment; it
+does not convert the file or launch an agent. A human explicitly consents and
+requests help from the connected agent, which reads the controlled HTTP bytes
+or inline base64 at 2 MiB or below, then submits sections, references, warnings,
+and an `agentDescription` for human review. A remote host may need manual byte
+transfer. Draft submission can complete while another board is active, but the
+captured source board must be reopened to commit. This implementation is under
+verification and not released.
 
 Proposed delivery contract:
 
@@ -254,7 +262,18 @@ Proposed delivery contract:
 - **Source and freshness:** retain the original as a board-owned attachment and record filename, content hash, import time, converter and page/slide/sheet references using existing provenance. Extraction is distinct from an optional agent-written summary. Re-import must not overwrite human edits silently; offer an explicit replacement or a new version.
 - **Local and bounded:** convert locally by default, with file, expanded-archive and processing limits. Treat imported text as source material, not executable instructions. External conversion or OCR needs explicit consent. Export must disclose imported content as well as original attachments; extracting a document must not bypass file-content sharing choices.
 
-**Done when:** representative PDF, PPTX and XLSX fixtures dropped in a real browser produce correct, source-linked Markdown; the content survives restart, appears in library search and reaches pinned agent context. Tests cover partial extraction, unsupported and corrupt files, oversized inputs, cancellation and board switching during import. A visible card alone is not proof that the document's meaning survived conversion.
+Agent-assisted v1 bundles no converter or OCR and therefore does not guarantee
+PDF/PPTX/XLSX coverage, scans, charts, diagrams, or any host-specific format.
+The original remains until board deletion, survives snapshot restore, and is in
+database backups. Static export v1 never includes original bytes; source-linked
+Markdown stays classified after editing and requires `includeDerivedText=true`,
+separately from `includeFiles`.
+
+**Done when:** representative files processed with named host/tool combinations
+produce reviewable, source-linked Markdown; the content survives restart,
+appears in library search and reaches pinned agent context. Verification covers
+partial/unavailable extraction, oversized inputs, cancellation, board switching,
+and export choices. A visible card alone is not proof that meaning survived.
 
 ### The payoff nobody asked for
 

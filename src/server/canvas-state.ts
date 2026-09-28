@@ -59,6 +59,20 @@ import {
   type CanvasTheme,
   type AxTimelineQuery,
 } from './canvas-db.js';
+import {
+  copyBoardAttachments,
+  createImport,
+  getAttachment,
+  getImport,
+  listImports,
+  readAttachmentBytes,
+  storeAttachment,
+  updateImport,
+  type DocumentImport,
+  type DocumentImportStatus,
+  type ImportSection,
+  type Attachment,
+} from './document-import.js';
 import { normalizeCanvasTheme } from './canvas-db.js';
 import {
   type CanvasPlacementRect,
@@ -1140,6 +1154,52 @@ class CanvasStateManager {
     );
   }
 
+  storeAttachment(input: { boardId: string; name: string; mime: string; bytes: Uint8Array }): Attachment | null {
+    if (!this._db) return null;
+    if (input.boardId === this._activeBoardId) this.flushToDisk();
+    if (!getBoardFromDB(this._db, input.boardId)) return null;
+    return storeAttachment(this._db, input);
+  }
+  getAttachment(id: string): Attachment | null {
+    return this._db ? getAttachment(this._db, id) : null;
+  }
+  readAttachmentBytes(id: string): Uint8Array | null {
+    return this._db ? readAttachmentBytes(this._db, id) : null;
+  }
+  createDocumentImport(attachmentId: string, position: { x: number; y: number }): DocumentImport | null {
+    return this._db ? createImport(this._db, attachmentId, position) : null;
+  }
+  getDocumentImport(id: string): DocumentImport | null {
+    return this._db ? getImport(this._db, id) : null;
+  }
+  listDocumentImports(boardId?: string): DocumentImport[] {
+    return this._db ? listImports(this._db, boardId) : [];
+  }
+  updateDocumentImport(
+    id: string,
+    status: DocumentImportStatus,
+    fields?: {
+      sections?: ImportSection[];
+      warnings?: string[];
+      agentDescription?: string;
+      reason?: string;
+      committedNodeIds?: string[];
+    },
+  ): DocumentImport | null {
+    return this._db ? updateImport(this._db, id, status, fields) : null;
+  }
+  commitDocumentImport(id: string, nodeIds: string[]): DocumentImport | null {
+    if (!this._db) return null;
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    return this._db.transaction(() => {
+      if (!this.saveToDisk()) throw new Error(this._lastPersistenceError?.message ?? 'Failed to save canvas state.');
+      return updateImport(this._db!, id, 'committed', { committedNodeIds: nodeIds });
+    })();
+  }
+
   getContextBriefCursor(boardId: string, consumer: string): number | null {
     return this._db ? readContextBriefCursor(this._db, boardId, consumer) : null;
   }
@@ -1265,13 +1325,46 @@ class CanvasStateManager {
       ax: createEmptyAxState(),
       revisionState: { revision: nodes.length, floor: 0, tombstones: [] },
     };
-    return createBoardWithStateInDB(
+    const board = createBoardWithStateInDB(
       this._db,
       input.name,
       input.category ?? null,
       this.externalizePersistedStateBlobs(state),
       input.includeReadme && source.board.readmeNodeId ? (ids.get(source.board.readmeNodeId) ?? null) : null,
     );
+    const referencedAttachmentIds = new Set<string>();
+    for (const node of nodes) {
+      if (typeof node.data.attachmentId === 'string') referencedAttachmentIds.add(node.data.attachmentId);
+      const provenance = node.data.source;
+      if (provenance && typeof provenance === 'object') {
+        const sourceAttachmentId = (provenance as Record<string, unknown>).attachmentId;
+        if (typeof sourceAttachmentId === 'string') referencedAttachmentIds.add(sourceAttachmentId);
+      }
+      delete node.data.importId;
+    }
+    const attachmentIds = copyBoardAttachments(this._db, source.board.id, board.id, referencedAttachmentIds);
+    if (attachmentIds.size > 0) {
+      const createdImportAttachments = new Set<string>();
+      for (const row of this._db
+        .query<{ id: string; data: string }, [string]>('SELECT id,data FROM nodes WHERE board_id=?')
+        .all(board.id)) {
+        const data = JSON.parse(row.data) as Record<string, unknown>;
+        const old = typeof data.attachmentId === 'string' ? data.attachmentId : null;
+        const sourceData =
+          data.source && typeof data.source === 'object' ? (data.source as Record<string, unknown>) : null;
+        const sourceOld = typeof sourceData?.attachmentId === 'string' ? sourceData.attachmentId : null;
+        if (old && attachmentIds.has(old)) data.attachmentId = attachmentIds.get(old);
+        if (sourceOld && attachmentIds.has(sourceOld))
+          data.source = { ...sourceData, attachmentId: attachmentIds.get(sourceOld) };
+        delete data.importId;
+        this._db.run('UPDATE nodes SET data=? WHERE board_id=? AND id=?', [JSON.stringify(data), board.id, row.id]);
+        if (old && attachmentIds.has(old) && !createdImportAttachments.has(old)) {
+          createImport(this._db, attachmentIds.get(old)!, { x: 40, y: 260 });
+          createdImportAttachments.add(old);
+        }
+      }
+    }
+    return board;
   }
 
   /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
@@ -1910,6 +2003,18 @@ class CanvasStateManager {
   updateNode(id: string, patch: Partial<CanvasNodeState>): void {
     const existing = this.nodes.get(id);
     if (!existing) return;
+    if (patch.data) {
+      const attachmentId = existing.data.attachmentId;
+      if (typeof attachmentId === 'string' && patch.data.attachmentId !== attachmentId) {
+        throw new Error('Attachment identity is immutable.');
+      }
+      const source = existing.data.source;
+      const importedSource =
+        source && typeof source === 'object' && typeof (source as Record<string, unknown>).attachmentId === 'string';
+      if (importedSource && JSON.stringify(patch.data.source) !== JSON.stringify(source)) {
+        throw new Error('Import provenance is immutable.');
+      }
+    }
     const oldSnapshot = structuredClone(existing);
     if (existing.type === 'group' && patch.position) {
       this.translateGroupChildren(id, patch.position.x - existing.position.x, patch.position.y - existing.position.y);

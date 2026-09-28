@@ -204,7 +204,9 @@ server and become part of the authoritative canvas state.
   bar and a `Close` menu item.)
 - Double-left-click a group node — recolor the group using preset swatches or a custom color picker,
   or ungroup it (dissolves the frame; children stay)
-- Drag-and-drop files or URLs — add file, image, markdown, or webpage nodes directly
+- Drag-and-drop files or URLs — add file, image, markdown, or webpage nodes directly. PDF/Office
+  drops retain an original attachment up to 20 MiB and wait for explicit human consent before
+  agent-assisted import; they do not launch an agent or bundled converter.
 - Paste URLs — create webpage nodes from the clipboard
 
 Use browser interactions when the human is actively curating spatial layout. Use MCP or the CLI
@@ -421,8 +423,8 @@ When you do set a color (group/graph), use this palette consistently to convey m
 
 ## MCP Tools Reference
 
-PMX Canvas exposes **17 action-discriminated composites** (the whole recommended surface) plus
-**6 first-class standalones** — 23 tools total. The composites fold the older
+PMX Canvas exposes **18 action-discriminated composites** (the whole recommended surface) plus
+**6 first-class standalones** — 24 tools total. The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
 
@@ -431,10 +433,11 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 > registered — use the composites instead. The authoritative legacy→composite mapping table lives
 > in [`docs/mcp.md`](../../../docs/mcp.md) — this skill does not re-enumerate the removed names.
 
-### The 17 composites
+### The 18 composites
 
 | Composite | `action` values | What it does |
 |-----------|-----------------|--------------|
+| `canvas_import` | `list` · `read` · `submit` · `unavailable` | Process human-requested imports: inspect metadata/controlled bytes, submit reviewable Markdown with references/warnings/agent description, or report unavailable. Request/cancel/commit are human-only |
 | `canvas_node` | `add` · `get` · `update` · `remove` | Create / read / mutate / delete a node. **`add` covers html + primitives too**: `{ action:"add", type:"html", html:"…" }` and `{ action:"add", type:"html", primitive:"choice-grid", data:{} }` — no separate add-html tool needed |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` | Schema introspection, spec dry-run validation, and native json-render / graph node creation |
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
@@ -1553,6 +1556,15 @@ SQLite and renamed to `.bak` on first boot.
 
 Stop the server or flush/close the SDK before committing `canvas.db`; shutdown checkpoints SQLite
 WAL data into the DB file.
+
+Board-owned original attachments are stored in that database until board deletion, survive
+snapshot restore, and therefore travel with database backups. Agent import reads return a
+controlled HTTP path and can include inline base64 only for sources at or below 2 MiB. A remote
+host may need manual transfer. Canvas bundles no converter or OCR and launches no agent
+automatically; a human explicitly requests processing, reviews draft sections/references/warnings,
+and commits only while the captured source board is active. Static export v1 never contains
+original bytes; `includeDerivedText` controls source-linked Markdown separately from
+`includeFiles`, including after that Markdown is edited.
 
 ## Real-Time Collaboration
 
