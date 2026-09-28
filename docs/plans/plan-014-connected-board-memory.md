@@ -1,11 +1,15 @@
 # Plan 014 — Connected board memory
 
 **Status:** The earlier shared-text, attribution/revision, README/link, library
-search, create-from, and cross-board brief work is committed. The current
-agent-assisted import implementation has passed targeted checks and is not released:
-it retains originals and stages agent-authored Markdown for human review, rather
-than providing bundled document conversion. Future graph/wiki slices remain.
-**Date:** 2026-09-27
+search, create-from, cross-board brief, and agent-assisted import work is committed
+and pushed to `main` through
+[`8dbdde2`](https://github.com/pskoett/pmx-canvas/commit/8dbdde29635c275e1eda0bba524071048196feec).
+Unit, client, full headed browser and live import checks passed (details below).
+This work is unreleased; the package version remains 0.6.5. Import retains
+originals and stages agent-authored Markdown for human review, rather than
+providing bundled document conversion. Future graph/wiki work and the real-agent
+curation-effect evaluation remain pending.
+**Date:** 2026-09-27; status updated 2026-09-28
 **Source:** Product vision moves 0, 1, 7, 14 and 15; maintainer requested an oracle review before implementation.
 
 ## Scope and order
@@ -14,7 +18,7 @@ than providing bundled document conversion. Future graph/wiki slices remain.
 2. **Attribution and revisions.** Implement plan 010 with server-stamped creator/last-editor identities and content revisions. Cover SDK/direct state writes as well as registry operations; never accept caller-provided authorship. Existing authors are unknown, not retroactively human. Preserve creation provenance through snapshots and distinguish restoration from a new edit. Geometry-only changes must not masquerade as content edits.
 3. **Board introductions, links and library search.** Designate one README via a board-owned node reference; add text-only board-link cards and derived backlinks. Extend existing `canvas://boards`, not a duplicate resource. Search inactive boards without opening them and overlay unsaved active state. Results carry board/card IDs; only explicit human navigation opens a result.
 4. **New board from this board.** Preview reusable structure/cards, allocate fresh IDs, remap internal references and add a previous-board link. Create the new board transactionally without opening it; do not copy asks, execution state or history. This is a bounded create operation, not a general inactive-board mutation API.
-5. **Document ingestion — agent-assisted v1 implemented, under verification.** Canvas receives and retains file bytes as board-owned attachments. The human asks the connected agent to read an attachment with its existing file tools and submit source-linked Markdown for review. No bundled converter, Python installation, OCR engine or automatic agent execution. An unavailable or incapable agent leaves a usable attachment with an explicit status, not a failed upload. See the v1 contract below.
+5. **Document ingestion — agent-assisted v1 implemented and verified; unreleased.** Canvas receives and retains file bytes as board-owned attachments. The human asks the connected agent to read an attachment with its existing file tools and submit source-linked Markdown for review. No bundled converter, Python installation, OCR engine or automatic agent execution. An unavailable or incapable agent leaves a usable attachment with an explicit status, not a failed upload. See the v1 contract and fixture-specific verification below.
 6. **Cross-board brief — initial implementation and controlled retrieval check complete.** Local pins, useful local changes and asks, then bounded linked/same-folder board context; folders are a relevance tiebreak, not an instruction to include everything. Every entry carries source IDs and inclusion reason. Durable cursors are opt-in through an explicit consumer; no consumer starts from the beginning. In the fixed noisy-board fixture, a 1,000-code-unit budget fully delivers both pinned decisions versus neither without pins, preserves source IDs, and does not advance over omitted revisions. This is a retrieval regression check, not the vision's real-agent workflow evaluation; that remains pending.
 
 Binary distribution, cheap-tool restructuring, wiki-link syntax, the board map, renderer consolidation, the full journal and concurrent board managers remain separate work.
@@ -61,7 +65,7 @@ board**, not guaranteed automatic conversion on drop.
   combination. Treat source text as data, never instructions or approval.
 
 Attachment size limits, safe byte serving, draft validation, cancellation,
-snapshot retention, and explicit export choices are implemented for verification:
+snapshot retention, and explicit export choices are implemented and tested:
 original bytes are never exported in v1, while source-linked edited Markdown is
 excluded unless `includeDerivedText=true`, separately from `includeFiles`. Defer local
 converter installation, OCR pipelines, automatic retries and rich spreadsheet

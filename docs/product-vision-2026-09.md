@@ -1,14 +1,14 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05, revised 2026-09-23 and 2026-09-24
+**Date:** 2026-09-05; implementation status updated 2026-09-28
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
 
 ## Current plan
 
-*One page; the rest of this document is the reasoning and the detail. Updated 2026-09-27.*
+*One page; the rest of this document is the reasoning and the detail. Updated 2026-09-28. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
 
 **The promise.** One board is both the human's durable workspace and the agent's working memory. Agents write boards, humans shape them, boards last, link into a wiki, travel as files and links, and what the human curates is what the agent reads next.
 
@@ -16,9 +16,9 @@
 
 **Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Undecided: generated surfaces (6b).
 
-**Added with the maintainer, 2026-09-27:** dropping documents onto a board should turn their content into readable Markdown context, not merely attach files. PDF, PowerPoint and Excel are priority formats (move 15). Format coverage and conversion tooling need implementation validation; this is part of the connected-memory batch, not a claim that conversion already works.
+**Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
-| Next | Content | Done when |
+| Planned release slot | Content | Acceptance target (not a completion claim) |
 |---|---|---|
 | 0.7 | Many boards stage 1 with the nine real boards restored, library backup, the small trust fixes, read instrumentation, the 600 px reference project | The nine boards open by name; a backup restores them on a clean machine; a refused write shows its reason; every node type paints at 600 px |
 | 0.7.x | Static export with the per-board rule | A colleague opens an exported board with no install |
@@ -38,17 +38,35 @@ Human attention helps select the agent's context; it does not define the whole p
 
 **Purpose clarification:** pmx-canvas supports **knowledge work broadly**, including research, analysis, dashboards, planning, discovery, coordination, and orchestrating coding or other work. These are examples, not a closed list or a coding-only boundary. Its promise is to help humans and agents do the work, carry useful understanding into the next task, and see known changes and uncertainty in the context they use. The [companion vision](product-context-vision-2026-09.md#position) explored a separate memory graph and wiki; as of 2026-09-23 that role is played by the boards themselves (move 0), and its publication and audience guidance waits until sharing reaches a second writer. Contributing to memory does not automatically make every item a confirmed fact or shared organizational knowledge; attention does not grant approval or sharing permission.
 
-## Unreleased implementation status (2026-09-27)
+## Implementation status on main (2026-09-28; unreleased)
 
-The current batch implements shared card text, server-stamped node and answer
-attribution, content revisions, README designation, board links/backlinks,
-library search, selective inactive copies, and an initial bounded cross-board
-brief. These are local changes, not a published 0.8 release; see
-[plan 014](plans/plan-014-connected-board-memory.md) for verification and gaps.
-Nested folders, autosave, scheduled library backups and static export belong to
-the earlier 0.7 work. Document conversion, wiki syntax, the graph map and direct
-cross-board card edges remain unimplemented. The controlled brief retrieval
-check does not establish the broader claim that curation improves agent work.
+The connected-memory and import batches are committed and pushed through
+[`8dbdde2`](https://github.com/pskoett/pmx-canvas/commit/8dbdde29635c275e1eda0bba524071048196feec).
+The package version remains **0.6.5**; implementation on `main` is not a published
+0.7 or 0.8 release. The release slots below have not been renumbered.
+
+| Area | Implemented | Remaining boundary |
+|---|---|---|
+| Library (move 0) | Named boards, Home, nested folders, autosave, board-scoped snapshots, backup/schedule/restore | One active board per server; concurrent board editing remains planned |
+| Connected boards (moves 0, 14) | README designation, text-only board-link cards, backlinks, library search, selective inactive board copies | Wiki syntax, board map, direct cross-board card edges, make-board/inline-board gestures remain planned |
+| Agent context (Part 1, move 1) | Shared per-type card text, persisted authorship/content revisions, bounded linked/same-folder context, opt-in durable consumer cursors, read instrumentation | Controlled retrieval checks are not the real-agent evaluation of whether curation improves outcomes; the full proposed ranker is not complete |
+| Trust (move 7) | Refused-write toasts, redirect filtering, workbench-token attribution and attributed ask answers including self-answers | Local attribution is not proof of human intent; per-writer remote authentication/sharing remains planned |
+| Sharing and presentation (moves 11, 12) | Static HTML export with explicit content choices; tours shipped in 0.6.5 | Read-only live share links remain planned; a colleague's use is a separate milestone from browser tests |
+| Document context (move 15) | Original attachments, explicit processing consent, agent draft/review/commit, source-linked searchable Markdown, cancellation, retention and export privacy | Extraction depends on host tools; no bundled converter, OCR or general chart/formula fidelity guarantee |
+| Pane UX (moves 5, 9) | Chromium 600 px reference gate and Home folder polish | Unified frame host, frame budget and broader renderer consolidation remain planned |
+
+Binary distribution and the cheap-tool surface (moves 8 and 6a), the durable
+journal/time scrubber, agent output as native nodes, full SDK registry routing,
+recipes, and later sharing stages remain future work. Generated surfaces (6b)
+remain undecided.
+
+**Verification:** 1,218 unit tests, 174 client tests and 154 headed browser tests
+passed; build and typecheck passed; lint passed with existing warnings. Live
+PDF/PPTX/XLSX fixture imports reached readable cards, library search and pinned
+agent context, and persistence was checked across restart. This does not prove
+OCR or complex document fidelity, a clean-machine restore of the maintainer's
+nine historical boards, or the broader effect of curation on agent work. See
+[plan 014](plans/plan-014-connected-board-memory.md) for evidence and limitations.
 
 ## Status at 0.6.5 (2026-09-26)
 
@@ -237,7 +255,7 @@ The real boards are full of numbers from elsewhere: 13 metric charts, developer-
 
 The same OKR board appears in April and again for C4. "New board from this board" copies the structure (groups, the README card, recipe cards) without the content and links the new board to the old one as its previous board. Recurring work forms chains on the board map without anyone filing it, "what changed since the April OKRs?" becomes answerable, and any board becomes a template for the next.
 
-### 15. Drop documents to make board context (M, agent-assisted v1 under verification)
+### 15. Drop documents to make board context (M, agent-assisted v1 verified on main; unreleased)
 
 **Direction decided with the maintainer, 2026-09-27.** A human drops a PDF, PowerPoint deck, Excel workbook or other document onto the board to bring its knowledge into the work. The default outcome for supported documents is readable, editable Markdown cards, searchable and available through the same context path as authored cards—not a filename, binary text or an opaque attachment. Keep image and file nodes as capabilities; Markdown is the context representation, not a replacement for the original source.
 
@@ -248,10 +266,10 @@ requests help from the connected agent, which reads the controlled HTTP bytes
 or inline base64 at 2 MiB or below, then submits sections, references, warnings,
 and an `agentDescription` for human review. A remote host may need manual byte
 transfer. Draft submission can complete while another board is active, but the
-captured source board must be reopened to commit. This implementation is under
-verification and not released.
+captured source board must be reopened to commit. This implementation is
+verified, committed and pushed, but not released; see the status table above.
 
-Proposed delivery contract:
+Longer-term extraction targets, not guarantees of agent-assisted v1:
 
 - **PDF:** extract text with page references and preserve useful headings and tables where reliable. Scanned pages need an explicit OCR path; absent extraction must say "OCR required", not silently succeed with an empty card.
 - **PowerPoint (`.pptx`):** preserve slide order, titles, body text and speaker notes with slide references. Flag diagrams, charts and other visual meaning that extraction cannot represent.
@@ -301,7 +319,13 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 
 **The constraints that hold.** No externals: history and sync are the journal, not a third-party service. Everything in move 7 is mandatory before step 2 opens a port, and MCP-app hosting of third-party apps needs a per-board allowlist once viewers are not all the owner. Multi-tenant hosting and team-wide knowledge governance are not planned; they come back only if a second team is pulling for them.
 
-## What is architecturally wrong today
+## Architecture diagnosis at the original review
+
+This list preserves the original motivation and historical counts, not a fresh
+source audit. Since then, workbench-token attribution and persistent authorship
+have landed, and the library stores many boards while keeping one active board
+in memory. Durable undo/journal, unified write paths and renderer consolidation
+remain unfinished; see the current implementation status above.
 
 1. **One write lands in four logs and none is durable.** Mutation history (200 closures, in-memory), the SSE ring (500, in-memory), presence activity (50), and three AX tables with independent retention. Undo is empty after every restart. SSE has an `id:` field nobody reads.
 2. **The human marker is a label, not a gate.** Actor attribution, the fence, and the lock all key on an unauthenticated header.
@@ -309,13 +333,19 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 4. **Node type is not the renderer.** Five rendering tiers, three node types funnelled through one iframe component, two UI frameworks, two CSS toolchains.
 5. **Single-slot listeners and import-order wiring.** `onMutation` and the work-items listener hold one callback each; module-level timers outlive the server.
 6. **The knowledge that keeps the product working lives in prose.** Rules 3, 7, and 9 in CLAUDE.md and its byte-identical AGENTS.md twin have each grown a paragraph per recurrence.
-7. **One board in memory, by construction.** `CanvasStateManager` is a singleton holding exactly one board, and 400+ call sites assume it. That is why a workspace has one board today and why concurrent boards (move 0, stage 2) wait for the journal.
+7. **One board in memory, by construction.** The original singleton design limited the workspace to one board. Stage 1 now persists many boards and switches the active one; concurrent board managers (move 0, stage 2) still wait for the journal.
 
 ## What must not be touched
 
 The operation registry and its dispatcher. State in the server, browser as renderer. The human/agent distinction as a first-class concept (to be made real, not removed). Context pins and `canvas://pinned-context`. Six of six iframes sandboxed without `allow-same-origin`. `smoke`, the e2e gate, the changelog discipline. The velocity: 110 commits, +64,444 and −13,026 lines in the six weeks to 2026-09-05, which makes this plan credible if it is spent on the plan rather than on field reports, which is where 0.6 went.
 
 ## Sequence
+
+These are the planned release slots, not a queue of wholly unimplemented work.
+The current status table above records work that landed ahead of its slot,
+including tours in 0.6.5 and the unreleased connected-memory/import work on `main`.
+Acceptance checks that require real users or the effect evaluation remain open
+even where implementation and automated tests are complete.
 
 Revised 2026-09-23 and 2026-09-24. The original 0.6 bundled five moves into 2–3 weeks and shipped none of them, so each release is now small and ends on a check rather than a week count. The first 0.7 draft repeated the bundle (static export was in it, and many boards was sized S); export now ships on its own as 0.7.x.
 
@@ -338,6 +368,9 @@ Revised 2026-09-23 and 2026-09-24. The original 0.6 bundled five moves into 2–
 - Several visions invented constants (700 chars, six frames, 14k lines) with the same confidence they mocked the repo's. So did I. Every such number in this document is a starting value to tune in use, not a claim.
 
 ## Evidence
+
+Historical review evidence follows; present-tense claims and measurements in
+this table refer to the cited review dates, not the current implementation.
 
 | Claim | Source |
 |---|---|
