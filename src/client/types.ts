@@ -14,6 +14,7 @@ export interface CanvasNodeState {
     | 'webpage'
     | 'json-render'
     | 'graph'
+    | 'board'
     | 'prompt'
     | 'response'
     | 'status'
@@ -74,6 +75,7 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
   webpage: 'WEB',
   'json-render': 'UI',
   graph: 'GRAPH',
+  board: 'BOARD',
   prompt: 'ASK',
   response: 'ANS',
   status: 'STATUS',

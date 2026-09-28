@@ -8,7 +8,7 @@
 
 ## Current plan
 
-*One page; the rest of this document is the reasoning and the detail. Updated 2026-09-26.*
+*One page; the rest of this document is the reasoning and the detail. Updated 2026-09-27.*
 
 **The promise.** One board is both the human's durable workspace and the agent's working memory. Agents write boards, humans shape them, boards last, link into a wiki, travel as files and links, and what the human curates is what the agent reads next.
 
@@ -16,11 +16,13 @@
 
 **Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Undecided: generated surfaces (6b).
 
+**Added with the maintainer, 2026-09-27:** dropping documents onto a board should turn their content into readable Markdown context, not merely attach files. PDF, PowerPoint and Excel are priority formats (move 15). Format coverage and conversion tooling need implementation validation; this is part of the connected-memory batch, not a claim that conversion already works.
+
 | Next | Content | Done when |
 |---|---|---|
 | 0.7 | Many boards stage 1 with the nine real boards restored, library backup, the small trust fixes, read instrumentation, the 600 px reference project | The nine boards open by name; a backup restores them on a clean machine; a refused write shows its reason; every node type paints at 600 px |
 | 0.7.x | Static export with the per-board rule | A colleague opens an exported board with no install |
-| 0.8 | Portals and the library, search across boards, a meaningful text form for every node type, the cross-board brief, author on every node and on every ask answer, new board from this board | The brief check passes and the measurement is read against its decision rule |
+| 0.8 | Portals and the library, search across boards, a meaningful text form for every node type, document drop as Markdown context (15), the cross-board brief, author on every node and on every ask answer, new board from this board | Imported documents are readable and searchable context; the brief check passes and the measurement is read against its decision rule |
 
 **Hold the line.** No host-compatibility work jumps the queue until 0.7 ships, with two exceptions: regressions the reference project catches, and a bug that blocks the maintainer's real work in the host they use daily (today the Copilot app, a WebKit pane the Chromium reference does not cover). The second exception is narrow on purpose: it covers a board that cannot be used, not a tile that paints late or a host the maintainer is only testing.
 
@@ -35,6 +37,18 @@
 Human attention helps select the agent's context; it does not define the whole product. Explicit steering directs agents; annotations, pins, connections, and grouping inform relevance, while spatial layout and human camera attention can contribute weaker cues. The server compiles one budgeted brief for every agent turn. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run a board is shared: first as an exported file, then as a link, then with comments and a second writer. That is the destination, not hosted multi-tenant multiplayer (Part 3).
 
 **Purpose clarification:** pmx-canvas supports **knowledge work broadly**, including research, analysis, dashboards, planning, discovery, coordination, and orchestrating coding or other work. These are examples, not a closed list or a coding-only boundary. Its promise is to help humans and agents do the work, carry useful understanding into the next task, and see known changes and uncertainty in the context they use. The [companion vision](product-context-vision-2026-09.md#position) explored a separate memory graph and wiki; as of 2026-09-23 that role is played by the boards themselves (move 0), and its publication and audience guidance waits until sharing reaches a second writer. Contributing to memory does not automatically make every item a confirmed fact or shared organizational knowledge; attention does not grant approval or sharing permission.
+
+## Unreleased implementation status (2026-09-27)
+
+The current batch implements shared card text, server-stamped node and answer
+attribution, content revisions, README designation, board links/backlinks,
+library search, selective inactive copies, and an initial bounded cross-board
+brief. These are local changes, not a published 0.8 release; see
+[plan 014](plans/plan-014-connected-board-memory.md) for verification and gaps.
+Nested folders, autosave, scheduled library backups and static export belong to
+the earlier 0.7 work. Document conversion, wiki syntax, the graph map and direct
+cross-board card edges remain unimplemented. The controlled brief retrieval
+check does not establish the broader claim that curation improves agent work.
 
 ## Status at 0.6.5 (2026-09-26)
 
@@ -223,6 +237,25 @@ The real boards are full of numbers from elsewhere: 13 metric charts, developer-
 
 The same OKR board appears in April and again for C4. "New board from this board" copies the structure (groups, the README card, recipe cards) without the content and links the new board to the old one as its previous board. Recurring work forms chains on the board map without anyone filing it, "what changed since the April OKRs?" becomes answerable, and any board becomes a template for the next.
 
+### 15. Drop documents to make board context (M, delivered by format)
+
+**Direction decided with the maintainer, 2026-09-27.** A human drops a PDF, PowerPoint deck, Excel workbook or other document onto the board to bring its knowledge into the work. The default outcome for supported documents is readable, editable Markdown cards, searchable and available through the same context path as authored cards—not a filename, binary text or an opaque attachment. Keep image and file nodes as capabilities; Markdown is the context representation, not a replacement for the original source.
+
+Today the browser imports Markdown as Markdown and images as images, but reads other dropped files with `File.text()` into file nodes (`src/client/canvas/import-files.ts`). This is not document extraction. Build one server-owned import path shared by drag-and-drop, an accessible file picker and agent transports; accept file bytes rather than assuming the server can read a browser-local path. SQLite remains canonical. An import captures its target board before asynchronous conversion and must never land on a different board after navigation.
+
+Proposed delivery contract:
+
+- **PDF:** extract text with page references and preserve useful headings and tables where reliable. Scanned pages need an explicit OCR path; absent extraction must say "OCR required", not silently succeed with an empty card.
+- **PowerPoint (`.pptx`):** preserve slide order, titles, body text and speaker notes with slide references. Flag diagrams, charts and other visual meaning that extraction cannot represent.
+- **Excel (`.xlsx`, with CSV as a simpler companion):** preserve sheet names, headers and cell values as Markdown tables, with sheet/range references. Do not silently drop sheets, clip large tables, execute macros or pretend to recalculate formulas; disclose cached values and missing results. Legacy `.ppt` and `.xls` support is a separate explicit format decision.
+- **Other documents:** add formats such as DOCX through the same path as converters are validated. Unsupported, encrypted or damaged files get a clear per-file result; never decode arbitrary binary bytes as text.
+- **Dependency footprint:** the maintainer prefers no new required dependency. Reuse the existing runtime and libraries first; MarkItDown and Defuddle are references, not selected dependencies. PDF/Office conversion must still be reliable. Any optional converter installation or required new parser needs an explicit tradeoff, not a hidden setup requirement.
+- **Readable at 600 px:** show per-file progress, cancellation and conversion warnings. Keep small documents together; split larger documents by sections, slides or sheets into a labelled source group rather than flooding the canvas. Offer a preview of the split and equivalent picker controls for users who cannot drag files.
+- **Source and freshness:** retain the original as a board-owned attachment and record filename, content hash, import time, converter and page/slide/sheet references using existing provenance. Extraction is distinct from an optional agent-written summary. Re-import must not overwrite human edits silently; offer an explicit replacement or a new version.
+- **Local and bounded:** convert locally by default, with file, expanded-archive and processing limits. Treat imported text as source material, not executable instructions. External conversion or OCR needs explicit consent. Export must disclose imported content as well as original attachments; extracting a document must not bypass file-content sharing choices.
+
+**Done when:** representative PDF, PPTX and XLSX fixtures dropped in a real browser produce correct, source-linked Markdown; the content survives restart, appears in library search and reaches pinned agent context. Tests cover partial extraction, unsupported and corrupt files, oversized inputs, cancellation and board switching during import. A visible card alone is not proof that the document's meaning survived conversion.
+
 ### The payoff nobody asked for
 
 With one journal, a **time scrubber** replaces snapshots, the History drawer, and diff: drag a slider and watch the agent's work unfold on the board. With one brief, an **attention heat** on the board, and on the board map across boards, shows the human exactly what the agent will read next, so looking and pinning become visible tuning. Those two are the demo. They are also the two-way surface at its most literal: you see what the agent sees, and you see what it did.
@@ -271,7 +304,7 @@ Revised 2026-09-23 and 2026-09-24. The original 0.6 bundled five moves into 2–
 |---|---|---|
 | 0.7 | Many boards stage 1 with the nine real boards restored, and library backup (move 0); the S half of trust (move 7: `res.ok` toasts, redirect host filter); read instrumentation (Part 1, item 4); the Chromium 600 px reference project (5). | The nine boards open by name; a backup restores them on a clean machine; a refused write shows its reason; every node type paints at 600 px; agent reads are being recorded. |
 | 0.7.x | Static export with the per-board rule (11). | A colleague opens an exported board with no install. This is the second-user milestone. |
-| 0.8 | Portals, README card, `canvas://boards`, search across boards (0), a meaningful text form for every node type (1), new board from this board (14), author on every node and attributed ask answers with the boot secret (7), the one read with its cross-board tier (Part 1), the cheap tool surface (6a), the binary (8). | "What changed since the April OKRs?" is answered from a board linked to the April board, without the agent being told which board to read; the per-type text-form check passes; the measurement from 0.7 is read against the Part 1 decision rule and the outcome is written into this document. |
+| 0.8 | Portals, README card, `canvas://boards`, search across boards (0), a meaningful text form for every node type (1), document drop as Markdown context (15), new board from this board (14), author on every node and attributed ask answers with the boot secret (7), the one read with its cross-board tier (Part 1), the cheap tool surface (6a), the binary (8). | "What changed since the April OKRs?" is answered from a board linked to the April board, without the agent being told which board to read; imported documents are readable, source-linked and searchable; the per-type text-form check passes; the measurement from 0.7 is read against the Part 1 decision rule and the outcome is written into this document. |
 | 0.9 | Wiki links and the board map, make board and inline board (0), tours (12), recipe cards (13), the frame host (5). | A board with 20 portals mounts no more iframes than one without; a tour runs inside an exported file. |
 | 1.0 | The journal and bookmarks (4), the agent's output onto the board (3), the SDK through the registry, the M half of trust with the read-only share link (7, Part 3 step 2), time scrubber, culling and frame budget (9). | A colleague follows a shared link to a live board and sees it change. |
 | After 1.0 | Comments and a second writer (Part 3 steps 3–4), concurrent boards (0, stage 2), state as a fold of the journal, generated surfaces (6b, if decided), session projection (Part 1, item 2). | Each step starts only when the previous one is in use. |

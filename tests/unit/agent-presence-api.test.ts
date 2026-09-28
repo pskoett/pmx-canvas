@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { agentPresence } from '../../src/server/agent-presence.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { workbenchToken } from '../../src/server/workbench-auth.ts';
 import type { AgentPresenceSnapshot } from '../../src/shared/agent-presence.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -107,7 +108,7 @@ describe('agent presence over HTTP', () => {
     const humanCreate = await postJson(
       '/api/canvas/node',
       { type: 'markdown', title: 'From the browser' },
-      { 'x-pmx-workbench': '1' },
+      { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': workbenchToken },
     );
     expect(humanCreate.ok).toBe(true);
     const afterHuman = await getPresence();
@@ -146,7 +147,7 @@ describe('agent presence over HTTP', () => {
     await postJson(
       '/api/canvas/node',
       { type: 'markdown', title: 'Human made', x: 400, y: 10 },
-      { 'x-pmx-workbench': '1' },
+      { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': workbenchToken },
     );
     history = (await (await fetch(`${baseUrl}/api/canvas/history`)).json()) as typeof history;
     expect(history.top?.actor).toBe('human');

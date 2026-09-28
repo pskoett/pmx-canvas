@@ -37,9 +37,9 @@ describe('demo canvas seed', () => {
   });
 
   test('seeds the showcase board with the expected counts', () => {
-    expect(seedDemoCanvas()).toEqual({ nodes: 69, edges: 9, groups: 1 });
+    expect(seedDemoCanvas()).toEqual({ nodes: 70, edges: 9, groups: 1 });
     const layout = canvasState.getLayout();
-    expect(layout.nodes).toHaveLength(69);
+    expect(layout.nodes).toHaveLength(70);
     expect(layout.edges).toHaveLength(9);
     expect(layout.annotations).toHaveLength(1);
   });

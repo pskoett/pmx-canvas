@@ -8,16 +8,27 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Changed
 
 - The canvas database now stores many named boards. On first start your current board becomes a board named after the workspace, every old snapshot becomes a board of its own, and a copy of the old file is kept as `canvas.db.pre-boards` (older versions cannot open the migrated file).
+- Agent context and search now read chart values, diagram labels and structured card text instead of raw renderer configuration.
+- Questions, approvals and mode requests record who asked and answered them, including self-answers; this attribution describes the writer and does not grant permission.
 
 ### Added
 
 - Sort boards into categories on Home; each category is its own section you can fold away, and boards migrated from old snapshots start in a folded "From old snapshots" section.
 - Export a board as one HTML file anyone can open without installing anything, from **Export** in the top bar or `pmx-canvas export`; the dialog lists what goes into the file first, and local file contents stay out unless you include them.
-- Back up every board with `pmx-canvas backup` or "Back up now" on Home, on a schedule with `pmx-canvas backup schedule --every 24h`, and bring a backup back with `pmx-canvas restore` (the replaced file is kept).
+- Back up every board with `pmx-canvas backup`, schedule server-run copies with `pmx-canvas backup schedule --every 24h`, and bring a backup back with `pmx-canvas restore` (the replaced file is kept); Home has no backup button.
 - The top bar shows the open board; click it to switch to a recent board, create a new one, or go Home, where you can open, rename, and delete boards (deleting asks first).
 - Agents can list, read and create boards with `canvas_board`, `canvas://boards`, `pmx-canvas board list|create|rename`, and the `/api/canvas/boards` routes; only you open, switch or delete a board.
 - Agent writes go to the board you have open; on Home, an agent's first write opens your most recent board, or creates one if there are none.
 - The canvas now records which context each agent reads and whether your pinned nodes were in it, readable with `pmx-canvas ax reads`, `canvas_ax_timeline { action: "reads" }`, or `GET /api/canvas/ax/context-reads`.
+- Designate a Markdown card as a board README, add text-only board-link cards, inspect outgoing links and backlinks, and search cards across the library without switching boards.
+- Preview and create an inactive board from selected reusable cards and optional groups/README; copied cards receive fresh IDs and omit pins, AX state and history.
+- Read a character-bounded cross-board brief with source IDs over MCP, HTTP, CLI or SDK; a durable cursor is used only when a stable consumer ID is supplied.
+
+### Known limitations
+
+- The connected-memory work is not released or deployed yet.
+- PDF, PowerPoint and Excel conversion is not implemented. No converter has been selected, and the preference remains to avoid a new required dependency.
+- A graph map, direct card-to-card edges across boards, and wiki-link syntax are not implemented.
 
 ### Fixed
 

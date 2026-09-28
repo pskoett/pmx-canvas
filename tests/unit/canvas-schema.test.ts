@@ -152,13 +152,14 @@ describe('describeCanvasSchema — MCP tool surface', () => {
 });
 
 describe('describeCanvasSchema — node type create schemas', () => {
-  test('advertises exactly the current 18 creatable node types', () => {
+  test('advertises exactly the current 19 creatable node types', () => {
     const types = describeCanvasSchema()
       .nodeTypes.map((entry) => entry.type)
       .sort();
     expect(types).toEqual(
       [
         'markdown',
+        'board',
         'status',
         'context',
         'ledger',
@@ -190,6 +191,7 @@ describe('describeCanvasSchema — node type create schemas', () => {
     }
     expect(requiredByType).toEqual({
       markdown: [],
+      board: ['data'],
       status: [],
       context: [],
       ledger: [],

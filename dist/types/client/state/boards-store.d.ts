@@ -10,6 +10,23 @@ export interface BoardSummary {
     createdAt: string;
     lastOpenedAt: string | null;
     nodeCount: number;
+    readmeNodeId?: string | null;
+    summary?: string | null;
+    pinnedTitles?: Array<{
+        nodeId: string;
+        title: string;
+    }>;
+    links?: Array<{
+        nodeId: string;
+        boardId: string;
+        title: string | null;
+        missing: boolean;
+    }>;
+    backlinks?: Array<{
+        boardId: string;
+        title: string;
+        nodeId: string;
+    }>;
 }
 export declare const boardList: import("@preact/signals-core").Signal<BoardSummary[]>;
 export declare const activeBoardId: import("@preact/signals-core").Signal<string | null>;
@@ -26,10 +43,37 @@ export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */
 export declare function openBoard(id: string | null): Promise<void>;
 export declare function createAndOpenBoard(name: string): Promise<void>;
+export interface BoardCopyCard {
+    id: string;
+    type: string;
+    title: string | null;
+    reusable: boolean;
+}
+export interface BoardCopyPreview {
+    sourceBoardId: string;
+    readmeNodeId: string | null;
+    cards: BoardCopyCard[];
+    edges: Array<{
+        id: string;
+        from: string;
+        to: string;
+        type: string;
+    }>;
+}
+export declare function previewBoardCopy(sourceBoardId: string): Promise<BoardCopyPreview | null>;
+export declare function createBoardFrom(opts: {
+    sourceBoardId: string;
+    name: string;
+    category?: string;
+    nodeIds: string[];
+    includeReadme: boolean;
+    includeStructure: boolean;
+}): Promise<BoardSummary | null>;
 /** Rename and/or re-file a board; `category: null` removes it from its category. */
 export declare function updateBoard(id: string, patch: {
     name?: string;
     category?: string | null;
 }): Promise<void>;
+export declare function setBoardReadme(id: string, readmeNodeId: string | null): Promise<void>;
 export declare function deleteBoard(id: string): Promise<void>;
 export declare function activeBoard(): BoardSummary | null;

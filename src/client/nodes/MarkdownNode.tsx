@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { expandNode, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
+import { activeBoard, setBoardReadme } from '../state/boards-store';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
 import { InlineMarkdownEditor } from './InlineMarkdownEditor';
@@ -82,6 +83,7 @@ export function toggleTaskMarker(markdown: string, index: number): string {
 }
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
+  const board = activeBoard();
   const path = node.data.path as string;
   const [content, setContent] = useState('');
   const [rendered, setRendered] = useState('');
@@ -362,26 +364,38 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // ── Card preview ──────────────────────────────────────────────
 
   return (
-    <div style={{ height: '100%', position: 'relative' }}>
-      {reviewBanner}
-      <RenderedMarkdown
-        html={rendered}
-        style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
-        // Task checkboxes are live on the card itself — no need to expand to tick one.
-        onTaskToggle={(index) => {
-          const next = toggleTaskMarker(content, index);
-          if (next !== content) handleInlineSave(next);
-        }}
-      />
-      {!loaded && <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>}
-      {loaded && !rendered && (
-        <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Empty node</div>
-      )}
-      {/* Hover-revealed, solid-backed chip — always-on it sat on the first
-          line of content (double-click edits inline; this is discovery). */}
-      <button type="button" class="md-edit-btn" onClick={() => expandNode(node.id)}>
-        Edit
-      </button>
+    <div class="md-card-preview">
+      <div class="md-card-content">
+        {reviewBanner}
+        <RenderedMarkdown
+          html={rendered}
+          style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
+          // Task checkboxes are live on the card itself — no need to expand to tick one.
+          onTaskToggle={(index) => {
+            const next = toggleTaskMarker(content, index);
+            if (next !== content) handleInlineSave(next);
+          }}
+        />
+        {!loaded && <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>}
+        {loaded && !rendered && (
+          <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Empty node</div>
+        )}
+      </div>
+      <div class="md-card-actions">
+        {board && (
+          <button
+            type="button"
+            class="md-readme-btn"
+            aria-pressed={board.readmeNodeId === node.id}
+            onClick={() => void setBoardReadme(board.id, board.readmeNodeId === node.id ? null : node.id)}
+          >
+            {board.readmeNodeId === node.id ? 'README' : 'Set as README'}
+          </button>
+        )}
+        <button type="button" class="md-card-edit" onClick={() => expandNode(node.id)}>
+          Edit
+        </button>
+      </div>
     </div>
   );
 }

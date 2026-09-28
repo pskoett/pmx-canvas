@@ -86,8 +86,8 @@ export declare const PRESENCE_SET_SHAPE: {
     attached: z.ZodOptional<z.ZodBoolean>;
     parentAgentId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endedBy: z.ZodOptional<z.ZodEnum<{
-        agent: "agent";
         human: "human";
+        agent: "agent";
     }>>;
     contextUsage: z.ZodOptional<z.ZodNullable<z.ZodObject<{
         used: z.ZodNumber;

@@ -1,7 +1,8 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **23 tools** + **15 core resources**,
-plus per-skill resources at `canvas://skills/<name>` and `skill://<name>/SKILL.md`. The server emits
+PMX Canvas ships an MCP stdio server with **23 tools**, **15 static canvas
+resources**, and one canvas resource template, plus per-skill resources at
+`canvas://skills/<name>` and the `skill://{name}/{+path}` template. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
 
@@ -12,7 +13,7 @@ nodes in the browser, agents are notified immediately.
 > shipping the `canvas_snapshot` composite and removing the 6 deprecated
 > snapshot standalones — each step per [`api-stability.md`](api-stability.md)'s
 > deprecate-one-minor-before-removal rule. 0.7 adds the `canvas_board` composite
-> (23 tools). **Prefer the composites.**
+> (23 tools: 17 composites plus 6 standalones). **Prefer the composites.**
 
 ## Board tours
 
@@ -53,7 +54,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
-| `canvas_query` | `search` · `layout` · `validate` | `canvas_search`, `canvas_get_layout`, `canvas_validate` |
+| `canvas_query` | `context` · `search` · `layout` · `validate` | `context` is new; the others replace `canvas_search`, `canvas_get_layout`, `canvas_validate` |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_resize`, `canvas_evaluate` |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_build_web_artifact` |
 | `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_set_ax_policy`, `canvas_report_host_capability` |
@@ -62,13 +63,31 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is new — the context read log) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `update` | _(new in 0.7 — many boards; `update` renames or files a board under a category)_ |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `update` | Boards, README designation, and transactional inactive copies |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 Board categories are nested folder paths: `canvas_board { action: "update", id:
 "<id>", category: "Engineering/Canvas/Decisions" }`. Use `category: ""` to
 unfile a board. Moving preserves its ID and content; list results expose the
 full path for navigating the memory library.
+
+Agents should designate a README during normal board authoring, without requiring
+a manual setup step. Read `canvas_board { action: "get" }`; if `readmeNodeId` is
+null, choose or create a concise markdown introduction, then call `canvas_board
+{ action: "update", id: "<board-id>", readmeNodeId: "<markdown-node-id>" }`.
+Preserve existing designations unless the human asks to change them, and respect
+requests for no README. This is agent workflow guidance, not server-side selection
+of the first markdown card. Humans can change the designation using **Set as README**;
+clicking **README** clears it. Read-only tasks leave the board unchanged.
+
+`canvas_board { action: "create-from" }` accepts `sourceBoardId`, `name`, optional
+`category`, `nodeIds`, `includeReadme`, `includeStructure`, and `preview`. Preview
+first: `prompt`, `response`, `trace`, and `mcp-app` are not reusable. Creation is
+transactional and inactive, assigns fresh node/edge IDs, and copies no pins, AX
+state, or history. Groups and the designated README are opt-in.
+
+Library search is `canvas_query { action: "search", query: "auth", scope:
+"library" }`. It returns board/card IDs and never switches the active board.
 
 Target another board without opening it with `canvas_query { action: "layout",
 board: "<id>" }` or `canvas_node { action: "get", id: "<node-id>", board:
@@ -219,18 +238,22 @@ migrating an older integration.
 
 ## Resources
 
-Individual bundled skills are also readable at `canvas://skills/<name>`.
+There are 15 static canvas resources below and one URI-template resource,
+`canvas://context{?budget,consumer,since}`. Bundled skills add the static
+`canvas://skills/<name>` resources and a separate `skill://{name}/{+path}` file
+template; those dynamic package entries are not part of the core count.
 
 | Resource | Description |
 |----------|-------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
+| `canvas://context{?budget,consumer,since}` | Budgeted cross-board brief with a durable consumer cursor |
 | `canvas://ax` | PMX AX state: focus, work items, approval gates, review annotations |
 | `canvas://ax-context` | Agent-readable pinned and focused AX context, plus a compact `delivery` lead block (`pendingSteering` newest-first + `totalPending`/`omittedPending` counts), timeline summary, and host capability |
 | `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations, elicitations, mode requests, and tool/prompt policy |
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent-events, evidence, and steering messages |
 | `canvas://ax-pending-steering` | Undelivered steering an adapterless MCP client can claim, act on, and mark delivered |
 | `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
-| `canvas://boards` | Boards in the workspace, most recently opened first, and which one is open (`activeBoardId`; null = Home) |
+| `canvas://boards` | Boards with README summaries, resolved links/backlinks, target titles, and the open board id |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
@@ -238,6 +261,14 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | `canvas://history` | Mutation history timeline with undo/redo position |
 | `canvas://code-graph` | Auto-detected file dependency graph (JS/TS, Python, Go, Rust) |
 | `canvas://skills` | Index of bundled agent skills + per-skill content at `canvas://skills/<name>` |
+
+Read context at the start of work. For the cross-board brief, use a stable,
+unique `consumer` per agent/adapter only when durable incremental delivery is
+wanted. Omitting both `consumer` and `since` starts from the beginning; explicit
+`since` does not update a cursor. The budget is UTF-16 code units (default
+16,000; maximum 100,000), not model tokens. Pins are prioritized. If an entry is
+truncated, follow its source board/card IDs with `canvas_board get` and
+`canvas_node get` rather than inferring the missing text.
 
 ### Skills extension (SEP-2640)
 

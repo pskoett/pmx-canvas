@@ -9,6 +9,7 @@
 import { executeOperation, listOperations } from './registry.js';
 import { SOURCE_LABEL_RE } from '../agent-presence.js';
 import { OperationError } from './types.js';
+import { isWorkbenchToken } from '../workbench-auth.js';
 
 function responseJson(data: unknown, status = 200): Response {
   return Response.json(data, {
@@ -88,14 +89,18 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       // The workbench marks its own HTTP calls: a human dragging/editing in
       // the browser is not agent activity, so it never synthesizes an
       // auto-ghost. Everything else (CLI, scripts, adapters) counts as agent.
-      const fromWorkbench = req.headers.get('x-pmx-workbench') === '1';
+      const workbenchMarked = req.headers.get('x-pmx-workbench') === '1';
+      const humanAuthor = isWorkbenchToken(req.headers.get('x-pmx-workbench-token'));
       // Presence writer label: adapters/CLI may identify themselves; plain
       // HTTP callers read as 'api'.
       const sourceHeader = req.headers.get('x-pmx-source');
       const source = sourceHeader && SOURCE_LABEL_RE.test(sourceHeader) ? sourceHeader : 'api';
       const result = await executeOperation(op.name, input, {
-        suppressAutoGhost: fromWorkbench,
-        fromWorkbench,
+        // The legacy marker remains a UI-policy signal (ghost suppression).
+        // Only the unguessable boot token classifies authorship as human.
+        suppressAutoGhost: workbenchMarked,
+        fromWorkbench: workbenchMarked,
+        humanAuthor,
         source,
         proxiedRead: req.headers.get('x-pmx-proxied-read') === '1',
       });

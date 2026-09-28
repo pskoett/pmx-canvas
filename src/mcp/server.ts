@@ -23,7 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { AX_SOURCES } from '../server/operations/ops/ax-shared.js';
@@ -44,6 +44,7 @@ import {
 } from '../server/canvas-serialization.js';
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
 import { registerSkillExtension } from './skills.js';
+import { ContextUriTemplate } from './context-uri-template.js';
 
 let canvas: CanvasAccess | null = null;
 let resourceNotificationServer: McpServer | null = null;
@@ -106,6 +107,7 @@ function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-tim
     server.server.sendResourceUpdated({ uri: 'canvas://layout' });
     server.server.sendResourceUpdated({ uri: 'canvas://boards' });
     server.server.sendResourceUpdated({ uri: 'canvas://summary' });
+    server.server.sendResourceUpdated({ uri: 'canvas://context' });
     server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
     server.server.sendResourceUpdated({ uri: 'canvas://history' });
     server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
@@ -553,6 +555,33 @@ export async function startMcpServer(): Promise<void> {
             uri: 'canvas://pinned-context',
             mimeType: 'application/json',
             text,
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'context',
+    new ResourceTemplate(new ContextUriTemplate(), { list: undefined }),
+    {
+      description:
+        'Budgeted cross-board context brief. budget is a maximum number of UTF-16 characters; consumer selects a durable board-scoped delivery cursor, while since requests an explicit revision.',
+      mimeType: 'application/json',
+    },
+    async (uri) => {
+      const c = await ensureCanvas();
+      const input: Record<string, unknown> = {};
+      if (uri.searchParams.has('consumer')) input.consumer = uri.searchParams.get('consumer');
+      if (uri.searchParams.has('budget')) input.budget = uri.searchParams.get('budget');
+      if (uri.searchParams.has('since')) input.since = uri.searchParams.get('since');
+      const document = await c.invoker().invoke('context.get', input);
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify(document),
           },
         ],
       };

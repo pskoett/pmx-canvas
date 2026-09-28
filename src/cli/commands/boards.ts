@@ -10,6 +10,30 @@ cmd('board list', 'List boards, most recently opened first', ['pmx-canvas board 
 });
 
 cmd(
+  'board from',
+  'Preview or create a board from selected cards on another board',
+  ['pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structure'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args, { boolFlags: ['preview', 'readme', 'structure'] });
+    if (flags.help || flags.h) return showCommandHelp('board from');
+    const [sourceBoardId, ...nameParts] = positional;
+    const name = nameParts.join(' ').trim() || 'New board';
+    if (!sourceBoardId) die('Usage: pmx-canvas board from <source-board-id> <name>');
+    const nodes = getStringFlag(flags, 'nodes');
+    output(
+      await invokeOperation('board.create-from', {
+        sourceBoardId,
+        name,
+        ...(nodes ? { nodeIds: nodes.split(',').filter(Boolean) } : {}),
+        includeReadme: !!flags.readme,
+        includeStructure: !!flags.structure,
+        preview: !!flags.preview,
+      }),
+    );
+  },
+);
+
+cmd(
   'board create',
   'Create an empty board (the human opens it in the workbench)',
   ['pmx-canvas board create "Q4 planning"', 'pmx-canvas board create "Q4 planning" --category Planning'],

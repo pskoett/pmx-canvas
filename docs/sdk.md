@@ -97,6 +97,13 @@ const board = await canvas.createBoard('Q4 planning', 'Planning'); // optional c
 await canvas.updateBoard(board.id, { category: 'Planning/Quarterly' }); // nested folders; null unfiles it
 await canvas.openBoard(board.id);
 console.log(canvas.listBoards()); // { activeBoardId, boards }
+const intro = canvas.addNode({ type: 'markdown', title: 'README', content: '# Quarterly planning' });
+await canvas.setBoardReadme(board.id, intro.id);
+console.log(await canvas.searchLibrary('quarterly', 20));
+console.log(await canvas.createBoardFrom({
+  sourceBoardId: board.id, name: 'Q1 follow-up', nodeIds: [intro.id], includeReadme: true, preview: true,
+}));
+console.log(await canvas.getContextBrief({ consumer: 'my-adapter:workspace', budget: 16000 }));
 await canvas.openBoard(null); // Home
 
 // Read another board without opening it; unknown board IDs throw.

@@ -26,6 +26,8 @@ export interface ApprovalGateView {
   createdAt: string;
   /** Unattended-approval TTL: when a pending gate auto-holds. */
   expiresAt: string | null;
+  resolvedBy?: { actor: 'human' | 'agent' | 'system' | 'unknown'; source: string; agentId?: string } | null;
+  selfAnswer?: boolean;
 }
 export interface AxEventView {
   id: string;
@@ -106,6 +108,9 @@ export async function setScopeFence(nodeIds: string[] | null): Promise<boolean> 
 
 /** Auto-held gates: the policy said no on the human's behalf; they can be reopened. */
 export const heldGates = computed(() => sessionGates.value.filter((gate) => gate.status === 'held'));
+export const resolvedGates = computed(() =>
+  sessionGates.value.filter((gate) => gate.status === 'approved' || gate.status === 'rejected'),
+);
 
 export interface AxTimelineView {
   events: AxEventView[];

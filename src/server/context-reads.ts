@@ -23,6 +23,7 @@ export const CONTEXT_READ_OPS = new Set([
   'summary.get',
   'spatial.get',
   'layout.get',
+  'context.get',
 ]);
 
 export interface ContextRead {
@@ -88,11 +89,17 @@ export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string)
           typeof value === 'object' &&
           value !== null &&
           !Array.isArray(value) &&
-          Object.hasOwn(value, 'id') &&
-          typeof (value as { id?: unknown }).id === 'string' &&
-          pinned.has((value as { id: string }).id)
+          ((typeof (value as { id?: unknown }).id === 'string' && pinned.has((value as { id: string }).id)) ||
+            (typeof (value as { nodeId?: unknown }).nodeId === 'string' &&
+              (value as { titleOnly?: unknown }).titleOnly !== true &&
+              typeof (value as { text?: unknown }).text === 'string' &&
+              pinned.has((value as { nodeId: string }).nodeId)))
         ) {
-          delivered.add((value as { id: string }).id);
+          delivered.add(
+            typeof (value as { id?: unknown }).id === 'string'
+              ? (value as { id: string }).id
+              : (value as { nodeId: string }).nodeId,
+          );
         }
       } catch {
         // An inner object may be complete even when its containing object was clipped.

@@ -131,6 +131,7 @@ export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabili
     'ax.event.record',
   ]),
   graph: caps(true, ['ax.evidence.add', 'ax.focus.set', 'ax.event.record']),
+  board: caps(false, []),
   ledger: caps(true, ['ax.evidence.add', 'ax.event.record']),
   trace: caps(true, ['ax.evidence.add', 'ax.event.record']),
   image: caps(true, ['ax.evidence.add', 'ax.review.add']),

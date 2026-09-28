@@ -17,6 +17,12 @@ export interface ApprovalGateView {
     createdAt: string;
     /** Unattended-approval TTL: when a pending gate auto-holds. */
     expiresAt: string | null;
+    resolvedBy?: {
+        actor: 'human' | 'agent' | 'system' | 'unknown';
+        source: string;
+        agentId?: string;
+    } | null;
+    selfAnswer?: boolean;
 }
 export interface AxEventView {
     id: string;
@@ -69,6 +75,7 @@ export declare const scopeFence: import("@preact/signals-core").ReadonlySignal<S
 export declare function setScopeFence(nodeIds: string[] | null): Promise<boolean>;
 /** Auto-held gates: the policy said no on the human's behalf; they can be reopened. */
 export declare const heldGates: import("@preact/signals-core").ReadonlySignal<ApprovalGateView[]>;
+export declare const resolvedGates: import("@preact/signals-core").ReadonlySignal<ApprovalGateView[]>;
 export interface AxTimelineView {
     events: AxEventView[];
     evidence: AxEvidenceView[];

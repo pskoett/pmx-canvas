@@ -306,14 +306,12 @@ export function searchNodes(
 
   for (const node of nodes) {
     const title = ((node.data.title as string) ?? '').toLowerCase();
-    const content = (
-      (node.data.content as string) ??
-      (node.data.agentSummary as string) ??
-      (node.data.contentSummary as string) ??
-      (node.data.description as string) ??
-      (node.data.fileContent as string) ??
-      ''
-    ).toLowerCase();
+    // Search the same meaning delivered to agents, without a brief's truncation.
+    const fullContent = summarizeNodeForAgentContext(node, {
+      defaultTextLength: Number.POSITIVE_INFINITY,
+      webpageTextLength: Number.POSITIVE_INFINITY,
+    });
+    const content = fullContent.toLowerCase();
     const path = ((node.data.path as string) ?? '').toLowerCase();
     const description = ((node.data.description as string) ?? '').toLowerCase();
     const summary = (
@@ -337,16 +335,10 @@ export function searchNodes(
 
     if (score === 0) continue;
 
-    // Extract a snippet around the first match in content
+    // Any query term may have matched, not necessarily the first one.
     let snippet = '';
-    const fullContent =
-      (node.data.content as string) ??
-      (node.data.agentSummary as string) ??
-      (node.data.contentSummary as string) ??
-      (node.data.description as string) ??
-      (node.data.fileContent as string) ??
-      '';
-    const matchIdx = fullContent.toLowerCase().indexOf(terms[0]);
+    const matches = terms.map((term) => content.indexOf(term)).filter((index) => index >= 0);
+    const matchIdx = matches.length ? Math.min(...matches) : -1;
     if (matchIdx >= 0) {
       const start = Math.max(0, matchIdx - 40);
       const end = Math.min(fullContent.length, matchIdx + 80);

@@ -23,7 +23,13 @@ import { setCanvasContextPins, syncCanvasRuntimeBackends } from '../../canvas-op
 import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
-import { defineOperation, type Operation, type OperationMcpToolHost } from '../types.js';
+import {
+  compileContextBrief,
+  type ContextBriefLibraryBoard,
+  type ContextBriefSourceEntry,
+} from '../../context-brief.js';
+import { summarizeNodeForAgentContext } from '../../agent-context.js';
+import { defineOperation, OperationError, type Operation, type OperationMcpToolHost } from '../types.js';
 import { buildSummaryFromLayout, isRecord } from './nodes.js';
 import { readTargetBoard } from './boards.js';
 
@@ -31,6 +37,8 @@ import { readTargetBoard } from './boards.js';
 
 /** Legacy server.ts handleContextPinsUpdate capped the requested list at 20. */
 const MAX_PINS = 20;
+export const DEFAULT_CONTEXT_BRIEF_BUDGET = 16_000;
+export const MAX_CONTEXT_BRIEF_BUDGET = 100_000;
 
 const pinShape = {
   nodeIds: z.unknown().optional().describe('Array of node IDs to pin'),
@@ -93,6 +101,7 @@ const pinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, u
 
 const searchShape = {
   q: z.unknown().optional().describe('Search query — matches against node titles, content, and file paths'),
+  scope: z.unknown().optional().describe('active (default) or library (all boards)'),
   limit: z.unknown().optional().describe('Max results to return (default: all over HTTP, 10 via the MCP tool).'),
 };
 
@@ -114,12 +123,14 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
     extraShape: {
       query: z.string().describe('Search query — matches against node titles, content, and file paths'),
       limit: z.number().optional().describe('Max results to return (default: 10)'),
+      scope: z.enum(['active', 'library']).optional().describe('Search the active board or the full board library'),
     },
     // Map the MCP-facing `query` arg onto the wire's `q`. The handler caps by
     // `limit` on every transport; the MCP tool additionally defaults it to 10.
     buildInput: (input) => ({
       q: typeof input.query === 'string' ? input.query : '',
       ...(typeof input.limit === 'number' ? { limit: input.limit } : {}),
+      ...(input.scope === 'library' ? { scope: 'library' } : {}),
     }),
     formatResult: (result, input) => {
       const body = isRecord(result) ? result : {};
@@ -155,11 +166,190 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
         : typeof rawLimit === 'string' && rawLimit.trim() !== ''
           ? Number(rawLimit)
           : Number.NaN;
-    const results = searchNodes(canvasState.getLayout().nodes, q);
+    const library = input.scope === 'library';
+    const results = library
+      ? canvasState.listBoards().flatMap((board) => {
+          const read = canvasState.readBoard(board.id, true);
+          if (!read) return [];
+          const cards = searchNodes(read.layout.nodes, q).map((result) => ({
+            ...result,
+            boardId: board.id,
+            boardTitle: board.name,
+            cardId: result.id,
+          }));
+          const metadata = `${board.name} ${board.category ?? ''}`.toLocaleLowerCase();
+          const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
+          const readmeText = typeof readme?.data.content === 'string' ? readme.data.content : '';
+          if (`${metadata} ${readmeText.toLocaleLowerCase()}`.includes(q.toLocaleLowerCase())) {
+            cards.unshift({
+              id: board.id,
+              type: 'board',
+              title: board.name,
+              snippet: readmeText.slice(0, 160) || board.category || board.name,
+              score: metadata.includes(q.toLocaleLowerCase()) ? 4 : 2,
+              boardId: board.id,
+              boardTitle: board.name,
+              cardId: readme?.id ?? board.id,
+            });
+          }
+          return cards;
+        })
+      : searchNodes(canvasState.getLayout().nodes, q).map((result) => ({
+          ...result,
+          boardId: canvasState.activeBoardId,
+          cardId: result.id,
+        }));
+    results.sort((a, b) => b.score - a.score);
     return {
       results: Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results,
       query: q,
     };
+  },
+});
+
+// ── context.get ───────────────────────────────────────────────
+
+const contextShape = {
+  consumer: z.unknown().optional().describe('Stable consumer id used for the durable board-scoped cursor'),
+  since: z.unknown().optional().describe('Explicit content revision; bypasses the durable consumer cursor'),
+  budget: z.unknown().optional().describe('Maximum response size in UTF-16 code units'),
+};
+const contextSchema = z.looseObject(contextShape);
+
+const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<string, unknown>>({
+  name: 'context.get',
+  mutates: false,
+  input: contextSchema,
+  inputShape: contextShape,
+  http: { method: 'GET', path: '/api/canvas/context' },
+  handler: (input) => {
+    const active = canvasState.getActiveBoard();
+    if (!active) throw new OperationError('Open a board before requesting its context.', 409);
+    const consumer =
+      typeof input.consumer === 'string' && input.consumer.trim() ? input.consumer.trim().slice(0, 200) : null;
+    const explicitSince = input.since !== undefined;
+    const sinceValue = explicitSince
+      ? Number(input.since)
+      : consumer
+        ? canvasState.getContextBriefCursor(active.id, consumer)
+        : null;
+    const budgetValue = input.budget === undefined ? DEFAULT_CONTEXT_BRIEF_BUDGET : Number(input.budget);
+    const budget = Number.isFinite(budgetValue)
+      ? Math.min(MAX_CONTEXT_BRIEF_BUDGET, Math.max(0, Math.floor(budgetValue)))
+      : DEFAULT_CONTEXT_BRIEF_BUDGET;
+
+    // Capture the active target and revision synchronously. Library boards are
+    // read from SQLite and are never opened or made writable by this operation.
+    const layout = canvasState.getLayout();
+    const revision = canvasState.getContentRevision();
+    const pinnedNodeIds = [...canvasState.contextPinnedNodeIds];
+    const linkedIds = new Map<string, string[]>();
+    for (const node of layout.nodes) {
+      if (node.type !== 'board' || typeof node.data.boardId !== 'string') continue;
+      const ids = linkedIds.get(node.data.boardId) ?? [];
+      ids.push(node.id);
+      linkedIds.set(node.data.boardId, ids);
+    }
+    const libraryBoards: ContextBriefLibraryBoard[] = [];
+    for (const board of canvasState.listBoards()) {
+      if (board.id === active.id) continue;
+      if (!linkedIds.has(board.id) && (!active.category || active.category !== board.category)) continue;
+      const read = canvasState.readBoard(board.id, true);
+      if (!read) continue;
+      const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
+      const pins = new Set(read.state.contextPins);
+      libraryBoards.push({
+        boardId: board.id,
+        name: board.name,
+        category: board.category,
+        ...(readme
+          ? {
+              readme: {
+                nodeId: readme.id,
+                title: typeof readme.data.title === 'string' ? readme.data.title : readme.id,
+                summary: summarizeNodeForAgentContext(readme, { defaultTextLength: 1_000, webpageTextLength: 1_000 }),
+              },
+            }
+          : {}),
+        pinnedTitles: read.layout.nodes
+          .filter((node) => pins.has(node.id))
+          .map((node) => ({
+            nodeId: node.id,
+            title: typeof node.data.title === 'string' ? node.data.title : node.id,
+          })),
+        linkIds: linkedIds.get(board.id) ?? [],
+      });
+    }
+    const entries: ContextBriefSourceEntry[] = layout.nodes
+      .filter((node) => node.createdBy?.actor === 'human')
+      .map((node) => ({
+        sourceBoardId: active.id,
+        nodeId: node.id,
+        reason: 'human' as const,
+        title: typeof node.data.title === 'string' ? node.data.title : node.id,
+        text: summarizeNodeForAgentContext(node, { defaultTextLength: budget, webpageTextLength: budget }),
+      }));
+    entries.push(
+      ...canvasState
+        .getApprovalGates()
+        .filter((item) => item.status === 'pending')
+        .map((item) => ({
+          sourceBoardId: active.id,
+          nodeId: `approval:${item.id}`,
+          reason: 'ask' as const,
+          title: item.title,
+          text: item.detail || item.action || 'Approval requested.',
+        })),
+      ...canvasState
+        .getModeRequests()
+        .filter((item) => item.status === 'pending')
+        .map((item) => ({
+          sourceBoardId: active.id,
+          nodeId: `mode:${item.id}`,
+          reason: 'ask' as const,
+          title: `Mode request: ${item.mode}`,
+          text: item.reason || 'Mode change requested.',
+        })),
+      ...canvasState
+        .getElicitations()
+        .filter((item) => item.status === 'pending')
+        .map((item) => ({
+          sourceBoardId: active.id,
+          nodeId: `elicitation:${item.id}`,
+          reason: 'ask' as const,
+          title: 'Open question',
+          text: item.prompt,
+        })),
+    );
+    entries.push(
+      ...canvasState.getPendingSteering({ consumer: consumer ?? undefined, limit: 50 }).map((item) => ({
+        sourceBoardId: active.id,
+        nodeId: `steering:${item.id}`,
+        reason: 'steer' as const,
+        title: 'Human steering',
+        text: item.message,
+      })),
+    );
+    const result = compileContextBrief({
+      activeBoard: { boardId: active.id, name: active.name, category: active.category },
+      nodes: layout.nodes,
+      pinnedNodeIds,
+      contentRevision: revision.revision,
+      retentionFloor: revision.retentionFloor,
+      tombstones: canvasState.readContentDelta(sinceValue ?? 0).deleted,
+      since: explicitSince ? (Number.isSafeInteger(sinceValue) ? sinceValue : Number.NaN) : sinceValue,
+      libraryBoards,
+      entries,
+      budget,
+    });
+    if (consumer && !explicitSince && result.document && result.nextCursor !== null && !result.invalidCursor) {
+      canvasState.advanceContextBriefCursor(active.id, consumer, result.nextCursor);
+    }
+    return (result.document ?? {
+      version: 1,
+      budgetUnit: 'utf16-code-units',
+      error: 'Budget is too small for the context envelope.',
+    }) as unknown as Record<string, unknown>;
   },
 });
 
@@ -309,6 +499,7 @@ const summaryGetOperation = defineOperation<z.infer<typeof summaryGetSchema>, Re
 export const queryOperations: Operation[] = [
   pinOperation,
   searchOperation,
+  contextOperation,
   historyGetOperation,
   undoOperation,
   redoOperation,

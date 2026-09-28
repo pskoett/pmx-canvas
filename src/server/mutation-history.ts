@@ -13,6 +13,7 @@
  */
 
 import type { CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
+import { currentActor as getActor, setCurrentActor } from './attribution.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -116,10 +117,13 @@ class MutationHistory {
   record(entry: Omit<MutationEntry, 'id' | 'timestamp' | 'actor'> & { actor?: MutationActor }): void {
     if (this._replaying) return;
 
+    const attribution = getActor();
+    const actor = attribution.actor === 'human' ? 'human' : 'agent';
+    const writer = actor === 'agent' ? (attribution.agentId ?? attribution.source) : undefined;
     const full: MutationEntry = {
       ...entry,
-      actor: entry.actor ?? currentActor ?? 'agent',
-      ...((entry.writer ?? currentWriter) ? { writer: entry.writer ?? currentWriter ?? undefined } : {}),
+      actor: entry.actor ?? actor,
+      ...((entry.writer ?? writer) ? { writer: entry.writer ?? writer } : {}),
       id: `mut-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
     };
@@ -415,16 +419,9 @@ export function formatDiff(diff: SnapshotDiffResult): string {
 
 export const mutationHistory = new MutationHistory();
 
-/**
- * Actor context for entries recorded while an operation runs. executeOperation
- * sets it from the workbench marker around each op; writes outside the
- * registry (the sync SDK) default to `agent`. Only the undo affordance reads
- * it, so an async op interleaving with another request costs at most a
- * mislabelled row — never a wrong undo.
- */
-let currentActor: MutationActor | null = null;
-let currentWriter: string | null = null;
+/** Direct callers share the same async-local attribution as node mutations. */
 export function setMutationActor(actor: MutationActor | null, writer: string | null = null): void {
-  currentActor = actor;
-  currentWriter = actor === 'agent' ? writer : null;
+  setCurrentActor(
+    actor ? { actor, source: actor === 'human' ? 'browser' : 'sdk', ...(writer ? { agentId: writer } : {}) } : null,
+  );
 }

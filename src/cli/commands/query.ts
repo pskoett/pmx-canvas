@@ -36,8 +36,27 @@ cmd(
     const query = positional[0] || (typeof flags.query === 'string' ? flags.query : '');
     if (!query) die('Missing search query', 'pmx-canvas search "query"');
 
-    const result = await invokeOperation('search', { q: query });
+    const result = await invokeOperation('search', { q: query, ...(flags.library ? { scope: 'library' } : {}) });
     output(result);
+  },
+);
+
+cmd(
+  'context',
+  'Read the budgeted cross-board context brief',
+  ['pmx-canvas context --consumer codex --budget 16000'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('context');
+    output(
+      await invokeOperation('context.get', {
+        ...(typeof flags.consumer === 'string' ? { consumer: flags.consumer } : {}),
+        ...(typeof flags.since === 'string' || typeof flags.since === 'number' ? { since: Number(flags.since) } : {}),
+        ...(typeof flags.budget === 'string' || typeof flags.budget === 'number'
+          ? { budget: Number(flags.budget) }
+          : {}),
+      }),
+    );
   },
 );
 

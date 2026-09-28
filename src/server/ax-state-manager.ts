@@ -84,6 +84,7 @@ import {
   type PmxAxTimelineSummary,
 } from './ax-state.js';
 import type { CanvasChangeType, MutationRecordInfo } from './canvas-state.js';
+import { currentActor, type ActorAttribution } from './attribution.js';
 
 type Database = import('bun:sqlite').Database;
 
@@ -113,6 +114,21 @@ function replaceById<T extends { id: string }>(list: T[], item: T): T[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function resolutionActor(source?: PmxAxSource): ActorAttribution {
+  if (source === 'system') return { actor: 'system', source: 'system' };
+  const actor = currentActor(source ?? 'sdk');
+  return source && actor.actor === 'agent' ? { ...actor, source } : actor;
+}
+
+function selfAnswered(requester: ActorAttribution | undefined, answerer: ActorAttribution): boolean {
+  return (
+    requester?.actor === 'agent' &&
+    answerer.actor === 'agent' &&
+    Boolean(requester.agentId) &&
+    requester.agentId === answerer.agentId
+  );
 }
 
 function logAxStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
@@ -342,7 +358,12 @@ export class AxStateManager {
     options: { source?: PmxAxSource } = {},
   ): PmxAxApprovalGate {
     const oldAxState = this.getAxState();
-    const gate = createAxApprovalGate(input, options.source ?? 'api', this.deps.getNodeIds());
+    const gate = createAxApprovalGate(
+      input,
+      options.source ?? 'api',
+      this.deps.getNodeIds(),
+      resolutionActor(options.source),
+    );
     this.applyAxState({ ...oldAxState, approvalGates: [...oldAxState.approvalGates, gate] });
     const applied = this.getAxState();
     this.deps.scheduleSave();
@@ -372,12 +393,15 @@ export class AxStateManager {
     const oldAxState = this.getAxState();
     const gate = oldAxState.approvalGates.find((g) => g.id === id);
     if (!gate || gate.status !== 'pending') return null;
+    const resolvedBy = resolutionActor(options.source);
     const resolved: PmxAxApprovalGate = {
       ...gate,
       status: decision,
       resolvedAt: new Date().toISOString(),
       resolution: options.resolution ?? null,
       source: options.source ?? gate.source,
+      resolvedBy,
+      selfAnswer: selfAnswered(gate.requestedBy, resolvedBy),
     };
     this.applyAxState({ ...oldAxState, approvalGates: replaceById(oldAxState.approvalGates, resolved) });
     const applied = this.getAxState();
@@ -397,6 +421,15 @@ export class AxStateManager {
         this.deps.notifyChange('ax');
       }),
     });
+    this.recordAxEvent(
+      {
+        kind: 'approval',
+        summary: `${decision === 'approved' ? 'Approved' : decision === 'rejected' ? 'Rejected' : 'Held'} "${gate.title}"`,
+        nodeIds: gate.nodeIds,
+        data: { gateId: id, decision, resolvedBy, selfAnswer: resolved.selfAnswer },
+      },
+      { source: options.source ?? 'api', agentId: resolvedBy.agentId ?? null },
+    );
     return applied.approvalGates.find((g) => g.id === id) ?? null;
   }
 
@@ -415,6 +448,8 @@ export class AxStateManager {
       resolvedAt: null,
       resolution: null,
       source: options.source ?? gate.source,
+      resolvedBy: null,
+      selfAnswer: false,
     };
     this.applyAxState({ ...oldAxState, approvalGates: replaceById(oldAxState.approvalGates, reopened) });
     const applied = this.getAxState();
@@ -545,7 +580,12 @@ export class AxStateManager {
     options: { source?: PmxAxSource } = {},
   ): PmxAxElicitation {
     const oldAxState = this.getAxState();
-    const elicitation = createAxElicitation(input, options.source ?? 'api', this.deps.getNodeIds());
+    const elicitation = createAxElicitation(
+      input,
+      options.source ?? 'api',
+      this.deps.getNodeIds(),
+      resolutionActor(options.source),
+    );
     this.applyAxState({ ...oldAxState, elicitations: [...oldAxState.elicitations, elicitation] });
     const applied = this.getAxState();
     this.deps.scheduleSave();
@@ -575,12 +615,15 @@ export class AxStateManager {
     const oldAxState = this.getAxState();
     const existing = oldAxState.elicitations.find((e) => e.id === id);
     if (!existing || existing.status !== 'pending') return null;
+    const resolvedBy = resolutionActor(options.source);
     const merged: PmxAxElicitation = {
       ...existing,
       status: 'answered',
       response,
       resolvedAt: new Date().toISOString(),
       source: options.source ?? existing.source,
+      resolvedBy,
+      selfAnswer: selfAnswered(existing.requestedBy, resolvedBy),
     };
     this.applyAxState({ ...oldAxState, elicitations: replaceById(oldAxState.elicitations, merged) });
     const applied = this.getAxState();
@@ -600,6 +643,15 @@ export class AxStateManager {
         this.deps.notifyChange('ax');
       }),
     });
+    this.recordAxEvent(
+      {
+        kind: 'approval',
+        summary: `Answered elicitation "${existing.prompt}"`,
+        nodeIds: existing.nodeIds,
+        data: { elicitationId: id, resolvedBy, selfAnswer: merged.selfAnswer },
+      },
+      { source: options.source ?? 'api', agentId: resolvedBy.agentId ?? null },
+    );
     return applied.elicitations.find((e) => e.id === id) ?? null;
   }
 
@@ -613,7 +665,12 @@ export class AxStateManager {
     options: { source?: PmxAxSource } = {},
   ): PmxAxModeRequest {
     const oldAxState = this.getAxState();
-    const request = createAxModeRequest(input, options.source ?? 'api', this.deps.getNodeIds());
+    const request = createAxModeRequest(
+      input,
+      options.source ?? 'api',
+      this.deps.getNodeIds(),
+      resolutionActor(options.source),
+    );
     this.applyAxState({ ...oldAxState, modeRequests: [...oldAxState.modeRequests, request] });
     const applied = this.getAxState();
     this.deps.scheduleSave();
@@ -643,12 +700,15 @@ export class AxStateManager {
     const oldAxState = this.getAxState();
     const existing = oldAxState.modeRequests.find((m) => m.id === id);
     if (!existing || existing.status !== 'pending') return null;
+    const resolvedBy = resolutionActor(options.source);
     const merged: PmxAxModeRequest = {
       ...existing,
       status: decision,
       resolvedAt: new Date().toISOString(),
       resolution: options.resolution ?? null,
       source: options.source ?? existing.source,
+      resolvedBy,
+      selfAnswer: selfAnswered(existing.requestedBy, resolvedBy),
     };
     this.applyAxState({ ...oldAxState, modeRequests: replaceById(oldAxState.modeRequests, merged) });
     const applied = this.getAxState();
@@ -668,6 +728,15 @@ export class AxStateManager {
         this.deps.notifyChange('ax');
       }),
     });
+    this.recordAxEvent(
+      {
+        kind: 'approval',
+        summary: `${decision === 'approved' ? 'Approved' : 'Rejected'} ${existing.mode} mode request`,
+        nodeIds: existing.nodeIds,
+        data: { modeRequestId: id, decision, resolvedBy, selfAnswer: merged.selfAnswer },
+      },
+      { source: options.source ?? 'api', agentId: resolvedBy.agentId ?? null },
+    );
     return applied.modeRequests.find((m) => m.id === id) ?? null;
   }
 

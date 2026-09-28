@@ -15,10 +15,45 @@ import { z } from 'zod';
 import { normalizeBoardCategory } from '../../../shared/boards.js';
 import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
+import { summarizeNodeForAgentContext } from '../../agent-context.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 
 export function boardsPayload(): Record<string, unknown> {
-  return { activeBoardId: canvasState.activeBoardId, boards: canvasState.listBoards() };
+  const boards = canvasState.listBoards();
+  const names = new Map(boards.map((board) => [board.id, board.name]));
+  const links = new Map<string, Array<{ nodeId: string; boardId: string; title: string | null; missing: boolean }>>();
+  for (const board of boards) {
+    const nodes = canvasState.readBoard(board.id, false)?.layout.nodes ?? [];
+    links.set(
+      board.id,
+      nodes
+        .filter((node) => node.type === 'board')
+        .map((node) => {
+          const boardId = typeof node.data.boardId === 'string' ? node.data.boardId : '';
+          return { nodeId: node.id, boardId, title: names.get(boardId) ?? null, missing: !names.has(boardId) };
+        }),
+    );
+  }
+  return {
+    activeBoardId: canvasState.activeBoardId,
+    boards: boards.map((board) => {
+      const read = canvasState.readBoard(board.id, true);
+      const readme = read?.layout.nodes.find((node) => node.id === board.readmeNodeId && node.type === 'markdown');
+      return {
+        ...board,
+        summary: readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1000 }) : null,
+        pinnedTitles: (read?.layout.nodes ?? [])
+          .filter((node) => read?.state.contextPins.includes(node.id))
+          .map((node) => ({ nodeId: node.id, title: typeof node.data.title === 'string' ? node.data.title : node.id })),
+        links: links.get(board.id) ?? [],
+        backlinks: boards.flatMap((source) =>
+          (links.get(source.id) ?? [])
+            .filter((link) => link.boardId === board.id)
+            .map((link) => ({ boardId: source.id, title: source.name, nodeId: link.nodeId })),
+        ),
+      };
+    }),
+  };
 }
 
 /** Read a board without opening it. Omitted board preserves the active-board contract. */
@@ -178,6 +213,7 @@ const updateShape = {
   id: z.unknown().optional().describe('Board id'),
   name: z.unknown().optional().describe('New name'),
   category: z.unknown().optional().describe('Folder path on Home; "" or null unfiles it'),
+  readmeNodeId: z.unknown().optional().describe('Markdown node id to use as README; null clears it'),
 };
 const updateSchema = z.looseObject(updateShape);
 
@@ -190,11 +226,12 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
   mcp: {
     toolName: 'canvas_update_board',
     description:
-      'Rename a board or move it into a nested folder on Home (e.g. Engineering/Canvas; category "" unfiles it). Moving preserves the board ID and content.',
+      'Rename a board, move it into a nested folder on Home (e.g. Engineering/Canvas; category "" unfiles it), or designate its markdown introduction with readmeNodeId. During board authoring, set a useful README when none exists; preserve an existing designation unless the human requests a change. Moving preserves the board ID and content.',
     extraShape: {
       id: z.string().describe('Board id'),
       name: z.string().optional().describe('New name'),
       category: z.string().optional().describe('Folder path, up to 8 levels of 1–60 characters; "" unfiles it'),
+      readmeNodeId: z.string().nullable().optional().describe('Markdown node id used as the board README'),
     },
     formatResult: jsonResult,
   },
@@ -204,11 +241,79 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
       ...(input.name !== undefined ? { name: boardName(input.name) } : {}),
       ...(input.category !== undefined ? { category: boardCategory(input.category) ?? null } : {}),
     };
+    if (input.readmeNodeId !== undefined) {
+      const board = canvasState.readBoard(id, false);
+      if (!board) throw new OperationError(`Board "${id}" not found.`, 404);
+      if (
+        input.readmeNodeId &&
+        !board.layout.nodes.some((node) => node.id === input.readmeNodeId && node.type === 'markdown')
+      ) {
+        throw new OperationError('README must identify a markdown node on this board.');
+      }
+    }
     if (!canvasState.updateBoard(id, patch)) {
       throw new OperationError(`Board "${id}" not found.`, 404);
     }
+    if (input.readmeNodeId !== undefined) {
+      const nodeId = typeof input.readmeNodeId === 'string' && input.readmeNodeId ? input.readmeNodeId : null;
+      if (!canvasState.setBoardReadme(id, nodeId)) {
+        throw new OperationError('README must identify a markdown node on this board.');
+      }
+    }
     emitBoardsChanged(ctx);
     return { ok: true, ...boardsPayload() };
+  },
+});
+
+const fromShape = {
+  sourceBoardId: z.string().describe('Source board id'),
+  name: z.string().describe('New board name'),
+  category: z.string().optional(),
+  nodeIds: z.array(z.string()).optional(),
+  includeReadme: z.boolean().optional(),
+  includeStructure: z.boolean().optional(),
+  preview: z.boolean().optional().describe('Return reusable cards and structure without creating'),
+};
+const fromSchema = z.looseObject(fromShape);
+const boardCreateFromOperation = defineOperation<z.infer<typeof fromSchema>, Record<string, unknown>>({
+  name: 'board.create-from',
+  // Like board.create, this writes only a new inactive board. `mutates` means
+  // active-layout mutation: setting it would auto-open a board from Home.
+  mutates: false,
+  input: fromSchema,
+  inputShape: fromShape,
+  http: { method: 'POST', path: '/api/canvas/boards/from' },
+  mcp: {
+    toolName: 'canvas_create_board_from',
+    description: 'Preview or create an inactive board from selected reusable cards and structure on another board.',
+    extraShape: fromShape,
+    formatResult: jsonResult,
+  },
+  handler: (input, ctx) => {
+    const source = canvasState.readBoard(input.sourceBoardId, false);
+    if (!source) throw new OperationError(`Board "${input.sourceBoardId}" not found.`, 404);
+    if (input.preview) {
+      return {
+        ok: true,
+        sourceBoardId: input.sourceBoardId,
+        readmeNodeId: source.board.readmeNodeId,
+        cards: source.layout.nodes.map((node) => ({
+          id: node.id,
+          type: node.type,
+          title: typeof node.data.title === 'string' ? node.data.title : null,
+          reusable: !['prompt', 'response', 'trace', 'mcp-app'].includes(node.type),
+        })),
+        edges: source.layout.edges.map((edge) => ({ id: edge.id, from: edge.from, to: edge.to, type: edge.type })),
+      };
+    }
+    const board = canvasState.createBoardFromBoard({
+      ...input,
+      name: boardName(input.name),
+      category: boardCategory(input.category),
+    });
+    if (!board) throw new OperationError('Could not create board from source.', 409);
+    emitBoardsChanged(ctx);
+    return { ok: true, board };
   },
 });
 
@@ -240,6 +345,7 @@ export const boardOperations: Operation[] = [
   boardOpenOperation,
   boardGetOperation,
   boardCreateOperation,
+  boardCreateFromOperation,
   boardUpdateOperation,
   boardDeleteOperation,
 ];

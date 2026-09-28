@@ -283,10 +283,16 @@ pmx-canvas board create "Q4 planning"          # created, not opened
 pmx-canvas board rename <board-id> "New name"
 pmx-canvas board create "Q4 planning" --category Planning
 pmx-canvas board category <board-id> "Planning/Quarterly" # nested folders; --clear unfiles it
+pmx-canvas board from <source-id> "Follow-up" --preview
+pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structure
 ```
 
 Commands write to the board open in the workbench. Opening, switching and
-deleting boards happens in the workbench (the human's call).
+deleting boards happens in the workbench (the human's call). `board from`
+excludes `prompt`, `response`, `trace`, and `mcp-app` cards; selected reusable
+cards get fresh IDs. `--structure` includes group frames; edges between copied
+cards are retained automatically. `--readme` carries the designated README. The new board remains inactive and
+does not inherit pins, AX state, or mutation history.
 
 ## Backup and restore
 
@@ -323,6 +329,18 @@ pmx-canvas diff <snapshot-id>         # Compare the canvas against a snapshot
 ```
 
 ## AX context
+
+The cross-board brief has its own compact command. Its budget is measured in
+UTF-16 code units (default 16000, maximum 100000), not model tokens. `--consumer`
+selects a durable cursor scoped to the open board; `--since` performs an
+explicit pull without changing that cursor. With neither flag, every call starts
+from the beginning. Use a stable, unique consumer ID per agent/adapter; changing
+or sharing it loses or conflates delivery progress.
+
+```bash
+pmx-canvas context --consumer codex --budget 16000
+pmx-canvas context --since 42 --budget 8000
+```
 
 AX commands expose the host-agnostic context contract used by adapters. Pins
 remain the explicit human-curated context set; AX focus is the current

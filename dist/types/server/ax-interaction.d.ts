@@ -65,15 +65,15 @@ declare const InteractionEnvelopeSchema: z.ZodObject<{
     sourceSurface: z.ZodOptional<z.ZodEnum<{
         "mcp-app": "mcp-app";
         "json-render": "json-render";
+        adapter: "adapter";
         "native-node": "native-node";
         "html-node": "html-node";
-        adapter: "adapter";
     }>>;
     actor: z.ZodOptional<z.ZodObject<{
         kind: z.ZodEnum<{
+            human: "human";
             agent: "agent";
             system: "system";
-            human: "human";
         }>;
         id: z.ZodOptional<z.ZodString>;
         displayName: z.ZodOptional<z.ZodString>;

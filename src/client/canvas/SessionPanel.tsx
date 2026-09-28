@@ -8,6 +8,7 @@ import {
   type ApprovalGateView,
   endSession,
   heldGates,
+  resolvedGates,
   pendingGates,
   refreshTimeline,
   reopenGate,
@@ -195,6 +196,28 @@ function HeldGateRow({ gate }: { gate: ApprovalGateView }) {
   );
 }
 
+function answerLabel(gate: ApprovalGateView): string {
+  const by = gate.resolvedBy;
+  if (!by) return gate.status;
+  const decision = gate.status === 'approved' ? 'Approved' : 'Rejected';
+  if (by.actor === 'human') return `${decision} by you`;
+  if (by.actor === 'system') return `${decision} by system`;
+  const name = by.agentId || by.source || 'agent';
+  return `${gate.selfAnswer ? 'Self-' : ''}${decision.toLowerCase()} by ${name}`;
+}
+
+function ResolvedGateRow({ gate }: { gate: ApprovalGateView }) {
+  return (
+    <li class={`session-item status-${gate.status}`} data-gate-id={gate.id}>
+      <span class="session-glyph" aria-hidden="true" />
+      <div class="session-item-main">
+        <span class="session-item-title">{gate.title}</span>
+        <div class="session-item-detail">{answerLabel(gate)}</div>
+      </div>
+    </li>
+  );
+}
+
 /**
  * Scope row under the header: the fence the human granted, or the affordance
  * to grant one from the current selection. The server refuses agent writes
@@ -296,6 +319,7 @@ export function SessionPanel() {
   const items = sessionWorkItems.value;
   const gates = pendingGates.value;
   const held = heldGates.value;
+  const resolved = resolvedGates.value;
   const entries = timelineEntries.value;
   const [workOpen, setWorkOpen] = useState(false);
   // Which filter chip the pointer/focus is on — drives the caption under the
@@ -435,7 +459,7 @@ export function SessionPanel() {
                   </span>
                 </button>
                 {showList &&
-                  (gates.length === 0 && held.length === 0 && items.length === 0 ? (
+                  (gates.length === 0 && held.length === 0 && resolved.length === 0 && items.length === 0 ? (
                     <div class="session-empty">No work items yet — the agent's tasks and gates appear here.</div>
                   ) : (
                     <ul class="session-list" aria-live="polite" aria-label="Work items and gates">
@@ -444,6 +468,9 @@ export function SessionPanel() {
                       ))}
                       {held.map((gate) => (
                         <HeldGateRow key={gate.id} gate={gate} />
+                      ))}
+                      {resolved.map((gate) => (
+                        <ResolvedGateRow key={gate.id} gate={gate} />
                       ))}
                       {items.map((item) => (
                         <WorkItemRow key={item.id} item={item} />

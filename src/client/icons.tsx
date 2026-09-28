@@ -538,6 +538,8 @@ export function getNodeIcon(type: string): (p: IconProps) => JSX.Element {
       return IconNodeJsonRender;
     case 'graph':
       return IconNodeGraph;
+    case 'board':
+      return IconNodeGraph;
     case 'html':
       return IconNodeWebpage;
     default:

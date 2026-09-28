@@ -10,6 +10,7 @@ import {
 } from '../../src/client/state/boards-store.ts';
 import {
   activeNodeId,
+  axSurfaceState,
   contextPinnedNodeIds,
   edges,
   expandedNodeId,
@@ -90,7 +91,7 @@ afterEach(() => {
 });
 
 describe('board switch client state', () => {
-  test('A -> B -> C ignores late B layout and pins', async () => {
+  test('A -> B -> C ignores late B layout, pins, and approvals', async () => {
     const requests: DeferredResponse[] = [];
     globalThis.fetch = (() => {
       const request = deferredResponse();
@@ -100,21 +101,24 @@ describe('board switch client state', () => {
 
     EVENT_HANDLERS['boards-changed'](boardPayload('B'));
     EVENT_HANDLERS['boards-changed'](boardPayload('C'));
-    expect(requests).toHaveLength(4);
+    expect(requests).toHaveLength(6);
 
-    requests[2]!.resolve(json(layout('C-node')));
-    requests[3]!.resolve(json({ nodeIds: ['C-node'] }));
-    await Promise.all([requests[2]!.promise, requests[3]!.promise]);
+    requests[3]!.resolve(json({ approvalGates: [{ id: 'C-gate' }] }));
+    requests[4]!.resolve(json(layout('C-node')));
+    requests[5]!.resolve(json({ nodeIds: ['C-node'] }));
+    await Promise.all(requests.slice(3).map((request) => request.promise));
     await Bun.sleep(0);
     expect([...nodes.value.keys()]).toEqual(['C-node']);
     expect([...contextPinnedNodeIds.value]).toEqual(['C-node']);
 
-    requests[0]!.resolve(json(layout('B-node')));
-    requests[1]!.resolve(json({ nodeIds: ['B-node'] }));
-    await Promise.all([requests[0]!.promise, requests[1]!.promise]);
+    requests[0]!.resolve(json({ approvalGates: [{ id: 'B-gate' }] }));
+    requests[1]!.resolve(json(layout('B-node')));
+    requests[2]!.resolve(json({ nodeIds: ['B-node'] }));
+    await Promise.all(requests.slice(0, 3).map((request) => request.promise));
     await Bun.sleep(0);
     expect([...nodes.value.keys()]).toEqual(['C-node']);
     expect([...contextPinnedNodeIds.value]).toEqual(['C-node']);
+    expect(axSurfaceState.value).toEqual({ approvalGates: [{ id: 'C-gate' }] });
   });
 
   test.each(['layout', 'pins', 'both'])('newer %s SSE survives an older same-board HTTP response', async (surface) => {
@@ -128,8 +132,9 @@ describe('board switch client state', () => {
     if (surface !== 'pins') EVENT_HANDLERS['canvas-layout-update']({ layout: layout('new-B') });
     if (surface !== 'layout')
       EVENT_HANDLERS['context-pins-changed']({ nodeIds: [surface === 'pins' ? 'old-B' : 'new-B'] });
-    requests[0]!.resolve(json(layout('old-B')));
-    requests[1]!.resolve(json({ nodeIds: surface === 'pins' ? [] : ['old-B'] }));
+    requests[0]!.resolve(json({ approvalGates: [] }));
+    requests[1]!.resolve(json(layout('old-B')));
+    requests[2]!.resolve(json({ nodeIds: surface === 'pins' ? [] : ['old-B'] }));
     await Bun.sleep(0);
     expect([...nodes.value.keys()]).toEqual([surface === 'pins' ? 'old-B' : 'new-B']);
     expect([...contextPinnedNodeIds.value]).toEqual([surface === 'both' ? 'new-B' : 'old-B']);

@@ -13,6 +13,11 @@ export interface BoardSummary {
   createdAt: string;
   lastOpenedAt: string | null;
   nodeCount: number;
+  readmeNodeId?: string | null;
+  summary?: string | null;
+  pinnedTitles?: Array<{ nodeId: string; title: string }>;
+  links?: Array<{ nodeId: string; boardId: string; title: string | null; missing: boolean }>;
+  backlinks?: Array<{ boardId: string; title: string; nodeId: string }>;
 }
 
 interface BoardsPayload {
@@ -80,11 +85,62 @@ export async function createAndOpenBoard(name: string): Promise<void> {
   if (created?.board && sequence === openRequestSequence) await openBoard(created.board.id);
 }
 
+export interface BoardCopyCard {
+  id: string;
+  type: string;
+  title: string | null;
+  reusable: boolean;
+}
+
+export interface BoardCopyPreview {
+  sourceBoardId: string;
+  readmeNodeId: string | null;
+  cards: BoardCopyCard[];
+  edges: Array<{ id: string; from: string; to: string; type: string }>;
+}
+
+export async function previewBoardCopy(sourceBoardId: string): Promise<BoardCopyPreview | null> {
+  return requestJson<BoardCopyPreview | null>('previewBoardCopy', '/api/canvas/boards/from', null, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceBoardId, name: 'Preview', preview: true }),
+  });
+}
+
+export async function createBoardFrom(opts: {
+  sourceBoardId: string;
+  name: string;
+  category?: string;
+  nodeIds: string[];
+  includeReadme: boolean;
+  includeStructure: boolean;
+}): Promise<BoardSummary | null> {
+  const result = await requestJson<{ board?: BoardSummary } | null>(
+    'createBoardFrom',
+    '/api/canvas/boards/from',
+    null,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    },
+  );
+  await loadBoards();
+  return result?.board ?? null;
+}
+
 /** Rename and/or re-file a board; `category: null` removes it from its category. */
 export async function updateBoard(id: string, patch: { name?: string; category?: string | null }): Promise<void> {
   const payload = await post('updateBoard', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', {
     ...patch,
     ...(patch.category === null ? { category: '' } : {}),
+  });
+  applyBoards(payload);
+}
+
+export async function setBoardReadme(id: string, readmeNodeId: string | null): Promise<void> {
+  const payload = await post('setBoardReadme', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', {
+    readmeNodeId,
   });
   applyBoards(payload);
 }

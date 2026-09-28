@@ -21,7 +21,21 @@ export interface PersistedCanvasState {
     annotations?: CanvasAnnotation[];
     contextPins: string[];
     ax?: PmxAxState;
+    revisionState?: PersistedRevisionState;
 }
+export interface PersistedRevisionState {
+    revision: number;
+    floor: number;
+    tombstones: Array<{
+        nodeId: string;
+        revision: number;
+        deletedBy: import('./attribution.js').ActorAttribution;
+    }>;
+}
+/** Durable, delivery-based context cursor. This is separate from the bounded diagnostic read log. */
+export declare function readContextBriefCursor(db: Database, boardId: string, consumer: string): number | null;
+/** Monotonic update prevents a stale concurrent response from regressing a consumer. */
+export declare function advanceContextBriefCursor(db: Database, boardId: string, consumer: string, revision: number): void;
 export interface OpenCanvasDbOptions {
     /** Name for the board a pre-boards (0.6.x) database migrates into. */
     migratedBoardName?: string;
@@ -59,6 +73,8 @@ export interface CanvasBoard {
     createdAt: string;
     lastOpenedAt: string | null;
     nodeCount: number;
+    /** Markdown node used as this board's introduction. */
+    readmeNodeId: string | null;
 }
 /** Most recently opened first, then never-opened boards, newest first. */
 export declare function listBoardsFromDB(db: Database): CanvasBoard[];
@@ -68,7 +84,10 @@ export declare function createBoardInDB(db: Database, name: string, category?: s
 export declare function updateBoardInDB(db: Database, id: string, patch: {
     name?: string;
     category?: string | null;
+    readmeNodeId?: string | null;
 }): boolean;
+/** Create and populate an inactive board as one SQLite transaction. */
+export declare function createBoardWithStateInDB(db: Database, name: string, category: string | null, state: PersistedCanvasState, readmeNodeId: string | null): CanvasBoard;
 /** Deletes a board with its rows and its snapshots. */
 export declare function deleteBoardFromDB(db: Database, id: string): boolean;
 export declare function readMetaFromDB(db: Database, key: string): string | null;

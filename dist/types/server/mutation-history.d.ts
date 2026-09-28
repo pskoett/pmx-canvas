@@ -114,5 +114,6 @@ export declare function diffLayouts(snapshotName: string, snapshotLayout: {
  */
 export declare function formatDiff(diff: SnapshotDiffResult): string;
 export declare const mutationHistory: MutationHistory;
+/** Direct callers share the same async-local attribution as node mutations. */
 export declare function setMutationActor(actor: MutationActor | null, writer?: string | null): void;
 export {};

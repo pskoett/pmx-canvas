@@ -70,9 +70,18 @@ curl http://localhost:4313/api/canvas/boards/<board-id>
 curl -X POST http://localhost:4313/api/canvas/boards \
   -H "Content-Type: application/json" -d '{"name":"Q4 planning","category":"Planning"}'
 
+# Preview/create an inactive copy from reusable cards (preview false creates)
+curl -X POST http://localhost:4313/api/canvas/boards/from \
+  -H "Content-Type: application/json" \
+  -d '{"sourceBoardId":"board-source","name":"Follow-up","nodeIds":["node-1"],"includeReadme":true,"includeStructure":true,"preview":true}'
+
 # Rename and/or file under a category on Home ("category": "" removes it)
 curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
   -H "Content-Type: application/json" -d '{"name":"Q4 planning (final)","category":"Planning"}'
+
+# Designate a Markdown card on this board as its README (null clears it)
+curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
+  -H "Content-Type: application/json" -d '{"readmeNodeId":"<markdown-node-id>"}'
 
 # Open a board, or Home with {"id":null} — workbench only
 curl -X POST http://localhost:4313/api/canvas/boards/open \
@@ -148,8 +157,8 @@ and fixed MCP resources continue to describe the open board.
 # Get canvas state
 curl http://localhost:4313/api/canvas/state
 
-# Search nodes (optional limit= caps the result count)
-curl "http://localhost:4313/api/canvas/search?q=auth&limit=10"
+# Search the library (omit scope for the active board)
+curl "http://localhost:4313/api/canvas/search?q=auth&limit=10&scope=library"
 
 # Validate the current layout
 curl http://localhost:4313/api/canvas/validate
@@ -322,7 +331,19 @@ curl -X POST http://localhost:4313/api/canvas/context-pins \
 
 # Get pinned context
 curl http://localhost:4313/api/canvas/pinned-context
+
+# Cross-board brief. budget is a UTF-16 character ceiling (default 16000, max 100000).
+# Without since, the board/consumer cursor advances through only fully delivered revisions.
+curl 'http://localhost:4313/api/canvas/context?consumer=codex&budget=16000'
 ```
+
+`consumer` is optional. Supply a stable unique value only for a durable,
+board-scoped cursor; without `consumer` or `since`, each request starts from the
+beginning. An explicit `since` never advances a cursor. The brief prioritizes
+pins, then relevant current-board changes and asks, then compact linked or
+same-folder board context. Every item carries source board/card IDs. If card text
+is clipped, use those IDs with the board/node read route rather than guessing
+from the excerpt. Reading inactive boards does not open them.
 
 ## AX context and focus
 

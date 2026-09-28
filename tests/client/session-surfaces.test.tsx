@@ -117,6 +117,21 @@ describe('session panel disclosure', () => {
     expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(true);
   });
 
+  test('shows self-answer attribution when only resolved gates remain', () => {
+    act(() => {
+      axSurfaceState.value = {
+        approvalGates: [
+          { ...gate, status: 'approved', selfAnswer: true, resolvedBy: { actor: 'agent', agentId: 'reviewer' } },
+        ],
+      };
+    });
+    const { container, getByTitle, getByRole } = render(<SessionPanel />);
+    fireEvent.click(getByTitle('Expand session panel'));
+    fireEvent.click(getByRole('button', { name: /Work items/i }));
+    expect(container.querySelector('[data-gate-id="gate-1"]')?.textContent).toContain('Self-approved by reviewer');
+    expect(container.textContent).not.toContain('No work items yet');
+  });
+
   test('preserves a panel the user opened after gates settle', () => {
     const { container, getByTitle } = render(<SessionPanel />);
     fireEvent.click(getByTitle('Expand session panel'));

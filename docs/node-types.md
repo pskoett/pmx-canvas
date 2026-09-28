@@ -1,5 +1,11 @@
 # Node types
 
+`board` is a native text-only link. Set `data.boardId` to the durable target ID.
+Titles resolve from that ID, so renames and folder moves are safe; deleted
+targets render explicitly as missing. It is not an iframe or a cross-board card
+edge. Static exports lock the card and intentionally do not embed the target
+title or summary, so exporting this board does not disclose another board.
+
 Canvas nodes are typed. Each type has a dedicated renderer, schema, and (for
 structured types) a dedicated MCP tool. This page is the user-facing reference
 for what each type is for and how to create one. For tool/HTTP/SDK signatures,
@@ -25,6 +31,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `html` | Self-contained HTML/JS in a sandboxed iframe |
 | `web-artifact` | Bundled React/Tailwind artifact (full single-file app) |
 | `group` | Spatial container/frame around other nodes |
+| `board` | Text-only link to another board, with its README summary and navigation |
 
 Creation applies per-type frame defaults and readability minimums. When a
 dimension is defaulted or clamped, HTTP and MCP create responses include a
@@ -39,6 +46,12 @@ response warns about the distinction.
 
 Thread node types `prompt` and `response` exist internally for agent
 conversation rendering and are not created through public APIs.
+
+Full node reads expose server-owned `createdBy`, `lastEditedBy`, and
+`contentRevision`. Authors distinguish human, agent, system, and unknown;
+legacy nodes remain unknown. The revision advances on semantic content changes,
+including group membership and undo, but not moves or resizes. These fields
+describe provenance, not permission, and caller-supplied author fields are ignored.
 
 ## Choosing the right visual tier
 

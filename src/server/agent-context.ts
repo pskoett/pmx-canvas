@@ -38,14 +38,62 @@ function truncateContextText(text: string, maxLength: number): string {
   return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
-function stringifyContextValue(value: unknown, maxLength: number): string {
-  if (typeof value === 'string') return truncateContextText(value, maxLength);
-  if (value === null || value === undefined) return '';
-  try {
-    return truncateContextText(JSON.stringify(value), maxLength);
-  } catch {
-    return '';
-  }
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/** Only for semantic values (table rows, ledger entries), never renderer configuration. */
+function describeValues(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(describeValues).filter(Boolean).join('\n');
+  return Object.entries(record(value))
+    .map(([key, entry]) => {
+      const text = describeValues(entry);
+      return text ? `${key}: ${text}` : '';
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
+function textFields(data: Record<string, unknown>, keys: string[]): string {
+  return keys
+    .map((key) => {
+      const value = data[key];
+      return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function summarizeGraph(data: Record<string, unknown>): string {
+  const kind = typeof data.graphType === 'string' ? data.graphType : 'chart';
+  const rows = describeValues(data.data);
+  return `Chart: ${kind}.\n${textFields(data, ['title', 'beforeLabel', 'afterLabel'])}\n${rows || 'No chart values available.'}`;
+}
+
+function summarizeSpec(value: unknown): string {
+  const spec = record(value);
+  const elements = record(spec.elements);
+  const visited = new Set<string>();
+  const parts: string[] = [];
+  // Read only reachable elements, in their authored order. Bindings/conditions are
+  // not evaluated here, so this is explicitly authored content, not a DOM report.
+  const visit = (id: string): void => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const element = record(elements[id]);
+    const props = record(element.props);
+    const text = textFields(props, ['title', 'description', 'text', 'content', 'label', 'value', 'caption']);
+    if (text) parts.push(text);
+    if (Array.isArray(props.data)) parts.push(describeValues(props.data));
+    if (Array.isArray(element.children)) {
+      for (const child of element.children) if (typeof child === 'string') visit(child);
+    }
+  };
+  if (typeof spec.root === 'string') visit(spec.root);
+  return parts.length
+    ? `Authored surface content (dynamic visibility not evaluated):\n${parts.join('\n')}`
+    : 'Interactive surface. No static text available; inspect the rendered surface.';
 }
 
 function summarizeWebpageData(data: Record<string, unknown>, maxLength: number): string {
@@ -81,10 +129,10 @@ function summarizeExtAppInput(toolInput: unknown): string {
   if (typeof toolInput !== 'object' || Array.isArray(toolInput)) return '';
   const elements = (toolInput as Record<string, unknown>).elements;
   if (Array.isArray(elements)) {
-    return `Diagram elements: ${elements.length}`;
+    const labels = elements.map((element) => textFields(record(element), ['text', 'label'])).filter(Boolean);
+    return `Diagram elements: ${elements.length}\n${labels.length ? `Diagram labels: ${labels.join('; ')}` : 'No diagram description available.'}`;
   }
-  const keys = Object.keys(toolInput as Record<string, unknown>).sort();
-  return keys.length > 0 ? `Input keys: ${keys.join(', ')}` : '';
+  return 'No app content description available.';
 }
 
 function summarizeMcpAppData(data: Record<string, unknown>, maxLength: number): string {
@@ -157,7 +205,7 @@ function summarizeHtmlPrimitiveData(data: Record<string, unknown>, maxLength: nu
   const primitiveData = data.primitiveData;
   if (primitive) parts.push(`HTML primitive: ${primitive}`);
   if (description) parts.push(description);
-  if (primitiveData !== undefined) parts.push(`Data: ${stringifyContextValue(primitiveData, maxLength)}`);
+  if (primitiveData !== undefined) parts.push(`Authored primitive data: ${describeValues(primitiveData)}`);
   return truncateContextText(parts.join('\n'), maxLength);
 }
 
@@ -258,7 +306,7 @@ export function summarizeNodeForAgentContext(node: CanvasNodeState, options: Age
 
   switch (node.type) {
     case 'markdown': {
-      const content = (node.data.rendered as string) || (node.data.content as string) || '';
+      const content = textFields(node.data, ['content']);
       return truncateContextText(content, defaultTextLength);
     }
     case 'mcp-app': {
@@ -279,9 +327,16 @@ export function summarizeNodeForAgentContext(node: CanvasNodeState, options: Age
     case 'json-render':
     case 'graph': {
       const graphCfg = node.data.graphConfig as Record<string, unknown> | undefined;
-      if (graphCfg) return truncateContextText(`Graph: ${JSON.stringify(graphCfg)}`, defaultTextLength);
-      return stringifyContextValue(node.data.spec ?? {}, defaultTextLength);
+      return truncateContextText(
+        graphCfg ? summarizeGraph(graphCfg) : summarizeSpec(node.data.spec),
+        defaultTextLength,
+      );
     }
+    case 'board':
+      return truncateContextText(
+        `Linked board: ${textFields(node.data, ['title']) || 'Unknown board'} (${textFields(node.data, ['boardId']) || 'missing target'})`,
+        defaultTextLength,
+      );
     case 'html': {
       if (typeof node.data.agentSummary === 'string') {
         return truncateContextText(node.data.agentSummary, defaultTextLength);
@@ -289,15 +344,9 @@ export function summarizeNodeForAgentContext(node: CanvasNodeState, options: Age
       if (typeof node.data.htmlPrimitive === 'string') {
         return summarizeHtmlPrimitiveData(node.data, defaultTextLength);
       }
-      return stringifyContextValue(
-        {
-          title: node.data.title,
-          description: node.data.description,
-          summary: node.data.summary,
-          contentSummary: node.data.contentSummary,
-          embeddedNodeIds: node.data.embeddedNodeIds,
-          embeddedUrls: node.data.embeddedUrls,
-        },
+      return truncateContextText(
+        textFields(node.data, ['title', 'description', 'summary', 'contentSummary']) ||
+          'HTML surface. No text description available.',
         defaultTextLength,
       );
     }
@@ -315,11 +364,44 @@ export function summarizeNodeForAgentContext(node: CanvasNodeState, options: Age
             ? node.data.content
             : '';
       const prefix = path ? `Path: ${path}\n\n` : '';
-      const remaining = Math.max(0, defaultTextLength - prefix.length);
-      return `${prefix}${truncateContextText(fileContent, remaining)}`.trim();
+      return truncateContextText(`${prefix}${fileContent}`, defaultTextLength);
     }
-    default:
-      return stringifyContextValue(node.data, defaultTextLength);
+    case 'status':
+      return truncateContextText(
+        `Status: ${textFields(node.data, ['phase']) || textFields(node.data, ['content']) || textFields(node.data, ['status']) || 'unknown'}\n${textFields(node.data, ['detail', 'message', 'activeTool'])}`,
+        defaultTextLength,
+      );
+    case 'context':
+      return truncateContextText(
+        `Context:\n${textFields(node.data, ['content', 'path'])}\n${Array.isArray(node.data.cards) ? node.data.cards.map((card) => textFields(record(card), ['title', 'label', 'summary', 'path', 'state'])).join('\n') : ''}`,
+        defaultTextLength,
+      );
+    case 'ledger': {
+      const { title: _title, __type: _type, strictSize: _size, arrangeLocked: _locked, ...entries } = node.data;
+      return truncateContextText(`Ledger:\n${describeValues(entries)}`, defaultTextLength);
+    }
+    case 'trace':
+      return truncateContextText(
+        `Tool trace:\n${textFields(node.data, ['toolName', 'status', 'resultSummary', 'content', 'error'])}`,
+        defaultTextLength,
+      );
+    case 'diff':
+    case 'mermaid':
+      return truncateContextText(
+        `${node.type === 'diff' ? 'Diff' : 'Mermaid diagram source'}:\n${textFields(node.data, ['content'])}`,
+        defaultTextLength,
+      );
+    case 'image':
+      return truncateContextText(
+        textFields(node.data, ['alt', 'caption', 'description']) ||
+          'No image description available; inspect the image.',
+        defaultTextLength,
+      );
+    case 'group':
+      return truncateContextText(
+        `Group: ${textFields(node.data, ['title']) || 'Untitled'}. ${Array.isArray(node.data.children) ? node.data.children.length : 0} cards.`,
+        defaultTextLength,
+      );
   }
 }
 

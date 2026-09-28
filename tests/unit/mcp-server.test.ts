@@ -134,6 +134,10 @@ describe('MCP parity with CLI', () => {
 
     const tools = await session.client.listTools();
     const toolNames = new Set(tools.tools.map((tool) => tool.name));
+    const boardTool = tools.tools.find((tool) => tool.name === 'canvas_board');
+    expect(boardTool?.inputSchema.properties).toHaveProperty('readmeNodeId');
+    expect(boardTool?.description).toContain('if readmeNodeId is null');
+    expect(boardTool?.description).toContain('Preserve an existing README');
     // v0.3.0 shrank the MCP tool surface from 84 to 27; v0.4.0 folded snapshots
     // into the canvas_snapshot composite and removed the 6 deprecated snapshot
     // standalones. Registry ops folded into a composite are not registered as
@@ -895,6 +899,28 @@ describe('MCP parity with CLI', () => {
     const resource = await session.client.readResource({ uri: 'canvas://boards' });
     const text = resource.contents.find((entry): entry is { uri: string; text: string } => 'text' in entry)?.text;
     expect(JSON.parse(text ?? '{}')).toMatchObject({ activeBoardId: listed.activeBoardId });
+  });
+
+  test('context resource accepts optional query parameters without sharing an implicit cursor', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.client.close();
+      await closeTransportAndReapChild(session.transport);
+      removeTestWorkspace(session.workspaceRoot);
+    });
+    await session.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', content: 'Resource delivery marker' },
+    });
+    for (const uri of ['canvas://context', 'canvas://context?budget=50000', 'canvas://context?budget=50000']) {
+      const resource = await session.client.readResource({ uri });
+      const text = resource.contents.find((entry): entry is { uri: string; text: string } => 'text' in entry)?.text;
+      const brief = JSON.parse(text ?? '{}');
+      expect(brief.cursor.reset).toBe('first-read');
+      expect(text).toContain('Resource delivery marker');
+    }
+    const resource = await session.client.readResource({ uri: 'canvas://context?consumer=reader&budget=50000' });
+    expect(resource.contents).toHaveLength(1);
   });
 
   test('records each MCP context read once, with the client name and pinned delivery (local and daemon-attached)', async () => {

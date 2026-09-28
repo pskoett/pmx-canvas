@@ -81,6 +81,7 @@ Canvas commands:
   pmx-canvas layout                   Full canvas state (JSON)
   pmx-canvas status                   Quick summary
   pmx-canvas search <query>           Search nodes by content
+  pmx-canvas context [options]        Budgeted cross-board context brief
   pmx-canvas open                     Open the current workbench in a browser
   pmx-canvas arrange [--layout MODE]  Auto-arrange (grid|column|flow)
   pmx-canvas batch [--file FILE]      Run many canvas operations at once

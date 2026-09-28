@@ -307,6 +307,7 @@ function isCanvasNodeType(value: unknown): value is CanvasNodeState['type'] {
     value === 'webpage' ||
     value === 'json-render' ||
     value === 'graph' ||
+    value === 'board' ||
     value === 'prompt' ||
     value === 'response' ||
     value === 'status' ||
@@ -478,6 +479,8 @@ function resyncForBoardSwitch(): void {
   hasInitialServerLayout.value = false;
   resetIntents();
   resetCanvasInteractionState();
+  axSurfaceState.value = null;
+  void refreshAxSurface();
   const layoutAtRequest = layoutRevision;
   const pinsAtRequest = pinsRevision;
   void fetchCanvasState().then((layout) => {
@@ -517,8 +520,7 @@ function handleConnected(data: Record<string, unknown>): void {
   // The AX surface snapshot (work items, gates) likewise — it used to arrive
   // only on the first ax-state-changed, so a fresh load showed an empty
   // session panel while persisted work items existed.
-  void fetchAxSurfaceState().then((state) => {
-    axSurfaceState.value = state;
+  void refreshAxSurface().then(() => {
     if (sessionActive.value) void refreshTimeline();
   });
   // A ?theme= session override (host-default theming) wins over the
@@ -1036,13 +1038,21 @@ function handleContextPinsChanged(data: Record<string, unknown>): void {
 // (debounced). The snapshot feeds AX-enabled surfaces (HtmlNode/McpAppNode push it
 // into their iframes), so authored boards reflect the live work queue / focus.
 let axRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let axRefreshSequence = 0;
+async function refreshAxSurface(): Promise<void> {
+  const sequence = ++axRefreshSequence;
+  const generation = boardResyncGeneration;
+  const state = await fetchAxSurfaceState();
+  if (sequence === axRefreshSequence && generation === boardResyncGeneration) axSurfaceState.value = state;
+}
+
 function handleAxStateChanged(): void {
   if (axRefreshTimer) clearTimeout(axRefreshTimer);
+  // Invalidate any in-flight read before the debounced replacement starts.
+  axRefreshSequence += 1;
   axRefreshTimer = setTimeout(() => {
     axRefreshTimer = null;
-    void fetchAxSurfaceState().then((state) => {
-      axSurfaceState.value = state;
-    });
+    void refreshAxSurface();
     // The session panel's timeline — only worth fetching while it is mounted.
     if (sessionActive.value) void refreshTimeline();
   }, 150);

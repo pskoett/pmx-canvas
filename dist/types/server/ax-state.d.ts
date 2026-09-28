@@ -1,6 +1,7 @@
 import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../shared/ax-kinds.js';
 import type { AgentContextNode } from './agent-context.js';
+import type { ActorAttribution } from './attribution.js';
 export type PmxAxSource = 'agent' | 'amp' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';
 export interface PmxAxFocusState {
     nodeIds: string[];
@@ -40,6 +41,9 @@ export interface PmxAxApprovalGate {
     resolvedAt: string | null;
     resolution: string | null;
     source: PmxAxSource | null;
+    requestedBy?: ActorAttribution;
+    resolvedBy?: ActorAttribution | null;
+    selfAnswer?: boolean;
 }
 export interface PmxAxReviewRegion {
     line?: number;
@@ -263,13 +267,16 @@ export interface PmxAxElicitation {
     createdAt: string;
     resolvedAt: string | null;
     source: PmxAxSource | null;
+    requestedBy?: ActorAttribution;
+    resolvedBy?: ActorAttribution | null;
+    selfAnswer?: boolean;
 }
 export declare function normalizeAxElicitation(input: unknown, validNodeIds?: Set<string>): PmxAxElicitation | null;
 export declare function createAxElicitation(input: {
     prompt: string;
     fields?: string[];
     nodeIds?: string[];
-}, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxElicitation;
+}, source: PmxAxSource | null, validNodeIds?: Set<string>, requestedBy?: ActorAttribution): PmxAxElicitation;
 export type PmxAxMode = 'plan' | 'execute' | 'autonomous';
 export type PmxAxModeRequestStatus = 'pending' | 'approved' | 'rejected';
 export interface PmxAxModeRequest {
@@ -282,13 +289,16 @@ export interface PmxAxModeRequest {
     resolvedAt: string | null;
     resolution: string | null;
     source: PmxAxSource | null;
+    requestedBy?: ActorAttribution;
+    resolvedBy?: ActorAttribution | null;
+    selfAnswer?: boolean;
 }
 export declare function normalizeAxModeRequest(input: unknown, validNodeIds?: Set<string>): PmxAxModeRequest | null;
 export declare function createAxModeRequest(input: {
     mode: PmxAxMode;
     reason?: string | null;
     nodeIds?: string[];
-}, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxModeRequest;
+}, source: PmxAxSource | null, validNodeIds?: Set<string>, requestedBy?: ActorAttribution): PmxAxModeRequest;
 export declare function createEmptyAxState(): PmxAxState;
 export declare function createEmptyAxHostCapability(): PmxAxHostCapability;
 export declare function normalizeAxFocusState(input: unknown, validNodeIds?: Set<string>): PmxAxFocusState;
@@ -312,7 +322,7 @@ export declare function createAxApprovalGate(input: {
     action?: string | null;
     nodeIds?: string[];
     ttlMs?: number;
-}, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxApprovalGate;
+}, source: PmxAxSource | null, validNodeIds?: Set<string>, requestedBy?: ActorAttribution): PmxAxApprovalGate;
 /** Server default for a gate's TTL: `PMX_CANVAS_GATE_TTL_MS`, else five minutes. */
 export declare function defaultGateTtlMs(): number;
 export declare function createAxReviewAnnotation(input: {

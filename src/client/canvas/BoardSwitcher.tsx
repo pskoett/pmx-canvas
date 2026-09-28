@@ -1,8 +1,24 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { render, type VNode } from 'preact';
+import { useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { activeBoard, activeBoardId, boardList, boardsLoaded, openBoard } from '../state/boards-store';
+import { IconLogo, IconArrange } from '../icons';
 import { promptNewBoard } from './HomeView';
 
 const RECENT_LIMIT = 8;
+
+/** Escape the top bar's filter/clip without installing React-compat event hooks. */
+function BoardMenuPortal({ children }: { children: VNode }) {
+  const host = useMemo(() => document.createElement('div'), []);
+  useLayoutEffect(() => {
+    document.body.appendChild(host);
+    return () => {
+      render(null, host);
+      host.remove();
+    };
+  }, [host]);
+  useLayoutEffect(() => render(children, host), [children, host]);
+  return null;
+}
 
 /**
  * The top bar's board identity (plan 012): the open board's name, or "Home".
@@ -13,20 +29,27 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current && e.target instanceof Node && !rootRef.current.contains(e.target)) setOpen(false);
+      if (e.target instanceof Node && !rootRef.current?.contains(e.target) && !menuRef.current?.contains(e.target))
+        setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
     };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
+    // Canvas gestures stop bubbling; dismiss before those handlers run.
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown, true);
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown, true);
     };
   }, [open]);
 
@@ -57,40 +80,69 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
         </span>
       </button>
       {open && anchor && (
-        <div
-          class="toolbar-menu board-switcher-menu"
-          role="menu"
-          aria-label="Boards"
-          style={{ position: 'fixed', left: `${anchor.left}px`, top: `${anchor.bottom + 6}px`, right: 'auto' }}
-        >
-          {recent.length > 0 && <div class="board-switcher-heading">Recent boards</div>}
-          {recent.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              role="menuitem"
-              class="toolbar-menu-item"
-              onClick={() => choose(entry.id)}
-            >
-              <span class="board-switcher-item-name">{entry.name}</span>
-              <span class="board-switcher-item-meta">{entry.nodeCount}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            role="menuitem"
-            class="toolbar-menu-item"
-            onClick={() => {
-              setOpen(false);
-              void promptNewBoard();
+        <BoardMenuPortal>
+          <div
+            ref={menuRef}
+            class="toolbar-menu board-switcher-menu"
+            role="menu"
+            aria-label="Boards"
+            style={{
+              position: 'fixed',
+              left: `min(${anchor.left}px, max(12px, calc(100vw - 352px)))`,
+              top: `${anchor.bottom + 8}px`,
+              right: 'auto',
+              maxHeight: `min(70vh, calc(100dvh - ${anchor.bottom + 20}px))`,
             }}
           >
-            New board…
-          </button>
-          <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => choose(null)}>
-            All boards (Home)
-          </button>
-        </div>
+            {recent.length > 0 && <div class="board-switcher-heading">Recent boards</div>}
+            <div class="board-switcher-recents">
+              {recent.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  role="menuitem"
+                  class="toolbar-menu-item"
+                  onClick={() => choose(entry.id)}
+                >
+                  <span class="board-switcher-icon" aria-hidden="true">
+                    <IconLogo size={18} />
+                  </span>
+                  <span class="board-switcher-item-copy">
+                    <span class="board-switcher-item-name">{entry.name}</span>
+                    <span class="board-switcher-item-folder">
+                      {entry.category?.split('/').join(' / ') || 'Unfiled'}
+                    </span>
+                  </span>
+                  <span class="board-switcher-item-meta">
+                    {entry.nodeCount} {entry.nodeCount === 1 ? 'node' : 'nodes'}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div class="board-switcher-actions">
+              <button
+                type="button"
+                role="menuitem"
+                class="toolbar-menu-item"
+                onClick={() => {
+                  setOpen(false);
+                  void promptNewBoard();
+                }}
+              >
+                <span class="board-switcher-icon" aria-hidden="true">
+                  +
+                </span>
+                New board…
+              </button>
+              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => choose(null)}>
+                <span class="board-switcher-icon" aria-hidden="true">
+                  <IconArrange size={18} />
+                </span>
+                All boards (Home)
+              </button>
+            </div>
+          </div>
+        </BoardMenuPortal>
       )}
     </span>
   );

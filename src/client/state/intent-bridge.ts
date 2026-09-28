@@ -32,6 +32,8 @@ function withWorkbenchMarker(init?: RequestInit): RequestInit {
     headers['x-pmx-source'] = tabAgentKey;
   } else {
     headers['X-PMX-Workbench'] = '1';
+    const token = (window as Window & { __PMX_WORKBENCH_TOKEN?: unknown }).__PMX_WORKBENCH_TOKEN;
+    if (typeof token === 'string') headers['X-PMX-Workbench-Token'] = token;
   }
   return { ...init, headers };
 }

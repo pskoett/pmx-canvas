@@ -17,6 +17,8 @@ import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
 import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
+import { activeBoardId, openBoard } from '../state/boards-store';
+import { requestJson } from '../state/intent-bridge';
 
 import { modChord } from '../utils/platform';
 import { useFocusTrap } from './use-focus-trap';
@@ -24,7 +26,7 @@ import { useFocusTrap } from './use-focus-trap';
 // ── Types ───────────────────────────────────────────────────
 interface PaletteItem {
   id: string;
-  kind: 'node' | 'action';
+  kind: 'node' | 'action' | 'library';
   label: string;
   description?: string;
   /** Keyboard shortcut shown as a kbd on action rows. */
@@ -33,6 +35,14 @@ interface PaletteItem {
   iconTone?: 'accent' | 'purple' | 'muted';
   nodeType?: CanvasNodeState['type'];
   action: () => void;
+}
+
+interface LibraryHit {
+  boardId: string;
+  boardTitle: string;
+  cardId: string;
+  title: string | null;
+  snippet: string;
 }
 
 // ── Fuzzy match ─────────────────────────────────────────────
@@ -106,6 +116,8 @@ function parseTypeFilter(query: string): { typeFilter: CanvasNodeState['type'] |
 export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => void; onToggleMinimap: () => void }) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [libraryHits, setLibraryHits] = useState<LibraryHit[]>([]);
+  const [libraryState, setLibraryState] = useState<'idle' | 'loading' | 'error'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -115,6 +127,39 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 30);
   }, []);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setLibraryHits([]);
+      setLibraryState('idle');
+      return;
+    }
+    let active = true;
+    setLibraryState('loading');
+    const timer = window.setTimeout(
+      () =>
+        void requestJson<{ results?: LibraryHit[] } | null>(
+          'paletteLibrarySearch',
+          `/api/canvas/search?q=${encodeURIComponent(q)}&scope=library&limit=12`,
+          null,
+        ).then((result) => {
+          if (!active) return;
+          if (!result) {
+            setLibraryHits([]);
+            setLibraryState('error');
+            return;
+          }
+          setLibraryHits(result.results ?? []);
+          setLibraryState('idle');
+        }),
+      150,
+    );
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
 
   // ── Build items ─────────────────────────────────────────
   const buildItems = useCallback((): PaletteItem[] => {
@@ -161,6 +206,15 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
         iconTone: 'accent',
         action: () => {
           void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 });
+          onClose();
+        },
+      },
+      {
+        label: 'Link to board…',
+        icon: getNodeIcon('board'),
+        iconTone: 'accent',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('pmx-open-board-link'));
           onClose();
         },
       },
@@ -275,9 +329,39 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
     // Sort by score descending
     filtered.sort((a, b) => b.score - a.score);
   }
+  for (const hit of libraryHits) {
+    filtered.push({
+      id: `library:${hit.boardId}:${hit.cardId}`,
+      kind: 'library',
+      label: hit.title || hit.boardTitle,
+      description: `${hit.boardTitle} · ${hit.snippet}`,
+      icon: getNodeIcon('board'),
+      score: 0,
+      indices: [],
+      action: () => {
+        void (async () => {
+          await openBoard(hit.boardId);
+          if (activeBoardId.value !== hit.boardId) return;
+          for (let attempt = 0; attempt < 40 && activeBoardId.value === hit.boardId; attempt++) {
+            if (nodes.value.has(hit.cardId)) {
+              focusNode(hit.cardId);
+              onClose();
+              return;
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 25));
+          }
+        })();
+      },
+    });
+  }
   // Grouped render order (design item 7): Actions first, then Jump to.
-  filtered = [...filtered.filter((item) => item.kind === 'action'), ...filtered.filter((item) => item.kind === 'node')];
+  filtered = [
+    ...filtered.filter((item) => item.kind === 'action'),
+    ...filtered.filter((item) => item.kind === 'node'),
+    ...filtered.filter((item) => item.kind === 'library'),
+  ];
   const firstNodeIndex = filtered.findIndex((item) => item.kind === 'node');
+  const firstLibraryIndex = filtered.findIndex((item) => item.kind === 'library');
 
   // ── Sync spatial search highlights to canvas ──────────────
   useEffect(() => {
@@ -376,10 +460,29 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
           <kbd class="command-palette-esc">esc</kbd>
         </div>
         <div class="command-palette-results" ref={listRef}>
-          {filtered.length === 0 && <div class="command-palette-empty">No matching nodes or actions</div>}
+          {libraryState === 'loading' && (
+            <div class="command-palette-empty" role="status">
+              Searching all boards…
+            </div>
+          )}
+          {libraryState === 'error' && (
+            <div class="command-palette-empty" role="alert">
+              Library search is unavailable.
+            </div>
+          )}
+          {filtered.length === 0 && libraryState !== 'loading' && (
+            <div class="command-palette-empty">No matching nodes, boards, or actions</div>
+          )}
           {filtered.map((item, i) => {
             const Icon = item.icon;
-            const heading = i === 0 && item.kind === 'action' ? 'Actions' : i === firstNodeIndex ? 'Jump to' : null;
+            const heading =
+              i === 0 && item.kind === 'action'
+                ? 'Actions'
+                : i === firstNodeIndex
+                  ? 'Jump to'
+                  : i === firstLibraryIndex
+                    ? 'Across boards'
+                    : null;
             return (
               <div key={item.id} class="command-palette-row">
                 {heading && <div class="command-palette-group">{heading}</div>}

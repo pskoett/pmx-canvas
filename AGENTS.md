@@ -265,7 +265,7 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## Canvas Types
 
-**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `diff`, `image`, `html`, `mermaid`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
+**Node types (18):** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `diff`, `image`, `html`, `mermaid`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, `board`, plus internal thread node types `prompt` and `response`
 
 **Edge types:** `flow`, `depends-on`, `relation`, `references` — all support labels, styles (solid/dashed/dotted), and animation.
 
@@ -275,7 +275,7 @@ package in a clean temp consumer instead of the repo dev path.
 
 The `diagram` action of `canvas_app` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_app` action `open-mcp-app`.
 
-15 resources: `canvas://boards`, `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-timeline`, `canvas://ax-work`, `canvas://ax-pending-steering`, `canvas://ax-delivery`, `canvas://skills` (plus per-skill `canvas://skills/<name>`)
+15 static canvas resources: `canvas://boards`, `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-timeline`, `canvas://ax-work`, `canvas://ax-pending-steering`, `canvas://ax-delivery`, `canvas://skills`; one canvas resource template: `canvas://context{?budget,consumer,since}`. Bundled skills additionally register per-skill `canvas://skills/<name>` resources and the `skill://{name}/{+path}` file template.
 
 Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
 

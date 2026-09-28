@@ -14,6 +14,7 @@
 import { type Tour } from '../shared/tour.js';
 import { type CanvasBoard, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
+import { type ActorAttribution } from './attribution.js';
 import { type ContextRead, type ContextReadConsumerSummary, type ContextReadInput } from './context-reads.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
@@ -55,7 +56,7 @@ export interface CanvasSnapshotGcResult {
 }
 export interface CanvasNodeState {
     id: string;
-    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'diff' | 'mermaid' | 'image' | 'html' | 'group';
+    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'board' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'diff' | 'mermaid' | 'image' | 'html' | 'group';
     position: {
         x: number;
         y: number;
@@ -68,6 +69,27 @@ export interface CanvasNodeState {
     collapsed: boolean;
     pinned: boolean;
     data: Record<string, unknown>;
+    /** Server-owned provenance. Legacy rows normalize to unknown. */
+    createdBy?: ActorAttribution;
+    lastEditedBy?: ActorAttribution;
+    /** Board-monotonic revision of this node's latest semantic content. */
+    contentRevision?: number;
+}
+export interface NodeDeletionTombstone {
+    nodeId: string;
+    revision: number;
+    deletedBy: ActorAttribution;
+}
+export interface BoardContentRevision {
+    revision: number;
+    /** Cursors below this value are expired and must perform a full reset. */
+    retentionFloor: number;
+}
+export interface BoardContentDelta extends BoardContentRevision {
+    since: number;
+    reset: boolean;
+    nodes: CanvasNodeState[];
+    deleted: NodeDeletionTombstone[];
 }
 export interface ViewportState {
     x: number;
@@ -149,6 +171,9 @@ declare class CanvasStateManager {
     private _theme;
     private _contextPinnedNodeIds;
     private _workspaceRoot;
+    private _contentRevision;
+    private _revisionFloor;
+    private _deletionTombstones;
     private readonly ax;
     private _changeListeners;
     /**
@@ -181,6 +206,15 @@ declare class CanvasStateManager {
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
     private normalizeNode;
+    private nextContentRevision;
+    private revisionState;
+    /**
+     * Stable delta cursor contract: revisions strictly increase per active board;
+     * geometry-only writes do not advance them. `reset` means `since` predates
+     * retained tombstones, so callers must replace their view with `nodes`.
+     */
+    readContentDelta(since?: number): BoardContentDelta;
+    getContentRevision(): BoardContentRevision;
     private nodeForRead;
     private reflowAllGroups;
     private translateGroupChildren;
@@ -240,12 +274,24 @@ declare class CanvasStateManager {
     } | null;
     /** Every board in the workspace, most recently opened first. */
     listBoards(): CanvasBoard[];
+    getContextBriefCursor(boardId: string, consumer: string): number | null;
+    advanceContextBriefCursor(boardId: string, consumer: string, revision: number): void;
     /** Creates a board without opening it. */
     createBoard(name: string, category?: string | null): CanvasBoard | null;
     updateBoard(id: string, patch: {
         name?: string;
         category?: string | null;
     }): boolean;
+    setBoardReadme(id: string, nodeId: string | null): boolean;
+    /** Bounded inactive-board creation; never replaces the state the human has open. */
+    createBoardFromBoard(input: {
+        sourceBoardId: string;
+        name: string;
+        category?: string | null;
+        nodeIds?: string[];
+        includeReadme?: boolean;
+        includeStructure?: boolean;
+    }): CanvasBoard | null;
     /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
     deleteBoard(id: string): boolean;
     /**
@@ -303,6 +349,11 @@ declare class CanvasStateManager {
     deleteSnapshot(id: string): boolean;
     /** Remove all snapshots from the DB. Used by test teardown. */
     clearAllSnapshots(): void;
+    private restampRestoredContent;
+    private semanticData;
+    private nodeContentChanged;
+    private setSemanticNode;
+    private recordDeletion;
     get viewport(): ViewportState;
     addNode(node: CanvasNodeState): void;
     addJsonRenderNode(node: CanvasNodeState): void;

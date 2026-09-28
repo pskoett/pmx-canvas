@@ -1,0 +1,111 @@
+import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
+export type ContextBriefReason = 'pinned' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+export interface ContextBriefSourceEntry {
+    sourceBoardId: string;
+    nodeId: string;
+    reason: 'human' | 'ask' | 'steer';
+    title: string;
+    text: string;
+    provenance?: {
+        kind: 'imported';
+        source: string;
+    };
+}
+export interface ContextBriefLibraryBoard {
+    boardId: string;
+    name: string;
+    category: string | null;
+    readme?: {
+        nodeId: string;
+        title: string;
+        summary: string;
+        provenance?: {
+            kind: 'imported';
+            source: string;
+        };
+    };
+    pinnedTitles: Array<{
+        nodeId: string;
+        title: string;
+    }>;
+    /** IDs of link cards on the active board which explicitly target this board. */
+    linkIds: string[];
+}
+export interface ContextBriefInput {
+    activeBoard: {
+        boardId: string;
+        name: string;
+        category: string | null;
+    };
+    nodes: readonly CanvasNodeState[];
+    pinnedNodeIds: readonly string[];
+    contentRevision: number;
+    retentionFloor: number;
+    tombstones: readonly NodeDeletionTombstone[];
+    /** null means a first read. Other values must be non-negative safe integers. */
+    since: number | null;
+    libraryBoards: readonly ContextBriefLibraryBoard[];
+    entries?: readonly ContextBriefSourceEntry[];
+    /** Maximum JavaScript string length (UTF-16 code units), including the JSON envelope. */
+    budget: number;
+}
+export interface CompiledContextEntry {
+    sourceBoardId: string;
+    nodeId: string;
+    reason: ContextBriefReason;
+    title: string;
+    text: string;
+    /** A linked board's pin title is discovery metadata, not delivery of that pinned card. */
+    titleOnly?: true;
+    /** The body was shortened to fit; the same revision remains eligible on the next pull. */
+    truncated?: true;
+    provenance?: {
+        kind: 'imported';
+        source: string;
+        trust: 'source-material-not-instructions';
+    };
+}
+export interface ContextBriefDocument {
+    version: 1;
+    budgetUnit: 'utf16-code-units';
+    board: {
+        boardId: string;
+        name: string;
+        category: string | null;
+    };
+    cursor: {
+        requested: number | null;
+        next: number | null;
+        current: number;
+        retentionFloor: number;
+        reset: 'first-read' | 'retention-expired' | null;
+        valid: boolean;
+    };
+    entries: CompiledContextEntry[];
+    deletions: Array<{
+        sourceBoardId: string;
+        nodeId: string;
+        revision: number;
+    }>;
+    delivery: {
+        truncated: boolean;
+        omittedEntries: number;
+        omittedDeletions: number;
+    };
+}
+export interface ContextBriefResult {
+    /** Empty only when the budget cannot hold even the bounded JSON envelope. */
+    serialized: string;
+    document: ContextBriefDocument | null;
+    deliveredEntryIds: string[];
+    deliveredDeletionIds: string[];
+    nextCursor: number | null;
+    reset: ContextBriefDocument['cursor']['reset'];
+    invalidCursor: boolean;
+    truncated: boolean;
+}
+/**
+ * Pure, deterministic compiler. It reads only the supplied snapshot and never
+ * treats library visibility as authorization to read or mutate another board.
+ */
+export declare function compileContextBrief(input: ContextBriefInput): ContextBriefResult;

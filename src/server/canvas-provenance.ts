@@ -7,6 +7,7 @@ export type CanvasNodeType =
   | 'webpage'
   | 'json-render'
   | 'graph'
+  | 'board'
   | 'prompt'
   | 'response'
   | 'status'

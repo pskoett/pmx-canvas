@@ -250,6 +250,16 @@ async function bandOne(): Promise<void> {
     height: 550,
   });
 
+  await node('board-link', {
+    type: 'board',
+    title: 'Related research',
+    data: { boardId: 'board-demo-related' },
+    x: cx(-368),
+    y: top,
+    width: 320,
+    height: 160,
+  });
+
   await node('status', {
     type: 'status',
     title: 'Agent',

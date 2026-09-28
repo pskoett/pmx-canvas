@@ -440,15 +440,15 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `update` | Boards in the workspace, filed in categories on Home. Your writes go to the board the human has open; `create` (optional `category`) does not open; `update` renames or re-files a board. Ask the human to open another board |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `update` | Boards, README designation, links/backlinks, and inactive copies |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order) |
-| `canvas_query` | `search` · `layout` · `validate` | Find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
+| `canvas_query` | `context` · `search` · `layout` · `validate` | Read the budgeted cross-board brief, find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | Headless Bun.WebView automation for the workbench (folds the `canvas_webview_*` / `canvas_resize` / `canvas_evaluate` tools) |
 | `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | Read AX state; set AX focus; patch tool/prompt policy (the scope fence is human-set, read-only here); report host capability; read / set agent presence (phase, cursor, focus, attached session) |
 | `canvas_ax_work` | `add` · `update` · `annotate` | Canvas-bound work items + review annotations |
-| `canvas_ax_gate` | `request` · `resolve` · `await` × `kind` `approval` \| `elicitation` \| `mode` | The human-decision gate machine (request → await → resolve) |
+| `canvas_ax_gate` | `request` · `resolve` · `await` × `kind` `approval` \| `elicitation` \| `mode` | Attributed gate lifecycle (request → await → resolve); attribution does not itself grant authority |
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` | The bounded AX diagnostics timeline, and the context read log (`reads`) |
 | `canvas_ax_delivery` | `claim` · `mark` | Adapterless steering delivery (claim → act → mark) |
 | `canvas_intent` | `signal` · `update` · `clear` | Ghost Cursor of Intent — announce a move before making it |
@@ -458,6 +458,29 @@ Call shape examples: `canvas_node { action: "add", type, title }`,
 `canvas_render { action: "add-graph", graphType, data }`,
 `canvas_query { action: "search", query }`,
 `canvas_ax_work { action: "update", id, status }`.
+
+Start board work with `canvas_query { action: "context", consumer:
+"<stable-unique-agent-id>", budget: 16000 }`. The budget is UTF-16 code units,
+not tokens. A durable cursor exists only with an explicit consumer and is scoped
+to the active board; no consumer means a fresh read, while explicit `since`
+does not advance a cursor. Pins come first. Follow a clipped entry's source
+board/card IDs with `canvas_board get` and `canvas_node get`.
+
+README designation is part of normal agent board authoring: read `canvas_board
+{ action: "get" }`, and when `readmeNodeId` is null, choose or create a concise
+markdown introduction and call `canvas_board { action: "update", id:
+"<board-id>", readmeNodeId: "<markdown-node-id>" }`. Explain the board's purpose,
+key context, and where to start. Do not pick an arbitrary first card. Preserve
+an existing README unless the human asks to change it, respect requests for no
+README, and do not mutate boards during read-only tasks. The browser's README
+control is a manual override, not a required setup step.
+
+For library work, `canvas_query { action: "search", query, scope: "library" }`
+reads inactive boards without opening them. Board links are native text-only
+`board` nodes with `data.boardId`. Preview `canvas_board create-from` before
+creation: `prompt`, `response`, `trace`, and `mcp-app` are excluded; README and
+group structure are optional; fresh IDs are allocated; pins, AX state, and
+history are not copied; the source remains unchanged and the new board inactive.
 
 `canvas_ax_gate` takes **two** discriminators, `{ kind, action }` — e.g.
 `{ kind: "approval", action: "request", title }`,

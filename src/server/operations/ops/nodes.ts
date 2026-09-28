@@ -60,6 +60,7 @@ import { readTargetBoard } from './boards.js';
 // and the MCP type enum.
 export const NODE_TYPES = [
   'markdown',
+  'board',
   'status',
   'context',
   'ledger',
@@ -92,6 +93,8 @@ export function defaultNodeSize(type: string): { width: number; height: number }
       return { width: 640, height: 460 };
     case 'markdown':
       return MARKDOWN_NODE_DEFAULT_SIZE;
+    case 'board':
+      return { width: 360, height: 160 };
     case 'mcp-app':
       return MCP_APP_NODE_DEFAULT_SIZE;
     case 'image':

@@ -144,12 +144,13 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_board',
     description:
-      'Boards in this workspace — the library of the human\'s and your working memory, filed in categories on Home. Your writes always go to the board the human has open (activeBoardId); on Home (no board open) your first write opens their most recent board, or a new one when there are none. Action "list" returns every board (with its category), most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it (optional category); "update" renames a board or files it under a category (category "" removes it). Only the human opens, switches or deletes boards — if you need another board, ask them in the chat to open it.',
-    actionSummary: 'list | get | create | update',
+      'Boards in this workspace — the library of the human\'s and your working memory, filed in categories on Home. Your writes always go to the board the human has open (activeBoardId); on Home (no board open) your first write opens their most recent board, or a new one when there are none. Action "list" returns every board (with its category), most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it (optional category); "update" renames a board, files it under a category (category "" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with "update". Preserve an existing README unless the human asks to change it; humans can override the designation manually. Only the human opens, switches or deletes boards — if you need another board, ask them in the chat to open it.',
+    actionSummary: 'list | get | create | create-from | update',
     actions: {
       list: 'board.list',
       get: 'board.get',
       create: 'board.create',
+      'create-from': 'board.create-from',
       update: 'board.update',
     },
   },
@@ -229,9 +230,10 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_query',
     description:
-      'Read the board cheapest-first. Action "search" finds nodes by title/content keywords (prefer this before reading the full layout); "layout" returns the full node/edge layout; "validate" checks the board for node collisions, group-containment issues, and missing edge endpoints. Use search to locate, then layout or canvas_node get for detail.',
-    actionSummary: 'search | layout | validate',
+      'Read the board cheapest-first. Action "context" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); "search" finds nodes by title/content keywords; "layout" returns the full layout; "validate" checks geometry and endpoints.',
+    actionSummary: 'context | search | layout | validate',
     actions: {
+      context: 'context.get',
       search: 'search',
       layout: 'layout.get',
       validate: 'validate.get',

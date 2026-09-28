@@ -39,6 +39,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { workbenchToken } from './workbench-auth.js';
 import { existsSync, readFileSync, realpathSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -1115,6 +1116,7 @@ function canvasSpaHtml(): string {
   }
   <script>window.__PMX_BOOT_SERVER_VERSION = ${JSON.stringify(serverPackageVersion())};</script>
   <script>window.__PMX_BOOT_BUNDLE_STAMP = ${JSON.stringify(canvasBundleStamp())};</script>
+  <script>window.__PMX_WORKBENCH_TOKEN = ${JSON.stringify(workbenchToken)};</script>
   <script type="module" src="/canvas/index.js?v=${CANVAS_ASSET_VERSION}"></script>
 </body>
 </html>`;

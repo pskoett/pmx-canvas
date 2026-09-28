@@ -41,6 +41,15 @@ in real time. Either side adds material; the human curates spatial structure
 `canvas://pinned-context` and acts on it. Spatial arrangement is
 communication — proximity means relatedness, pinning means *focus here*.
 
+The database holds many named boards. **Home is the library view, not a board**:
+it lists recent boards and nested category paths (up to eight 60-character
+segments). Empty folders are not independent objects; they exist only while a
+board is filed beneath them. Only a human opens/switches or deletes a board.
+Agents may list, read, create, rename, categorize, search, and create an inactive
+board from selected reusable cards without disturbing the board in view. Home
+provides a copy-preview dialog; an open board's command palette offers a
+board-link picker. Neither depends on native browser prompts.
+
 ## Main features
 
 ### 01 / Curate
@@ -176,7 +185,13 @@ and the `pmx-canvas-orchestration` skill documents the choreography.
 
 Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
 git-committable, shareable across machines, and survives both browser
-refresh and server restart. Named [snapshots](docs/mcp.md), full
+refresh and server restart. Autosave is not a backup: `pmx-canvas backup` and
+its optional server-run schedule copy the whole board library, while restore
+keeps the replaced database. Backup and scheduling are backend/CLI operations;
+there is no Home backup button. A board can also be exported as a self-contained
+HTML file. Export previews what is included, omits local file contents unless
+explicitly requested, and locks board-link cards because an exported file has
+no live target library (the target title is not embedded). Named [snapshots](docs/mcp.md), full
 undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
 the canvas durable rather than throwaway. Stop the server before committing
 the DB so SQLite WAL data is checkpointed into the file.
@@ -184,7 +199,7 @@ the DB so SQLite WAL data is checkpointed into the file.
 ### 07 / Any agent
 
 Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (23 tools,
-15 resources, change notifications), the [CLI](docs/cli.md), the
+15 static canvas resources plus one context resource template, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
 [environment variables documented here](docs/environment.md). Works with
 Claude Code, the GitHub Copilot app and CLI, Codex, Amp, Cursor, Windsurf, or
@@ -444,7 +459,8 @@ paths, screenshots, or logs are attached automatically.
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 23 tools, 15 core resources plus bundled
+- **[MCP reference](docs/mcp.md)** — 23 tools, 15 static canvas resources, one
+  context resource template, plus bundled
   skill resources, Skills extension, change notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native

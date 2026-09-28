@@ -67,6 +67,11 @@ const CASES: ReferenceCase[] = [
     painted: (node) => expect(node.getByText('Markdown pane sentinel')).toBeInViewport(),
   },
   {
+    type: 'board',
+    create: addNode({ type: 'board', title: 'Ref Board', data: { boardId: 'missing-reference-board' } }),
+    painted: (node) => expect(node.getByText('Missing board')).toBeInViewport(),
+  },
+  {
     type: 'status',
     create: addNode({
       type: 'status',

@@ -437,6 +437,10 @@ function buildCanvasMenuItems(canvasX: number, canvasY: number): MenuItem[] {
         });
       },
     },
+    {
+      label: 'Link to board…',
+      action: () => window.dispatchEvent(new CustomEvent('pmx-open-board-link')),
+    },
     { separator: true },
     {
       label: 'New group',

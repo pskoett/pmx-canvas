@@ -8,6 +8,7 @@ import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandBar } from './canvas/CommandBar';
 import { ConnectionBanner } from './canvas/ConnectionBanner';
 import { CommandPalette } from './canvas/CommandPalette';
+import { BoardLinkDialog } from './canvas/BoardLinkDialog';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
 import { EmptyState } from './canvas/EmptyState';
@@ -70,6 +71,7 @@ export function App() {
   const [minimapVisible, setMinimapVisible] = useState(true);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [boardLinkOpen, setBoardLinkOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>(null);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
@@ -92,6 +94,12 @@ export function App() {
 
   useEffect(() => {
     return connectSSE();
+  }, []);
+
+  useEffect(() => {
+    const open = () => setBoardLinkOpen(true);
+    window.addEventListener('pmx-open-board-link', open);
+    return () => window.removeEventListener('pmx-open-board-link', open);
   }, []);
 
   // Keep the server's idea of this window's size current (0.4.6 orb feedback
@@ -390,6 +398,7 @@ export function App() {
       {sessionIsActive && <SessionPanel />}
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
+      {boardLinkOpen && <BoardLinkDialog onClose={() => setBoardLinkOpen(false)} />}
       {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}
     </div>
   );

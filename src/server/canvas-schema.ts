@@ -108,6 +108,18 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     ],
   },
   {
+    type: 'board',
+    kind: 'node',
+    description: 'Text-only link to another board by durable id.',
+    endpoint: '/api/canvas/node',
+    mcpTool: 'canvas_node (action:"add")',
+    fields: [
+      { name: 'title', type: 'string', required: false, description: 'Pinned fallback title.' },
+      { name: 'data', type: 'object', required: true, description: 'Contains boardId, the durable target board id.' },
+    ],
+    example: { type: 'board', title: 'Research', data: { boardId: 'board-abc123' } },
+  },
+  {
     type: 'status',
     kind: 'node',
     description: 'Compact status indicator.',

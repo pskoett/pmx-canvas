@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { serializeNodeForAgentContext, summarizeNodeForAgentContext } from '../../src/server/agent-context.ts';
 import type { CanvasNodeState } from '../../src/server/canvas-state.ts';
+import { searchNodes } from '../../src/server/spatial-analysis.ts';
 
 function makeNode(data: Record<string, unknown>): CanvasNodeState {
   return {
@@ -21,6 +22,118 @@ function makeTypedNode(type: CanvasNodeState['type'], data: Record<string, unkno
     type,
   };
 }
+
+describe('meaningful card text', () => {
+  const samples: Record<CanvasNodeState['type'], { data: Record<string, unknown>; meaning: string }> = {
+    markdown: { data: { content: 'Keep the source', rendered: '<p>Keep the source</p>' }, meaning: 'Keep the source' },
+    board: { data: { boardId: 'board-1', title: 'Roadmap' }, meaning: 'Roadmap' },
+    status: { data: { phase: 'blocked', detail: 'Waiting for budget' }, meaning: 'Waiting for budget' },
+    context: {
+      data: { cards: [{ title: 'Policy', summary: 'Retain for seven years' }] },
+      meaning: 'Retain for seven years',
+    },
+    ledger: { data: { approvedBudget: 420, spent: 37 }, meaning: 'approvedBudget: 420' },
+    trace: { data: { toolName: 'fetch', status: 'failed', error: 'Permission denied' }, meaning: 'Permission denied' },
+    file: { data: { path: '/report.md', fileContent: 'Revenue rose 12 percent' }, meaning: 'Revenue rose 12 percent' },
+    diff: { data: { content: '-old budget\n+new budget' }, meaning: '+new budget' },
+    mermaid: { data: { content: 'graph TD; Review-->Approve' }, meaning: 'Review-->Approve' },
+    image: {
+      data: { alt: 'Workshop with three teams', src: 'data:image/png;base64,NOT_CONTEXT' },
+      meaning: 'Workshop with three teams',
+    },
+    html: {
+      data: { summary: 'Three options for delivery', html: '<script>NOT_CONTEXT</script>' },
+      meaning: 'Three options for delivery',
+    },
+    group: { data: { title: 'Research', children: ['a', 'b', 'c'] }, meaning: '3 cards' },
+    graph: {
+      data: {
+        graphConfig: {
+          graphType: 'bar',
+          data: [
+            { quarter: 'Q1', revenue: 17 },
+            { quarter: 'Q2', revenue: 42 },
+          ],
+          color: 'NOT_CONTEXT',
+        },
+      },
+      meaning: 'revenue: 42',
+    },
+    'json-render': {
+      data: {
+        spec: {
+          root: 'note',
+          elements: { note: { type: 'Text', props: { text: 'Renewal is at risk', className: 'NOT_CONTEXT' } } },
+        },
+      },
+      meaning: 'Renewal is at risk',
+    },
+    'mcp-app': {
+      data: { toolInput: { elements: [{ type: 'text', text: 'Check access before launch' }] } },
+      meaning: 'Check access before launch',
+    },
+    webpage: { data: { content: 'Published delivery research' }, meaning: 'Published delivery research' },
+    prompt: { data: { text: 'Compare the alternatives' }, meaning: 'Compare the alternatives' },
+    response: { data: { text: 'Option B costs less' }, meaning: 'Option B costs less' },
+  };
+
+  for (const [type, { data, meaning }] of Object.entries(samples)) {
+    test(`${type} carries content rather than raw configuration`, () => {
+      const text = summarizeNodeForAgentContext(makeTypedNode(type as CanvasNodeState['type'], data));
+      expect(text).toContain(meaning);
+      expect(text).not.toMatch(/^\s*[[{]/);
+      expect(text).not.toContain('NOT_CONTEXT');
+      expect(text).not.toContain('<p>');
+    });
+  }
+
+  test('missing image meaning is explicit, not an image URL masquerading as content', () => {
+    const text = summarizeNodeForAgentContext(makeTypedNode('image', { src: 'data:image/png;base64,SECRET' }));
+    expect(text).toContain('No image description');
+    expect(text).not.toContain('SECRET');
+  });
+
+  test('surface text follows reachable children, keeps zero values, and excludes actions and detached content', () => {
+    const node = makeTypedNode('json-render', {
+      spec: {
+        root: 'root',
+        elements: {
+          detached: { props: { text: 'DETACHED' } },
+          second: { props: { label: 'Remaining budget', value: 0 }, children: ['root'] },
+          root: { props: { title: 'Budget', on: { press: 'INTERNAL_ACTION' } }, children: ['first', 'second'] },
+          first: { props: { text: 'Approved: 42' } },
+        },
+      },
+    });
+    const text = summarizeNodeForAgentContext(node);
+    expect(text).toContain('Budget\nApproved: 42\nRemaining budget\n0');
+    expect(text).toContain('dynamic visibility not evaluated');
+    expect(text).not.toContain('DETACHED');
+    expect(text).not.toContain('INTERNAL_ACTION');
+  });
+
+  test('search uses full semantic text, not the truncated brief or renderer configuration', () => {
+    const node = makeTypedNode('graph', {
+      graphConfig: {
+        graphType: 'bar',
+        data: Array.from({ length: 100 }, (_, i) => ({
+          account: i === 99 ? 'RareCustomer' : `Account ${i}`,
+          value: i,
+        })),
+        color: 'hidden-config-needle',
+      },
+    });
+    expect(summarizeNodeForAgentContext(node)).not.toContain('RareCustomer');
+    expect(searchNodes([node], 'missing RareCustomer')[0]?.snippet).toContain('RareCustomer');
+    expect(searchNodes([node], 'hidden-config-needle')).toEqual([]);
+  });
+
+  test('the entire file summary obeys the delivery budget, including its path', () => {
+    const node = makeTypedNode('file', { path: '/very/long/path/to/a/report.md', fileContent: 'A report' });
+    expect(summarizeNodeForAgentContext(node, { defaultTextLength: 12 }).length).toBeLessThanOrEqual(12);
+    expect(summarizeNodeForAgentContext(node, { defaultTextLength: 0 })).toBe('');
+  });
+});
 
 describe('agent-context mcp-app summaries', () => {
   test('summarizes ext-app nodes with source and diagram hints', () => {

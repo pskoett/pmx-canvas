@@ -14,6 +14,7 @@ const EXPECTED_FRAMES: Record<CanvasNodeState['type'], { x: number; y: number; w
   webpage: { x: 380, y: 80, w: 520, h: 420 },
   'json-render': { x: 380, y: 720, w: 840, h: 620 },
   graph: { x: 380, y: 720, w: 760, h: 520 },
+  board: { x: 380, y: 80, w: 360, h: 160 },
   ledger: { x: 1130, y: 520, w: 320, h: 280 },
   trace: { x: 40, y: 900, w: 200, h: 56 },
   file: { x: 380, y: 80, w: 720, h: 600 },

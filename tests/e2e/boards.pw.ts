@@ -20,6 +20,131 @@ async function note(request: APIRequestContext, title: string, x = 120, y = 120)
   return ((await response.json()) as { id: string }).id;
 }
 
+test('board switching refreshes approval labels and discards stale approval reads', async ({ page, request }) => {
+  const ids: string[] = [];
+  for (const name of ['Approvals A', 'Approvals B']) {
+    const { board } = await (await request.post('/api/canvas/boards', { data: { name } })).json();
+    ids.push(board.id);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+    const { approvalGate } = await (await request.post('/api/canvas/ax/approval', { data: { title: name } })).json();
+    await request.post(`/api/canvas/ax/approval/${approvalGate.id}/resolve`, { data: { decision: 'approved' } });
+  }
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'Start agent session', exact: true }).click();
+  await page.getByTitle('Expand session panel').click();
+  await page.getByRole('button', { name: /Work items/i }).click();
+  const list = page.getByRole('list', { name: 'Work items and gates' });
+  await expect(list).toContainText('Approvals B');
+  await expect(list).toContainText('approved by api');
+  let release!: () => void;
+  let captured!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    captured = resolve;
+  });
+  let intercepted = false;
+  await page.route('**/api/canvas/ax/surface-snapshot', async (route) => {
+    if (intercepted) return route.continue();
+    intercepted = true;
+    const response = await route.fetch();
+    captured();
+    await hold;
+    await route.fulfill({ response });
+  });
+  try {
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: ids[0] } });
+    await ready;
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: ids[1] } });
+    await expect(list).toContainText('Approvals B');
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+    await expect(list).not.toContainText('Approvals A');
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: ids[0] } });
+    await expect(list).toContainText('Approvals A');
+    await expect(list).not.toContainText('Approvals B');
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
+test('board menu dismisses on canvas and card clicks; README and link actions stay usable', async ({
+  page,
+  request,
+}) => {
+  await request.post('/api/canvas/clear', { headers: HUMAN });
+  const id = await note(request, 'Board introduction', 440, 80);
+  const source = (await boards(request)).activeBoardId!;
+  const target = (await (await request.post('/api/canvas/boards', { data: { name: 'Linked destination' } })).json())
+    .board;
+  await request.post('/api/canvas/node', {
+    data: { type: 'board', title: 'Reference', data: { boardId: target.id }, x: 800, y: 80, width: 320, height: 260 },
+  });
+  await page.goto('/workbench');
+  const switcher = page.getByRole('button', { name: /^Board:/ });
+  const menu = page.getByRole('menu', { name: 'Boards', exact: true });
+  await switcher.click();
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /Linked destination/ })).toContainText('0 nodes');
+  expect(await menu.evaluate((element) => getComputedStyle(element).backgroundColor)).toMatch(/^rgb\(/);
+  for (const width of [600, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    const bounds = await menu.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await expect(menu.getByRole('menuitem', { name: 'All boards (Home)' })).toBeInViewport();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator('.canvas-viewport').click({ position: { x: 1000, y: 500 } });
+  await expect(menu).toHaveCount(0);
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await switcher.click();
+  await card.getByText('Board introduction body', { exact: true }).click();
+  await expect(menu).toHaveCount(0);
+  await switcher.click();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  const designation = card.getByRole('button', { name: 'Set as README', exact: true });
+  await designation.click();
+  await expect(card.getByRole('button', { name: 'README', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect((await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId).toBe(id);
+  await card.getByRole('button', { name: 'README', exact: true }).press('Enter');
+  await expect(designation).toHaveAttribute('aria-pressed', 'false');
+  const body = await card.locator('.md-card-content').boundingBox();
+  const footer = await card.locator('.md-card-actions').boundingBox();
+  expect(body!.y + body!.height).toBeLessThanOrEqual(footer!.y + 1);
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByRole('button', { name: '</> Source', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Open board', exact: true }).press('Enter');
+  await expect(page.getByRole('button', { name: /^Board: Linked destination/ })).toBeVisible();
+});
+
+test('the logo opens Home by click and keyboard without losing board content', async ({ page, request }) => {
+  await note(request, 'Logo navigation keeps this card');
+  const id = (await boards(request)).activeBoardId!;
+  await request.patch(`/api/canvas/boards/${id}`, { data: { name: 'Logo navigation board' } });
+  await page.goto('/workbench');
+  const logo = page.getByRole('button', { name: 'PMX Canvas — Home' });
+  await expect(page.getByRole('button', { name: 'Present', exact: true })).toBeVisible();
+  await logo.click();
+  await expect(page.getByTestId('home-view')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Present', exact: true })).toHaveCount(0);
+  expect((await boards(request)).activeBoardId).toBeNull();
+  await page
+    .getByTestId('home-board')
+    .filter({ hasText: 'Logo navigation board' })
+    .getByRole('button', { name: /Logo navigation board/ })
+    .click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Logo navigation keeps this card' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Present', exact: true })).toBeVisible();
+  await logo.focus();
+  await logo.press('Enter');
+  await expect(page.getByTestId('home-view')).toBeVisible();
+});
+
 test('switch boards from the top bar, go Home, delete with a confirm, and reopen', async ({ page, request }) => {
   // A board with a note on it is open; name it so the switcher shows something stable.
   await request.post('/api/canvas/clear', { headers: HUMAN });
@@ -159,6 +284,8 @@ test('nested folders move boards, retain collapse state, and search across close
   await page.getByRole('searchbox', { name: 'Find boards and folders' }).fill('Architecture');
   await expect(branch.getByTestId('home-board')).toBeVisible();
   await expect(page.getByTestId('home-board').filter({ hasText: 'Other decisions' })).toHaveCount(0);
+  await page.getByRole('searchbox', { name: 'Find boards and folders' }).clear();
+  await engineering.click();
   await row.getByRole('button', { name: 'Move', exact: true }).click();
   await dialog.getByRole('radio', { name: 'Engineering', exact: true }).check();
   await dialog.getByRole('button', { name: 'Move board', exact: true }).click();
@@ -168,6 +295,57 @@ test('nested folders move boards, retain collapse state, and search across close
   );
   await expect(branch).toHaveCount(0);
   await expect(page.locator('[data-folder="Engineering"]')).toContainText('Architecture decisions');
+});
+
+test('creates a selective board copy, links boards, and jumps through library search at 600px', async ({
+  page,
+  request,
+}) => {
+  await request.post('/api/canvas/clear', { headers: HUMAN });
+  const copiedId = await note(request, 'Reusable decision');
+  await note(request, 'Leave this behind', 500, 120);
+  const source = (await boards(request)).activeBoardId as string;
+  await request.patch(`/api/canvas/boards/${source}`, { data: { name: 'Source memory', readmeNodeId: copiedId } });
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: null } });
+
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto('/workbench');
+  const sourceRow = page.getByTestId('home-board').filter({ hasText: 'Source memory' });
+  await sourceRow.getByRole('button', { name: 'Create from…' }).click();
+  const copyDialog = page.getByRole('dialog', { name: 'Create from Source memory' });
+  await expect(copyDialog).toBeInViewport();
+  await expect(copyDialog.getByText(/Asks, history, and context pins start clear/)).toBeVisible();
+  await copyDialog.getByLabel('Leave this behind').uncheck();
+  await copyDialog.getByLabel('Board name').fill('Focused memory');
+  await copyDialog.getByRole('button', { name: 'Create board' }).click();
+  await expect(copyDialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Board: Home/ })).toBeVisible();
+  const createdRow = page.getByTestId('home-board').filter({ hasText: 'Focused memory' });
+  await expect(createdRow).toBeVisible();
+  await createdRow.getByRole('button', { name: /Focused memory/ }).click();
+  await expect(
+    page.locator('.canvas-node[data-node-type="markdown"]').filter({ hasText: 'Reusable decision' }),
+  ).toBeVisible();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Leave this behind' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: /Search & commands/ }).click();
+  await page
+    .getByRole('dialog', { name: 'Search and commands' })
+    .getByRole('button', { name: 'Link to board…' })
+    .click();
+  const linkDialog = page.getByRole('dialog', { name: 'Link to a board' });
+  await linkDialog.getByRole('searchbox', { name: 'Find a board to link' }).fill('Source');
+  await linkDialog.getByRole('button', { name: /Source memory/ }).click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Source memory' })).toBeInViewport();
+
+  await page.getByRole('button', { name: /Search & commands/ }).click();
+  const palette = page.getByRole('dialog', { name: 'Search and commands' });
+  await palette.getByRole('textbox').fill('Leave this behind');
+  const libraryResult = palette.getByRole('button', { name: /Leave this behind.*Source memory/ });
+  await expect(libraryResult).toBeVisible();
+  await libraryResult.press('Enter');
+  await expect(page.getByRole('button', { name: /^Board: Source memory/ })).toBeVisible();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Leave this behind' })).toBeInViewport();
 });
 
 for (const sameBoard of [false, true]) {

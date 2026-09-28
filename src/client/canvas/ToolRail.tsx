@@ -32,6 +32,7 @@ import {
   traceEnabled,
 } from '../state/canvas-store';
 import { saveCanvasTheme } from '../state/intent-bridge';
+import { openBoard } from '../state/boards-store';
 import { createNodeInView } from './create-in-view';
 import { askText } from './TextPrompt';
 import { FeedbackDialog } from './FeedbackDialog';
@@ -240,9 +241,18 @@ export function ToolRail({
   return (
     <>
       <div class="tool-rail" ref={railRef} role="toolbar" aria-label="Canvas tools" aria-orientation="vertical">
-        <span class="rail-brand" title="PMX Canvas" aria-label="PMX Canvas">
-          <IconLogo size={22} />
-        </span>
+        <RailButton
+          label="Home"
+          ariaLabel="PMX Canvas — Home"
+          onClick={() => {
+            setOpenMenu(null);
+            void openBoard(null).catch((error) => logRailError('openHome', error));
+          }}
+        >
+          <span class="rail-brand">
+            <IconLogo size={22} />
+          </span>
+        </RailButton>
 
         <RailButton
           label="Bug and feedback"

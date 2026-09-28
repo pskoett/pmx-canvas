@@ -29,6 +29,8 @@ export interface ExecuteOperationMeta {
      * to agents only, and batch inner writes are always agent-originated.
      */
     fromWorkbench?: boolean;
+    /** Authorship only: true when the per-boot workbench token matched. */
+    humanAuthor?: boolean;
     /**
      * An MCP server attached to this daemon, or a host adapter, fetching on an
      * agent's behalf. It records the read the agent actually made itself

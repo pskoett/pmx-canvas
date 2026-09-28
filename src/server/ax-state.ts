@@ -2,6 +2,7 @@ import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
 import { clampGateTtlMs, DEFAULT_GATE_TTL_MS } from '../shared/approval-gates.js';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../shared/ax-kinds.js';
 import type { AgentContextNode } from './agent-context.js';
+import type { ActorAttribution } from './attribution.js';
 
 export type PmxAxSource = 'agent' | 'amp' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';
 
@@ -48,6 +49,9 @@ export interface PmxAxApprovalGate {
   resolvedAt: string | null;
   resolution: string | null;
   source: PmxAxSource | null;
+  requestedBy?: ActorAttribution;
+  resolvedBy?: ActorAttribution | null;
+  selfAnswer?: boolean;
 }
 
 export interface PmxAxReviewRegion {
@@ -301,6 +305,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function normalizeAttribution(value: unknown): ActorAttribution {
+  if (!isRecord(value)) return { actor: 'unknown', source: 'unknown' };
+  const actor = value.actor;
+  return {
+    actor: actor === 'human' || actor === 'agent' || actor === 'system' ? actor : 'unknown',
+    source: typeof value.source === 'string' ? value.source : 'unknown',
+    ...(typeof value.agentId === 'string' ? { agentId: value.agentId } : {}),
+  };
+}
+
 function normalizeSource(value: unknown): PmxAxSource | null {
   return typeof value === 'string' && AX_SOURCES.has(value as PmxAxSource) ? (value as PmxAxSource) : null;
 }
@@ -548,6 +562,9 @@ export interface PmxAxElicitation {
   createdAt: string;
   resolvedAt: string | null;
   source: PmxAxSource | null;
+  requestedBy?: ActorAttribution;
+  resolvedBy?: ActorAttribution | null;
+  selfAnswer?: boolean;
 }
 
 export function normalizeAxElicitation(input: unknown, validNodeIds?: Set<string>): PmxAxElicitation | null {
@@ -564,6 +581,9 @@ export function normalizeAxElicitation(input: unknown, validNodeIds?: Set<string
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
     resolvedAt: normalizeTimestamp(input.resolvedAt),
     source: normalizeSource(input.source),
+    requestedBy: normalizeAttribution(input.requestedBy),
+    resolvedBy: input.resolvedBy ? normalizeAttribution(input.resolvedBy) : null,
+    selfAnswer: input.selfAnswer === true,
   };
 }
 
@@ -571,6 +591,7 @@ export function createAxElicitation(
   input: { prompt: string; fields?: string[]; nodeIds?: string[] },
   source: PmxAxSource | null,
   validNodeIds?: Set<string>,
+  requestedBy: ActorAttribution = { actor: 'unknown', source: 'unknown' },
 ): PmxAxElicitation {
   return {
     id: axId('elic'),
@@ -582,6 +603,9 @@ export function createAxElicitation(
     createdAt: nowIso(),
     resolvedAt: null,
     source,
+    requestedBy,
+    resolvedBy: null,
+    selfAnswer: false,
   };
 }
 
@@ -602,6 +626,9 @@ export interface PmxAxModeRequest {
   resolvedAt: string | null;
   resolution: string | null;
   source: PmxAxSource | null;
+  requestedBy?: ActorAttribution;
+  resolvedBy?: ActorAttribution | null;
+  selfAnswer?: boolean;
 }
 
 export function normalizeAxModeRequest(input: unknown, validNodeIds?: Set<string>): PmxAxModeRequest | null {
@@ -618,6 +645,9 @@ export function normalizeAxModeRequest(input: unknown, validNodeIds?: Set<string
     resolvedAt: normalizeTimestamp(input.resolvedAt),
     resolution: optionalString(input.resolution),
     source: normalizeSource(input.source),
+    requestedBy: normalizeAttribution(input.requestedBy),
+    resolvedBy: input.resolvedBy ? normalizeAttribution(input.resolvedBy) : null,
+    selfAnswer: input.selfAnswer === true,
   };
 }
 
@@ -625,6 +655,7 @@ export function createAxModeRequest(
   input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
   source: PmxAxSource | null,
   validNodeIds?: Set<string>,
+  requestedBy: ActorAttribution = { actor: 'unknown', source: 'unknown' },
 ): PmxAxModeRequest {
   return {
     id: axId('mode'),
@@ -636,6 +667,9 @@ export function createAxModeRequest(
     resolvedAt: null,
     resolution: null,
     source,
+    requestedBy,
+    resolvedBy: null,
+    selfAnswer: false,
   };
 }
 
@@ -715,6 +749,9 @@ export function normalizeAxApprovalGate(input: unknown, validNodeIds?: Set<strin
     resolvedAt: normalizeTimestamp(input.resolvedAt),
     resolution: optionalString(input.resolution),
     source: normalizeSource(input.source),
+    requestedBy: normalizeAttribution(input.requestedBy),
+    resolvedBy: input.resolvedBy ? normalizeAttribution(input.resolvedBy) : null,
+    selfAnswer: input.selfAnswer === true,
   };
 }
 
@@ -856,6 +893,7 @@ export function createAxApprovalGate(
   input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[]; ttlMs?: number },
   source: PmxAxSource | null,
   validNodeIds?: Set<string>,
+  requestedBy: ActorAttribution = { actor: 'unknown', source: 'unknown' },
 ): PmxAxApprovalGate {
   const created = Date.now();
   return {
@@ -870,6 +908,9 @@ export function createAxApprovalGate(
     resolvedAt: null,
     resolution: null,
     source,
+    requestedBy,
+    resolvedBy: null,
+    selfAnswer: false,
   };
 }
 

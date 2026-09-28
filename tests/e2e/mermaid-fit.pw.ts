@@ -193,6 +193,7 @@ test('Mermaid reports natural height so non-strict cards still grow', async ({ p
   await expect(svg).toBeVisible();
   await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeGreaterThan(1204);
   const grown = await geometry(svg);
-  expect(grown.height).toBeCloseTo(grown.naturalHeight, 1);
+  expect(grown.height).toBeCloseTo((grown.width * grown.naturalHeight) / grown.naturalWidth, 1);
+  expect(grown.bottom).toBeLessThanOrEqual(grown.viewportHeight + 1);
   await request.delete(`/api/canvas/node/${id}`);
 });

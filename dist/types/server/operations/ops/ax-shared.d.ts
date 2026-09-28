@@ -16,14 +16,14 @@ export declare const AX_SOURCES: readonly ["agent", "amp", "api", "browser", "cl
 export declare const AX_SOURCE_SHAPE: z.ZodOptional<z.ZodEnum<{
     amp: "amp";
     agent: "agent";
+    system: "system";
+    sdk: "sdk";
     api: "api";
     browser: "browser";
     cli: "cli";
     codex: "codex";
     copilot: "copilot";
     mcp: "mcp";
-    sdk: "sdk";
-    system: "system";
 }>>;
 /** Zod schema for the optional `agentId` field shared by AX MCP tool shapes. */
 export declare const AX_AGENT_ID_SHAPE: z.ZodOptional<z.ZodString>;

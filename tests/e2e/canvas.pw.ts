@@ -1151,7 +1151,10 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
   // Focus marks the node active before its animation commits the viewport.
   // Finish that history entry before creating the later undo target.
   const focusCommitted = page.waitForResponse(
-    (response) => response.url().endsWith('/api/canvas/viewport') && response.request().method() === 'POST',
+    (response) =>
+      response.url().endsWith('/api/canvas/viewport') &&
+      response.request().method() === 'POST' &&
+      typeof response.request().postDataJSON().x === 'number',
   );
   await request.post('/api/canvas/focus', {
     data: { id: batch.refs.beta.id },

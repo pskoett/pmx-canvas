@@ -6,7 +6,7 @@ export interface ViewportState {
 }
 export interface CanvasNodeState {
     id: string;
-    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'diff' | 'mermaid' | 'image' | 'html' | 'group';
+    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'board' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'diff' | 'mermaid' | 'image' | 'html' | 'group';
     position: {
         x: number;
         y: number;
@@ -54,7 +54,7 @@ export type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export declare const TYPE_LABELS: Record<CanvasNodeState['type'], string>;
 /** Node types that support the full-viewport expand/focus overlay. */
-export declare const EXPANDABLE_TYPES: Set<"file" | "group" | "html" | "markdown" | "mcp-app" | "webpage" | "json-render" | "graph" | "prompt" | "response" | "status" | "context" | "ledger" | "trace" | "diff" | "mermaid" | "image">;
+export declare const EXPANDABLE_TYPES: Set<"file" | "group" | "html" | "markdown" | "mcp-app" | "webpage" | "json-render" | "graph" | "board" | "prompt" | "response" | "status" | "context" | "ledger" | "trace" | "diff" | "mermaid" | "image">;
 export declare const EXCALIDRAW_SERVER_NAME = "Excalidraw";
 export declare const EXCALIDRAW_CREATE_VIEW_TOOL = "create_view";
 export declare function isExcalidrawNode(node: CanvasNodeState): boolean;

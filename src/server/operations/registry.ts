@@ -11,7 +11,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
 import { humanPresence } from '../human-presence.js';
-import { setMutationActor } from '../mutation-history.js';
+import { withCurrentActor } from '../attribution.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
 import { CONTEXT_READ_OPS, contextReadFromPayload } from '../context-reads.js';
@@ -201,6 +201,8 @@ export interface ExecuteOperationMeta {
    * to agents only, and batch inner writes are always agent-originated.
    */
   fromWorkbench?: boolean;
+  /** Authorship only: true when the per-boot workbench token matched. */
+  humanAuthor?: boolean;
   /**
    * An MCP server attached to this daemon, or a host adapter, fetching on an
    * agent's behalf. It records the read the agent actually made itself
@@ -360,47 +362,47 @@ export async function executeOperation(
   rawInput: unknown,
   meta: ExecuteOperationMeta = {},
 ): Promise<unknown> {
-  // History entries recorded while this op runs carry who made them (item
-  // 10: the session panel offers undo on the agent's latest edit).
-  const historyWriter =
-    typeof asRecord(rawInput).agentId === 'string' && String(asRecord(rawInput).agentId).trim()
-      ? String(asRecord(rawInput).agentId).trim()
-      : (meta.source ?? 'api');
-  setMutationActor(meta.fromWorkbench ? 'human' : 'agent', historyWriter);
-  try {
-    const recordRead = CONTEXT_READ_OPS.has(name) && !meta.fromWorkbench && !meta.proxiedRead;
-    const input = asRecord(rawInput);
-    const requestedBoard =
-      recordRead && 'board' in getOperation(name).inputShape && isString(input.board) && input.board.trim()
-        ? input.board.trim()
-        : null;
-    const readBoardId = requestedBoard ?? canvasState.activeBoardId;
-    const readPins = recordRead
-      ? requestedBoard
-        ? (canvasState.readBoard(requestedBoard, false)?.state.contextPins ?? [])
-        : [...canvasState.contextPinnedNodeIds]
-      : [];
-    const result = await executeOperationInner(name, rawInput, meta);
-    if (recordRead) {
-      canvasState.recordContextRead(
-        contextReadFromPayload(
-          {
-            channel: 'operation',
-            resource: name,
-            source: meta.source ?? 'api',
-            consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
-            agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
-            pinnedNodeIds: readPins,
-          },
-          result,
-        ),
-        readBoardId,
-      );
-    }
-    return result;
-  } finally {
-    setMutationActor(null);
-  }
+  // Attribution follows this call chain across awaits and nested operations.
+  const inputAgentId = asRecord(rawInput).agentId;
+  return withCurrentActor(
+    {
+      actor: meta.humanAuthor ? 'human' : 'agent',
+      source: meta.humanAuthor ? 'browser' : (meta.source ?? 'api'),
+      ...(typeof inputAgentId === 'string' && inputAgentId.trim() ? { agentId: inputAgentId.trim() } : {}),
+    },
+    async () => {
+      const recordRead = CONTEXT_READ_OPS.has(name) && !meta.fromWorkbench && !meta.proxiedRead;
+      const input = asRecord(rawInput);
+      const requestedBoard =
+        recordRead && 'board' in getOperation(name).inputShape && isString(input.board) && input.board.trim()
+          ? input.board.trim()
+          : null;
+      const readBoardId = requestedBoard ?? canvasState.activeBoardId;
+      const readPins = recordRead
+        ? requestedBoard
+          ? (canvasState.readBoard(requestedBoard, false)?.state.contextPins ?? [])
+          : [...canvasState.contextPinnedNodeIds]
+        : [];
+      const result = await executeOperationInner(name, rawInput, meta);
+      if (recordRead) {
+        canvasState.recordContextRead(
+          contextReadFromPayload(
+            {
+              channel: 'operation',
+              resource: name,
+              source: meta.source ?? 'api',
+              consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
+              agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
+              pinnedNodeIds: readPins,
+            },
+            result,
+          ),
+          readBoardId,
+        );
+      }
+      return result;
+    },
+  );
 }
 
 /** Opening, switching and deleting boards is the human's; an agent asks for another board. */

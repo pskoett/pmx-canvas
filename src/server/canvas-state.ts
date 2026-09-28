@@ -12,7 +12,7 @@
  * the one-shot boot migration into SQLite was retired.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import {
   copyFileSync,
@@ -40,6 +40,9 @@ import {
   readBlobFromDB,
   checkpointCanvasDb,
   createBoardInDB,
+  createBoardWithStateInDB,
+  readContextBriefCursor,
+  advanceContextBriefCursor,
   deleteBoardFromDB,
   getActiveBoardIdFromDB,
   getBoardFromDB,
@@ -94,6 +97,7 @@ import {
   type PmxAxTimelineSummary,
 } from './ax-state.js';
 import { AxStateManager } from './ax-state-manager.js';
+import { currentActor, unknownActor, type ActorAttribution } from './attribution.js';
 import {
   appendContextReadToDB,
   loadContextReadsFromDB,
@@ -197,6 +201,7 @@ export interface CanvasNodeState {
     | 'webpage'
     | 'json-render'
     | 'graph'
+    | 'board'
     | 'prompt'
     | 'response'
     | 'status'
@@ -215,6 +220,30 @@ export interface CanvasNodeState {
   collapsed: boolean;
   pinned: boolean;
   data: Record<string, unknown>;
+  /** Server-owned provenance. Legacy rows normalize to unknown. */
+  createdBy?: ActorAttribution;
+  lastEditedBy?: ActorAttribution;
+  /** Board-monotonic revision of this node's latest semantic content. */
+  contentRevision?: number;
+}
+
+export interface NodeDeletionTombstone {
+  nodeId: string;
+  revision: number;
+  deletedBy: ActorAttribution;
+}
+
+export interface BoardContentRevision {
+  revision: number;
+  /** Cursors below this value are expired and must perform a full reset. */
+  retentionFloor: number;
+}
+
+export interface BoardContentDelta extends BoardContentRevision {
+  since: number;
+  reset: boolean;
+  nodes: CanvasNodeState[];
+  deleted: NodeDeletionTombstone[];
 }
 
 export interface ViewportState {
@@ -371,6 +400,9 @@ class CanvasStateManager {
   private _theme: CanvasTheme = 'dark';
   private _contextPinnedNodeIds = new Set<string>();
   private _workspaceRoot = process.cwd();
+  private _contentRevision = 0;
+  private _revisionFloor = 0;
+  private _deletionTombstones: NodeDeletionTombstone[] = [];
 
   // ── AX state (canvas-bound + timeline + host partitions) ──────────
   // Extracted into a dedicated manager (plan-007 Slice A). CanvasStateManager
@@ -538,10 +570,56 @@ class CanvasStateManager {
   }
 
   private normalizeNode(node: CanvasNodeState): CanvasNodeState {
+    const data = { ...node.data };
+    delete data.createdBy;
+    delete data.lastEditedBy;
+    delete data.contentRevision;
     return {
       ...node,
-      data: normalizeCanvasNodeData(node.type, node.data),
+      data: normalizeCanvasNodeData(node.type, data),
+      createdBy: node.createdBy ?? unknownActor(),
+      lastEditedBy: node.lastEditedBy ?? unknownActor(),
+      contentRevision: Number.isSafeInteger(node.contentRevision) ? node.contentRevision : 0,
     };
+  }
+
+  private nextContentRevision(): number {
+    this._contentRevision += 1;
+    return this._contentRevision;
+  }
+
+  private revisionState() {
+    return {
+      revision: this._contentRevision,
+      floor: this._revisionFloor,
+      tombstones: structuredClone(this._deletionTombstones),
+    };
+  }
+
+  /**
+   * Stable delta cursor contract: revisions strictly increase per active board;
+   * geometry-only writes do not advance them. `reset` means `since` predates
+   * retained tombstones, so callers must replace their view with `nodes`.
+   */
+  readContentDelta(since = this._contentRevision): BoardContentDelta {
+    const cursor = Math.max(0, Math.floor(since));
+    const reset = cursor < this._revisionFloor;
+    return {
+      since: cursor,
+      revision: this._contentRevision,
+      retentionFloor: this._revisionFloor,
+      reset,
+      nodes: Array.from(this.nodes.values())
+        .filter((node) => reset || (node.contentRevision ?? 0) > cursor)
+        .map((node) => structuredClone(this.nodeForRead(node))),
+      deleted: reset
+        ? []
+        : this._deletionTombstones.filter((item) => item.revision > cursor).map((item) => structuredClone(item)),
+    };
+  }
+
+  getContentRevision(): BoardContentRevision {
+    return { revision: this._contentRevision, retentionFloor: this._revisionFloor };
   }
 
   private nodeForRead(node: CanvasNodeState): CanvasNodeState {
@@ -823,7 +901,7 @@ class CanvasStateManager {
   }
 
   private externalizeNodeDataBlobs(node: CanvasNodeState): CanvasNodeState {
-    if (node.type !== 'mcp-app') return node;
+    if (node.type !== 'mcp-app' && node.type !== 'html') return node;
     let changed = false;
     const data = { ...node.data };
     for (const [key, value] of Object.entries(data)) {
@@ -837,7 +915,7 @@ class CanvasStateManager {
   }
 
   private resolveNodeDataBlobs(node: CanvasNodeState): CanvasNodeState {
-    if (node.type !== 'mcp-app') return node;
+    if (node.type !== 'mcp-app' && node.type !== 'html') return node;
     let changed = false;
     const data = { ...node.data };
     for (const [key, value] of Object.entries(data)) {
@@ -877,6 +955,7 @@ class CanvasStateManager {
       annotations: [],
       contextPins: [],
       ax: createEmptyAxState(),
+      revisionState: { revision: 0, floor: 0, tombstones: [] },
     };
   }
 
@@ -1028,6 +1107,7 @@ class CanvasStateManager {
           edges: layout.edges,
           annotations: layout.annotations,
           contextPins: Array.from(this._contextPinnedNodeIds),
+          revisionState: this.revisionState(),
         },
       };
     }
@@ -1060,6 +1140,16 @@ class CanvasStateManager {
     );
   }
 
+  getContextBriefCursor(boardId: string, consumer: string): number | null {
+    return this._db ? readContextBriefCursor(this._db, boardId, consumer) : null;
+  }
+
+  advanceContextBriefCursor(boardId: string, consumer: string, revision: number): void {
+    // A durable cursor must never get ahead of the board content it describes.
+    if (boardId === this._activeBoardId) this.flushToDisk();
+    if (this._db) advanceContextBriefCursor(this._db, boardId, consumer, revision);
+  }
+
   /** Creates a board without opening it. */
   createBoard(name: string, category: string | null = null): CanvasBoard | null {
     if (!this._db) return null;
@@ -1068,6 +1158,120 @@ class CanvasStateManager {
 
   updateBoard(id: string, patch: { name?: string; category?: string | null }): boolean {
     return this._db ? updateBoardInDB(this._db, id, patch) : false;
+  }
+
+  setBoardReadme(id: string, nodeId: string | null): boolean {
+    if (!this._db) return false;
+    const read = this.readBoard(id, false);
+    if (!read) return false;
+    if (nodeId && !read.layout.nodes.some((node) => node.id === nodeId && node.type === 'markdown')) return false;
+    return updateBoardInDB(this._db, id, { readmeNodeId: nodeId });
+  }
+
+  /** Bounded inactive-board creation; never replaces the state the human has open. */
+  createBoardFromBoard(input: {
+    sourceBoardId: string;
+    name: string;
+    category?: string | null;
+    nodeIds?: string[];
+    includeReadme?: boolean;
+    includeStructure?: boolean;
+  }): CanvasBoard | null {
+    if (!this._db) return null;
+    const source = this.readBoard(input.sourceBoardId, true);
+    if (!source) return null;
+    const selected = new Set(input.nodeIds ?? []);
+    if (input.includeReadme && source.board.readmeNodeId) selected.add(source.board.readmeNodeId);
+    if (input.includeStructure) {
+      for (const node of source.layout.nodes) {
+        if (node.type === 'group') selected.add(node.id);
+      }
+    }
+    const copied = source.layout.nodes.filter(
+      (node) => selected.has(node.id) && !['prompt', 'response', 'trace', 'mcp-app'].includes(node.type),
+    );
+    const ids = new Map(copied.map((node) => [node.id, randomUUID()]));
+    const referenceKeys = new Set([
+      'nodeId',
+      'nodeIds',
+      'sourceNodeId',
+      'targetNodeId',
+      'embeddedNodeId',
+      'embeddedNodeIds',
+      'embeddedGraphId',
+    ]);
+    const remap = (value: unknown, key = ''): unknown => {
+      if (typeof value === 'string') return referenceKeys.has(key) ? (ids.get(value) ?? null) : value;
+      if (Array.isArray(value)) return value.map((item) => remap(item, key)).filter((item) => item !== null);
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, remap(item, key)]),
+        );
+      }
+      return value;
+    };
+    const actor = currentActor();
+    const nodes: CanvasNodeState[] = copied.map((node, index) => {
+      const data = remap(node.data) as Record<string, unknown>;
+      if (node.type === 'graph' || node.type === 'json-render') {
+        data.url = `/api/canvas/json-render/view?nodeId=${encodeURIComponent(ids.get(node.id)!)}`;
+      }
+      delete data.axStep;
+      delete data.axWorkStatus;
+      delete data.workItemId;
+      delete data.approvalGateId;
+      delete data.parentGroup;
+      if (typeof node.data.parentGroup === 'string' && ids.has(node.data.parentGroup)) {
+        data.parentGroup = ids.get(node.data.parentGroup);
+      }
+      if (node.type === 'group')
+        data.children = Array.isArray(node.data.children)
+          ? node.data.children.flatMap((id) => (typeof id === 'string' && ids.has(id) ? [ids.get(id)!] : []))
+          : [];
+      return {
+        ...node,
+        id: ids.get(node.id)!,
+        pinned: false,
+        data,
+        createdBy: actor,
+        lastEditedBy: actor,
+        contentRevision: index + 1,
+      };
+    });
+    nodes.push({
+      id: randomUUID(),
+      type: 'board' as const,
+      position: { x: 40, y: Math.max(40, ...nodes.map((node) => node.position.y + node.size.height + 40)) },
+      size: { width: 360, height: 160 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      data: { title: source.board.name, boardId: source.board.id },
+      createdBy: actor,
+      lastEditedBy: actor,
+      contentRevision: nodes.length + 1,
+    });
+    const edges = source.layout.edges
+      .filter((edge) => ids.has(edge.from) && ids.has(edge.to))
+      .map((edge) => ({ ...edge, id: randomUUID(), from: ids.get(edge.from)!, to: ids.get(edge.to)! }));
+    const state: PersistedCanvasState = {
+      version: 1,
+      theme: source.state.theme,
+      viewport: { x: 0, y: 0, scale: 1 },
+      nodes,
+      edges,
+      annotations: [],
+      contextPins: [],
+      ax: createEmptyAxState(),
+      revisionState: { revision: nodes.length, floor: 0, tombstones: [] },
+    };
+    return createBoardWithStateInDB(
+      this._db,
+      input.name,
+      input.category ?? null,
+      this.externalizePersistedStateBlobs(state),
+      input.includeReadme && source.board.readmeNodeId ? (ids.get(source.board.readmeNodeId) ?? null) : null,
+    );
   }
 
   /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
@@ -1182,6 +1386,7 @@ class CanvasStateManager {
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
         ax: this.getAxState(),
+        revisionState: this.revisionState(),
       });
       saveStateToDB(this._db, boardId, payload);
       this._lastPersistenceError = null;
@@ -1243,6 +1448,9 @@ class CanvasStateManager {
     this.annotations.clear();
     this._contextPinnedNodeIds.clear();
     this.ax.resetCanvasBound();
+    this._contentRevision = state.revisionState?.revision ?? 0;
+    this._revisionFloor = state.revisionState?.floor ?? 0;
+    this._deletionTombstones = structuredClone(state.revisionState?.tombstones ?? []);
 
     this._viewport = {
       x: state.viewport?.x ?? 0,
@@ -1371,6 +1579,7 @@ class CanvasStateManager {
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
         ax: this.getAxState(),
+        revisionState: this.revisionState(),
       });
       const boardId = this.ensureActiveBoard();
       if (!boardId) return null;
@@ -1467,6 +1676,7 @@ class CanvasStateManager {
       annotations: Array.from(this.annotations.values(), (annotation) => structuredClone(annotation)),
       contextPins: Array.from(this._contextPinnedNodeIds),
       ax: this.getAxState(),
+      revisionState: this.revisionState(),
     });
     const nextState: PersistedCanvasState = {
       version: 1,
@@ -1480,10 +1690,13 @@ class CanvasStateManager {
         : [],
       contextPins: Array.isArray(resolved.state.contextPins) ? [...resolved.state.contextPins] : [],
       ax: resolved.state.ax ? structuredClone(resolved.state.ax) : createEmptyAxState(),
+      revisionState: resolved.state.revisionState ? structuredClone(resolved.state.revisionState) : undefined,
     };
 
     try {
-      this.applyPersistedState(nextState);
+      const revisionBeforeRestore = this._contentRevision;
+      this.applyPersistedState({ ...nextState, revisionState: this.revisionState() });
+      this.restampRestoredContent(previousState.nodes, revisionBeforeRestore);
       this.scheduleSave();
       this.notifyChange('nodes');
       this.notifyChange('pins');
@@ -1492,14 +1705,20 @@ class CanvasStateManager {
         operationType: 'restoreSnapshot',
         description: `Restored snapshot "${resolved.snapshot.name}"`,
         forward: this.suppressed(() => {
-          this.applyPersistedState(nextState);
+          const before = Array.from(this.nodes.values(), (node) => structuredClone(node));
+          const revisionBeforeReplay = this._contentRevision;
+          this.applyPersistedState({ ...nextState, revisionState: this.revisionState() });
+          this.restampRestoredContent(before, revisionBeforeReplay);
           this.scheduleSave();
           this.notifyChange('nodes');
           this.notifyChange('pins');
           this.notifyChange('ax');
         }),
         inverse: this.suppressed(() => {
-          this.applyPersistedState(previousState);
+          const before = Array.from(this.nodes.values(), (node) => structuredClone(node));
+          const revisionBeforeReplay = this._contentRevision;
+          this.applyPersistedState({ ...previousState, revisionState: this.revisionState() });
+          this.restampRestoredContent(before, revisionBeforeReplay);
           this.scheduleSave();
           this.notifyChange('nodes');
           this.notifyChange('pins');
@@ -1598,12 +1817,77 @@ class CanvasStateManager {
 
   // ── Node CRUD ──────────────────────────────────────────────
 
+  private restampRestoredContent(beforeNodes: CanvasNodeState[], minimumRevision: number): void {
+    this._contentRevision = Math.max(this._contentRevision, minimumRevision);
+    const before = new Map(beforeNodes.map((node) => [node.id, node]));
+    const restoredIds = new Set(this.nodes.keys());
+    for (const [id, node] of this.nodes) {
+      const old = before.get(id);
+      if (old && !this.nodeContentChanged(old, node)) {
+        this.nodes.set(id, { ...node, contentRevision: old.contentRevision, lastEditedBy: old.lastEditedBy });
+        continue;
+      }
+      const revision = this.nextContentRevision();
+      this.nodes.set(id, { ...node, lastEditedBy: currentActor(), contentRevision: revision });
+    }
+    for (const old of beforeNodes) {
+      if (!restoredIds.has(old.id)) this.recordDeletion(old.id);
+    }
+  }
+
+  private semanticData(data: Record<string, unknown>): Record<string, unknown> {
+    const copy = { ...data };
+    delete copy.strictSize;
+    delete copy.arrangeLocked;
+    return copy;
+  }
+
+  private nodeContentChanged(a: CanvasNodeState, b: CanvasNodeState): boolean {
+    return a.type !== b.type || JSON.stringify(this.semanticData(a.data)) !== JSON.stringify(this.semanticData(b.data));
+  }
+
+  private setSemanticNode(node: CanvasNodeState): void {
+    const existing = this.nodes.get(node.id);
+    if (!existing || !this.nodeContentChanged(existing, node)) {
+      this.nodes.set(node.id, node);
+      return;
+    }
+    const data = { ...node.data };
+    if (data.agentSummary === existing.data.agentSummary) delete data.agentSummary;
+    if (data.summary === existing.data.summary) delete data.summary;
+    this.nodes.set(node.id, {
+      ...node,
+      data,
+      createdBy: existing.createdBy,
+      lastEditedBy: currentActor(),
+      contentRevision: this.nextContentRevision(),
+    });
+  }
+
+  private recordDeletion(nodeId: string): void {
+    const tombstone = { nodeId, revision: this.nextContentRevision(), deletedBy: currentActor() };
+    this._deletionTombstones.push(tombstone);
+    const limit = 500;
+    if (this._deletionTombstones.length > limit) {
+      const removed = this._deletionTombstones.splice(0, this._deletionTombstones.length - limit);
+      this._revisionFloor = Math.max(this._revisionFloor, removed.at(-1)?.revision ?? 0);
+    }
+  }
+
   get viewport(): ViewportState {
     return structuredClone(this._viewport);
   }
 
   addNode(node: CanvasNodeState): void {
-    const cloned = structuredClone(this.normalizeNode(node));
+    const actor = currentActor();
+    const cloned = structuredClone(
+      this.normalizeNode({
+        ...node,
+        createdBy: actor,
+        lastEditedBy: actor,
+        contentRevision: this.nextContentRevision(),
+      }),
+    );
     this.nodes.set(node.id, cloned);
     this.scheduleSave();
     this.notifyChange('nodes');
@@ -1630,7 +1914,27 @@ class CanvasStateManager {
     if (existing.type === 'group' && patch.position) {
       this.translateGroupChildren(id, patch.position.x - existing.position.x, patch.position.y - existing.position.y);
     }
-    const nextNode = this.normalizeNode({ ...existing, ...patch });
+    let nextNode = this.normalizeNode({ ...existing, ...patch });
+    if (this.nodeContentChanged(existing, nextNode)) {
+      const data = { ...nextNode.data };
+      const suppliedData = patch.data;
+      if (!suppliedData || suppliedData.agentSummary === existing.data.agentSummary) delete data.agentSummary;
+      if (!suppliedData || suppliedData.summary === existing.data.summary) delete data.summary;
+      nextNode = {
+        ...nextNode,
+        data,
+        createdBy: existing.createdBy ?? unknownActor(),
+        lastEditedBy: currentActor(),
+        contentRevision: this.nextContentRevision(),
+      };
+    } else {
+      nextNode = {
+        ...nextNode,
+        createdBy: existing.createdBy,
+        lastEditedBy: existing.lastEditedBy,
+        contentRevision: existing.contentRevision,
+      };
+    }
     this.nodes.set(id, nextNode);
     const parentGroupId = existing.data.parentGroup as string | undefined;
     if (parentGroupId) {
@@ -1648,7 +1952,16 @@ class CanvasStateManager {
       description: `Updated node "${(existing.data.title as string) ?? id}"`,
       forward: this.suppressed(() => this.updateNode(id, structuredClone(patch))),
       inverse: this.suppressed(() => {
-        this.nodes.set(id, structuredClone(oldSnapshot));
+        const restored = structuredClone(oldSnapshot);
+        const current = this.nodes.get(id);
+        if (current && this.nodeContentChanged(current, restored)) {
+          restored.contentRevision = this.nextContentRevision();
+          restored.lastEditedBy = currentActor();
+        } else if (current) {
+          restored.contentRevision = current.contentRevision;
+          restored.lastEditedBy = current.lastEditedBy;
+        }
+        this.nodes.set(id, restored);
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
@@ -1669,6 +1982,7 @@ class CanvasStateManager {
     let released: string[] = [];
 
     if (existing) {
+      this.recordDeletion(id);
       const parentGroupId = existing.data.parentGroup as string | undefined;
       const parent = parentGroupId ? this.nodes.get(parentGroupId) : undefined;
       const enclosing = parent && parent.type === 'group' ? parent : null;
@@ -1681,13 +1995,13 @@ class CanvasStateManager {
           const d = { ...child.data };
           if (enclosing) d.parentGroup = enclosing.id;
           else delete d.parentGroup;
-          this.nodes.set(cid, { ...child, data: d });
+          this.setSemanticNode({ ...child, data: d });
         }
       }
       if (enclosing && enclosingBefore) {
         // The removed node leaves the enclosing group; a dissolved group's children take its place.
         const children = enclosingBefore.children.flatMap((cid) => (cid === id ? released : [cid]));
-        this.nodes.set(enclosing.id, { ...enclosing, data: { ...enclosing.data, children } });
+        this.setSemanticNode({ ...enclosing, data: { ...enclosing.data, children } });
       }
     }
 
@@ -1741,15 +2055,17 @@ class CanvasStateManager {
         forward: this.suppressed(() => this.removeNode(id)),
         inverse: this.suppressed(() => {
           this.addNode(structuredClone(cloned));
+          const restored = this.nodes.get(id);
+          if (restored) this.nodes.set(id, { ...restored, createdBy: cloned.createdBy ?? unknownActor() });
           // A restored group takes its children back; the enclosing group's membership is restored verbatim.
           for (const cid of released) {
             const child = this.nodes.get(cid);
-            if (child) this.nodes.set(cid, { ...child, data: { ...child.data, parentGroup: id } });
+            if (child) this.setSemanticNode({ ...child, data: { ...child.data, parentGroup: id } });
           }
           if (enclosingBefore) {
             const enclosing = this.nodes.get(enclosingBefore.id);
             if (enclosing) {
-              this.nodes.set(enclosing.id, {
+              this.setSemanticNode({
                 ...enclosing,
                 data: { ...enclosing.data, children: enclosingBefore.children },
               });
@@ -2481,10 +2797,10 @@ class CanvasStateManager {
     }
 
     // Apply
-    this.nodes.set(groupId, { ...group, data: { ...group.data, children: merged } });
+    this.setSemanticNode({ ...group, data: { ...group.data, children: merged } });
     for (const id of validIds) {
       const child = this.nodes.get(id)!;
-      this.nodes.set(id, { ...child, data: { ...child.data, parentGroup: groupId } });
+      this.setSemanticNode({ ...child, data: { ...child.data, parentGroup: groupId } });
     }
     if (options.preservePositions === true) {
       if (options.keepGroupFrame !== true && group.data.frameMode !== 'manual') {
@@ -2507,14 +2823,14 @@ class CanvasStateManager {
       forward: this.suppressed(() => this.groupNodes(groupId, validIds, options)),
       inverse: this.suppressed(() => {
         const g = this.nodes.get(groupId);
-        if (g) this.nodes.set(groupId, { ...g, data: { ...g.data, children: oldChildren } });
+        if (g) this.setSemanticNode({ ...g, data: { ...g.data, children: oldChildren } });
         for (const [id, oldParent] of oldParents) {
           const c = this.nodes.get(id);
           if (!c) continue;
           const d = { ...c.data };
           if (oldParent) d.parentGroup = oldParent;
           else delete d.parentGroup;
-          this.nodes.set(id, { ...c, data: d });
+          this.setSemanticNode({ ...c, data: d });
         }
         this.scheduleSave();
         this.notifyChange('nodes');
@@ -2550,13 +2866,13 @@ class CanvasStateManager {
 
     const snapshot = childIds.slice();
 
-    this.nodes.set(groupId, { ...group, data: { ...group.data, children: [] } });
+    this.setSemanticNode({ ...group, data: { ...group.data, children: [] } });
     for (const id of childIds) {
       const child = this.nodes.get(id);
       if (!child) continue;
       const d = { ...child.data };
       delete d.parentGroup;
-      this.nodes.set(id, { ...child, data: d });
+      this.setSemanticNode({ ...child, data: d });
     }
 
     this.scheduleSave();
@@ -2579,6 +2895,7 @@ class CanvasStateManager {
     const oldPins = Array.from(this._contextPinnedNodeIds);
     const oldAxState = this.getAxState();
     const oldViewport = { ...this._viewport };
+    for (const node of oldNodes) this.recordDeletion(node.id);
     this.nodes.clear();
     this.edges.clear();
     this.annotations.clear();

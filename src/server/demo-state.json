@@ -24,6 +24,15 @@
         "content": "What the agent is doing, what context it holds, what it decided, and the tool calls behind it.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 1,
       "kind": "markdown",
       "title": "① Start here",
       "content": "What the agent is doing, what context it holds, what it decided, and the tool calls behind it.",
@@ -51,9 +60,54 @@
         "content": "# PMX Canvas\n\nAn infinite spatial canvas that agents drive over **MCP**, **HTTP** or the **Bun SDK** — and that humans steer by pinning nodes.\n\nThis board is a live catalogue. Bands ① to ④ and ⑧ run down the left, ⑤ to ⑦ down the right.\n\n| Band | Shows |\n| --- | --- |\n| ① Start here | status · context · ledger · trace |\n| ② Files & review | file · CSV table · diff · image · webpage |\n| ③ Diagrams & surfaces | mermaid · raw HTML · MCP app |\n| ④ Charts | all 12 graph types |\n| ⑤ Structured UI | json-render specs |\n| ⑥ Grouping | one group frame |\n| ⑦ HTML primitives | all 21 generated surfaces |\n| ⑧ Agent at work | a live AX flow, mid-task |\n\n> Pin a node in the browser and the agent reads it back from `canvas://pinned-context`. That is the whole collaboration loop.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 2,
       "kind": "markdown",
       "title": "PMX Canvas — guided tour",
       "content": "# PMX Canvas\n\nAn infinite spatial canvas that agents drive over **MCP**, **HTTP** or the **Bun SDK** — and that humans steer by pinning nodes.\n\nThis board is a live catalogue. Bands ① to ④ and ⑧ run down the left, ⑤ to ⑦ down the right.\n\n| Band | Shows |\n| --- | --- |\n| ① Start here | status · context · ledger · trace |\n| ② Files & review | file · CSV table · diff · image · webpage |\n| ③ Diagrams & surfaces | mermaid · raw HTML · MCP app |\n| ④ Charts | all 12 graph types |\n| ⑤ Structured UI | json-render specs |\n| ⑥ Grouping | one group frame |\n| ⑦ HTML primitives | all 21 generated surfaces |\n| ⑧ Agent at work | a live AX flow, mid-task |\n\n> Pin a node in the browser and the agent reads it back from `canvas://pinned-context`. That is the whole collaboration loop.",
+      "path": null,
+      "url": null,
+      "surfaceUrl": null,
+      "provenance": null
+    },
+    {
+      "id": "board-link",
+      "type": "board",
+      "position": {
+        "x": -368,
+        "y": 200
+      },
+      "size": {
+        "width": 320,
+        "height": 160
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "data": {
+        "boardId": "board-demo-related",
+        "title": "Related research",
+        "strictSize": true
+      },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 3,
+      "kind": "board",
+      "title": "Related research",
+      "content": null,
       "path": null,
       "url": null,
       "surfaceUrl": null,
@@ -86,6 +140,15 @@
         "title": "Agent",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 4,
       "kind": "status",
       "title": "Agent",
       "content": null,
@@ -117,6 +180,15 @@
         "title": "canvas_query",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 5,
       "kind": "trace",
       "title": "canvas_query",
       "content": null,
@@ -148,6 +220,15 @@
         "title": "edit_file",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 6,
       "kind": "trace",
       "title": "edit_file",
       "content": null,
@@ -208,6 +289,15 @@
         "title": "Working context",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 7,
       "kind": "context",
       "title": "Working context",
       "content": null,
@@ -239,6 +329,15 @@
         "content": "09:12  Ship 0.4.7 behind the existing smoke gate\n09:26  Keep demo board offline-only — no live sessions\n10:03  strictSize on every demo node so layout is stable\n10:41  Drop the OKR board; catalogue every node type instead\n11:15  Charts band shows all 12 graph types, Tufte row last\n11:48  Pin the intro, the context card and the diff under review\n13:20  Bands get section labels; only one group frame survives",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 8,
       "kind": "ledger",
       "title": "Decision ledger",
       "content": "09:12  Ship 0.4.7 behind the existing smoke gate\n09:26  Keep demo board offline-only — no live sessions\n10:03  strictSize on every demo node so layout is stable\n10:41  Drop the OKR board; catalogue every node type instead\n11:15  Charts band shows all 12 graph types, Tufte row last\n11:48  Pin the intro, the context card and the diff under review\n13:20  Bands get section labels; only one group frame survives",
@@ -266,6 +365,15 @@
         "content": "Inline file text, delimited data as a table, unified diffs, images, and cached webpage snapshots.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 9,
       "kind": "markdown",
       "title": "② Files & review",
       "content": "Inline file text, delimited data as a table, unified diffs, images, and cached webpage snapshots.",
@@ -295,6 +403,15 @@
         "lineCount": 20,
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 10,
       "kind": "file",
       "title": "node-sizes.ts",
       "content": "import { canvasState } from './canvas-state.js';\nimport { nodeMinSize } from '../shared/node-sizes.js';\n\n/** Clamp an agent-supplied frame up to the per-type readability floor. */\nexport function clampNodeFrame(type: string, width: number, height: number) {\n  const min = nodeMinSize(type);\n  if (!min) return { width, height };\n  return {\n    width: Math.max(width, min.width),\n    height: Math.max(height, min.height),\n  };\n}\n\nexport function nodeCountByType(): Record<string, number> {\n  const counts: Record<string, number> = {};\n  for (const node of canvasState.getLayout().nodes) {\n    counts[node.type] = (counts[node.type] ?? 0) + 1;\n  }\n  return counts;\n}",
@@ -322,6 +439,15 @@
         "content": "diff --git a/src/shared/node-sizes.ts b/src/shared/node-sizes.ts\n--- a/src/shared/node-sizes.ts\n+++ b/src/shared/node-sizes.ts\n@@ -20,6 +20,8 @@ export const NODE_MIN_SIZES: Record<string, { width: number; height: number }> =\n   markdown: { width: 360, height: 180 },\n   context: { width: 360, height: 180 },\n   file: { width: 360, height: 200 },\n+  diff: { width: 420, height: 240 },\n+  mermaid: { width: 360, height: 240 },\n   status: { width: 280, height: 120 },\n\ndiff --git a/src/client/canvas/auto-fit.ts b/src/client/canvas/auto-fit.ts\n--- a/src/client/canvas/auto-fit.ts\n+++ b/src/client/canvas/auto-fit.ts\n@@ -63,7 +63,8 @@ export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: numbe\n   const fitted = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT, AUTO_FIT_MAX_HEIGHT);\n-  return fitted;\n+  const min = nodeMinSize(node.type);\n+  return min ? Math.max(fitted, min.height) : fitted;\n }",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 11,
       "kind": "diff",
       "title": "Readability floor — 2 files",
       "content": "diff --git a/src/shared/node-sizes.ts b/src/shared/node-sizes.ts\n--- a/src/shared/node-sizes.ts\n+++ b/src/shared/node-sizes.ts\n@@ -20,6 +20,8 @@ export const NODE_MIN_SIZES: Record<string, { width: number; height: number }> =\n   markdown: { width: 360, height: 180 },\n   context: { width: 360, height: 180 },\n   file: { width: 360, height: 200 },\n+  diff: { width: 420, height: 240 },\n+  mermaid: { width: 360, height: 240 },\n   status: { width: 280, height: 120 },\n\ndiff --git a/src/client/canvas/auto-fit.ts b/src/client/canvas/auto-fit.ts\n--- a/src/client/canvas/auto-fit.ts\n+++ b/src/client/canvas/auto-fit.ts\n@@ -63,7 +63,8 @@ export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: numbe\n   const fitted = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT, AUTO_FIT_MAX_HEIGHT);\n-  return fitted;\n+  const min = nodeMinSize(node.type);\n+  return min ? Math.max(fitted, min.height) : fitted;\n }",
@@ -364,6 +490,15 @@
           }
         }
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 12,
       "kind": "file",
       "title": "weekly-throughput.csv",
       "content": "week,merged_prs,review_hours,p95_ci_minutes,flaky_reruns\n2026-W23,41,18.5,11.2,6\n2026-W24,38,21.0,12.8,9\n2026-W25,52,16.4,10.1,4\n2026-W26,47,15.2,9.6,3\n2026-W27,55,14.8,9.1,2\n2026-W28,61,13.9,8.4,2",
@@ -402,6 +537,15 @@
         "title": "Canvas data flow",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 13,
       "kind": "image",
       "title": "Canvas data flow",
       "content": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%20480%20300'%20width%3D'480'%20height%3D'300'%3E%3Crect%20width%3D'480'%20height%3D'300'%20rx%3D'16'%20fill%3D'%230f1420'%2F%3E%3Ctext%20x%3D'24'%20y%3D'40'%20fill%3D'%23e6ecff'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'17'%20font-weight%3D'600'%3ECanvas%20data%20flow%3C%2Ftext%3E%3Crect%20x%3D'24'%20y%3D'70'%20width%3D'128'%20height%3D'62'%20rx%3D'10'%20fill%3D'%2316203a'%20stroke%3D'%234a9eff'%2F%3E%3Ctext%20x%3D'88'%20y%3D'106'%20fill%3D'%239ec5ff'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'13'%20text-anchor%3D'middle'%3EAgent%20(MCP)%3C%2Ftext%3E%3Crect%20x%3D'176'%20y%3D'70'%20width%3D'128'%20height%3D'62'%20rx%3D'10'%20fill%3D'%2316203a'%20stroke%3D'%237c5cff'%2F%3E%3Ctext%20x%3D'240'%20y%3D'100'%20fill%3D'%23c3b4ff'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'13'%20text-anchor%3D'middle'%3ECanvas%20state%3C%2Ftext%3E%3Ctext%20x%3D'240'%20y%3D'118'%20fill%3D'%237b86a8'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'11'%20text-anchor%3D'middle'%3Esingle%20source%20of%20truth%3C%2Ftext%3E%3Crect%20x%3D'328'%20y%3D'70'%20width%3D'128'%20height%3D'62'%20rx%3D'10'%20fill%3D'%2316203a'%20stroke%3D'%2322c55e'%2F%3E%3Ctext%20x%3D'392'%20y%3D'106'%20fill%3D'%238ee5ad'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'13'%20text-anchor%3D'middle'%3EBrowser%3C%2Ftext%3E%3Cpath%20d%3D'M152%20101%20L172%20101'%20stroke%3D'%234a9eff'%20stroke-width%3D'2'%2F%3E%3Cpath%20d%3D'M304%20101%20L324%20101'%20stroke%3D'%2322c55e'%20stroke-width%3D'2'%2F%3E%3Cpath%20d%3D'M392%20140%20L392%20196%20L88%20196%20L88%20140'%20fill%3D'none'%20stroke%3D'%23eab308'%20stroke-width%3D'2'%20stroke-dasharray%3D'5%205'%2F%3E%3Ctext%20x%3D'240'%20y%3D'188'%20fill%3D'%23eab308'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'12'%20text-anchor%3D'middle'%3Ehuman%20pins%20nodes%20-%26gt%3B%20canvas%3A%2F%2Fpinned-context%3C%2Ftext%3E%3Crect%20x%3D'24'%20y%3D'222'%20width%3D'432'%20height%3D'52'%20rx%3D'10'%20fill%3D'%23111827'%20stroke%3D'%23243049'%2F%3E%3Ctext%20x%3D'240'%20y%3D'253'%20fill%3D'%237b86a8'%20font-family%3D'ui-monospace%2Cmonospace'%20font-size%3D'12'%20text-anchor%3D'middle'%3Estate%20survives%20refresh%20%C2%B7%20SQLite%20at%20.pmx-canvas%2Fcanvas.db%3C%2Ftext%3E%3C%2Fsvg%3E",
@@ -453,6 +597,15 @@
         "frameBlocked": false,
         "frameBlockedReason": ""
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 16,
       "kind": "webpage",
       "title": "Model Context Protocol — Resources",
       "content": "https://modelcontextprotocol.io/docs/concepts/resources",
@@ -491,6 +644,15 @@
         "content": "Mermaid renders from plain text; HTML and MCP App nodes are sandboxed iframes the agent authors.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 17,
       "kind": "markdown",
       "title": "③ Diagrams & surfaces",
       "content": "Mermaid renders from plain text; HTML and MCP App nodes are sandboxed iframes the agent authors.",
@@ -518,6 +680,15 @@
         "content": "flowchart LR\n  A[Agent] -->|MCP tool call| B(Canvas server)\n  B --> C{{SSE stream}}\n  C --> D[Browser canvas]\n  D -->|human pins a node| B\n  B --> E[(canvas.db)]",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 18,
       "kind": "mermaid",
       "title": "Flowchart — request path",
       "content": "flowchart LR\n  A[Agent] -->|MCP tool call| B(Canvas server)\n  B --> C{{SSE stream}}\n  C --> D[Browser canvas]\n  D -->|human pins a node| B\n  B --> E[(canvas.db)]",
@@ -545,6 +716,15 @@
         "content": "sequenceDiagram\n  participant H as Human\n  participant C as Canvas\n  participant A as Agent\n  H->>C: pin 3 nodes\n  C-->>A: resources/updated\n  A->>C: read canvas://pinned-context\n  A->>C: canvas_node add (summary)\n  C-->>H: SSE layout update",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 19,
       "kind": "mermaid",
       "title": "Sequence — the pin loop",
       "content": "sequenceDiagram\n  participant H as Human\n  participant C as Canvas\n  participant A as Agent\n  H->>C: pin 3 nodes\n  C-->>A: resources/updated\n  A->>C: read canvas://pinned-context\n  A->>C: canvas_node add (summary)\n  C-->>H: SSE layout update",
@@ -572,6 +752,15 @@
         "content": "stateDiagram-v2\n  [*] --> pending\n  pending --> approved: human approves\n  pending --> rejected: human rejects\n  pending --> expired: timeout\n  approved --> [*]\n  rejected --> [*]\n  expired --> [*]",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 20,
       "kind": "mermaid",
       "title": "State — approval gate",
       "content": "stateDiagram-v2\n  [*] --> pending\n  pending --> approved: human approves\n  pending --> rejected: human rejects\n  pending --> expired: timeout\n  approved --> [*]\n  rejected --> [*]\n  expired --> [*]",
@@ -602,6 +791,15 @@
         "contentSummary": "Release gates — 0.4.7 Raw HTML in a sandboxed iframe. No scripts, no network, no build step. typecheck passing unit tests 612 passed web-canvas e2e running bundle size +4.1% vs 0.4.6 pack dry-run clean",
         "agentSummary": "Five release gates with pass/running/warning status for 0.4.7.\nRelease gates — 0.4.7 Raw HTML in a sandboxed iframe. No scripts, no network, no build step. typecheck passing unit tests 612 passed web-canvas e2e running bundle size +4.1% vs 0.4.6 pack dry-run clean"
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 21,
       "kind": "html",
       "title": "Release gates",
       "content": "Five release gates with pass/running/warning status for 0.4.7.\nRelease gates — 0.4.7 Raw HTML in a sandboxed iframe. No scripts, no network, no build step. typecheck passing unit tests 612 passed web-canvas e2e running bundle size +4.1% vs 0.4.6 pack dry-run clean",
@@ -643,6 +841,15 @@
           }
         }
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 22,
       "kind": "external-app",
       "title": "Board inspector",
       "content": null,
@@ -680,6 +887,15 @@
         "content": "Every canonical graph type, then the Tufte primitives in the compact bottom row.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 23,
       "kind": "markdown",
       "title": "④ Charts",
       "content": "Every canonical graph type, then the Tufte primitives in the compact bottom row.",
@@ -799,6 +1015,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 24,
       "kind": "graph",
       "title": "line — p95 latency",
       "content": null,
@@ -922,6 +1147,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 25,
       "kind": "graph",
       "title": "bar — merged PRs per week",
       "content": null,
@@ -1033,6 +1267,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 26,
       "kind": "graph",
       "title": "area — canvas nodes created",
       "content": null,
@@ -1138,6 +1381,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 27,
       "kind": "graph",
       "title": "pie — node types on real boards",
       "content": null,
@@ -1266,6 +1518,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 28,
       "kind": "graph",
       "title": "stacked-bar — CI minutes by stage",
       "content": null,
@@ -1380,6 +1641,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 29,
       "kind": "graph",
       "title": "composed — throughput vs review load",
       "content": null,
@@ -1513,6 +1783,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 30,
       "kind": "graph",
       "title": "scatter — PR size vs review time",
       "content": null,
@@ -1641,6 +1920,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 31,
       "kind": "graph",
       "title": "radar — surface coverage",
       "content": null,
@@ -1782,6 +2070,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 32,
       "kind": "graph",
       "title": "sparkline — build time",
       "content": null,
@@ -1887,6 +2184,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 33,
       "kind": "graph",
       "title": "dot-plot — test time by suite",
       "content": null,
@@ -2022,6 +2328,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 34,
       "kind": "graph",
       "title": "bullet — release KPIs vs target",
       "content": null,
@@ -2141,6 +2456,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 35,
       "kind": "graph",
       "title": "slopegraph — coverage 0.4.6 → 0.4.7",
       "content": null,
@@ -2168,6 +2492,15 @@
         "content": "json-render nodes: an agent posts a validated component spec and the canvas renders real UI.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 36,
       "kind": "markdown",
       "title": "⑤ Structured UI",
       "content": "json-render nodes: an agent posts a validated component spec and the canvas renders real UI.",
@@ -2367,6 +2700,15 @@
         "viewerType": "json-render",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 37,
       "kind": "json-render",
       "title": "Release dashboard",
       "content": null,
@@ -2543,6 +2885,15 @@
         "viewerType": "json-render",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 38,
       "kind": "json-render",
       "title": "Blocker intake form",
       "content": null,
@@ -2702,6 +3053,15 @@
         "viewerType": "json-render",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 39,
       "kind": "json-render",
       "title": "Usage panel",
       "content": null,
@@ -2729,6 +3089,15 @@
         "content": "A group says \"these belong together\". One frame is enough — bands carry a board’s structure.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 40,
       "kind": "markdown",
       "title": "⑥ Grouping",
       "content": "A group says \"these belong together\". One frame is enough — bands carry a board’s structure.",
@@ -2757,6 +3126,15 @@
         "strictSize": true,
         "parentGroup": "group"
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 41,
       "kind": "markdown",
       "title": "Sprint 41 — canvas polish",
       "content": "Three nodes, one frame. Moving the frame moves the children; ungrouping leaves them exactly where they are.\n\n- Group children keep their own positions by default\n- `childLayout` opts into auto-packing\n- The frame is stored as `data.children` on the group",
@@ -2788,6 +3166,15 @@
         "strictSize": true,
         "parentGroup": "group"
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 42,
       "kind": "status",
       "title": "Sprint state",
       "content": null,
@@ -2820,6 +3207,15 @@
         "strictSize": true,
         "parentGroup": "group"
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 43,
       "kind": "trace",
       "title": "canvas_group",
       "content": null,
@@ -2852,6 +3248,15 @@
         "frameMode": "manual",
         "color": "#7c5cff"
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 44,
       "kind": "group",
       "title": "Sprint 41",
       "content": null,
@@ -2879,6 +3284,15 @@
         "content": "All 21 generated communication surfaces — self-contained sandboxed documents, no build step.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 45,
       "kind": "markdown",
       "title": "⑦ HTML primitives",
       "content": "All 21 generated communication surfaces — self-contained sandboxed documents, no build step.",
@@ -2955,6 +3369,15 @@
         "contentSummary": "How should the demo board be generated? PMX HTML primitive / choice-grid How should the demo board be generated? Side-by-side options with tradeoffs, pros, cons, and code or evidence snippets. Copy JSON Copy prompt Choice 1 Hand-written fixture Edit demo-state.json directly. Tradeoff: Fastest to start, impossible to keep correct. Pros No tooling Full control of every byte Cons Data shapes drift from the server Generated HTML surfaces cannot be authored by hand // 1100 lines of JSON nobody dares touch Choice 2 Generate through the HTTP API A committed script replays the real create path. Tradeoff: Needs a throwaway server during generation. Pros Shapes correct by construction Regenerates after schema changes Asserts its own invariants Cons One more script to maintain await api(\"POST\", \"/api/canvas/node\", { type: \"mermaid\", ... }) Choice 3 Snapshot a live board Curate by hand in the bro...",
         "agentSummary": "Side-by-side options with tradeoffs, pros, cons, and code or evidence snippets."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 46,
       "kind": "html",
       "title": "How should the demo board be generated?",
       "content": "Side-by-side options with tradeoffs, pros, cons, and code or evidence snippets.",
@@ -3056,6 +3479,15 @@
         "contentSummary": "Demo board rebuild PMX HTML primitive / plan-timeline Demo board rebuild Implementation plan with milestones, data flow, code checkpoints, and risks. Copy JSON Copy prompt Milestones 1 Inventory the surfaces done Every node type, graph type and primitive kind. 2 Write the generator done Create everything through the real HTTP API. 3 Lay out the bands active Spatial bands with section labels, generous gutters. 4 Rewrite the fixture test todo Keep the structural invariants, add coverage assertions. 5 Visual pass todo Screenshot each band and fix anything blank or clipped. Data Flow generator HTTP create temp server -> temp server export + stable ids demo-state.json -> demo-state.json --demo seedDemoCanvas Risks Browser auto-fit reflows the board on first open Create every node with strictSize. Fixture depends on files or network at render time Inline file text, data-URI image, cached we...",
         "agentSummary": "Implementation plan with milestones, data flow, code checkpoints, and risks."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 47,
       "kind": "html",
       "title": "Demo board rebuild",
       "content": "Implementation plan with milestones, data flow, code checkpoints, and risks.",
@@ -3126,6 +3558,15 @@
           "node-sizes"
         ]
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 48,
       "kind": "html",
       "title": "Review — auto-fit floor",
       "content": "Annotated PR/code review sheet with severity-colored findings and diff excerpts.",
@@ -3205,6 +3646,15 @@
         "contentSummary": "PR — replace the demo board PMX HTML primitive / pr-writeup PR — replace the demo board Reviewer-ready PR narrative with motivation, before/after, file tour, test plan, and rollout notes. Copy JSON Copy prompt Summary Replaces the OKR demo board with a generated catalogue of every public canvas surface. The old board used three node types and was dominated by group frames, so it showed almost nothing the product does. Before 19 nodes 3 node types 3 large group frames hand-edited JSON After 69 nodes across 8 labelled bands all 15 public node types all 12 graph types and all 21 HTML primitives generated by a committed script File Tour scripts/generate-demo-board.ts The generator, and the only place the board is authored. Focus: Band layout and offline-safety rules. src/server/demo-state.json Generated output — never hand-edited. Focus: Stable demo-* ids. tests/unit/demo.test.ts Structur...",
         "agentSummary": "Reviewer-ready PR narrative with motivation, before/after, file tour, test plan, and rollout notes."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 49,
       "kind": "html",
       "title": "PR — replace the demo board",
       "content": "Reviewer-ready PR narrative with motivation, before/after, file tour, test plan, and rollout notes.",
@@ -3308,6 +3758,15 @@
         "contentSummary": "Canvas server map PMX HTML primitive / system-map Canvas server map Module or architecture map with boxes, relationships, entry points, and hot paths. Copy JSON Copy prompt Entry Points src/mcp/server.ts src/server/server.ts src/cli/index.ts entry MCP server stdio transport, 22 tools and 14 resources. entry HTTP API REST + SSE on Bun.serve. core Operation registry One definition drives HTTP, MCP and the SDK. core CanvasStateManager Singleton source of truth; every mutation goes through it. store SQLite .pmx-canvas/canvas.db — nodes, pins, snapshots, blobs. view Preact client Renders layout; state survives refresh. Relationships mcp tool call ops + http route ops + ops mutate state + state debounced save db + state SSE client",
         "agentSummary": "Module or architecture map with boxes, relationships, entry points, and hot paths."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 50,
       "kind": "html",
       "title": "Canvas server map",
       "content": "Module or architecture map with boxes, relationships, entry points, and hot paths.",
@@ -3428,6 +3887,15 @@
           "node-sizes"
         ]
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 51,
       "kind": "html",
       "title": "Walkthrough — creating a node",
       "content": "Guided code-path map with modules, ordered file steps, snippets, key files, and gotchas.",
@@ -3522,6 +3990,15 @@
         "contentSummary": "Board typography directions PMX HTML primitive / design-sheet Board typography directions Visual design directions, tokens, swatches, type samples, and rationale. Copy JSON Copy prompt Instrument dense, technical, high contrast Reads like a console. Good for status, trace and ledger nodes where density beats warmth. Editorial calm, generous leading Better for long markdown and explainers; loses signal on dashboards. Blueprint cool, structural, muted Diagram-first. Chart ink stays readable against the panel at low zoom. Tokens --c-bg #0d1220 --c-panel #131a2b --c-line #243049 --c-accent #4a9eff --c-ok #22c55e --c-warn #eab308",
         "agentSummary": "Visual design directions, tokens, swatches, type samples, and rationale."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 52,
       "kind": "html",
       "title": "Board typography directions",
       "content": "Visual design directions, tokens, swatches, type samples, and rationale.",
@@ -3596,6 +4073,15 @@
           "node-sizes"
         ]
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 53,
       "kind": "html",
       "title": "Node titlebar states",
       "content": "Contact sheet for component variants, states, sizes, and accessibility notes.",
@@ -3685,6 +4171,15 @@
         "contentSummary": "Node expand transition PMX HTML primitive / interaction-prototype Node expand transition Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config. Copy JSON Copy prompt Stage Tune the expand-to-overlay transition before wiring it into CanvasNode. Rest Node sits in the band at canvas scale. -> Lift Node scales toward the overlay frame; siblings dim. -> Overlay Full-size surface with the same renderer, expanded props. Select a screen to inspect it. Controls duration Duration: 240 ms overshoot Overshoot: 6 % dim Backdrop dim: 62 % Notes Same renderer The overlay must not fork the node component, or surfaces drift. No viewport jump Expanding never moves the underlying canvas. Questions Does overshoot help or just feel noisy at 0.4 zoom? Should the backdrop dim scale with node count? transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);",
         "agentSummary": "Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 54,
       "kind": "html",
       "title": "Node expand transition",
       "content": "Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config.",
@@ -3762,6 +4257,15 @@
         "contentSummary": "Release pipeline PMX HTML primitive / flowchart Release pipeline Clickable flowchart for pipelines, user journeys, process diagrams, and failure paths. Copy JSON Copy prompt Pre-flight ok 61s -> Build ok 44s -> Version bump ok 8s -> Tag and publish active — -> Smoke todo — Pre-flight typecheck, lint, unit and client suites. Failure Paths Smoke: missing file in package Add it to the files array and publish a patch. Tag and publish: registry 403 Re-auth, then republish the same tag.",
         "agentSummary": "Clickable flowchart for pipelines, user journeys, process diagrams, and failure paths."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 55,
       "kind": "html",
       "title": "Release pipeline",
       "content": "Clickable flowchart for pipelines, user journeys, process diagrams, and failure paths.",
@@ -3848,6 +4352,15 @@
         "contentSummary": "Why a spatial canvas PMX HTML primitive / deck Why a spatial canvas Arrow-key HTML deck with sections, speaker notes, and copyable JSON payload. Copy JSON Copy prompt 1 / 3 - use left/right arrows 01 Chat is a queue, work is a graph A transcript only remembers order Real work has neighbours, not turns Space is free context Open on the problem, not the product. 02 The canvas is the agent’s working memory Nodes persist across sessions Position carries meaning The agent can read its own board back 03 Pinning is the steering wheel Human pins what matters Agent reads canvas://pinned-context No prompt engineering required Demo the pin loop live if there is time.",
         "agentSummary": "Arrow-key HTML deck with sections, speaker notes, and copyable JSON payload. Slides: Chat is a queue, work is a graph, The canvas is the agent’s working memory, Pinning is the steering wheel."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 56,
       "kind": "html",
       "title": "Why a spatial canvas",
       "content": "Arrow-key HTML deck with sections, speaker notes, and copyable JSON payload. Slides: Chat is a queue, work is a graph, The canvas is the agent’s working memory, Pinning is the steering wheel.",
@@ -3957,6 +4470,15 @@
         "contentSummary": "PMX Canvas 0.4.7 briefing PMX presentation PMX Canvas 0.4.7 briefing What shipped, what it costs, and what we do next. 01 Where we are The canvas is the shared surface between the agent and the human. 15 node types 22 MCP tools 14 MCP resources Node types 15 all catalogued on the demo board Graph types 12 canonical plus Tufte primitives HTML primitives 21 generated, self-contained surfaces Speaker note Lead with the surface count — it is the clearest proxy for reach. 02 What changed in 0.4.7 The demo board is now a generated catalogue Readability floors are shared by server and client Delimited files render as tables Speaker note Keep this slide to three lines; detail lives in the changelog. 03 Next Make the board the first thing a new user sees, not the last. Ship --demo in the quickstart Record a 60-second tour Add a per-band deep link 1 / 3 - Arrow keys, Space, Page Up/Down",
         "agentSummary": "PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata. Slides: Where we are, What changed in 0.4.7, Next."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 57,
       "kind": "html",
       "title": "PMX Canvas 0.4.7 briefing",
       "content": "PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata. Slides: Where we are, What changed in 0.4.7, Next.",
@@ -4113,6 +4635,15 @@
         "contentSummary": "Figures — the collaboration loop PMX HTML primitive / illustration-set Figures — the collaboration loop Inline SVG figure sheet with captions and per-figure SVG copy/export controls. Copy JSON Copy prompt The pin loop Human Canvas Agent pins → canvas://pinned-context The human curates space; the agent reads that curation as context. Copy SVG One state, many surfaces MCP HTTP SDK Operation registry MCP, HTTP and the SDK are three doors into the same operation registry. Copy SVG",
         "agentSummary": "Inline SVG figure sheet with captions and per-figure SVG copy/export controls."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 58,
       "kind": "html",
       "title": "Figures — the collaboration loop",
       "content": "Inline SVG figure sheet with captions and per-figure SVG copy/export controls.",
@@ -4210,6 +4741,15 @@
           "node-b"
         ]
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 59,
       "kind": "html",
       "title": "How context pins work",
       "content": "Readable explainer with TLDR, collapsible steps, annotated snippets, FAQ, and glossary.",
@@ -4322,6 +4862,15 @@
           "mcp-app-1"
         ]
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 60,
       "kind": "html",
       "title": "Blank ext-app tiles on WebKit",
       "content": "Post-incident report with impact metrics, minute-by-minute timeline, root cause, log excerpts, and action checklist.",
@@ -4399,6 +4948,15 @@
         "contentSummary": "Weekly canvas status PMX HTML primitive / status-report Weekly canvas status Skimmable report with metrics, shipped/slipped lists, blockers, and next actions. Copy JSON Copy prompt Gates 4/5 green warn Unit tests 612 passing ok Coverage 71% lines ok Open bugs 7 warn Bundle +4.1% warn Shipped Delimited files render as tables instead of raw text Shared readability floor between server and client Generated demo board covering every public surface Slipped Per-band deep links Snapshot diff in the browser Risks Bundle growth is trending up three weeks running e2e suite is the slowest gate and the flakiest Next Cut the bundle back under the 0.4.5 baseline Record the 60-second tour off the new demo board",
         "agentSummary": "Skimmable report with metrics, shipped/slipped lists, blockers, and next actions."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 61,
       "kind": "html",
       "title": "Weekly canvas status",
       "content": "Skimmable report with metrics, shipped/slipped lists, blockers, and next actions.",
@@ -4476,6 +5034,15 @@
         "contentSummary": "Post-0.4.7 triage PMX HTML primitive / triage-board Post-0.4.7 triage Draggable Now/Next/Later/Cut board with copy-as-markdown export. Copy JSON Copy prompt Now Bundle back under baseline Client bundle is +4.1% over 0.4.6. Trending the wrong way three weeks running. Stabilise the e2e gate Two reruns per week on average. Slowest and flakiest gate blocks every release. Next Per-band deep links Open the board focused on one band. Makes the demo board usable as documentation. 60-second tour recording Screen capture driven off --demo. Cheapest onboarding win available. Later Snapshot diff in the browser Today it is MCP/HTTP only. Useful, not blocking. Cut Theme editor UI Edit CSS variables from the toolbar. Nine built-in themes already cover the need. Drag cards between columns, then copy JSON or markdown. Copy markdown",
         "agentSummary": "Draggable Now/Next/Later/Cut board with copy-as-markdown export."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 62,
       "kind": "html",
       "title": "Post-0.4.7 triage",
       "content": "Draggable Now/Next/Later/Cut board with copy-as-markdown export.",
@@ -4559,6 +5126,15 @@
           "node-type"
         ]
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 63,
       "kind": "html",
       "title": "Canvas feature flags",
       "content": "Form-like editor for flags or structured config with dependency warnings and copy-diff export.",
@@ -4619,6 +5195,15 @@
         "contentSummary": "Board summary prompt PMX HTML primitive / prompt-tuner Board summary prompt Side-by-side prompt/template editor with live variable previews and copy export. Copy JSON Copy prompt Template You are looking at a PMX Canvas board for {{project}}. Summarise it for a {{audience}} in {{sentences}} sentences. Lead with what the board is FOR, then what changed most recently. Ignore layout and node ids. Pinned nodes are the human’s curation — weight them above everything else. 0 characters Live Samples Copy template",
         "agentSummary": "Side-by-side prompt/template editor with live variable previews and copy export."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 64,
       "kind": "html",
       "title": "Board summary prompt",
       "content": "Side-by-side prompt/template editor with live variable previews and copy export.",
@@ -4663,6 +5248,15 @@
         "contentSummary": "Agent board PMX HTML primitive / ax-board Agent board Live agent work board: hand the agent tasks, watch status, steer, and run bounded task loops. Copy JSON Copy prompt AX bridge unavailable This board is not running as an AX-enabled canvas node, so its controls are inert. Give the agent a task Tasks queued here land in the canvas AX work queue, so the agent picks them up without another prompt. Add task or run it as a bounded loop: max runs Start loop Steer Queue steering message Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent. Loop run 0 of 0 Each run is its own work item. When you mark the current run done , the surface opens the next run and steers again — until the cap or Stop. Stop loop Loop control lives in this panel, so reloading it stops the loop — the work items stay as the durable record. Work",
         "agentSummary": "Live agent work board: hand the agent tasks, watch status, steer, and run bounded task loops."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 65,
       "kind": "html",
       "title": "Agent board",
       "content": "Live agent work board: hand the agent tasks, watch status, steer, and run bounded task loops.",
@@ -4733,11 +5327,20 @@
           "axflow-primitive-ax-flow-step-4"
         ],
         "contentSummary": "Release flow PMX HTML primitive / ax-flow Release flow Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board. Copy JSON Copy prompt AX bridge unavailable This flow is not running as an AX-enabled canvas node, so its controls are inert. Release flow Each step is a canvas AX work item. Materialize drops the same flow onto the board as real nodes. loops back to step 1 · max 3 runs Run the flow Queue every step A step is queued once — after that its status control advances it (todo → in-progress → done). or run the whole flow as a bounded loop: max runs Start loop Steer Queue steering message Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent. Loop run 0 of 0 Each run is its own work item. When you mark the current run done , the surface opens the next run...",
-        "agentSummary": "Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board."
+        "agentSummary": "HTML primitive: ax-flow\nLive task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board.\nRelease flow PMX HTML primitive / ax-flow Release flow Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board. Copy JSON Copy prompt AX bridge unavailable This flow is not running as an AX-enabled canvas node, so its controls are inert. Release flow Each step is a canvas AX work item. Materialize drops the same flow onto the board as real nodes. loops back to step 1 · max 3 runs Run the flow Queue every step A step is queued once — after that its status control advances it (todo → in-progress → done). or run the whole flow as a bounded loop: max runs Start loop Steer Queue steering message Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent. Loop run 0 of 0 Each run is its own work item. When you mark the current run done , the surface opens the next run..."
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 77,
       "kind": "html",
       "title": "Release flow",
-      "content": "Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board.",
+      "content": "HTML primitive: ax-flow\nLive task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board.\nRelease flow PMX HTML primitive / ax-flow Release flow Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board. Copy JSON Copy prompt AX bridge unavailable This flow is not running as an AX-enabled canvas node, so its controls are inert. Release flow Each step is a canvas AX work item. Materialize drops the same flow onto the board as real nodes. loops back to step 1 · max 3 runs Run the flow Queue every step A step is queued once — after that its status control advances it (todo → in-progress → done). or run the whole flow as a bounded loop: max runs Start loop Steer Queue steering message Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent. Loop run 0 of 0 Each run is its own work item. When you mark the current run done , the surface opens the next run...",
       "path": null,
       "url": null,
       "surfaceUrl": "/api/canvas/surface/primitive-ax-flow",
@@ -4762,6 +5365,15 @@
         "content": "A task caught mid-flight: one work item per step, status chips on the nodes, controls that steer the agent.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 67,
       "kind": "markdown",
       "title": "⑧ Agent at work",
       "content": "A task caught mid-flight: one work item per step, status chips on the nodes, controls that steer the agent.",
@@ -4834,6 +5446,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 78,
       "kind": "markdown",
       "title": "1. Reproduce",
       "content": "Ran the publish gate 20× in a loop. Fails 3 in 20, always on the registry probe.",
@@ -4871,6 +5492,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 79,
       "kind": "markdown",
       "title": "2. Fix",
       "content": "Retry the probe with backoff instead of failing the gate on the first timeout.",
@@ -4908,6 +5538,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 80,
       "kind": "markdown",
       "title": "3. Verify",
       "content": "Re-run the same 20× loop and require 20 green.",
@@ -4945,6 +5584,15 @@
         },
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 81,
       "kind": "markdown",
       "title": "4. Ship",
       "content": "Land the patch, then watch the next three releases.",
@@ -4972,6 +5620,15 @@
         "content": "Each step is a real **AX work item**, so the chip on a step node is the\nagent’s live status — it moves as the agent works.\n\nThe buttons in each step footer steer it: **Start**, **Done** and\n**Blocked** write that step’s work item, which the agent reads back from\n`canvas://ax-work`.\n\nStep 2 is pinned, so `canvas://pinned-context` hands the agent the\nstep it is actually on.",
         "strictSize": true
       },
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "lastEditedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "contentRevision": 82,
       "kind": "markdown",
       "title": "How to read this band",
       "content": "Each step is a real **AX work item**, so the chip on a step node is the\nagent’s live status — it moves as the agent works.\n\nThe buttons in each step footer steer it: **Start**, **Done** and\n**Blocked** write that step’s work item, which the agent reads back from\n`canvas://ax-work`.\n\nStep 2 is pinned, so `canvas://pinned-context` hands the agent the\nstep it is actually on.",

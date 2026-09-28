@@ -16,6 +16,7 @@ import { PromptNode } from '../nodes/PromptNode';
 import { AxStepControls } from '../nodes/AxStepControls';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
+import { BoardNode } from '../nodes/BoardNode';
 import {
   collapseExpandedNode,
   contextPinnedNodeIds,
@@ -41,6 +42,8 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <McpAppNode node={node} expanded={expanded} />;
     case 'graph':
       return <McpAppNode node={node} expanded={expanded} />;
+    case 'board':
+      return <BoardNode node={node} />;
     case 'prompt':
       return <PromptNode node={node} />;
     case 'response':

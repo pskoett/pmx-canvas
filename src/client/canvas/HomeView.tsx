@@ -1,7 +1,8 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import {
   boardList,
+  activeBoardId,
   createAndOpenBoard,
   deleteBoard,
   openBoard,
@@ -11,6 +12,17 @@ import {
 import { categoryAncestors, MIGRATED_SNAPSHOT_CATEGORY } from '../../shared/boards.js';
 import { askText } from './TextPrompt';
 import { BoardFolderDialog } from './BoardFolderDialog';
+import { requestJson } from '../state/intent-bridge';
+import { focusNode, nodes } from '../state/canvas-store';
+import { BoardCopyDialog } from './BoardCopyDialog';
+
+interface LibraryHit {
+  boardId: string;
+  boardTitle: string;
+  cardId: string;
+  title: string | null;
+  snippet: string;
+}
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'never opened';
@@ -65,8 +77,11 @@ export function HomeView() {
   const boards = boardList.value;
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [hits, setHits] = useState<LibraryHit[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
+  const openHitSequence = useRef(0);
   const folders = [
     ...new Set(boards.flatMap((board) => (board.category ? categoryAncestors(board.category) : []))),
   ].sort((a, b) => a.localeCompare(b));
@@ -74,6 +89,42 @@ export function HomeView() {
   const visible = boards.filter((board) => `${board.name} ${board.category ?? ''}`.toLocaleLowerCase().includes(query));
   const visibleFolders = new Set(visible.flatMap((board) => (board.category ? categoryAncestors(board.category) : [])));
   const movingBoard = boards.find((board) => board.id === moving);
+  const copyingBoard = boards.find((board) => board.id === copying);
+
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) {
+      setHits([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void requestJson<{ results?: LibraryHit[] } | null>(
+        'searchLibrary',
+        `/api/canvas/search?q=${encodeURIComponent(q)}&scope=library&limit=30`,
+        null,
+      ).then((result) => {
+        if (!cancelled) setHits(result?.results ?? []);
+      });
+    }, 150);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search]);
+
+  const openHit = async (hit: LibraryHit) => {
+    const sequence = ++openHitSequence.current;
+    await openBoard(hit.boardId);
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (sequence !== openHitSequence.current || activeBoardId.value !== hit.boardId) return;
+      if (nodes.value.has(hit.cardId)) {
+        focusNode(hit.cardId);
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 25));
+    }
+  };
 
   const toggle = (name: string) => {
     const next = new Set(collapsed);
@@ -122,6 +173,9 @@ export function HomeView() {
         <div class="home-board-actions">
           <button type="button" class="home-board-action" aria-haspopup="dialog" onClick={() => setMoving(board.id)}>
             Move
+          </button>
+          <button type="button" class="home-board-action" aria-haspopup="dialog" onClick={() => setCopying(board.id)}>
+            Create from…
           </button>
           <button type="button" class="home-board-action" onClick={() => void rename(board)}>
             Rename
@@ -183,6 +237,19 @@ export function HomeView() {
         />
         {boards.length === 0 ? (
           <div class="home-view-empty">No boards yet. Create one, or let an agent start writing — it opens one.</div>
+        ) : query && hits.length > 0 ? (
+          <ul class="home-view-list" aria-label="Library search results">
+            {hits.map((hit) => (
+              <li class="home-board" key={`${hit.boardId}:${hit.cardId}`}>
+                <button type="button" class="home-board-open" onClick={() => void openHit(hit)}>
+                  <span class="home-board-name">{hit.title || hit.boardTitle}</span>
+                  <span class="home-board-meta">
+                    {hit.boardTitle} · {hit.snippet}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         ) : visible.length === 0 ? (
           <div class="home-view-empty" role="status">
             No boards match “{search}”.
@@ -202,6 +269,7 @@ export function HomeView() {
       {movingBoard && (
         <BoardFolderDialog key={movingBoard.id} board={movingBoard} folders={folders} onClose={() => setMoving(null)} />
       )}
+      {copyingBoard && <BoardCopyDialog key={copyingBoard.id} board={copyingBoard} onClose={() => setCopying(null)} />}
     </div>
   );
 }

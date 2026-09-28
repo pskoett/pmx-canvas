@@ -46,6 +46,7 @@ import { HumanPresenceLayer } from './HumanPresenceLayer';
 import { reportHumanCursor } from '../state/human-store';
 import { ScopeFenceLayer } from './ScopeFenceLayer';
 import { CanvasNode } from './CanvasNode';
+import { BoardNode } from '../nodes/BoardNode';
 import { EdgeLayer } from './EdgeLayer';
 import { AnnotationLayer } from './AnnotationLayer';
 import { activeGuides } from './snap-guides';
@@ -63,6 +64,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <McpAppNode node={node} />;
     case 'graph':
       return <McpAppNode node={node} />;
+    case 'board':
+      return <BoardNode node={node} />;
     case 'prompt':
       return <PromptNode node={node} />;
     case 'response':

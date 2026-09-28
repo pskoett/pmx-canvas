@@ -19,6 +19,7 @@
  */
 export const NODE_MIN_SIZES: Record<string, { width: number; height: number }> = {
   markdown: { width: 360, height: 180 },
+  board: { width: 320, height: 140 },
   context: { width: 360, height: 180 },
   file: { width: 360, height: 200 },
   diff: { width: 420, height: 240 },

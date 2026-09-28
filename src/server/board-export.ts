@@ -204,7 +204,7 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
   const themeCss = withFrames ? readAsset('surface-theme.css') : '';
 
   for (const node of state.nodes) {
-    const title = getCanvasNodeTitle(node) ?? node.type;
+    const title = node.type === 'board' ? 'Linked board' : (getCanvasNodeTitle(node) ?? node.type);
     const card: ExportCard = {
       id: node.id,
       kind: node.type,
@@ -221,6 +221,9 @@ async function collect(boardId: string, includeFiles: boolean, withFrames: boole
     };
 
     switch (node.type) {
+      case 'board':
+        placeholder('Linked board is not included in this export.');
+        break;
       case 'group':
         card.group = true;
         break;

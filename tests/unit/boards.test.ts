@@ -7,7 +7,7 @@ import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state
 import { intentRegistry } from '../../src/server/intent-registry.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { runCanvasBatchOperation } from '../../src/server/operations/index.ts';
-import { isEmitSuppressed } from '../../src/server/operations/registry.ts';
+import { executeOperation, isEmitSuppressed } from '../../src/server/operations/registry.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 /** The one-board layout every 0.6.x workspace has on disk (schema 1). */
@@ -176,6 +176,110 @@ describe('boards', () => {
 
     expect(canvasState.activeBoardId).not.toBeNull();
     expect(canvasState.listBoards()).toHaveLength(1);
+  });
+
+  test('invalid README does not partially rename or move a board', async () => {
+    canvasState.addNode(note('readme', 'Introduction'));
+    canvasState.flushToDisk();
+    const id = canvasState.activeBoardId!;
+    const before = canvasState.getActiveBoard()!;
+    await expect(
+      executeOperation('board.update', { id, name: 'Unwanted rename', category: 'Other', readmeNodeId: 'missing' }),
+    ).rejects.toThrow('README must identify');
+    expect(canvasState.getActiveBoard()?.name).toBe(before.name);
+    expect(canvasState.getActiveBoard()?.category).toBe(before.category);
+    await openCanvasBoard(null);
+    await executeOperation('board.create-from', { sourceBoardId: id, name: 'Copy', nodeIds: ['readme'] });
+    expect(canvasState.activeBoardId).toBeNull();
+    expect(canvasState.listBoards()).toHaveLength(2);
+    await expect(executeOperation('context.get', {})).rejects.toThrow('Open a board');
+  });
+
+  test('context only advances an explicit consumer after complete delivery', async () => {
+    canvasState.addNode(note('context-card', 'Decision'));
+    canvasState.flushToDisk();
+    const id = canvasState.activeBoardId!;
+    const revision = canvasState.getContentRevision().revision;
+    await executeOperation('context.get', {});
+    expect(canvasState.getContextBriefCursor(id, 'default')).toBeNull();
+    await executeOperation('context.get', { consumer: 'reader', budget: 1 });
+    expect(canvasState.getContextBriefCursor(id, 'reader')).toBeNull();
+    await executeOperation('context.get', { consumer: 'reader', since: 0 });
+    expect(canvasState.getContextBriefCursor(id, 'reader')).toBeNull();
+    await executeOperation('context.get', { consumer: 'reader' });
+    expect(canvasState.getContextBriefCursor(id, 'reader')).toBe(revision);
+    canvasState.updateNode('context-card', { data: { title: 'Decision', content: 'New decision' } });
+    await executeOperation('context.get', { consumer: 'reader' });
+    const latest = canvasState.getContentRevision().revision;
+    expect(latest).toBeGreaterThan(revision);
+    canvasState.close();
+    resetCanvasForTests(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+    expect(canvasState.getContextBriefCursor(id, 'reader')).toBe(latest);
+    expect(canvasState.getNode('context-card')?.data.content).toBe('New decision');
+  });
+
+  test('README designation and create-from preserve the active board while remapping structure', () => {
+    canvasState.addNode(note('readme', 'Introduction'));
+    canvasState.addNode({
+      ...note('group', 'Section'),
+      type: 'group',
+      data: { title: 'Section', children: ['readme'] },
+    });
+    canvasState.groupNodes('group', ['readme']);
+    canvasState.flushToDisk();
+    const sourceId = canvasState.activeBoardId!;
+    expect(canvasState.setBoardReadme(sourceId, 'readme')).toBe(true);
+    expect(canvasState.setBoardReadme(sourceId, 'group')).toBe(false);
+
+    const created = canvasState.createBoardFromBoard({
+      sourceBoardId: sourceId,
+      name: 'Follow-up',
+      nodeIds: ['readme', 'group'],
+      includeReadme: true,
+      includeStructure: true,
+    })!;
+    expect(canvasState.activeBoardId).toBe(sourceId);
+    expect(
+      canvasState
+        .getLayout()
+        .nodes.map((node) => node.id)
+        .sort(),
+    ).toEqual(['group', 'readme']);
+    const copied = canvasState.readBoard(created.id)!;
+    expect(copied.board.readmeNodeId).not.toBe('readme');
+    expect(copied.layout.nodes).toHaveLength(3);
+    const copiedGroup = copied.layout.nodes.find((node) => node.type === 'group')!;
+    const copiedReadme = copied.layout.nodes.find((node) => node.id === copied.board.readmeNodeId)!;
+    expect(copiedGroup.data.children).toContain(copiedReadme.id);
+    expect(copiedReadme.data.parentGroup).toBe(copiedGroup.id);
+    expect(copied.layout.nodes.find((node) => node.type === 'board')?.data.boardId).toBe(sourceId);
+    expect(copied.state.contextPins).toEqual([]);
+    expect(copied.state.ax?.workItems).toEqual([]);
+  });
+
+  test('copied graph and json-render viewers reference their new nodes', () => {
+    for (const type of ['graph', 'json-render'] as const) {
+      canvasState.addNode({
+        ...note(type, type),
+        type,
+        data: { spec: { root: 'card', elements: {} }, url: `/api/canvas/json-render/view?nodeId=${type}` },
+      });
+    }
+    canvasState.flushToDisk();
+    const sourceId = canvasState.activeBoardId!;
+    const copy = canvasState.createBoardFromBoard({
+      sourceBoardId: sourceId,
+      name: 'Viewers',
+      nodeIds: ['graph', 'json-render'],
+    })!;
+    const nodes = canvasState.readBoard(copy.id)!.layout.nodes;
+    for (const type of ['graph', 'json-render']) {
+      const node = nodes.find((node) => node.type === type)!;
+      expect(node.id).not.toBe(type);
+      expect(node.data.url).toBe(`/api/canvas/json-render/view?nodeId=${node.id}`);
+      expect(canvasState.getNode(type)!.data.url).toBe(`/api/canvas/json-render/view?nodeId=${type}`);
+    }
   });
 
   test('switching boards keeps each board whole: nodes, pins, viewport, AX state and snapshots', async () => {

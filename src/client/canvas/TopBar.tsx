@@ -344,20 +344,22 @@ export function TopBar() {
           </button>
         </BarHint>
       )}
-      <BarHint
-        label="Present board"
-        body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
-      >
-        <button
-          type="button"
-          class="present-button"
-          onClick={() => {
-            presenting.value = true;
-          }}
+      {activeBoardId.value && (
+        <BarHint
+          label="Present board"
+          body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
         >
-          Present
-        </button>
-      </BarHint>
+          <button
+            type="button"
+            class="present-button"
+            onClick={() => {
+              presenting.value = true;
+            }}
+          >
+            Present
+          </button>
+        </BarHint>
+      )}
       <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
         <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
           <IconZoomOut />

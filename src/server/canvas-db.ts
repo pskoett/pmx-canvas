@@ -58,6 +58,13 @@ const SCHEMA_SQL = `
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS context_brief_cursors (
+    board_id TEXT NOT NULL,
+    consumer TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    PRIMARY KEY (board_id, consumer)
+  );
+
   CREATE TABLE IF NOT EXISTS boards (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -67,7 +74,8 @@ const SCHEMA_SQL = `
     viewport_y REAL NOT NULL DEFAULT 0,
     viewport_scale REAL NOT NULL DEFAULT 1,
     tour TEXT NOT NULL DEFAULT 'null',
-    category TEXT
+    category TEXT,
+    readme_node_id TEXT
   );
 
   CREATE TABLE IF NOT EXISTS nodes (
@@ -295,6 +303,33 @@ export interface PersistedCanvasState {
   annotations?: CanvasAnnotation[];
   contextPins: string[];
   ax?: PmxAxState;
+  revisionState?: PersistedRevisionState;
+}
+
+export interface PersistedRevisionState {
+  revision: number;
+  floor: number;
+  tombstones: Array<{ nodeId: string; revision: number; deletedBy: import('./attribution.js').ActorAttribution }>;
+}
+
+/** Durable, delivery-based context cursor. This is separate from the bounded diagnostic read log. */
+export function readContextBriefCursor(db: Database, boardId: string, consumer: string): number | null {
+  return (
+    db
+      .query<{ revision: number }, [string, string]>(
+        'SELECT revision FROM context_brief_cursors WHERE board_id = ? AND consumer = ?',
+      )
+      .get(boardId, consumer)?.revision ?? null
+  );
+}
+
+/** Monotonic update prevents a stale concurrent response from regressing a consumer. */
+export function advanceContextBriefCursor(db: Database, boardId: string, consumer: string, revision: number): void {
+  db.run(
+    `INSERT INTO context_brief_cursors (board_id, consumer, revision) VALUES (?, ?, ?)
+     ON CONFLICT(board_id, consumer) DO UPDATE SET revision = MAX(revision, excluded.revision)`,
+    [boardId, consumer, revision],
+  );
 }
 
 function readTour(raw: string | undefined): Tour | undefined {
@@ -333,6 +368,11 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'ax_steering', 'target', 'target TEXT');
   ensureColumn(db, 'context_reads', 'board_id', 'board_id TEXT');
   ensureColumn(db, 'boards', 'category', 'category TEXT');
+  ensureColumn(db, 'boards', 'readme_node_id', 'readme_node_id TEXT');
+  ensureColumn(db, 'nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");
+  ensureColumn(db, 'nodes', 'content_revision', 'content_revision INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'snapshot_nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");
+  ensureColumn(db, 'snapshot_nodes', 'content_revision', 'content_revision INTEGER NOT NULL DEFAULT 0');
 
   // Set schema version if not present
   const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('schema_version');
@@ -613,17 +653,19 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
 
     // Save nodes
     const upsertNode = db.prepare(
-      `INSERT INTO nodes (board_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO nodes (board_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data, attribution, content_revision)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(board_id, id) DO UPDATE SET
          type = excluded.type, pos_x = excluded.pos_x, pos_y = excluded.pos_y,
          width = excluded.width, height = excluded.height, z_index = excluded.z_index,
-         collapsed = excluded.collapsed, pinned = excluded.pinned, data = excluded.data
+         collapsed = excluded.collapsed, pinned = excluded.pinned, data = excluded.data,
+         attribution = excluded.attribution, content_revision = excluded.content_revision
        WHERE type IS NOT excluded.type OR pos_x IS NOT excluded.pos_x
           OR pos_y IS NOT excluded.pos_y OR width IS NOT excluded.width
           OR height IS NOT excluded.height OR z_index IS NOT excluded.z_index
           OR collapsed IS NOT excluded.collapsed OR pinned IS NOT excluded.pinned
-          OR data IS NOT excluded.data`,
+          OR data IS NOT excluded.data OR attribution IS NOT excluded.attribution
+          OR content_revision IS NOT excluded.content_revision`,
     );
     for (const node of state.nodes) {
       upsertNode.run(
@@ -638,6 +680,8 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
         node.collapsed ? 1 : 0,
         node.pinned ? 1 : 0,
         JSON.stringify(node.data),
+        JSON.stringify({ createdBy: node.createdBy, lastEditedBy: node.lastEditedBy }),
+        node.contentRevision ?? 0,
       );
     }
     deleteMissingRows(db, 'nodes', 'id', boardId, new Set(state.nodes.map((node) => node.id)));
@@ -710,6 +754,12 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
        WHERE value IS NOT excluded.value`,
       [boardId, 'state', JSON.stringify(state.ax ?? createEmptyAxState())],
     );
+    db.run(
+      `INSERT INTO ax_state (board_id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(board_id, key) DO UPDATE SET value = excluded.value
+       WHERE value IS NOT excluded.value`,
+      [boardId, 'revision', JSON.stringify(state.revisionState ?? { revision: 0, floor: 0, tombstones: [] })],
+    );
   });
 
   transaction();
@@ -749,18 +799,28 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     collapsed: number;
     pinned: number;
     data: string;
+    attribution: string;
+    content_revision: number;
   }
   const nodeRows = db.query<NodeRow, [string]>('SELECT * FROM nodes WHERE board_id = ?').all(id);
-  const nodes: CanvasNodeState[] = nodeRows.map((row) => ({
-    id: row.id,
-    type: row.type as CanvasNodeState['type'],
-    position: { x: row.pos_x, y: row.pos_y },
-    size: { width: row.width, height: row.height },
-    zIndex: row.z_index,
-    collapsed: row.collapsed === 1,
-    pinned: row.pinned === 1,
-    data: JSON.parse(row.data) as Record<string, unknown>,
-  }));
+  const nodes: CanvasNodeState[] = nodeRows.map((row) => {
+    const attribution = JSON.parse(row.attribution || '{}') as Partial<
+      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy'>
+    >;
+    return {
+      id: row.id,
+      type: row.type as CanvasNodeState['type'],
+      position: { x: row.pos_x, y: row.pos_y },
+      size: { width: row.width, height: row.height },
+      zIndex: row.z_index,
+      collapsed: row.collapsed === 1,
+      pinned: row.pinned === 1,
+      data: JSON.parse(row.data) as Record<string, unknown>,
+      createdBy: attribution.createdBy,
+      lastEditedBy: attribution.lastEditedBy,
+      contentRevision: row.content_revision,
+    };
+  });
 
   // Load edges
   interface EdgeRow {
@@ -819,6 +879,9 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
     .get(id, 'state');
 
+  const revisionRaw = db
+    .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
+    .get(id, 'revision')?.value;
   return {
     version: 1,
     theme,
@@ -829,6 +892,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     annotations,
     contextPins,
     ax: parsePersistedAxState(axRow?.value),
+    revisionState: revisionRaw ? (JSON.parse(revisionRaw) as PersistedRevisionState) : undefined,
   };
 }
 
@@ -842,6 +906,8 @@ export interface CanvasBoard {
   createdAt: string;
   lastOpenedAt: string | null;
   nodeCount: number;
+  /** Markdown node used as this board's introduction. */
+  readmeNodeId: string | null;
 }
 
 interface BoardListRow {
@@ -851,9 +917,10 @@ interface BoardListRow {
   created_at: string;
   last_opened_at: string | null;
   node_count: number;
+  readme_node_id: string | null;
 }
 
-const BOARD_LIST_SQL = `SELECT b.id, b.name, b.category, b.created_at, b.last_opened_at,
+const BOARD_LIST_SQL = `SELECT b.id, b.name, b.category, b.created_at, b.last_opened_at, b.readme_node_id,
     (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count
   FROM boards b`;
 
@@ -865,6 +932,7 @@ function rowToBoard(row: BoardListRow): CanvasBoard {
     createdAt: row.created_at,
     lastOpenedAt: row.last_opened_at,
     nodeCount: row.node_count,
+    readmeNodeId: row.readme_node_id,
   };
 }
 
@@ -886,16 +954,39 @@ export function createBoardInDB(db: Database, name: string, category: string | n
   const id = createBoardId();
   const createdAt = new Date().toISOString();
   db.run('INSERT INTO boards (id, name, category, created_at) VALUES (?, ?, ?, ?)', [id, name, category, createdAt]);
-  return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0 };
+  return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0, readmeNodeId: null };
 }
 
 /** Rename and/or re-shelve a board; `category: null` removes it from its category. */
-export function updateBoardInDB(db: Database, id: string, patch: { name?: string; category?: string | null }): boolean {
+export function updateBoardInDB(
+  db: Database,
+  id: string,
+  patch: { name?: string; category?: string | null; readmeNodeId?: string | null },
+): boolean {
   const category = patch.category === undefined ? undefined : normalizeBoardCategory(patch.category);
   if (!db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id)) return false;
   if (patch.name !== undefined) db.run('UPDATE boards SET name = ? WHERE id = ?', [patch.name, id]);
   if (category !== undefined) db.run('UPDATE boards SET category = ? WHERE id = ?', [category, id]);
+  if (patch.readmeNodeId !== undefined) {
+    db.run('UPDATE boards SET readme_node_id = ? WHERE id = ?', [patch.readmeNodeId, id]);
+  }
   return true;
+}
+
+/** Create and populate an inactive board as one SQLite transaction. */
+export function createBoardWithStateInDB(
+  db: Database,
+  name: string,
+  category: string | null,
+  state: PersistedCanvasState,
+  readmeNodeId: string | null,
+): CanvasBoard {
+  return db.transaction(() => {
+    const board = createBoardInDB(db, name, category);
+    saveStateToDB(db, board.id, state);
+    updateBoardInDB(db, board.id, { readmeNodeId });
+    return { ...board, nodeCount: state.nodes.length, readmeNodeId };
+  })();
 }
 
 /** Deletes a board with its rows and its snapshots. */
@@ -998,8 +1089,8 @@ export function saveSnapshotToDB(
 
     // Insert snapshot nodes
     const insertNode = db.prepare(
-      `INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data, attribution, content_revision)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const node of state.nodes) {
       insertNode.run(
@@ -1014,6 +1105,8 @@ export function saveSnapshotToDB(
         node.collapsed ? 1 : 0,
         node.pinned ? 1 : 0,
         JSON.stringify(node.data),
+        JSON.stringify({ createdBy: node.createdBy, lastEditedBy: node.lastEditedBy }),
+        node.contentRevision ?? 0,
       );
     }
 
@@ -1060,6 +1153,11 @@ export function saveSnapshotToDB(
     for (const pinId of state.contextPins) {
       insertPin.run(snapshot.id, pinId);
     }
+    db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [
+      snapshot.id,
+      'revision_state',
+      JSON.stringify(state.revisionState ?? { revision: 0, floor: 0, tombstones: [] }),
+    ]);
   });
 
   transaction();
@@ -1126,20 +1224,30 @@ export function loadSnapshotFromDB(
     collapsed: number;
     pinned: number;
     data: string;
+    attribution: string;
+    content_revision: number;
   }
   const nodeRows = db
     .query<NodeRow, [string]>('SELECT * FROM snapshot_nodes WHERE snapshot_id = ?')
     .all(snapshotRow.id);
-  const nodes: CanvasNodeState[] = nodeRows.map((row) => ({
-    id: row.id,
-    type: row.type as CanvasNodeState['type'],
-    position: { x: row.pos_x, y: row.pos_y },
-    size: { width: row.width, height: row.height },
-    zIndex: row.z_index,
-    collapsed: row.collapsed === 1,
-    pinned: row.pinned === 1,
-    data: JSON.parse(row.data) as Record<string, unknown>,
-  }));
+  const nodes: CanvasNodeState[] = nodeRows.map((row) => {
+    const attribution = JSON.parse(row.attribution || '{}') as Partial<
+      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy'>
+    >;
+    return {
+      id: row.id,
+      type: row.type as CanvasNodeState['type'],
+      position: { x: row.pos_x, y: row.pos_y },
+      size: { width: row.width, height: row.height },
+      zIndex: row.z_index,
+      collapsed: row.collapsed === 1,
+      pinned: row.pinned === 1,
+      data: JSON.parse(row.data) as Record<string, unknown>,
+      createdBy: attribution.createdBy,
+      lastEditedBy: attribution.lastEditedBy,
+      contentRevision: row.content_revision,
+    };
+  });
 
   // Load snapshot edges
   interface EdgeRow {
@@ -1211,6 +1319,9 @@ export function loadSnapshotFromDB(
       annotations,
       contextPins,
       ax: parsePersistedAxState(metaMap.get('ax_state')),
+      revisionState: metaMap.has('revision_state')
+        ? (JSON.parse(metaMap.get('revision_state')!) as PersistedRevisionState)
+        : undefined,
     },
   };
 }

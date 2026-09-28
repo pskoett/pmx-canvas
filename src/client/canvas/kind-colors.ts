@@ -7,6 +7,7 @@ export const KIND_COLOR: Record<CanvasNodeState['type'], string> = {
   webpage: 'var(--c-warn)',
   'json-render': 'var(--c-ok)',
   graph: 'var(--c-purple)',
+  board: 'var(--c-accent)',
   prompt: 'var(--c-accent)',
   response: 'var(--c-ok)',
   status: 'var(--c-warn)',

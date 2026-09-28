@@ -709,6 +709,36 @@ export class PmxCanvas extends EventEmitter {
     await executeOperation('board.update', { id, ...patch }, { source: 'sdk' });
   }
 
+  async setBoardReadme(id: string, readmeNodeId: string | null): Promise<void> {
+    await executeOperation('board.update', { id, readmeNodeId }, { source: 'sdk' });
+  }
+
+  async createBoardFrom(input: {
+    sourceBoardId: string;
+    name: string;
+    category?: string;
+    nodeIds?: string[];
+    includeReadme?: boolean;
+    includeStructure?: boolean;
+    preview?: boolean;
+  }): Promise<Record<string, unknown>> {
+    return (await executeOperation('board.create-from', input, { source: 'sdk' })) as Record<string, unknown>;
+  }
+
+  async searchLibrary(query: string, limit?: number): Promise<Record<string, unknown>> {
+    return (await executeOperation('search', { q: query, scope: 'library', limit }, { source: 'sdk' })) as Record<
+      string,
+      unknown
+    >;
+  }
+
+  /** Budgeted cross-board brief. Budget is measured in UTF-16 characters. */
+  async getContextBrief(
+    options: { consumer?: string; since?: number; budget?: number } = {},
+  ): Promise<Record<string, unknown>> {
+    return (await executeOperation('context.get', options, { source: 'sdk' })) as Record<string, unknown>;
+  }
+
   /** Open a board, or Home with null. */
   async openBoard(id: string | null): Promise<void> {
     await executeOperation('board.open', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });

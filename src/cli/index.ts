@@ -38,6 +38,7 @@ const AGENT_COMMANDS = new Set([
   'edge',
   'json-render',
   'search',
+  'context',
   'layout',
   'status',
   'arrange',

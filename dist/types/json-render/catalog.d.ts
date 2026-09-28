@@ -388,8 +388,8 @@ export declare const allComponentDefinitions: {
             height: z.ZodNullable<z.ZodNumber>;
             colorBy: z.ZodNullable<z.ZodEnum<{
                 value: "value";
-                series: "series";
                 category: "category";
+                series: "series";
                 none: "none";
             }>>;
             highlight: z.ZodNullable<z.ZodUnion<readonly [z.ZodNumber, z.ZodEnum<{
