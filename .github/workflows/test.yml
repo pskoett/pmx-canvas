@@ -98,7 +98,16 @@ jobs:
         run: bun run typecheck
 
       - name: Unit tests
+        if: runner.os != 'Windows'
         run: bun run test
+
+      # Windows filesystem-heavy setup/cleanup has taken 8–19 s on hosted
+      # runners. Keep all assertions and the job deadline; allow that I/O to
+      # finish instead of aborting otherwise successful tests at the 5 s default.
+      # bunfig.toml preloads the same browser/host-state safety env as `test`.
+      - name: Unit tests (Windows filesystem budget)
+        if: runner.os == 'Windows'
+        run: bun test tests/unit --timeout 30000
 
   # Required e2e gate. Kept separate from unit tests so unit feedback stays
   # fast; must NOT be allowed to soft-fail (no continue-on-error). Runs the
