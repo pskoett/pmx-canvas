@@ -39,7 +39,7 @@ describe('pmx-canvas smoke', () => {
     previousUrl = process.env.PMX_CANVAS_URL ?? '';
     process.env.PMX_CANVAS_URL = baseUrl;
     delete process.env.PMX_CANVAS_PORT;
-  });
+  }, 20_000); // A cold server/skill scan can exceed 5 s on Windows CI.
 
   afterAll(() => {
     if (previousUrl) process.env.PMX_CANVAS_URL = previousUrl;

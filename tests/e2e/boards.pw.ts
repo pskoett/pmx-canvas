@@ -14,6 +14,10 @@ test.beforeEach(async ({ request }) => {
     'x-pmx-workbench': '1',
     'x-pmx-workbench-token': JSON.parse(encoded) as string,
   };
+  // Each test (and retry) owns its library; names must not match stale boards.
+  for (const board of (await boards(request)).boards) {
+    expect((await request.delete(`/api/canvas/boards/${board.id}`, { headers: HUMAN })).ok()).toBe(true);
+  }
 });
 
 async function boards(request: APIRequestContext) {
@@ -345,8 +349,17 @@ test('creates a selective board copy, links boards, and jumps through library se
     .click();
   const linkDialog = page.getByRole('dialog', { name: 'Link to a board' });
   await linkDialog.getByRole('searchbox', { name: 'Find a board to link' }).fill('Source');
+  // The copy already has a source-board link. Assert the newly added card,
+  // not that existing link (which can satisfy a title-only check too early).
+  const linked = page.waitForResponse(
+    (response) => response.url().endsWith('/api/canvas/node') && response.request().method() === 'POST',
+  );
   await linkDialog.getByRole('button', { name: /Source memory/ }).click();
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Source memory' })).toBeInViewport();
+  const linkResponse = await linked;
+  expect(linkResponse.ok()).toBe(true);
+  const { id: linkedId } = (await linkResponse.json()) as { id: string };
+  await expect(page.locator(`.canvas-node[data-node-id="${linkedId}"]`)).toBeInViewport();
+  await expect(page.locator('.canvas-node[data-node-type="board"]')).toHaveCount(2);
 
   await page.getByRole('button', { name: /Search & commands/ }).click();
   const palette = page.getByRole('dialog', { name: 'Search and commands' });
