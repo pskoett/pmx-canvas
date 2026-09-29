@@ -21,7 +21,7 @@ describe('document imports', () => {
 
   afterEach(() => {
     if (!workspace) return;
-    resetCanvasForTests(workspace);
+    canvasState.close();
     removeTestWorkspace(workspace);
     workspace = '';
   });

@@ -24,8 +24,28 @@ function startWorkspace(): string {
 
 afterEach(() => {
   stopCanvasServer();
+  canvasState.close();
   for (const root of roots.splice(0)) removeTestWorkspace(root);
 });
+
+function createSignalFixture(root: string, entry: string): { fixture: string; signal: () => void } {
+  const markerPrefix = join(root, 'emit-sigterm-');
+  const fixture = join(root, 'signal-fixture.ts');
+  writeFileSync(
+    fixture,
+    `import { existsSync } from 'node:fs';
+let seen = 0;
+setInterval(() => {
+  if (!existsSync(${JSON.stringify(markerPrefix)} + (seen + 1))) return;
+  seen++;
+  process.emit('SIGTERM');
+}, 10);
+await import(${JSON.stringify(entry)});
+`,
+  );
+  let count = 0;
+  return { fixture, signal: () => writeFileSync(`${markerPrefix}${++count}`, '') };
+}
 
 async function call(method: string, path: string, body?: unknown) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -47,15 +67,16 @@ describe('library backup', () => {
     const port = await getAvailablePort();
     const url = `http://127.0.0.1:${port}`;
     const path = join(root, 'canvas.db');
-    const proc = Bun.spawn(
-      ['bun', fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)), '--no-open', `--port=${port}`],
-      {
-        cwd: root,
-        env: { ...process.env, PMX_CANVAS_DB_PATH: path, PMX_CANVAS_DISABLE_BROWSER_OPEN: '1' },
-        stdout: 'ignore',
-        stderr: 'ignore',
-      },
+    const { fixture, signal } = createSignalFixture(
+      root,
+      fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)),
     );
+    const proc = Bun.spawn(['bun', fixture, '--no-open', `--port=${port}`], {
+      cwd: root,
+      env: { ...process.env, PMX_CANVAS_DB_PATH: path, PMX_CANVAS_DISABLE_BROWSER_OPEN: '1' },
+      stdout: 'ignore',
+      stderr: 'ignore',
+    });
     let db: Database | undefined;
     try {
       for (let attempt = 0; attempt < 100; attempt++) {
@@ -75,7 +96,7 @@ describe('library backup', () => {
         body: JSON.stringify({ type: 'markdown', title: 'Keep through shutdown', content: 'durable' }),
       });
       expect(result.ok).toBe(true);
-      proc.kill('SIGTERM');
+      signal();
       await Bun.sleep(100);
       expect(proc.exitCode).toBeNull();
       const state = (await (await fetch(`${url}/api/canvas/state`)).json()) as {
@@ -83,7 +104,7 @@ describe('library backup', () => {
       };
       expect(state.nodes.map((node) => node.data.title)).toEqual(['Keep through shutdown']);
       db.exec('DROP TRIGGER reject_save');
-      proc.kill('SIGTERM');
+      signal();
       expect(await proc.exited).toBe(0);
       expect(
         db

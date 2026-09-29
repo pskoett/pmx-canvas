@@ -48,8 +48,12 @@ the CLI, not an HTTP job endpoint.
 A workspace holds many named boards; one is open at a time. Agent writes go to
 the open board. While no board is open (Home), the first write opens the most
 recently opened board, or creates one when the workspace has none;
-`canvas.clear` on Home opens nothing. Only the human (`x-pmx-workbench`)
-opens or deletes a board — anyone else gets 403. Every change emits a
+`canvas.clear` on Home opens nothing. Only the trusted workbench opens or
+deletes a board — HTTP calls require both `x-pmx-workbench: 1` and the
+per-boot `x-pmx-workbench-token` embedded in the served `/workbench` HTML;
+the marker alone is not authority. Public HTTP integrations must not open or
+delete boards. In-process SDK embedding hosts retain authority to do so.
+Every change emits a
 `boards-changed` SSE frame with `{ activeBoardId, boards }`.
 
 `category` is a folder path, for example `Engineering/Canvas/Decisions`.
@@ -85,10 +89,12 @@ curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
 
 # Open a board, or Home with {"id":null} — workbench only
 curl -X POST http://localhost:4313/api/canvas/boards/open \
-  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" -d '{"id":"<board-id>"}'
+  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" \
+  -H "x-pmx-workbench-token: <token-from-served-workbench>" -d '{"id":"<board-id>"}'
 
 # Delete a board and its snapshots — workbench only; deleting the open board returns to Home
-curl -X DELETE http://localhost:4313/api/canvas/boards/<board-id> -H "x-pmx-workbench: 1"
+curl -X DELETE http://localhost:4313/api/canvas/boards/<board-id> \
+  -H "x-pmx-workbench: 1" -H "x-pmx-workbench-token: <token-from-served-workbench>"
 ```
 
 ## Backup and restore
@@ -260,6 +266,11 @@ curl -X POST http://localhost:4313/api/canvas/node \
 A node creation request must resolve a `type` — pass it in the body (`{ "type":
 ... }`) or as a `?type=` query param. An empty / type-less body returns `400`
 rather than silently creating a markdown node.
+
+An optional `boardId` on node creation is a captured-board precondition, not a
+switch command: if it no longer matches the active board, the request returns
+`409` without creating a node or opening a board from Home. The file-drop UI
+uses this to prevent delayed uploads from landing on a different board.
 
 Mermaid nodes accept `data: { "fit": "contain" | "none" }` on both
 `POST /api/canvas/node` and `PATCH /api/canvas/node/:id`. The default, `contain`,

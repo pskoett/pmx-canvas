@@ -3,6 +3,7 @@ import type { CanvasBoard } from '../../src/server/canvas-db.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { createCanvas } from '../../src/server/index.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { workbenchToken } from '../../src/server/workbench-auth.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 interface BoardsBody {
@@ -14,7 +15,12 @@ interface BoardsBody {
 
 let workspaceRoot = '';
 let baseUrl = '';
-const HUMAN = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
+const HUMAN = {
+  'Content-Type': 'application/json',
+  'x-pmx-workbench': '1',
+  'x-pmx-workbench-token': workbenchToken,
+};
+const MARKER_ONLY = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
 const AGENT = { 'Content-Type': 'application/json', 'x-pmx-source': 'codex' };
 
 beforeAll(() => {
@@ -62,9 +68,20 @@ describe('boards over HTTP', () => {
     // Only the human opens or deletes a board.
     expect((await call('POST', '/api/canvas/boards/open', AGENT, { id: planning })).status).toBe(403);
     expect((await call('DELETE', `/api/canvas/boards/${planning}`, AGENT)).status).toBe(403);
+    expect((await call('POST', '/api/canvas/boards/open', MARKER_ONLY, { id: planning })).status).toBe(403);
+    expect((await call('DELETE', `/api/canvas/boards/${planning}`, MARKER_ONLY)).status).toBe(403);
 
     const opened = await call('POST', '/api/canvas/boards/open', HUMAN, { id: planning });
     expect(opened.body.activeBoardId).toBe(planning);
+    expect(((await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as { nodes: unknown[] }).nodes).toEqual([]);
+
+    const staleDrop = await call('POST', '/api/canvas/node', HUMAN, {
+      type: 'markdown',
+      title: 'Delayed drop',
+      content: 'Belongs to the first board',
+      boardId: first.activeBoardId,
+    });
+    expect(staleDrop.status).toBe(409);
     expect(((await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as { nodes: unknown[] }).nodes).toEqual([]);
 
     // Writes follow the human: the agent's next note lands on Planning.

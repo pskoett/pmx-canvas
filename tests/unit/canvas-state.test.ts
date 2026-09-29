@@ -521,6 +521,8 @@ describe('canvas state manager', () => {
   });
 
   test('restores legacy snapshots with inferred provenance for source-backed nodes', () => {
+    const board = canvasState.createBoard('Legacy restore')!;
+    expect(canvasState.switchBoard(board.id)).toBe(true);
     const notesPath = join(workspaceRoot, 'notes.md');
     const snapshotsDir = join(workspaceRoot, '.pmx-canvas', 'snapshots');
     mkdirSync(snapshotsDir, { recursive: true });

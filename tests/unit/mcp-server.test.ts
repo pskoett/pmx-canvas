@@ -33,6 +33,17 @@ function parseJsonText<T>(result: ToolResultShape): T {
   return JSON.parse(textOf(result)) as T;
 }
 
+async function trustedHumanHeaders(base: string): Promise<Record<string, string>> {
+  const html = await (await fetch(`${base}/workbench`)).text();
+  const encoded = html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1];
+  if (!encoded) throw new Error('Workbench token was not present in served HTML.');
+  return {
+    'Content-Type': 'application/json',
+    'x-pmx-workbench': '1',
+    'x-pmx-workbench-token': JSON.parse(encoded) as string,
+  };
+}
+
 async function createMcpSession(): Promise<{
   workspaceRoot: string;
   client: Client;
@@ -565,7 +576,9 @@ describe('MCP parity with CLI', () => {
     })) as ToolResultShape;
     expect(patched.isError).toBe(true);
     expect(patched.content?.[0]?.text).toContain('docking was removed');
-  });
+    // Includes a fresh Bun process/daemon plus four protocol round trips;
+    // Windows runners can exceed the default five-second unit-test timeout.
+  }, 15_000);
 
   test('canvas_ax_state set-presence advertises and forwards contextUsage (0.5.1 Amp finding B)', async () => {
     const session = await createMcpSession();
@@ -996,16 +1009,17 @@ describe('MCP parity with CLI', () => {
       stopCanvasServer();
       removeTestWorkspace(workspaceRoot);
     });
+    const human = await trustedHumanHeaders(baseUrl);
     const created = (await (
       await fetch(`${baseUrl}/api/canvas/node`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+        headers: human,
         body: JSON.stringify({ type: 'markdown', title: 'Daemon pinned', content: 'x' }),
       })
     ).json()) as { id: string };
     await fetch(`${baseUrl}/api/canvas/context-pins`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      headers: human,
       body: JSON.stringify({ nodeIds: [created.id] }),
     });
     await attached.client.readResource({ uri: 'canvas://ax-context' });
@@ -1069,7 +1083,7 @@ describe('MCP parity with CLI', () => {
       removeTestWorkspace(workspaceRoot);
     });
 
-    const human = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
+    const human = await trustedHumanHeaders(daemonUrl);
     const nodeA = (await (
       await fetch(`${daemonUrl}/api/canvas/node`, {
         method: 'POST',

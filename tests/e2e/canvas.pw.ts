@@ -2140,8 +2140,14 @@ test('ax-flow primitive: clicking Materialize lays the flow out as real nodes an
   await expect(frame.locator('.ax-flow-step').first()).toContainText('not queued');
   await expect(frame.locator('#ax-flow-wrap')).toHaveClass(/looping/);
 
-  // Drive the REAL control.
-  await frame.getByRole('button', { name: 'Materialize to board' }).click();
+  // Chromium can route the first click after scrolling a transformed iframe to
+  // its parent element. Verify delivery to the real button, not just Playwright's
+  // click completion; the operation/result assertions below are never retried.
+  const materialize = frame.getByRole('button', { name: 'Materialize to board' });
+  await expect(async () => {
+    await materialize.click();
+    expect(await materialize.evaluate((button) => document.activeElement === button)).toBe(true);
+  }).toPass({ timeout: 5_000 });
   await expect(frame.locator('#ax-flow-materialize-status')).toContainText('3 step nodes on the board');
 
   // The click produced real canvas state on the server.

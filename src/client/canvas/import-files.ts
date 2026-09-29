@@ -52,6 +52,7 @@ export async function importFiles(files: File[], baseWx: number, baseWy: number)
         reader.onload = () => resolve(reader.result as string);
         reader.readAsDataURL(file);
       });
+      if (activeBoardId.value !== boardId) return;
       await createNodeFromClient({
         type: 'image',
         title: fileName,
@@ -60,9 +61,11 @@ export async function importFiles(files: File[], baseWx: number, baseWy: number)
         y: wy,
         width: nodeW,
         height: nodeH,
+        ...(boardId ? { boardId } : {}),
       });
     } else {
       const text = await file.text();
+      if (activeBoardId.value !== boardId) return;
       const isWide = type === 'markdown' || type === 'file';
       await createNodeFromClient({
         type,
@@ -72,6 +75,7 @@ export async function importFiles(files: File[], baseWx: number, baseWy: number)
         y: wy,
         width: isWide ? 720 : nodeW,
         height: isWide ? 500 : nodeH,
+        ...(boardId ? { boardId } : {}),
       });
     }
   }

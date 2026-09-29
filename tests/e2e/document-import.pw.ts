@@ -3,10 +3,17 @@ import { expect, test } from '@playwright/test';
 for (const width of [1440, 600]) {
   test(`document attachment, agent draft and human review at ${width}px`, async ({ page, request }) => {
     await page.setViewportSize({ width, height: 1000 });
+    const html = await (await request.get('/workbench')).text();
+    const encoded = html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1];
+    if (!encoded) throw new Error('Workbench token was not present in served HTML.');
+    const human = {
+      'x-pmx-workbench': '1',
+      'x-pmx-workbench-token': JSON.parse(encoded) as string,
+    };
     const { board } = await (
       await request.post('/api/canvas/boards', { data: { name: `Import review ${width}` } })
     ).json();
-    await request.post('/api/canvas/boards/open', { headers: { 'x-pmx-workbench': '1' }, data: { id: board.id } });
+    await request.post('/api/canvas/boards/open', { headers: human, data: { id: board.id } });
     await page.goto('/workbench');
     const source = Buffer.from('%PDF-1.4\n% byte-retention fixture, extraction is agent-supplied\n');
     await page

@@ -25,7 +25,8 @@ beforeAll(() => {
             url.endsWith(`/${entry.id}`) ? { ...entry, ...JSON.parse(String(init.body)) } : entry,
           )
         : boardList.value;
-    return new Response(JSON.stringify({ ok: true, activeBoardId: null, boards: updated }), {
+    const openedId = url === '/api/canvas/boards/open' ? JSON.parse(String(init?.body)).id : null;
+    return new Response(JSON.stringify({ ok: true, activeBoardId: openedId, boards: updated }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -132,11 +133,14 @@ describe('board switcher', () => {
     });
     expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ id: 'b-disc' });
 
-    fireEvent.click(button);
+    const discoveryButton = await waitFor(() => getByRole('button', { name: /Board: Discovery/ }));
+    fireEvent.click(discoveryButton);
     await act(async () => {
       fireEvent.click(getByText('All boards (Home)'));
     });
-    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ id: null });
+    await waitFor(() => {
+      expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ id: null });
+    });
   });
 
   test('shows the workspace name until the board list arrives', () => {

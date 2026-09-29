@@ -986,7 +986,7 @@ export function getBoardFromDB(db: Database, id: string): CanvasBoard | null {
 export function createBoardInDB(db: Database, name: string, category: string | null = null): CanvasBoard {
   category = normalizeBoardCategory(category);
   const id = createBoardId();
-  const createdAt = new Date().toISOString();
+  const createdAt = new Date(Date.now()).toISOString();
   db.run('INSERT INTO boards (id, name, category, created_at) VALUES (?, ?, ?, ?)', [id, name, category, createdAt]);
   return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0, readmeNodeId: null };
 }
@@ -1071,11 +1071,16 @@ export function setActiveBoardIdInDB(db: Database, id: string | null): void {
     db.run("DELETE FROM meta WHERE key = 'active_board'");
     return;
   }
+  const latestOpenedAt = db
+    .query<{ value: string }, []>('SELECT MAX(last_opened_at) AS value FROM boards')
+    .get()?.value;
+  const now = Date.now();
+  const openedAt = new Date(Math.max(now, latestOpenedAt ? Date.parse(latestOpenedAt) + 1 : now)).toISOString();
   db.run(
     "INSERT INTO meta (key, value) VALUES ('active_board', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     [id],
   );
-  db.run('UPDATE boards SET last_opened_at = ? WHERE id = ?', [new Date().toISOString(), id]);
+  db.run('UPDATE boards SET last_opened_at = ? WHERE id = ?', [openedAt, id]);
 }
 
 // ── Snapshot Persistence ────────────────────────────────────────
@@ -1200,12 +1205,14 @@ export function saveSnapshotToDB(
   transaction();
 }
 
-/** By id on any board, else by name (most recent match) on `boardId`. */
+/** By id or name (most recent match) on `boardId`. */
 export function loadSnapshotFromDB(
   db: Database,
   idOrName: string,
   boardId: string | null,
 ): { snapshot: CanvasSnapshot; state: PersistedCanvasState } | null {
+  if (!boardId) return null;
+
   interface SnapshotRow {
     id: string;
     name: string;
@@ -1213,9 +1220,11 @@ export function loadSnapshotFromDB(
     node_count: number;
     edge_count: number;
   }
-  let snapshotRow = db.query<SnapshotRow, [string]>('SELECT * FROM snapshots WHERE id = ?').get(idOrName);
+  let snapshotRow = db
+    .query<SnapshotRow, [string, string]>('SELECT * FROM snapshots WHERE board_id = ? AND id = ?')
+    .get(boardId, idOrName);
 
-  if (!snapshotRow && boardId) {
+  if (!snapshotRow) {
     snapshotRow = db
       .query<SnapshotRow, [string, string]>(
         'SELECT * FROM snapshots WHERE board_id = ? AND name = ? ORDER BY created_at DESC LIMIT 1',
@@ -1414,8 +1423,8 @@ export function listSnapshotsFromDB(
   }));
 }
 
-export function renameSnapshotInDB(db: Database, id: string, name: string): boolean {
-  return db.run('UPDATE snapshots SET name = ? WHERE id = ?', [name, id]).changes > 0;
+export function renameSnapshotInDB(db: Database, boardId: string, id: string, name: string): boolean {
+  return db.run('UPDATE snapshots SET name = ? WHERE board_id = ? AND id = ?', [name, boardId, id]).changes > 0;
 }
 
 export function deleteSnapshotFromDB(db: Database, id: string): boolean {

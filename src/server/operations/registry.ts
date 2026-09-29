@@ -407,7 +407,13 @@ export async function executeOperation(
 
 /** Opening, switching and deleting boards is the human's; an agent asks for another board. */
 const HUMAN_ONLY_OPS = new Set(['board.open', 'board.delete', 'import.request', 'import.cancel', 'import.commit']);
-const TRUSTED_HUMAN_ONLY_OPS = new Set(['import.request', 'import.cancel', 'import.commit']);
+const TRUSTED_HUMAN_ONLY_OPS = new Set([
+  'board.open',
+  'board.delete',
+  'import.request',
+  'import.cancel',
+  'import.commit',
+]);
 
 /**
  * Writes that need a board beyond the layout mutations: canvas-bound AX items,
@@ -443,7 +449,13 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     );
   }
   if (TRUSTED_HUMAN_ONLY_OPS.has(name) && !meta.humanAuthor) {
-    throw new OperationError('This import action requires the trusted human workbench.', 403);
+    throw new OperationError('This action requires trusted human authority.', 403);
+  }
+  // File drops carry their captured board through the HTTP round trip. Check
+  // before opening a recent board from Home, not just before reading the file.
+  const capturedBoard = asRecord(rawInput).boardId;
+  if (name === 'node.add' && typeof capturedBoard === 'string' && capturedBoard !== canvasState.activeBoardId) {
+    throw new OperationError('The board changed while the file was loading.', 409);
   }
   if (!canvasState.activeBoardId && needsOpenBoard(op)) {
     openBoardForWrite();

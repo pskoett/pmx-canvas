@@ -840,11 +840,19 @@ export class PmxCanvas extends EventEmitter {
 
   /** Open a board, or Home with null. */
   async openBoard(id: string | null): Promise<void> {
-    await executeOperation('board.open', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });
+    await executeOperation(
+      'board.open',
+      { id },
+      { source: 'sdk', fromWorkbench: true, humanAuthor: true, suppressAutoGhost: true },
+    );
   }
 
   async deleteBoard(id: string): Promise<void> {
-    await executeOperation('board.delete', { id }, { source: 'sdk', fromWorkbench: true, suppressAutoGhost: true });
+    await executeOperation(
+      'board.delete',
+      { id },
+      { source: 'sdk', fromWorkbench: true, humanAuthor: true, suppressAutoGhost: true },
+    );
   }
 
   // ── Static export (plan 013) ─────────────────────────────────

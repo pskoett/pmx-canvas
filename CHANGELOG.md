@@ -5,6 +5,19 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-29
+
+### Highlights
+
+- Keep your work in named boards, organized into nested folders and connected by board links.
+- Search across your library and give agents source-labelled context from related boards.
+- Turn document attachments into reviewable Markdown using your connected agent's tools.
+- Share a board as a standalone HTML file and back up the whole library.
+
+### Breaking
+
+- The database migrates to multi-board storage and cannot be opened by older versions. Before downgrading, restore the automatic `canvas.db.pre-boards` copy or a pre-upgrade backup; changes made after migration are not in that copy.
+
 ### Changed
 
 - The canvas database now stores many named boards. On first start your current board becomes a board named after the workspace, every old snapshot becomes a board of its own, and a copy of the old file is kept as `canvas.db.pre-boards` (older versions cannot open the migrated file).
@@ -27,12 +40,15 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Known limitations
 
-- The connected-memory work is not released or deployed yet.
 - Document extraction depends on the connected agent's available tools; remote byte transfer, OCR, unreadable charts, and some host formats may be unavailable.
 - A graph map, direct card-to-card edges across boards, and wiki-link syntax are not implemented.
 
 ### Fixed
 
+- Snapshots can only be read, restored, renamed or deleted on their owning board.
+- Slow file imports no longer land on a board opened after the drop, and rapid board switches keep their intended order.
+- Recent boards remain correctly ordered when multiple opens happen within one millisecond.
+- HTTP board switching and deletion require the trusted workbench token, not just the UI marker.
 - `pmx-canvas pump` no longer crashes when its command exits without reading the steer; the exit code decides, as intended.
 - A change the server refuses in the browser now shows a toast with the reason instead of failing silently.
 - Webpage nodes refuse redirects that move a public page onto a private or loopback address, and never fetch link-local (cloud metadata) addresses.

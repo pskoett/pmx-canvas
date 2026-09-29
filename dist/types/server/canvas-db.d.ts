@@ -97,13 +97,13 @@ export declare function writeMetaToDB(db: Database, key: string, value: string |
 export declare function getActiveBoardIdFromDB(db: Database): string | null;
 export declare function setActiveBoardIdInDB(db: Database, id: string | null): void;
 export declare function saveSnapshotToDB(db: Database, boardId: string, snapshot: CanvasSnapshot, state: PersistedCanvasState): void;
-/** By id on any board, else by name (most recent match) on `boardId`. */
+/** By id or name (most recent match) on `boardId`. */
 export declare function loadSnapshotFromDB(db: Database, idOrName: string, boardId: string | null): {
     snapshot: CanvasSnapshot;
     state: PersistedCanvasState;
 } | null;
 export declare function listSnapshotsFromDB(db: Database, boardId: string, options?: CanvasSnapshotListOptions): CanvasSnapshot[];
-export declare function renameSnapshotInDB(db: Database, id: string, name: string): boolean;
+export declare function renameSnapshotInDB(db: Database, boardId: string, id: string, name: string): boolean;
 export declare function deleteSnapshotFromDB(db: Database, id: string): boolean;
 export declare function writeBlobToDB(db: Database, sha256: string, jsonValue: string): number;
 export declare function readBlobFromDB(db: Database, sha256: string): string | null;

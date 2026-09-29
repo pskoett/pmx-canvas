@@ -28,6 +28,17 @@ function parseJsonText<T>(result: ToolResultShape): T {
   return JSON.parse(textOf(result)) as T;
 }
 
+async function trustedHumanHeaders(base: string): Promise<Record<string, string>> {
+  const html = await (await fetch(`${base}/workbench`)).text();
+  const encoded = html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1];
+  if (!encoded) throw new Error('Workbench token was not present in served HTML.');
+  return {
+    'content-type': 'application/json',
+    'x-pmx-workbench': '1',
+    'x-pmx-workbench-token': JSON.parse(encoded) as string,
+  };
+}
+
 const sessions: Array<{ transport: StdioClientTransport; workspaceRoot: string }> = [];
 
 async function createMcpSession(): Promise<{ client: Client; port: number; workspaceRoot: string }> {
@@ -150,7 +161,7 @@ describe('MCP composite tools (plan-006)', () => {
     );
     await fetch(`${base}/api/canvas/boards/open`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-pmx-workbench': '1' },
+      headers: await trustedHumanHeaders(base),
       body: JSON.stringify({ id: other.board.id }),
     });
     const layout = parseJsonText<{ summary: { pinnedCount: number }; nodes: Array<{ id: string }> }>(

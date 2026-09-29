@@ -1581,10 +1581,16 @@ class CanvasStateManager {
     snapshot: CanvasSnapshot;
     state: PersistedCanvasState;
   } | null {
+    if (!this._activeBoardId) return null;
+
     // Try SQLite first
     if (this._db) {
       const result = loadSnapshotFromDB(this._db, idOrName, this._activeBoardId);
       if (result) return result;
+      const ownedByAnotherBoard = this._db
+        .query<{ found: number }, [string, string]>('SELECT 1 AS found FROM snapshots WHERE id = ? OR name = ? LIMIT 1')
+        .get(idOrName, idOrName);
+      if (ownedByAnotherBoard) return null;
     }
 
     // Fallback to filesystem (legacy on-disk snapshots are still readable in place)
@@ -1858,9 +1864,9 @@ class CanvasStateManager {
 
   /** Delete a snapshot. */
   renameSnapshot(id: string, name: string): boolean {
-    if (!this._db) return false;
+    if (!this._db || !this._activeBoardId) return false;
     try {
-      return renameSnapshotInDB(this._db, id, name);
+      return renameSnapshotInDB(this._db, this._activeBoardId, id, name);
     } catch (error) {
       logCanvasStateWarning('rename snapshot failed', error, { id, name });
       return false;
@@ -1868,12 +1874,20 @@ class CanvasStateManager {
   }
 
   deleteSnapshot(id: string): boolean {
+    if (!this._activeBoardId) return false;
     // Try SQLite first
     if (this._db) {
       try {
-        if (deleteSnapshotFromDB(this._db, id)) return true;
+        const snapshot = this._db
+          .query<{ board_id: string }, [string]>('SELECT board_id FROM snapshots WHERE id = ?')
+          .get(id);
+        if (snapshot) {
+          if (snapshot.board_id !== this._activeBoardId) return false;
+          return deleteSnapshotFromDB(this._db, id);
+        }
       } catch (error) {
         logCanvasStateWarning('delete snapshot from db failed', error, { id });
+        return false;
       }
     }
 

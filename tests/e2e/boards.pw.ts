@@ -4,7 +4,17 @@
  */
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
-const HUMAN = { 'x-pmx-workbench': '1' };
+let HUMAN: Record<string, string>;
+
+test.beforeEach(async ({ request }) => {
+  const html = await (await request.get('/workbench')).text();
+  const encoded = html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1];
+  if (!encoded) throw new Error('Workbench token was not present in served HTML.');
+  HUMAN = {
+    'x-pmx-workbench': '1',
+    'x-pmx-workbench-token': JSON.parse(encoded) as string,
+  };
+});
 
 async function boards(request: APIRequestContext) {
   return (await (await request.get('/api/canvas/boards')).json()) as {

@@ -3,11 +3,32 @@ import { describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { type ChildProcess, spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
 
 const mcpEntry = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
+
+function createSignalFixture(root: string): { fixture: string; signal: () => void } {
+  const markerPrefix = join(root, 'emit-sigterm-');
+  const fixture = join(root, 'signal-fixture.ts');
+  writeFileSync(
+    fixture,
+    `import { existsSync } from 'node:fs';
+import { startMcpServer } from ${JSON.stringify(mcpEntry)};
+let seen = 0;
+setInterval(() => {
+  if (!existsSync(${JSON.stringify(markerPrefix)} + (seen + 1))) return;
+  seen++;
+  process.emit('SIGTERM');
+}, 10);
+await startMcpServer();
+`,
+  );
+  let count = 0;
+  return { fixture, signal: () => writeFileSync(`${markerPrefix}${++count}`, '') };
+}
 
 describe('MCP stdio lifecycle', () => {
   test('the server process exits when the client closes the stdio channel', async () => {
@@ -64,9 +85,10 @@ describe('MCP stdio lifecycle', () => {
     const root = createTestWorkspace('pmx-canvas-mcp-shutdown-');
     const dbPath = join(root, 'canvas.db');
     const port = await getAvailablePort();
+    const { fixture, signal } = createSignalFixture(root);
     const transport = new StdioClientTransport({
       command: 'bun',
-      args: ['run', mcpEntry],
+      args: ['run', fixture],
       cwd: root,
       env: {
         ...process.env,
@@ -102,7 +124,7 @@ describe('MCP stdio lifecycle', () => {
       });
       expect(added.isError).not.toBe(true);
 
-      child.kill('SIGTERM');
+      signal();
       for (let attempt = 0; attempt < 100 && !stderr.includes('Shutdown refused:'); attempt++) {
         await Bun.sleep(20);
       }
@@ -113,7 +135,7 @@ describe('MCP stdio lifecycle', () => {
       const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
         child?.once('exit', (code, signal) => resolve({ code, signal }));
       });
-      child.kill('SIGTERM');
+      signal();
       expect(await exited).toEqual({ code: 0, signal: null });
       expect(
         db

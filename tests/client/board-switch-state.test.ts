@@ -203,6 +203,31 @@ describe('board switch client state', () => {
     expect(activeBoardId.value).toBe('B');
   });
 
+  test('two delayed opens reach the server and settle in click order', async () => {
+    const firstResponse = deferredResponse();
+    const secondResponse = deferredResponse();
+    const started: string[] = [];
+    globalThis.fetch = ((input, init) => {
+      if (String(input) !== '/api/canvas/boards/open') return Promise.resolve(json({}));
+      const id = JSON.parse(String(init?.body)).id as string;
+      started.push(id);
+      return id === 'B' ? firstResponse.promise : secondResponse.promise;
+    }) as typeof fetch;
+
+    const first = openBoard('B');
+    const second = openBoard('C');
+    await Bun.sleep(0);
+    expect(started).toEqual(['B']);
+
+    firstResponse.resolve(json(boardPayload('B')));
+    await Bun.sleep(0);
+    expect(started).toEqual(['B', 'C']);
+    secondResponse.resolve(json(boardPayload('C')));
+    await Promise.all([first, second]);
+
+    expect(activeBoardId.value).toBe('C');
+  });
+
   test('a create opens its board after the normal boards SSE update', async () => {
     const createResponse = deferredResponse();
     const opened: Array<string | null> = [];

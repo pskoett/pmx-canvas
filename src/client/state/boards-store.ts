@@ -33,6 +33,7 @@ export const boardsLoaded = signal(false);
 let onBoardSwitched: (() => void) | null = null;
 let boardsRevision = 0;
 let openRequestSequence = 0;
+let openRequestQueue: Promise<void> = Promise.resolve();
 
 /** The SSE bridge resyncs the canvas when the open board changes under it. */
 export function setBoardSwitchHandler(handler: (() => void) | null): void {
@@ -57,8 +58,13 @@ export async function loadBoards(): Promise<void> {
   if (revision === boardsRevision) applyBoards(payload);
 }
 
-async function post(action: string, url: string, method: string, body?: unknown): Promise<BoardsPayload | null> {
-  const revision = boardsRevision;
+async function post(
+  action: string,
+  url: string,
+  method: string,
+  body?: unknown,
+  revision = boardsRevision,
+): Promise<BoardsPayload | null> {
   const payload = await requestJson<BoardsPayload | null>(action, url, null, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -70,7 +76,13 @@ async function post(action: string, url: string, method: string, body?: unknown)
 /** Open a board, or Home with null. */
 export async function openBoard(id: string | null): Promise<void> {
   const sequence = ++openRequestSequence;
-  const payload = await post('openBoard', '/api/canvas/boards/open', 'POST', { id });
+  const revision = boardsRevision;
+  let payload: BoardsPayload | null = null;
+  const request = openRequestQueue.then(async () => {
+    payload = await post('openBoard', '/api/canvas/boards/open', 'POST', { id }, revision);
+  });
+  openRequestQueue = request.catch(() => undefined);
+  await request;
   // post drops replies superseded by SSE; also ignore an older open request.
   if (sequence === openRequestSequence) applyBoards(payload);
 }

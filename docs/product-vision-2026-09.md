@@ -1,7 +1,7 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; implementation status updated 2026-09-28
+**Date:** 2026-09-05; release scope updated 2026-09-29
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
@@ -18,11 +18,15 @@
 
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
-| Planned release slot | Content | Acceptance target (not a completion claim) |
+| Release scope | Content | Acceptance target (not a completion claim) |
 |---|---|---|
-| 0.7 | Many boards stage 1 with the nine real boards restored, library backup, the small trust fixes, read instrumentation, the 600 px reference project | The nine boards open by name; a backup restores them on a clean machine; a refused write shows its reason; every node type paints at 600 px |
-| 0.7.x | Static export with the per-board rule | A colleague opens an exported board with no install |
-| 0.8 | Portals and the library, search across boards, a meaningful text form for every node type, document drop as Markdown context (15), the cross-board brief, author on every node and on every ask answer, new board from this board | Imported documents are readable and searchable context; the brief check passes and the measurement is read against its decision rule |
+| 0.7.0 — persistent boards and connected memory | Many boards, nested folders, backups, static export, README/link cards, library search, shared card text, attribution/revisions, selective copies, bounded cross-board context, agent-assisted document import, trust fixes and the 600 px gate | Release checks, installed-package smoke, browser workflows and live board checks pass; document conversion limitations and migration are explicit |
+| Next batch — scope/version to be agreed | Remaining wiki/graph work and real-agent curation evaluation; cheap-tool surface and binary distribution remain candidates, not completed work | A focused plan with its own acceptance checks; no automatic carry-over of the old 0.8 bundle |
+
+**Release decision, 2026-09-29:** package the completed batch as **0.7.0**, not
+0.8. Static export and the connected-memory features move into this release;
+their older release slots below are superseded. Publication is tracked by the
+GitHub release and npm version, not inferred from a source version bump.
 
 **Hold the line.** No host-compatibility work jumps the queue until 0.7 ships, with two exceptions: regressions the reference project catches, and a bug that blocks the maintainer's real work in the host they use daily (today the Copilot app, a WebKit pane the Chromium reference does not cover). The second exception is narrow on purpose: it covers a board that cannot be used, not a tile that paints late or a host the maintainer is only testing.
 
@@ -38,12 +42,13 @@ Human attention helps select the agent's context; it does not define the whole p
 
 **Purpose clarification:** pmx-canvas supports **knowledge work broadly**, including research, analysis, dashboards, planning, discovery, coordination, and orchestrating coding or other work. These are examples, not a closed list or a coding-only boundary. Its promise is to help humans and agents do the work, carry useful understanding into the next task, and see known changes and uncertainty in the context they use. The [companion vision](product-context-vision-2026-09.md#position) explored a separate memory graph and wiki; as of 2026-09-23 that role is played by the boards themselves (move 0), and its publication and audience guidance waits until sharing reaches a second writer. Contributing to memory does not automatically make every item a confirmed fact or shared organizational knowledge; attention does not grant approval or sharing permission.
 
-## Implementation status on main (2026-09-28; unreleased)
+## Implementation included in 0.7.0 (scope updated 2026-09-29)
 
 The connected-memory and import batches are committed and pushed through
 [`8dbdde2`](https://github.com/pskoett/pmx-canvas/commit/8dbdde29635c275e1eda0bba524071048196feec).
-The package version remains **0.6.5**; implementation on `main` is not a published
-0.7 or 0.8 release. The release slots below have not been renumbered.
+These features are included in **0.7.0**, together with release-review fixes for
+snapshot isolation, delayed imports, rapid board switching and recency ordering.
+This scope supersedes the original 0.7/0.7.x/0.8 split.
 
 | Area | Implemented | Remaining boundary |
 |---|---|---|
@@ -255,7 +260,7 @@ The real boards are full of numbers from elsewhere: 13 metric charts, developer-
 
 The same OKR board appears in April and again for C4. "New board from this board" copies the structure (groups, the README card, recipe cards) without the content and links the new board to the old one as its previous board. Recurring work forms chains on the board map without anyone filing it, "what changed since the April OKRs?" becomes answerable, and any board becomes a template for the next.
 
-### 15. Drop documents to make board context (M, agent-assisted v1 verified on main; unreleased)
+### 15. Drop documents to make board context (M, agent-assisted v1 in 0.7.0)
 
 **Direction decided with the maintainer, 2026-09-27.** A human drops a PDF, PowerPoint deck, Excel workbook or other document onto the board to bring its knowledge into the work. The default outcome for supported documents is readable, editable Markdown cards, searchable and available through the same context path as authored cards—not a filename, binary text or an opaque attachment. Keep image and file nodes as capabilities; Markdown is the context representation, not a replacement for the original source.
 
@@ -267,7 +272,7 @@ or inline base64 at 2 MiB or below, then submits sections, references, warnings,
 and an `agentDescription` for human review. A remote host may need manual byte
 transfer. Draft submission can complete while another board is active, but the
 captured source board must be reopened to commit. This implementation is
-verified, committed and pushed, but not released; see the status table above.
+verified and included in 0.7.0; see the status table above.
 
 Longer-term extraction targets, not guarantees of agent-assisted v1:
 
@@ -339,11 +344,12 @@ remain unfinished; see the current implementation status above.
 
 The operation registry and its dispatcher. State in the server, browser as renderer. The human/agent distinction as a first-class concept (to be made real, not removed). Context pins and `canvas://pinned-context`. Six of six iframes sandboxed without `allow-same-origin`. `smoke`, the e2e gate, the changelog discipline. The velocity: 110 commits, +64,444 and −13,026 lines in the six weeks to 2026-09-05, which makes this plan credible if it is spent on the plan rather than on field reports, which is where 0.6 went.
 
-## Sequence
+## Original sequence and remaining direction
 
-These are the planned release slots, not a queue of wholly unimplemented work.
-The current status table above records work that landed ahead of its slot,
-including tours in 0.6.5 and the unreleased connected-memory/import work on `main`.
+The 2026-09-29 release decision folds the implemented 0.7, 0.7.x and connected-memory
+portion of 0.8 into **0.7.0**. The table below preserves the original sequence as
+historical planning context; it is not the current release checklist. Tours
+already shipped in 0.6.5. Future batch scope and version still need a decision.
 Acceptance checks that require real users or the effect evaluation remain open
 even where implementation and automated tests are complete.
 

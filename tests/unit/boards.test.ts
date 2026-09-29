@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
@@ -317,6 +317,60 @@ describe('boards', () => {
     resetCanvasForTests(root);
     expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
     expect(canvasState.activeBoardId).toBe(boardA);
+  });
+
+  test('most-recent board ordering survives equal clock timestamps', async () => {
+    let now = Date.parse('2026-09-29T10:00:00.000Z');
+    const clock = spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      canvasState.addNode(note('a-node', 'On A'));
+      canvasState.flushToDisk();
+      const boardA = canvasState.activeBoardId as string;
+
+      now += 1_000;
+      const boardB = canvasState.createBoard('Board B')!;
+      now += 1_000;
+      expect(await openCanvasBoard(boardB.id)).toEqual({ ok: true });
+      expect(await openCanvasBoard(boardA)).toEqual({ ok: true });
+
+      expect(canvasState.listBoards().map((board) => board.id)).toEqual([boardA, boardB.id]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  test("snapshot operations cannot access another board's snapshots or snapshots from Home", async () => {
+    canvasState.addNode(note('a-node', 'On A'));
+    canvasState.flushToDisk();
+    const boardA = canvasState.activeBoardId as string;
+    const snapshot = canvasState.saveSnapshot('A snapshot')!;
+
+    const boardB = canvasState.createBoard('Board B')!;
+    expect(await openCanvasBoard(boardB.id)).toEqual({ ok: true });
+    canvasState.addNode(note('b-node', 'On B'));
+
+    expect(canvasState.getSnapshotData(snapshot.id)).toBeNull();
+    expect(canvasState.restoreSnapshot(snapshot.id)).toBe(false);
+    expect(canvasState.renameSnapshot(snapshot.id, 'stolen')).toBe(false);
+    expect(canvasState.deleteSnapshot(snapshot.id)).toBe(false);
+    expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual(['b-node']);
+
+    // A same-board name matching a foreign ID is not ownership of that ID.
+    const sameName = canvasState.saveSnapshot(snapshot.id)!;
+    expect(canvasState.deleteSnapshot(snapshot.id)).toBe(false);
+    expect(canvasState.deleteSnapshot(sameName.id)).toBe(true);
+
+    expect(await openCanvasBoard(null)).toEqual({ ok: true });
+    expect(canvasState.getSnapshotData(snapshot.id)).toBeNull();
+    expect(canvasState.restoreSnapshot(snapshot.id)).toBe(false);
+    expect(canvasState.renameSnapshot(snapshot.id, 'stolen')).toBe(false);
+    expect(canvasState.deleteSnapshot(snapshot.id)).toBe(false);
+    expect(canvasState.getLayout().nodes).toEqual([]);
+
+    expect(await openCanvasBoard(boardA)).toEqual({ ok: true });
+    expect(canvasState.getSnapshotData(snapshot.id)?.name).toBe('A snapshot');
+    expect(canvasState.restoreSnapshot(snapshot.id)).toBe(true);
+    expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual(['a-node']);
   });
 
   test('opening a board drops undo history and pending intents from the previous one', async () => {
