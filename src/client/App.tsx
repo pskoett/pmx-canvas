@@ -233,7 +233,6 @@ export function App() {
         if (ids.length === 0) return;
         e.preventDefault();
         for (const id of ids) {
-          removeNode(id);
           void removeNodeFromClient(id).catch((error) => logAppError('delete', error));
         }
         clearSelection();

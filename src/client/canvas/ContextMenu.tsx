@@ -669,7 +669,6 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     label: node.type === 'group' ? 'Delete frame (children stay)' : 'Delete',
     danger: true,
     action: () => {
-      removeNode(node.id);
       void removeNodeFromClient(node.id);
     },
   });

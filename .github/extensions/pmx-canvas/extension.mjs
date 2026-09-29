@@ -23,6 +23,10 @@ let managedWorkspaceRoot = null;
 let managedPort = null;
 const managedLogs = [];
 const panelServers = new Map();
+// Canvas actions are invoked separately from `open`, and their context can
+// omit the canvas input. Keep the server selected for each visible instance so
+// an action cannot fall back to the process/default port behind the panel.
+const panelTargets = new Map();
 
 function normalizeBaseUrl(value) {
     if (typeof value !== "string" || value.trim() === "") return null;
@@ -227,7 +231,7 @@ async function resolvePmxServer(ctxOrInput, options = {}) {
     const allowWorkspaceMismatch = input?.allowWorkspaceMismatch === true;
     for (const candidate of candidateBaseUrls(input)) {
         const probe = await probeServer(candidate.baseUrl, workspaceRoot, {
-            allowWorkspaceMismatch: candidate.explicit || allowWorkspaceMismatch,
+            allowWorkspaceMismatch,
         });
         if (probe.ok) return probe;
     }
@@ -243,6 +247,29 @@ async function resolvePmxServer(ctxOrInput, options = {}) {
     }
 
     return await startManagedServer(workspaceRoot, input);
+}
+
+async function resolvePanelTarget(ctx, options = {}) {
+    const selected = panelTargets.get(ctx?.instanceId);
+    if (!selected) return await resolvePmxServer(ctx, options);
+
+    const probe = await probeServer(selected.baseUrl, selected.workspaceRoot, {
+        timeoutMs: options.timeoutMs ?? 2_000,
+    });
+    if (probe.ok) return probe;
+    return {
+        ...probe,
+        baseUrl: null,
+        error: `The displayed PMX Canvas target is no longer valid: ${probe.error ?? "health check failed"}. Action withheld.`,
+    };
+}
+
+function rememberPanelTarget(ctx, pmx) {
+    if (!ctx?.instanceId || !pmx?.ok || !pmx.baseUrl) return;
+    panelTargets.set(ctx.instanceId, {
+        baseUrl: pmx.baseUrl,
+        workspaceRoot: pmx.health.workspace,
+    });
 }
 
 function escapeHtml(value) {
@@ -350,6 +377,19 @@ async function readRequestJson(req) {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+async function verifiedEntryTarget(entry) {
+    if (!entry.pmx?.baseUrl) return { ok: false, baseUrl: null, error: "PMX Canvas server is unavailable." };
+    const probe = await probeServer(entry.pmx.baseUrl, entry.pmx.health.workspace, {
+        timeoutMs: 2_000,
+    });
+    if (probe.ok) return probe;
+    return {
+        ...probe,
+        baseUrl: null,
+        error: `The displayed PMX Canvas target is no longer valid: ${probe.error ?? "health check failed"}. Action withheld.`,
+    };
+}
+
 function jsonResponse(res, statusCode, body) {
     res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(body));
@@ -377,13 +417,23 @@ async function startPanelServer(instanceId, ctx, pmx) {
                 return;
             }
             if (req.method === "GET" && url.pathname === "/context") {
-                const context = await getAxContext(entry.pmx?.baseUrl, entry.workspaceRoot, entry.input);
+                const target = await verifiedEntryTarget(entry);
+                if (!target.ok || !target.baseUrl) {
+                    jsonResponse(res, 409, target);
+                    return;
+                }
+                const context = await getAxContext(target.baseUrl, entry.workspaceRoot, entry.input);
                 jsonResponse(res, 200, context);
                 return;
             }
             if (req.method === "POST" && url.pathname === "/focus") {
                 const body = await readRequestJson(req);
-                const result = await setAxFocus(entry.pmx?.baseUrl, entry.workspaceRoot, entry.input, body.nodeIds);
+                const target = await verifiedEntryTarget(entry);
+                if (!target.ok || !target.baseUrl) {
+                    jsonResponse(res, 409, target);
+                    return;
+                }
+                const result = await setAxFocus(target.baseUrl, entry.workspaceRoot, entry.input, body.nodeIds);
                 jsonResponse(res, 200, result);
                 return;
             }
@@ -396,8 +446,9 @@ async function startPanelServer(instanceId, ctx, pmx) {
                 await copilotSession?.send({ prompt: body.prompt });
                 // Explicit user instruction from the panel → mirror onto the AX
                 // timeline as a steering message (fire-and-forget).
-                if (entry.pmx?.baseUrl) {
-                    void fetchJson(entry.pmx.baseUrl, "/api/canvas/ax/steer", {
+                const target = await verifiedEntryTarget(entry);
+                if (target.ok && target.baseUrl) {
+                    void fetchJson(target.baseUrl, "/api/canvas/ax/steer", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ message: body.prompt, source: "copilot" }),
@@ -492,7 +543,7 @@ async function recordInjectedContext(baseUrl, context, injected) {
 }
 
 async function getAxStatus(ctx) {
-    const resolved = await resolvePmxServer(ctx, { autoStart: false });
+    const resolved = await resolvePanelTarget(ctx, { autoStart: false });
     if (!resolved.ok || !resolved.baseUrl) return { ok: false, server: resolved };
     const state = await fetchJson(resolved.baseUrl, "/api/canvas/ax", { timeoutMs: 2_000 });
     return { ok: true, server: resolved, ax: state };
@@ -517,7 +568,7 @@ async function setAxFocus(baseUrl, workspaceRoot, input = {}, nodeIds = []) {
 // Resolves the server first so the action returns an actionable error when the
 // canvas is unavailable, then maps the neutral primitive over plain HTTP.
 async function postAxRecord(ctx, path, payload) {
-    const resolved = await resolvePmxServer(ctx, { autoStart: false });
+    const resolved = await resolvePanelTarget(ctx, { autoStart: false });
     if (!resolved.ok || !resolved.baseUrl) {
         return { ok: false, error: resolved.error ?? "PMX Canvas server is unavailable." };
     }
@@ -625,7 +676,7 @@ function reportSteeringDeliveryError(error) {
 }
 
 async function getAxTimeline(ctx, limit) {
-    const resolved = await resolvePmxServer(ctx, { autoStart: false });
+    const resolved = await resolvePanelTarget(ctx, { autoStart: false });
     if (!resolved.ok || !resolved.baseUrl) return { ok: false, error: resolved.error };
     const query = typeof limit === "number" && limit > 0 ? `?limit=${limit}` : "";
     return await fetchJson(resolved.baseUrl, `/api/canvas/ax/timeline${query}`, { timeoutMs: 2_000 });
@@ -674,7 +725,7 @@ const pmxCanvas = createCanvas({
             name: "get_ax_context",
             description: "Return the current PMX Canvas AX pinned and focused context.",
             handler: async (ctx) => {
-                const resolved = await resolvePmxServer(ctx, { autoStart: false });
+                const resolved = await resolvePanelTarget(ctx, { autoStart: false });
                 if (!resolved.ok || !resolved.baseUrl) return { ok: false, error: resolved.error };
                 return await getAxContext(resolved.baseUrl, workspaceRootFrom(ctx), ctx.input ?? {});
             },
@@ -693,7 +744,13 @@ const pmxCanvas = createCanvas({
                 required: ["nodeIds"],
                 additionalProperties: false,
             },
-            handler: async (ctx) => await setAxFocus(null, workspaceRootFrom(ctx), ctx.input ?? {}, ctx.input?.nodeIds),
+            handler: async (ctx) => {
+                const resolved = await resolvePanelTarget(ctx, { autoStart: false });
+                if (!resolved.ok || !resolved.baseUrl) {
+                    throw new CanvasError("pmx_unavailable", resolved.error ?? "PMX Canvas server is unavailable.");
+                }
+                return await setAxFocus(resolved.baseUrl, workspaceRootFrom(ctx), ctx.input ?? {}, ctx.input?.nodeIds);
+            },
         },
         {
             name: "send_instruction",
@@ -835,7 +892,7 @@ const pmxCanvas = createCanvas({
                 additionalProperties: false,
             },
             handler: async (ctx) => {
-                const resolved = await resolvePmxServer(ctx, { autoStart: false });
+                const resolved = await resolvePanelTarget(ctx, { autoStart: false });
                 if (!resolved.ok || !resolved.baseUrl) {
                     return { ok: false, error: resolved.error ?? "PMX Canvas server is unavailable." };
                 }
@@ -863,6 +920,7 @@ const pmxCanvas = createCanvas({
         },
     ],
     open: async (ctx) => {
+        panelTargets.delete(ctx.instanceId);
         let pmx;
         try {
             pmx = await resolvePmxServer(ctx);
@@ -877,6 +935,7 @@ const pmxCanvas = createCanvas({
         }
 
         if (pmx.ok && pmx.baseUrl) {
+            rememberPanelTarget(ctx, pmx);
             const fallbackPanel = panelServers.get(ctx.instanceId);
             if (fallbackPanel) {
                 panelServers.delete(ctx.instanceId);
@@ -898,6 +957,7 @@ const pmxCanvas = createCanvas({
             panel.entry.workspaceRoot = workspaceRootFrom(ctx);
             panel.entry.input = ctx.input ?? {};
         }
+        rememberPanelTarget(ctx, pmx);
         return {
             title: "PMX Canvas",
             status: pmx.ok ? "Connected" : "Needs server",
@@ -905,6 +965,7 @@ const pmxCanvas = createCanvas({
         };
     },
     onClose: async (ctx) => {
+        panelTargets.delete(ctx.instanceId);
         const panel = panelServers.get(ctx.instanceId);
         if (!panel) return;
         panelServers.delete(ctx.instanceId);

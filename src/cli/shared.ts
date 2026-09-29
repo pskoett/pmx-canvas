@@ -133,7 +133,8 @@ async function invokeOperation(name: string, input: Record<string, unknown>): Pr
 // ── Flag parsing ─────────────────────────────────────────────
 
 /**
- * `options.boolFlags` marks flags that are boolean FOR THIS COMMAND. Value
+ * `options.boolFlags` marks flags that are boolean FOR THIS COMMAND, while
+ * `options.valueFlags` overrides a globally boolean flag for one command. Value
  * flags consume the next token verbatim (so a unified diff beginning with
  * `--- a/file` survives), which makes a flag that is boolean here and
  * value-taking elsewhere ambiguous — `--summary` is boolean in `history` /
@@ -144,7 +145,7 @@ async function invokeOperation(name: string, input: Record<string, unknown>): Pr
  */
 function parseFlags(
   args: string[],
-  options: { boolFlags?: readonly string[] } = {},
+  options: { boolFlags?: readonly string[]; valueFlags?: readonly string[] } = {},
 ): { positional: string[]; flags: Record<string, string | true> } {
   const positional: string[] = [];
   const flags: Record<string, string | true> = {};
@@ -187,6 +188,7 @@ function parseFlags(
     'check',
     'skip-mcp',
   ]);
+  for (const flag of options.valueFlags ?? []) BOOL_FLAGS.delete(flag);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     // Conventional end-of-flags separator: the rest is positional, never flags.
@@ -846,6 +848,13 @@ function showCommandHelp(name: string): void {
   if (name === 'diagram add') {
     console.log('\nAlias:');
     console.log('  Equivalent to: pmx-canvas external-app add --kind excalidraw ...');
+  }
+  if (name === 'export') {
+    console.log('\nOptions:');
+    console.log('  --board <id>               Export this board instead of the open board');
+    console.log('  --out <path>               Copy the export to this path');
+    console.log('  --include-files            Include local file contents (default: excluded)');
+    console.log('  --include-derived-text     Include imported document text (default: excluded)');
   }
   console.log('');
 }

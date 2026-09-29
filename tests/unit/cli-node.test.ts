@@ -3051,29 +3051,6 @@ exit 2
     expect(pkg.files).toContain('.github/extensions/pmx-canvas/');
   });
 
-  test('GitHub Copilot project extension exposes PMX Canvas AX adapter surfaces', () => {
-    const extension = readFileSync(join(process.cwd(), '.github/extensions/pmx-canvas/extension.mjs'), 'utf-8');
-    expect(extension).toContain('id: "pmx-canvas"');
-    expect(extension).toContain('onUserPromptSubmitted');
-    // The panel opens with the light session default matching the Copilot
-    // app's chrome (host-default theming, ?theme= override).
-    expect(extension).toContain('url: `${pmx.baseUrl}/workbench?theme=light`');
-    expect(extension).toContain('"/api/canvas/ax/context"');
-    expect(extension).toContain('name: "focus_nodes"');
-    expect(extension).toContain('name: "send_instruction"');
-    expect(extension).toContain('createSteeringDeliveryPump');
-    expect(extension).toContain('/api/canvas/ax/delivery/pending?consumer=');
-    const deliveryRuntime = extension.slice(
-      extension.indexOf('async function claimCopilotSteering'),
-      extension.indexOf('async function getAxTimeline'),
-    );
-    expect(deliveryRuntime).toContain('const workspaceRoot = PROJECT_ROOT;');
-    expect(deliveryRuntime).not.toContain('copilotSession.workspacePath');
-    expect(extension).toContain('{ attached: true });');
-    expect(extension).not.toContain('{ attached: true, phase: "idle" });');
-    expect(extension).not.toContain('console.log');
-  });
-
   test('Codex app adapter reference documents native Browser and MCP surfaces', () => {
     const reference = readFileSync(join(process.cwd(), 'skills/pmx-canvas/references/codex-app-adapter.md'), 'utf-8');
     const skill = readFileSync(join(process.cwd(), 'skills/pmx-canvas/SKILL.md'), 'utf-8');

@@ -160,7 +160,9 @@ describe('selection geometry', () => {
     expect(getByLabelText('Auto-arrange')).toBeTruthy();
     expect(getByText('Group')).toBeTruthy();
     fireEvent.click(getByLabelText('Delete selection'));
-    expect(nodes.value.size).toBe(0);
+    // Keep cards until the authoritative SSE layout confirms removal. A
+    // refused request must not make them disappear locally.
+    expect([...nodes.value.keys()]).toEqual(['a', 'b', 'c']);
     expect(selectedNodeIds.value.size).toBe(0);
     expect(calls.filter((call) => call.init?.method === 'DELETE')).toHaveLength(3);
   });

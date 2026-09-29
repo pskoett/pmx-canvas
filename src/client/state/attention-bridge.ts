@@ -274,7 +274,9 @@ function enqueueToast(entry: AttentionEntry): void {
 
 /** Show a transient toast from arbitrary client code (e.g. AX action feedback). */
 export function showToast(tone: AttentionTone, title: string, detail = '', nodeIds: string[] = []): void {
-  enqueueToast(makeEntry(tone, title, detail, nodeIds));
+  const entry = makeEntry(tone, title, detail, nodeIds);
+  pushAttentionHistory(entry);
+  enqueueToast(entry);
 }
 
 function pulseNodes(nodeIds: string[]): void {

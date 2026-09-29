@@ -20,7 +20,8 @@ declare function die(message: string, hint?: string): never;
 declare function output(data: unknown): void;
 declare function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown>;
 /**
- * `options.boolFlags` marks flags that are boolean FOR THIS COMMAND. Value
+ * `options.boolFlags` marks flags that are boolean FOR THIS COMMAND, while
+ * `options.valueFlags` overrides a globally boolean flag for one command. Value
  * flags consume the next token verbatim (so a unified diff beginning with
  * `--- a/file` survives), which makes a flag that is boolean here and
  * value-taking elsewhere ambiguous — `--summary` is boolean in `history` /
@@ -31,6 +32,7 @@ declare function invokeOperation(name: string, input: Record<string, unknown>): 
  */
 declare function parseFlags(args: string[], options?: {
     boolFlags?: readonly string[];
+    valueFlags?: readonly string[];
 }): {
     positional: string[];
     flags: Record<string, string | true>;

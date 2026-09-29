@@ -5,6 +5,16 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Board navigation no longer reports removed cards or carries old session receipts onto Home.
+- Refused edits show their reason without a tooltip, keep the reason in Updates, and leave refused deletions visible.
+- Copilot panel actions use the displayed server and refuse writes if its workspace changes.
+- Inline batch JSON works with either spaced or equals-style flags.
+- CLI exports support an independent `--include-derived-text` opt-in and reject unknown flags.
+- Stopping from a different installation preserves live daemon PID files and reports the mismatch.
+- Bundled skills include a retrievable tour reference, conditional browser-host checks, and eval scenarios for the new board and import workflows.
+
 ## [0.7.0] - 2026-09-29
 
 ### Highlights

@@ -52,4 +52,40 @@ describe('bundled skills', () => {
   test('readBundledSkill returns null for unknown skills', () => {
     expect(readBundledSkill('this-skill-does-not-exist')).toBeNull();
   });
+
+  test('0.7 audit guidance is bundled and behavioral eval definitions are distinct from benchmark results', async () => {
+    const skill = readBundledSkill('pmx-canvas')!;
+    const testing = readBundledSkill('pmx-canvas-testing')!;
+    const tourGuide = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/tours-and-recording.md', import.meta.url),
+    ).text();
+    const evalDocument = await Bun.file(new URL('../../skills/pmx-canvas/evals/evals.json', import.meta.url)).json();
+    const evals = evalDocument.evals as Array<{ name: string; assertions: unknown[] }>;
+
+    expect(skill).toContain('[Tours and recording](references/tours-and-recording.md)');
+    expect(skill).not.toContain('See `docs/cli.md` for the full tour model');
+    expect(tourGuide).toContain('screen = world * scale + offset');
+    expect(tourGuide).toContain('A saved `{ "stops": [] }` intentionally has no stops');
+    expect(tourGuide).toContain('max(1, ceil(duration * fps))');
+    expect(skill).toContain('--include-derived-text');
+    expect(skill).toContain('Do not fall back to a raw');
+    expect(testing).toContain('document.visibilityState');
+    expect(testing).toContain('capture a screenshot');
+
+    const auditEvals = [
+      'tour-authoring-and-capture',
+      'multi-board-targeting',
+      'readme-preservation',
+      'import-consent-distrust-and-provenance',
+      'independent-export-privacy-consent',
+    ];
+    for (const name of auditEvals) {
+      const definition = evals.find((entry) => entry.name === name);
+      expect(definition).toBeTruthy();
+      expect(definition!.assertions.length).toBeGreaterThanOrEqual(3);
+    }
+    // This shipped file defines scenarios and output checks; it does not claim a model run occurred.
+    expect(evalDocument).not.toHaveProperty('benchmark_results');
+    expect(evalDocument).not.toHaveProperty('scores');
+  });
 });

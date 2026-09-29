@@ -41,7 +41,7 @@ import {
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
 import { applyHumanSnapshot, startHumanPresence } from './human-store';
 import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
-import { applySessionReceipt, refreshTimeline } from './session-store';
+import { applySessionReceipt, dismissSessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
@@ -479,6 +479,8 @@ function resyncForBoardSwitch(): void {
   hasInitialServerLayout.value = false;
   resetIntents();
   resetCanvasInteractionState();
+  resetAttentionBridge();
+  dismissSessionReceipt();
   axSurfaceState.value = null;
   void refreshAxSurface();
   const layoutAtRequest = layoutRevision;

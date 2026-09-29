@@ -730,7 +730,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                removeNode(node.id);
                 void removeNodeFromClient(node.id);
               }}
               title="Close"

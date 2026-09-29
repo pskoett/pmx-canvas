@@ -20,6 +20,9 @@ import {
   selectedNodeIds,
 } from '../../src/client/state/canvas-store.ts';
 import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
+import { resetAttentionBridge } from '../../src/client/state/attention-bridge.ts';
+import { attentionHistory } from '../../src/client/state/attention-store.ts';
+import { applySessionReceipt, sessionReceipt } from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 const originalFetch = globalThis.fetch;
@@ -91,6 +94,26 @@ afterEach(() => {
 });
 
 describe('board switch client state', () => {
+  test('navigation resets attention baseline and old session receipts, but real removal still notifies', async () => {
+    globalThis.fetch = Object.assign(() => Promise.resolve(json({})), { preconnect: originalFetch.preconnect });
+    resetAttentionBridge();
+    EVENT_HANDLERS['canvas-layout-update']({ layout: layout('A-node') });
+    applySessionReceipt({
+      label: 'A session',
+      endedAt: new Date().toISOString(),
+      snapshot: { id: 'A-snapshot', name: 'A' },
+    });
+    expect(sessionReceipt.value).not.toBeNull();
+    EVENT_HANDLERS['boards-changed'](boardPayload('B'));
+    EVENT_HANDLERS['canvas-layout-update']({ layout: layout('B-node') });
+    await Bun.sleep(0);
+    expect(sessionReceipt.value).toBeNull();
+    expect(attentionHistory.value.some((entry) => entry.title === 'Items removed')).toBe(false);
+    EVENT_HANDLERS['canvas-layout-update']({ layout: { ...layout('B-node'), nodes: [] } });
+    expect(attentionHistory.value.some((entry) => entry.title === 'Items removed')).toBe(true);
+    resetAttentionBridge();
+  });
+
   test('A -> B -> C ignores late B layout, pins, and approvals', async () => {
     const requests: DeferredResponse[] = [];
     globalThis.fetch = (() => {

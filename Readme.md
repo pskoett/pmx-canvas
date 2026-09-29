@@ -246,7 +246,9 @@ surfaces (the core never imports a host SDK).
   session override), wakes Copilot when the board sends a steer, injects
   pinned/focused AX context on prompt submission, and exposes actions for focus,
   work items, approval gates, review annotations, the AX timeline, and
-  host-capability reporting. Install it into any repo with
+  host-capability reporting. Actions stay bound to the server shown by their
+  panel and are withheld if that server no longer matches the panel workspace.
+  Install it into any repo with
   `pmx-canvas copilot install-extension` (`--dry-run` to preview).
 - **Codex app** — native through the Codex in-app Browser (opened to
   `/workbench`) plus the PMX MCP server: agents read `canvas://ax-context` /

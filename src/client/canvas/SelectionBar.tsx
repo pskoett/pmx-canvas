@@ -8,7 +8,6 @@ import {
   clearSelection,
   contextPinnedNodeIds,
   distributeSelection,
-  removeNode,
   selectedNodeIds,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createGroupFromClient, removeNodeFromClient } from '../state/intent-bridge';
@@ -51,7 +50,6 @@ export function SelectionBar() {
   const handleDelete = useCallback(() => {
     const ids = Array.from(selectedNodeIds.value);
     for (const id of ids) {
-      removeNode(id);
       void removeNodeFromClient(id);
     }
     clearSelection();

@@ -4784,7 +4784,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   position: absolute;
   top: 18px;
   right: 18px;
-  max-width: min(260px, calc(100% - 24px));
+  max-width: min(360px, calc(100% - 36px));
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -4792,7 +4792,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
   backdrop-filter: blur(14px);
   border: 1px solid color-mix(in srgb, var(--c-line) 76%, var(--c-warn) 24%);
-  border-radius: 999px;
+  border-radius: 12px;
   box-shadow: 0 8px 22px var(--c-shadow);
   color: var(--c-text);
   font: inherit;
@@ -4831,15 +4831,27 @@ html.is-node-resizing .ext-app-preview-catcher {
   box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 28%, transparent);
 }
 
+.attention-toast-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.attention-toast-detail {
+  color: var(--c-text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 9em;
+  overflow: auto;
+}
+
 .attention-toast-title {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.005em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
 }
 
 .attention-history {

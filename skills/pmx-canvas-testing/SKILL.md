@@ -182,8 +182,13 @@ reason to scope verification more narrowly.
   the object handed to the emitter — the envelope overwrites `sessionId` and `timestamp`.
 - Two-tab behaviour (human cursors, the edit lock) needs two browser contexts; name them with
   `/workbench?name=…` so assertions can target a cursor by its tag.
-- The Browser pane reports `visibility: hidden` and never fires rAF: drags, drop pills, edge
-  previews and presence animations only work under Playwright. Use the pane for static checks.
+- Do not categorically infer Browser-pane behavior from the host name. Probe the actual surface:
+  record `document.visibilityState`, race a `requestAnimationFrame` callback against a short
+  timeout, and capture a screenshot of the claimed rendered state. If hidden or rAF times out,
+  use the pane only for static checks and run animation/drag/drop/edge-preview assertions in
+  Playwright. If the probe succeeds, it is still scheduling evidence rather than paint proof;
+  retain screenshot evidence for a visual pass, especially for iframe-backed or native-host
+  surfaces.
 - Selection is shift-click on the node BODY (the titlebar drags); groups have no ports and
   their drag handle is the edge row; the selection bar and command bar both float bottom-center
   (the selection bar lifts during a session).

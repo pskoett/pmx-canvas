@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
@@ -23,6 +23,35 @@ function exitedPid(): number {
   if (!child.pid) throw new Error('spawnSync returned no pid');
   return child.pid;
 }
+
+test('stop preserves a live PID belonging to a different installation', async () => {
+  const pidFile = tempPidFile();
+  writeFileSync(pidFile, String(process.pid));
+  const server = Bun.serve({ port: 0, fetch: () => Response.json({ ok: true, pid: process.pid }) });
+  try {
+    const child = Bun.spawn([
+      process.execPath,
+      '-e',
+      `import { stopServeDaemon } from ${JSON.stringify(resolve('src/cli/daemon.ts'))};
+       await stopServeDaemon(${JSON.stringify({
+         port: server.port,
+         pidFile,
+         logFile: `${pidFile}.log`,
+         waitMs: 100,
+         entry: '/different-installation/pmx-canvas/src/cli/index.ts',
+       })});`,
+    ]);
+    const output = await new Response(child.stdout).json();
+    expect(await child.exited).toBe(1);
+    expect(output.ok).toBe(false);
+    expect(output.stopped).toBe(false);
+    expect(output.hint).toContain('matching installation');
+    expect(readPidFile(pidFile)).toBe(process.pid);
+  } finally {
+    server.stop(true);
+    rmSync(pidFile, { force: true });
+  }
+});
 
 describe('readPidFile', () => {
   test('returns null for a missing file', () => {

@@ -55,6 +55,11 @@ describe('agent CLI flag parsing', () => {
     expect(positional).toEqual([]);
   });
 
+  test('a spaced batch --json value is parsed as data, not a boolean flag', () => {
+    const { flags } = parseFlags(['--json', '[]'], { valueFlags: ['json'] });
+    expect(flags.json).toBe('[]');
+  });
+
   test('a trailing value flag with no token left stays boolean', () => {
     const { flags } = parseFlags(['--summary']);
     expect(flags.summary).toBe(true);
@@ -143,5 +148,69 @@ describe('agent CLI diff content round-trip', () => {
     const stored = (await response.json()) as { type: string; data: { content?: string } };
     expect(stored.type).toBe('diff');
     expect(stored.data.content).toBe(UNIFIED_DIFF);
+  });
+
+  test('batch accepts spaced --json through the public command', async () => {
+    const log = mock((..._args: unknown[]) => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['batch', '--json', '[]']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(JSON.parse(log.mock.calls[0]?.[0] as string)).toMatchObject({ ok: true, results: [] });
+  });
+
+  test('export forwards private-content opt-ins independently and defaults both off', async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const originalFetch = globalThis.fetch;
+    const originalLog = console.log;
+    console.log = mock((..._args: unknown[]) => {});
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/api/canvas/export') && init?.body) {
+        requests.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      await runAgentCli(['export']);
+      await runAgentCli(['export', '--include-files']);
+      await runAgentCli(['export', '--include-derived-text']);
+    } finally {
+      globalThis.fetch = originalFetch;
+      console.log = originalLog;
+    }
+
+    expect(requests).toEqual([
+      { includeFiles: false, includeDerivedText: false },
+      { includeFiles: true, includeDerivedText: false },
+      { includeFiles: false, includeDerivedText: true },
+    ]);
+  });
+
+  test('export rejects unsupported flags through the public command', async () => {
+    const originalExit = process.exit;
+    const originalError = console.error;
+    const error = mock((..._args: unknown[]) => {});
+    console.error = error;
+    process.exit = ((code?: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli(['export', '--include-originals'])).rejects.toThrow('process.exit:1');
+    } finally {
+      process.exit = originalExit;
+      console.error = originalError;
+    }
+
+    expect(JSON.parse(error.mock.calls[0]?.[0] as string)).toMatchObject({
+      error: 'Unknown export flag: --include-originals',
+    });
   });
 });

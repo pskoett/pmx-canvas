@@ -34,6 +34,49 @@ async function note(request: APIRequestContext, title: string, x = 120, y = 120)
   return ((await response.json()) as { id: string }).id;
 }
 
+test('Home clears board attention and session receipts without reporting deletions', async ({ page, request }) => {
+  await note(request, 'Navigation baseline');
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  await request.post('/api/canvas/ax/presence', {
+    data: { source: 'api', agentId: 'navigation-session', attached: true },
+  });
+  await note(request, 'Session result', 500);
+  await request.post('/api/canvas/ax/presence', {
+    data: { source: 'api', agentId: 'navigation-session', attached: false },
+  });
+  await expect(page.getByTestId('session-receipt')).toBeVisible();
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await expect(page.getByTestId('home-view')).toBeVisible();
+  await expect(page.getByTestId('session-receipt')).toHaveCount(0);
+  await expect(page.locator('.attention-toast')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Recent updates/i })).toHaveCount(0);
+});
+
+test('a refused browser write displays its reason and retains it in history', async ({ page, request }) => {
+  const id = await note(request, 'Protected review note');
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto('/workbench');
+  const reason = 'This note is being edited by another person. Try again after they finish.';
+  await page.route(`**/api/canvas/node/${id}`, async (route) => {
+    if (route.request().method() !== 'DELETE') return route.continue();
+    await route.fulfill({ status: 409, json: { ok: false, error: reason } });
+  });
+  await page.locator(`[data-node-id="${id}"] .node-title`).click();
+  await page.keyboard.press('Delete');
+  const toast = page.locator('.attention-toast');
+  await expect(toast.getByText(reason, { exact: true })).toBeVisible();
+  await expect(toast).not.toHaveAttribute('title');
+  await expect(page.locator(`[data-node-id="${id}"]`)).toBeVisible();
+  await toast.click();
+  await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText(reason);
+  await page.getByRole('button', { name: 'Collapse changes panel' }).click();
+  await page.unrouteAll();
+  await page.locator(`[data-node-id="${id}"] .node-title`).click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator(`[data-node-id="${id}"]`)).toHaveCount(0);
+});
+
 test('board switching refreshes approval labels and discards stale approval reads', async ({ page, request }) => {
   const ids: string[] = [];
   for (const name of ['Approvals A', 'Approvals B']) {
@@ -132,6 +175,10 @@ test('board menu dismisses on canvas and card clicks; README and link actions st
   await card.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('button', { name: '</> Source', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
+  // Closing saves and restores focus asynchronously. Do not send Enter to
+  // another control while the overlay still owns keyboard focus.
+  await expect(page.getByTestId('expanded-node')).toHaveCount(0);
+  await expect(card).toBeFocused();
   await page.getByRole('button', { name: 'Open board', exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: /^Board: Linked destination/ })).toBeVisible();
 });

@@ -2,7 +2,7 @@
 
 import { copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cmd, getStringFlag, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
+import { cmd, die, getStringFlag, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
 
 cmd(
   'export',
@@ -11,15 +11,22 @@ cmd(
     'pmx-canvas export',
     'pmx-canvas export --board board-abc123 --out ~/Desktop/okrs.html',
     'pmx-canvas export --include-files',
+    'pmx-canvas export --include-derived-text',
   ],
   async (args) => {
-    const { flags } = parseFlags(args);
+    const { flags } = parseFlags(args, { boolFlags: ['include-files', 'include-derived-text'] });
+    const supportedFlags = new Set(['help', 'h', 'board', 'out', 'include-files', 'include-derived-text']);
+    const unknownFlag = Object.keys(flags).find((flag) => !supportedFlags.has(flag));
+    if (unknownFlag) {
+      die(`Unknown export flag: --${unknownFlag}`, 'Run: pmx-canvas export --help');
+    }
     if (flags.help || flags.h) return showCommandHelp('export');
     const board = getStringFlag(flags, 'board');
     const out = getStringFlag(flags, 'out');
     const result = (await invokeOperation('export.run', {
       ...(board ? { board } : {}),
       includeFiles: flags['include-files'] === true,
+      includeDerivedText: flags['include-derived-text'] === true,
     })) as { path: string };
     if (out) {
       copyFileSync(result.path, resolve(out));

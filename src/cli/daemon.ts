@@ -440,6 +440,22 @@ export async function stopServeDaemon(
   }
 
   if (!isOwnDaemonProcess(pid, options.entry)) {
+    if (isProcessRunning(pid)) {
+      outputJson({
+        ok: false,
+        daemon: true,
+        stopped: false,
+        running: responsive,
+        error: `PID ${pid} is live but does not belong to this installation. The pid file was preserved.`,
+        hint: 'Use the matching installation and workspace to stop the daemon; verify the process before removing its pid file.',
+        pid,
+        url,
+        healthUrl,
+        logFile: options.logFile,
+        pidFile: options.pidFile,
+      });
+      process.exit(1);
+    }
     removePidFile(options.pidFile);
     outputJson({
       ok: true,

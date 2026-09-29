@@ -38,7 +38,8 @@ Each stop targets `{ nodeId }` (including groups) or `{ viewport: { x, y, scale 
 with optional `duration` seconds, `easing`, screen-pixel `padding`, and `pullback`.
 Open `/workbench?present=1` for chrome-free viewing. Optionally capture that same
 tour with `pmx-canvas record --mode deterministic --present --output tour.mp4`.
-There is no separate recording model. See `docs/cli.md` for the full tour model.
+There is no separate recording model. Read [Tours and recording](references/tours-and-recording.md)
+for the authoritative stop, viewport, persistence, reset, group-order, and capture behavior.
 
 ## Runtime prerequisites
 
@@ -275,11 +276,10 @@ graph 760×520, mcp-app 960×600, web-artifact 960×720. A *hosted* app opened w
 `canvas_app { action: "open-mcp-app" | "diagram" }` — including the Excalidraw diagram preset — is
 the exception: request `width: 720, height: 500` for its standard landscape preset instead of
 relying on the 960×600 default for a directly created `mcp-app` node. After the app mounts, read
-only its geometry, e.g. `pmx-canvas node get <id> --fields id,type,position,size`, and use the
-persisted size for subsequent placement. With MCP tool execution that supports output projection,
-project the layout to node id/type/position/size before returning it to context; otherwise prefer
-a targeted `canvas_node { action: "get", id }`. Read the full layout only when its other state
-is needed. Mounted apps may change the requested dimensions.
+only projected geometry: use `pmx-canvas node get <id> --fields id,type,position,size`, or project
+an MCP layout result to id/type/position/size before it enters context. Do not fall back to a raw
+hosted-app node payload or full layout merely to recover dimensions. Use the persisted size for
+subsequent placement because mounted apps may change the requested dimensions.
 Authored iframe surfaces grow in height as content changes, up to 1400px. A growing ungrouped,
 unpinned card moves down when needed to leave a 24px gap without moving its neighbors; grouped
 cards retain their authored placement. Width stays explicit, and `strictSize` or manually resized
@@ -289,10 +289,17 @@ After content settles, inspect the rendered result and arrange the intended node
 spacing is needed; do not compensate with arbitrarily huge fixed frames.
 Since 0.4.6 the server clamps explicit creation sizes UP to per-type
 readability floors (e.g. markdown 360×180, graph/json-render/html 420×280, mcp-app 480×320) —
-a tiny probe size silently becomes the floor. `strictSize: true` is the only opt-out (a fixed
+a tiny probe size becomes the floor, reported via `sizeAdjustment`. `strictSize: true` is the only opt-out (a fixed
 scrolling frame you genuinely want small). `canvas_query { action: "validate" }` additionally
 reports any node below its floor as an advisory `sizeWarnings` entry — treat a non-empty list
 as layout work left to do.
+Creation responses may include `sizeAdjustment` (`defaulted`, `clamped-to-minimum`, or
+`fit-to-children`); use its `applied` geometry rather than assuming the request won. Json-render
+validation/creation may also return warnings for form controls whose value is not bound with
+`$bindState`; the panel can render, but edits are not durable state until the binding is fixed.
+If the documented receipts or warnings are unexpectedly absent, do not guess around them with raw
+payload reads: verify that the CLI/MCP host and daemon use the same 0.7 installation and workspace,
+restart the matching daemon after upgrade, and re-check `/health`.
 
 **Token hygiene.** For routine state checks use `canvas_ax_state { action: "get" }` WITHOUT
 `includeContext` — the full AX context payload is ~10× larger; request it only when you are
@@ -541,7 +548,8 @@ changes do not advance content revisions, while semantic edits and undo do.
 - Original attachments persist until board deletion, survive snapshot restore,
   and are included in database backups. Static export v1 never includes their
   bytes; source-linked Markdown is separately gated by `includeDerivedText`,
-  not `includeFiles`, even after edits.
+  not `includeFiles`, even after edits. CLI export is private by default: opt in independently with
+  `--include-derived-text`; `--include-files` does not imply consent to export derived text.
 - Board-map graph views, wiki-link syntax, and direct card edges across boards
   are future work. Static exports lock board links and omit target titles.
 

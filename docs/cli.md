@@ -315,7 +315,12 @@ pmx-canvas restore ~/Backups/pmx/canvas-20260927T090000000Z.db    # keeps canvas
 pmx-canvas export                                  # the open board → .pmx-canvas/exports/<board>-<time>.html
 pmx-canvas export --board <board-id> --out ~/Desktop/okrs.html
 pmx-canvas export --include-files                  # include local file contents (left out by default)
+pmx-canvas export --include-derived-text           # include imported document text (left out by default)
 ```
+
+The two private-content flags are independent opt-ins. `--include-files` does not include
+source-derived document text, and `--include-derived-text` does not include local file contents.
+Unknown export flags are rejected instead of being ignored.
 
 ## Snapshots
 

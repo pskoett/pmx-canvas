@@ -101,7 +101,7 @@ cmd(
     'cat ops.json | pmx-canvas batch --stdin',
   ],
   async (args) => {
-    const { flags } = parseFlags(args);
+    const { flags } = parseFlags(args, { valueFlags: ['json'] });
     if (flags.help || flags.h) return showCommandHelp('batch');
 
     let raw = '';
