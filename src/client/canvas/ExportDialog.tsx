@@ -177,7 +177,9 @@ export function ExportDialog() {
               <a href={result.url} target="_blank" rel="noopener noreferrer">
                 Open
               </a>
-              <a href={`${result.url}?download=1`}>Download</a>
+              <a class="is-primary" href={`${result.url}?download=1`}>
+                Download
+              </a>
             </div>
           </div>
         )}

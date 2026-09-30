@@ -97,6 +97,74 @@ describe('document imports', () => {
     await expect(sdk.commitImport(requested.id, workbenchToken)).rejects.toThrow('committed');
   });
 
+  test('successive import grids avoid existing cards without moving them', async () => {
+    const { sdk, boardId } = setup();
+    for (const count of [5, 3]) {
+      const attached = sdk.attachDocument({
+        boardId,
+        name: `slides-${count}.pdf`,
+        bytes: new Uint8Array([count]),
+        x: 90,
+        y: 130,
+      });
+      await sdk.requestImport(attached.import.id, true, workbenchToken);
+      await sdk.submitImport(
+        attached.import.id,
+        Array.from({ length: count }, (_, index) => ({ title: `Slide ${index}`, markdown: 'body' })),
+        'fixture',
+      );
+      // An obstacle added after drafting catches placement based on stale drop-time geometry.
+      canvasState.addNode(
+        makeNode({
+          id: `obstacle-${count}`,
+          type: 'markdown',
+          position: { x: 570, y: 900 },
+          size: { width: 530, height: 370 },
+        }),
+      );
+      const before = structuredClone(canvasState.getLayout().nodes);
+      const committed = await sdk.commitImport(attached.import.id, workbenchToken);
+      const cards = committed.nodeIds.map((id) => canvasState.getNode(id)!);
+      const group = canvasState
+        .getLayout()
+        .nodes.find((node) => node.type === 'group' && node.data.title === `slides-${count}.pdf`)!;
+      expect(group).toBeDefined();
+      expect(group.data.children).toEqual(committed.nodeIds);
+      for (const other of before) {
+        expect(
+          group.position.x >= other.position.x + other.size.width + 40 ||
+            other.position.x >= group.position.x + group.size.width + 40 ||
+            group.position.y >= other.position.y + other.size.height + 40 ||
+            other.position.y >= group.position.y + group.size.height + 40,
+        ).toBe(true);
+      }
+      for (const [index, card] of cards.entries()) {
+        for (const other of [...before, ...cards.slice(0, index)]) {
+          expect(
+            card.position.x >= other.position.x + other.size.width + 40 ||
+              other.position.x >= card.position.x + card.size.width + 40 ||
+              card.position.y >= other.position.y + other.size.height + 40 ||
+              other.position.y >= card.position.y + card.size.height + 40,
+          ).toBe(true);
+        }
+      }
+      expect(cards[1]!.position).toEqual({ x: cards[0]!.position.x + 440, y: cards[0]!.position.y });
+      expect(cards[2]!.position).toEqual({ x: cards[0]!.position.x, y: cards[0]!.position.y + 340 });
+      for (const node of before) expect(canvasState.getNode(node.id)).toEqual(node);
+    }
+  });
+
+  test('an unobstructed import keeps its requested origin', async () => {
+    const { sdk, boardId } = setup();
+    const attached = sdk.attachDocument({ boardId, name: 'clear.pdf', bytes: new Uint8Array([1]), x: -250, y: 75 });
+    await sdk.requestImport(attached.import.id, true, workbenchToken);
+    await sdk.submitImport(attached.import.id, [{ title: 'Clear', markdown: 'body' }], 'fixture');
+    canvasState.updateNode(attached.nodeId, { position: { x: -250, y: 55 } });
+    const committed = await sdk.commitImport(attached.import.id, workbenchToken);
+    expect(canvasState.getNode(committed.nodeIds[0]!)!.position).toEqual({ x: -250, y: 475 });
+    expect(canvasState.getLayout().nodes.some((node) => node.type === 'group')).toBe(false);
+  });
+
   test('agent request API cannot claim human authority', async () => {
     const { sdk, boardId } = setup();
     const attached = sdk.attachDocument({ boardId, name: 'source.pdf', bytes: new Uint8Array([1]) });

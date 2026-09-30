@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { cameraSchema, interpolateCamera, resolveStop, type Camera, type Tour } from '../../shared/tour.js';
 import { canvasArea } from './canvas-area';
 import { cancelViewportAnimation, hasInitialServerLayout, nodes, viewport } from '../state/canvas-store';
 import { presenting, recordingCamera } from '../state/presentation';
 import { requestJson } from '../state/intent-bridge';
+import { usePanZoom } from './use-pan-zoom';
 
 declare global {
   interface Window {
@@ -22,6 +23,17 @@ export function Presentation() {
   const [error, setError] = useState('');
   const active = presenting.value;
   const ready = hasInitialServerLayout.value;
+  const frame = useRef(0);
+  const moveCamera = (camera: Camera) => {
+    cancelAnimationFrame(frame.current);
+    viewport.value = camera;
+  };
+  // A separate gesture surface keeps cards read-only and camera changes local.
+  const navigationRef = usePanZoom({
+    viewport,
+    onViewportChange: moveCamera,
+    onViewportCommit: moveCamera,
+  });
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     presenting.value = params.get('present') === '1';
@@ -76,20 +88,20 @@ export function Presentation() {
     const from = { ...viewport.value };
     const start = performance.now();
     const duration = (stop.duration ?? 1) * 1000;
-    let frame = 0;
     const tick = (now: number) => {
       if (recordingCamera.value) return;
       const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
       viewport.value = interpolateCamera(from, target, t, area.width, area.height, stop.easing, stop.pullback);
-      if (t < 1) frame = requestAnimationFrame(tick);
+      if (t < 1) frame.current = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    frame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame.current);
   }, [active, index, tour]);
   useEffect(() => {
     if (!active) return;
     const key = (event: KeyboardEvent) => {
       event.stopImmediatePropagation();
+      if (event.target instanceof HTMLButtonElement && ['Enter', ' '].includes(event.key)) return;
       if (['Escape', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', ' '].includes(event.key))
         event.preventDefault();
       if (event.key === 'Escape') presenting.value = false;
@@ -100,9 +112,27 @@ export function Presentation() {
     document.addEventListener('keydown', key, true);
     return () => document.removeEventListener('keydown', key, true);
   }, [active, tour]);
-  return active && error ? (
-    <div class="presentation-error" role="alert">
-      {error}
-    </div>
+  return active ? (
+    <>
+      {!recordingCamera.value && (
+        <div
+          class="presentation-navigation"
+          ref={navigationRef}
+          onPointerDown={(event) => {
+            if (event.button === 1 || event.button === 2) cancelAnimationFrame(frame.current);
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button type="button" class="presentation-exit" onClick={() => (presenting.value = false)}>
+            Exit presentation
+          </button>
+        </div>
+      )}
+      {error && (
+        <div class="presentation-error" role="alert">
+          {error}
+        </div>
+      )}
+    </>
   ) : null;
 }

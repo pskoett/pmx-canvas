@@ -6853,12 +6853,23 @@ html.is-node-dragging .intent-line-layer {
   padding: 4px 12px;
   cursor: pointer;
 }
-.is-presenting > :not(.app-main):not(.presentation-error),
+.is-presenting > :not(.app-main):not(.presentation-error):not(.presentation-navigation),
 .is-presenting .app-main > :not(.canvas-region),
 .is-presenting .canvas-region > :not(.canvas-viewport) {
   display: none !important;
 }
 .is-presenting .canvas-viewport { pointer-events: none; }
+.presentation-navigation {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+.presentation-exit {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  box-shadow: 0 2px 12px var(--c-shadow);
+}
 .presentation-error {
   position: fixed;
   bottom: 16px;
@@ -7116,10 +7127,17 @@ html.is-node-dragging .intent-line-layer {
 }
 .export-dialog-links {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  margin-top: 12px;
 }
 .export-dialog-links a {
-  color: var(--c-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  text-decoration: none;
+  word-break: normal;
 }
 
 /* ── Home categories ── */
@@ -7279,9 +7297,42 @@ html.is-node-dragging .intent-line-layer {
 .attachment-node p { margin: 0; color: var(--c-text-soft); line-height: 1.5; }
 .attachment-node a, .md-import-source a { color: var(--c-accent); }
 .attachment-status { font-weight: 600; }
-.attachment-node .home-board-action { border-color: var(--c-line); color: var(--c-text); min-height: 34px; }
-.attachment-node .home-board-action:hover { background: var(--c-panel); border-color: var(--c-accent); }
+.attachment-button,
+.presentation-exit,
+.export-dialog-links a {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--c-text-soft);
+  border-radius: 8px;
+  background: var(--c-panel);
+  color: var(--c-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.attachment-button.is-primary,
+.export-dialog-links a.is-primary { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-bg); }
+.attachment-button:hover:not(:disabled),
+.presentation-exit:hover,
+.export-dialog-links a:hover { filter: brightness(1.12); }
+.attachment-button:focus-visible,
+.presentation-exit:focus-visible,
+.export-dialog-links a:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; }
+.attachment-button:disabled { opacity: 0.5; cursor: default; }
 .attachment-review { width: 100%; border-top: 1px solid var(--c-line); padding-top: 12px; }
+.attachment-review-actions {
+  position: sticky;
+  bottom: -16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--c-line);
+  background: var(--c-panel);
+  z-index: 1;
+}
 .attachment-review pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--mono); padding: 12px; background: var(--c-bg); border-radius: 8px; }
 .attachment-review h4 { margin-bottom: 6px; }
 .md-import-source { padding: 6px 12px; font-size: 11px; overflow-wrap: anywhere; color: var(--c-text-soft); border-top: 1px solid var(--c-line); }

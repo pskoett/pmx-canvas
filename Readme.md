@@ -83,12 +83,12 @@ the canvas is the union of its [built-in node types](docs/node-types.md) and
 file reads, web fetch, anything on its toolbelt.
 
 Dropping a PDF or Office document attaches the original (up to 20 MiB). It does
-not bundle a converter or automatically launch an agent. After you explicitly
-request agent-assisted import and consent to processing by the connected host's
-tools/model provider, the agent fetches the controlled bytes, returns Markdown
-sections with references and warnings, and you review before adding them to the
-board. Remote hosts may require manual transfer; OCR, charts, and host format
-support are not guaranteed.
+not bundle a converter or automatically launch an agent. Clicking **Ask agent to
+import** also authorizes processing by the connected host's tools/model provider;
+there is no separate consent confirmation. The agent returns Markdown sections
+with references and warnings for review. Multi-card imports are placed together
+in a free area, in a group named after the source file. Remote hosts may require
+manual transfer; OCR, charts, and host format support are not guaranteed.
 
 JSON-render panels support bound form state, nested repeats, watchers, and Card
 header/footer slots. Form edits remain viewer-local until explicitly submitted;

@@ -60,6 +60,26 @@ test('export a board from the top bar and open the file with no server', async (
   await expect(result).toContainText('Saved');
   const path = (await result.locator('code').textContent())?.trim() ?? '';
   expect(path).toMatch(/\.html$/);
+  for (const name of ['Open', 'Download']) {
+    const action = result.getByRole('link', { name, exact: true });
+    await expect(action).toBeVisible();
+    expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(38);
+    await expect(action).toHaveCSS('text-decoration-line', 'none');
+    await action.focus();
+    await expect(action).toBeFocused();
+  }
+  const [opened] = await Promise.all([
+    page.waitForEvent('popup'),
+    result.getByRole('link', { name: 'Open', exact: true }).click(),
+  ]);
+  await expect(opened.locator('.card').filter({ hasText: 'Export note' })).toBeVisible();
+  await opened.close();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    result.getByRole('link', { name: 'Download', exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.html$/);
+  expect(await download.failure()).toBeNull();
 
   // A colleague opens the file from disk: no server, read-only.
   await page.goto(`file://${path}`);

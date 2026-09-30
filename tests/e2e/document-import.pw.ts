@@ -28,9 +28,8 @@ for (const width of [1440, 600]) {
     expect(download.headers()['x-content-type-options']).toBe('nosniff');
     const rejected = await request.post(`/api/canvas/imports/${job.id}/request`, { data: { consent: true } });
     expect(rejected.status()).toBe(403);
+    await expect(page.getByText(/allows it to process this file with its tools and model provider/)).toBeVisible();
     await page.getByRole('button', { name: 'Ask agent to import' }).click();
-    await expect(page.getByText(/may send this file to its model provider/)).toBeVisible();
-    await page.getByRole('button', { name: 'Allow processing & request' }).click();
     await expect(page.getByText('Waiting for agent', { exact: true })).toBeVisible();
     const submitted = await request.post(`/api/canvas/imports/${job.id}/submit`, {
       data: {
@@ -41,6 +40,11 @@ for (const width of [1440, 600]) {
             markdown: '# Quarterly finding\n\nQ2 revenue was **47**, compared with Q1 at **12**.',
             reference: 'page 1',
           },
+          {
+            title: 'Supporting detail',
+            markdown: Array.from({ length: 30 }, (_, i) => `- Detail ${i + 1}`).join('\n'),
+            reference: 'page 2',
+          },
         ],
         warnings: ['Chart artwork was not extracted.'],
       },
@@ -50,13 +54,26 @@ for (const width of [1440, 600]) {
     const review = page.getByRole('dialog', { name: 'Review imported Markdown' });
     await expect(review).toContainText('Chart artwork was not extracted.');
     await expect(review).toContainText('47');
+    await expect(review.getByRole('button', { name: 'Add to board' })).toBeInViewport();
+    const scroller = page.locator('.expanded-body .attachment-node');
+    await scroller.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(review.getByRole('button', { name: 'Add to board' })).toBeInViewport();
+    const content = await review.locator('pre').last().boundingBox();
+    const actions = await review.locator('.attachment-review-actions').boundingBox();
+    expect(actions!.y - (content!.y + content!.height)).toBeGreaterThanOrEqual(20);
     await review.getByRole('button', { name: 'Add to board' }).click();
     await expect(page.getByText('Markdown added', { exact: true })).toBeVisible();
     const state = await (await request.get('/api/canvas/state')).json();
     const derived = state.nodes.find((node: { type: string }) => node.type === 'markdown');
     expect(derived.data.source.attachmentId).toBe(job.attachmentId);
     expect(derived.data.content).toContain('47');
+    const group = state.nodes.find((node: { type: string }) => node.type === 'group');
+    expect(group.data.title).toBe('quarterly.pdf');
+    expect(group.data.children).toHaveLength(2);
     await page.reload();
+    await expect(page.locator('.group-name').filter({ hasText: 'quarterly.pdf' })).toHaveCount(1);
     await expect(page.getByText('Markdown added', { exact: true })).toBeVisible();
     const search = await (await request.get('/api/canvas/search?q=Quarterly&scope=library')).json();
     expect(JSON.stringify(search)).toContain(derived.id);

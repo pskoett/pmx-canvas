@@ -11,7 +11,6 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
   const boardId = activeBoardId.value;
   const [job, setJob] = useState<DocumentImport | null>(null);
   const [review, setReview] = useState(expanded);
-  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let current = true;
@@ -53,7 +52,6 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
     setBusy(false);
     if (result?.import) {
       setJob(result.import);
-      setConsent(false);
       setReview(false);
       if (expanded && action === 'commit') collapseExpandedNode();
     }
@@ -74,22 +72,19 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
         Download original · {Math.ceil(Number(node.data.size ?? 0) / 1024)} KB
       </a>
       {job?.reason && <p>{job.reason}</p>}
-      {canRequest && !consent && (
-        <button type="button" class="home-board-action" onClick={() => setConsent(true)}>
-          Ask agent to import
-        </button>
-      )}
-      {consent && (
+      {canRequest && (
         <>
-          <p>
-            The connected agent may send this file to its model provider. It needs file-reading tools and access to the
-            original. Canvas does not convert files itself.
+          <p id={`import-consent-${node.id}`}>
+            Asking the agent to import allows it to process this file with its tools and model provider.
           </p>
-          <button type="button" class="home-board-action" disabled={busy} onClick={() => void act('request')}>
-            Allow processing & request
-          </button>
-          <button type="button" class="home-board-action" onClick={() => setConsent(false)}>
-            Not now
+          <button
+            type="button"
+            class="attachment-button is-primary"
+            aria-describedby={`import-consent-${node.id}`}
+            disabled={busy}
+            onClick={() => void act('request')}
+          >
+            Ask agent to import
           </button>
         </>
       )}
@@ -98,17 +93,17 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
           No automatic extraction. Ask your connected agent to check its pending steering or use canvas_import list.
         </p>
       )}
-      {job?.status === 'drafted' && (
+      {job?.status === 'drafted' && !review && (
         <button
           type="button"
-          class="home-board-action"
+          class="attachment-button is-primary"
           onClick={() => (expanded ? setReview(true) : expandNode(node.id))}
         >
           Review Markdown · {job.sections.length} {job.sections.length === 1 ? 'card' : 'cards'}
         </button>
       )}
       {job && ['requested', 'drafted'].includes(job.status) && (
-        <button type="button" class="home-board-action" disabled={busy} onClick={() => void act('cancel')}>
+        <button type="button" class="attachment-button" disabled={busy} onClick={() => void act('cancel')}>
           Cancel import
         </button>
       )}
@@ -130,17 +125,19 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
               <pre>{section.markdown}</pre>
             </section>
           ))}
-          <button type="button" class="home-board-action" onClick={() => setReview(false)}>
-            Close review
-          </button>
-          <button
-            type="button"
-            class="home-view-new"
-            disabled={busy || boardId !== job.boardId}
-            onClick={() => void act('commit')}
-          >
-            Add to board
-          </button>
+          <div class="attachment-review-actions">
+            <button type="button" class="attachment-button" onClick={() => setReview(false)}>
+              Close review
+            </button>
+            <button
+              type="button"
+              class="attachment-button is-primary"
+              disabled={busy || boardId !== job.boardId}
+              onClick={() => void act('commit')}
+            >
+              Add to board
+            </button>
+          </div>
         </div>
       )}
     </div>

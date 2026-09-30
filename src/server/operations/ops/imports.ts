@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
-import { addCanvasNode } from '../../canvas-operations.js';
+import { addCanvasNode, createCanvasGroup } from '../../canvas-operations.js';
+import { findOpenCanvasPosition, overlapsAny } from '../../../shared/placement.js';
+import { GROUP_PAD, GROUP_TITLEBAR_HEIGHT } from '../../placement.js';
 import {
   MAX_IMPORT_AGENT_DESCRIPTION_LENGTH,
   MAX_IMPORT_REASON_LENGTH,
@@ -192,6 +194,17 @@ const commit = defineOperation({
       throw new OperationError('Open the captured source board before committing this import.', 409);
     const a = canvasState.getAttachment(job.attachmentId);
     if (!a) throw new OperationError('Attachment not found.', 404);
+    const grouped = job.sections.length > 1;
+    const padX = grouped ? GROUP_PAD : 0;
+    const padY = grouped ? GROUP_PAD + GROUP_TITLEBAR_HEIGHT : 0;
+    const width = Math.min(job.sections.length, 2) * 440 - 40 + padX * 2;
+    const height = Math.ceil(job.sections.length / 2) * 340 - 60 + padY + padX;
+    // Reserve the whole grid, including its group frame, against current board
+    // geometry. Another import or edit may have occupied the drop-time anchor.
+    const obstacles = canvasState.getLayout().nodes;
+    const origin = overlapsAny(job.position, width, height, obstacles, 48)
+      ? findOpenCanvasPosition(obstacles, width, height, 48)
+      : job.position;
     const nodeIds = job.sections.map(
       (s, index) =>
         addCanvasNode({
@@ -201,17 +214,20 @@ const commit = defineOperation({
           data: {
             source: { attachmentId: a.id, filename: a.name, ...(s.reference ? { reference: s.reference } : {}) },
           },
-          x: job.position.x + (index % 2) * 440,
-          y: job.position.y + Math.floor(index / 2) * 340,
+          x: origin.x + padX + (index % 2) * 440,
+          y: origin.y + padY + Math.floor(index / 2) * 340,
           defaultWidth: 400,
           defaultHeight: 280,
           fileMode: 'auto',
         }).id,
     );
+    let groupId: string | undefined;
     try {
+      if (grouped) groupId = createCanvasGroup({ title: a.name, childIds: nodeIds }).id;
       const committed = canvasState.commitDocumentImport(i.id, nodeIds);
       return { ok: true, nodeIds, import: committed };
     } catch (error) {
+      if (groupId) canvasState.removeNode(groupId);
       for (const nodeId of nodeIds) canvasState.removeNode(nodeId);
       throw error;
     }

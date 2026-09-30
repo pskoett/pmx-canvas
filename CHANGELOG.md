@@ -7,6 +7,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Imported cards avoid existing content and multi-card imports form a group named after the source file.
+- Asking an agent to import now includes processing consent in one click; review actions have clearer buttons and a separate sticky footer.
+- Presentations support right-drag panning and a visible exit button; export Open and Download actions look like buttons.
 - Board navigation no longer reports removed cards or carries old session receipts onto Home.
 - Refused edits show their reason without a tooltip, keep the reason in Updates, and leave refused deletions visible.
 - Copilot panel actions use the displayed server and refuse writes if its workspace changes.

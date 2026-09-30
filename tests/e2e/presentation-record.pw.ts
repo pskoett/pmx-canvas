@@ -108,6 +108,59 @@ test('realtime recording sees concurrent edits and finalizes on SIGTERM', async 
   }
 });
 
+test('presentation right-drag interrupts the tour locally and exposes an exit button', async ({ page, request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await request.post('/api/canvas/clear', { headers });
+  await request.post('/api/canvas/viewport', { headers, data: { x: 0, y: 0, scale: 1 } });
+  await request.post('/api/canvas/node', {
+    headers,
+    data: { type: 'markdown', title: 'Pan this presentation', content: 'Read-only card', x: 200, y: 150 },
+  });
+  await request.post('/api/canvas/tour', {
+    headers,
+    data: {
+      tour: {
+        stops: [
+          { target: { viewport: { x: -300, y: -200, scale: 1 } }, duration: 3 },
+          { target: { viewport: { x: 80, y: 60, scale: 1 } }, duration: 0 },
+        ],
+      },
+    },
+  });
+  const savedViewport = (await (await request.get('/api/canvas/layout')).json()).viewport;
+  await page.goto('/workbench?present=1');
+  await page.waitForFunction(() => window.pmxCapture?.ready());
+  await page.waitForTimeout(300);
+  const card = page.locator('.canvas-node').filter({ hasText: 'Pan this presentation' });
+  await page.mouse.move(600, 400);
+  await page.mouse.down({ button: 'right' });
+  const before = await card.boundingBox();
+  await page.mouse.move(740, 480, { steps: 8 });
+  await page.mouse.up({ button: 'right' });
+  const after = await card.boundingBox();
+  expect(after!.x - before!.x).toBeCloseTo(140, 0);
+  expect(after!.y - before!.y).toBeCloseTo(80, 0);
+  // A still-running tour must not pull the camera back after the gesture.
+  await page.waitForTimeout(3200);
+  expect((await card.boundingBox())!.x).toBeCloseTo(after!.x, 0);
+  expect((await (await request.get('/api/canvas/layout')).json()).viewport).toEqual(savedViewport);
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => (await card.boundingBox())!.x).toBe(280);
+  await page.mouse.move(320, 225);
+  await page.mouse.down();
+  await page.mouse.move(430, 295, { steps: 5 });
+  await page.mouse.up();
+  expect((await card.boundingBox())!.x).toBe(280);
+  const exit = page.getByRole('button', { name: 'Exit presentation', exact: true });
+  await expect(exit).toBeVisible();
+  await exit.click();
+  await expect(page.locator('.top-bar')).toBeVisible();
+  await page.getByRole('button', { name: 'Present', exact: true }).click();
+  await exit.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.top-bar')).toBeVisible();
+});
+
 test('tour framing, keyboard exit, painted frames and CLI recording', async ({ page, request }, testInfo) => {
   test.setTimeout(90_000);
   const headers = { 'x-pmx-workbench': '1' };
@@ -180,6 +233,7 @@ test('tour framing, keyboard exit, painted frames and CLI recording', async ({ p
   const camera = { x: 140, y: 80, scale: 0.5 };
   await page.goto('/workbench?present=1&capture=1');
   await page.waitForFunction(() => window.pmxCapture?.ready());
+  await expect(page.getByRole('button', { name: 'Exit presentation', exact: true })).toBeHidden();
   await page.evaluate((camera) => window.pmxCapture!.frame(camera), camera);
   expect(await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform)).toBe(
     'matrix(0.5, 0, 0, 0.5, 140, 80)',
