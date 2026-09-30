@@ -397,7 +397,7 @@ merge this into the workspace's `.amp/settings.json` (not `.mcp.json`):
   "amp.mcpServers": {
     "canvas": {
       "command": "bunx",
-      "args": ["pmx-canvas@0.7.1", "--mcp"]
+      "args": ["pmx-canvas@0.7.2", "--mcp"]
     }
   }
 }
@@ -428,7 +428,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.7.1
+npm install -g pmx-canvas@0.7.2
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
