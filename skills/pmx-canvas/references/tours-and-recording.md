@@ -28,9 +28,10 @@ Persist a tour with `canvas_view { action: "set-tour", tour: { stops: [...] } }`
 - A tour contains at most 1000 stops.
 
 Open `/workbench?present=1` for chrome-free viewing. Right, Down, or Space advances; Left or Up
-goes back; Escape exits. Stops do not auto-advance. A missing node target reports an error and may
-be skipped. The presentation camera is local to that viewer while board content continues to
-update.
+goes back; Escape or **Exit presentation** exits. Right-drag pans and interrupts an ongoing
+transition without editing cards. Stops do not auto-advance. A missing node target reports an
+error and may be skipped. The presentation camera is local to that viewer while board content
+continues to update. Recording hides the exit control.
 
 Tours are board-scoped, persist with that board and its snapshots, participate in undo, and clear
 with the board. Setting `tour: null` resets to a derived tour: groups ordered by y, then x, then

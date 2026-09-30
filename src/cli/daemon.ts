@@ -49,14 +49,24 @@ export function isProcessRunning(pid: number): boolean {
 }
 
 /**
- * Whether pid's command line contains `needle`. Returns null when `ps` cannot
- * answer (no such process, unsupported platform) — callers fall back to the
- * plain liveness signal.
+ * Whether pid's command line contains `needle`. Returns null when the OS probe
+ * cannot answer (no such process or unavailable command). Stop must not treat
+ * an unknown identity as permission to signal a live process.
  */
 export function processCommandMatches(pid: number, needle: string): boolean | null {
   if (!Number.isInteger(pid) || pid <= 0) return null;
   try {
-    const command = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], {
+    const executable = process.platform === 'win32' ? 'powershell.exe' : 'ps';
+    const args =
+      process.platform === 'win32'
+        ? [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `(Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}').CommandLine`,
+          ]
+        : ['-o', 'command=', '-p', String(pid)];
+    const command = execFileSync(executable, args, {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
@@ -69,8 +79,8 @@ export function processCommandMatches(pid: number, needle: string): boolean | nu
 
 /**
  * Liveness with a PID-recycling guard: the pid must be alive AND its command
- * line must still look like our daemon (unless `ps` is unavailable, in which
- * case the plain liveness signal wins).
+ * line must still look like our daemon. Status falls back to plain liveness
+ * when the command probe is unavailable; stop requires a verified match.
  */
 export function isOwnDaemonProcess(pid: number, entryNeedle: string): boolean {
   if (!isProcessRunning(pid)) return false;
@@ -439,14 +449,18 @@ export async function stopServeDaemon(
     process.exit(1);
   }
 
-  if (!isOwnDaemonProcess(pid, options.entry)) {
+  const commandMatches = processCommandMatches(pid, options.entry);
+  if (commandMatches !== true) {
     if (isProcessRunning(pid)) {
       outputJson({
         ok: false,
         daemon: true,
         stopped: false,
         running: responsive,
-        error: `PID ${pid} is live but does not belong to this installation. The pid file was preserved.`,
+        error:
+          commandMatches === false
+            ? `PID ${pid} is live but does not belong to this installation. The pid file was preserved.`
+            : `PID ${pid} is live but its installation could not be verified. The pid file was preserved.`,
         hint: 'Use the matching installation and workspace to stop the daemon; verify the process before removing its pid file.',
         pid,
         url,

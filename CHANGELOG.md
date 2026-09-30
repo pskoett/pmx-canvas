@@ -5,6 +5,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-30
+
 ### Fixed
 
 - Imported cards avoid existing content and multi-card imports form a group named after the source file.
@@ -16,6 +18,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Inline batch JSON works with either spaced or equals-style flags.
 - CLI exports support an independent `--include-derived-text` opt-in and reject unknown flags.
 - Stopping from a different installation preserves live daemon PID files and reports the mismatch.
+- Daemon stop verifies the process on Windows and refuses to stop a live process whose installation cannot be verified.
 - Bundled skills include a retrievable tour reference, conditional browser-host checks, and eval scenarios for the new board and import workflows.
 
 ## [0.7.0] - 2026-09-29

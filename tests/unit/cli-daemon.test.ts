@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import {
   acquireDaemonLock,
   classifyPrecheck,
@@ -24,15 +24,19 @@ function exitedPid(): number {
   return child.pid;
 }
 
-test('stop preserves a live PID belonging to a different installation', async () => {
+test.each([false, true])('stop preserves a foreign live PID (command probe unavailable: %s)', async (unavailable) => {
   const pidFile = tempPidFile();
-  writeFileSync(pidFile, String(process.pid));
-  const server = Bun.serve({ port: 0, fetch: () => Response.json({ ok: true, pid: process.pid }) });
+  // Never give stop the runner's own PID: a regression must fail an assertion,
+  // not terminate the entire suite before Bun can report the failure.
+  const target = Bun.spawn([process.execPath, '-e', 'setInterval(() => {}, 1000)']);
+  writeFileSync(pidFile, String(target.pid));
+  const server = Bun.serve({ port: 0, fetch: () => Response.json({ ok: true, pid: target.pid }) });
   try {
-    const child = Bun.spawn([
-      process.execPath,
-      '-e',
-      `import { stopServeDaemon } from ${JSON.stringify(resolve('src/cli/daemon.ts'))};
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '-e',
+        `import { stopServeDaemon } from ${JSON.stringify(resolve('src/cli/daemon.ts'))};
        await stopServeDaemon(${JSON.stringify({
          port: server.port,
          pidFile,
@@ -40,14 +44,27 @@ test('stop preserves a live PID belonging to a different installation', async ()
          waitMs: 100,
          entry: '/different-installation/pmx-canvas/src/cli/index.ts',
        })});`,
-    ]);
+      ],
+      {
+        env: unavailable
+          ? {
+              ...Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'path')),
+              PATH: dirname(pidFile),
+            }
+          : process.env,
+      },
+    );
     const output = await new Response(child.stdout).json();
     expect(await child.exited).toBe(1);
+    expect(target.exitCode).toBeNull();
+    expect(target.signalCode).toBeNull();
     expect(output.ok).toBe(false);
     expect(output.stopped).toBe(false);
     expect(output.hint).toContain('matching installation');
-    expect(readPidFile(pidFile)).toBe(process.pid);
+    expect(readPidFile(pidFile)).toBe(target.pid);
   } finally {
+    target.kill();
+    await target.exited;
     server.stop(true);
     rmSync(pidFile, { force: true });
   }
@@ -129,9 +146,7 @@ describe('resolveDaemonPidView (0.3.2 report Finding P)', () => {
   });
 });
 
-// Daemon liveness is checked via `ps` command-line matching — POSIX-only, like
-// the daemon flow itself. No `ps` on Windows runners.
-describe.skipIf(process.platform === 'win32')('processCommandMatches / isOwnDaemonProcess', () => {
+describe('processCommandMatches / isOwnDaemonProcess', () => {
   test('matches the current process command line', () => {
     expect(processCommandMatches(process.pid, 'bun')).toBe(true);
   });

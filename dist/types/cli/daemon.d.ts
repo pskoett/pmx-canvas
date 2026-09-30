@@ -2,15 +2,15 @@ export declare function outputJson(data: unknown): void;
 export declare function readPidFile(path: string): number | null;
 export declare function isProcessRunning(pid: number): boolean;
 /**
- * Whether pid's command line contains `needle`. Returns null when `ps` cannot
- * answer (no such process, unsupported platform) — callers fall back to the
- * plain liveness signal.
+ * Whether pid's command line contains `needle`. Returns null when the OS probe
+ * cannot answer (no such process or unavailable command). Stop must not treat
+ * an unknown identity as permission to signal a live process.
  */
 export declare function processCommandMatches(pid: number, needle: string): boolean | null;
 /**
  * Liveness with a PID-recycling guard: the pid must be alive AND its command
- * line must still look like our daemon (unless `ps` is unavailable, in which
- * case the plain liveness signal wins).
+ * line must still look like our daemon. Status falls back to plain liveness
+ * when the command probe is unavailable; stop requires a verified match.
  */
 export declare function isOwnDaemonProcess(pid: number, entryNeedle: string): boolean;
 export declare function removePidFile(path: string): void;
