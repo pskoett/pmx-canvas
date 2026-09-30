@@ -61,6 +61,7 @@ import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { closeMcpAppSession, closeAllMcpAppSessions } from './mcp-app-runtime.js';
 import { findOpenCanvasPosition } from './placement.js';
+import { overlapsAny } from '../shared/placement.js';
 import { mutationHistory } from './mutation-history.js';
 import { buildAgentContextPreamble } from './agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
@@ -3474,19 +3475,25 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               canvasState.storeAttachment({ boardId, name, mime, bytes }),
             );
             if (!attachment) return responseJson({ ok: false, error: 'Board not found.' }, 404);
+            const obstacles = canvasState.getLayout().nodes;
+            const position = overlapsAny({ x, y }, 440, 360, obstacles, 48)
+              ? findOpenCanvasPosition(obstacles, 440, 360, 48)
+              : { x, y };
             const { node } = withCurrentActor({ actor: 'human', source: 'browser' }, () =>
               addCanvasNode({
                 type: 'file',
                 title: name,
                 data: { attachmentId: attachment.id, mime, size: attachment.size },
-                x,
-                y,
+                ...position,
                 defaultWidth: 440,
                 defaultHeight: 360,
                 fileMode: 'auto',
               }),
             );
-            const created = canvasState.createDocumentImport(attachment.id, { x, y: y + 400 });
+            const created = canvasState.createDocumentImport(attachment.id, {
+              x: node.position.x,
+              y: node.position.y + 400,
+            });
             const documentImport = created;
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true, attachment, nodeId: node.id, import: documentImport }, 201);

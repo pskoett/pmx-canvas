@@ -240,6 +240,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
   });
 
   afterAll(async () => {
+    await mcpClient.close();
     await mcpTransport.close();
     if (previousUrl) {
       process.env.PMX_CANVAS_URL = previousUrl;
@@ -262,6 +263,41 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     canvasState.clearAllSnapshots();
     mutationHistory.reset();
   });
+
+  for (const surface of ['HTTP', 'MCP', 'CLI', 'SDK'] as const) {
+    test(`board open: ${surface} switches explicitly before writing and can return Home`, async () => {
+      const original = await sdk.createBoard('Original');
+      await sdk.openBoard(original.id);
+      const existing = await httpAddNode({ type: 'markdown', content: 'Preserve original' });
+      const target = await sdk.createBoard(`Created for ${surface}`);
+      expect(canvasState.activeBoardId).toBe(original.id);
+
+      const open = async (id: string | null) => {
+        if (surface === 'SDK') return sdk.openBoard(id);
+        if (surface === 'HTTP') {
+          return jsonRequest('/api/canvas/boards/open', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+        }
+        if (surface === 'CLI') return runCliJson(['board', 'open', id ?? '--home']);
+        const result = await callMcp('canvas_board', { action: 'open', id });
+        expect(result.isError).not.toBe(true);
+        expect(parseJsonText<{ activeBoardId: string | null }>(result).activeBoardId).toBe(id);
+      };
+
+      await open(target.id);
+      expect(canvasState.activeBoardId).toBe(target.id);
+      const added = await httpAddNode({ type: 'markdown', content: `Only on ${surface}` });
+      expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual([added.id]);
+      expect(canvasState.readBoard(original.id)?.layout.nodes.map((node) => node.id)).toEqual([existing.id]);
+      await open(null);
+      expect(canvasState.activeBoardId).toBeNull();
+      await open(target.id);
+      expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual([added.id]);
+    });
+  }
 
   test('node add: all four surfaces produce equivalent node state', async () => {
     const expected: NodeView = {

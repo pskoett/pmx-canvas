@@ -4,7 +4,7 @@ import { BoardSwitcher } from './BoardSwitcher';
 import type { ComponentChildren } from 'preact';
 import { presenting } from '../state/presentation';
 import { useEffect, useState } from 'preact/hooks';
-import { IconFitAll, IconZoomIn, IconZoomOut } from '../icons';
+import { IconFitAll, IconZoomIn, IconZoomOut, IconClose } from '../icons';
 import {
   animateViewport,
   connectionStatus,
@@ -121,7 +121,7 @@ function AgentChip() {
                     void endSession({ source: session.source, agentId: session.agentId });
                   }}
                 >
-                  ×
+                  <IconClose size={14} />
                 </button>
               </span>
             </BarHint>

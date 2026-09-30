@@ -358,7 +358,46 @@ describe("write attribution (the cursor follows the session's own work)", () => 
     expect(registry.snapshot(T0 + 3).presences.map((p) => p.sessionId)).toEqual(['claude-code']);
   });
 
-  test('different labels never twin-merge; identified sub-agents never do', () => {
+  test('a task-named transport attach reuses the sole host session and its polling identity', () => {
+    let starts = 0;
+    registry.setSessionStartListener(() => {
+      starts += 1;
+      return 'baseline';
+    });
+    registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true }, T0);
+    registry.noteSteeringConsumer('copilot');
+    registry.touch({ source: 'mcp', label: 'Copilot – team overview', attached: true }, T0 + 1);
+    expect(registry.snapshot(T0 + 1).presences).toMatchObject([
+      { sessionId: 'copilot', source: 'copilot', attached: true, steerable: true, lastClaimAt: expect.any(String) },
+    ]);
+    expect(registry.snapshot(T0 + 1).presences).toHaveLength(1);
+    expect(starts).toBe(1);
+
+    // A later second host must not split the already-associated MCP channel.
+    registry.touch({ source: 'codex', attached: true }, T0 + 2);
+    registry.touch({ source: 'mcp', label: 'Copilot – next task', attached: true }, T0 + 3);
+    registry.touch({ source: 'mcp', op: true, focusNodeId: 'team-card' }, T0 + 3);
+    const snapshot = registry.snapshot(T0 + 3);
+    expect(snapshot.presences).toHaveLength(2);
+    expect(snapshot.presences.find((presence) => presence.sessionId === 'copilot')).toMatchObject({
+      opCount: 1,
+      focusNodeId: 'team-card',
+    });
+  });
+
+  test('a task-named transport attach is not guessed when multiple hosts are attached', () => {
+    registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true }, T0);
+    registry.touch({ source: 'codex', attached: true }, T0);
+    registry.touch({ source: 'mcp', label: 'Team overview', attached: true }, T0 + 1);
+    expect(
+      registry
+        .snapshot(T0 + 1)
+        .presences.map((presence) => presence.sessionId)
+        .sort(),
+    ).toEqual(['codex', 'copilot', 'mcp']);
+  });
+
+  test('distinct hosts and identified sub-agents never twin-merge', () => {
     registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true }, T0);
     registry.touch({ source: 'codex', label: 'Codex', attached: true }, T0 + 1);
     registry.touch({ source: 'mcp', agentId: 'reviewer', label: 'GitHub Copilot', attached: true }, T0 + 2);

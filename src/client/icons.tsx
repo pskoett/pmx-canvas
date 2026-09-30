@@ -11,13 +11,130 @@ const defaults = {
   'stroke-width': '1.5',
   'stroke-linecap': 'round',
   'stroke-linejoin': 'round',
+  'aria-hidden': 'true',
 } as const;
 
 function Icon({ size = 16, children, ...rest }: IconProps & { children: JSX.Element | JSX.Element[] }): JSX.Element {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" {...defaults} {...rest}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      style={{ verticalAlign: 'middle', flexShrink: 0 }}
+      {...defaults}
+      {...rest}
+    >
       {children}
     </svg>
+  );
+}
+
+export function IconClose(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="m4 4 8 8M12 4l-8 8" />
+    </Icon>
+  );
+}
+
+export function IconPlus(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M8 2v12M2 8h12" />
+    </Icon>
+  );
+}
+
+export function IconPlusCircle(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 5v6M5 8h6" />
+    </Icon>
+  );
+}
+
+export function IconChevronRight(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <polyline points="6 3 11 8 6 13" />
+    </Icon>
+  );
+}
+
+export function IconMore(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <circle cx="3" cy="8" r="0.75" />
+      <circle cx="8" cy="8" r="0.75" />
+      <circle cx="13" cy="8" r="0.75" />
+    </Icon>
+  );
+}
+
+export function IconExternalLink(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M9 2h5v5M14 2 7 9M6 3H2v11h11v-4" />
+    </Icon>
+  );
+}
+
+export function IconExpand(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M9 2h5v5M14 2l-5 5M7 14H2V9M2 14l5-5" />
+    </Icon>
+  );
+}
+
+export function IconArrowLeft(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M14 8H2m5-5-5 5 5 5" />
+    </Icon>
+  );
+}
+
+export function IconRefresh(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M13.5 6A5.5 5.5 0 1 0 13 11M14 2v4h-4" />
+    </Icon>
+  );
+}
+
+export function IconUndo(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M6 2 2 6l4 4M2 6h7a4 4 0 0 1 0 8" />
+    </Icon>
+  );
+}
+
+export function IconSparkle(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="m8 1 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" />
+    </Icon>
+  );
+}
+
+/** Upload into a tray — attach a document. */
+export function IconUpload(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 10v3.5h12V10" />
+    </Icon>
+  );
+}
+
+/** Dropdown disclosure, sized like the other toolbar icons. */
+export function IconChevronDown(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <polyline points="3 6 8 11 13 6" />
+    </Icon>
   );
 }
 

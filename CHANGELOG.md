@@ -5,6 +5,21 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Agents can explicitly open boards through `canvas_board` action `open`, CLI `board open`, and HTTP without human-only authority. Creating still leaves a board inactive; opening switches the shared workbench and subsequent write target. Board deletion remains human-only.
+
+### Fixed
+
+- Anonymous transport attaches reuse the sole attached host session even with a task-specific display name, preventing duplicate Copilot steering recipients while preserving the host's polling identity. Identified subagents remain separate; guidance now reuses adapter-owned sessions.
+- HTML exports have clearer Markdown typography and tables, readable CSV/TSV previews, complete status and context text, and scrollable cards with keyboard-accessible reading views.
+- Original document attachments now avoid existing cards and each other without moving existing content.
+- Backup and restore commands reject unknown flags instead of silently ignoring them.
+- Amp setup instructions distinguish native MCP configuration from the browser portal.
+- Copilot's fallback panel reconnects to the full workbench and keeps adapter actions on the recovered server.
+- Copilot status omits serialized node context; full context remains available through `get_ax_context`.
+- Attachment, board-menu, card, and panel controls use consistently sized SVG icons instead of small font symbols.
+
 ## [0.7.1] - 2026-09-30
 
 ### Fixed

@@ -44,9 +44,11 @@ communication — proximity means relatedness, pinning means *focus here*.
 The database holds many named boards. **Home is the library view, not a board**:
 it lists recent boards and nested category paths (up to eight 60-character
 segments). Empty folders are not independent objects; they exist only while a
-board is filed beneath them. Only a human opens/switches or deletes a board.
-Agents may list, read, create, rename, categorize, search, and create an inactive
-board from selected reusable cards without disturbing the board in view. Home
+board is filed beneath them. Agents can explicitly open/switch boards; deletion
+remains human-only. Creating a board or a copy from reusable cards leaves it
+inactive. Agents open its returned ID before writing; this also switches the
+shared workbench the human sees. Agents may list, read, rename, categorize, and
+search boards without switching. Home
 provides a copy-preview dialog; an open board's command palette offers a
 board-link picker. Neither depends on native browser prompts.
 
@@ -387,9 +389,32 @@ the full workflow and live-test checklist.
 
 ### Use inside AMPCode orbs and the Amp portal
 
-Amp needs no adapter either. Run `pmx-canvas` as an orb service (the orb sets
+The portal and the agent's MCP connection are separate. For native Canvas tools,
+merge this into the workspace's `.amp/settings.json` (not `.mcp.json`):
+
+```json
+{
+  "amp.mcpServers": {
+    "canvas": {
+      "command": "bunx",
+      "args": ["pmx-canvas@0.7.1", "--mcp"]
+    }
+  }
+}
+```
+
+In the PMX product checkout, use `"command": "bun"` and
+`"args": ["run", "src/mcp/server.ts"]` to test the checked-out source instead.
+Reload MCP connections and complete any host trust prompt. Confirm Canvas tools
+are discoverable and the target `/health.workspace` and version match before
+mutating a board. If discovery is empty, inspect Amp's MCP connection status;
+an open portal or a successful standalone MCP handshake does not prove a native
+connection, skill activation, or steering delivery. See
+[Amp MCP configuration](https://ampcode.com/docs/customize/mcp).
+
+For the visible workbench, run `pmx-canvas` as an orb service (the orb sets
 `AMP_ORB` in the environment automatically) and open the workbench through the
-thread's portal URL. The zero-config recipe for the repo the orb runs in:
+thread's portal URL. A consumer-workspace service recipe:
 
 ```yaml
 # .amp/services.yaml — supervised portal service

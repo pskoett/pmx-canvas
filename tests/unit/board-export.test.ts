@@ -204,4 +204,58 @@ describe('static board export', () => {
     canvasState.removeEdge(edgeId);
     canvasState.setTheme('dark');
   });
+
+  test('renders readable tables and preserves the display content of plain node types', async () => {
+    const { body } = await call('POST', '/api/canvas/boards', { name: 'Export formatting' });
+    const board = body.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    const fixtures = [
+      { type: 'markdown', title: 'Table', content: '| Team | Cost |\n| :--- | ---: |\n| **News** | 37.80 |' },
+      { type: 'file', title: 'teams.csv', content: 'Team,Note\n"News, sports","<script>bad()</script>"\n' },
+      { type: 'status', title: 'Status', content: 'Review complete' },
+      { type: 'context', title: 'Context', content: 'Context fallback body' },
+      { type: 'trace', title: 'Trace', content: 'Trace fallback body', data: { error: 'Trace error detail' } },
+    ];
+    for (const fixture of fixtures) expect((await call('POST', '/api/canvas/node', fixture)).status).toBe(200);
+    const exported = await buildBoardExport(board.id, false);
+    const payload = exported!.html.match(/id="pmx-board">(.*?)<\/script>/s)![1];
+    const cards = (JSON.parse(payload) as { cards: Array<{ title: string; html: string }> }).cards;
+    const html = (title: string) => cards.find((card) => card.title === title)!.html;
+    expect(html('Table')).toContain('class="table-scroll"');
+    expect(html('Table')).toContain('<strong>News</strong>');
+    expect(html('Table')).toContain('align="right"');
+    expect(html('teams.csv')).toContain('<td>News, sports</td>');
+    expect(html('teams.csv')).toContain('&lt;script&gt;bad()&lt;/script&gt;');
+    expect(html('teams.csv')).not.toContain('<script>');
+    expect(html('Status')).toContain('Review complete');
+    expect(html('Context')).toContain('Context fallback body');
+    expect(html('Trace')).toContain('Trace fallback body');
+    expect(html('Trace')).toContain('Trace error detail');
+  });
+
+  test('bounds delimited table previews without losing rows beyond the limit', async () => {
+    const { body } = await call('POST', '/api/canvas/boards', { name: 'Table preview limits' });
+    const board = body.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    for (const count of [500, 501]) {
+      const content = `Item\tValue\n${Array.from({ length: count }, (_, i) => `Row ${i + 1}\t${i + 17}`).join('\n')}`;
+      expect((await call('POST', '/api/canvas/node', { type: 'file', title: `${count}.tsv`, content })).status).toBe(
+        200,
+      );
+    }
+    const exported = await buildBoardExport(board.id, false);
+    const payload = exported!.html.match(/id="pmx-board">(.*?)<\/script>/s)![1];
+    const cards = (JSON.parse(payload) as { cards: Array<{ title: string; html: string }> }).cards;
+    for (const card of cards) {
+      expect(card.html.match(/<tr>/g)).toHaveLength(501); // header plus 500 data rows
+      expect(card.html).toContain('<td>Row 500</td><td>516</td>');
+      if (card.title === '500.tsv') {
+        expect(card.html).not.toContain('<details>');
+      } else {
+        expect(card.html).toContain('Showing 500 of 501 rows');
+        expect(card.html).not.toContain('<td>Row 501</td>');
+        expect(card.html).toContain('Row 501\t517'); // retained in full-text disclosure
+      }
+    }
+  });
 });

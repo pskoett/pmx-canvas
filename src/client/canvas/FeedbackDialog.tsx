@@ -1,5 +1,6 @@
 import { useRef, useState } from 'preact/hooks';
 import { useFocusTrap } from './use-focus-trap';
+import { IconExternalLink } from '../icons';
 
 /** Draft only: GitHub owns authentication and the final public submission. */
 export function FeedbackDialog({ onClose }: { onClose: () => void }) {
@@ -77,7 +78,7 @@ export function FeedbackDialog({ onClose }: { onClose: () => void }) {
             Cancel
           </button>
           <button type="submit" class="text-prompt-confirm" disabled={!title.trim() || !description.trim()}>
-            Continue on GitHub ↗
+            Continue on GitHub <IconExternalLink size={14} />
           </button>
         </div>
       </form>

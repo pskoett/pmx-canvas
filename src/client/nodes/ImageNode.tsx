@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { IconRefresh } from '../icons';
 import type { CanvasNodeState } from '../types';
 import { getImageNodeWarnings } from './image-warnings';
 
@@ -140,7 +141,7 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
             {sizeLabel && <span>{sizeLabel}</span>}
             {zoom !== 1 && (
               <button type="button" class="image-node-zoom-reset" onClick={resetView} title="Reset zoom">
-                {zoomPct}% ↺
+                {zoomPct}% <IconRefresh size={14} />
               </button>
             )}
           </span>

@@ -2,6 +2,7 @@ import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcon
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { IconClose } from '../icons';
 import {
   AX_SURFACE_ACK_SOURCE,
   AX_SURFACE_EMIT_SOURCE,
@@ -1429,6 +1430,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           <button
             type="button"
             onClick={() => setError(null)}
+            aria-label="Dismiss error"
             style={{
               background: 'none',
               border: 'none',
@@ -1438,7 +1440,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
               padding: '0 2px',
             }}
           >
-            ×
+            <IconClose size={14} />
           </button>
         </div>
       )}

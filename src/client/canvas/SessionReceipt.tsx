@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { dismissSessionReceipt, sessionReceipt } from '../state/session-store';
+import { IconClose } from '../icons';
 
 /**
  * Session receipt (rail-chrome-v2 phase 5, design item 2): a dismissible card
@@ -74,7 +75,7 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           onClick={dismissSessionReceipt}
           aria-label="Dismiss receipt"
         >
-          ×
+          <IconClose />
         </button>
       </div>
       <div class="session-receipt-tiles">

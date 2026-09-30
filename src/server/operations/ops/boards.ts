@@ -2,9 +2,9 @@
  * Many boards (plan 012): board.list / board.get / board.create /
  * board.update / board.open / board.delete.
  *
- * Agents list, read and create boards. Opening, switching and deleting are the
- * human's (HUMAN_ONLY_OPS in registry.ts): an agent that wants another board
- * asks. Every change broadcasts `boards-changed` with the full list.
+ * Agents can explicitly open boards as well as list, read and create them.
+ * Deletion requires the human (HUMAN_ONLY_OPS in registry.ts).
+ * Every change broadcasts `boards-changed` with the full list.
  *
  * Route-order note: board.open (POST /api/canvas/boards/open) is registered
  * before any `/api/canvas/boards/:id` POST route so ':id' cannot swallow it.
@@ -171,7 +171,7 @@ const boardCreateOperation = defineOperation<z.infer<typeof createSchema>, Recor
   mcp: {
     toolName: 'canvas_create_board',
     description:
-      'Create a new empty board. It is NOT opened: only the human opens boards, so ask them to open it before writing to it.',
+      'Create a new empty board without opening it. Use canvas_board action "open" with the returned board id before writing to it.',
     extraShape: {
       name: z.string().describe('Board name'),
       category: z.string().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
@@ -186,7 +186,7 @@ const boardCreateOperation = defineOperation<z.infer<typeof createSchema>, Recor
   },
 });
 
-// ── board.open (human only) ───────────────────────────────────
+// ── board.open ────────────────────────────────────────────────
 
 const openShape = {
   id: z.unknown().optional().describe('Board id to open; null or omitted opens Home'),
@@ -199,6 +199,13 @@ const boardOpenOperation = defineOperation<z.infer<typeof openSchema>, Record<st
   input: openSchema,
   inputShape: openShape,
   http: { method: 'POST', path: '/api/canvas/boards/open' },
+  mcp: {
+    toolName: 'canvas_open_board',
+    description:
+      'Open a board in the shared workbench, or Home with null. Changes the visible board and the target of subsequent writes. Verify activeBoardId in the response before authoring.',
+    extraShape: { id: z.string().nullable().optional().describe('Board id to open; null or omitted opens Home') },
+    formatResult: jsonResult,
+  },
   handler: (input, ctx) => {
     const id = typeof input.id === 'string' && input.id.trim() ? input.id.trim() : null;
     if (!openCanvasBoard(id).ok) throw new OperationError(`Board "${id}" not found.`, 404);

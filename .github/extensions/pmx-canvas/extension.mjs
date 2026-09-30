@@ -251,7 +251,19 @@ async function resolvePmxServer(ctxOrInput, options = {}) {
 
 async function resolvePanelTarget(ctx, options = {}) {
     const selected = panelTargets.get(ctx?.instanceId);
-    if (!selected) return await resolvePmxServer(ctx, options);
+    if (!selected) {
+        const panel = panelServers.get(ctx?.instanceId);
+        if (!panel) return await resolvePmxServer(ctx, options);
+        // A fallback panel still owns its original target. Action inputs may
+        // contain neither that URL nor its workspace, so never rediscover from them.
+        const resolved = await resolvePmxServer({
+            input: { ...panel.entry.input, ...(options.autoStart === true ? { autoStart: true } : {}) },
+            session: { workingDirectory: panel.entry.workspaceRoot },
+        }, options);
+        panel.entry.pmx = resolved;
+        rememberPanelTarget(ctx, resolved);
+        return resolved;
+    }
 
     const probe = await probeServer(selected.baseUrl, selected.workspaceRoot, {
         timeoutMs: options.timeoutMs ?? 2_000,
@@ -280,15 +292,9 @@ function escapeHtml(value) {
         .replaceAll('"', "&quot;");
 }
 
-function renderShell(instanceId, entry) {
-    const status = entry.pmx?.ok ? "Connected" : "Not connected";
-    // theme=light is a client-local session default matching the Copilot app's
-    // light chrome — it never changes the server-global theme other clients
-    // see, and the in-panel theme picker still overrides it.
-    const frameSrc = entry.pmx?.baseUrl ? `${entry.pmx.baseUrl}/workbench?theme=light` : "about:blank";
-    const error = entry.pmx?.error ? `<p class="error">${escapeHtml(entry.pmx.error)}</p>` : "";
+function renderShell(entry) {
     return `<!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -301,70 +307,83 @@ function renderShell(instanceId, entry) {
         font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
       }
       .shell {
-        display: grid;
-        grid-template-rows: auto 1fr;
-        height: 100vh;
+        max-width: 560px;
+        margin: 12vh auto;
+        padding: 24px;
       }
-      header {
+      .actions {
         display: flex;
-        align-items: center;
+        flex-wrap: wrap;
         gap: 12px;
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--border-color-default, #30363d);
-        background: var(--background-color-muted, rgba(22, 27, 34, 0.95));
+        margin-top: 24px;
       }
-      strong { font-weight: var(--font-weight-semibold, 600); }
-      .status {
+      p { line-height: 1.6; overflow-wrap: anywhere; }
+      .workspace {
         color: var(--text-color-muted, #8b949e);
-        font-size: var(--text-body-small, 12px);
+        font-size: 13px;
       }
       .error {
-        margin: 0;
         color: var(--true-color-red, #ff7b72);
-        font-size: var(--text-body-small, 12px);
+        min-height: 24px;
       }
       button {
-        border: 1px solid var(--border-color-default, #30363d);
+        border: 1px solid var(--border-color-default, #6e7681);
         border-radius: 8px;
-        background: var(--background-color-default, #0d1117);
+        background: var(--background-color-muted, #21262d);
         color: inherit;
+        font: inherit;
         cursor: pointer;
-        padding: 6px 10px;
+        min-height: 40px;
+        padding: 8px 16px;
       }
-      button:hover {
+      button:hover, button:focus-visible {
         border-color: var(--color-focus-outline, #2f81f7);
       }
-      iframe {
-        width: 100%;
-        height: 100%;
-        border: 0;
-        background: #0d1117;
-      }
-      .spacer { flex: 1; }
+      button:disabled { opacity: 0.6; cursor: wait; }
     </style>
   </head>
   <body>
-    <div class="shell">
-      <header>
-        <strong>PMX Canvas</strong>
-        <span class="status">${escapeHtml(status)}${entry.pmx?.baseUrl ? ` · ${escapeHtml(entry.pmx.baseUrl)}` : ""}</span>
-        ${error}
-        <span class="spacer"></span>
-        <button type="button" onclick="refreshContext()">Refresh AX</button>
-        <button type="button" onclick="startServer()">Start server</button>
-      </header>
-      <iframe title="PMX Canvas workbench" src="${escapeHtml(frameSrc)}"></iframe>
-    </div>
+    <main class="shell">
+      <h1>Connect to PMX Canvas</h1>
+      <p>The workbench is not connected yet. Home and recent boards will appear when the server is available.</p>
+      <p class="workspace">Workspace: ${escapeHtml(entry.workspaceRoot)}</p>
+      <p class="workspace">Server: ${escapeHtml(candidateBaseUrls(entry.input)[0].baseUrl)}</p>
+      <p id="connection-status" class="error" role="status">${escapeHtml(entry.pmx?.error ?? "Checking connection…")}</p>
+      <div class="actions">
+        <button type="button" onclick="connect(false)">Check connection</button>
+        <button type="button" onclick="connect(true)">Start server</button>
+      </div>
+      <p class="workspace">This page checks for the server automatically. Start server launches a local server for this workspace.</p>
+    </main>
     <script>
-      async function startServer() {
-        await fetch('/start', { method: 'POST' });
-        window.location.reload();
+      let busy = false;
+      let timer;
+      async function connect(start) {
+        if (busy) return;
+        busy = true;
+        clearTimeout(timer);
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(button => button.disabled = true);
+        const status = document.getElementById('connection-status');
+        status.textContent = start ? 'Starting server…' : 'Checking connection…';
+        try {
+          const response = await fetch(start ? '/start' : '/status', { method: start ? 'POST' : 'GET', cache: 'no-store' });
+          const target = await response.json();
+          if (response.ok && target.ok && target.baseUrl) {
+            // Load the real workbench at its own origin, including its token,
+            // Home, boards, and relative API paths. The shell is not a proxy.
+            window.location.replace(target.baseUrl + '/workbench?theme=light');
+            return;
+          }
+          status.textContent = target.error || 'No matching PMX Canvas server is running.';
+        } catch (error) {
+          status.textContent = 'Connection check failed. Reopen the canvas if the adapter has stopped.';
+        }
+        busy = false;
+        buttons.forEach(button => button.disabled = false);
+        timer = setTimeout(() => connect(false), 2000);
       }
-      async function refreshContext() {
-        const response = await fetch('/context');
-        const context = await response.json();
-        window.parent.postMessage({ type: 'pmx-canvas-ax-context', instanceId: ${JSON.stringify(instanceId)}, context }, '*');
-      }
+      connect(false);
     </script>
   </body>
 </html>`;
@@ -378,7 +397,7 @@ async function readRequestJson(req) {
 }
 
 async function verifiedEntryTarget(entry) {
-    if (!entry.pmx?.baseUrl) return { ok: false, baseUrl: null, error: "PMX Canvas server is unavailable." };
+    if (!entry.pmx?.ok || !entry.pmx.baseUrl) return { ok: false, baseUrl: null, error: "PMX Canvas server is unavailable." };
     const probe = await probeServer(entry.pmx.baseUrl, entry.pmx.health.workspace, {
         timeoutMs: 2_000,
     });
@@ -401,18 +420,17 @@ async function startPanelServer(instanceId, ctx, pmx) {
         try {
             const url = new URL(req.url ?? "/", "http://127.0.0.1");
             if (req.method === "GET" && url.pathname === "/") {
-                res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-                res.end(renderShell(instanceId, entry));
+                res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+                res.end(renderShell(entry));
                 return;
             }
             if (req.method === "POST" && url.pathname === "/start") {
-                entry.pmx = await resolvePmxServer({ input: entry.input, session: { workingDirectory: entry.workspaceRoot } });
-                jsonResponse(res, 200, entry.pmx);
+                const latest = await resolvePanelTarget({ instanceId }, { autoStart: true });
+                jsonResponse(res, 200, latest);
                 return;
             }
             if (req.method === "GET" && url.pathname === "/status") {
-                const latest = await resolvePmxServer({ input: entry.input, session: { workingDirectory: entry.workspaceRoot } }, { autoStart: false });
-                entry.pmx = latest.ok ? latest : entry.pmx;
+                const latest = await resolvePanelTarget({ instanceId }, { autoStart: false });
                 jsonResponse(res, 200, latest);
                 return;
             }
@@ -545,7 +563,7 @@ async function recordInjectedContext(baseUrl, context, injected) {
 async function getAxStatus(ctx) {
     const resolved = await resolvePanelTarget(ctx, { autoStart: false });
     if (!resolved.ok || !resolved.baseUrl) return { ok: false, server: resolved };
-    const state = await fetchJson(resolved.baseUrl, "/api/canvas/ax", { timeoutMs: 2_000 });
+    const state = await fetchJson(resolved.baseUrl, "/api/canvas/ax?includeContext=false", { timeoutMs: 2_000 });
     return { ok: true, server: resolved, ax: state };
 }
 
@@ -718,7 +736,7 @@ const pmxCanvas = createCanvas({
     actions: [
         {
             name: "status",
-            description: "Return PMX Canvas server and AX state status for this workspace.",
+            description: "Return PMX Canvas server and AX state without serialized node context. Use get_ax_context for full pinned/focused context.",
             handler: async (ctx) => await getAxStatus(ctx),
         },
         {

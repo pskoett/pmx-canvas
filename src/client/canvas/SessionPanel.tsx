@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { IconChevronRight, IconUndo } from '../icons';
 import { useNow } from './use-now';
 import { agentIdentityHue, agentPhaseLabel } from '../../shared/agent-presence.js';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
@@ -301,7 +302,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
             data-testid="timeline-undo"
             onClick={() => void undoAgentEdit(entry)}
           >
-            ↩ undo this edit
+            <IconUndo size={14} /> undo this edit
           </button>
         )}
         {undone && <div class="session-timeline-undone">undone · steering sent</div>}
@@ -387,8 +388,9 @@ export function SessionPanel() {
           class="session-collapse"
           onClick={() => setManuallyOpened(false)}
           title="Collapse session panel"
+          aria-label="Collapse session panel"
         >
-          ›
+          <IconChevronRight />
         </button>
       </header>
 
@@ -406,7 +408,7 @@ export function SessionPanel() {
               Agent edit on top: {undoable.body}
             </span>
             <button type="button" class="session-undo-btn" onClick={() => void undoAgentEdit(undoable)}>
-              ↩ Undo
+              <IconUndo size={14} /> Undo
             </button>
           </div>
         );
@@ -455,7 +457,7 @@ export function SessionPanel() {
                     {summary}
                   </span>
                   <span class={`session-section-chevron${showList ? ' is-open' : ''}`} aria-hidden="true">
-                    ›
+                    <IconChevronRight size={14} />
                   </span>
                 </button>
                 {showList &&

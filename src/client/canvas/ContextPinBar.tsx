@@ -1,5 +1,6 @@
 import { clearContextPins, contextPinnedNodeIds } from '../state/canvas-store';
 import { attentionHistoryOpen } from '../state/attention-store';
+import { IconClose } from '../icons';
 
 export function ContextPinBar() {
   const count = contextPinnedNodeIds.value.size;
@@ -15,8 +16,9 @@ export function ContextPinBar() {
         class="context-pin-bar-btn context-pin-bar-clear"
         onClick={clearContextPins}
         title="Clear all context pins"
+        aria-label="Clear all context pins"
       >
-        {'\u00d7'}
+        <IconClose size={14} />
       </button>
     </div>
   );

@@ -95,9 +95,13 @@ the served catalog is a startup snapshot. Local mirrors still use `skills sync` 
    floor, not a replacement: only an explicit signal gives the human a real pre-mutation veto
    window, your reasoning (`reason`), and staged multi-step previews. Batch and browser-human
    actions never auto-ghost.
-6. **Attach a session so the human can see you (0.4.8+).** Start board work with
-   `canvas_ax_state { action: "set-presence", attached: true, label: "<who you are>" }` and end
-   it with `{ attached: false }` — detaching hands the human a receipt. Everything the session
+6. **Reuse your host session, or attach one if needed.** First read
+   `canvas_ax_state { action: "presence" }`. Copilot's extension already attaches as
+   `source: "copilot"` with consumer/session ID `copilot`: reuse that identity, do not create a
+   task-named agent. Put task descriptions in `detail`, not a new `agentId` or source. Only if
+   your host has no session, attach with `canvas_ax_state { action: "set-presence",
+   attached: true, label: "<who you are>" }` and detach that self-owned session when done.
+   Do not detach a host-owned session; its adapter manages its lifetime. Everything the session
    gives you and asks of you (cursor + phase chip, the session panel, steering, the scope fence's
    403s, the human edit lock's 409s, unattended approvals) is in **Sessions & the human** below.
 7. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
@@ -360,7 +364,10 @@ The board has three modes, all gated on one fact — whether a session is attach
 
 What the session asks of you:
 
-- **Detach explicitly** (`attached: false` or a `session-end` activity). Attaching over a
+- **Detach self-owned sessions explicitly** (`attached: false` or a `session-end` activity).
+  Reuse an adapter-owned session without attaching/detaching another; for Copilot, update
+  `{ source: "copilot", detail: "Team overview" }` without inventing an `agentId`. Separate
+  `agentId` values are for actual independent subagents, not steps in one chat. Attaching over a
   non-empty board saved a `Before session · …` snapshot; detaching emits the receipt (items
   done / vetoed, a diff against that snapshot, one-click restore) — an idle timeout delays it.
 - **403 = outside the scope fence.** The human may fence you to a region (`policy.scope`): writes
@@ -525,7 +532,13 @@ are text-only links through `data.boardId`; they are not direct cross-board card
 edges. `create-from` should be previewed first. It excludes prompt, response,
 trace, and MCP-app cards; groups and README are optional; creation assigns fresh
 IDs, copies no pins/AX/history, preserves the original, and leaves the new board
-inactive. Only the human opens/switches or deletes boards.
+inactive. Agents can open/switch boards; only the human deletes them. To create
+and populate a board, call `canvas_board { action: "create", name: "Planning" }`,
+then `canvas_board { action: "open", id: "<returned-board-id>" }` (CLI:
+`pmx-canvas board open <board-id>`). Verify the returned `activeBoardId` before
+writing. Opening changes the shared visible workbench and subsequent write
+target, not a private agent selection. Recheck after interruptions or another
+participant's navigation. Use `id: null` or CLI `board open --home` for Home.
 
 Attribution is descriptive, not authority. `requestedBy`, `resolvedBy`, and
 `selfAnswer` tell you who wrote an ask or answer; an agent answer is not human

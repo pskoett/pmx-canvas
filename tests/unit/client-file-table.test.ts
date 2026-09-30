@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { formatBytes, parseDelimitedText } from '../../src/client/nodes/FileNode.tsx';
+import { formatBytes } from '../../src/client/nodes/FileNode.tsx';
+import { parseDelimitedText } from '../../src/shared/delimited-text.ts';
 
 // The delimited parser backs the `file` node's CSV/TSV table view. It must stay
 // RFC4180-ish (quotes, escapes, embedded newlines) and never throw on ragged

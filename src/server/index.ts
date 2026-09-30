@@ -44,6 +44,7 @@ import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
+import { overlapsAny } from '../shared/placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
@@ -741,14 +742,19 @@ export class PmxCanvas extends EventEmitter {
   } {
     if (canvasState.activeBoardId !== input.boardId) throw new Error('The captured target board is not active.');
     assertInsideFence('node.add', createTarget(input));
+    const obstacles = canvasState.getLayout().nodes;
+    const requested = { x: input.x ?? 40, y: input.y ?? 80 };
+    const position = overlapsAny(requested, 440, 360, obstacles, 48)
+      ? findOpenCanvasPosition(obstacles, 440, 360, 48)
+      : requested;
+    assertInsideFence('node.add', createTarget(position));
     const attachment = canvasState.storeAttachment({ ...input, mime: input.mime ?? 'application/octet-stream' });
     if (!attachment) throw new Error('Board not found.');
     const { id: nodeId, node } = addCanvasNode({
       type: 'file',
       title: input.name,
       data: { attachmentId: attachment.id, mime: attachment.mime, size: attachment.size },
-      x: input.x,
-      y: input.y,
+      ...position,
       defaultWidth: 440,
       defaultHeight: 360,
       fileMode: 'auto',
@@ -840,11 +846,7 @@ export class PmxCanvas extends EventEmitter {
 
   /** Open a board, or Home with null. */
   async openBoard(id: string | null): Promise<void> {
-    await executeOperation(
-      'board.open',
-      { id },
-      { source: 'sdk', fromWorkbench: true, humanAuthor: true, suppressAutoGhost: true },
-    );
+    await executeOperation('board.open', { id }, { source: 'sdk', suppressAutoGhost: true });
   }
 
   async deleteBoard(id: string): Promise<void> {

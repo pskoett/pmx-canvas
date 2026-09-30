@@ -27,13 +27,17 @@ const presenceGetOperation = defineOperation<z.infer<typeof emptySchema>, Record
 // One schema (agent-presence.ts) — only the descriptions are added here.
 const presenceSetShape = {
   source: PRESENCE_SET_SHAPE.source.describe('Host label (copilot, codex, mcp, …); defaults to the transport'),
-  agentId: PRESENCE_SET_SHAPE.agentId.describe('Per-agent identity within the host (sub-agents keep their own cursor)'),
-  label: PRESENCE_SET_SHAPE.label.describe('Display name for this writer'),
+  agentId: PRESENCE_SET_SHAPE.agentId.describe(
+    'Stable identity for a genuinely separate agent, not a task name. Omit for the main agent when a host adapter already owns its session.',
+  ),
+  label: PRESENCE_SET_SHAPE.label.describe('Display name for this writer; use detail for the current task'),
   phase: PRESENCE_SET_SHAPE.phase.describe('idle | thinking | tooling | waiting-approval'),
   detail: PRESENCE_SET_SHAPE.detail.describe('Tool / step name shown beside the phase'),
   focusNodeId: PRESENCE_SET_SHAPE.focusNodeId.describe('Node the agent is working on'),
   cursor: PRESENCE_SET_SHAPE.cursor.describe('Agent cursor in world coordinates'),
-  attached: PRESENCE_SET_SHAPE.attached.describe('true attaches a session (Focus Session chrome); false detaches it'),
+  attached: PRESENCE_SET_SHAPE.attached.describe(
+    'true attaches a session; false detaches it. Read presence first and reuse your host adapter session instead of attaching another. Only detach sessions you own.',
+  ),
   contextUsage: PRESENCE_SET_SHAPE.contextUsage.describe(
     "The agent's real token window as {used,total} — shown on the board's context meter instead of the pinned-context estimate (null clears it)",
   ),

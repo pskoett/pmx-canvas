@@ -280,6 +280,8 @@ node or fit the new ids — auto-placement is board-relative, not camera-relativ
 ```bash
 pmx-canvas board list                          # most recently opened first; activeBoardId null = Home
 pmx-canvas board create "Q4 planning"          # created, not opened
+pmx-canvas board open <board-id>               # open the returned ID before writing
+pmx-canvas board open --home                   # return the shared workbench to Home
 pmx-canvas board rename <board-id> "New name"
 pmx-canvas board create "Q4 planning" --category Planning
 pmx-canvas board category <board-id> "Planning/Quarterly" # nested folders; --clear unfiles it
@@ -287,8 +289,10 @@ pmx-canvas board from <source-id> "Follow-up" --preview
 pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structure
 ```
 
-Commands write to the board open in the workbench. Opening, switching and
-deleting boards happens in the workbench (the human's call). `board from`
+Commands write to the board open in the workbench. `board open` switches the
+shared visible board, not a private CLI target. Verify its returned
+`activeBoardId` before writing; another participant can switch it later.
+Deletion remains human-only. `board from`
 excludes `prompt`, `response`, `trace`, and `mcp-app` cards; selected reusable
 cards get fresh IDs. `--structure` includes group frames; edges between copied
 cards are retained automatically. `--readme` carries the designated README. The new board remains inactive and
@@ -299,6 +303,9 @@ does not inherit pins, AX state, or mutation history.
 Boards save automatically. Backups are separate recovery copies of the whole library,
 configured through the CLI or HTTP API rather than the Home screen. Scheduled backups
 run while the server is running; scheduling is off until configured.
+
+Use `--to` for the destination folder. Backup and restore commands reject unknown
+flags (including `--folder`) rather than silently using the configured default.
 
 ```bash
 pmx-canvas backup                                   # every board, now; into .pmx-canvas/backups

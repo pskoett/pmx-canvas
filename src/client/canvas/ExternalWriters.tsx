@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'preact/hooks';
+import { IconClose, IconExternalLink } from '../icons';
 import type { AgentPresence } from '../../shared/agent-presence.js';
 import { vetoGhostIntent } from '../state/intent-bridge';
 import { type ClientIntent, intents, removeIntent } from '../state/intent-store';
@@ -149,7 +150,7 @@ export function ActivityFeed() {
             activityFeedOpen.value = false;
           }}
         >
-          ×
+          <IconClose />
         </button>
       </div>
       <div class="activity-filters">
@@ -226,7 +227,7 @@ export function ActivityFeed() {
             void startSession();
           }}
         >
-          Start session ↗
+          Start session <IconExternalLink size={14} />
         </button>
       </div>
     </div>
@@ -267,7 +268,7 @@ export function WritersSheet() {
           <span class="writers-title">Connected writers</span>
           <span class="writers-board">{sessionId.value.slice(0, 12)}</span>
           <button type="button" class="activity-feed-close" aria-label="Close writers" onClick={close}>
-            ×
+            <IconClose />
           </button>
         </div>
         <div class="writers-body">

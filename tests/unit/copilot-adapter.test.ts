@@ -1,22 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { createServer as createHttpServer } from 'node:http';
-import { createServer as createNetServer } from 'node:net';
 import { join } from 'node:path';
-
-type CanvasDefinition = {
-  actions: Array<{ name: string; handler: (ctx: Record<string, unknown>) => Promise<unknown> }>;
-  open: (ctx: Record<string, unknown>) => Promise<{ url: string }>;
-  onClose: (ctx: Record<string, unknown>) => Promise<void>;
-};
+import { loadCopilotCanvas, type CanvasDefinition } from '../helpers/copilot-adapter.js';
 
 const workspaceA = '/tmp/pmx-adapter-workspace-a';
 const workspaceB = '/tmp/pmx-adapter-workspace-b';
 let reportedWorkspaceA = workspaceA;
 const writesA: string[] = [];
 const writesB: string[] = [];
+const axContext = { pinned: { count: 1, nodes: [{ id: 'pinned', content: 'Full context '.repeat(2500) }] } };
 
 function fixture(workspace: () => string, writes: string[]) {
   return Bun.serve({
@@ -25,7 +17,14 @@ function fixture(workspace: () => string, writes: string[]) {
       const url = new URL(request.url);
       if (url.pathname === '/health') return Response.json({ ok: true, workspace: workspace() });
       if (request.method !== 'GET') writes.push(url.pathname);
-      if (url.pathname === '/api/canvas/ax') return Response.json({ workspace: workspace() });
+      if (url.pathname === '/api/canvas/ax') {
+        return Response.json({
+          state: { focus: { nodeIds: ['focused'] }, workItems: [{ id: 'work', status: 'blocked' }] },
+          host: { host: 'copilot' },
+          ...(url.searchParams.get('includeContext') === 'false' ? {} : { context: axContext }),
+        });
+      }
+      if (url.pathname === '/api/canvas/ax/context') return Response.json(axContext);
       return Response.json({ ok: true, path: url.pathname });
     },
   });
@@ -38,37 +37,7 @@ let canvas: CanvasDefinition;
 beforeAll(async () => {
   serverA = fixture(() => reportedWorkspaceA, writesA);
   serverB = fixture(() => workspaceB, writesB);
-
-  const source = readFileSync(join(process.cwd(), '.github/extensions/pmx-canvas/extension.mjs'), 'utf8')
-    .replace(/^import .*;$/gm, '')
-    .replace('const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));', 'const EXTENSION_DIR = process.cwd();')
-    .split('\ncopilotSession = await joinSession({')[0]
-    .concat('\nreturn pmxCanvas;');
-
-  class TestCanvasError extends Error {}
-  const load = new Function(
-    'spawn',
-    'existsSync',
-    'createHttpServer',
-    'createNetServer',
-    'dirname',
-    'resolve',
-    'fileURLToPath',
-    'CanvasError',
-    'createCanvas',
-    source,
-  );
-  canvas = load(
-    spawn,
-    existsSync,
-    createHttpServer,
-    createNetServer,
-    () => '',
-    join,
-    () => '',
-    TestCanvasError,
-    (definition: CanvasDefinition) => definition,
-  );
+  canvas = loadCopilotCanvas();
 });
 
 afterAll(() => {
@@ -121,6 +90,61 @@ describe('GitHub Copilot canvas adapter targeting', () => {
     expect(writesA).toContain('/api/canvas/ax/work');
     expect(writesB).toEqual([]);
   });
+
+  test('status excludes serialized context; get_ax_context still returns it on demand', async () => {
+    const ctx = { instanceId: 'panel-a' };
+    const status = (await action('status')(ctx)) as { ax: { context?: unknown; state: unknown } };
+    expect(status.ax.context).toBeUndefined();
+    expect(status.ax.state).toEqual({
+      focus: { nodeIds: ['focused'] },
+      workItems: [{ id: 'work', status: 'blocked' }],
+    });
+    expect(JSON.stringify(status).length).toBeLessThan(1500);
+    expect(await action('get_ax_context')(ctx)).toEqual(axContext);
+  });
+
+  for (const endpoint of ['status', 'start']) {
+    test(`fallback /${endpoint} recovers the original target and refuses workspace replacement`, async () => {
+      const instanceId = `recover-${endpoint}`;
+      reportedWorkspaceA = workspaceB;
+      const opened = await canvas.open({
+        instanceId,
+        input: { serverUrl: `http://127.0.0.1:${serverA.port}`, workspaceRoot: workspaceA, autoStart: false },
+      });
+      try {
+        const html = await (await fetch(opened.url)).text();
+        expect(html).toContain('Home and recent boards will appear');
+        expect(html).not.toContain('<iframe');
+        const unavailable = (await action('status')({
+          instanceId,
+          input: { serverUrl: `http://127.0.0.1:${serverB.port}`, workspaceRoot: workspaceB },
+        })) as { ok: boolean };
+        expect(unavailable.ok).toBe(false);
+
+        reportedWorkspaceA = workspaceA;
+        const recovered = await (
+          await fetch(`${opened.url}${endpoint}`, { method: endpoint === 'start' ? 'POST' : 'GET' })
+        ).json();
+        expect(recovered.ok).toBe(true);
+        const writesBefore = writesA.length;
+        await action('add_work_item')({ instanceId, input: { title: 'Recovered target' } });
+        expect(writesA.length).toBe(writesBefore + 1);
+        expect(writesB).toEqual([]);
+
+        reportedWorkspaceA = workspaceB;
+        const replaced = await (await fetch(`${opened.url}status`)).json();
+        expect(replaced.ok).toBe(false);
+        expect(replaced.error).toContain('Action withheld');
+        expect(
+          ((await action('add_work_item')({ instanceId, input: { title: 'Refuse' } })) as { ok: boolean }).ok,
+        ).toBe(false);
+        expect(writesA.length).toBe(writesBefore + 1);
+      } finally {
+        reportedWorkspaceA = workspaceA;
+        await canvas.onClose({ instanceId });
+      }
+    });
+  }
 
   test('withholds mutation when the displayed target no longer matches its workspace', async () => {
     reportedWorkspaceA = workspaceB;

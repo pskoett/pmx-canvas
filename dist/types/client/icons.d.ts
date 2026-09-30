@@ -3,6 +3,21 @@ interface IconProps {
     size?: number;
     class?: string;
 }
+export declare function IconClose(p: IconProps): JSX.Element;
+export declare function IconPlus(p: IconProps): JSX.Element;
+export declare function IconPlusCircle(p: IconProps): JSX.Element;
+export declare function IconChevronRight(p: IconProps): JSX.Element;
+export declare function IconMore(p: IconProps): JSX.Element;
+export declare function IconExternalLink(p: IconProps): JSX.Element;
+export declare function IconExpand(p: IconProps): JSX.Element;
+export declare function IconArrowLeft(p: IconProps): JSX.Element;
+export declare function IconRefresh(p: IconProps): JSX.Element;
+export declare function IconUndo(p: IconProps): JSX.Element;
+export declare function IconSparkle(p: IconProps): JSX.Element;
+/** Upload into a tray — attach a document. */
+export declare function IconUpload(p: IconProps): JSX.Element;
+/** Dropdown disclosure, sized like the other toolbar icons. */
+export declare function IconChevronDown(p: IconProps): JSX.Element;
 /** Expand-arrows — fit all nodes */
 export declare function IconFitAll(p: IconProps): JSX.Element;
 /** Magnifier with + */

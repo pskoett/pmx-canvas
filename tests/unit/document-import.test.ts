@@ -5,6 +5,7 @@ import { createCanvas } from '../../src/server/index.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { executeOperation } from '../../src/server/operations/registry.ts';
 import { workbenchToken } from '../../src/server/workbench-auth.ts';
+import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 describe('document imports', () => {
@@ -21,6 +22,7 @@ describe('document imports', () => {
 
   afterEach(() => {
     if (!workspace) return;
+    stopCanvasServer();
     canvasState.close();
     removeTestWorkspace(workspace);
     workspace = '';
@@ -39,6 +41,84 @@ describe('document imports', () => {
     );
     await expect(sdk.requestImport(attached.import.id, true, 'not-trusted')).rejects.toThrow('trusted human');
     expect((await sdk.requestImport(attached.import.id, true, workbenchToken)).status).toBe('requested');
+  });
+
+  for (const transport of ['sdk', 'http']) {
+    test(`${transport} attachments avoid current cards and each other, preserving free drop positions`, async () => {
+      const { sdk, boardId } = setup();
+      const base = transport === 'http' ? startCanvasServer({ workspaceRoot: workspace, port: 0 }) : '';
+      const obstacle = makeNode({
+        id: 'intro',
+        type: 'markdown',
+        position: { x: -130, y: 90 },
+        size: { width: 610, height: 270 },
+      });
+      canvasState.addNode(obstacle);
+      const before = structuredClone(canvasState.getNode('intro'));
+      for (const [i, point] of [
+        { x: -80, y: 110 },
+        { x: -80, y: 110 },
+        { x: -1600, y: 650 },
+        {}, // HTTP and SDK default placement must also avoid occupied space.
+        {}, // Repeated coordinate-free uploads must not stack.
+      ].entries()) {
+        let nodeId: string;
+        let jobId: string;
+        if (transport === 'sdk') {
+          const result = sdk.attachDocument({
+            boardId,
+            name: `source-${i}.pdf`,
+            bytes: new Uint8Array([i + 1]),
+            ...point,
+          });
+          nodeId = result.nodeId;
+          jobId = result.import.id;
+        } else {
+          const query = new URLSearchParams({
+            boardId,
+            name: `source-${i}.pdf`,
+            ...(point.x === undefined ? {} : { x: String(point.x), y: String(point.y) }),
+          });
+          const response = await fetch(`${base}/api/canvas/attachments?${query}`, {
+            method: 'POST',
+            headers: { 'x-pmx-workbench-token': workbenchToken },
+            body: new Uint8Array([i + 1]),
+          });
+          expect(response.status).toBe(201);
+          const result = (await response.json()) as { nodeId: string; import: { id: string } };
+          nodeId = result.nodeId;
+          jobId = result.import.id;
+        }
+        const node = canvasState.getNode(nodeId)!;
+        for (const other of canvasState.getLayout().nodes.filter((candidate) => candidate.id !== nodeId)) {
+          expect(
+            node.position.x >= other.position.x + other.size.width + 48 ||
+              other.position.x >= node.position.x + node.size.width + 48 ||
+              node.position.y >= other.position.y + other.size.height + 48 ||
+              other.position.y >= node.position.y + node.size.height + 48,
+          ).toBe(true);
+        }
+        if (i === 2) expect(node.position).toEqual({ x: -1600, y: 650 });
+        expect(canvasState.getDocumentImport(jobId)?.position).toEqual({
+          x: node.position.x,
+          y: node.position.y + 400,
+        });
+      }
+      expect(canvasState.getNode('intro')).toEqual(before);
+    });
+  }
+
+  test('SDK collision placement cannot escape the agent scope fence', () => {
+    const { sdk, boardId } = setup();
+    canvasState.addNode(
+      makeNode({ id: 'fenced', type: 'markdown', position: { x: 0, y: 0 }, size: { width: 620, height: 420 } }),
+    );
+    canvasState.setPolicy({ scope: { nodeIds: ['fenced'], padding: 0 } });
+    const input = { boardId, name: 'source.pdf', bytes: new Uint8Array([1]) };
+    expect(() => sdk.attachDocument(input)).toThrow('explicit x/y');
+    expect(() => sdk.attachDocument({ ...input, x: 20, y: 30 })).toThrow('outside');
+    expect(canvasState.getLayout().nodes.map((node) => node.id)).toEqual(['fenced']);
+    expect(canvasState.listDocumentImports(boardId)).toEqual([]);
   });
 
   test('re-request creates a new attempt and rejects late cancelled drafts', async () => {
@@ -170,7 +250,7 @@ describe('document imports', () => {
     const attached = sdk.attachDocument({ boardId, name: 'source.pdf', bytes: new Uint8Array([1]) });
     await expect(
       executeOperation('import.request', { id: attached.import.id, consent: true }, { source: 'sdk' }),
-    ).rejects.toThrow('Only the human');
+    ).rejects.toMatchObject({ status: 403, message: 'This action requires the human in the workbench.' });
   });
 
   test('source bytes survive a database restart and snapshot restore', async () => {

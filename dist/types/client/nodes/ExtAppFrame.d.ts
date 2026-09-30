@@ -106,5 +106,5 @@ export declare function resolveExtAppInlineFrameHeight(appHeight: number, hostHe
 export declare function ExtAppFrame({ node, expanded }: {
     node: CanvasNodeState;
     expanded?: boolean;
-}): import("preact/jsx-runtime").JSX.Element;
+}): import("preact/src").JSX.Element;
 export {};

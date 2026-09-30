@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { IconSteer } from '../icons';
+import { IconSteer, IconClose } from '../icons';
 import { contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
 import { steerableAgents } from '../state/presence-store';
 import { sendSteering } from '../state/session-store';
@@ -72,7 +72,7 @@ export function CommandBar() {
                   title="Remove from context"
                   onClick={() => toggleContextPin(id)}
                 >
-                  ×
+                  <IconClose size={14} />
                 </button>
               </span>
             );

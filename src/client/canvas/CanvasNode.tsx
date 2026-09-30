@@ -38,7 +38,16 @@ import { KIND_COLOR } from './kind-colors';
 import { reportHumanGrab, takeOverNode, yieldedNodes } from '../state/human-store';
 import { AxStepControls } from '../nodes/AxStepControls';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
-import { getNodeIcon } from '../icons';
+import {
+  getNodeIcon,
+  IconChevronRight,
+  IconChevronDown,
+  IconClose,
+  IconMore,
+  IconExternalLink,
+  IconExpand,
+  IconSparkle,
+} from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 import { AUTO_FIT_TITLEBAR_HEIGHT, computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
@@ -472,7 +481,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               toggleCollapsed(node.id);
             }}
           >
-            ▸
+            <IconChevronRight size={14} />
           </button>
           <div class="group-chip-text">
             <div class="group-chip-name">{title}</div>
@@ -591,7 +600,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 setGroupMenuOpen((open) => !open);
               }}
             >
-              ⋯
+              <IconMore size={14} />
             </button>
             {groupMenuOpen && (
               <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
@@ -683,7 +692,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               }}
               title={isContextPinned ? 'Remove from context' : 'Add to context'}
             >
-              {'\u2726'}
+              <IconSparkle size={14} />
             </button>
             {/* Open as site — full-page standalone view of this node's surface,
               served from /api/canvas/surface/:id (same document as the canvas
@@ -698,7 +707,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 }}
                 title="Open as site"
               >
-                ↗
+                <IconExternalLink size={14} />
               </button>
             )}
             {/* Expand — opens node as full-viewport overlay for focused work */}
@@ -711,7 +720,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 }}
                 title="Expand (focus mode)"
               >
-                ⤢
+                <IconExpand size={14} />
               </button>
             )}
             <button
@@ -722,7 +731,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               }}
               title={node.collapsed ? 'Expand' : 'Collapse'}
             >
-              {node.collapsed ? '▸' : '▾'}
+              {node.collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
             </button>
             {/* Report #64: status nodes get the same remove control as every other
               node type (backend removal + undo/history handle status uniformly). */}
@@ -734,7 +743,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               }}
               title="Close"
             >
-              ×
+              <IconClose size={14} />
             </button>
           </div>
         </div>

@@ -65,7 +65,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is new — the context read log) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `update` | Boards, README designation, and transactional inactive copies |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` | Boards, explicit shared-workbench switching, README designation, and transactional inactive copies |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 Board categories are nested folder paths: `canvas_board { action: "update", id:
@@ -90,6 +90,13 @@ state, or history. Groups and the designated README are opt-in.
 
 Library search is `canvas_query { action: "search", query: "auth", scope:
 "library" }`. It returns board/card IDs and never switches the active board.
+
+To author a new board, create it, then call `canvas_board { action: "open",
+id: "<returned-board-id>" }` and verify `activeBoardId` in the response before
+writing. Opening changes the shared workbench the human sees and the target of
+subsequent writes; it is not a private agent selection. Another participant can
+switch it later, so recheck after interruptions. `id: null` opens Home. Deletion
+remains human-only.
 
 ### `canvas_import` — agent-assisted document extraction
 

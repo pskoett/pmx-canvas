@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { IconClose } from '../icons';
 import {
   type CanvasSnapshotInfo,
   deleteSnapshot,
@@ -183,7 +184,7 @@ export function SnapshotPanel({
           aria-label="Delete snapshot"
           disabled={restoringId !== null}
         >
-          ✕
+          <IconClose size={14} />
         </button>
       </>
     );
@@ -195,7 +196,7 @@ export function SnapshotPanel({
         <span class="snapshot-panel-sub">snapshots + sessions</span>
         <span class="snapshot-panel-spacer" />
         <button type="button" class="snapshot-panel-close" onClick={onClose} title="Close" aria-label="Close history">
-          ×
+          <IconClose />
         </button>
       </div>
 

@@ -1,7 +1,7 @@
 import { render, type VNode } from 'preact';
 import { useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { activeBoard, activeBoardId, boardList, boardsLoaded, openBoard } from '../state/boards-store';
-import { IconLogo, IconArrange } from '../icons';
+import { IconLogo, IconArrange, IconChevronDown, IconPlus } from '../icons';
 import { promptNewBoard } from './HomeView';
 
 const RECENT_LIMIT = 8;
@@ -76,7 +76,7 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
       >
         <span class="board-switcher-name">{label}</span>
         <span class="board-switcher-caret" aria-hidden="true">
-          ▾
+          <IconChevronDown />
         </span>
       </button>
       {open && anchor && (
@@ -130,7 +130,7 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
                 }}
               >
                 <span class="board-switcher-icon" aria-hidden="true">
-                  +
+                  <IconPlus size={18} />
                 </span>
                 New board…
               </button>

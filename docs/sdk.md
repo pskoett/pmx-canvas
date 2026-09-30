@@ -91,8 +91,8 @@ canvas.setAxFocus([n1], { source: 'sdk' });
 console.log(canvas.getAxState());
 console.log(canvas.getAxContext());
 
-// Boards — the SDK is the embedding host, so it may open and delete boards.
-// Writes made on Home (no board open) land on a new board; open one first.
+// Boards — agents may open boards; deletion is reserved for trusted embedding hosts.
+// Open the intended board before writing: this also switches the shared workbench.
 const board = await canvas.createBoard('Q4 planning', 'Planning'); // optional category
 await canvas.updateBoard(board.id, { category: 'Planning/Quarterly' }); // nested folders; null unfiles it
 await canvas.openBoard(board.id);

@@ -48,11 +48,13 @@ the CLI, not an HTTP job endpoint.
 A workspace holds many named boards; one is open at a time. Agent writes go to
 the open board. While no board is open (Home), the first write opens the most
 recently opened board, or creates one when the workspace has none;
-`canvas.clear` on Home opens nothing. Only the trusted workbench opens or
-deletes a board — HTTP calls require both `x-pmx-workbench: 1` and the
+`canvas.clear` on Home opens nothing. Agents can explicitly open a board using
+`POST /api/canvas/boards/open`; verify the returned `activeBoardId` before writing.
+This changes the shared workbench, not a private per-agent target. Only the
+trusted workbench deletes a board — deletion requires both `x-pmx-workbench: 1` and the
 per-boot `x-pmx-workbench-token` embedded in the served `/workbench` HTML;
-the marker alone is not authority. Public HTTP integrations must not open or
-delete boards. In-process SDK embedding hosts retain authority to do so.
+the marker alone is not authority. Public HTTP integrations must not delete
+boards. In-process SDK embedding hosts retain deletion authority.
 Every change emits a
 `boards-changed` SSE frame with `{ activeBoardId, boards }`.
 
@@ -87,10 +89,9 @@ curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
 curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
   -H "Content-Type: application/json" -d '{"readmeNodeId":"<markdown-node-id>"}'
 
-# Open a board, or Home with {"id":null} — workbench only
+# Open a board, or Home with {"id":null} — also available to agents
 curl -X POST http://localhost:4313/api/canvas/boards/open \
-  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" \
-  -H "x-pmx-workbench-token: <token-from-served-workbench>" -d '{"id":"<board-id>"}'
+  -H "Content-Type: application/json" -d '{"id":"<board-id>"}'
 
 # Delete a board and its snapshots — workbench only; deleting the open board returns to Home
 curl -X DELETE http://localhost:4313/api/canvas/boards/<board-id> \
@@ -158,7 +159,10 @@ curl "http://localhost:4313/api/canvas/exports/<file>.html?download=1" -o board.
 
 PDF and Office uploads are raw bytes, not JSON. Upload requires the trusted
 workbench token, an active captured board, a non-empty body of at most 20 MiB,
-and creates both an original file card and an `attached` import. The original
+and creates both an original file card and an `attached` import. Requested x/y
+coordinates are preserved when free; otherwise the original card is placed in
+open space with a 48-unit gap, without moving existing cards. The import's
+initial anchor follows the original card's actual position. The original
 remains board-owned until board deletion; snapshot restore does not remove it,
 and whole-database backups include it.
 

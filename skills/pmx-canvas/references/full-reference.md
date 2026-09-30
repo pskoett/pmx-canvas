@@ -443,7 +443,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `update` | Boards, README designation, links/backlinks, and inactive copies |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` | Boards, shared-workbench switching, README designation, links/backlinks, and inactive copies |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order) |
 | `canvas_query` | `context` · `search` · `layout` · `validate` | Read the budgeted cross-board brief, find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
@@ -484,6 +484,11 @@ reads inactive boards without opening them. Board links are native text-only
 creation: `prompt`, `response`, `trace`, and `mcp-app` are excluded; README and
 group structure are optional; fresh IDs are allocated; pins, AX state, and
 history are not copied; the source remains unchanged and the new board inactive.
+
+Use `canvas_board { action: "open", id: "<board-id>" }` to open a created or
+existing board before authoring. Verify the returned `activeBoardId`; opening
+switches the shared visible workbench and all subsequent write targets, not
+just this agent's context. `id: null` opens Home. Deletion stays human-only.
 
 `canvas_ax_gate` takes **two** discriminators, `{ kind, action }` — e.g.
 `{ kind: "approval", action: "request", title }`,

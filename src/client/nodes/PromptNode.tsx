@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { IconClose } from '../icons';
 import { updateNodeData } from '../state/canvas-store';
 import { fetchSlashCommands, renderMarkdown, submitCanvasPrompt, submitThreadReply } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
@@ -98,6 +99,7 @@ function ErrorBanner({ message, onDismiss }: { message: string | null; onDismiss
       <button
         type="button"
         onClick={onDismiss}
+        aria-label="Dismiss error"
         style={{
           background: 'none',
           border: 'none',
@@ -107,7 +109,7 @@ function ErrorBanner({ message, onDismiss }: { message: string | null; onDismiss
           padding: '0 2px',
         }}
       >
-        {'\u00d7'}
+        <IconClose size={14} />
       </button>
     </div>
   );

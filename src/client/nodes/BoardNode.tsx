@@ -1,5 +1,6 @@
 import type { CanvasNodeState } from '../types';
 import { boardList, openBoard } from '../state/boards-store';
+import { IconExternalLink } from '../icons';
 
 /** Native text-only cross-board link. Target identity is the durable board id. */
 export function BoardNode({ node }: { node: CanvasNodeState }) {
@@ -28,7 +29,7 @@ export function BoardNode({ node }: { node: CanvasNodeState }) {
         onClick={() => target && void openBoard(target.id)}
       >
         {target ? 'Open board' : 'Target unavailable'}
-        {target && <span aria-hidden="true">↗</span>}
+        {target && <IconExternalLink size={14} />}
       </button>
     </div>
   );

@@ -1301,7 +1301,7 @@ test('renders webpage node preview content from cached server fetch data', async
   await expect(webpageNode.getByRole('button', { name: 'Refresh' })).toBeVisible();
 });
 
-test('renders html nodes from server state in the workbench', async ({ page, request }) => {
+test('renders html nodes from server state in the workbench', async ({ page, request }, info) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'html',
@@ -1327,8 +1327,9 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
   await expect(overlay.getByRole('button', { name: 'Present' })).toHaveCount(0);
-  await expect(overlay.getByRole('button', { name: 'Open in tab ↗' })).toHaveCount(1);
+  await expect(overlay.getByRole('button', { name: 'Open in tab', exact: true })).toHaveCount(1);
   await expect(overlay.getByRole('button', { name: 'Open in system browser' })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('expanded-control-icons.png') });
   await page.getByTitle('Close (Esc)').click();
 });
 
@@ -3441,7 +3442,7 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
     .toBe(true);
 });
 
-test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }) => {
+test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }, info) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
@@ -3479,6 +3480,11 @@ test('zoomed-out node chrome keeps usable action hit targets', async ({ page, re
     expect(control?.width ?? 0, `${title} width`).toBeGreaterThanOrEqual(20);
     expect(control?.height ?? 0, `${title} height`).toBeGreaterThanOrEqual(20);
   }
+  // SVG controls must retain the same zoom compensation as the button/text chrome.
+  for (const icon of await note.locator('.node-controls button svg').all()) {
+    expect((await icon.boundingBox())!.width).toBeGreaterThanOrEqual(12);
+  }
+  await page.screenshot({ path: info.outputPath('node-control-icons.png') });
 });
 
 test('group context menu updates the group accent color', async ({ page, request }) => {
@@ -4423,7 +4429,7 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
 test('session panel: work items, gate approval from the panel, drawer below 1180px, gone on detach', async ({
   page,
   request,
-}) => {
+}, info) => {
   const created = await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Gate target', content: 'ship it', x: 160, y: 140, width: 360, height: 200 },
   });
@@ -4510,6 +4516,7 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
   const wideRegion = await page.locator('.canvas-region').boundingBox();
   if (!wideRegion) throw new Error('missing region');
   expect(Math.round(wideRegion.x + wideRegion.width)).toBe(1000);
+  await page.screenshot({ path: info.outputPath('session-control-icons.png') });
 
   // Detach → the panel unmounts and the board is quiet again.
   await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
@@ -4658,6 +4665,36 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
   await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
 });
 
+test('Copilot adapter and task-named MCP attach share one polling steering recipient', async ({ page, request }) => {
+  await request.post('/api/canvas/node', { data: { type: 'markdown', title: 'Presence fixture', content: 'Ready' } });
+  for (const data of [
+    { source: 'copilot', label: 'GitHub Copilot', attached: true },
+    { source: 'mcp', label: 'Copilot – team overview', attached: true },
+    { source: 'mcp', agentId: 'reviewer', label: 'Independent reviewer', attached: true },
+  ]) {
+    expect((await request.post('/api/canvas/ax/presence', { data })).ok()).toBe(true);
+  }
+  await request.get('/api/canvas/ax/delivery/pending?consumer=copilot');
+  await page.goto('/workbench');
+  const picker = page.getByLabel('Steer which agent');
+  // Delivery queues outlive a board clear; prior tests may leave queued messages.
+  await expect(picker.locator('option[value="copilot"]')).toHaveText(
+    /^Copilot – team overview · polling(?: · \d+ queued)?$/,
+  );
+  await expect(picker.locator('option[value="mcp"]')).toHaveCount(0);
+  await expect(picker.locator('option[value="reviewer"]')).toHaveText(/^Independent reviewer(?: · \d+ queued)?$/);
+  await picker.selectOption('copilot');
+  await page.getByLabel('Steer the agent').fill('Continue the team overview');
+  await page.getByLabel('Steer the agent').press('Enter');
+  const claims = async (consumer: string) => {
+    const result = await (await request.get(`/api/canvas/ax/delivery/pending?consumer=${consumer}`)).json();
+    return result.pending.map((entry: { message: string }) => entry.message);
+  };
+  await expect.poll(() => claims('copilot')).toContain('Continue the team overview');
+  expect(await claims('reviewer')).not.toContain('Continue the team overview');
+  expect(await claims('mcp')).not.toContain('Continue the team overview');
+});
+
 test('addressed steering: the composer lists connected agents, the picked one alone claims the message', async ({
   page,
   request,
@@ -4788,7 +4825,7 @@ test('addressed steering: the composer lists connected agents, the picked one al
   const undoRow = page.locator('[data-testid="session-undo-row"]');
   await expect(undoRow).toBeVisible();
   await expect(undoRow).toContainText('Created markdown “Undo row target”');
-  await undoRow.getByRole('button', { name: '↩ Undo' }).click();
+  await undoRow.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect.poll(async () => (await request.get(`/api/canvas/node/${undoTarget.id}`)).status()).toBe(404);
   await expect(undoRow).toBeHidden();
 
@@ -5593,7 +5630,7 @@ test('external steering: indicator + activity feed + writers sheet for session-l
 
   // Upgrading to a session retires the indicator: the chip takes over.
   await indicator.click();
-  await feed.getByRole('button', { name: 'Start session ↗' }).click();
+  await feed.getByRole('button', { name: 'Start session', exact: true }).click();
   await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'true');
   await expect(page.locator('[data-testid="external-indicator"]')).toHaveCount(0);
   await expect(feed).toHaveCount(0);

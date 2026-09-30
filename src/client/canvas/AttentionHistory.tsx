@@ -5,6 +5,7 @@ import {
   closeAttentionHistory,
   openAttentionHistory,
 } from '../state/attention-store';
+import { IconClose } from '../icons';
 
 function formatTimestamp(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -73,7 +74,7 @@ export function AttentionHistory() {
           aria-label="Collapse changes panel"
           title="Collapse"
         >
-          ×
+          <IconClose />
         </button>
       </div>
       <div class="attention-history-list">

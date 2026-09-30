@@ -1,7 +1,63 @@
 import { expect, test } from '@playwright/test';
 
+test.use({ deviceScaleFactor: 2 });
+
+test('dropping originals onto an occupied card keeps every card separate', async ({ page, request }, testInfo) => {
+  const human = { 'x-pmx-workbench': '1' };
+  const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Attachment placement' } })).json();
+  await request.post('/api/canvas/boards/open', { headers: human, data: { id: board.id } });
+  const intro = await (
+    await request.post('/api/canvas/node', {
+      headers: human,
+      data: {
+        type: 'markdown',
+        title: 'Existing introduction',
+        content: '# Existing introduction\n\nDrop documents here without covering this note.',
+        x: 0,
+        y: 0,
+        width: 620,
+        height: 420,
+      },
+    })
+  ).json();
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'Fit canvas', exact: true }).click();
+  const note = page.locator('.canvas-node').filter({ hasText: 'Existing introduction' });
+  const bounds = await note.boundingBox();
+  await page.locator('.canvas-viewport').evaluate(
+    (el, point) => {
+      const dataTransfer = new DataTransfer();
+      for (const name of ['quarterly.pdf', 'appendix.docx']) {
+        dataTransfer.items.add(new File(['attachment byte-retention fixture'], name));
+      }
+      el.dispatchEvent(
+        new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX: point.x, clientY: point.y }),
+      );
+    },
+    { x: bounds!.x + bounds!.width / 2, y: bounds!.y + bounds!.height / 2 },
+  );
+  await expect(page.getByText('Original attached', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Fit canvas', exact: true }).click();
+  await expect(note).toBeInViewport();
+  const nodes = page.locator('.canvas-node');
+  await expect(nodes).toHaveCount(3);
+  for (let i = 0; i < 3; i++) {
+    const a = await nodes.nth(i).boundingBox();
+    await expect(nodes.nth(i)).toBeInViewport();
+    for (let j = 0; j < i; j++) {
+      const b = await nodes.nth(j).boundingBox();
+      expect(
+        a!.x >= b!.x + b!.width || b!.x >= a!.x + a!.width || a!.y >= b!.y + b!.height || b!.y >= a!.y + a!.height,
+      ).toBe(true);
+    }
+  }
+  const state = await (await request.get('/api/canvas/state')).json();
+  expect(state.nodes.find((node: { id: string }) => node.id === intro.id).position).toEqual({ x: 0, y: 0 });
+  await page.screenshot({ path: testInfo.outputPath('attachment-placement.png') });
+});
+
 for (const width of [1440, 600]) {
-  test(`document attachment, agent draft and human review at ${width}px`, async ({ page, request }) => {
+  test(`document attachment, agent draft and human review at ${width}px`, async ({ page, request }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     const html = await (await request.get('/workbench')).text();
     const encoded = html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1];
@@ -14,11 +70,21 @@ for (const width of [1440, 600]) {
       await request.post('/api/canvas/boards', { data: { name: `Import review ${width}` } })
     ).json();
     await request.post('/api/canvas/boards/open', { headers: human, data: { id: board.id } });
-    await page.goto('/workbench');
+    await page.goto(`/workbench?theme=${width === 600 ? 'light' : 'dark'}`);
     const source = Buffer.from('%PDF-1.4\n% byte-retention fixture, extraction is agent-supplied\n');
-    await page
-      .getByLabel('Attach documents')
-      .setInputFiles({ name: 'quarterly.pdf', mimeType: 'application/pdf', buffer: source });
+    const attach = page.getByRole('button', { name: 'Attach document', exact: true });
+    expect((await attach.boundingBox())!.width).toBe(36);
+    expect((await attach.locator('svg').boundingBox())!.width).toBe(15);
+    const switcher = page.getByRole('button', { name: /^Board:/ });
+    expect((await switcher.locator('.board-switcher-caret svg').boundingBox())!.width).toBe(16);
+    await page.screenshot({ path: info.outputPath('toolbar-icons.png') });
+    await switcher.click();
+    await expect(page.getByRole('menu', { name: 'Boards', exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath('toolbar-board-menu.png') });
+    await page.keyboard.press('Escape');
+    const chooser = page.waitForEvent('filechooser');
+    await attach.click();
+    await (await chooser).setFiles({ name: 'quarterly.pdf', mimeType: 'application/pdf', buffer: source });
     await expect(page.getByText('Original attached', { exact: true })).toBeVisible();
     const { imports } = await (await request.get(`/api/canvas/imports?boardId=${board.id}`)).json();
     const job = imports[0];

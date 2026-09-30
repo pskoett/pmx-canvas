@@ -21,6 +21,7 @@ import {
   IconSun,
   IconTextAnnotation,
   IconTrace,
+  IconUpload,
 } from '../icons';
 import {
   autoArrange,
@@ -337,7 +338,7 @@ export function ToolRail({
           <IconNodeFile size={15} />
         </RailButton>
         <RailButton label="Attach document" onClick={() => documentInput.current?.click()}>
-          <span aria-hidden="true">↥</span>
+          <IconUpload size={15} />
         </RailButton>
         <input
           ref={documentInput}

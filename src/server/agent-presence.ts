@@ -278,10 +278,10 @@ export class AgentPresenceRegistry {
   private attributedKey(input: PresenceTouch): string {
     const own = presenceKey(input.source, input.agentId);
     // Identified writers keep their key; attaches run the twin-merge in touch().
-    if (input.agentId?.trim() || input.attached === true || this.presences.get(own)?.attached) return own;
+    if (input.agentId?.trim() || this.presences.get(own)?.attached) return own;
     // A channel that attach-merged into a session stays that session's — its
-    // writes AND its detach belong to the merged session, however many other
-    // sessions are attached.
+    // writes, repeat attaches AND its detach belong to the merged session,
+    // however many other sessions are attached.
     const alias = this.aliases.get(own);
     if (alias && this.presences.get(alias)?.attached) return alias;
     if (input.attached !== undefined) return own;
@@ -338,15 +338,21 @@ export class AgentPresenceRegistry {
   touch(input: PresenceTouch, now = Date.now()): AgentPresence {
     let key = this.attributedKey(input);
     const own = presenceKey(input.source, input.agentId);
-    if (input.attached === true && !input.agentId?.trim()) {
-      // One agent, two channels: an attach whose label matches an ALREADY
-      // attached session (Copilot's extension presence + its MCP server both
-      // announcing "GitHub Copilot") is the same agent — merge instead of
-      // showing a second session, and remember the alias so this channel's
-      // later writes and detach land on the merged session too.
+    if (input.attached === true && !input.agentId?.trim() && key === own) {
+      // One agent, two channels: a transport attach belongs to the sole
+      // attached host even when the agent gives its task a different label.
+      // With several hosts, only the existing matching-label rule applies.
+      // Keep explicit agentIds separate, and preserve the host's consumer key
+      // so steering still reaches its poller. Browser placeholders are handled
+      // below, where their baseline and adopted-work rules are preserved.
       const label = input.label ?? input.source;
-      const twin = [...this.presences.values()].find(
-        (presence) => presence.attached && presence.sessionId !== own && !presence.agentId && presence.label === label,
+      const attached = [...this.presences.values()].filter((presence) => presence.attached);
+      const twin = attached.find(
+        (presence) =>
+          presence.sessionId !== own &&
+          !presence.agentId &&
+          (presence.label === label ||
+            (TRANSPORT_SOURCES.includes(input.source) && attached.length === 1 && presence.source !== 'browser')),
       );
       if (twin) {
         this.aliases.set(own, twin.sessionId);

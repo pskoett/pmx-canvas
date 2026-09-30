@@ -65,13 +65,12 @@ describe('boards over HTTP', () => {
     const planning = (created.body.board as CanvasBoard).id;
     expect((await boards()).activeBoardId).toBe(first.activeBoardId);
 
-    // Only the human opens or deletes a board.
-    expect((await call('POST', '/api/canvas/boards/open', AGENT, { id: planning })).status).toBe(403);
+    // Agents can open boards, but deletion still requires trusted human authority.
     expect((await call('DELETE', `/api/canvas/boards/${planning}`, AGENT)).status).toBe(403);
-    expect((await call('POST', '/api/canvas/boards/open', MARKER_ONLY, { id: planning })).status).toBe(403);
     expect((await call('DELETE', `/api/canvas/boards/${planning}`, MARKER_ONLY)).status).toBe(403);
 
-    const opened = await call('POST', '/api/canvas/boards/open', HUMAN, { id: planning });
+    const opened = await call('POST', '/api/canvas/boards/open', AGENT, { id: planning });
+    expect(opened.status).toBe(200);
     expect(opened.body.activeBoardId).toBe(planning);
     expect(((await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as { nodes: unknown[] }).nodes).toEqual([]);
 
@@ -84,9 +83,13 @@ describe('boards over HTTP', () => {
     expect(staleDrop.status).toBe(409);
     expect(((await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as { nodes: unknown[] }).nodes).toEqual([]);
 
-    // Writes follow the human: the agent's next note lands on Planning.
+    // Writes follow the open board, without changing the previous board's content.
     await addNote('Planning note');
     expect((await boards()).boards.find((board) => board.id === planning)?.nodeCount).toBe(1);
+    const original = await call('GET', `/api/canvas/state?board=${first.activeBoardId}`, AGENT);
+    expect((original.body.nodes as Array<{ title: string }>).map((node) => node.title)).toEqual(['First note']);
+    expect((await call('POST', '/api/canvas/boards/open', AGENT, { id: 'missing' })).status).toBe(404);
+    expect((await boards()).activeBoardId).toBe(planning);
 
     // A board created later but never opened does not count as recent.
     await call('POST', '/api/canvas/boards', AGENT, { name: 'Never opened' });

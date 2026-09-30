@@ -1,5 +1,4 @@
-// Board commands (plan 012): board list, board create, board rename, board category.
-// Opening, switching and deleting boards is the human's, in the workbench.
+// Board commands. Opening changes the shared workbench; deletion remains human-only.
 
 import { cmd, die, getStringFlag, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
 
@@ -8,6 +7,20 @@ cmd('board list', 'List boards, most recently opened first', ['pmx-canvas board 
   if (flags.help || flags.h) return showCommandHelp('board list');
   output(await invokeOperation('board.list', {}));
 });
+
+cmd(
+  'board open',
+  'Open a board in the shared workbench, or return Home with --home',
+  ['pmx-canvas board open <board-id>', 'pmx-canvas board open --home'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args, { boolFlags: ['home'] });
+    if (flags.help || flags.h) return showCommandHelp('board open');
+    if (positional.length > 1 || (flags.home ? positional.length !== 0 : !positional[0])) {
+      die('Usage: pmx-canvas board open <board-id> | --home');
+    }
+    output(await invokeOperation('board.open', { id: flags.home ? null : positional[0] }));
+  },
+);
 
 cmd(
   'board from',
@@ -35,7 +48,7 @@ cmd(
 
 cmd(
   'board create',
-  'Create an empty board (the human opens it in the workbench)',
+  'Create an empty board (use board open with its returned id before writing)',
   ['pmx-canvas board create "Q4 planning"', 'pmx-canvas board create "Q4 planning" --category Planning'],
   async (args) => {
     const { positional, flags } = parseFlags(args);

@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { IconArrowLeft } from '../icons';
 import { expandNode, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
@@ -254,7 +255,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       <div class="md-editor-expanded" onKeyDown={handleKeyDown}>
         <div class="md-editor-toolbar">
           <button type="button" class="md-toolbar-btn" onClick={() => setSourceMode(false)}>
-            ← Back to document
+            <IconArrowLeft size={14} /> Back to document
           </button>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {path && <span class="md-toolbar-path">{path.split('/').pop()}</span>}

@@ -1,5 +1,5 @@
 import { useCallback } from 'preact/hooks';
-import { IconArrange } from '../icons';
+import { IconArrange, IconClose } from '../icons';
 import { attentionHistoryOpen } from '../state/attention-store';
 import {
   addContextPins,
@@ -204,7 +204,7 @@ export function SelectionBar() {
       </BarHint>
       <BarHint label="Clear selection" shortcut="Esc" side="up">
         <button type="button" class="selection-bar-icon" onClick={clearSelection} aria-label="Clear selection">
-          ×
+          <IconClose size={14} />
         </button>
       </BarHint>
     </div>

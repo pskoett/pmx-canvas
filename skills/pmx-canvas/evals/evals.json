@@ -565,11 +565,11 @@
       "id": 23,
       "name": "multi-board-targeting",
       "prompt": "I have Roadmap and Incident Review boards. Add a decision note only to Incident Review and set its tour to the Summary group. Do not disturb Roadmap.",
-      "expected_output": "Lists/gets boards, resolves the exact Incident Review board and opens or explicitly targets it before mutation, verifies the active target, searches for the Summary group there, then adds the note and sets that board's tour. It does not infer IDs from titles, mutate Roadmap, or assume that a board switch succeeded. It validates Incident Review and reports board/node IDs.",
+      "expected_output": "Lists/gets boards, resolves the exact Incident Review board and calls canvas_board action open or CLI board open with its ID, verifies the returned activeBoardId, searches for the Summary group there, then adds the note and sets that board's tour. It explains that opening switches the shared view but preserves Roadmap content. It does not infer IDs from titles, mutate Roadmap, invent inactive-board write targeting, or assume that a board switch succeeded. It validates Incident Review and reports board/node IDs.",
       "assertions": [
         {
           "name": "resolves-and-verifies-target-board",
-          "description": "Uses board list/get/open or explicit board targeting to resolve and verify Incident Review before any write",
+          "description": "Resolves Incident Review with board list/get, explicitly opens its ID and verifies activeBoardId before writing; does not confuse read-only board targeting with write targeting",
           "type": "output_check"
         },
         {
@@ -659,6 +659,47 @@
         {
           "name": "targets-intended-export",
           "description": "Verifies the selected board and output path before exporting rather than relying on an ambiguous active board",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "create-open-and-populate-board",
+      "prompt": "Create a new Release checklist board, open it for me, and add a checklist. Keep the content on my current board intact. Do this yourself without asking me to navigate.",
+      "expected_output": "Creates Release checklist, captures its returned ID, explicitly opens it with canvas_board action open or CLI board open, verifies activeBoardId, and only then adds the checklist. Creation alone does not switch boards. It verifies the checklist on the new board and leaves the original board content intact. It explains that the shared workbench now shows the new board, without asking the human to open it or claiming private per-agent targeting. Deletion authority remains human-only.",
+      "assertions": [
+        {
+          "name": "opens-created-id-before-authoring",
+          "description": "Uses the returned creation ID in an explicit open call and verifies activeBoardId before adding content",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-original-board",
+          "description": "Does not clear, delete, or add the checklist to the previously open board; verifies the new board's content",
+          "type": "output_check"
+        },
+        {
+          "name": "no-human-navigation-handoff",
+          "description": "Performs opening itself and describes the shared visible switch rather than requesting a human click or claiming a private target",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "reuse-copilot-adapter-presence",
+      "prompt": "You are the main Copilot agent. The canvas presence list already has source copilot, sessionId copilot, label GitHub Copilot, attached true, with recent polling. Create a team overview on this board and show that you are working. You are not launching a subagent.",
+      "expected_output": "Reuses the existing adapter-owned copilot session. Reports task detail and phase on source copilot without creating a task-specific agentId or a second attached MCP session. Keeps steering addressed to consumer copilot. Does not detach the adapter-owned session after finishing; separate IDs are only for actual independent agents.",
+      "assertions": [
+        {
+          "name": "reuses-host-identity",
+          "description": "Updates source copilot with task detail instead of creating a second task-named identity or attaching a new session",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-delivery-and-lifetime",
+          "description": "Uses consumer copilot for addressed steering and leaves attach/detach lifecycle to the host adapter",
           "type": "output_check"
         }
       ]

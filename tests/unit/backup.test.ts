@@ -61,6 +61,50 @@ const boardNames = async () =>
   ((await call('GET', '/api/canvas/boards')).body.boards as Array<{ name: string }>).map((b) => b.name).sort();
 
 describe('library backup', () => {
+  test('CLI rejects unknown backup flags without writing or changing the schedule', async () => {
+    const root = startWorkspace();
+    const entry = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
+    const run = async (args: string[]) => {
+      const proc = Bun.spawn([process.execPath, entry, '--server-url', baseUrl, ...args], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [stdout, stderr, code] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      return { code, output: stdout + stderr };
+    };
+    const before = (await call('GET', '/api/canvas/backup')).body;
+    for (const args of [
+      ['backup', '--folder', join(root, 'wrong')],
+      ['backup', 'schedule', '--every=1m', '--folder=wrong'],
+      ['backup', 'status', '--bogus'],
+      ['restore', 'missing.db', '--bogus'],
+    ]) {
+      const result = await run(args);
+      expect(result.code).toBe(1);
+      expect(result.output).toContain('Unknown');
+      expect(result.output).toContain(args.some((arg) => arg.startsWith('--folder')) ? '--folder' : '--bogus');
+    }
+    for (const args of [
+      ['backup', '--to'],
+      ['backup', '--keep'],
+      ['backup', 'schedule', '--every'],
+    ]) {
+      const result = await run(args);
+      expect(result.code).toBe(1);
+      expect(result.output).toContain('Missing value');
+    }
+    expect((await call('GET', '/api/canvas/backup')).body).toEqual(before);
+    const valid = await run(['backup', '--to', join(root, 'chosen'), '--keep=2']);
+    expect(valid.code).toBe(0);
+    expect(readdirSync(join(root, 'chosen')).some((file) => file.endsWith('.db'))).toBe(true);
+    expect((await run(['backup', 'schedule', '--every=1m', '--to', join(root, 'chosen')])).code).toBe(0);
+    expect((await run(['backup', 'schedule', '--off'])).code).toBe(0);
+  });
+
   test('CLI shutdown stays alive on save failure and exits durably after recovery', async () => {
     const root = createTestWorkspace('pmx-canvas-shutdown-');
     roots.push(root);

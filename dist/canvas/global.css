@@ -760,6 +760,11 @@ body,
   border-radius: calc(3px * var(--node-chrome-scale, 1));
 }
 
+.canvas-node .node-controls button svg {
+  width: 1em;
+  height: 1em;
+}
+
 .canvas-node .node-controls button:hover {
   background: var(--c-surface-hover);
   color: var(--c-text);
@@ -1466,6 +1471,10 @@ body,
   animation: presence-pulse 1.4s ease-in-out infinite;
 }
 .session-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   width: 26px;
   height: 26px;
   border: 1px solid transparent;
@@ -1682,8 +1691,9 @@ body,
   }
 }
 .session-section-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--c-muted);
-  font-size: 13px;
   transition: transform 0.15s ease;
 }
 .session-section-chevron.is-open {
@@ -1966,8 +1976,13 @@ body,
   white-space: nowrap;
 }
 .command-bar-chip-unpin {
-  width: 14px;
-  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  width: 20px;
+  height: 20px;
   border: none;
   border-radius: 50%;
   background: none;
@@ -6896,7 +6911,7 @@ html.is-node-dragging .intent-line-layer {
   align-items: center;
   gap: 6px;
   max-width: 280px;
-  padding: 4px 8px;
+  padding: 6px 8px;
   margin-left: -8px;
   background: none;
   border: 1px solid transparent;
@@ -6914,7 +6929,8 @@ html.is-node-dragging .intent-line-layer {
   white-space: nowrap;
 }
 .board-switcher-caret {
-  font-size: 10px;
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--c-text-soft);
 }
 .board-switcher-menu {

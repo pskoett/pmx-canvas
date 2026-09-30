@@ -53,6 +53,12 @@ canvas writes — which reach the server as MCP or HTTP tool calls, not as `copi
 to that session by the server. Nothing to configure; `GET /api/canvas/ax/presence` shows the live
 state.
 
+Read presence before starting board work. Reuse the extension's `copilot` session and
+steering consumer; do not attach a second session such as “Copilot – team overview” with
+a new source or `agentId`. Send task names as `detail` on `source: "copilot"`, preserving
+the host's identity and polling route. The adapter owns attach/detach; the agent must not
+end it after each task. Explicit agent IDs are reserved for genuinely independent subagents.
+
 ## What the Adapter Does
 
 - Opens the live PMX workbench directly in a native Copilot canvas panel.
@@ -138,14 +144,22 @@ Default discovery order:
 3. `PMX_CANVAS_PORT` / `PMX_WEB_CANVAS_PORT` / `4313` on loopback.
 4. Managed server startup for the current workspace when `autoStart` is not `false`.
 
-The adapter rejects an unrelated running PMX server unless `serverUrl` is explicit or
-`allowWorkspaceMismatch` is true.
+The adapter rejects an unrelated running PMX server unless `allowWorkspaceMismatch` is true,
+including when `serverUrl` is explicit.
+
+If discovery fails, the panel shows a connection page, not a partial workbench. It checks the
+original target automatically; **Check connection** retries immediately and **Start server**
+explicitly allows local startup even if `autoStart` was disabled. After recovery it navigates
+to the server's real `/workbench`, with Home and recent boards. Adapter actions keep using that
+server and refuse writes if its workspace changes. Reopen the canvas explicitly to select a
+different target. The fallback shell's own `/health` or `/api/canvas/boards` returning 404 is
+expected: the shell is not a PMX API proxy.
 
 ## Actions
 
 | Action | Purpose |
 |---|---|
-| `status` | Return PMX server health and persisted AX state. |
+| `status` | Return PMX server health and persisted AX state, excluding serialized node context (`includeContext=false`). |
 | `get_ax_context` | Return current pinned + focused AX context. |
 | `focus_nodes` | Set AX focus with `source: "copilot"`. |
 | `send_instruction` | Send an explicit prompt into the active Copilot session. |

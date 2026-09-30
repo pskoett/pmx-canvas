@@ -2,7 +2,7 @@ import { useEffect } from 'preact/hooks';
 import { nodes } from '../state/canvas-store';
 import { hoveredIntentId, intents, removeIntent, type ClientIntent } from '../state/intent-store';
 import { vetoGhostIntent } from '../state/intent-bridge';
-import { getNodeIcon } from '../icons';
+import { getNodeIcon, IconClose } from '../icons';
 import { TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -102,7 +102,7 @@ function GhostInfo({ intent }: { intent: ClientIntent }) {
               void vetoGhostIntent(intent);
             }}
           >
-            ✕
+            <IconClose size={14} />
           </button>
         )}
       </div>

@@ -25,7 +25,7 @@ import {
   pendingExpandedNodeCloseId,
   toggleContextPin,
 } from '../state/canvas-store';
-import { getNodeIcon } from '../icons';
+import { getNodeIcon, IconClose, IconExternalLink } from '../icons';
 import { useFocusTrap } from './use-focus-trap';
 import { TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -316,7 +316,7 @@ export function ExpandedNodeOverlay() {
                 onClick={() => void openNodeAsSite(node)}
                 title="Open as a full-page site in the system browser"
               >
-                Open in tab ↗
+                Open in tab <IconExternalLink size={14} />
               </button>
             )}
             {canPresent && (
@@ -331,7 +331,7 @@ export function ExpandedNodeOverlay() {
             )}
           </div>
           <button type="button" class="expanded-close" onClick={handleClose} title="Close (Esc)" aria-label="Close">
-            ×
+            <IconClose />
           </button>
         </div>
 

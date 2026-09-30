@@ -11,8 +11,9 @@
  */
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { Marked, type RendererThis, type Tokens } from 'marked';
+import { Marked, Renderer, type RendererThis, type Tokens } from 'marked';
 import { canvasThemeScheme } from '../shared/themes.js';
+import { delimiterForPath, parseDelimitedText } from '../shared/delimited-text.js';
 import { buildJsonRenderViewerHtml, escapeInlineScriptSource, readJsonRenderBundle } from '../json-render/server.js';
 import type { JsonRenderSpec } from '../json-render/server.js';
 import { getCanvasNodeTitle } from './canvas-serialization.js';
@@ -89,6 +90,9 @@ function createMarkdown(remoteImages: Set<string>, links: Set<string>): Marked {
       html({ text: raw }: Tokens.HTML | Tokens.Tag) {
         return escapeHtml(raw);
       },
+      table(this: RendererThis, token: Tokens.Table) {
+        return tableScroll(Renderer.prototype.table.call(this, token));
+      },
       link(this: RendererThis, { href, tokens }: Tokens.Link) {
         const inner = this.parser.parseInline(tokens);
         if (/^https?:/i.test(href)) links.add(href);
@@ -134,6 +138,24 @@ function ownedArtifactHtml(path: string): string | null {
 
 function pre(value: string, className = ''): string {
   return `<pre class="${className}">${escapeHtml(value)}</pre>`;
+}
+
+function tableScroll(html: string): string {
+  return `<div class="table-scroll" role="region" aria-label="Table" tabindex="0">${html}</div>`;
+}
+
+function fileBody(value: string, name: string): string {
+  const delimiter = delimiterForPath(name);
+  if (delimiter) {
+    const table = parseDelimitedText(value, delimiter);
+    if (table.header.length > 1) {
+      // Match the workbench's bounded table preview without losing the remainder.
+      const preview = table.rows.slice(0, 500);
+      const html = `<table><thead><tr>${table.header.map((cell) => `<th scope="col">${escapeHtml(cell)}</th>`).join('')}</tr></thead><tbody>${preview.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      return `${tableScroll(html)}${table.rows.length > preview.length ? `<details><summary>Showing 500 of ${table.rows.length} rows — full text</summary>${pre(value, 'code')}</details>` : ''}`;
+    }
+  }
+  return pre(value, 'code');
 }
 
 function rows(entries: Array<[string, unknown]>): string {
@@ -258,20 +280,27 @@ async function collect(
         break;
       case 'status':
         card.html = rows([
-          ['Phase', data.phase],
+          ['Phase', text(data.phase).trim() || text(data.content).trim() || text(data.status).trim() || 'idle'],
           ['Message', data.message],
           ['Detail', data.detail],
+          ['Active tool', data.activeTool],
         ]);
         break;
       case 'context': {
         const items = Array.isArray(data.cards) ? (data.cards as Array<Record<string, unknown>>) : [];
-        card.html = `<ul class="list">${items
-          .map((item) => `<li><strong>${escapeHtml(text(item.title))}</strong> ${escapeHtml(text(item.summary))}</li>`)
-          .join('')}</ul>`;
+        card.html = `${rows([
+          ['Tokens', data.currentTokens],
+          ['Token limit', data.tokenLimit],
+          ['Messages', data.messagesLength],
+        ])}${
+          items.length
+            ? `<ul class="list">${items.map((item) => `<li><strong>${escapeHtml(text(item.title) || text(item.label))}</strong><p>${escapeHtml(text(item.summary))}</p></li>`).join('')}</ul>`
+            : `<p class="prose">${escapeHtml(text(data.content) || text(data.rendered).replace(/<[^>]+>/g, ' '))}</p>`
+        }`;
         break;
       }
       case 'ledger':
-        card.html = `${text(data.content) ? pre(text(data.content)) : ''}${rows(
+        card.html = `${text(data.content) ? pre(text(data.content).replaceAll('\\n', '\n')) : ''}${rows(
           Object.entries(data).filter(
             ([key]) => !['title', 'content', '__type', 'strictSize', 'arrangeLocked'].includes(key),
           ),
@@ -279,10 +308,11 @@ async function collect(
         break;
       case 'trace':
         card.html = rows([
-          ['Tool', data.toolName],
-          ['Status', data.status],
+          ['Tool', text(data.toolName) || title],
+          ['Status', text(data.status) || 'running'],
           ['Duration', data.duration],
-          ['Result', data.resultSummary],
+          ['Result', text(data.resultSummary) || text(data.content)],
+          ['Error', data.error],
         ]);
         break;
       case 'diff':
@@ -301,7 +331,7 @@ async function collect(
           .join('\n')}</pre>`;
         break;
       case 'prompt':
-        card.html = pre(text(data.text));
+        card.html = `<div class="prose">${escapeHtml(text(data.text))}</div>`;
         break;
       case 'response':
         card.html = `<div class="md">${await markdown.parse(text(data.content))}</div>`;
@@ -327,9 +357,9 @@ async function collect(
           if (img) manifest.embeddedImages += 1;
         }
         card.html = img
-          ? `<img class="image" src="${escapeHtml(img)}" alt="${escapeHtml(alt)}" referrerpolicy="no-referrer">${
-              text(data.caption) ? `<p class="dim">${escapeHtml(text(data.caption))}</p>` : ''
-            }`
+          ? `<figure class="image-figure"><img class="image" src="${escapeHtml(img)}" alt="${escapeHtml(alt)}" referrerpolicy="no-referrer">${
+              text(data.caption) ? `<figcaption class="dim">${escapeHtml(text(data.caption))}</figcaption>` : ''
+            }</figure>`
           : `<div class="placeholder">Image not available: ${escapeHtml(src)}</div>`;
         break;
       }
@@ -337,14 +367,14 @@ async function collect(
         const path = text(data.path);
         if (!path) {
           // Inline content the board itself holds, not a file on disk.
-          card.html = pre(text(data.fileContent) || text(data.content), 'code');
+          card.html = fileBody(text(data.fileContent) || text(data.content), title);
           break;
         }
         const body = includeFiles ? fileText(node, path) : null;
         manifest.files.push({ nodeId: node.id, path, included: body !== null });
         card.html = `<p class="dim">${escapeHtml(path)}</p>${
           body !== null
-            ? pre(body, 'code')
+            ? fileBody(body, path)
             : '<div class="placeholder">File contents not included in this export.</div>'
         }`;
         break;
@@ -527,7 +557,7 @@ function exportPage(input: {
   </div>
 </header>
 <main id="stage" aria-label="Board"><div id="world"><svg id="edges" aria-hidden="true"></svg></div></main>
-<div id="overlay" hidden><div class="sheet" role="dialog" aria-modal="true"><header><strong id="overlay-title"></strong><button type="button" id="overlay-close" aria-label="Close">×</button></header><div id="overlay-body"></div></div></div>
+<div id="overlay" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="overlay-title"><header><strong id="overlay-title"></strong><button type="button" id="overlay-close" aria-label="Close">×</button></header><div id="overlay-body"></div></div></div>
 <script type="application/json" id="pmx-board">${scriptJson(input.board)}</script>
 <script type="application/json" id="pmx-assets">${scriptJson(input.assets)}</script>
 <script>${EXPORT_VIEWER_JS}</script>
@@ -540,7 +570,7 @@ const EXPORT_CSS = `
 :root{--bg:#0b1016;--panel:#121a23;--line:#263241;--text:#e8edf2;--soft:#9aa7b4;--accent:#4bbcff;--add:#2ea66f;--del:#e25d6e}
 [data-scheme=light]{--bg:#f4f6f8;--panel:#ffffff;--line:#d5dbe1;--text:#17202a;--soft:#5b6875;--accent:#0a6fc2;--add:#1c7a4f;--del:#b3263a}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}
 .bar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);z-index:5}
 .bar .name{display:flex;flex-direction:column;min-width:0}
 .bar .name strong,.bar .name span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -548,6 +578,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/
 .tools{display:flex;gap:6px;flex-shrink:0}
 button{font:inherit;color:var(--text);background:none;border:1px solid var(--line);border-radius:7px;padding:4px 10px;cursor:pointer}
 button:hover{border-color:var(--accent)}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
 #stage{position:fixed;top:48px;left:0;right:0;bottom:0;overflow:hidden;cursor:grab;touch-action:none}
 #stage.panning{cursor:grabbing}
 #world{position:absolute;left:0;top:0;transform-origin:0 0}
@@ -556,25 +587,43 @@ button:hover{border-color:var(--accent)}
 #edges text{fill:var(--soft);font-size:12px;text-anchor:middle}
 .card{position:absolute;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.18)}
 .card.group{background:color-mix(in srgb,var(--accent) 5%,transparent);border-style:dashed;box-shadow:none}
-.card-title{flex-shrink:0;padding:7px 10px;font-weight:600;font-size:13px;border-bottom:1px solid var(--line);cursor:zoom-in;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-title{position:relative;flex-shrink:0;width:100%;text-align:left;padding:12px 42px 12px 18px;font-weight:600;font-size:13px;border:0;border-bottom:1px solid var(--line);border-radius:0;cursor:zoom-in;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:color-mix(in srgb,var(--soft) 5%,var(--panel))}
+button.card-title:after{content:'↗';position:absolute;right:16px;color:var(--soft);font-size:16px}
 .card.group .card-title{border-bottom:none;cursor:default;color:var(--soft)}
-.card-body{flex:1;min-height:0;overflow:auto;padding:8px 10px}
-.card iframe,#overlay-body iframe{flex:1;width:100%;height:100%;border:0;background:var(--bg)}
-.md h1,.md h2,.md h3{margin:.4em 0 .3em;line-height:1.2}.md p{margin:.4em 0}.md img{max-width:100%}
-.md code,pre{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
-pre{margin:0;white-space:pre-wrap;word-break:break-word}
-pre.diff .add{color:var(--add)}pre.diff .del{color:var(--del)}pre.diff .hunk{color:var(--accent)}
-a{color:var(--accent)}
+.card-body{flex:1;min-height:0;min-width:0;overflow:auto;padding:20px;overflow-wrap:anywhere;overscroll-behavior:contain;cursor:auto}
+.card-body>:first-child,.md>:first-child{margin-top:0}.card-body>:last-child,.md>:last-child{margin-bottom:0}
+.card iframe,#overlay-body iframe{flex:1;min-height:0;width:100%;height:100%;border:0;background:var(--bg)}
+.md h1,.md h2,.md h3,.md h4,.md h5,.md h6{margin:1.4em 0 .6em;line-height:1.3;font-weight:650;letter-spacing:-.02em}
+.md h1{font-size:26px}.md h2{font-size:21px}.md h3{font-size:18px}.md h4,.md h5,.md h6{font-size:15px}
+.md p{margin:0 0 1em}.md img{max-width:100%;height:auto;border-radius:6px}
+.md ul,.md ol{padding-left:1.6em;margin:0 0 1em}.md li+li{margin-top:.35em}.md li>ul,.md li>ol{margin-top:.4em;margin-bottom:.4em}
+.md input[type=checkbox]{accent-color:var(--accent);margin-right:.5em}
+.md blockquote{margin:1em 0;padding:10px 16px;border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel));color:var(--soft)}
+.md blockquote>:last-child{margin-bottom:0}.md hr{border:0;border-top:1px solid var(--line);margin:24px 0}
+.md code,pre{font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;tab-size:2}
+.md :not(pre)>code{padding:2px 5px;border:1px solid var(--line);border-radius:4px;background:color-mix(in srgb,var(--soft) 8%,var(--panel))}
+pre{margin:0 0 16px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--soft) 5%,var(--panel));white-space:pre;overflow:auto;overflow-wrap:normal;overscroll-behavior:contain}
+.prose{white-space:pre-wrap}.table-scroll{width:100%;max-width:100%;overflow:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px;overscroll-behavior:contain}
+.table-scroll table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;line-height:1.55;font-variant-numeric:tabular-nums}
+.table-scroll th,.table-scroll td{padding:10px 14px;min-width:90px;max-width:36ch;border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:top;overflow-wrap:normal;white-space:pre-wrap}
+.table-scroll th{font-weight:650;background:color-mix(in srgb,var(--soft) 10%,var(--panel))}.table-scroll th:not([align]){text-align:left}
+.table-scroll tr:nth-child(even) td{background:color-mix(in srgb,var(--soft) 4%,var(--panel))}
+.table-scroll tr:last-child td{border-bottom:0}.table-scroll tr>:last-child{border-right:0}
+pre.diff .add{color:var(--add);background:color-mix(in srgb,var(--add) 9%,transparent)}pre.diff .del{color:var(--del);background:color-mix(in srgb,var(--del) 9%,transparent)}pre.diff .hunk{color:var(--accent)}
+a{color:var(--accent);text-underline-offset:3px}
 .dim{color:var(--soft)}
-.kv{border-collapse:collapse;font-size:12px}.kv th{text-align:left;color:var(--soft);padding:2px 10px 2px 0;vertical-align:top}.kv td{padding:2px 0}
-.list{margin:0;padding-left:18px}
-.image{max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto}
-.placeholder{padding:12px;border:1px dashed var(--line);border-radius:8px;color:var(--soft);font-size:12px}
+.kv{border-collapse:collapse;width:100%;font-size:14px;table-layout:fixed}.kv th{text-align:left;color:var(--soft);width:30%;font-weight:500}.kv th,.kv td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;white-space:pre-wrap}.kv tr:last-child>*{border-bottom:0}
+.list{list-style:none;margin:0;padding:0}.list li{padding:12px 0;border-bottom:1px solid var(--line)}.list li:last-child{border-bottom:0}.list p{margin:6px 0 0;color:var(--soft)}
+.image-figure{margin:0;height:100%;display:flex;flex-direction:column;gap:12px}.image{flex:1;min-height:0;max-width:100%;width:100%;object-fit:contain;display:block}.image-figure figcaption{flex-shrink:0;font-size:13px;text-align:center}
+.placeholder{padding:16px;border:1px dashed var(--line);border-radius:8px;color:var(--soft);font-size:14px;line-height:1.6}
+details{margin-top:16px}summary{cursor:pointer;color:var(--soft);margin-bottom:12px}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10}
 #overlay[hidden]{display:none}
 #overlay .sheet{width:min(1100px,100%);height:min(90vh,100%);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 #overlay .sheet>header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
-#overlay-body{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column}
+#overlay-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+#overlay-body .card-body{padding:28px 32px}#overlay-body .md{max-width:960px;margin:0 auto}
+@media(max-width:600px){#overlay{padding:8px}#overlay .sheet{height:100%}#overlay-body .card-body{padding:18px}.bar{padding:0 10px}.bar .name span{display:none}}
 `;
 
 const EXPORT_VIEWER_JS = `(() => {
@@ -606,12 +655,15 @@ for (const card of ordered) {
   const el = document.createElement('section');
   el.className = 'card' + (card.group ? ' group' : '');
   el.dataset.nodeId = card.id;
+  el.dataset.nodeType = card.kind;
   Object.assign(el.style, { left: card.x + 'px', top: card.y + 'px', width: card.w + 'px', height: card.h + 'px' });
-  const title = document.createElement('div');
+  const title = document.createElement(card.group ? 'div' : 'button');
   title.className = 'card-title';
   title.textContent = card.title;
   el.appendChild(title);
   if (!card.group) {
+    title.type = 'button';
+    title.setAttribute('aria-label', 'Expand ' + card.title);
     el.appendChild(body(card));
     title.addEventListener('click', () => expand(card));
   }
@@ -653,6 +705,7 @@ const zoomAt = (factor, cx, cy) => {
   apply();
 };
 stage.addEventListener('wheel', (e) => {
+  if (e.target.closest('.card-body') && !e.ctrlKey && !e.metaKey) return;
   e.preventDefault();
   const r = stage.getBoundingClientRect();
   zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
@@ -673,11 +726,23 @@ stage.addEventListener('pointerup', () => { drag = null; stage.classList.remove(
 document.querySelector('[data-zoom=in]').addEventListener('click', () => zoomAt(1.25, stage.clientWidth / 2, stage.clientHeight / 2));
 document.querySelector('[data-zoom=out]').addEventListener('click', () => zoomAt(0.8, stage.clientWidth / 2, stage.clientHeight / 2));
 document.querySelector('[data-zoom=fit]').addEventListener('click', fit);
-const close = () => { overlay.hidden = true; document.getElementById('overlay-body').replaceChildren(); };
+let invoker = null;
+const close = () => {
+  if (overlay.hidden) return;
+  overlay.hidden = true;
+  document.getElementById('overlay-body').replaceChildren();
+  stage.inert = false;
+  document.querySelector('.bar').inert = false;
+  invoker?.focus({ preventScroll: true });
+};
 function expand(card) {
+  invoker = document.activeElement;
   document.getElementById('overlay-title').textContent = card.title;
   document.getElementById('overlay-body').replaceChildren(body(card));
   overlay.hidden = false;
+  stage.inert = true;
+  document.querySelector('.bar').inert = true;
+  document.getElementById('overlay-close').focus();
 }
 document.getElementById('overlay-close').addEventListener('click', close);
 overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });

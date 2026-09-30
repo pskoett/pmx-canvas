@@ -34,6 +34,25 @@ async function note(request: APIRequestContext, title: string, x = 120, y = 120)
   return ((await response.json()) as { id: string }).id;
 }
 
+test('an agent opens its new board and the connected workbench follows without a reload', async ({ page, request }) => {
+  const originalNode = await note(request, 'Keep this on the original board');
+  const original = (await boards(request)).activeBoardId;
+  await page.goto('/workbench');
+  await expect(page.locator(`[data-node-id="${originalNode}"]`)).toBeVisible();
+  const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Agent planning' } })).json();
+  expect((await boards(request)).activeBoardId).toBe(original);
+  const opened = await request.post('/api/canvas/boards/open', { data: { id: board.id } });
+  expect(opened.ok()).toBe(true);
+  await expect(page.getByRole('button', { name: /^Board: Agent planning/ })).toBeVisible();
+  await expect(page.locator('.canvas-node')).toHaveCount(0);
+  const added = await note(request, 'Agent-authored plan');
+  await expect(page.locator(`[data-node-id="${added}"]`)).toBeVisible();
+  expect((await request.delete(`/api/canvas/boards/${board.id}`)).status()).toBe(403);
+  expect((await request.post('/api/canvas/boards/open', { data: { id: original } })).ok()).toBe(true);
+  await expect(page.locator(`[data-node-id="${originalNode}"]`)).toBeVisible();
+  await expect(page.locator(`[data-node-id="${added}"]`)).toHaveCount(0);
+});
+
 test('Home clears board attention and session receipts without reporting deletions', async ({ page, request }) => {
   await note(request, 'Navigation baseline');
   await page.goto('/workbench');
@@ -174,7 +193,7 @@ test('board menu dismisses on canvas and card clicks; README and link actions st
   expect(body!.y + body!.height).toBeLessThanOrEqual(footer!.y + 1);
   await card.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('button', { name: '</> Source', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByTestId('expanded-node').getByRole('button', { name: 'Close', exact: true }).click();
   // Closing saves and restores focus asynchronously. Do not send Enter to
   // another control while the overlay still owns keyboard focus.
   await expect(page.getByTestId('expanded-node')).toHaveCount(0);
