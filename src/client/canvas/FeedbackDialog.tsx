@@ -1,6 +1,7 @@
 import { useRef, useState } from 'preact/hooks';
 import { useFocusTrap } from './use-focus-trap';
 import { IconExternalLink } from '../icons';
+import { ChoiceMenu } from './ChoiceMenu';
 
 /** Draft only: GitHub owns authentication and the final public submission. */
 export function FeedbackDialog({ onClose }: { onClose: () => void }) {
@@ -40,14 +41,15 @@ export function FeedbackDialog({ onClose }: { onClose: () => void }) {
           public. Only what you enter below is included; no board contents, workspace paths, screenshots, or logs are
           attached.
         </p>
-        <label>
-          Feedback type
-          <select class="text-prompt-input" value={kind} onChange={(e) => setKind(e.currentTarget.value)}>
-            <option>Bug report</option>
-            <option>Feature request</option>
-            <option>General feedback</option>
-          </select>
-        </label>
+        <div class="feedback-field">
+          <span>Feedback type</span>
+          <ChoiceMenu
+            label="Feedback type"
+            value={kind}
+            onChange={setKind}
+            options={['Bug report', 'Feature request', 'General feedback'].map((value) => ({ value, label: value }))}
+          />
+        </div>
         <label>
           Title
           <input

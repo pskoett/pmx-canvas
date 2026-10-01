@@ -652,12 +652,18 @@ export function CanvasViewport({
       }
     }
 
+    function handleCancel() {
+      draggingEdge.value = null;
+    }
+
     document.addEventListener('pointermove', handleMove);
     document.addEventListener('pointerup', handleUp);
+    document.addEventListener('pointercancel', handleCancel);
     document.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('pointermove', handleMove);
       document.removeEventListener('pointerup', handleUp);
+      document.removeEventListener('pointercancel', handleCancel);
       document.removeEventListener('keydown', handleKey);
     };
   }, [containerRef]);

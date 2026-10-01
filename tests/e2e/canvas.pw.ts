@@ -34,10 +34,9 @@ async function selectTheme(page: Page, themeLabel: string): Promise<void> {
   await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: themeLabel }).click();
 }
 
-/** Pick an annotation tool through the rail's Annotate popover. */
+/** Pick an annotation tool directly through the rail. */
 async function pickAnnotateTool(page: Page, itemLabel: string | RegExp): Promise<void> {
-  await page.getByRole('button', { name: 'Annotate (A)' }).click();
-  await page.locator('.toolbar-menu').getByRole('button', { name: itemLabel }).click();
+  await page.locator('.tool-rail').getByRole('button', { name: itemLabel, exact: true }).click();
 }
 
 async function clearCanvas(request: APIRequestContext): Promise<void> {
@@ -625,6 +624,9 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   await expect(prompt).toContainText('Image URL');
   await page.locator('.text-prompt-backdrop').click({ position: { x: 10, y: 10 } });
   await expect(prompt).toBeHidden();
+  // HTML remains available as an advanced shortcut without a dedicated rail button.
+  await page.keyboard.press('h');
+  await expect(page.locator('.canvas-node[data-node-type="html"]')).toHaveCount(1);
 });
 
 test('double-click an edge → Delete edge removes a hand-drawn connection', async ({ page, request }) => {
@@ -3730,7 +3732,9 @@ test('annotation toolbar actions preserve the current light theme', async ({ pag
 
   await pickAnnotateTool(page, 'Draw (A)');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await pickAnnotateTool(page, 'Stop annotating');
+  await expect(page.getByRole('button', { name: 'Draw (A)' })).toHaveAttribute('aria-pressed', 'true');
+  await pickAnnotateTool(page, 'Draw (A)');
+  await expect(page.getByRole('button', { name: 'Draw (A)' })).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   await pickAnnotateTool(page, 'Eraser');
@@ -4117,17 +4121,17 @@ test('rail tooltips: hover shows the label and shortcut beside the rail, hidden 
   const tip = page.locator('[data-testid="rail-tooltip"]');
   await expect(tip).toHaveCount(0);
 
-  const file = page.getByRole('button', { name: 'File (Shift+F)' });
-  await file.hover();
+  const webpage = page.getByRole('button', { name: 'Webpage (W)' });
+  await webpage.hover();
   await expect(tip).toBeVisible();
-  await expect(tip.locator('.toolbar-tooltip-label')).toHaveText('File');
-  await expect(tip.locator('kbd')).toHaveText('Shift+F');
+  await expect(tip.locator('.toolbar-tooltip-label')).toHaveText('Webpage');
+  await expect(tip.locator('kbd')).toHaveText('W');
   // Beside the rail, not clipped by it: the tooltip's box starts right of the button
   // (measured after its 140 ms slide-in settles).
   await page.waitForTimeout(250);
   const [tipBox, btnBox, rail] = await Promise.all([
     tip.boundingBox(),
-    file.boundingBox(),
+    webpage.boundingBox(),
     page.locator('.tool-rail').boundingBox(),
   ]);
   if (!tipBox || !btnBox || !rail) throw new Error('missing boxes');
@@ -4676,14 +4680,15 @@ test('Copilot adapter and task-named MCP attach share one polling steering recip
   }
   await request.get('/api/canvas/ax/delivery/pending?consumer=copilot');
   await page.goto('/workbench');
-  const picker = page.getByLabel('Steer which agent');
+  await page.getByRole('button', { name: 'Steer which agent' }).click();
+  const picker = page.getByRole('menu', { name: 'Steer which agent' });
   // Delivery queues outlive a board clear; prior tests may leave queued messages.
-  await expect(picker.locator('option[value="copilot"]')).toHaveText(
+  await expect(picker.locator('[data-value="copilot"]')).toHaveText(
     /^Copilot – team overview · polling(?: · \d+ queued)?$/,
   );
-  await expect(picker.locator('option[value="mcp"]')).toHaveCount(0);
-  await expect(picker.locator('option[value="reviewer"]')).toHaveText(/^Independent reviewer(?: · \d+ queued)?$/);
-  await picker.selectOption('copilot');
+  await expect(picker.locator('[data-value="mcp"]')).toHaveCount(0);
+  await expect(picker.locator('[data-value="reviewer"]')).toHaveText(/^Independent reviewer(?: · \d+ queued)?$/);
+  await picker.locator('[data-value="copilot"]').click();
   await page.getByLabel('Steer the agent').fill('Continue the team overview');
   await page.getByLabel('Steer the agent').press('Enter');
   const claims = async (consumer: string) => {
@@ -4720,13 +4725,14 @@ test('addressed steering: the composer lists connected agents, the picked one al
 
   await page.goto('/workbench');
   await page.getByTitle('Expand session panel').click();
-  const picker = page.getByLabel('Steer which agent');
+  await page.getByRole('button', { name: 'Steer which agent' }).click();
+  const picker = page.getByRole('menu', { name: 'Steer which agent' });
   await expect(picker).toBeVisible();
   // Writers from earlier tests may still be live (in-memory, 90 s TTL) — assert
   // OUR agents and the ordering rule (sessions before writers), not exact totals.
   await expect
     .poll(async () => {
-      const options = await picker.locator('option').allInnerTexts();
+      const options = await picker.getByRole('menuitemradio').allInnerTexts();
       // Pump-health suffixes (· polling, · N queued) ride on the labels — match
       // on prefixes, and assert the ordering rule (sessions before writers).
       const at = (prefix: string) => options.findIndex((option) => option.startsWith(prefix));
@@ -4741,7 +4747,7 @@ test('addressed steering: the composer lists connected agents, the picked one al
     })
     .toBe(true);
 
-  await picker.selectOption('copilot');
+  await picker.locator('[data-value="copilot"]').click();
   const input = page.getByLabel('Steer the agent');
   await expect(input).toHaveAttribute('placeholder', /Steer copilot/);
   await input.fill('own the CI flake, ignore the rest');
@@ -4866,7 +4872,7 @@ test('addressed steering: the composer lists connected agents, the picked one al
     headers: { 'x-pmx-source': 'copilot' },
   });
   await expect(input).toHaveAttribute('placeholder', /Steer the agent/);
-  await expect(picker).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Steer which agent' })).toHaveText('All agents');
 });
 
 test('human-started session: start from the quiet board, steer from the command bar, end to a receipt', async ({
@@ -5260,6 +5266,80 @@ test('edge creation: Connect tool drags an edge from a node body, the target lig
   await page.keyboard.press('v');
 });
 
+for (const scale of [1, 0.5]) {
+  test(`connection handles stay usable at ${scale} zoom and render the HTTP result before polling`, async ({
+    page,
+    request,
+  }, testInfo) => {
+    for (const [title, x, y] of [
+      ['Handle A', 120, 120],
+      ['Handle B', 680, 220],
+    ] as const) {
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title, content: 'Connect these notes', x, y, width: 360, height: 220 },
+      });
+    }
+    await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale } });
+    await page.addInitScript(() => {
+      (window as unknown as { __PMX_AMP_ORB: boolean }).__PMX_AMP_ORB = true;
+    });
+    await page.goto('/workbench');
+    const a = page.locator('.canvas-node').filter({ hasText: 'Handle A' });
+    const b = page.locator('.canvas-node').filter({ hasText: 'Handle B' });
+    await expect(b).toBeVisible();
+    // Hold the next poll before dragging. No event can make this assertion pass.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let blocked = false;
+    await page.route('**/api/workbench/poll*', async (route) => {
+      blocked = true;
+      await held;
+      await route.continue();
+    });
+    try {
+      await expect.poll(() => blocked).toBe(true);
+      await a.hover();
+      const port = a.locator('.node-port-right');
+      await expect(port).toHaveCSS('opacity', '1');
+      const portBox = (await port.boundingBox())!;
+      expect(portBox.width).toBeCloseTo(32, 0);
+      expect(portBox.height).toBeCloseTo(32, 0);
+      const source = (await a.boundingBox())!;
+      expect(Math.abs(portBox.x + portBox.width / 2 - (source.x + source.width))).toBeLessThanOrEqual(1.1);
+      const target = (await b.boundingBox())!;
+      // Start outside both the card and visible circle: no clipping of the grab area.
+      await page.mouse.move(portBox.x + portBox.width - 4, portBox.y + portBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 5 });
+      await expect(b).toHaveClass(/is-edge-target/);
+      await page.dispatchEvent('.canvas-viewport', 'pointercancel');
+      await page.mouse.up();
+      await expect(page.locator('[data-testid="edge-hint"]')).toHaveCount(0);
+      expect((await (await request.get('/api/canvas/state')).json()).edges).toHaveLength(0);
+
+      await page.mouse.move(portBox.x + portBox.width - 4, portBox.y + portBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 5 });
+      const response = page.waitForResponse(
+        (res) => res.url().endsWith('/api/canvas/edge') && res.request().method() === 'POST',
+      );
+      await page.mouse.up();
+      const saved = await (await response).json();
+      expect(saved.ok).toBe(true);
+      await expect(page.locator(`[id="edge-path-${saved.id}"]`)).toBeVisible({ timeout: 750 });
+      await a.hover();
+      await page.screenshot({ path: testInfo.outputPath('connection-handles.png') });
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+    await page.reload();
+    await expect(page.locator('[id^="edge-path-"]')).toHaveCount(1);
+  });
+}
+
 test('groups v2: membership only on release with the pill, esc keeps it out, collapse to a chip, header actions, G / Shift+G', async ({
   page,
   request,
@@ -5640,7 +5720,7 @@ test('external steering: indicator + activity feed + writers sheet for session-l
 test('rail popovers anchor beside their trigger on narrow screens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/workbench');
-  const button = page.getByRole('button', { name: 'Annotate (A)' });
+  const button = page.getByRole('button', { name: 'Choose theme' });
   await button.click();
   const menu = page.locator('.toolbar-menu');
   await expect(menu).toBeVisible();

@@ -139,6 +139,12 @@ Four ways a test silently stops discriminating in this repo:
 - For `graph`, `json-render`, `mcp-app`, webpage, and image nodes, API geometry is not enough.
   Verify the rendered browser frame when changing sizing: iframe/body `scrollHeight` and
   `scrollWidth` should fit the available frame unless scrolling is the intended behavior.
+- For JSON focus transitions, edit a bound input and load a multi-item runtime list inline,
+  expand and verify both, edit/replace them in focus mode, then close and verify both again.
+  Exercise `src` and `srcdoc`, including AX-disabled JSON. No save, spec edit or reload belongs
+  between those assertions. Separately verify a real spec revision resets to authored state,
+  and that local drafts never entered the server spec. See `tests/e2e/json-render-forms.pw.ts`.
+  Eval definitions are not evidence of executing this browser regression or a model benchmark.
 - When checking embedded frame fit manually, start from a clean seeded state, rebuild stale bundles,
   and inspect the actual iframe document in a browser. Server dimensions can look correct while the
   embedded content is still clipped.
@@ -159,6 +165,49 @@ Four ways a test silently stops discriminating in this repo:
 - If a command cannot run in the environment, say what blocked it
 - If browser tests fail after a client change, confirm the bundle was rebuilt and the server
   started from the updated code
+
+### Keep first-failure evidence before rerunning
+
+Use a separate directory for each attempt, including non-browser probes. Save the exact
+command, target/version, exit status, stdout and stderr; keep credentials out of logs.
+Before rerunning Playwright, copy its failure traces/screenshots and results out of the
+runner's overwritten output directory. Never overwrite an initial failure log with a rerun.
+For a shell gate, capture its status even with `set -e`, for example:
+
+```bash
+attempt_dir=$(mktemp -d /tmp/pmx-check.XXXXXX)
+printf '%s\n' 'bun run test' > "$attempt_dir/command.txt"
+status=0
+bun run test > "$attempt_dir/stdout.log" 2> "$attempt_dir/stderr.log" || status=$?
+printf '%s\n' "$status" > "$attempt_dir/exit-status.txt"
+# Inspect this attempt before rerunning; return the gate's original exit status.
+(exit "$status")
+```
+
+Record what changed between attempts. Distinguish harness corrections, product fixes,
+unchanged retries and host approval. A corrected pass does not make the original attempt
+green. If logs were lost, say so; never reconstruct them or claim first-run success.
+
+## Native-host verification is separate from transport checks
+
+Record source, packed-package, registry-package, portal and native-host results separately.
+An SDK subprocess's MCP handshake/catalog is not evidence that Amp discovered tools.
+For Amp setup/trust and the pin → read → addressed steer → edit → visible result → ack
+procedure, follow the bundled [installation reference](../pmx-canvas/references/installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal).
+MCP-only consumers should read `skill://pmx-canvas/references/installing-pmx-canvas.md`
+directly with `resources/read`, not traverse outside the testing skill's resource tree.
+Workspace trust approval belongs to the human; report a blocked native check until approved.
+Include a different-recipient negative control for addressed delivery on a disposable board.
+Verify the rendered edit before acknowledging; detach only test-owned sessions afterward.
+Do not label active-agent polling as idle-thread wake-up, a persistent pump, or automatic
+import-agent launch. Native MCP tools do not prove native Skills-extension discovery.
+
+List unexercised surfaces explicitly: native Copilot/WebKit, Windows-native behavior,
+physical mobile, OCR and Office extraction need their own evidence. Source adapter tests
+or a source helper pointed at a published server do not establish installed-adapter execution.
+Sampled resource digests are not a full-catalog audit; eval definitions are not scored model
+results; a skipped mirror check is not validation. Do not change the product merely to
+turn an untested surface into a claimed pass.
 
 ## Handoff Standard
 

@@ -4,7 +4,7 @@ Use this reference when the `pmx-canvas` skill is installed but the `pmx-canvas`
 
 ## Prerequisites and version
 
-The examples pin **PMX Canvas 0.7.2**, which requires **Bun >=1.4.2** even when
+The examples pin **PMX Canvas 0.7.3**, which requires **Bun >=1.4.2** even when
 installed through npm: the CLI runs through Bun, not Node. Check `bun --version`
 first. If missing or older, follow the [Bun installation instructions](https://bun.sh/docs/installation)
 with the user's authorization. Ensure Bun is on the MCP host's PATH as well as the
@@ -17,11 +17,11 @@ in `SKILL.md`. Do not pair newer checkout guidance with an older runtime unknowi
 ## Install from npm
 
 ```bash
-npm install -g pmx-canvas@0.7.2
+npm install -g pmx-canvas@0.7.3
 pmx-canvas --version
 ```
 
-Without a global install, use `bunx pmx-canvas@0.7.2` in place of `pmx-canvas` in
+Without a global install, use `bunx pmx-canvas@0.7.3` in place of `pmx-canvas` in
 the commands below. Do not use unpinned `bunx pmx-canvas` for a version-specific check.
 
 ## Choose the workspace and target
@@ -91,7 +91,7 @@ discards empty env values, remove `PMX_CANVAS_URL` from its launch environment i
   "mcpServers": {
     "canvas": {
       "command": "bunx",
-      "args": ["pmx-canvas@0.7.2", "--mcp"],
+      "args": ["pmx-canvas@0.7.3", "--mcp"],
       "env": {
         "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
         "PMX_CANVAS_PORT": "14313",
@@ -122,6 +122,78 @@ If you are using a local checkout instead of the published package, point the co
 
 Restart the host's MCP process after changing configuration. Inspect startup output for
 fallback ports; do not assume the configured port is the one the MCP server bound.
+
+## Amp: connect the agent separately from the portal
+
+PMX does not ship a dedicated Amp lifecycle adapter. Amp can use the native MCP tools;
+the portal is only the human's browser UI. Configure MCP inside the orb or runner where
+Amp executes, not only on the user's laptop. Merge this into that workspace's
+`.amp/settings.json`, preserving other settings (Amp does not use the generic `.mcp.json`):
+
+```json
+{
+  "amp.mcpServers": {
+    "canvas": {
+      "command": "bunx",
+      "args": ["pmx-canvas@0.7.3", "--mcp"],
+      "includeTools": ["canvas_*"],
+      "env": {
+        "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
+        "PMX_CANVAS_PORT": "14313",
+        "PMX_CANVAS_URL": "",
+        "PMX_CANVAS_AGENT_SOURCE": "amp"
+      }
+    }
+  }
+}
+```
+
+Replace root and port with the **existing portal service's actual workspace and local
+listening port**. A supervised service may use an assigned `PORT`, not 4313 or 14313;
+inspect its status/logs and `/health`. Do not put the public portal URL in the stdio
+command or copy another test run's absolute paths. Use an absolute executable path if
+the MCP process cannot find Bun. The `canvas_*` filter exposes the Canvas tool family.
+
+### Workspace trust is a human approval
+
+Run `amp mcp doctor` from this workspace to distinguish `awaiting approval` from a
+missing executable or connection failure. A new workspace MCP command requires the
+user to review and approve it. Give the user this command to run in that workspace's
+orb Terminal or runner terminal (replace `canvas` if the configured server name differs):
+
+```bash
+amp mcp approve canvas
+```
+
+The agent must not run this approval itself or move the command to global settings or
+`--mcp-config` to bypass workspace trust. Approval authorizes execution of this MCP
+command; it is not a new Canvas import consent or permission to mutate arbitrary boards.
+After approval, reload MCP connections (`reload_mcp` in Amp) and require `connected`.
+Discover `canvas` tools with `tool_search`; for the full unfiltered 0.7.3 server there
+are 24 tools. If still absent, inspect the server status, command/PATH and target instead
+of reinstalling blindly. See [Amp MCP documentation](https://ampcode.com/docs/customize/mcp).
+
+### Verify native tools, then steering
+
+1. Check `/health` for the expected package version and canonical workspace. Through
+   Amp's discovered tools, read `canvas_board { action: "get" }` and
+   `canvas_query { action: "context" }`; verify the board matches the visible portal.
+   A CLI smoke check or SDK-spawned MCP client does not establish native Amp discovery.
+2. For a requested end-to-end check, use a disposable board. Pin a known card in the
+   portal and require a native context read to return that card as pinned. Use one
+   stable presence/steering identity (`amp` above, or a unique source per independent
+   agent); reuse any adapter-owned session instead of attaching a duplicate.
+3. Send a fresh browser message addressed to that identity. The running agent claims
+   it with `canvas_ax_delivery` using the same `consumer`, reads the relevant card,
+   signals intent, and performs the requested edit through native Canvas tools.
+4. Verify the visible result in the browser before marking the message delivered for
+   that consumer. A subsequent claim should omit it. Detach only test-owned sessions.
+
+This proves an **active agent can poll and act**, not automatic wake-up of an idle Amp
+thread, background polling, or automatic agent launch for imports. An MCP connection
+does not install a steering pump. Only configure a pump/host integration when requested;
+its startup backlog rules are in the main skill. Tool discovery and resource reads also
+do not establish Amp support for native MCP Skills-extension discovery or activation.
 
 ## Verify the actual target before writes
 

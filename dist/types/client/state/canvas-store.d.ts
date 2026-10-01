@@ -25,6 +25,8 @@ export declare const pendingExpandedNodeCloseId: import("@preact/signals-core").
 export declare const pendingConnection: import("@preact/signals-core").Signal<{
     from: string;
 } | null>;
+/** Invalidates in-flight interaction replies when board navigation resets the canvas. */
+export declare const canvasInteractionEpoch: import("@preact/signals-core").Signal<number>;
 export declare const draggingEdge: import("@preact/signals-core").Signal<{
     fromId: string;
     fromX: number;

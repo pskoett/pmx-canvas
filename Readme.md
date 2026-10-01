@@ -397,20 +397,33 @@ merge this into the workspace's `.amp/settings.json` (not `.mcp.json`):
   "amp.mcpServers": {
     "canvas": {
       "command": "bunx",
-      "args": ["pmx-canvas@0.7.2", "--mcp"]
+      "args": ["pmx-canvas@0.7.3", "--mcp"],
+      "includeTools": ["canvas_*"],
+      "env": {
+        "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
+        "PMX_CANVAS_PORT": "14313",
+        "PMX_CANVAS_URL": "",
+        "PMX_CANVAS_AGENT_SOURCE": "amp"
+      }
     }
   }
 }
 ```
 
+Replace the root and example port with the portal service's actual workspace and local
+listening port, including an orb-assigned port. Configure this inside the orb/runner;
+settings on your laptop are not automatically available there.
 In the PMX product checkout, use `"command": "bun"` and
 `"args": ["run", "src/mcp/server.ts"]` to test the checked-out source instead.
-Reload MCP connections and complete any host trust prompt. Confirm Canvas tools
-are discoverable and the target `/health.workspace` and version match before
-mutating a board. If discovery is empty, inspect Amp's MCP connection status;
-an open portal or a successful standalone MCP handshake does not prove a native
-connection, skill activation, or steering delivery. See
-[Amp MCP configuration](https://ampcode.com/docs/customize/mcp).
+Run `amp mcp doctor` in that workspace. If it reports `awaiting approval`, the user
+must review the command and run `amp mcp approve canvas` there; the agent must not
+self-approve or bypass workspace trust. Then reload MCP connections and confirm
+`connected`, Canvas tool discovery, and matching `/health.workspace`, version and
+active board before writes. An open portal or standalone MCP handshake does not prove
+native discovery. PMX ships no dedicated Amp lifecycle adapter: an active agent can
+poll steering, but MCP setup alone does not wake an idle thread or activate skills.
+See the bundled [Amp setup and verification guide](skills/pmx-canvas/references/installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal)
+and [Amp MCP configuration](https://ampcode.com/docs/customize/mcp).
 
 For the visible workbench, run `pmx-canvas` as an orb service (the orb sets
 `AMP_ORB` in the environment automatically) and open the workbench through the
@@ -428,7 +441,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.7.2
+npm install -g pmx-canvas@0.7.3
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
@@ -444,9 +457,10 @@ be inlined and stay blocked by the portal embed: cross-origin hosted apps (e.g.
 the hosted Excalidraw MCP app), and PDF file nodes — a PDF node offers an
 "Open PDF" link there instead of a preview.
 Debug overrides: `/workbench?transport=poll|sse` and
-`?iframe-mode=srcdoc|src`. Once the service is up, `pmx-canvas smoke` verifies
-the whole stack (health, versions, MCP handshake, node lifecycle, validation)
-in one command.
+`?iframe-mode=srcdoc|src`. After verifying the workspace, `pmx-canvas smoke --port=<actual-port>`
+checks health, versions, a standalone MCP handshake, node lifecycle and validation.
+Use a disposable board: it performs temporary writes and leaves history. This does
+not verify native Amp discovery or browser rendering.
 
 ### Install the agent skill (recommended)
 

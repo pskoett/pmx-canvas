@@ -5,7 +5,7 @@
  * Runs inside a pmx-canvas iframe and reads the normalized json-render spec
  * from an inline global injected by the server-side viewer route.
  */
-import type { Spec } from '@json-render/core';
+import { type Spec } from '@json-render/core';
 declare global {
     interface Window {
         __PMX_CANVAS_JSON_RENDER_SPEC__?: Spec & {
@@ -17,5 +17,6 @@ declare global {
         __PMX_CANVAS_JSON_RENDER_NODE_ID__?: string;
         __PMX_CANVAS_AX_TOKEN__?: string;
         __PMX_CANVAS_AX_STATE__?: unknown;
+        __PMX_CANVAS_UI_STATE_TOKEN__?: string;
     }
 }

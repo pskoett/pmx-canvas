@@ -14,6 +14,27 @@ describe('bundled skills', () => {
     expect(readBundledSkill('pmx-canvas')).toContain(`PMX Canvas ${version} requires`);
   });
 
+  test('Amp setup examples parse and pin the workspace, target and steering identity', async () => {
+    const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
+    for (const path of ['Readme.md', 'skills/pmx-canvas/references/installing-pmx-canvas.md']) {
+      const markdown = await Bun.file(new URL(`../../${path}`, import.meta.url)).text();
+      const configs = [...markdown.matchAll(/```json\n([\s\S]*?)\n```/g)].map((match) => JSON.parse(match[1]!));
+      const ampConfigs = configs.filter((config) => config['amp.mcpServers']);
+      expect(ampConfigs).toHaveLength(1);
+      expect(ampConfigs[0]['amp.mcpServers'].canvas).toEqual({
+        command: 'bunx',
+        args: [`pmx-canvas@${version}`, '--mcp'],
+        includeTools: ['canvas_*'],
+        env: {
+          PMX_CANVAS_WORKSPACE_ROOT: '/absolute/path/to/project',
+          PMX_CANVAS_PORT: '14313',
+          PMX_CANVAS_URL: '',
+          PMX_CANVAS_AGENT_SOURCE: 'amp',
+        },
+      });
+    }
+  });
+
   test('findBundledSkillsRoot resolves the packaged skills directory', () => {
     const root = findBundledSkillsRoot();
     expect(root).not.toBeNull();
@@ -78,6 +99,9 @@ describe('bundled skills', () => {
       'readme-preservation',
       'import-consent-distrust-and-provenance',
       'independent-export-privacy-consent',
+      'amp-workspace-trust-and-target',
+      'amp-native-steering-evidence-boundary',
+      'json-focus-runtime-state-continuity',
     ];
     for (const name of auditEvals) {
       const definition = evals.find((entry) => entry.name === name);

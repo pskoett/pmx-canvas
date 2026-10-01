@@ -572,9 +572,23 @@ body,
   box-shadow: 0 4px 24px var(--c-shadow);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   transition: box-shadow 0.15s ease;
-  contain: layout style paint;
+  contain: layout style;
+}
+
+/* Clip card content, not the connection handles centered on its border. */
+.node-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  contain: paint;
+}
+.group-node > .node-content {
+  display: contents;
 }
 
 .canvas-node:hover {
@@ -610,34 +624,42 @@ body,
 /* ── Connection port handles (drag-to-connect) ───────────── */
 .node-port {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--c-accent);
-  border: 2px solid var(--c-panel);
+  /* The visible dot stays compact; its grab area stays usable at every zoom. */
+  width: calc(32px * var(--node-port-scale, 1));
+  height: calc(32px * var(--node-port-scale, 1));
+  display: grid;
+  place-items: center;
   opacity: 0;
   cursor: crosshair;
   z-index: 10;
-  transition: opacity 0.15s, transform 0.15s;
-  transform: translate(-50%, -50%) scale(0.6);
+  touch-action: none;
+  transition: opacity 0.15s;
   pointer-events: auto;
 }
-.canvas-node:hover .node-port {
+.node-port::after {
+  content: '';
+  width: calc(6px * var(--node-port-scale, 1));
+  height: calc(6px * var(--node-port-scale, 1));
+  border-radius: 50%;
+  background: var(--c-accent);
+  border: calc(2px * var(--node-port-scale, 1)) solid var(--c-panel);
+  box-shadow: 0 0 0 calc(1px * var(--node-port-scale, 1)) var(--c-accent);
+}
+.canvas-node:hover .node-port,
+.canvas-node.selected .node-port,
+.canvas-node:focus-within .node-port {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
 }
-.node-port:hover {
+.node-port:hover::after {
   background: var(--c-accent-hover);
-  transform: translate(-50%, -50%) scale(1.3);
 }
-.node-port-top    { top: 0;   left: 50%; }
-.node-port-bottom { bottom: 0; left: 50%; transform: translate(-50%, 50%) scale(0.6); }
-.node-port-left   { left: 0;  top: 50%; }
-.node-port-right  { right: 0; top: 50%; transform: translate(50%, -50%) scale(0.6); }
-.canvas-node:hover .node-port-bottom { transform: translate(-50%, 50%) scale(1); }
-.canvas-node:hover .node-port-right  { transform: translate(50%, -50%) scale(1); }
-.node-port-bottom:hover { transform: translate(-50%, 50%) scale(1.3); }
-.node-port-right:hover  { transform: translate(50%, -50%) scale(1.3); }
+/* Bias vertical grab areas outward so they do not steal title/footer clicks. */
+.node-port-top    { top: 0; left: 50%; transform: translate(-50%, -75%); }
+.node-port-bottom { bottom: 0; left: 50%; transform: translate(-50%, 75%); }
+.node-port-top::after { transform: translateY(calc(8px * var(--node-port-scale, 1))); }
+.node-port-bottom::after { transform: translateY(calc(-8px * var(--node-port-scale, 1))); }
+.node-port-left   { left: 0; top: 50%; transform: translate(-50%, -50%); }
+.node-port-right  { right: 0; top: 50%; transform: translate(50%, -50%); }
 
 .canvas-node .node-titlebar {
   display: flex;
@@ -2001,6 +2023,7 @@ body,
   color: var(--c-dim);
 }
 .command-bar-composer {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2012,24 +2035,72 @@ body,
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 .command-bar-target {
-  appearance: none;
-  -webkit-appearance: none;
   max-width: 148px;
-  padding: 4px 18px 4px 8px;
-  border: 1px solid var(--c-line);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--c-panel) 80%, transparent)
-    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M1 1l3 3 3-3' fill='none' stroke='%237a8699' stroke-width='1.4'/%3E%3C/svg%3E")
-    no-repeat right 6px center;
-  color: var(--c-text-soft);
-  font: 12px/1.3 var(--mono);
-  cursor: pointer;
   flex-shrink: 0;
 }
-.command-bar-target:hover,
-.command-bar-target:focus-visible {
-  border-color: var(--c-accent-25);
+.choice-menu {
+  position: relative;
+  min-width: 0;
+}
+.choice-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--c-line) 65%, var(--c-muted));
+  border-radius: 8px;
+  background: var(--c-panel-overlay);
   color: var(--c-text);
+  font: 12px/1.35 var(--font);
+  cursor: pointer;
+}
+.choice-menu-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.choice-menu-trigger svg { flex-shrink: 0; }
+.choice-menu-trigger:hover,
+.choice-menu-trigger[aria-expanded='true'] { border-color: var(--c-accent); }
+.choice-menu-trigger:focus-visible,
+.choice-menu-options button:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+.toolbar-menu.choice-menu-options {
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 64px));
+  max-height: min(280px, 40vh);
+  overflow-y: auto;
+  z-index: 20;
+}
+.toolbar-menu.choice-menu-options.opens-above {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.command-bar-target.choice-menu {
+  position: static;
+}
+.command-bar-target .choice-menu-options {
+  /* Anchor to the composer, not its inset trigger, to clear the session rail. */
+  min-width: min(200px, 100%);
+  max-width: 100%;
+}
+.choice-menu-options .toolbar-menu-item {
+  min-height: 36px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.choice-menu-options button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .command-bar-icon {
@@ -4498,13 +4569,24 @@ html.is-node-resizing .ext-app-preview-catcher {
 }
 .text-prompt-cancel,
 .text-prompt-confirm {
-  padding: 5px 12px;
+  min-height: 36px;
+  padding: 8px 14px;
   border-radius: 7px;
-  border: 1px solid var(--c-line);
-  background: none;
-  color: var(--c-text-soft);
+  border: 1px solid color-mix(in srgb, var(--c-line) 65%, var(--c-muted));
+  background: var(--c-panel-overlay);
+  color: var(--c-text);
   cursor: pointer;
   font-size: 12px;
+  font-weight: 600;
+}
+.text-prompt-cancel:hover {
+  background: var(--c-accent-10);
+  border-color: var(--c-muted);
+}
+.text-prompt-cancel:focus-visible,
+.text-prompt-confirm:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
 }
 .text-prompt-confirm {
   background: var(--c-accent);
@@ -4524,7 +4606,8 @@ html.is-node-resizing .ext-app-preview-catcher {
   overflow-y: auto;
   color: var(--c-text);
 }
-.feedback-dialog label {
+.feedback-dialog label,
+.feedback-field {
   display: flex;
   flex-direction: column;
   gap: 6px;

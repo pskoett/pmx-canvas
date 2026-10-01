@@ -7,11 +7,14 @@
  * from an inline global injected by the server-side viewer route.
  */
 
-import type { Spec } from '@json-render/core';
-import { AX_SURFACE_EMIT_SOURCE, HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
-import { useEffect } from 'react';
+import { createStateStore, type Spec, type StateStore } from '@json-render/core';
+import {
+  AX_SURFACE_EMIT_SOURCE,
+  HTML_SURFACE_PUSH_SOURCE,
+  JSON_VIEWER_STATE_SOURCE,
+} from '../../shared/ax-surface-protocol.js';
 import { createRoot } from 'react-dom/client';
-import { defineRegistry, JSONUIProvider, Renderer, useStateBinding } from '@json-render/react';
+import { defineRegistry, JSONUIProvider, Renderer } from '@json-render/react';
 import { shadcnComponents } from '@json-render/shadcn';
 import { catalog } from '../catalog';
 import { chartComponents } from '../charts/components';
@@ -106,27 +109,8 @@ declare global {
     __PMX_CANVAS_JSON_RENDER_NODE_ID__?: string;
     __PMX_CANVAS_AX_TOKEN__?: string;
     __PMX_CANVAS_AX_STATE__?: unknown;
+    __PMX_CANVAS_UI_STATE_TOKEN__?: string;
   }
-}
-
-// Read-side AX bridge for json-render: keeps the spec-bound `/ax` state live as
-// the parent canvas pushes nonce-validated `ax-update` messages, so a declarative
-// board ({ "$state": "/ax/workItems" }) reflects the work queue in real time.
-function AxStateSync() {
-  const [, setAx] = useStateBinding<unknown>('ax');
-  useEffect(() => {
-    const token = window.__PMX_CANVAS_AX_TOKEN__;
-    if (!token) return undefined;
-    function onMessage(event: MessageEvent) {
-      const m = event.data as { source?: string; type?: string; token?: string; state?: unknown } | null;
-      if (!m || m.source !== HTML_SURFACE_PUSH_SOURCE || m.type !== 'ax-update' || m.token !== token) return;
-      window.__PMX_CANVAS_AX_STATE__ = m.state;
-      setAx(m.state);
-    }
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [setAx]);
-  return null;
 }
 
 // AX interaction types a json-render spec can bind actions to. When an action
@@ -188,7 +172,7 @@ function applyTheme(theme: unknown): void {
   document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
 }
 
-function App() {
+function App({ store }: { store: StateStore }) {
   const spec = window.__PMX_CANVAS_JSON_RENDER_SPEC__;
 
   if (!spec) {
@@ -208,11 +192,6 @@ function App() {
     );
   }
 
-  // Seed AX state under a reserved `/ax` key so specs can bind { "$state": "/ax/workItems" }.
-  const axState = window.__PMX_CANVAS_AX_STATE__;
-  const initialState =
-    axState !== undefined && axState !== null ? { ...(spec.state ?? {}), ax: axState } : (spec.state ?? undefined);
-
   // Standalone "Open as site" tab (#65): fill the browser viewport instead of the
   // in-canvas card height. The chart child flex-grows; useChartFrameHeight measures
   // the full viewport in this mode. Embedded/expanded keep the padded min-height box.
@@ -229,13 +208,7 @@ function App() {
     : { minHeight: '100vh', padding: 16, boxSizing: 'border-box' as const };
   return (
     <div style={containerStyle}>
-      <JSONUIProvider
-        registry={registry}
-        initialState={initialState}
-        directives={pmxCanvasDirectives}
-        handlers={buildAxHandlers()}
-      >
-        <AxStateSync />
+      <JSONUIProvider registry={registry} store={store} directives={pmxCanvasDirectives} handlers={buildAxHandlers()}>
         <div style={isSite ? { flex: 1, minHeight: 0 } : undefined}>
           <Renderer spec={spec} registry={registry} loading={false} />
         </div>
@@ -248,5 +221,52 @@ function App() {
 const root = document.getElementById('root');
 if (root) {
   syncPreferredTheme();
-  createRoot(root).render(<App />);
+  const stateToken = window.__PMX_CANVAS_UI_STATE_TOKEN__;
+  let store: StateStore | undefined;
+  const mount = (restored: Record<string, unknown> | null) => {
+    if (store) return;
+    const seed = restored ?? window.__PMX_CANVAS_JSON_RENDER_SPEC__?.state ?? {};
+    const ax = window.__PMX_CANVAS_AX_STATE__;
+    store = createStateStore(ax != null ? { ...seed, ax } : seed);
+    if (stateToken) {
+      // subscribe fires synchronously at the input/action write, not in a React
+      // effect that can be lost on unmount. Never mirror the server-owned /ax.
+      store.subscribe(() => {
+        const { ax: _ax, ...state } = store!.getSnapshot();
+        window.parent.postMessage(
+          {
+            source: JSON_VIEWER_STATE_SOURCE,
+            type: 'snapshot',
+            token: stateToken,
+            nodeId: window.__PMX_CANVAS_JSON_RENDER_NODE_ID__,
+            state,
+          },
+          '*',
+        );
+      });
+    }
+    createRoot(root).render(<App store={store} />);
+  };
+  // Install before document load. The parent supplies a snapshot (or null) in
+  // onLoad; restore BEFORE mounting so watchers don't replay past user actions.
+  // Standalone viewers have no state token and render immediately.
+  window.addEventListener('message', (event: MessageEvent) => {
+    if (event.source !== window.parent) return;
+    const m = event.data as { source?: string; type?: string; token?: string; state?: unknown } | null;
+    if (!m) return;
+    if (m.source === JSON_VIEWER_STATE_SOURCE && m.type === 'restore' && stateToken && m.token === stateToken) {
+      if (m.state === null || (typeof m.state === 'object' && !Array.isArray(m.state)))
+        mount(m.state as Record<string, unknown> | null);
+    }
+    if (
+      m.source === HTML_SURFACE_PUSH_SOURCE &&
+      m.type === 'ax-update' &&
+      window.__PMX_CANVAS_AX_TOKEN__ &&
+      m.token === window.__PMX_CANVAS_AX_TOKEN__
+    ) {
+      window.__PMX_CANVAS_AX_STATE__ = m.state;
+      store?.set('/ax', m.state);
+    }
+  });
+  if (!stateToken) mount(null);
 }

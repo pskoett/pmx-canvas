@@ -43,11 +43,14 @@ for the authoritative stop, viewport, persistence, reset, group-order, and captu
 
 ## Runtime prerequisites
 
-PMX Canvas 0.7.2 requires **Bun >=1.4.2**, including when installed through npm.
+PMX Canvas 0.7.3 requires **Bun >=1.4.2**, including when installed through npm.
 Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
 use an absolute executable path if needed. Install/configure only when requested.
 For pinned installation, MCP configuration, managed services, and disposable verification,
 read [Installing PMX Canvas](references/installing-pmx-canvas.md).
+In Amp, follow that reference's [Amp setup](references/installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal):
+portal access is separate from native MCP, workspace commands need human trust approval,
+and a connected MCP server does not install an idle-thread wake-up adapter.
 
 ## Reading bundled skills over MCP
 
@@ -58,7 +61,8 @@ files (for example `skill://pmx-canvas/references/installing-pmx-canvas.md`) thr
 `resources/read`, fetching only what is needed. Hosts without extension support can still read
 ordinary resources or use installed filesystem skills; `canvas://skills` remains available.
 Resource reads do not activate skills or authorize executing their scripts. The host must
-preserve MCP origin and apply integrity/approval checks. Restart MCP after upgrading the package;
+preserve MCP origin and apply integrity/approval checks. Native Canvas tool discovery alone
+does not establish native MCP Skills-extension support. Restart MCP after upgrading the package;
 the served catalog is a startup snapshot. Local mirrors still use `skills sync` below.
 
 ## Required Operating Sequence
@@ -104,7 +108,7 @@ the served catalog is a startup snapshot. Local mirrors still use `skills sync` 
    Do not detach a host-owned session; its adapter manages its lifetime. Everything the session
    gives you and asks of you (cursor + phase chip, the session panel, steering, the scope fence's
    403s, the human edit lock's 409s, unattended approvals) is in **Sessions & the human** below.
-7. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
+7. **Mutate through current composites.** Prefer the 18 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.
 7b. **Show the human.** After creating user-facing output, bring the camera to it: a single node
@@ -204,7 +208,7 @@ always authoritative, independent of the installed release version.
 |-----------|---------|
 | `canvas_import` | `list`, `read`, `submit`, `unavailable` |
 | `canvas_node` | `add`, `get`, `update`, `remove` |
-| `canvas_render` | `describe-schema`, `validate`, `add-json-render`, `stream-json-render`, `add-graph` |
+| `canvas_render` | `describe-schema`, `validate`, `add-json-render`, `stream-json-render`, `add-graph`, `workboard` |
 | `canvas_edge` | `add`, `update`, `remove` |
 | `canvas_group` | `create`, `add`, `ungroup` |
 | `canvas_history` | `undo`, `redo` |
@@ -217,7 +221,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads` |
 | `canvas_ax_delivery` | `claim`, `mark` |
-| `canvas_board` | `list`, `get`, `create`, `create-from`, `update` |
+| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 
@@ -300,7 +304,12 @@ as layout work left to do.
 Creation responses may include `sizeAdjustment` (`defaulted`, `clamped-to-minimum`, or
 `fit-to-children`); use its `applied` geometry rather than assuming the request won. Json-render
 validation/creation may also return warnings for form controls whose value is not bound with
-`$bindState`; the panel can render, but edits are not durable state until the binding is fixed.
+`$bindState`; the panel can render, but edits do not update its runtime state until the binding is fixed.
+Bound JSON input and dynamic lists are local UI state, not saved canvas data. Focus-mode
+expand/close preserves that state for the same spec in the current tab; an authored spec update,
+board switch or page reload resets it. Persist important edits explicitly through the app's
+save/AX actions. Published 0.7.2 loses this state on expand/close too (AK): avoid changing views
+with an unsaved JSON form on that release. This contract does not extend to HTML or external apps.
 If the documented receipts or warnings are unexpectedly absent, do not guess around them with raw
 payload reads: verify that the CLI/MCP host and daemon use the same 0.7 installation and workspace,
 restart the matching daemon after upgrade, and re-check `/health`.
@@ -428,15 +437,18 @@ Use the visible workbench when the human is actively curating layout:
 - Other open tabs appear as green cursors with a name tag (`/workbench?name=mia` sets yours);
   a node you drag is locked for agents until you release it.
 - The chrome is a persistent 52px left tool rail plus a slim 44px top bar (0.4.8+). The rail
-  carries the tools (Select V, Pan Space, Connect C), node creation (markdown M, image I, file
-  Shift+F, webpage W, HTML surface H, group G, annotate A — a popover with draw / text / eraser),
+  carries the tools (Select V, Pan Space, Connect C), Markdown note M, Attach files, webpage W,
+  group G, and separate Draw A, Text note and Eraser buttons for board feedback,
   and utilities: search & commands (Cmd+K — actions with shortcuts, then jump-to-node), arrange,
   trace, minimap, history, the theme picker (nine themes: dark, light, high-contrast, midnight,
   sepia, arctic, ember, forest, volt), and shortcuts (?). The top bar holds the connection dot,
   workspace title, the session chip / gate badge / context meter while a session is attached
   (or the external-writers indicator and *Start agent session* otherwise), and the zoom cluster
   (zoom out, % label = reset, zoom in, fit F). Hovering a rail button shows a tooltip with its
-  shortcut.
+  shortcut or supported file types. Attach files shares the drop workflow: images, Markdown,
+  text/code and PDF/Office originals; PDF/Office extraction still requires the import request
+  and human review. Workspace file paths (Shift+F) and image URLs (I) remain in the canvas
+  menu and shortcuts; HTML surfaces remain available through H and agent tools.
   On viewports ≤1180px the top bar drops its meta text and the session panel becomes a drawer;
   every control stays in the rail at any width — there is no separate mobile menu.
 - Keyboard: nodes are focusable — arrow keys move to the nearest node, Enter opens it in focus
@@ -653,5 +665,5 @@ Load only the reference relevant to the task:
 - [GitHub Copilot adapter](references/github-copilot-app-adapter.md)
 - [Codex app adapter](references/codex-app-adapter.md)
 
-The authoritative current MCP inventory and legacy replacement table is
-[`docs/mcp.md`](../../docs/mcp.md).
+Use fresh MCP `tools/list` for the installed runtime's authoritative inventory and action schemas;
+the [bundled full reference](references/full-reference.md) remains available in mirrored skills.

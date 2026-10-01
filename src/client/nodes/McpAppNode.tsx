@@ -10,6 +10,7 @@ import { ExtAppFrame } from './ExtAppFrame';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
 import { useSurfaceFrame } from './use-surface-frame';
+import { restoreViewerRuntimeState } from './viewer-runtime-state';
 
 function withViewerParams(
   url: string,
@@ -19,6 +20,7 @@ function withViewerParams(
   axNodeId?: string,
   frameToken?: string,
   fitContent?: boolean,
+  stateToken?: string,
 ): string {
   if (!url) return url;
   try {
@@ -38,6 +40,7 @@ function withViewerParams(
     // Content-fit: report natural height (charts render intrinsic) so the node grows.
     if (frameToken) resolved.searchParams.set('frameToken', frameToken);
     if (fitContent) resolved.searchParams.set('fit', 'content');
+    if (stateToken) resolved.searchParams.set('stateToken', stateToken);
     return resolved.toString();
   } catch {
     return url;
@@ -68,6 +71,7 @@ export function RefreshingViewerFrame({
   source,
   iframeRef,
   onLoad,
+  onDocumentLoad,
   title,
   className = 'mcp-app-frame',
   sandbox = 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox',
@@ -77,6 +81,7 @@ export function RefreshingViewerFrame({
   source: ViewerFrameSource;
   iframeRef: RefObject<HTMLIFrameElement>;
   onLoad: () => void;
+  onDocumentLoad?: (frame: HTMLIFrameElement) => void;
   title: string;
   className?: string;
   sandbox?: string;
@@ -119,6 +124,9 @@ export function RefreshingViewerFrame({
       tabIndex={tabIndex}
       loading={iframeMode.value === 'srcdoc' ? undefined : 'lazy'}
       onLoad={(event) => {
+        // Seed runtime state while a replacement is still behind the painted
+        // frame, rather than mounting an empty viewer after promotion.
+        onDocumentLoad?.(event.currentTarget);
         if (!isPending) {
           onLoad();
           return;
@@ -214,6 +222,10 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   useEffect(pushAxState, [isAxViewer, axToken, axStateValue]);
 
   const specVersion = typeof node.data.specVersion === 'number' ? node.data.specVersion : undefined;
+  const stateToken = useMemo(
+    () => (isJsonViewer ? `ui-${crypto.randomUUID()}` : ''),
+    [isJsonViewer, specVersion, node.data.url],
+  );
   const url = withViewerParams(
     (node.data.url as string) || '',
     expanded,
@@ -222,6 +234,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
     isAxViewer ? node.id : undefined,
     frameToken || undefined,
     contentFit,
+    stateToken || undefined,
   );
   // src vs fetch()+srcdoc, decided by the boot-wide embed probe (Amp portals).
   // External viewer URLs always stay src — the hook passes them through.
@@ -284,6 +297,9 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
       <RefreshingViewerFrame
         source={surfaceFrame}
         iframeRef={iframeRef}
+        onDocumentLoad={(frame) => {
+          if (stateToken && frame.contentWindow) restoreViewerRuntimeState(node.id, stateToken, frame.contentWindow);
+        }}
         onLoad={pushAxState}
         title={`MCP App: ${sourceServer}`}
       />

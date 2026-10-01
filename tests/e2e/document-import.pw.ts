@@ -2,6 +2,56 @@ import { expect, test } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 2 });
 
+for (const width of [1440, 390]) {
+  test(`Attach files accepts images and Markdown with a readable format tooltip at ${width}px`, async ({
+    page,
+    request,
+  }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Attach files' } })).json();
+    await request.post('/api/canvas/boards/open', { data: { id: board.id } });
+    await page.goto(`/workbench?theme=${width === 390 ? 'light' : 'dark'}`);
+    const rail = page.locator('.tool-rail');
+    for (const name of ['File (Shift+F)', 'Image (I)', 'HTML surface (H)']) {
+      await expect(rail.getByRole('button', { name, exact: true })).toHaveCount(0);
+    }
+    for (const name of ['Markdown note (M)', 'Webpage (W)', 'Group (G)']) {
+      await expect(rail.getByRole('button', { name, exact: true })).toBeVisible();
+    }
+    const attach = rail.getByRole('button', { name: 'Attach files', exact: true });
+    await attach.focus();
+    const tip = page.getByRole('tooltip', { name: /^Attach files/ });
+    await expect(tip).toContainText('Images (PNG, JPEG, SVG…), Markdown and text/code files.');
+    await expect(tip).toContainText('PDF, Word, Excel, PowerPoint and OpenDocument use agent import with review.');
+    await expect(tip).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: info.outputPath(`attach-tooltip-${width}.png`) });
+
+    const chooser = page.waitForEvent('filechooser');
+    await attach.click();
+    await (await chooser).setFiles([
+      {
+        name: 'diagram.svg',
+        mimeType: 'image/svg+xml',
+        buffer: Buffer.from(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="teal"/></svg>',
+        ),
+      },
+      { name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# Attached note\n\nATTACH-MARKDOWN-END') },
+    ]);
+    await expect(page.locator('.canvas-node[data-node-type="image"] img')).toBeVisible();
+    await expect(page.locator('.canvas-node[data-node-type="markdown"]')).toContainText('ATTACH-MARKDOWN-END');
+    await expect
+      .poll(async () => {
+        const state = await (await request.get('/api/canvas/state')).json();
+        return state.nodes.map((node: { type: string }) => node.type).sort();
+      })
+      .toEqual(['image', 'markdown']);
+    await page.reload();
+    await expect(page.locator('.canvas-node[data-node-type="image"] img')).toBeVisible();
+    await expect(page.locator('.canvas-node[data-node-type="markdown"]')).toContainText('ATTACH-MARKDOWN-END');
+  });
+}
+
 test('dropping originals onto an occupied card keeps every card separate', async ({ page, request }, testInfo) => {
   const human = { 'x-pmx-workbench': '1' };
   const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Attachment placement' } })).json();
@@ -72,7 +122,7 @@ for (const width of [1440, 600]) {
     await request.post('/api/canvas/boards/open', { headers: human, data: { id: board.id } });
     await page.goto(`/workbench?theme=${width === 600 ? 'light' : 'dark'}`);
     const source = Buffer.from('%PDF-1.4\n% byte-retention fixture, extraction is agent-supplied\n');
-    const attach = page.getByRole('button', { name: 'Attach document', exact: true });
+    const attach = page.getByRole('button', { name: 'Attach files', exact: true });
     expect((await attach.boundingBox())!.width).toBe(36);
     expect((await attach.locator('svg').boundingBox())!.width).toBe(15);
     const switcher = page.getByRole('button', { name: /^Board:/ });

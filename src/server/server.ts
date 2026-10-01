@@ -1737,10 +1737,12 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
   const html = await buildJsonRenderViewerHtml({
     title,
     spec,
+    nodeId,
+    stateToken: url.searchParams.get('stateToken') ?? undefined,
     ...(theme ? { theme } : {}),
     ...(display ? { display } : {}),
     ...(devtoolsEnabled ? { devtools: true } : {}),
-    ...(axToken ? { nodeId, axToken } : {}),
+    ...(axToken ? { axToken } : {}),
     // Seed the read-side AX state (only for AX-enabled nodes) so specs can bind /ax.
     ...(axToken && axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
     // Content-fit: report natural height (charts render intrinsic) so the node grows.

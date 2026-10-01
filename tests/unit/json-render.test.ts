@@ -2,10 +2,23 @@ import { describe, expect, test } from 'bun:test';
 import {
   applyJsonRenderStreamPatches,
   buildGraphSpec,
+  buildJsonRenderViewerHtml,
   emptyStreamingSpec,
   normalizeAndValidateJsonRenderSpec,
   normalizeGraphType,
 } from '../../src/json-render/server.ts';
+
+test('viewer runtime nonce is sanitized and independent of AX enablement', async () => {
+  const html = await buildJsonRenderViewerHtml({
+    title: 'State handoff',
+    nodeId: 'json-node',
+    stateToken: 'ui-123</script>',
+    spec: { root: 'text', elements: { text: { type: 'Text', props: { text: 'Hello' }, children: [] } } },
+  });
+  expect(html.match(/window\.__PMX_CANVAS_UI_STATE_TOKEN__ = ([^;]+);/)?.[1]).toBe('"ui-123script"');
+  expect(html.match(/window\.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ([^;]+);/)?.[1]).toBe('"json-node"');
+  expect(html.includes('window.__PMX_CANVAS_AX_TOKEN__ =')).toBe(false);
+});
 
 describe('json-render validation', () => {
   test('preserves state and element repeat, watch, slots and chained-action parameters', () => {

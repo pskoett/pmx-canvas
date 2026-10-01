@@ -101,6 +101,8 @@ export declare function buildJsonRenderViewerHtml(options: {
     nodeId?: string;
     axToken?: string;
     axState?: unknown;
+    /** Independent nonce for tab-local runtime state across focus transitions. */
+    stateToken?: string;
     /** Nonce for the content-height reporter so the node can grow to fit the chart. */
     frameToken?: string;
     /** When true, charts render at their natural (intrinsic) height instead of

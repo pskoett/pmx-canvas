@@ -430,8 +430,8 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 
 > **Legacy single-purpose tools were removed in v0.3.0.** The old names (`canvas_add_node`,
 > `canvas_update_node`, `canvas_request_approval`, `canvas_add_work_item`, …) are no longer
-> registered — use the composites instead. The authoritative legacy→composite mapping table lives
-> in [`docs/mcp.md`](../../../docs/mcp.md) — this skill does not re-enumerate the removed names.
+> registered — use the composites below and fresh MCP `tools/list` for the installed runtime's
+> authoritative action schemas. This skill does not re-enumerate the removed names.
 
 ### The 18 composites
 
@@ -439,7 +439,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 |-----------|-----------------|--------------|
 | `canvas_import` | `list` · `read` · `submit` · `unavailable` | Process human-requested imports: inspect metadata/controlled bytes, submit reviewable Markdown with references/warnings/agent description, or report unavailable. Request/cancel/commit are human-only |
 | `canvas_node` | `add` · `get` · `update` · `remove` | Create / read / mutate / delete a node. **`add` covers html + primitives too**: `{ action:"add", type:"html", html:"…" }` and `{ action:"add", type:"html", primitive:"choice-grid", data:{} }` — no separate add-html tool needed |
-| `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` | Schema introspection, spec dry-run validation, and native json-render / graph node creation |
+| `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` · `workboard` | Schema introspection, spec dry-run validation, native json-render / graph node creation, and a live AX work-item board |
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |

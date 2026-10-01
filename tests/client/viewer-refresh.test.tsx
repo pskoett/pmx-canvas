@@ -43,10 +43,12 @@ describe('iframe-backed viewer refresh', () => {
         while (callbacks.length) callbacks.shift()!(0);
       });
     const loadedRef: { current: HTMLIFrameElement | null } = { current: null };
+    const initialized: HTMLIFrameElement[] = [];
     const viewer = (version: number) => (
       <RefreshingViewerFrame
         source={{ src: `/viewer?v=${version}` }}
         iframeRef={frameRef}
+        onDocumentLoad={(frame) => initialized.push(frame)}
         onLoad={() => {
           loadedRef.current = frameRef.current;
         }}
@@ -57,6 +59,9 @@ describe('iframe-backed viewer refresh', () => {
     view.rerender(viewer(2));
     const pending = view.container.querySelectorAll('iframe')[1]!;
     fireEvent.load(pending);
+    expect(initialized).toEqual([pending]);
+    expect(loadedRef.current).toBeNull();
+    expect(pending.style.visibility).toBe('hidden');
     expect(view.container.querySelectorAll('iframe')).toHaveLength(2);
     flush();
     expect(loadedRef.current).toBe(pending);

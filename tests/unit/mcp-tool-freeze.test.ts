@@ -116,6 +116,7 @@ async function createMcpSession(): Promise<Client> {
   const client = new Client({ name: 'pmx-canvas-mcp-freeze-test', version: '0.1.0' }, { capabilities: {} });
   await client.connect(transport);
   cleanup.push(async () => {
+    await client.close();
     await transport.close();
     removeTestWorkspace(workspaceRoot);
   });
@@ -129,6 +130,26 @@ describe('MCP public surface freeze', () => {
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
     expect(FROZEN_TOOL_NAMES).toHaveLength(24);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
+  }, 30000);
+
+  test('the bundled skill quick reference matches live composite discovery', async () => {
+    const client = await createMcpSession();
+    const { tools } = await client.listTools();
+    const skill = await Bun.file(new URL('../../skills/pmx-canvas/SKILL.md', import.meta.url)).text();
+    const composites = tools.filter((tool) => tool.inputSchema.properties?.action);
+    expect(skill).toContain(`Prefer the ${composites.length} composite MCP tools`);
+    expect(skill).toContain(
+      `**${tools.length} tools**: the ${composites.length} composites below plus ${tools.length - composites.length} standalones`,
+    );
+    const table = skill.split('## Current MCP Composites')[1]!.split('Important routing:')[0]!;
+    const rows = [...table.matchAll(/^\| `(canvas_\w+)` \| (.+) \|$/gm)];
+    expect(rows.map((row) => row[1]).sort()).toEqual(composites.map((tool) => tool.name).sort());
+    for (const tool of composites) {
+      const row = rows.find((row) => row[1] === tool.name)!;
+      const documentedActions = [...row[2]!.split(' with ')[0]!.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+      const actionSchema = tool.inputSchema.properties!.action as { enum: string[] };
+      expect(documentedActions.sort(), tool.name).toEqual([...actionSchema.enum].sort());
+    }
   }, 30000);
 
   test('the fixed resource URI list matches the frozen 15-resource list exactly', async () => {

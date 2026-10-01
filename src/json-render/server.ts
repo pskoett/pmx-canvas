@@ -979,6 +979,8 @@ export async function buildJsonRenderViewerHtml(options: {
   nodeId?: string;
   axToken?: string;
   axState?: unknown;
+  /** Independent nonce for tab-local runtime state across focus transitions. */
+  stateToken?: string;
   /** Nonce for the content-height reporter so the node can grow to fit the chart. */
   frameToken?: string;
   /** When true, charts render at their natural (intrinsic) height instead of
@@ -995,9 +997,14 @@ export async function buildJsonRenderViewerHtml(options: {
       ...(options.theme ? [`window.__PMX_CANVAS_JSON_RENDER_THEME__ = ${JSON.stringify(options.theme)};`] : []),
       ...(options.display ? [`window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ = ${JSON.stringify(options.display)};`] : []),
       ...(options.devtools ? ['window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ = true;'] : []),
+      ...(options.nodeId
+        ? [`window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ${JSON.stringify(sanitizeAxValue(options.nodeId))};`]
+        : []),
+      ...(options.stateToken
+        ? [`window.__PMX_CANVAS_UI_STATE_TOKEN__ = ${JSON.stringify(sanitizeAxValue(options.stateToken))};`]
+        : []),
       ...(options.nodeId && options.axToken
         ? [
-            `window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ${JSON.stringify(sanitizeAxValue(options.nodeId))};`,
             `window.__PMX_CANVAS_AX_TOKEN__ = ${JSON.stringify(sanitizeAxValue(options.axToken))};`,
             // Read-side AX state: seed for initial render + bound under /ax for specs.
             `window.__PMX_CANVAS_AX_STATE__ = ${JSON.stringify(options.axState ?? null).replace(/</g, '\\u003c')};`,

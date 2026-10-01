@@ -4,6 +4,7 @@ import { contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-s
 import { steerableAgents } from '../state/presence-store';
 import { sendSteering } from '../state/session-store';
 import { modChord } from '../utils/platform';
+import { ChoiceMenu } from './ChoiceMenu';
 
 /**
  * Command bar (rail-chrome-v2 phase 5): the human's steering surface while a
@@ -83,33 +84,34 @@ export function CommandBar() {
       <div class="command-bar-composer">
         <IconSteer size={15} class="command-bar-icon" />
         {showPicker && (
-          <select
-            class="command-bar-target"
-            aria-label="Steer which agent"
-            title="Connected agents — steering reaches all of them unless you address one"
+          <ChoiceMenu
+            className="command-bar-target"
+            label="Steer which agent"
             value={effectiveTarget ?? ''}
-            onChange={(e) => setTarget((e.target as HTMLSelectElement).value || null)}
-          >
-            <option value="">All agents</option>
-            {agents.map((agent) => {
-              // Pump health at the point of choice: unclaimed steers already
-              // sitting in this agent's queue (a growing number means its loop
-              // is not polling), and proof-of-polling when its consumer key
-              // claimed recently — attached alone doesn't mean anyone reads
-              // the inbox.
-              const queued = agent.pendingSteers && agent.pendingSteers > 0 ? ` · ${agent.pendingSteers} queued` : '';
-              const polling = agent.polling ? ' · polling' : '';
-              return (
-                <option key={agent.value} value={agent.value} disabled={!agent.steerable}>
-                  {agent.attached
+            above
+            onChange={(value) => setTarget(value || null)}
+            options={[
+              { value: '', label: 'All agents' },
+              ...agents.map((agent) => {
+                // Pump health at the point of choice: unclaimed steers already
+                // sitting in this agent's queue (a growing number means its loop
+                // is not polling), and proof-of-polling when its consumer key
+                // claimed recently — attached alone doesn't mean anyone reads
+                // the inbox.
+                const queued = agent.pendingSteers && agent.pendingSteers > 0 ? ` · ${agent.pendingSteers} queued` : '';
+                const polling = agent.polling ? ' · polling' : '';
+                return {
+                  value: agent.value,
+                  disabled: !agent.steerable,
+                  label: agent.attached
                     ? `${agent.label}${polling}${queued}`
                     : agent.steerable
                       ? `${agent.label} · writer${polling}${queued}`
-                      : `${agent.label} · no inbox`}
-                </option>
-              );
-            })}
-          </select>
+                      : `${agent.label} · no inbox`,
+                };
+              }),
+            ]}
+          />
         )}
         <input
           class="command-bar-input"

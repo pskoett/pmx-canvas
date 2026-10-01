@@ -18,6 +18,9 @@ export const AX_SURFACE_ACK_SOURCE = 'pmx-canvas-ax-ack';
 /** Parent→surface pushes (theme updates, live AX state) into html/viewer iframes. */
 export const HTML_SURFACE_PUSH_SOURCE = 'pmx-canvas-html-node';
 
+/** Tab-local JSON viewer state handoff, independent of AX capabilities. */
+export const JSON_VIEWER_STATE_SOURCE = 'pmx-canvas-json-state';
+
 /** Ext-app boot beacon: the iframe's scripts executed (WebKit watchdog liveness). */
 export const EXT_APP_BOOT_BEACON_SOURCE = 'pmx-canvas-ext-app-alive';
 

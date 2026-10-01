@@ -58,6 +58,8 @@ const EXCALIDRAW_CLOSE_MAX_WAIT_MS = 2500;
 
 // ── Pending edge connection (for context menu "Connect from") ─
 export const pendingConnection = signal<{ from: string } | null>(null);
+/** Invalidates in-flight interaction replies when board navigation resets the canvas. */
+export const canvasInteractionEpoch = signal(0);
 
 // ── Drag-to-connect (live edge preview) ─────────────────────
 export const draggingEdge = signal<{
@@ -151,6 +153,7 @@ export function resetCanvasInteractionState(): void {
     expandedCloseTimer = null;
   }
   batch(() => {
+    canvasInteractionEpoch.value += 1;
     activeNodeId.value = null;
     expandedNodeId.value = null;
     pendingExpandedNodeCloseId.value = null;

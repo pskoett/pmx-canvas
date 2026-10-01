@@ -26,7 +26,24 @@ test('feedback rail button opens a private draft and hands only entered fields t
   await page.setViewportSize({ width: 390, height: 600 });
   await expect(button).toBeInViewport();
   await button.click();
-  await dialog.getByLabel('Feedback type').selectOption('Feature request');
+  const type = dialog.getByRole('button', { name: 'Feedback type' });
+  await type.click();
+  const menu = dialog.getByRole('menu', { name: 'Feedback type' });
+  await expect(menu).toBeInViewport();
+  await expect(menu.getByRole('menuitemradio', { name: /Bug report/ })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitemradio', { name: 'Feature request' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(type).toBeFocused();
+  await expect(dialog).toBeVisible();
+  await type.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(type).toHaveText('Feature request');
+  const cancel = dialog.getByRole('button', { name: 'Cancel' });
+  expect((await cancel.boundingBox())!.height).toBeGreaterThanOrEqual(36);
+  await expect(cancel).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await dialog.getByLabel('Title', { exact: true }).fill('Spacing & zoom + café?');
   await dialog.getByLabel('Description').fill('Keep A & B apart.\nExpected: 24px + room for 日本語.');
   await expect(next).toBeEnabled();
@@ -49,3 +66,55 @@ test('feedback rail button opens a private draft and hands only entered fields t
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toHaveCount(0);
 });
+
+for (const [theme, width] of [
+  ['dark', 1280],
+  ['light', 390],
+] as const) {
+  test(`feedback and agent menus use the ${theme} theme at ${width}px`, async ({ browser, request }, testInfo) => {
+    await request.post('/api/canvas/theme', { data: { theme } });
+    for (const source of ['menu-author', 'menu-reviewer']) {
+      await request.post('/api/canvas/ax/presence', { data: { source, attached: true } });
+    }
+    const context = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: 2 });
+    const page = await context.newPage();
+    try {
+      await page.goto('/workbench');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      const trigger = page.getByRole('button', { name: 'Steer which agent' });
+      await trigger.click();
+      const agents = page.getByRole('menu', { name: 'Steer which agent' });
+      await expect(agents).toBeInViewport({ ratio: 1 });
+      await expect(agents.getByRole('menuitemradio', { name: /menu-reviewer/ })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('agent-menu.png') });
+      await page.keyboard.press('Escape');
+      await expect(trigger).toBeFocused();
+      await trigger.click();
+      await agents.getByRole('menuitemradio', { name: /menu-reviewer/ }).click();
+      await expect(page.getByLabel('Steer the agent')).toHaveAttribute('placeholder', /menu-reviewer/);
+
+      await page.getByRole('button', { name: 'Bug and feedback', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Bug and feedback' });
+      await dialog.getByRole('button', { name: 'Feedback type' }).click();
+      const kinds = dialog.getByRole('menu', { name: 'Feedback type' });
+      await expect(kinds).toBeInViewport({ ratio: 1 });
+      await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeInViewport({ ratio: 1 });
+      await page.screenshot({ path: testInfo.outputPath('feedback-menu.png') });
+      await page.keyboard.press('Escape');
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+      for (const name of ['Draw (A)', 'Text note', 'Eraser']) {
+        const tool = page.getByRole('button', { name, exact: true });
+        await expect(tool).toBeInViewport({ ratio: 1 });
+        await tool.click();
+        await expect(tool).toHaveAttribute('aria-pressed', 'true');
+      }
+      await page.screenshot({ path: testInfo.outputPath('annotation-rail.png') });
+    } finally {
+      await context.close();
+      for (const source of ['menu-author', 'menu-reviewer']) {
+        await request.post('/api/canvas/ax/presence', { data: { source, attached: false } });
+      }
+      await request.post('/api/canvas/theme', { data: { theme: 'dark' } });
+    }
+  });
+}

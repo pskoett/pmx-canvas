@@ -8,10 +8,7 @@ import {
   IconLogo,
   IconMinimap,
   IconMoon,
-  IconNodeFile,
   IconNodeGroup,
-  IconNodeHtml,
-  IconNodeImage,
   IconNodeMarkdown,
   IconNodeWebpage,
   IconPen,
@@ -177,37 +174,33 @@ export function ToolRail({
   const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
   const edgeCount = edges.value.size;
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [openMenu, setOpenMenu] = useState<null | 'theme' | 'annotate'>(null);
-  const [menuAnchor, setMenuAnchor] = useState<{ top: number; bottom: number; right: number } | null>(null);
+  const [openMenu, setOpenMenu] = useState<null | 'theme'>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{ bottom: number; right: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
-  const documentInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const toggleMenu = (menu: 'theme' | 'annotate') => (e: MouseEvent) => {
+  const toggleMenu = (menu: 'theme') => (e: MouseEvent) => {
     if (openMenu === menu) {
       setOpenMenu(null);
       return;
     }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMenuAnchor({ top: rect.top, bottom: rect.bottom, right: rect.right });
+    setMenuAnchor({ bottom: rect.bottom, right: rect.right });
     setOpenMenu(menu);
   };
 
   // The rail scrolls (overflow-y:auto), so an absolutely-positioned popover
   // would be clipped by it. Fixed positioning from the trigger's rect escapes
-  // the scroll container; the annotate menu top-aligns with its trigger, the
-  // theme menu (bottom cluster) bottom-aligns so it grows upward.
-  const sideMenuStyle = (alignBottom: boolean) =>
-    menuAnchor
-      ? alignBottom
-        ? {
-            position: 'fixed' as const,
-            left: `${menuAnchor.right + 8}px`,
-            bottom: `${window.innerHeight - menuAnchor.bottom}px`,
-            top: 'auto',
-            right: 'auto',
-          }
-        : { position: 'fixed' as const, left: `${menuAnchor.right + 8}px`, top: `${menuAnchor.top}px`, right: 'auto' }
-      : undefined;
+  // the scroll container; the theme menu bottom-aligns so it grows upward.
+  const sideMenuStyle = menuAnchor
+    ? {
+        position: 'fixed' as const,
+        left: `${menuAnchor.right + 8}px`,
+        bottom: `${window.innerHeight - menuAnchor.bottom}px`,
+        top: 'auto',
+        right: 'auto',
+      }
+    : undefined;
 
   useEffect(() => {
     if (!openMenu) return;
@@ -331,22 +324,20 @@ export function ToolRail({
         >
           <IconNodeMarkdown size={15} />
         </RailButton>
-        <RailButton label="Image" shortcut="I" onClick={() => promptedCreate('image')}>
-          <IconNodeImage size={15} />
-        </RailButton>
-        <RailButton label="File" shortcut="Shift+F" onClick={() => promptedCreate('file')}>
-          <IconNodeFile size={15} />
-        </RailButton>
-        <RailButton label="Attach document" onClick={() => documentInput.current?.click()}>
+        <RailButton
+          label="Attach files"
+          ariaLabel="Attach files"
+          detail="Images (PNG, JPEG, SVG…), Markdown and text/code files. PDF, Word, Excel, PowerPoint and OpenDocument use agent import with review."
+          onClick={() => fileInput.current?.click()}
+        >
           <IconUpload size={15} />
         </RailButton>
         <input
-          ref={documentInput}
+          ref={fileInput}
           type="file"
           hidden
           multiple
-          accept=".pdf,.ppt,.pptx,.xls,.xlsx,.doc,.docx,.odt,.ods,.odp"
-          aria-label="Attach documents"
+          aria-label="Attach files"
           onChange={(event) => {
             const area = canvasArea();
             const view = viewport.value;
@@ -362,17 +353,6 @@ export function ToolRail({
           <IconNodeWebpage size={15} />
         </RailButton>
         <RailButton
-          label="HTML surface"
-          shortcut="H"
-          onClick={() =>
-            void createNodeInView({ type: 'html', title: 'HTML surface' }).catch((error) =>
-              logRailError('create html', error),
-            )
-          }
-        >
-          <IconNodeHtml />
-        </RailButton>
-        <RailButton
           label="Group"
           shortcut="G"
           onClick={() =>
@@ -383,61 +363,28 @@ export function ToolRail({
         >
           <IconNodeGroup size={15} />
         </RailButton>
-        <span class="toolbar-menu-anchor">
-          <RailButton
-            label="Annotate"
-            shortcut="A"
-            detail="Draw · Text note · Eraser"
-            active={annotationTool !== null}
-            menuOpen={openMenu === 'annotate'}
-            onClick={toggleMenu('annotate')}
-          >
-            {annotationTool === 'eraser' ? (
-              <IconEraser />
-            ) : annotationTool === 'text' ? (
-              <IconTextAnnotation />
-            ) : (
-              <IconPen />
-            )}
-          </RailButton>
-          {openMenu === 'annotate' && (
-            <div class="toolbar-menu" style={sideMenuStyle(false)} role="menu" aria-label="Annotate">
-              <button
-                type="button"
-                class={`toolbar-menu-item${annotationTool === 'pen' ? ' active' : ''}`}
-                onClick={() => {
-                  onSetAnnotationTool(annotationTool === 'pen' ? null : 'pen');
-                  setOpenMenu(null);
-                }}
-              >
-                <IconPen />
-                <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Draw (A)'}</span>
-              </button>
-              <button
-                type="button"
-                class={`toolbar-menu-item${annotationTool === 'text' ? ' active' : ''}`}
-                onClick={() => {
-                  onSetAnnotationTool(annotationTool === 'text' ? null : 'text');
-                  setOpenMenu(null);
-                }}
-              >
-                <IconTextAnnotation />
-                <span>{annotationTool === 'text' ? 'Stop text notes' : 'Text note'}</span>
-              </button>
-              <button
-                type="button"
-                class={`toolbar-menu-item${annotationTool === 'eraser' ? ' active' : ''}`}
-                onClick={() => {
-                  onSetAnnotationTool(annotationTool === 'eraser' ? null : 'eraser');
-                  setOpenMenu(null);
-                }}
-              >
-                <IconEraser />
-                <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Eraser'}</span>
-              </button>
-            </div>
-          )}
-        </span>
+        <RailButton
+          label="Draw"
+          shortcut="A"
+          active={annotationTool === 'pen'}
+          onClick={() => onSetAnnotationTool(annotationTool === 'pen' ? null : 'pen')}
+        >
+          <IconPen />
+        </RailButton>
+        <RailButton
+          label="Text note"
+          active={annotationTool === 'text'}
+          onClick={() => onSetAnnotationTool(annotationTool === 'text' ? null : 'text')}
+        >
+          <IconTextAnnotation />
+        </RailButton>
+        <RailButton
+          label="Eraser"
+          active={annotationTool === 'eraser'}
+          onClick={() => onSetAnnotationTool(annotationTool === 'eraser' ? null : 'eraser')}
+        >
+          <IconEraser />
+        </RailButton>
 
         <div class="rail-spacer" />
 
@@ -485,7 +432,7 @@ export function ToolRail({
             {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
           </RailButton>
           {openMenu === 'theme' && (
-            <div class="toolbar-menu" style={sideMenuStyle(true)} role="menu" aria-label="Theme">
+            <div class="toolbar-menu" style={sideMenuStyle} role="menu" aria-label="Theme">
               {CANVAS_THEMES.map((name) => (
                 <button
                   key={name}

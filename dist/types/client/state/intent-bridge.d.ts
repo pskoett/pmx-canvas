@@ -84,7 +84,7 @@ export declare function pushCanvasUpdate(updates: Array<{
 }>, options?: {
     recordHistory?: boolean;
 }): Promise<void>;
-/** Create a canvas edge via the server. */
+/** Render the server-confirmed edge immediately, without waiting for SSE/polling. */
 export declare function createEdgeFromClient(from: string, to: string, type: string, label?: string): Promise<{
     ok: boolean;
     id?: string;

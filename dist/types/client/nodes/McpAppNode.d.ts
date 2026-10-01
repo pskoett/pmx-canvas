@@ -12,10 +12,11 @@ type ViewerFrameSource = {
  * white navigation paint. Two animation frames after load gives the new document
  * a composited paint before the old one is removed.
  */
-export declare function RefreshingViewerFrame({ source, iframeRef, onLoad, title, className, sandbox, allow, tabIndex, }: {
+export declare function RefreshingViewerFrame({ source, iframeRef, onLoad, onDocumentLoad, title, className, sandbox, allow, tabIndex, }: {
     source: ViewerFrameSource;
     iframeRef: RefObject<HTMLIFrameElement>;
     onLoad: () => void;
+    onDocumentLoad?: (frame: HTMLIFrameElement) => void;
     title: string;
     className?: string;
     sandbox?: string;

@@ -1,6 +1,8 @@
 import { canvasArea } from '../canvas/canvas-area';
 import { showToast } from './attention-bridge';
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
+import type { CanvasEdge } from '../types';
+import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
 function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
@@ -261,14 +263,15 @@ export async function pushCanvasUpdate(
   });
 }
 
-/** Create a canvas edge via the server. */
+/** Render the server-confirmed edge immediately, without waiting for SSE/polling. */
 export async function createEdgeFromClient(
   from: string,
   to: string,
   type: string,
   label?: string,
 ): Promise<{ ok: boolean; id?: string }> {
-  return requestJson(
+  const epoch = canvasInteractionEpoch.value;
+  const result = await requestJson<({ ok: true } & CanvasEdge) | { ok: false; error?: string }>(
     'createEdgeFromClient',
     '/api/canvas/edge',
     { ok: false },
@@ -278,6 +281,15 @@ export async function createEdgeFromClient(
       body: JSON.stringify({ from, to, type, label }),
     },
   );
+  if (epoch === canvasInteractionEpoch.value && nodes.value.has(from) && nodes.value.has(to)) {
+    if (result.ok) {
+      const { ok, ...edge } = result;
+      addEdge(edge);
+    } else if (!result.error) {
+      showToast('remove', 'Connection not added', 'Could not reach the server. Try again.');
+    }
+  }
+  return result;
 }
 
 /** Create a canvas node via the server. Returns the new node ID. */

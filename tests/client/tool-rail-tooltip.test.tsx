@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { ToolRail } from '../../src/client/canvas/ToolRail.tsx';
 
-function renderRail() {
+function renderRail(annotationTool: 'pen' | 'text' | 'eraser' | null = null, onSetAnnotationTool = mock(() => {})) {
   return render(
     <ToolRail
       minimapVisible={true}
@@ -12,8 +12,8 @@ function renderRail() {
       snapshotBtnRef={{ current: null }}
       onOpenPalette={() => {}}
       onOpenShortcuts={() => {}}
-      annotationTool={null}
-      onSetAnnotationTool={() => {}}
+      annotationTool={annotationTool}
+      onSetAnnotationTool={onSetAnnotationTool}
     />,
   );
 }
@@ -40,12 +40,33 @@ describe('tool rail tooltips', () => {
     expect(queryByTestId('rail-tooltip')).toBeNull();
   });
 
-  test('a menu button says what is inside it — shortcut key cap AND the item list', () => {
+  test('annotation tools are directly discoverable, with Draw’s shortcut', () => {
     const { getByRole, queryByTestId } = renderRail();
-    fireEvent.pointerEnter(getByRole('button', { name: 'Annotate (A)' }));
+    fireEvent.pointerEnter(getByRole('button', { name: 'Draw (A)' }));
     const tip = queryByTestId('rail-tooltip')!;
     expect(tip.querySelector('kbd')?.textContent).toBe('A');
-    expect(tip.querySelector('.toolbar-tooltip-meta')?.textContent).toContain('Draw · Text note · Eraser');
+    expect(getByRole('button', { name: 'Text note', exact: true })).toBeTruthy();
+    expect(getByRole('button', { name: 'Eraser', exact: true })).toBeTruthy();
+  });
+
+  test('each annotation button selects its tool and toggles off when active', () => {
+    for (const [name, tool] of [
+      ['Draw (A)', 'pen'],
+      ['Text note', 'text'],
+      ['Eraser', 'eraser'],
+    ] as const) {
+      const change = mock(() => {});
+      const inactive = renderRail(null, change);
+      fireEvent.click(inactive.getByRole('button', { name, exact: true }));
+      expect(change).toHaveBeenLastCalledWith(tool);
+      cleanup();
+      const active = renderRail(tool, change);
+      const button = active.getByRole('button', { name, exact: true });
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      fireEvent.click(button);
+      expect(change).toHaveBeenLastCalledWith(null);
+      cleanup();
+    }
   });
 
   test('keyboard focus shows it too; a detail (not a shortcut) renders as plain text', () => {
@@ -72,8 +93,36 @@ describe('tool rail tooltips', () => {
 
   test('accessible names keep the "Label (Shortcut)" form', () => {
     const { getByRole } = renderRail();
-    for (const name of ['Select (V)', 'Pan (Space)', 'Markdown note (M)', 'File (Shift+F)', 'Shortcuts (?)']) {
+    for (const name of ['Select (V)', 'Pan (Space)', 'Markdown note (M)', 'Webpage (W)', 'Shortcuts (?)']) {
       expect(getByRole('button', { name })).toBeTruthy();
     }
+  });
+
+  test('one attachment control replaces file, image and HTML buttons and explains the supported formats', () => {
+    const { getByRole, queryByRole, getByLabelText } = renderRail();
+    for (const name of ['File (Shift+F)', 'Image (I)', 'HTML surface (H)']) {
+      expect(queryByRole('button', { name })).toBeNull();
+    }
+    const attach = getByRole('button', { name: 'Attach files', exact: true });
+    fireEvent.focus(attach);
+    const tooltip = getByRole('tooltip');
+    for (const format of [
+      'PNG',
+      'JPEG',
+      'SVG',
+      'Markdown',
+      'text/code',
+      'PDF',
+      'Word',
+      'Excel',
+      'PowerPoint',
+      'OpenDocument',
+    ]) {
+      expect(tooltip.textContent).toContain(format);
+    }
+    expect(tooltip.textContent).toContain('agent import with review');
+    const picker = getByLabelText('Attach files', { selector: 'input' });
+    expect(picker.hasAttribute('multiple')).toBe(true);
+    expect(picker.hasAttribute('accept')).toBe(false);
   });
 });

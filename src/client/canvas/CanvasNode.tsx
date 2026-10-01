@@ -414,6 +414,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     height: node.collapsed ? 'auto' : `${node.size.height}px`,
     zIndex: node.zIndex,
     '--node-chrome-scale': chromeScale.toFixed(3),
+    '--node-port-scale': (1 / viewportScale).toFixed(3),
     ...(groupColor ? { '--group-color': groupColor } : {}),
   };
   // Shimmer while an attached agent is mutating this node (rail-chrome-v2
@@ -515,13 +516,156 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       }}
       onDblClick={handleDblClick}
     >
-      {isGroup && (
-        <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
-          <span class="group-name-pill">
+      <div class="node-content">
+        {isGroup && (
+          <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
+            <span class="group-name-pill">
+              {renaming ? (
+                <input
+                  ref={renameRef}
+                  class="node-title-input group-title-input"
+                  value={title}
+                  onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
+                    if (e.key === 'Escape') setRenaming(false);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span class="group-name" title={title}>
+                  {title}
+                </span>
+              )}
+              <span class="group-count">{groupChildren.length}</span>
+            </span>
+            <span class="group-edge-spacer" />
+            <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
+              <button
+                type="button"
+                class="group-action"
+                title="Auto-arrange children"
+                aria-label="Auto-arrange children"
+                disabled={groupChildren.length === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void addToGroupFromClient(node.id, groupChildren, 'grid');
+                }}
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  aria-hidden="true"
+                >
+                  <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+                  <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+                  <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+                  <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="group-action"
+                title="Collapse group"
+                aria-label="Collapse group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleCollapsed(node.id);
+                }}
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 10 L8 5 L13 10" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="group-action"
+                title="Rename · Ungroup · Pin all to context"
+                aria-label="Group menu"
+                aria-expanded={groupMenuOpen}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGroupMenuOpen((open) => !open);
+                }}
+              >
+                <IconMore size={14} />
+              </button>
+              {groupMenuOpen && (
+                <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGroupMenuOpen(false);
+                      setRenaming(true);
+                      requestAnimationFrame(() => renameRef.current?.focus());
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGroupMenuOpen(false);
+                      // Dissolve — the same op an agent's ungroup runs.
+                      removeNode(node.id);
+                      void ungroupFromClient(node.id);
+                    }}
+                  >
+                    Ungroup
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={groupChildren.length === 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGroupMenuOpen(false);
+                      addContextPins(groupChildren);
+                    }}
+                  >
+                    Pin all to context
+                  </button>
+                </div>
+              )}
+            </span>
+          </div>
+        )}
+        {!isGroup && (
+          <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
+            <span class="node-type-icon" aria-hidden="true">
+              {(() => {
+                const NodeIcon = getNodeIcon(node.type);
+                return <NodeIcon size={Math.round(14 * chromeScale)} />;
+              })()}
+            </span>
+            {/* The kind-colored icon says what type this is (rail-chrome-v2 card
+            shell: icon · title · controls, no type badge). Only the AX status
+            chip joins it, and only when there is a status to show. */}
+            {typeof node.data.axWorkStatus === 'string' && (
+              <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
+            )}
             {renaming ? (
               <input
                 ref={renameRef}
-                class="node-title-input group-title-input"
+                class="node-title-input"
                 value={title}
                 onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
                 onKeyDown={(e) => {
@@ -531,234 +675,93 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span class="group-name" title={title}>
+              <span class="node-title" title={title}>
                 {title}
               </span>
             )}
-            <span class="group-count">{groupChildren.length}</span>
-          </span>
-          <span class="group-edge-spacer" />
-          <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
-            <button
-              type="button"
-              class="group-action"
-              title="Auto-arrange children"
-              aria-label="Auto-arrange children"
-              disabled={groupChildren.length === 0}
-              onClick={(e) => {
-                e.stopPropagation();
-                void addToGroupFromClient(node.id, groupChildren, 'grid');
-              }}
-            >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                aria-hidden="true"
+            <div class="node-controls">
+              {isPinned && (
+                <span class="pin-indicator" title="Pinned">
+                  ⊙
+                </span>
+              )}
+              <button
+                type="button"
+                class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleContextPin(node.id);
+                }}
+                title={isContextPinned ? 'Remove from context' : 'Add to context'}
               >
-                <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-                <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-                <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-                <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="group-action"
-              title="Collapse group"
-              aria-label="Collapse group"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleCollapsed(node.id);
-              }}
-            >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 10 L8 5 L13 10" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="group-action"
-              title="Rename · Ungroup · Pin all to context"
-              aria-label="Group menu"
-              aria-expanded={groupMenuOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                setGroupMenuOpen((open) => !open);
-              }}
-            >
-              <IconMore size={14} />
-            </button>
-            {groupMenuOpen && (
-              <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setGroupMenuOpen(false);
-                    setRenaming(true);
-                    requestAnimationFrame(() => renameRef.current?.focus());
-                  }}
-                >
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setGroupMenuOpen(false);
-                    // Dissolve — the same op an agent's ungroup runs.
-                    removeNode(node.id);
-                    void ungroupFromClient(node.id);
-                  }}
-                >
-                  Ungroup
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={groupChildren.length === 0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setGroupMenuOpen(false);
-                    addContextPins(groupChildren);
-                  }}
-                >
-                  Pin all to context
-                </button>
-              </div>
-            )}
-          </span>
-        </div>
-      )}
-      {!isGroup && (
-        <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
-          <span class="node-type-icon" aria-hidden="true">
-            {(() => {
-              const NodeIcon = getNodeIcon(node.type);
-              return <NodeIcon size={Math.round(14 * chromeScale)} />;
-            })()}
-          </span>
-          {/* The kind-colored icon says what type this is (rail-chrome-v2 card
-            shell: icon · title · controls, no type badge). Only the AX status
-            chip joins it, and only when there is a status to show. */}
-          {typeof node.data.axWorkStatus === 'string' && (
-            <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
-          )}
-          {renaming ? (
-            <input
-              ref={renameRef}
-              class="node-title-input"
-              value={title}
-              onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
-                if (e.key === 'Escape') setRenaming(false);
-              }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <span class="node-title" title={title}>
-              {title}
-            </span>
-          )}
-          <div class="node-controls">
-            {isPinned && (
-              <span class="pin-indicator" title="Pinned">
-                ⊙
-              </span>
-            )}
-            <button
-              type="button"
-              class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleContextPin(node.id);
-              }}
-              title={isContextPinned ? 'Remove from context' : 'Add to context'}
-            >
-              <IconSparkle size={14} />
-            </button>
-            {/* Open as site — full-page standalone view of this node's surface,
+                <IconSparkle size={14} />
+              </button>
+              {/* Open as site — full-page standalone view of this node's surface,
               served from /api/canvas/surface/:id (same document as the canvas
               iframe). Opens via the system browser so embedded hosts do not trap
               it in their own webview. */}
-            {canOpenAsSite(node) && (
+              {canOpenAsSite(node) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void openNodeAsSite(node);
+                  }}
+                  title="Open as site"
+                >
+                  <IconExternalLink size={14} />
+                </button>
+              )}
+              {/* Expand — opens node as full-viewport overlay for focused work */}
+              {EXPANDABLE_TYPES.has(node.type) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    expandNode(node.id);
+                  }}
+                  title="Expand (focus mode)"
+                >
+                  <IconExpand size={14} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void openNodeAsSite(node);
+                  toggleCollapsed(node.id);
                 }}
-                title="Open as site"
+                title={node.collapsed ? 'Expand' : 'Collapse'}
               >
-                <IconExternalLink size={14} />
+                {node.collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
               </button>
-            )}
-            {/* Expand — opens node as full-viewport overlay for focused work */}
-            {EXPANDABLE_TYPES.has(node.type) && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  expandNode(node.id);
-                }}
-                title="Expand (focus mode)"
-              >
-                <IconExpand size={14} />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleCollapsed(node.id);
-              }}
-              title={node.collapsed ? 'Expand' : 'Collapse'}
-            >
-              {node.collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
-            </button>
-            {/* Report #64: status nodes get the same remove control as every other
+              {/* Report #64: status nodes get the same remove control as every other
               node type (backend removal + undo/history handle status uniformly). */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                void removeNodeFromClient(node.id);
-              }}
-              title="Close"
-            >
-              <IconClose size={14} />
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removeNodeFromClient(node.id);
+                }}
+                title="Close"
+              >
+                <IconClose size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      {!node.collapsed && (
-        <div ref={bodyRef} class="node-body">
-          {children}
-          {/* AX flow step controls — rendered here rather than in a node renderer
+        )}
+        {!node.collapsed && (
+          <div ref={bodyRef} class="node-body">
+            {children}
+            {/* AX flow step controls — rendered here rather than in a node renderer
               because a materialized step can be ANY node type, and because the
               body is what auto-fit measures (a footer outside it would be clipped
               on a content-fitted node). Renders nothing unless the node carries a
               `data.axStep` stamp. */}
-          <AxStepControls node={node} />
-        </div>
-      )}
+            <AxStepControls node={node} />
+          </div>
+        )}
+      </div>
       {!node.collapsed && (
         <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
       )}
@@ -781,8 +784,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             key={side}
             class={`node-port node-port-${side}`}
             onPointerDown={(e) => {
+              if (e.button !== 0) return;
               e.stopPropagation();
               e.preventDefault();
+              e.currentTarget.setPointerCapture(e.pointerId);
               const cx = node.position.x + node.size.width / 2;
               const cy = node.position.y + node.size.height / 2;
               const hw = node.size.width / 2;

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.use({ deviceScaleFactor: 2 });
+
 test('form warnings reach HTTP callers and seeded bindings render editable values', async ({ page, request }) => {
   const spec = {
     root: 'root',
@@ -44,3 +46,97 @@ test('form warnings reach HTTP callers and seeded bindings render editable value
     await request.delete(`/api/canvas/node/${body.id}`);
   }
 });
+
+for (const mode of ['src', 'srcdoc']) {
+  test(`focus mode preserves JSON drafts and lists in both directions (${mode})`, async ({ page, request }, info) => {
+    const spec = {
+      root: 'root',
+      state: { draft: 'Initial', tasks: [{ title: 'Initial item' }] },
+      elements: {
+        root: { type: 'Stack', props: {}, children: ['input', 'echo', 'more', 'fewer', 'list'] },
+        input: { type: 'Input', props: { label: 'Draft', value: { $bindState: '/draft' } } },
+        echo: { type: 'Text', props: { text: { $state: '/draft' } } },
+        more: {
+          type: 'Button',
+          props: { label: 'Load list', variant: 'primary' },
+          on: {
+            press: {
+              action: 'setState',
+              params: {
+                statePath: '/tasks',
+                value: Array.from({ length: 16 }, (_, i) => ({ title: `Loaded item ${i + 1}` })),
+              },
+            },
+          },
+        },
+        fewer: {
+          type: 'Button',
+          props: { label: 'Replace list', variant: 'secondary' },
+          on: {
+            press: {
+              action: 'setState',
+              params: {
+                statePath: '/tasks',
+                value: [{ title: 'Expanded item A' }, { title: 'Expanded item B' }, { title: 'Expanded item C' }],
+              },
+            },
+          },
+        },
+        list: { type: 'Stack', props: {}, repeat: { statePath: '/tasks' }, children: ['row'] },
+        row: { type: 'Text', props: { text: { $item: 'title' } } },
+      },
+    };
+    const response = await request.post('/api/canvas/json-render', {
+      data: { title: 'Focus-state regression', x: 100, y: 80, width: 560, height: 340, spec },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    const { id } = await response.json();
+    const readNode = async () => (await request.get(`/api/canvas/node/${id}`)).json();
+    try {
+      // Runtime-state continuity must not depend on AX capability being enabled.
+      if (mode === 'srcdoc') {
+        expect(
+          (
+            await request.patch(`/api/canvas/node/${id}`, { data: { data: { axCapabilities: { enabled: false } } } })
+          ).ok(),
+        ).toBe(true);
+        expect((await readNode()).data.axCapabilities.enabled).toBe(false);
+      }
+      await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+      await page.goto(`/workbench?iframe-mode=${mode}`);
+      const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+      const inline = node.frameLocator('iframe:visible');
+      await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('Initial');
+      await inline.getByRole('button', { name: 'Load list', exact: true }).click();
+      await expect(inline.getByText(/^Loaded item \d+$/)).toHaveCount(16);
+      await expect.poll(async () => (await readNode()).size.height).toBeGreaterThan(340);
+      await inline.getByLabel('Draft', { exact: true }).fill('DRAFT-MUST-SURVIVE');
+      await node.getByTitle('Expand (focus mode)').click();
+      const overlay = page.locator('.expanded-overlay-panel');
+      const expanded = overlay.frameLocator('iframe');
+      await expect(expanded.getByLabel('Draft', { exact: true })).toHaveValue('DRAFT-MUST-SURVIVE');
+      await expect(expanded.getByText('DRAFT-MUST-SURVIVE', { exact: true })).toBeVisible();
+      await expect(expanded.getByText(/^Loaded item \d+$/)).toHaveCount(16);
+      await page.screenshot({ path: info.outputPath('focus-runtime-expanded.png') });
+      await expanded.getByRole('button', { name: 'Replace list' }).click();
+      await expanded.getByLabel('Draft', { exact: true }).fill('EXPANDED-MUST-SURVIVE');
+      await overlay.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('EXPANDED-MUST-SURVIVE');
+      await expect(inline.getByText('EXPANDED-MUST-SURVIVE', { exact: true })).toBeVisible();
+      await expect(inline.getByText(/^Expanded item [ABC]$/)).toHaveCount(3);
+      await expect(inline.getByText(/^Loaded item \d+$/)).toHaveCount(0);
+      await page.screenshot({ path: info.outputPath('focus-runtime-inline.png') });
+      // Focus state is ephemeral, not a silent server write. Authored spec updates
+      // still replace it; a stale runtime snapshot must not mask a new revision.
+      expect((await readNode()).data.spec.state).toEqual(spec.state);
+      const updatedSpec = { ...spec, state: { draft: 'Authored replacement', tasks: [{ title: 'Replacement item' }] } };
+      expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: updatedSpec } })).ok()).toBe(true);
+      await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('Authored replacement');
+      await expect(inline.getByText('Replacement item', { exact: true })).toBeVisible();
+      await node.getByTitle('Expand (focus mode)').click();
+      await expect(expanded.getByLabel('Draft', { exact: true })).toHaveValue('Authored replacement');
+    } finally {
+      await request.delete(`/api/canvas/node/${id}`);
+    }
+  });
+}

@@ -6,11 +6,22 @@ capabilities, and the tool/prompt policy — over HTTP and MCP. What makes AX
 *interactive* on a given coding harness (GitHub Copilot, Codex, Claude Code, …) is
 a thin **adapter** that wires PMX's neutral surfaces to that harness's lifecycle.
 
-"Agnostic" means a documented interface plus PMX-side behavior plus one small
-reference adapter per harness — not zero-adapter magic. The genuinely harness-owned
+"Agnostic" means a documented interface plus PMX-side behavior that a host-specific
+adapter can use — not a shipped adapter for every harness or zero-adapter magic. The genuinely harness-owned
 acts (waking a turn, per-turn context injection, forwarding native tool hooks,
 native modals) still need a per-harness adapter; PMX owns everything on its side of
 the line (queues, endpoints, schemas, the canvas-surface fallback).
+
+### Amp uses native MCP, not a bundled lifecycle adapter
+
+Amp's portal and agent connection are separate. Configure `amp.mcpServers` in the
+executing workspace's `.amp/settings.json`, align its root/port with the portal service,
+and have the human approve a new workspace command before reloading MCP. See the
+[Amp setup guide](../skills/pmx-canvas/references/installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal).
+An active Amp agent can read pinned context, claim addressed steering, edit, verify the
+visible result and acknowledge. PMX ships no Amp lifecycle adapter that automatically
+injects context, forwards tool hooks, or wakes idle threads. The injection/push behavior
+below requires an adapter implementing it; merely configuring MCP does not provide it.
 
 ## The interface
 

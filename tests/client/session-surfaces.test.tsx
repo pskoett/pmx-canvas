@@ -228,11 +228,18 @@ describe('command bar', () => {
         ],
       }),
     );
-    const { container, getByLabelText } = render(<CommandBar />);
-    const picker = getByLabelText('Steer which agent') as HTMLSelectElement;
+    const { getByRole, getAllByRole, getByLabelText } = render(<CommandBar />);
+    const picker = getByRole('button', { name: 'Steer which agent' });
+    fireEvent.click(picker);
     // The picker is the ROSTER: sessions first, claim-proven writers
     // selectable, inbox-less writers visible but disabled with the reason.
-    expect([...picker.options].map((option) => [option.value, option.textContent, option.disabled])).toEqual([
+    expect(
+      getAllByRole('menuitemradio').map((option) => [
+        option.getAttribute('data-value'),
+        option.querySelector('span')?.textContent,
+        option.hasAttribute('disabled'),
+      ]),
+    ).toEqual([
       ['', 'All agents', false],
       ['claude-code', 'claude-code', false],
       ['copilot', 'GitHub Copilot', false],
@@ -240,9 +247,9 @@ describe('command bar', () => {
       ['api', 'api · no inbox', true],
       ['codex-cli', 'codex-cli · no inbox', true],
     ]);
-    expect(picker.value).toBe('');
+    expect(getByRole('menuitemradio', { name: /All agents/ }).getAttribute('aria-checked')).toBe('true');
 
-    fireEvent.change(picker, { target: { value: 'copilot' } });
+    fireEvent.click(getByRole('menuitemradio', { name: 'GitHub Copilot' }));
     const input = getByLabelText('Steer the agent') as HTMLInputElement;
     expect(input.placeholder).toContain('Steer GitHub Copilot');
     fireEvent.input(input, { target: { value: 'fix the CI flake' } });
@@ -260,7 +267,7 @@ describe('command bar', () => {
         presences: [presence('claude-code', true), { ...presence('codex', false), steerable: true }],
       }),
     );
-    expect((getByLabelText('Steer which agent') as HTMLSelectElement).value).toBe('');
+    expect(getByRole('button', { name: 'Steer which agent' }).textContent).toBe('All agents');
     expect((getByLabelText('Steer the agent') as HTMLInputElement).placeholder).toContain('Steer the agent');
   });
 

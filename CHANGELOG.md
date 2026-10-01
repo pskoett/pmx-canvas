@@ -3,6 +3,18 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.3] - 2026-10-01
+
+### Fixed
+
+- JSON form values and dynamic lists survive expanding and closing focus mode without silently saving drafts to the server; authored spec updates still reset runtime state.
+- Bundled skill quick references match live MCP discovery, including board opening and workboards, and distinguish local JSON runtime state from durable data.
+- Amp setup guidance covers workspace trust approval, portal targeting and native steering verification; testing guidance preserves first-failure evidence and distinguishes host coverage gaps.
+- The main toolbar keeps Markdown, Attach files, Webpage and Group; one file picker replaces separate File, Image and HTML buttons, with supported formats explained in its tooltip.
+- Draw, Text note and Eraser are separate toolbar buttons for quick board feedback.
+- Connection handles are easier to grab at any zoom, and saved connections appear without waiting for the next background update.
+- Feedback and agent selectors use themed menus, and Cancel actions have clearer button styling.
+
 ## [0.7.2] - 2026-09-30
 
 ### Added
