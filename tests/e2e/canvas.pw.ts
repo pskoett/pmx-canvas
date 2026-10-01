@@ -1474,7 +1474,8 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
   const expandedNode = page.locator('.expanded-overlay-panel').filter({ hasText: 'AX ack ext app' });
   await expect(expandedNode).toHaveCount(1);
   const frame = expandedNode.frameLocator('iframe');
-  await frame.getByRole('button', { name: 'emit' }).click();
+  // Same early iframe pointer-routing race as the HTML bridge tests above.
+  await frame.getByRole('button', { name: 'emit' }).press('Enter');
   await expect(frame.locator('#st')).toHaveText('queued OK');
 });
 
