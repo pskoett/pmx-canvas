@@ -8,6 +8,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Fixed
 
 - JSON form values and dynamic lists survive expanding and closing focus mode without silently saving drafts to the server; authored spec updates still reset runtime state.
+- Interactive surfaces register their action bridge before first paint.
 - Bundled skill quick references match live MCP discovery, including board opening and workboards, and distinguish local JSON runtime state from durable data.
 - Amp setup guidance covers workspace trust approval, portal targeting and native steering verification; testing guidance preserves first-failure evidence and distinguishes host coverage gaps.
 - The main toolbar keeps Markdown, Attach files, Webpage and Group; one file picker replaces separate File, Image and HTML buttons, with supported formats explained in its tooltip.

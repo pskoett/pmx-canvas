@@ -1,5 +1,5 @@
 import type { RefObject } from 'preact';
-import { useEffect } from 'preact/hooks';
+import { useLayoutEffect } from 'preact/hooks';
 import { AX_SURFACE_ACK_SOURCE, AX_SURFACE_EMIT_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { showToast } from '../state/attention-bridge';
 import { submitAxInteractionFromClient } from '../state/intent-bridge';
@@ -25,7 +25,9 @@ export function useAxSurfaceBridge(options: {
   iframeRef: RefObject<HTMLIFrameElement>;
 }): void {
   const { enabled, token, nodeId, sourceSurface, iframeRef } = options;
-  useEffect(() => {
+  // Register before paint: a fast iframe can accept input before passive effects
+  // run, and its first emit must not be lost in that gap.
+  useLayoutEffect(() => {
     if (!enabled || !token) return;
     function onAxMessage(event: MessageEvent) {
       // Bind to THIS node's own iframe; the nonce + nodeId are a second gate,

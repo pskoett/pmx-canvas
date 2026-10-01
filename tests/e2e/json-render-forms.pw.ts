@@ -107,7 +107,9 @@ for (const mode of ['src', 'srcdoc']) {
       const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
       const inline = node.frameLocator('iframe:visible');
       await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('Initial');
-      await inline.getByRole('button', { name: 'Load list', exact: true }).click();
+      // Test runtime continuity independently of Chromium's early iframe
+      // pointer hit-test race (the HTML bridge regressions use the same path).
+      await inline.getByRole('button', { name: 'Load list', exact: true }).press('Enter');
       await expect(inline.getByText(/^Loaded item \d+$/)).toHaveCount(16);
       await expect.poll(async () => (await readNode()).size.height).toBeGreaterThan(340);
       await inline.getByLabel('Draft', { exact: true }).fill('DRAFT-MUST-SURVIVE');
@@ -118,7 +120,8 @@ for (const mode of ['src', 'srcdoc']) {
       await expect(expanded.getByText('DRAFT-MUST-SURVIVE', { exact: true })).toBeVisible();
       await expect(expanded.getByText(/^Loaded item \d+$/)).toHaveCount(16);
       await page.screenshot({ path: info.outputPath('focus-runtime-expanded.png') });
-      await expanded.getByRole('button', { name: 'Replace list' }).click();
+      await expanded.getByRole('button', { name: 'Replace list' }).press('Enter');
+      await expect(expanded.getByText(/^Expanded item [ABC]$/)).toHaveCount(3);
       await expanded.getByLabel('Draft', { exact: true }).fill('EXPANDED-MUST-SURVIVE');
       await overlay.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('EXPANDED-MUST-SURVIVE');

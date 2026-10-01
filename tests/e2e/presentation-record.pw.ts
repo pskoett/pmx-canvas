@@ -85,16 +85,18 @@ test('realtime recording sees concurrent edits and finalizes on SIGTERM', async 
       ).ok(),
     ).toBe(true);
     // Orb pages may use polling rather than SSE. Wait for the recorded
-    // visible change, not a delay shorter than the poll interval.
+    // visible change AND the frame budget asserted below before stopping.
+    // Fast SSE hosts can show the edit in frame 3; SIGTERM then correctly
+    // finalizes with only 3 frames, unlike the slower polling path.
     await expect
       .poll(
         async () => {
           const names = (await readdir(frames)).filter((n) => n.endsWith('.png')).sort();
-          return (await readFile(join(frames, names.at(-1)!))).equals(before);
+          return names.length > 3 && !(await readFile(join(frames, names.at(-1)!))).equals(before);
         },
         { timeout: 10_000 },
       )
-      .toBe(false);
+      .toBe(true);
     child.kill('SIGTERM');
     expect(await exited, log).toBe(0);
     const names = (await readdir(frames)).filter((n) => n.endsWith('.png')).sort();

@@ -18,7 +18,7 @@ describe('bundled skills', () => {
     const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
     for (const path of ['Readme.md', 'skills/pmx-canvas/references/installing-pmx-canvas.md']) {
       const markdown = await Bun.file(new URL(`../../${path}`, import.meta.url)).text();
-      const configs = [...markdown.matchAll(/```json\n([\s\S]*?)\n```/g)].map((match) => JSON.parse(match[1]!));
+      const configs = [...markdown.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)].map((match) => JSON.parse(match[1]!));
       const ampConfigs = configs.filter((config) => config['amp.mcpServers']);
       expect(ampConfigs).toHaveLength(1);
       expect(ampConfigs[0]['amp.mcpServers'].canvas).toEqual({

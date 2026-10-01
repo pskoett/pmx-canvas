@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { render } from '@testing-library/preact';
+import { useLayoutEffect } from 'preact/hooks';
 import { AX_SURFACE_ACK_SOURCE, AX_SURFACE_EMIT_SOURCE } from '../../src/shared/ax-surface-protocol.ts';
 import { useAxSurfaceBridge } from '../../src/client/nodes/use-ax-surface-bridge.ts';
 
@@ -22,12 +23,15 @@ function Probe({
   enabled,
   token,
   iframeRef,
+  onReady,
 }: {
   enabled: boolean;
   token: string;
   iframeRef: { current: HTMLIFrameElement };
+  onReady?: () => void;
 }) {
   useAxSurfaceBridge({ enabled, token, nodeId: 'node-m2', sourceSurface: 'html-node', iframeRef });
+  useLayoutEffect(() => onReady?.(), [onReady]);
   return <div>probe</div>;
 }
 
@@ -46,6 +50,30 @@ afterEach(() => {
 });
 
 describe('useAxSurfaceBridge (plan-009 M2)', () => {
+  test('accepts an emit before passive effects, when a fast surface first becomes interactive', async () => {
+    const fetchSpy = mock(async () => Response.json({ ok: true }));
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    const { win, iframeRef } = makeFakeSurface();
+    render(
+      <Probe
+        enabled={true}
+        token="early-nonce"
+        iframeRef={iframeRef}
+        onReady={() =>
+          dispatchEmit(win, {
+            source: AX_SURFACE_EMIT_SOURCE,
+            token: 'early-nonce',
+            nodeId: 'node-m2',
+            interaction: { type: 'ax.work.create', payload: { title: 'First click' } },
+          })
+        }
+      />,
+    );
+    await flush();
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+    expect(win.postMessage.mock.calls).toHaveLength(1);
+  });
+
   test('submits a valid emit through the capability-gated endpoint and acks back', async () => {
     const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {

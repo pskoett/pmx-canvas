@@ -1396,7 +1396,9 @@ test('html bridge: an opted-in html node emits an AX interaction via window.PMX_
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'AX bridge html' });
   await expect(node).toHaveCount(1);
-  await node.frameLocator('iframe').getByRole('button', { name: 'emit' }).click();
+  // As in the ack test below, use keyboard activation: an early Chromium
+  // pointer click can hit the parent IFRAME rather than this surface's BUTTON.
+  await node.frameLocator('iframe').getByRole('button', { name: 'emit' }).press('Enter');
 
   await expect
     .poll(async () => {
