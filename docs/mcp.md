@@ -42,6 +42,188 @@ Add to your agent's MCP config:
 
 The canvas auto-starts on first tool call.
 
+## Private MCP App preview
+
+`pmx-canvas --mcp-app` runs a **separate, experimental stdio profile**; the
+24-tool `--mcp` profile above is unchanged. Build from this checkout first:
+
+```bash
+bun run build
+PMX_CANVAS_WORKSPACE_ROOT=/absolute/project bun run src/cli/index.ts --mcp-app
+```
+
+Configure a compatible MCP Apps host to launch that command. Pin the workspace
+root explicitly; `PMX_CANVAS_URL` can attach it to an existing same-workspace
+daemon. This profile shares the daemon's **one active board** across all app
+instances and conversations. Choose or create a board in the app toolbar.
+
+Attached daemons must advertise `pmx-embedded-workbench-v4` in `/health` on every
+access. Matching package versions alone do not prove support for board/revision
+guards and embedded execution restrictions. An incompatible daemon is refused
+before any operation; restart it with this preview build and retry.
+
+The standard `ui://pmx/canvas` resource is self-contained HTML with MIME type
+`text/html;profile=mcp-app`. Only the launcher descriptor has ChatGPT-specific
+`openai/ui` metadata, advertising both `global` (sidebar/fullscreen) and `thread`
+(conversation panel) entrypoints. Actual availability depends on the host.
+
+| Tool | Input | Effect |
+|------|-------|--------|
+| `pmx_open_canvas` | `{}` | Open the real PMX workbench; standard UI resource plus ChatGPT entrypoints |
+| `pmx_read_canvas` | `{}` | Read board list, identity, projection revision, node IDs/titles/types/content revisions, counts and pin IDs |
+| `pmx_read_node` | `boardId`, `id` | Read one standalone note's full editable content, revision, position, size and incident edges in model-visible results |
+| `pmx_add_note` | `boardId`, `title`, `content`, `x`, `y` | Add Markdown through `node.add`; rejects a stale board ID |
+| `pmx_connect_nodes` | `boardId`, `from`, `to`, `type`, optional `label` | Add a `flow`, `depends-on`, `relation` or `references` edge through `edge.add` |
+| `pmx_create_board` | `name` | Create an empty board without opening it |
+| `pmx_open_board` | `id` (or null for Home), `expectedBoardId` | Switch the shared active board, refusing if it changed since the last read |
+| `pmx_update_note` | `boardId`, `id`, `expectedContentRevision`, `title`, `content` | Edit standalone Markdown; reject stale revisions, file-linked notes and oversized originals |
+| `pmx_move_node` | `boardId`, `id`, `x`, `y` | Move through `node.update`; group children follow |
+| `pmx_pin_nodes` | `boardId`, `nodeIds`, `mode` (`add` or `remove`) | Curate pins without replacing unrelated pins |
+
+Read tools declare read-only, non-destructive, closed-world annotations; the
+three additive tools declare non-read-only, non-destructive, closed-world
+annotations. Editing, moving, pin changes and board switching conservatively
+declare destructive writes. These assistant tools are closed-world. Writes retain the
+operation registry's scope fences, locks and attribution. **App clicks are
+agent-attributed**: MCP does not prove a human clicked, so the app cannot bypass
+these safeguards or acquire workbench authority.
+
+An eleventh tool, **`pmx_workbench_request`**, is app-only (`ui.visibility: ["app"]`),
+not an assistant tool. It accepts a relative PMX path, method, optional JSON body,
+and captured `expectedBoardId`. An explicit allowlist routes workbench operations
+through the same canonical registry; raw reads hydrate local assets. Replies stay
+in `_meta.response`. It is not an arbitrary HTTP proxy, shell executor, external
+MCP tool dispatcher, or human-authority bypass. This app-only tool declares
+open-world behavior because webpage/image actions may fetch external URLs.
+
+Embedded writes cannot supply external MCP launch metadata. App startup, board
+switches and snapshot restore cannot launch saved external backends; open them
+explicitly in local PMX. Undo/redo, flow materialization and approval resolve/reopen
+(including node interactions) stay local. Embedded source attribution is fixed
+to `mcp`. Child updates require permission for auto-sizing parent frames too;
+the fence and human-lock checks share that target calculation. Manual frames
+do not inherit child-update restrictions because their bounds remain fixed.
+Child geometry changes re-fit only affected automatic ancestors, not unrelated
+frames. PATCH aliases and partial coordinates resolve before destination checks;
+bulk guards and execution filter invalid patches identically before deciding
+which child positions override group translation.
+Rendered Markdown is sanitized before entering the workbench document; active
+HTML remains confined to sandboxed node frames.
+
+The app bundles the **existing PMX workbench**, not a second editor: Home, board
+navigation, tool rail, spatial nodes, edges, dragging, grouping, pins, themes,
+and the full Markdown editor use their normal components. A transport adapter
+replaces HTTP with host `tools/call`; the existing workbench poll cursor supplies
+live updates every two seconds. Local assets travel over MCP, not localhost URLs
+in the user's browser. Standalone Markdown edits carry captured board/content
+revisions; a refused save keeps the current editor draft. Copy that draft before
+closing the editor or switching boards; unsaved drafts do not survive remounts.
+
+**Host constraints still apply.** Native PMX controls work without child frames.
+HTML, Mermaid, JSON/graph and nested app renderers need the host to permit local
+`srcdoc` frames. The portable MCP Apps default with empty `frameDomains` is
+`frame-src 'none'`; there is no portable local-frame permission, so full rich
+rendering in ChatGPT is an outstanding native-host check. The local browser test
+explicitly enables local frames for that case. External assets remain subject
+to host CSP. File uploads, file-linked editing, shell/webview automation, external
+MCP tool calls, approval resolution, and trusted-human operations such as board
+deletion require the local workbench. Unsupported writes are refused, never
+silently granted human authority.
+
+Selecting nodes shares up to 20 selections plus 20 pins, with 700 characters
+per node, through `ui/update-model-context` when supported. This does **not**
+start inference. Use **ChatGPT's own composer** to ask about the canvas; the
+embedded workbench has no second composer and sends no `ui/message` requests.
+The normal local PMX composer remains unchanged. Multiple conversations may
+connect, but share one active board and the `mcp` writer label; distinct
+ChatGPT conversation identities are not yet represented in PMX presence.
+Board switches clear selection.
+Context synchronization runs behind the scenes, with no hosted footer. Failed
+updates retry automatically, including unchanged context, and only a host
+acknowledgement marks a delivery successful. Launcher results do not hydrate
+the workbench, so a delayed result cannot roll back the polling stream.
+
+Bulk preview and image hydration stay in `_meta.canvas`, not model-visible
+`structuredContent`; the canvas revision is a projection digest, not a content
+cursor. Before editing or appending a note, the assistant must use `pmx_read_node`
+for its complete source and content revision. Never replace content from a
+700-character selection excerpt. File-linked, oversized and non-Markdown nodes
+are not editable through the assistant's focused note tools.
+
+This is not a published or hosted ChatGPT plugin. Private ChatGPT testing needs
+an account-supported local MCP connection or Secure MCP Tunnel; no HTTP MCP
+endpoint is added here. Public deployment, authentication, tenant isolation,
+directory submission and real ChatGPT validation remain separate work. Do not
+expose the local workbench HTTP API as a public service.
+
+### Test privately in ChatGPT
+
+This is the MCP connection test, not a directory publication or packaged marketplace
+plugin. No plugin manifest or invented plugin ID is needed for this step. Follow
+OpenAI's [connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt)
+and [Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels):
+
+1. Enable **Settings → Security and login → Developer mode** in ChatGPT (subject
+   to your account/workspace policy).
+2. Create a tunnel in [Platform tunnel settings](https://platform.openai.com/settings/organization/tunnels)
+   and associate it with your target **ChatGPT workspace**. Tunnel creation needs
+   Tunnels Read + Manage; running/selecting it needs Read + Use.
+3. Install `tunnel-client` from the download link in those settings or its
+   [latest release](https://github.com/openai/tunnel-client/releases/latest).
+   Supply its runtime key privately as `CONTROL_PLANE_API_KEY` in your shell.
+   Do not paste the key into chat, commit it or put it in a command argument.
+4. Run the following from the root of **this modified checkout**, with Bun installed:
+
+   ```bash
+   bun install --frozen-lockfile
+   bun run build
+   export PMX_CANVAS_WORKSPACE_ROOT="$HOME/pmx-chatgpt-test"
+   mkdir -p "$PMX_CANVAS_WORKSPACE_ROOT"
+   export PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1
+   export PMX_CANVAS_DISABLE_BROWSER_OPEN=1
+   unset PMX_CANVAS_URL PMX_CANVAS_DB_PATH PMX_CANVAS_STATE_FILE
+   tunnel-client init \
+     --sample sample_mcp_stdio_local \
+     --profile pmx-canvas \
+     --tunnel-id "<your actual tunnel ID>" \
+     --mcp-command "bun run '$PWD/src/cli/index.ts' --mcp-app"
+   tunnel-client doctor --profile pmx-canvas --explain
+   tunnel-client run --profile pmx-canvas
+   ```
+
+   Keep the process running in this shell with the workspace variables set. Run
+   only one client for this stdio tunnel. This uses a disposable test workspace;
+   its data persists under `~/pmx-chatgpt-test/.pmx-canvas/`. To test an existing
+   board instead, explicitly set that project's workspace root.
+
+   For an **unpublished preview tarball**, install it into a clean directory with
+   `bun add /absolute/path/pmx-canvas-chatgpt-preview.tgz`; skip the checkout build
+   and use `bun run '$PWD/node_modules/pmx-canvas/src/cli/index.ts' --mcp-app` as
+   the MCP command above. The tarball includes the built app HTML. Do not use
+   `bunx pmx-canvas` for this preview: that fetches the published version.
+5. Open [ChatGPT Plugins](https://chatgpt.com/plugins), select **+**, name it
+   **PMX Canvas**, choose **Connection → Tunnel**, select your tunnel and create
+   the connection. Confirm discovery of **ten assistant tools**, including
+   `pmx_open_canvas`, plus the app-only `pmx_workbench_request` transport (eleven
+   descriptors in `tools/list`), then start a new conversation with it enabled.
+
+Test both the conversation entrypoint and navigation sidebar launcher. Create a
+board, add/edit/move a note, pin it, select it and send a question using
+**ChatGPT's composer**. Selection alone must not start an answer. Ask ChatGPT to add a second
+note using `pmx_add_note`; it should appear within a few seconds without replacing
+the first. Reopen the app and verify persistence. With a second app/workbench
+instance, verify that board switches clear selection and stale saves refuse
+instead of overwriting another edit. Test HTML, Mermaid, and JSON/graph cards
+separately and record any CSP frame denial; native controls passing does not
+prove rich-frame support.
+
+If a launcher is missing, record the ChatGPT account/workspace and discovered
+`pmx_open_canvas` metadata; host entrypoint support is not proven by local tests.
+After changing the server, restart the tunnel client, use **Refresh** on the
+ChatGPT connection and start a new conversation. If the tunnel is missing, check
+its workspace association and permissions first. Do not substitute the workbench
+HTTP URL for an MCP endpoint.
+
 ## Composite tools (recommended)
 
 Action-discriminated tools that consolidate the single-purpose tools. Each maps

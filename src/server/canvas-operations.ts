@@ -23,6 +23,7 @@ import {
 import { mutationHistory } from './mutation-history.js';
 import { intentRegistry } from './intent-registry.js';
 import { clampCreateNodeSize } from './canvas-validation.js';
+import { validCanvasNodeUpdates } from './canvas-geometry.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
 import { getCanvasNodeTitle } from './canvas-serialization.js';
@@ -730,26 +731,6 @@ export async function syncCanvasRuntimeBackends(
   return { rehydrated, failed };
 }
 
-export function validateCanvasNodePatch(patch: {
-  position?: { x: number; y: number };
-  size?: { width: number; height: number };
-}): string | null {
-  if (patch.position) {
-    if (!Number.isFinite(patch.position.x) || !Number.isFinite(patch.position.y)) {
-      return 'Position must contain finite x and y values.';
-    }
-  }
-  if (patch.size) {
-    if (!Number.isFinite(patch.size.width) || !Number.isFinite(patch.size.height)) {
-      return 'Size must contain finite width and height values.';
-    }
-    if (patch.size.width <= 0 || patch.size.height <= 0) {
-      return 'Size width and height must be greater than zero.';
-    }
-  }
-  return null;
-}
-
 let codeGraphTimer: ReturnType<typeof setTimeout> | null = null;
 
 function shouldTreatFileContentAsPath(input: CanvasAddNodeInput): boolean {
@@ -1406,8 +1387,7 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
 }
 
 export function applyCanvasNodeUpdates(updates: CanvasNodeUpdate[]): { applied: number; skipped: number } {
-  const safe = updates.filter((update) => validateCanvasNodePatch(update) === null);
-  return canvasState.applyUpdates(safe);
+  return canvasState.applyUpdates(validCanvasNodeUpdates(updates));
 }
 
 export function setCanvasContextPins(

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { workbenchFetch } from '../state/workbench-transport';
 import {
   IconArrange,
   IconClearTrace,
@@ -229,7 +230,7 @@ export function ToolRail({
   const activeTheme = normalizeCanvasThemeName(canvasTheme.value);
 
   const sendIntent = (type: string, payload: Record<string, unknown> = {}) => {
-    fetch(`/api/workbench/intent?_ts=${Date.now()}`, {
+    workbenchFetch(`/api/workbench/intent?_ts=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, payload }),

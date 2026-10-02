@@ -581,9 +581,9 @@ describe('canvas server HTTP API', () => {
     const inlineBody = await inline.text();
     expect(inlineBody).toContain('<pre class="mermaid-source"');
     expect(inlineBody).not.toContain('<script src="/canvas/mermaid-entry.js"');
-    // The dist bundle is present in this checkout: embedded as a data: URL
-    // (base64 — parser-safe and unblockable, there is no network request).
-    expect(inlineBody).toContain('<script src="data:text/javascript;charset=utf-8;base64,');
+    // Parser-safe base64 is decoded into script text, with no subresource URL.
+    expect(inlineBody.includes('s.textContent=new TextDecoder().decode(')).toBe(true);
+    expect(inlineBody.includes('<script src="data:')).toBe(false);
     expect(inlineBody.length).toBeGreaterThan(1_000_000);
 
     // An undersized explicit create clamps to the mermaid minimum (360x240).

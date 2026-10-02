@@ -70,15 +70,15 @@ const applyUpdatesSchema = z.looseObject(applyUpdatesShape);
 
 const applyUpdatesOperation = defineOperation<z.infer<typeof applyUpdatesSchema>, Record<string, unknown>>({
   name: 'canvas.apply-updates',
-  mutates: false,
+  mutates: true,
   input: applyUpdatesSchema,
   inputShape: applyUpdatesShape,
   http: {
     method: 'POST',
     path: '/api/canvas/update',
   },
-  // Legacy wire: one layout update only when something actually applied.
-  handler: (input, ctx) => {
+  // The registry emits the layout update, as for other mutating operations.
+  handler: (input) => {
     const body: Record<string, unknown> = input;
     const updates = Array.isArray(body.updates) ? body.updates : [];
     const result =
@@ -94,9 +94,6 @@ const applyUpdatesOperation = defineOperation<z.infer<typeof applyUpdatesSchema>
             return suppressedResult;
           })()
         : applyCanvasNodeUpdates(updates);
-    if (result.applied > 0) {
-      ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
-    }
     return { ok: true, ...result };
   },
 });

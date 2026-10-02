@@ -23,6 +23,7 @@
  */
 import { signal } from '@preact/signals';
 import { IFRAME_PROBE_MESSAGE_SOURCE } from '../../shared/iframe-probe.js';
+import { isHostedWorkbench } from './workbench-transport';
 
 export type IframeMode = 'src' | 'srcdoc';
 
@@ -105,6 +106,10 @@ function isAmpOrbHost(): boolean {
 export function resolveIframeMode(
   opts: { embedded?: boolean; ampOrb?: boolean; probeTimeoutMs?: number } = {},
 ): Promise<IframeMode> {
+  if (isHostedWorkbench()) {
+    iframeMode.value = 'srcdoc';
+    return Promise.resolve('srcdoc');
+  }
   if (iframeMode.value) return Promise.resolve(iframeMode.value);
   if (pending) return pending;
   const forced = forcedIframeMode();

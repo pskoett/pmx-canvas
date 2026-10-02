@@ -1,5 +1,6 @@
 import type { CallToolResult, ListPromptsResult, ListResourcesResult, ListResourceTemplatesResult, ListToolsResult, ReadResourceResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { McpUiResourceMeta } from '@modelcontextprotocol/ext-apps';
+export declare function withoutExternalMcp<T>(run: () => T): T;
 export interface ExternalMcpHttpTransportConfig {
     type: 'http';
     url: string;

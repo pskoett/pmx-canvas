@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 import { iframeMode } from '../state/iframe-mode';
+import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 
 function isSameOriginUrl(url: string): boolean {
+  if (isHostedWorkbench()) return url.startsWith('/') && !url.startsWith('//');
   try {
     return new URL(url, window.location.origin).origin === window.location.origin;
   } catch {
@@ -29,7 +31,7 @@ export function useSurfaceFrame(url: string): { src?: string; srcdoc?: string } 
     let cancelled = false;
     // Ask the server to inline bundle assets (the mermaid renderer): hosts
     // that force srcdoc mode block sub-frame subresource requests too.
-    void fetch(`${url}${url.includes('?') ? '&' : '?'}inline-assets=1`, { credentials: 'same-origin' })
+    void workbenchFetch(`${url}${url.includes('?') ? '&' : '?'}inline-assets=1`, { credentials: 'same-origin' })
       .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((html) => {
         if (!cancelled) setDoc({ url, html });

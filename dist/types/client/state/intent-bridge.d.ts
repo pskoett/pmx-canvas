@@ -120,9 +120,12 @@ export declare function updateNodeFromClient(id: string, patch: {
     data?: Record<string, unknown>;
     /** Groups: replace the membership list (positions preserved). */
     children?: string[];
+    expectedContentRevision?: number;
+    expectedBoardId?: string | null;
 }): Promise<{
     ok: boolean;
     id?: string;
+    contentRevision?: number;
 }>;
 /** Refresh a webpage node from its persisted URL on the server. */
 export declare function refreshWebpageNodeFromClient(id: string, url?: string): Promise<{

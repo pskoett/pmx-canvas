@@ -12,8 +12,9 @@ import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
 import { humanPresence } from '../human-presence.js';
 import { withCurrentActor } from '../attribution.js';
+import { withoutExternalMcp } from '../mcp-app-runtime.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
-import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
+import { checkScopeFence, checkScopeOwnership, describeOpTarget } from '../scope-fence.js';
 import { CONTEXT_READ_OPS, contextReadFromPayload } from '../context-reads.js';
 import { openBoardForWrite } from '../canvas-operations.js';
 import { boardsPayload } from './ops/boards.js';
@@ -238,6 +239,11 @@ function heldByHuman(name: string, rawInput: unknown): { nodeId: string; name: s
   if (locked.size === 0) return null;
   const input = asRecord(rawInput);
   const ids = [input.id, input.nodeId, input.groupId, input.from, input.to].filter(isString);
+  if (name === 'canvas.apply-updates' || name === 'node.update') {
+    // Fence and lock targets must agree, including translated children and
+    // the automatic parent frames re-fitted by a child write.
+    ids.push(...(describeOpTarget(getOperation(name), rawInput).nodeIds ?? []));
+  }
   if (MEMBERSHIP_OPS.has(name)) {
     for (const key of ['childIds', 'children']) {
       const list = input[key];
@@ -383,7 +389,12 @@ export async function executeOperation(
           ? (canvasState.readBoard(requestedBoard, false)?.state.contextPins ?? [])
           : [...canvasState.contextPinnedNodeIds]
         : [];
-      const result = await executeOperationInner(name, rawInput, meta);
+      const run = () => executeOperationInner(name, rawInput, meta);
+      // False is a caller-imposed restriction, never a grant of authority.
+      // DELETE invokers encode it as a query string.
+      const result = await (input.allowExternalMcp === false || input.allowExternalMcp === 'false'
+        ? withoutExternalMcp(run)
+        : run());
       if (recordRead) {
         canvasState.recordContextRead(
           contextReadFromPayload(
@@ -441,6 +452,14 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   }
   if (TRUSTED_HUMAN_ONLY_OPS.has(name) && !meta.humanAuthor) {
     throw new OperationError('This action requires trusted human authority.', 403);
+  }
+  // Embedded clients carry their captured board through the transport. Refuse
+  // stale writes before Home can auto-open a recent board or any mutation runs.
+  const rawExpectedBoard = asRecord(rawInput).expectedBoardId;
+  // HTTP DELETE query values are strings, including Home's JSON null.
+  const expectedBoard = rawExpectedBoard === 'null' ? null : rawExpectedBoard;
+  if (expectedBoard !== undefined && expectedBoard !== canvasState.activeBoardId) {
+    throw new OperationError('The active board changed. Refresh before retrying this action.', 409);
   }
   // File drops carry their captured board through the HTTP round trip. Check
   // before opening a recent board from Home, not just before reading the file.

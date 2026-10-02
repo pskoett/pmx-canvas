@@ -1,5 +1,6 @@
 import { findOpenCanvasPosition } from '../utils/placement.js';
 import { ownsCamera } from './presentation';
+import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState } from '../types';
 import {
@@ -75,6 +76,7 @@ let pollGeneration = 0;
 let sseFirstEventWatchdog: ReturnType<typeof setTimeout> | null = null;
 
 export function forcedTransport(): 'poll' | 'sse' | null {
+  if (isHostedWorkbench()) return 'poll';
   if (typeof location === 'undefined' || typeof window === 'undefined') return null;
   const value = new URLSearchParams(location.search).get('transport');
   if (value === 'poll' || value === 'sse') return value;
@@ -365,6 +367,7 @@ function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
     zIndex: typeof raw.zIndex === 'number' ? raw.zIndex : 1,
     collapsed: raw.collapsed === true,
     pinned: raw.pinned === true,
+    contentRevision: typeof raw.contentRevision === 'number' ? raw.contentRevision : 0,
     data,
   };
 }
@@ -499,13 +502,12 @@ setBoardSwitchHandler(resyncForBoardSwitch);
 function handleConnected(data: Record<string, unknown>): void {
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
-  void loadBoards();
+  // Hosted writes capture the active board. Load its identity before reporting
+  // the viewport, rather than sending a spurious Home precondition on boot.
+  void loadBoards().then(reportClientViewportSize);
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
   reloadIfServerUpgraded(data.version, data.bundleStamp);
-  // Tell the server how big this window actually is, so an agent `fit` sizes
-  // the board to the human's window (0.4.6 orb feedback #2).
-  void reportClientViewportSize();
   // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
   // keep it live from here on.
   void fetchAgentPresence().then(applyPresenceSnapshot);
@@ -513,7 +515,7 @@ function handleConnected(data: Record<string, unknown>): void {
   // An `?agent=<key>` tab is an AGENT's view — it must not heartbeat a human
   // guest cursor (its writes already book as the agent).
   stopHumanPresence?.();
-  if (!tabAgentKey) stopHumanPresence = startHumanPresence();
+  if (!tabAgentKey && !isHostedWorkbench()) stopHumanPresence = startHumanPresence();
   void requestJson<Partial<HumanPresenceSnapshot> | null>(
     'fetchHumanPresence',
     '/api/canvas/human-presence',
@@ -1170,7 +1172,7 @@ function startPollingTransport(): () => void {
       const sid = sessionId.value;
       if (sid) params.set('session', sid);
       const query = params.toString();
-      const response = await fetch(`/api/workbench/poll${query ? `?${query}` : ''}`);
+      const response = await workbenchFetch(`/api/workbench/poll${query ? `?${query}` : ''}`);
       if (generation !== pollGeneration) return;
       if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
       const body = (await response.json()) as {

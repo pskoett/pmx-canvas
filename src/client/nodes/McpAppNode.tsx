@@ -11,6 +11,7 @@ import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
 import { useSurfaceFrame } from './use-surface-frame';
 import { restoreViewerRuntimeState } from './viewer-runtime-state';
+import { isHostedWorkbench } from '../state/workbench-transport';
 
 function withViewerParams(
   url: string,
@@ -24,7 +25,8 @@ function withViewerParams(
 ): string {
   if (!url) return url;
   try {
-    const resolved = new URL(url, window.location.origin);
+    const hosted = isHostedWorkbench() && url.startsWith('/');
+    const resolved = new URL(url, hosted ? 'https://pmx.invalid' : window.location.origin);
     // The json-render viewer + artifacts understand dark/light — collapse named
     // themes (sepia → light, midnight/arctic/ember/forest → dark) to a scheme.
     resolved.searchParams.set('theme', canvasThemeScheme(canvasTheme.value));
@@ -41,7 +43,7 @@ function withViewerParams(
     if (frameToken) resolved.searchParams.set('frameToken', frameToken);
     if (fitContent) resolved.searchParams.set('fit', 'content');
     if (stateToken) resolved.searchParams.set('stateToken', stateToken);
-    return resolved.toString();
+    return hosted ? `${resolved.pathname}${resolved.search}` : resolved.toString();
   } catch {
     return url;
   }

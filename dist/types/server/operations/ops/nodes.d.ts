@@ -11,12 +11,6 @@ export declare function isRecord(value: unknown): value is Record<string, unknow
 export declare function pickFiniteNumber(record: Record<string, unknown>, key: string): number | undefined;
 export declare function getRecord(value: unknown): Record<string, unknown> | undefined;
 export declare function pickPositiveNumber(record: Record<string, unknown>, key: string): number | undefined;
-export declare function resolveCreateGeometry(body: Record<string, unknown>): {
-    x?: number;
-    y?: number;
-    width?: number;
-    height?: number;
-};
 export declare function setGroupChildrenFromApi(groupId: string, childIds: string[]): boolean;
 export declare function nodeAppSessionId(node: CanvasNodeState | undefined): string | null;
 export declare function closeNodeAppSession(node: CanvasNodeState | undefined): void;

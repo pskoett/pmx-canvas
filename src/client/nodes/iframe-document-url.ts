@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { workbenchConnectionEpoch } from '../state/canvas-store';
 import { iframeMode } from '../state/iframe-mode';
 import { surfaceContentHash } from './surface-url';
+import { workbenchFetch } from '../state/workbench-transport';
 
 interface FrameDocumentCreateResponse {
   ok: boolean;
@@ -21,7 +22,7 @@ function isFrameDocumentCreateResponse(value: unknown): value is FrameDocumentCr
 }
 
 export async function createIframeDocumentUrl(html: string, sandbox: string): Promise<string> {
-  const response = await fetch('/api/canvas/frame-documents', {
+  const response = await workbenchFetch('/api/canvas/frame-documents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ html, sandbox }),
@@ -83,7 +84,7 @@ export function useIframeDocument(
       return;
     }
     let cancelled = false;
-    void fetch(src, { method: 'HEAD' })
+    void workbenchFetch(src, { method: 'HEAD' })
       .then((res) => {
         if (cancelled) return;
         if (res.ok) {

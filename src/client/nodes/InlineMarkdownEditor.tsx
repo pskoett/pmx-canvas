@@ -3,6 +3,7 @@ import TurndownService from 'turndown';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { InlineFormatBar } from './InlineFormatBar';
 import { promptAndInsertLink } from './inline-editor-commands';
+import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
 let _turndown: TurndownService | null = null;
 function getTurndown(): TurndownService {
@@ -45,7 +46,7 @@ export function InlineMarkdownEditor({
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    el.innerHTML = initialHtmlRef.current;
+    el.innerHTML = sanitizeMarkdownHtml(initialHtmlRef.current);
     // GFM task checkboxes are live in the editor too: marked emits them
     // `disabled`, which also swallows clicks in the expanded view.
     for (const box of el.querySelectorAll('input[type="checkbox"][disabled]')) {

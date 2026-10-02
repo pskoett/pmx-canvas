@@ -226,12 +226,11 @@ export function buildMermaidSurfaceHtml(
 ): string {
   // srcdoc-rendered surfaces in hosts that block sub-frame subresources (the
   // Claude Code desktop browser blocks the script request too, not just the
-  // frame document) get the renderer embedded as a data: URL — no network
-  // request for the host to block, and base64 has no `<` for the HTML script
-  // parser to trip on (a 3.5MB bundle inlined as literal script text hits the
-  // `<!--` script-data-escaped states and renders as page text).
+  // frame document) get an inline bootstrap. Assigning decoded script text
+  // avoids HTML parser escaped states (`<!--`, `</script>`) in the bundle,
+  // without requiring data: script URLs that MCP App hosts may prohibit.
   const entry = inlineEntry
-    ? `<script src="data:text/javascript;charset=utf-8;base64,${Buffer.from(inlineEntry, 'utf-8').toString('base64')}"></script>`
+    ? `<script>(()=>{const s=document.createElement('script');s.textContent=new TextDecoder().decode(Uint8Array.from(atob('${Buffer.from(inlineEntry, 'utf-8').toString('base64')}'),c=>c.charCodeAt(0)));document.head.appendChild(s)})()</script>`
     : '<script src="/canvas/mermaid-entry.js"></script>';
   return `<pre class="mermaid-source" data-fit="${fit}" data-frame-token="${sanitizeFrameToken(frameToken)}" style="display:none">${escapeSurfaceHtml(source)}</pre>${entry}`;
 }

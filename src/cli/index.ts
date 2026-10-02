@@ -149,9 +149,10 @@ function commandAfterGlobalTargetFlags(argv: string[]): string {
   return '';
 }
 
-function runMcpServerProcess(): Promise<void> {
+function runMcpServerProcess(app = false): Promise<void> {
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, ['run', mcpServerEntry], {
+    const entry = app ? resolve(cliDir, '..', 'mcp', 'app-server.ts') : mcpServerEntry;
+    const child = spawn(process.execPath, ['run', entry], {
       stdio: 'inherit',
       env: process.env,
     });
@@ -222,6 +223,9 @@ if (firstArg === 'serve') {
 const routedCommand = commandAfterGlobalTargetFlags(args);
 if (AGENT_COMMANDS.has(routedCommand) && routedCommand !== 'serve') {
   await runAgentCli(args);
+} else if (args.includes('--mcp-app')) {
+  // Private MCP Apps profile: focused tools and a self-contained UI resource.
+  await runMcpServerProcess(true);
 } else if (args.includes('--mcp')) {
   // MCP server mode: stdio transport, auto-starts canvas on first tool call
   await runMcpServerProcess();
@@ -283,6 +287,7 @@ Server options:
   --webview-chrome-argv=CSV   Extra Chrome args for Bun.WebView, comma-separated
   --webview-data-dir=PATH     Persist automation browser storage in PATH
   --mcp          Run as MCP server (stdio transport)
+  --mcp-app      Run the private MCP App profile (stdio; shared active board)
   --help, -h     Show this help
 
 Agent CLI (works against running server):

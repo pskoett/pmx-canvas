@@ -1,8 +1,10 @@
 import { canvasArea } from '../canvas/canvas-area';
 import { showToast } from './attention-bridge';
+import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasEdge } from '../types';
 import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
+import { boardsLoaded } from './boards-store';
 function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
@@ -29,6 +31,7 @@ export const tabAgentKey: string | null = (() => {
  * opened with `?agent=<key>` identifies as that agent instead.
  */
 function withWorkbenchMarker(init?: RequestInit): RequestInit {
+  if (isHostedWorkbench()) return init ?? {};
   const headers = { ...(init?.headers as Record<string, string> | undefined) };
   if (tabAgentKey) {
     headers['x-pmx-source'] = tabAgentKey;
@@ -61,7 +64,7 @@ async function readJsonBody(res: Response): Promise<unknown> {
 
 export async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {
   try {
-    const res = await fetch(url, withWorkbenchMarker(init));
+    const res = await workbenchFetch(url, withWorkbenchMarker(init));
     const body = await readJsonBody(res);
     reportRefusedWrite(res, init, body);
     if (body === null) throw new Error(`${res.status} response had no JSON body`);
@@ -74,7 +77,7 @@ export async function requestJson<T>(action: string, url: string, fallback: T, i
 
 export async function requestOk(action: string, url: string, init?: RequestInit): Promise<{ ok: boolean }> {
   try {
-    const res = await fetch(url, withWorkbenchMarker(init));
+    const res = await workbenchFetch(url, withWorkbenchMarker(init));
     if (!res.ok) reportRefusedWrite(res, init, await readJsonBody(res));
     return { ok: res.ok };
   } catch (error) {
@@ -85,7 +88,7 @@ export async function requestOk(action: string, url: string, init?: RequestInit)
 
 export async function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void> {
   try {
-    const res = await fetch(url, withWorkbenchMarker(init));
+    const res = await workbenchFetch(url, withWorkbenchMarker(init));
     if (!res.ok) reportRefusedWrite(res, init, await readJsonBody(res));
   } catch (error) {
     logRequestError(action, error);
@@ -328,8 +331,10 @@ export async function updateNodeFromClient(
     data?: Record<string, unknown>;
     /** Groups: replace the membership list (positions preserved). */
     children?: string[];
+    expectedContentRevision?: number;
+    expectedBoardId?: string | null;
   },
-): Promise<{ ok: boolean; id?: string }> {
+): Promise<{ ok: boolean; id?: string; contentRevision?: number }> {
   return requestJson(
     'updateNodeFromClient',
     `/api/canvas/node/${encodeURIComponent(id)}`,
@@ -477,6 +482,7 @@ function clientWindowSize(): { clientWidth: number; clientHeight: number } | Rec
  * window size before the human ever pans or zooms.
  */
 export async function reportClientViewportSize(): Promise<void> {
+  if (isHostedWorkbench() && !boardsLoaded.value) return;
   const size = clientWindowSize();
   if (!('clientWidth' in size)) return;
   await requestBestEffort('reportClientViewportSize', '/api/canvas/viewport', {

@@ -88,5 +88,5 @@ export declare function shouldAttachToExistingDaemon(occupant: {
  * FS-safe (defaults to false on any error).
  */
 export declare function looksLikeIncidentalCwd(cwd: string): boolean;
-export declare function createCanvasAccess(): Promise<CanvasAccess>;
+export declare function createCanvasAccess(allowExternalMcp?: boolean): Promise<CanvasAccess>;
 export {};

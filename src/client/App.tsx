@@ -54,6 +54,7 @@ import {
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
+import { isHostedWorkbench } from './state/workbench-transport';
 import {
   createGroupFromClient,
   removeEdgeFromClient,
@@ -376,7 +377,11 @@ export function App() {
             intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}
-          {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
+          {sessionIsActive && !isHostedWorkbench() ? (
+            <CommandBar />
+          ) : (
+            contextPinnedNodeIds.value.size > 0 && <ContextPinBar />
+          )}
           <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
           <TextPrompt />
           <ExportDialog />

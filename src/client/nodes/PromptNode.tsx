@@ -3,6 +3,7 @@ import { IconClose } from '../icons';
 import { updateNodeData } from '../state/canvas-store';
 import { fetchSlashCommands, renderMarkdown, submitCanvasPrompt, submitThreadReply } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
+import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
 // Cached slash commands — fetched once on first use.
 let cachedCommands: Array<{ name: string; description: string }> | null = null;
@@ -27,19 +28,6 @@ interface ThreadTurn {
   status?: string;
 }
 
-/** Strip dangerous HTML from rendered markdown to prevent XSS. */
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s>][\s\S]*?<\/script>/gi, '')
-    .replace(/<iframe[\s>][\s\S]*?<\/iframe>/gi, '')
-    .replace(/<object[\s>][\s\S]*?<\/object>/gi, '')
-    .replace(/<embed[\s>][\s\S]*?(?:\/>|<\/embed>)/gi, '')
-    .replace(/<link[\s>][\s\S]*?(?:\/>|<\/link>)/gi, '')
-    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"')
-    .replace(/href\s*=\s*'javascript:[^']*'/gi, "href='#'");
-}
-
 function RenderedMarkdown({ html }: { html: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +38,7 @@ function RenderedMarkdown({ html }: { html: string }) {
     if (!html) return;
 
     const template = document.createElement('template');
-    template.innerHTML = html;
+    template.innerHTML = sanitizeMarkdownHtml(html);
     container.append(template.content.cloneNode(true));
   }, [html]);
 
@@ -181,7 +169,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
       Promise.all(
         assistantTurns.map(async ({ turn, index }) => {
           const html = await renderMarkdown(turn.text);
-          return { index, html: sanitizeHtml(html) };
+          return { index, html: sanitizeMarkdownHtml(html) };
         }),
       ).then((results) => {
         if (cancelled) return;

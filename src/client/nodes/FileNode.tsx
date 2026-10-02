@@ -7,6 +7,7 @@ import { fetchFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { runNodeAxInteraction } from './ax-node-actions';
 import { AttachmentNode } from './AttachmentNode';
+import { useWorkbenchAsset } from './use-workbench-asset';
 
 /** Guess a language label from a file extension for display. */
 function langFromPath(path: string): string {
@@ -180,9 +181,11 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
     const parsed = parseDelimitedText(content, delimiter);
     return parsed.header.length >= 2 ? parsed : null;
   }, [content, delimiter, servesBytes]);
-  const bytesUrl = `/api/canvas/file-bytes?nodeId=${encodeURIComponent(node.id)}${
-    bytesVersion ? `&v=${bytesVersion}` : ''
-  }`;
+  const bytesUrl = useWorkbenchAsset(
+    servesBytes
+      ? `/api/canvas/file-bytes?nodeId=${encodeURIComponent(node.id)}${bytesVersion ? `&v=${bytesVersion}` : ''}`
+      : '',
+  );
   // Amp orb portals block src-URL child iframes and force srcdoc, which cannot
   // inline a PDF — offer the raw URL instead of a dead frame.
   const pdfFrameBlocked = iframeMode.value === 'srcdoc';

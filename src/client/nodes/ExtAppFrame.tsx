@@ -3,6 +3,7 @@ import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
+import { workbenchFetch } from '../state/workbench-transport';
 import {
   AX_SURFACE_ACK_SOURCE,
   AX_SURFACE_EMIT_SOURCE,
@@ -41,7 +42,7 @@ interface ExtAppHostDimensionsTarget {
 }
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(url, {
+  const response = await workbenchFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -150,7 +151,7 @@ function queueExtAppRecoveryReport(entry: { t: number; nodeId: string; event: st
     extAppReportTimer = null;
     const entries = extAppReportQueue.splice(0);
     if (entries.length === 0) return;
-    void fetch('/api/canvas/debug/ext-app-recovery', {
+    void workbenchFetch('/api/canvas/debug/ext-app-recovery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entries }),

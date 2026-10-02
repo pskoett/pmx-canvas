@@ -1,6 +1,7 @@
 import { exportDialogOpen } from './ExportDialog';
 import { activeBoardId } from '../state/boards-store';
 import { BoardSwitcher } from './BoardSwitcher';
+import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import type { ComponentChildren } from 'preact';
 import { presenting } from '../state/presentation';
 import { useEffect, useState } from 'preact/hooks';
@@ -272,7 +273,7 @@ export function TopBar() {
   const [workspaceName, setWorkspaceName] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
-    fetch('/health')
+    workbenchFetch('/health')
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { workspace?: string } | null) => {
         if (cancelled || typeof data?.workspace !== 'string' || !data.workspace) return;
@@ -327,7 +328,7 @@ export function TopBar() {
       <GateBadge />
       <ContextBudget />
       <ExternalWriterIndicator />
-      <StartSessionButton />
+      {!isHostedWorkbench() && <StartSessionButton />}
 
       <div class="top-bar-sep" />
 

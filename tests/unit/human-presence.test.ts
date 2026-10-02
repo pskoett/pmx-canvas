@@ -177,4 +177,38 @@ describe('human presence over HTTP', () => {
     };
     expect(presence.presences.map((p) => p.sessionId)).not.toContain('browser');
   });
+
+  test('group drag respects a held child; the human drag keeps explicit child geometry', async () => {
+    const child = (await (
+      await post('/api/canvas/node', { type: 'markdown', title: 'Child', x: 100, y: 100 }, { 'x-pmx-workbench': '1' })
+    ).json()) as { id: string };
+    const group = (await (
+      await post('/api/canvas/group', { title: 'G', childIds: [child.id] }, { 'x-pmx-workbench': '1' })
+    ).json()) as { id: string };
+    const groupBefore = (await (await fetch(`${baseUrl}/api/canvas/node/${group.id}`)).json()) as {
+      position: { x: number; y: number };
+    };
+    await post(
+      '/api/canvas/human-presence',
+      { clientId: 'tab-a', name: 'mia', grabbingNodeId: child.id },
+      { 'x-pmx-workbench': '1' },
+    );
+    const groupPosition = { x: groupBefore.position.x + 50, y: groupBefore.position.y + 30 };
+    const childPosition = { x: 180, y: 170 };
+    const body = {
+      updates: [
+        { id: group.id, position: groupPosition },
+        { id: child.id, position: childPosition },
+      ],
+    };
+
+    expect((await post('/api/canvas/update', { updates: [{ id: group.id, position: groupPosition }] })).status).toBe(
+      409,
+    );
+    expect((await post('/api/canvas/update', body, { 'x-pmx-workbench': '1' })).ok).toBe(true);
+    const childAfter = (await (await fetch(`${baseUrl}/api/canvas/node/${child.id}`)).json()) as {
+      position: { x: number; y: number };
+    };
+    expect(childAfter.position).toEqual(childPosition);
+  });
 });

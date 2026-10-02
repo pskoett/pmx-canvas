@@ -4,10 +4,12 @@ import type { CanvasNodeState } from '../types';
 import { activeBoardId } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
 import { expandNode, collapseExpandedNode } from '../state/canvas-store';
+import { useWorkbenchAsset } from './use-workbench-asset';
 
 /** Originals stay useful even when the connected host cannot extract them. */
 export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const attachmentId = String(node.data.attachmentId);
+  const downloadUrl = useWorkbenchAsset(`/api/canvas/attachments/${encodeURIComponent(attachmentId)}/bytes`);
   const boardId = activeBoardId.value;
   const [job, setJob] = useState<DocumentImport | null>(null);
   const [review, setReview] = useState(expanded);
@@ -68,7 +70,12 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
               ? 'Markdown added'
               : 'Original attached'}
       </div>
-      <a href={`/api/canvas/attachments/${attachmentId}/bytes`} target="_blank" rel="noopener noreferrer">
+      <a
+        href={downloadUrl}
+        download={String(node.data.title ?? 'attachment')}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         Download original · {Math.ceil(Number(node.data.size ?? 0) / 1024)} KB
       </a>
       {job?.reason && <p>{job.reason}</p>}

@@ -316,6 +316,12 @@ bunx pmx-canvas --mcp        # Run as MCP server (stdio)
 bunx pmx-canvas --help       # All commands
 ```
 
+For the experimental ChatGPT/MCP Apps integration, use the separate
+[`--mcp-app` profile](docs/mcp.md#private-mcp-app-preview). It embeds the real
+PMX workbench with selection/pin context; prompts stay in ChatGPT's own composer.
+Host iframe policy and trusted-human restrictions still apply; this is not
+yet a published plugin or a natively verified ChatGPT integration.
+
 Themes are a tool-rail picker away too, and any one panel can override the
 shared theme for itself with `?theme=<name|auto>`.
 

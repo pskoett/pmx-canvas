@@ -62,6 +62,8 @@ import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { closeMcpAppSession, closeAllMcpAppSessions } from './mcp-app-runtime.js';
 import { findOpenCanvasPosition } from './placement.js';
 import { overlapsAny } from '../shared/placement.js';
+import { CANVAS_APP_WRITE_CONTRACT } from '../shared/canvas-app.js';
+import { withoutExternalMcp } from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
 import { buildAgentContextPreamble } from './agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
@@ -3263,6 +3265,7 @@ export interface CanvasServerOptions {
   workspaceRoot?: string;
   autoOpenBrowser?: boolean;
   allowPortFallback?: boolean;
+  allowExternalMcp?: boolean;
 }
 
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
@@ -3304,7 +3307,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   if (loaded) {
     console.log('  Canvas state restored from .pmx-canvas/canvas.db');
     primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
-    void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
+    const rehydrate = () => syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true });
+    const pending = options.allowExternalMcp === false ? withoutExternalMcp(rehydrate) : rehydrate();
+    void pending.finally(() => {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     });
   }
@@ -3361,6 +3366,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               workspace: activeWorkspaceRoot,
               pid: process.pid,
               version: serverPackageVersion(),
+              contracts: [CANVAS_APP_WRITE_CONTRACT],
               persistence: canvasState.persistenceHealth,
             });
           }

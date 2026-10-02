@@ -9,18 +9,20 @@ export interface OperationInvoker {
 export declare function agentSourceLabel(fallback: string): string;
 /** Runs operations in-process against the shared canvasState singleton. */
 export declare class LocalOperationInvoker implements OperationInvoker {
+    private readonly allowExternalMcp;
     private readonly source;
     private readonly proxiedRead;
     /** `source` labels this caller's agent presence ('mcp', 'sdk', …). */
-    constructor(source?: string);
+    constructor(source?: string, allowExternalMcp?: boolean);
     invoke(name: string, input: Record<string, unknown>): Promise<unknown>;
 }
 /** Builds the HTTP request from the op's route template (`:id` from input, GET flags to query). */
 export declare class HttpOperationInvoker implements OperationInvoker {
+    private readonly allowExternalMcp;
     private readonly baseUrl;
     private readonly source;
     private readonly proxiedRead;
     /** `source` labels this caller's agent presence on the server ('cli', 'mcp', …). */
-    constructor(baseUrl: string, source?: string);
+    constructor(baseUrl: string, source?: string, allowExternalMcp?: boolean);
     invoke(name: string, rawInput: Record<string, unknown>): Promise<unknown>;
 }

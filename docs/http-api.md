@@ -3,6 +3,13 @@
 REST endpoints for all canvas operations + an SSE event stream. Works from
 any language. Default base URL: `http://localhost:4313`.
 
+`GET /health` includes `contracts: ["pmx-embedded-workbench-v4"]` when the daemon
+enforces `expectedBoardId` and `expectedContentRevision` preconditions, bulk-write
+fences/locks using validated geometry and affected automatic parent frames only,
+and the `allowExternalMcp: false` operation restriction (including
+deferred backend rehydration). The experimental MCP App requires this contract
+when attaching to a daemon; package version equality alone is insufficient.
+
 A non-empty request body that is not valid JSON returns
 `400 { "ok": false, "error": "Malformed JSON body." }` on every route; empty
 bodies are treated as an empty request. As of 0.4.0 every error response is a
@@ -275,6 +282,14 @@ An optional `boardId` on node creation is a captured-board precondition, not a
 switch command: if it no longer matches the active board, the request returns
 `409` without creating a node or opening a board from Home. The file-drop UI
 uses this to prevent delayed uploads from landing on a different board.
+
+Operation-registry requests may also carry `expectedBoardId` (a board ID or
+null for Home). A mismatch returns `409` before auto-opening a board or running
+the operation. This is a precondition, not a board switch or permission grant.
+`PATCH /api/canvas/node/:id` accepts optional `expectedContentRevision`, matched
+against the node's top-level `contentRevision`; stale content returns `409`
+without changing the node. Conditional edits cannot request webpage refresh.
+The private MCP App uses these guards to reject stale board actions and note drafts.
 
 Mermaid nodes accept `data: { "fit": "contain" | "none" }` on both
 `POST /api/canvas/node` and `PATCH /api/canvas/node/:id`. The default, `contain`,

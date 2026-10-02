@@ -32,13 +32,17 @@ export class LocalOperationInvoker implements OperationInvoker {
   private readonly proxiedRead: boolean;
 
   /** `source` labels this caller's agent presence ('mcp', 'sdk', …). */
-  constructor(source = 'api') {
+  constructor(
+    source = 'api',
+    private readonly allowExternalMcp = true,
+  ) {
     this.source = agentSourceLabel(source);
     this.proxiedRead = source === 'mcp';
   }
 
   async invoke(name: string, input: Record<string, unknown>): Promise<unknown> {
-    return await executeOperation(name, defaultPresenceSource(name, input, this.source), {
+    const args = this.allowExternalMcp ? input : { ...input, allowExternalMcp: false };
+    return await executeOperation(name, defaultPresenceSource(name, args, this.source), {
       source: this.source,
       proxiedRead: this.proxiedRead,
     });
@@ -56,14 +60,19 @@ export class HttpOperationInvoker implements OperationInvoker {
   private readonly proxiedRead: boolean;
 
   /** `source` labels this caller's agent presence on the server ('cli', 'mcp', …). */
-  constructor(baseUrl: string, source = 'api') {
+  constructor(
+    baseUrl: string,
+    source = 'api',
+    private readonly allowExternalMcp = true,
+  ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.source = agentSourceLabel(source);
     this.proxiedRead = source === 'mcp';
   }
 
   async invoke(name: string, rawInput: Record<string, unknown>): Promise<unknown> {
-    const input = defaultPresenceSource(name, rawInput, this.source);
+    const args = this.allowExternalMcp ? rawInput : { ...rawInput, allowExternalMcp: false };
+    const input = defaultPresenceSource(name, args, this.source);
     const op = getOperation(name);
     const route = op.http;
     if (!route) throw new OperationError(`Operation "${name}" has no HTTP route.`, 400);

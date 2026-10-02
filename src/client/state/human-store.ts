@@ -6,6 +6,7 @@ import {
 } from '../../shared/human-presence.js';
 import { requestBestEffort, vetoGhostIntent } from './intent-bridge';
 import { intents, removeIntent } from './intent-store';
+import { isHostedWorkbench } from './workbench-transport';
 
 /**
  * Human collaborator presence (rail-chrome-v2 phase 8). This tab reports its
@@ -64,6 +65,7 @@ let lastSentAt = 0;
 let pending: ReturnType<typeof setTimeout> | null = null;
 
 function post(body: Record<string, unknown>): void {
+  if (isHostedWorkbench()) return;
   void requestBestEffort('humanPresence', '/api/canvas/human-presence', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

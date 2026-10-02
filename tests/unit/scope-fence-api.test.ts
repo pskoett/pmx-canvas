@@ -123,6 +123,26 @@ describe('scope fence over HTTP', () => {
     expect((await patchNode(inside, { x: 120, y: 120 })).ok).toBe(true);
   });
 
+  test('canvas update drags are fenced by target and destination', async () => {
+    const inside = await addNode('In', 100, 100);
+    const outside = await addNode('Out', 2000, 2000);
+    await postJson('/api/canvas/ax/policy', { scope: { nodeIds: [inside], padding: 40 } }, WORKBENCH);
+
+    expect(
+      (await postJson('/api/canvas/update', { updates: [{ id: outside, position: { x: 110, y: 110 } }] })).status,
+    ).toBe(403);
+    expect(
+      (await postJson('/api/canvas/update', { updates: [{ id: inside, position: { x: 9000, y: 9000 } }] })).status,
+    ).toBe(403);
+    expect((await postJson('/api/canvas/update', { updates: [{ id: inside, position: { x: 120, y: 120 } }] })).ok).toBe(
+      true,
+    );
+    const node = (await (await fetch(`${baseUrl}/api/canvas/node/${inside}`)).json()) as {
+      position: { x: number; y: number };
+    };
+    expect(node.position).toEqual({ x: 120, y: 120 });
+  });
+
   test('fencing a group frame grants its members too — nested groups included', async () => {
     const a = await addNode('A', 100, 100);
     const b = await addNode('B', 400, 100);

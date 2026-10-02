@@ -18,6 +18,7 @@ export interface CanvasNodeState {
     zIndex: number;
     collapsed: boolean;
     pinned: boolean;
+    contentRevision?: number;
     data: Record<string, unknown>;
 }
 export interface CanvasEdge {

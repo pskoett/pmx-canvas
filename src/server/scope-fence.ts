@@ -25,6 +25,7 @@
  */
 import { type FenceRect, fenceRectFromNodes } from '../shared/scope-fence.js';
 import { canvasState } from './canvas-state.js';
+import { resolvePatchGeometry, validCanvasNodeUpdates } from './canvas-geometry.js';
 import type { Operation } from './operations/types.js';
 
 /** Bounding box of the fenced nodes plus padding; null when none of them exist. */
@@ -103,6 +104,48 @@ function groupChildren(input: Record<string, unknown>): string[] {
   return 'children' in data ? stringList(data.children) : [];
 }
 
+/** Automatic frames are write targets when their descendants can cause a re-fit.
+ * Conservatively include them even if the resulting bounds happen to be equal.
+ * A manual frame does not re-fit, so propagation stops there. */
+function includeAutoFrameParents(nodeIds: string[]): string[] {
+  const targets = new Set(nodeIds);
+  for (const id of targets) {
+    const parentId = canvasState.getNode(id)?.data.parentGroup;
+    if (typeof parentId !== 'string') continue;
+    const parent = canvasState.getNode(parentId);
+    if (parent?.type === 'group' && parent.data.frameMode !== 'manual') targets.add(parentId);
+  }
+  return [...targets];
+}
+
+/** `canvasState.applyUpdates`: group moves translate children unless that child has its own position update. */
+function applyUpdatesTarget(input: Record<string, unknown>): FenceTarget {
+  const updates = validCanvasNodeUpdates(input.updates);
+  const explicitPositionIds = new Set(
+    updates.filter((update) => update.position !== undefined).map((update) => update.id),
+  );
+  const nodeIds: string[] = [];
+  const points: Array<{ x: number; y: number }> = [];
+  for (const update of updates) {
+    const id = update.id;
+    nodeIds.push(id);
+    if (!update.position) continue;
+    const { x, y } = update.position;
+    points.push({ x, y });
+    const node = canvasState.getNode(id);
+    if (node?.type !== 'group') continue;
+    const deltaX = x - node.position.x;
+    const deltaY = y - node.position.y;
+    for (const childId of stringList(node.data.children)) {
+      if (explicitPositionIds.has(childId)) continue;
+      nodeIds.push(childId);
+      const child = canvasState.getNode(childId);
+      if (child) points.push({ x: child.position.x + deltaX, y: child.position.y + deltaY });
+    }
+  }
+  return { nodeIds: includeAutoFrameParents(nodeIds), points };
+}
+
 function createTarget(input: Record<string, unknown>, extraNodeIds: string[] = []): FenceTarget {
   const x = Number(input.x);
   const y = Number(input.y);
@@ -118,17 +161,19 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
   const input = asRecord(rawInput);
   if (BOARD_WIDE_OPS.has(op.name)) return { boardWide: true };
   switch (op.name) {
+    case 'canvas.apply-updates':
+      return applyUpdatesTarget(input);
     case 'node.update': {
-      // A group's membership change reparents (and may reposition) its children.
-      const nodeIds = [str(input.id), ...groupChildren(input)];
-      // A move's DESTINATION must also land inside the fence — otherwise an
-      // agent relocates a fenced node outward, and since the fence rect is
-      // derived from live node positions, that grows its own writable region
-      // past the human-seeded region.
-      const x = Number(input.x);
-      const y = Number(input.y);
-      if (Number.isFinite(x) && Number.isFinite(y)) return { points: [{ x, y }], nodeIds };
-      return { nodeIds };
+      const id = str(input.id);
+      const existing = canvasState.getNode(id);
+      const geometry = existing ? resolvePatchGeometry(input, existing) : {};
+      // Share the bulk translation rules after resolving PATCH aliases and
+      // omitted axes. Check children's destinations as well as the group origin.
+      const target = applyUpdatesTarget({ updates: [{ id, ...geometry }] });
+      return {
+        ...target,
+        nodeIds: includeAutoFrameParents([id, ...(target.nodeIds ?? []), ...groupChildren(input)]),
+      };
     }
     case 'node.remove':
       return { nodeIds: [str(input.id)] };

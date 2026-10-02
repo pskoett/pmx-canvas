@@ -130,16 +130,6 @@ export declare function syncCanvasRuntimeBackends(options?: {
     rehydrated: number;
     failed: number;
 }>;
-export declare function validateCanvasNodePatch(patch: {
-    position?: {
-        x: number;
-        y: number;
-    };
-    size?: {
-        width: number;
-        height: number;
-    };
-}): string | null;
 export declare function mergeTraceNodeDataFields(base: Record<string, unknown>, input: Record<string, unknown>): Record<string, unknown>;
 export declare function hasTraceNodeDataFields(input: Record<string, unknown>): boolean;
 export declare function scheduleCodeGraphRecompute(onComplete?: () => void): void;

@@ -108,6 +108,7 @@ export interface CanvasServerOptions {
     workspaceRoot?: string;
     autoOpenBrowser?: boolean;
     allowPortFallback?: boolean;
+    allowExternalMcp?: boolean;
 }
 export declare function startCanvasServer(options?: CanvasServerOptions): string | null;
 export declare function stopCanvasServer(): void;

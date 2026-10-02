@@ -80,13 +80,16 @@ export interface CanvasAccess {
 
 class LocalCanvasAccess implements CanvasAccess {
   readonly remoteBaseUrl = null;
-  private readonly operationInvoker = new LocalOperationInvoker('mcp');
+  private readonly operationInvoker: LocalOperationInvoker;
 
   constructor(
     private readonly canvas: PmxCanvas,
     readonly workspaceRoot: string,
     readonly targetPort: number,
-  ) {}
+    readonly allowExternalMcp = true,
+  ) {
+    this.operationInvoker = new LocalOperationInvoker('mcp', allowExternalMcp);
+  }
 
   get port(): number {
     return this.canvas.port;
@@ -202,11 +205,11 @@ class RemoteCanvasAccess implements CanvasAccess {
   readonly port: number;
   private readonly operationInvoker: HttpOperationInvoker;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, allowExternalMcp = true) {
     this.remoteBaseUrl = baseUrl.replace(/\/$/, '');
     const parsed = new URL(this.remoteBaseUrl);
     this.port = Number(parsed.port || '80');
-    this.operationInvoker = new HttpOperationInvoker(this.remoteBaseUrl, 'mcp');
+    this.operationInvoker = new HttpOperationInvoker(this.remoteBaseUrl, 'mcp', allowExternalMcp);
   }
 
   invoker(): OperationInvoker {
@@ -479,7 +482,7 @@ export async function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasA
   const remoteBaseUrl = await findExistingCanvasServer(access.workspaceRoot, access.targetPort, {
     excludeBaseUrls: localBaseUrls(access.port),
   });
-  return remoteBaseUrl ? new RemoteCanvasAccess(remoteBaseUrl) : access;
+  return remoteBaseUrl ? new RemoteCanvasAccess(remoteBaseUrl, access.allowExternalMcp) : access;
 }
 
 /**
@@ -523,7 +526,7 @@ export function looksLikeIncidentalCwd(cwd: string): boolean {
   return dirname(canonical) === home && basename(canonical).startsWith('.');
 }
 
-export async function createCanvasAccess(): Promise<CanvasAccess> {
+export async function createCanvasAccess(allowExternalMcp = true): Promise<CanvasAccess> {
   // PMX_CANVAS_WORKSPACE_ROOT (Finding I escape hatch): an explicit project root the
   // host can pass so the MCP server keys off it instead of an incidental launch cwd
   // (e.g. ~/.copilot). When set, it overrides process.cwd() for the whole acquisition
@@ -533,7 +536,7 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
   const workspaceRoot = explicitRoot ? resolve(override as string) : resolve(process.cwd());
   const port = targetPort();
   const remoteBaseUrl = await findExistingCanvasServer(workspaceRoot, port);
-  if (remoteBaseUrl) return new RemoteCanvasAccess(remoteBaseUrl);
+  if (remoteBaseUrl) return new RemoteCanvasAccess(remoteBaseUrl, allowExternalMcp);
 
   // No SAME-workspace server to attach to. The preferred port may still be held by
   // a healthy canvas daemon serving a DIFFERENT workspace. The old behavior silently
@@ -561,7 +564,7 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
           `in the open workbench instead of splitting to a hidden fallback port. For a SEPARATE canvas, ` +
           `set PMX_CANVAS_PORT to a free port or PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1.\n`,
       );
-      return new RemoteCanvasAccess(occupantBaseUrl);
+      return new RemoteCanvasAccess(occupantBaseUrl, allowExternalMcp);
     }
   }
 
@@ -580,7 +583,7 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
         `[pmx-canvas] launch cwd ${workspaceRoot} looks like a host config dir; attaching to the ` +
           `canvas now on port ${port}.\n`,
       );
-      return new RemoteCanvasAccess(occupantBaseUrl);
+      return new RemoteCanvasAccess(occupantBaseUrl, allowExternalMcp);
     }
     // Still free: bind it anyway (the agent always gets a working canvas) but warn
     // loudly so a wrong-workspace canvas is diagnosed, not silent. stderr only.
@@ -598,7 +601,7 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
   // so a non-canvas occupant doesn't crash this session with EADDRINUSE — start our
   // own canvas and explain how to share one.
   const canvas = createCanvas({ port });
-  await canvas.start({ open: true, allowPortFallback: true });
+  await canvas.start({ open: true, allowPortFallback: true, allowExternalMcp });
   const boundPort = canvas.port;
   if (boundPort !== port) {
     const occupant = await readHealth(occupantBaseUrl);
@@ -609,5 +612,5 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
         `from this workspace or set PMX_CANVAS_URL / PMX_CANVAS_PORT to point at it.\n`,
     );
   }
-  return new LocalCanvasAccess(canvas, workspaceRoot, port);
+  return new LocalCanvasAccess(canvas, workspaceRoot, port, allowExternalMcp);
 }

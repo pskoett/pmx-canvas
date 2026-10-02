@@ -1,13 +1,16 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { IconArrowLeft } from '../icons';
-import { expandNode, updateNodeData } from '../state/canvas-store';
+import { expandNode, nodes, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { activeBoard, setBoardReadme } from '../state/boards-store';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
 import { InlineMarkdownEditor } from './InlineMarkdownEditor';
+import { isHostedWorkbench } from '../state/workbench-transport';
+import { activeBoardId } from '../state/boards-store';
+import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
 function RenderedMarkdown({
   html,
@@ -37,7 +40,7 @@ function RenderedMarkdown({
     container.replaceChildren();
     if (!html) return;
     const template = document.createElement('template');
-    template.innerHTML = html;
+    template.innerHTML = sanitizeMarkdownHtml(html);
     container.append(template.content.cloneNode(true));
     if (onTaskToggleRef.current) {
       for (const box of container.querySelectorAll('input[type="checkbox"][disabled]')) {
@@ -98,9 +101,14 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // debounced save without capturing stale closures.
   const latestMdRef = useRef<string>('');
   const persistFnRef = useRef<((md: string) => Promise<void>) | null>(null);
+  const dirtyRef = useRef(false);
+  const editBase = useRef({ boardId: activeBoardId.value, revision: node.contentRevision ?? 0 });
+  const saveQueue = useRef(Promise.resolve());
   const reviewActive = node.data.reviewActive as boolean | undefined;
 
   useEffect(() => {
+    if (isHostedWorkbench() && dirtyRef.current) return;
+    editBase.current = { boardId: activeBoardId.value, revision: node.contentRevision ?? 0 };
     let cancelled = false;
     (async () => {
       let raw: string;
@@ -116,7 +124,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       }
       setContent(raw);
       const html = await renderMarkdown(raw);
-      if (cancelled) return;
+      if (cancelled || (isHostedWorkbench() && dirtyRef.current)) return;
       setRendered(html);
       setLoaded(true);
       updateNodeData(node.id, { content: raw, rendered: html });
@@ -128,6 +136,8 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
 
   const handleInput = useCallback(async (e: Event) => {
     const value = (e.target as HTMLTextAreaElement).value;
+    dirtyRef.current = true;
+    latestMdRef.current = value;
     setContent(value);
     setDirty(true);
     const html = await renderMarkdown(value);
@@ -136,6 +146,32 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
 
   const persistContent = useCallback(
     async (newContent: string) => {
+      if (isHostedWorkbench()) {
+        // Serialize autosaves against the captured source revision, not whatever
+        // newer revision a background poll has delivered while typing.
+        saveQueue.current = saveQueue.current.then(async () => {
+          setSaving(true);
+          const result = await updateNodeFromClient(node.id, {
+            content: newContent,
+            expectedBoardId: editBase.current.boardId,
+            expectedContentRevision: editBase.current.revision,
+          });
+          setSaving(false);
+          if (!result.ok) return; // Refusal toast is shown by the request helper; keep the draft.
+          editBase.current.revision = result.contentRevision ?? editBase.current.revision;
+          const current = nodes.value.get(node.id);
+          if (current)
+            nodes.value = new Map(nodes.value).set(node.id, { ...current, contentRevision: editBase.current.revision });
+          if (latestMdRef.current !== newContent) return;
+          dirtyRef.current = false;
+          setDirty(false);
+          const html = await renderMarkdown(newContent);
+          setRendered(html);
+          updateNodeData(node.id, { content: newContent, rendered: html });
+        });
+        await saveQueue.current;
+        return;
+      }
       if (!path) {
         const html = await renderMarkdown(newContent);
         setRendered(html);
@@ -191,6 +227,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // don't hit the backend on every letter.
   const handleInlineChange = useCallback(
     (md: string) => {
+      dirtyRef.current = true;
       setContent(md);
       setDirty(true);
       latestMdRef.current = md;
@@ -208,6 +245,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // write twice with slightly different content.
   const handleInlineSave = useCallback(
     (md: string) => {
+      dirtyRef.current = true;
       setContent(md);
       latestMdRef.current = md;
       if (persistTimerRef.current !== null) {
@@ -274,9 +312,6 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
             <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
             <MdFormatBar textareaRef={textareaRef} />
           </div>
-          {/* D5/H4: Trust boundary — rendered HTML comes from server-side marked()
-              on the user's own markdown files, served only on 127.0.0.1. No DOMPurify
-              needed for this localhost-only rendering of user-owned content. */}
           <RenderedMarkdown html={rendered} className="md-preview" />
         </div>
       </div>

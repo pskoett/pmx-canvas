@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { IconRefresh } from '../icons';
 import type { CanvasNodeState } from '../types';
 import { getImageNodeWarnings } from './image-warnings';
+import { useWorkbenchAsset } from './use-workbench-asset';
 
 /**
  * Image node renderer.
@@ -15,10 +16,11 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
   const warnings = getImageNodeWarnings(node);
 
   // Determine the image source URL
-  const imageSrc =
+  const imageSrc = useWorkbenchAsset(
     src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')
       ? src
-      : `/api/canvas/image/${node.id}`;
+      : `/api/canvas/image/${node.id}`,
+  );
 
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);

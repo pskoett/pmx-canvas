@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { dismissSessionReceipt, sessionReceipt } from '../state/session-store';
 import { IconClose } from '../icons';
+import { workbenchFetch } from '../state/workbench-transport';
 
 /**
  * Session receipt (rail-chrome-v2 phase 5, design item 2): a dismissible card
@@ -38,7 +39,7 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
     if (!receipt.snapshot) return;
     setLoadingDiff(true);
     try {
-      const response = await fetch(`/api/canvas/snapshots/${encodeURIComponent(receipt.snapshot.id)}/diff`, {
+      const response = await workbenchFetch(`/api/canvas/snapshots/${encodeURIComponent(receipt.snapshot.id)}/diff`, {
         headers: { 'x-pmx-workbench': '1' },
       });
       if (response.ok) {

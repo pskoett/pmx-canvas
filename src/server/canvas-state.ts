@@ -687,8 +687,9 @@ class CanvasStateManager {
     }
   }
 
-  private recomputeParentGroupBounds(groupId: string | undefined): void {
-    if (!groupId) return;
+  private recomputeParentGroupBounds(groupId: string | undefined, visited = new Set<string>()): void {
+    if (!groupId || visited.has(groupId)) return;
+    visited.add(groupId);
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot) return;
     if (snapshot.group.data.frameMode === 'manual') return;
@@ -701,6 +702,10 @@ class CanvasStateManager {
       position: { x: bounds.x, y: bounds.y },
       size: { width: bounds.width, height: bounds.height },
     });
+    // Only the affected ancestor chain may re-fit. Never repair unrelated
+    // automatic frames as a side effect of an otherwise scoped child update.
+    const parentId = snapshot.group.data.parentGroup;
+    if (typeof parentId === 'string') this.recomputeParentGroupBounds(parentId, visited);
   }
 
   private compactGroupChildren(groupId: string, layout: 'grid' | 'column' | 'flow' = 'grid'): void {
@@ -2062,7 +2067,6 @@ class CanvasStateManager {
       // moved child's requested coordinates. Compaction is opt-in (group
       // create/add with childLayout, or arrange).
       this.recomputeParentGroupBounds(parentGroupId);
-      this.reflowAllGroups();
     }
     this.scheduleSave();
     this.notifyChange('nodes');
@@ -2444,7 +2448,6 @@ class CanvasStateManager {
     for (const groupId of touchedParentGroups) {
       this.recomputeParentGroupBounds(groupId);
     }
-    if (touchedParentGroups.size > 0) this.reflowAllGroups();
 
     if (applied > 0) {
       this.scheduleSave();

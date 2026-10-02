@@ -42,6 +42,8 @@ export declare class PmxCanvas extends EventEmitter {
     start(options?: {
         open?: boolean;
         automationWebView?: boolean | CanvasAutomationWebViewOptions;
+        /** Embedded startup must not launch external MCP backends from saved nodes. */
+        allowExternalMcp?: boolean;
         /**
          * Bind a nearby free port when the preferred one is taken instead of
          * failing. Default false (an explicit SDK port is honored exactly); the

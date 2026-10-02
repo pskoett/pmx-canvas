@@ -22,13 +22,13 @@ import {
   removeCanvasNode,
   resolveHtmlContent,
   scheduleCodeGraphRecompute,
-  validateCanvasNodePatch,
   MARKDOWN_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_DEFAULT_SIZE,
   IMAGE_NODE_DEFAULT_SIZE,
   LEDGER_NODE_DEFAULT_SIZE,
   type CanvasSizeAdjustment,
 } from '../../canvas-operations.js';
+import { resolveCreateGeometry, resolvePatchGeometry, validateCanvasNodePatch } from '../../canvas-geometry.js';
 import { normalizeNodeAxCapabilities } from '../../ax-interaction.js';
 import { applyFileContentToNodeData, readFileNodeContent } from '../../file-content.js';
 import { unwatchFileForNode, watchFileForNode } from '../../file-watcher.js';
@@ -124,81 +124,6 @@ export function getRecord(value: unknown): Record<string, unknown> | undefined {
 export function pickPositiveNumber(record: Record<string, unknown>, key: string): number | undefined {
   const value = pickFiniteNumber(record, key);
   return value !== undefined && value > 0 ? value : undefined;
-}
-
-function normalizeGeometryInput(body: Record<string, unknown>): {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  position?: { x?: number; y?: number };
-  size?: { width?: number; height?: number };
-} {
-  const position = getRecord(body.position);
-  const size = getRecord(body.size);
-  return {
-    ...(pickFiniteNumber(body, 'x') !== undefined ? { x: pickFiniteNumber(body, 'x') } : {}),
-    ...(pickFiniteNumber(body, 'y') !== undefined ? { y: pickFiniteNumber(body, 'y') } : {}),
-    ...(pickFiniteNumber(body, 'width') !== undefined ? { width: pickFiniteNumber(body, 'width') } : {}),
-    ...(pickFiniteNumber(body, 'height') !== undefined ? { height: pickFiniteNumber(body, 'height') } : {}),
-    ...(position
-      ? {
-          position: {
-            ...(pickFiniteNumber(position, 'x') !== undefined ? { x: pickFiniteNumber(position, 'x') } : {}),
-            ...(pickFiniteNumber(position, 'y') !== undefined ? { y: pickFiniteNumber(position, 'y') } : {}),
-          },
-        }
-      : {}),
-    ...(size
-      ? {
-          size: {
-            ...(pickFiniteNumber(size, 'width') !== undefined ? { width: pickFiniteNumber(size, 'width') } : {}),
-            ...(pickFiniteNumber(size, 'height') !== undefined ? { height: pickFiniteNumber(size, 'height') } : {}),
-          },
-        }
-      : {}),
-  };
-}
-
-export function resolveCreateGeometry(body: Record<string, unknown>): {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-} {
-  const geometry = normalizeGeometryInput(body);
-  const x = geometry.x ?? geometry.position?.x;
-  const y = geometry.y ?? geometry.position?.y;
-  const width = geometry.width ?? geometry.size?.width;
-  const height = geometry.height ?? geometry.size?.height;
-  return {
-    ...(x !== undefined ? { x } : {}),
-    ...(y !== undefined ? { y } : {}),
-    ...(width !== undefined ? { width } : {}),
-    ...(height !== undefined ? { height } : {}),
-  };
-}
-
-function resolvePatchGeometry(
-  body: Record<string, unknown>,
-  existing: CanvasNodeState,
-): {
-  position?: { x: number; y: number };
-  size?: { width: number; height: number };
-} {
-  const geometry = normalizeGeometryInput(body);
-  const x = geometry.x ?? geometry.position?.x;
-  const y = geometry.y ?? geometry.position?.y;
-  const width = geometry.width ?? geometry.size?.width;
-  const height = geometry.height ?? geometry.size?.height;
-  return {
-    ...(x !== undefined || y !== undefined
-      ? { position: { x: x ?? existing.position.x, y: y ?? existing.position.y } }
-      : {}),
-    ...(width !== undefined || height !== undefined
-      ? { size: { width: width ?? existing.size.width, height: height ?? existing.size.height } }
-      : {}),
-  };
 }
 
 type StringListField = { value?: string[]; error?: string };
@@ -1057,6 +982,7 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
 
 const nodeUpdateShape = {
   id: z.string().describe('Node ID to update'),
+  expectedContentRevision: z.number().int().nonnegative().optional().describe('Reject an edit based on stale content'),
   intentId: z
     .string()
     .optional()
@@ -1199,6 +1125,12 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
     const id = input.id;
     const existing = canvasState.getNode(id);
     if (!existing) throw new OperationError(`Node "${id}" not found.`, 404);
+    if (input.expectedContentRevision !== undefined) {
+      if (body.refresh === true) throw new OperationError('Conditional edits do not support webpage refresh.');
+      if (input.expectedContentRevision !== (existing.contentRevision ?? 0)) {
+        throw new OperationError('This node changed. Reopen the editor before saving your changes.', 409);
+      }
+    }
     if (existing.type === 'webpage' && body.refresh === true) {
       const rawUrl = typeof body.url === 'string' ? body.url : undefined;
       let url: string | undefined;

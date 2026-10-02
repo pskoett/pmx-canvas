@@ -1,3 +1,4 @@
+export declare function matchOperationPath(template: string, pathname: string): Record<string, string> | null;
 /**
  * Shared body reader: preserves the parsed JSON value as-is (object, array,
  * or primitive) — per-op `readInput` decides what to do with non-object
@@ -5,4 +6,5 @@
  * parse is a 400 (OperationError), never a silent empty input.
  */
 export declare function readJsonValue(req: Request): Promise<unknown>;
+export declare function readOperationInput(req: Request, params: Record<string, string>, url: URL): Promise<Record<string, unknown>>;
 export declare function dispatchOperationRoute(req: Request, url: URL): Promise<Response | null>;

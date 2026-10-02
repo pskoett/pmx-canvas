@@ -11,6 +11,7 @@ import {
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { canvasArea, canvasAreaCenter, canvasFitInsets } from '../canvas/canvas-area';
 import { pushCanvasUpdate, requestBestEffort, requestOk, updateViewportFromClient } from './intent-bridge';
+import { isHostedWorkbench } from './workbench-transport';
 
 function logCanvasStoreError(action: string, error: unknown): void {
   console.error(`[canvas-store] ${action} failed`, error);
@@ -775,7 +776,8 @@ export function persistLayout(options: { recordHistory?: boolean } = {}): void {
       })),
       contextPinnedNodeIds: Array.from(contextPinnedNodeIds.value),
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+    // Opaque MCP App frames have no localStorage; the daemon persists layout.
+    if (!isHostedWorkbench()) localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
     void pushCanvasUpdate(nodeUpdates, options);
   } catch (error) {
     logCanvasStoreError('persistLayout', error);

@@ -50,8 +50,8 @@ import {
   isRecord,
   pickFiniteNumber,
   pickPositiveNumber,
-  resolveCreateGeometry,
 } from './nodes.js';
+import { resolveCreateGeometry } from '../../canvas-geometry.js';
 
 /** Legacy server.ts parseGraphPayloadData: a graph dataset must be an array of records. */
 export function parseGraphPayloadData(value: unknown): Array<Record<string, unknown>> | null {

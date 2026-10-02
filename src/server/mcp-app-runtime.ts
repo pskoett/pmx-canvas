@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -17,6 +18,13 @@ import { EXTENSION_ID, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps
 import type { McpUiClientCapabilities, McpUiResourceCsp, McpUiResourceMeta } from '@modelcontextprotocol/ext-apps';
 import { getToolUiResourceUri } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
+
+// A restriction follows async rehydration spawned by an embedded operation,
+// without disabling independent requests from the local workbench.
+const externalMcpDisabled = new AsyncLocalStorage<boolean>();
+export function withoutExternalMcp<T>(run: () => T): T {
+  return externalMcpDisabled.run(true, run);
+}
 
 export interface ExternalMcpHttpTransportConfig {
   type: 'http';
@@ -210,6 +218,9 @@ async function createSession(
   serverName?: string,
   timeoutMs?: number,
 ): Promise<McpAppSession> {
+  if (externalMcpDisabled.getStore()) {
+    throw new Error('Open external MCP apps from the local PMX workbench; embedded actions cannot launch them.');
+  }
   const transport = buildTransport(transportConfig);
   const client = new Client({ name: 'pmx-canvas-app-host', version: '0.1.0' }, { capabilities: clientCapabilities });
   await client.connect(transport, requestOptions(timeoutMs));

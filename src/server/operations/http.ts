@@ -20,7 +20,7 @@ function responseJson(data: unknown, status = 200): Response {
   });
 }
 
-function matchPath(template: string, pathname: string): Record<string, string> | null {
+export function matchOperationPath(template: string, pathname: string): Record<string, string> | null {
   const templateSegments = template.split('/');
   const pathSegments = pathname.split('/');
   if (templateSegments.length !== pathSegments.length) return null;
@@ -58,7 +58,7 @@ export async function readJsonValue(req: Request): Promise<unknown> {
   }
 }
 
-async function defaultReadInput(
+export async function readOperationInput(
   req: Request,
   params: Record<string, string>,
   url: URL,
@@ -80,12 +80,12 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
   for (const op of listOperations()) {
     const route = op.http;
     if (!route || route.method !== req.method) continue;
-    const params = matchPath(route.path, url.pathname);
+    const params = matchOperationPath(route.path, url.pathname);
     if (!params) continue;
     try {
       const input = route.readInput
         ? await route.readInput(req, params, url)
-        : await defaultReadInput(req, params, url);
+        : await readOperationInput(req, params, url);
       // The workbench marks its own HTTP calls: a human dragging/editing in
       // the browser is not agent activity, so it never synthesizes an
       // auto-ghost. Everything else (CLI, scripts, adapters) counts as agent.
