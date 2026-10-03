@@ -15,5 +15,10 @@
     "mcp",
     "spatial",
     "copilot-canvas"
-  ]
+  ],
+  "extensions": {
+    "com.github.copilot": {
+      "logo": "assets/preview.png"
+    }
+  }
 }

@@ -116,5 +116,8 @@ The portable root contains `plugin.json`, `mcp.json`, `start-mcp.mjs`, `tools.js
 `runtime.json`, and license notices for the bundled dependencies. Copilot auto-discovers the native adapter at
 `com.github.copilot/extensions/pmx-canvas/extension.mjs`.
 
+The marketplace preview is copied from `docs/screenshot.png` to `assets/preview.png` on each
+plugin build. The manifest's `extensions.com.github.copilot.logo` points to that packaged PNG.
+
 Publishing a repository package does not register it in a curated marketplace or make it
 Featured in the Copilot app. Those are separate submission and review steps.

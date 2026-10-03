@@ -88,6 +88,8 @@ for (const name of ['runtime.mjs', 'runtime.json', 'start-mcp.mjs', 'tools.json'
   copyFileSync(resolve(adapterRoot, name), resolve(pluginRoot, name));
 }
 copyFileSync(resolve(root, 'LICENSE'), resolve(pluginRoot, 'LICENSE'));
+mkdirSync(resolve(pluginRoot, 'assets'), { recursive: true });
+copyFileSync(resolve(root, 'docs/screenshot.png'), resolve(pluginRoot, 'assets/preview.png'));
 writeJson(resolve(pluginRoot, 'plugin.json'), {
   $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
   name: 'pmx-canvas',
@@ -98,6 +100,7 @@ writeJson(resolve(pluginRoot, 'plugin.json'), {
   homepage: 'https://github.com/pskoett/pmx-canvas#readme',
   license: 'MIT',
   keywords: ['canvas', 'mcp', 'spatial', 'copilot-canvas'],
+  extensions: { 'com.github.copilot': { logo: 'assets/preview.png' } },
 });
 writeJson(resolve(pluginRoot, 'mcp.json'), {
   $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
