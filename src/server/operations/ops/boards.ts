@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { normalizeBoardCategory } from '../../../shared/boards.js';
 import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
-import { summarizeNodeForAgentContext } from '../../agent-context.js';
+import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 
 export function boardsPayload(): Record<string, unknown> {

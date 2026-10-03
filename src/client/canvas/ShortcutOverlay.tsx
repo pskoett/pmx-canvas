@@ -1,3 +1,4 @@
+import { isHostedWorkbench } from '../state/workbench-transport';
 import { isMac, modChord } from '../utils/platform';
 
 interface ShortcutGroup {
@@ -74,7 +75,11 @@ export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
               {group.shortcuts.map((s) => (
                 <div key={s.keys} class="shortcut-row">
                   <kbd class="shortcut-keys">{s.keys}</kbd>
-                  <span class="shortcut-desc">{s.desc}</span>
+                  <span class="shortcut-desc">
+                    {isHostedWorkbench() && s.desc.startsWith('Undo / redo')
+                      ? 'Undo / redo — available in the local workbench only'
+                      : s.desc}
+                  </span>
                 </div>
               ))}
             </div>

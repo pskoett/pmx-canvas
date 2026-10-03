@@ -1,4 +1,4 @@
-import { summarizeNodeForAgentContext } from './agent-context.js';
+import { summarizeNodeForAgentContext } from '../shared/agent-context.js';
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
 
 export type ContextBriefReason = 'pinned' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';

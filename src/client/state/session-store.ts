@@ -1,3 +1,5 @@
+import { isHostedWorkbench } from './workbench-transport';
+import { showToast } from './attention-bridge';
 import { computed, signal } from '@preact/signals';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence.js';
@@ -207,7 +209,7 @@ export function mergeTimeline(
       // Activity entries are already attributed server-side — the sessionId is
       // the identity key (hue-stable across chrome), the label its display name.
       who: write.sessionId ?? null,
-      ...(top?.actor === 'agent' && newestWrite?.id === write.id ? { undoable: true } : {}),
+      ...(!isHostedWorkbench() && top?.actor === 'agent' && newestWrite?.id === write.id ? { undoable: true } : {}),
     })),
     ...timeline.events.map((event) => ({
       id: `event-${event.id}`,
@@ -298,6 +300,10 @@ export async function undoAgentEdit(entry: TimelineEntry): Promise<boolean> {
 
 /** Ctrl+Z / Ctrl+Shift+Z: whichever op is top of the shared stack, agent or human. */
 export async function undoFromKeyboard(redo = false): Promise<boolean> {
+  if (isHostedWorkbench()) {
+    showToast('remove', 'Undo / redo unavailable', 'Open the local PMX workbench to use shared history.');
+    return false;
+  }
   const result = await requestOk(redo ? 'redo' : 'undo', redo ? '/api/canvas/redo' : '/api/canvas/undo', {
     method: 'POST',
   });

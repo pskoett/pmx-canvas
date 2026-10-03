@@ -4,7 +4,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { summarizeNodeForAgentContext } from '../server/agent-context.js';
+import { summarizeNodeForAgentContext } from '../shared/agent-context.js';
 import type { CanvasNodeState } from '../server/canvas-state.js';
 import { OperationError } from '../server/operations/index.js';
 import { CANVAS_APP_URI, type CanvasAppSnapshot } from '../shared/canvas-app.js';

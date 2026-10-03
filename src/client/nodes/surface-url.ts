@@ -2,6 +2,8 @@ import { canvasTheme } from '../state/canvas-store';
 import { openNodeInSystemBrowserRequest } from '../state/intent-bridge';
 import { canOpenNodeAsSurface } from '../../shared/surface.js';
 import type { CanvasNodeState } from '../types';
+import { isHostedWorkbench } from '../state/workbench-transport';
+import { showToast } from '../state/attention-bridge';
 
 /**
  * Stable content hash (djb2) used to cache-bust the surface iframe `src` when a
@@ -52,6 +54,14 @@ export function canOpenAsSite(node: CanvasNodeState): boolean {
  * and headless/disabled-browser environments.
  */
 export async function openNodeAsSite(node: CanvasNodeState): Promise<void> {
+  if (isHostedWorkbench()) {
+    showToast(
+      'context',
+      'Open in focus mode',
+      'This surface has no public URL. Use Expand to view it here, or export the board to download it.',
+    );
+    return;
+  }
   const url = nodeSurfaceUrl(node.id);
   const res = await openNodeInSystemBrowserRequest(node.id, url);
   if (!res.opened) window.open(url, '_blank', 'noopener');

@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { z } from 'zod';
 import { App as Workbench } from '../App';
 import { activeBoardId, boardList, boardsLoaded } from '../state/boards-store';
-import { contextPinnedNodeIds, nodes, selectedNodeIds } from '../state/canvas-store';
-import { installWorkbenchTransport } from '../state/workbench-transport';
+import { axSurfaceState, contextPinnedNodeIds, nodes, selectedNodeIds } from '../state/canvas-store';
+import { installWorkbenchDownload, installWorkbenchTransport } from '../state/workbench-transport';
 import { resolveIframeMode } from '../state/iframe-mode';
+import { summarizeNodeForAgentContext } from '../../shared/agent-context';
 import { canvasAppContext } from '../../shared/canvas-app';
 
 const bridge = new McpApp(
@@ -48,7 +49,10 @@ installWorkbenchTransport(async (input, init) => {
   });
 });
 
+const focusSchema = z.object({ focus: z.array(z.string()) });
+
 function selectionContext() {
+  const focus = focusSchema.safeParse(axSurfaceState.value);
   return canvasAppContext(
     {
       boardId: activeBoardId.value,
@@ -59,10 +63,11 @@ function selectionContext() {
         type: node.type,
         title: typeof node.data.title === 'string' ? node.data.title : node.type,
         contentRevision: node.contentRevision ?? 0,
-        text: typeof node.data.content === 'string' ? node.data.content : '',
+        text: summarizeNodeForAgentContext(node),
       })),
     },
     [...selectedNodeIds.value],
+    focus.success ? focus.data.focus : [],
   );
 }
 
@@ -112,6 +117,18 @@ void bridge
   .connect()
   .then(async () => {
     if (!bridge.getHostCapabilities()?.serverTools) throw new Error('This host does not support app tool calls.');
+    if (bridge.getHostCapabilities()?.downloadFile) {
+      installWorkbenchDownload((file) =>
+        bridge.downloadFile({
+          contents: [
+            {
+              type: 'resource',
+              resource: { uri: `file:///${encodeURIComponent(file.name)}`, mimeType: file.mimeType, text: file.text },
+            },
+          ],
+        }),
+      );
+    }
     await resolveIframeMode();
     render(<HostedWorkbench />, document.getElementById('app')!);
   })

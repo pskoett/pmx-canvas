@@ -1,5 +1,5 @@
-import type { CanvasNodeState } from './canvas-state.js';
-import { getCanvasNodeKind } from '../shared/canvas-node-kind.js';
+import type { CanvasNodeState } from '../server/canvas-state.js';
+import { getCanvasNodeKind } from './canvas-node-kind.js';
 
 const DEFAULT_CONTEXT_TEXT_LENGTH = 700;
 const DEFAULT_WEBPAGE_CONTEXT_TEXT_LENGTH = 1600;

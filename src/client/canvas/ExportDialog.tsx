@@ -2,6 +2,7 @@ import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { requestJson } from '../state/intent-bridge';
 import { activeBoardId } from '../state/boards-store';
+import { downloadWorkbenchExport, isHostedWorkbench } from '../state/workbench-transport';
 
 interface ExportManifest {
   boardId: string;
@@ -43,6 +44,7 @@ export function ExportDialog() {
   const [manifest, setManifest] = useState<ExportManifest | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
   const open = exportDialogOpen.value;
   const boardId = activeBoardId.value;
 
@@ -50,6 +52,7 @@ export function ExportDialog() {
     if (!open || !boardId) return;
     let current = true;
     setResult(null);
+    setDownloadError('');
     setManifest(null);
     void requestJson<{ manifest?: ExportManifest } | null>(
       'exportPreview',
@@ -174,13 +177,37 @@ export function ExportDialog() {
               Saved ({sizeLabel(result.bytes)}): <code>{result.path}</code>
             </div>
             <div class="export-dialog-links">
-              <a href={result.url} target="_blank" rel="noopener noreferrer">
-                Open
-              </a>
-              <a class="is-primary" href={`${result.url}?download=1`}>
-                Download
-              </a>
+              {isHostedWorkbench() ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setDownloadError('');
+                    try {
+                      await downloadWorkbenchExport(result.url);
+                    } catch (error) {
+                      setDownloadError(error instanceof Error ? error.message : 'Download failed. Try again.');
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {busy ? 'Downloading…' : 'Download'}
+                </button>
+              ) : (
+                <>
+                  <a href={result.url} target="_blank" rel="noopener noreferrer">
+                    Open
+                  </a>
+                  <a class="is-primary" href={`${result.url}?download=1`}>
+                    Download
+                  </a>
+                </>
+              )}
             </div>
+            {isHostedWorkbench() && <p>Download the HTML file to open it outside ChatGPT.</p>}
+            {downloadError && <p role="alert">{downloadError}</p>}
           </div>
         )}
         <div class="text-prompt-actions">

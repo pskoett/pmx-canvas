@@ -1,7 +1,7 @@
 import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
 import { clampGateTtlMs, DEFAULT_GATE_TTL_MS } from '../shared/approval-gates.js';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../shared/ax-kinds.js';
-import type { AgentContextNode } from './agent-context.js';
+import type { AgentContextNode } from '../shared/agent-context.js';
 import type { ActorAttribution } from './attribution.js';
 
 export type PmxAxSource = 'agent' | 'amp' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';

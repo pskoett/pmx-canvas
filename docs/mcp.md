@@ -67,6 +67,14 @@ The standard `ui://pmx/canvas` resource is self-contained HTML with MIME type
 `openai/ui` metadata, advertising both `global` (sidebar/fullscreen) and `thread`
 (conversation panel) entrypoints. Actual availability depends on the host.
 
+The embedded view sends selected, pinned and AX-focused nodes to the host,
+including summaries of structured cards. Its context badge sits at the bottom
+left to avoid the host composer. Export downloads use the host's `downloadFile`
+capability; hosts without it show a local-retrieval message. Local-only trace
+capture and shared undo/redo are unavailable in the embedded view. Save a
+snapshot before restoring another one. Local surfaces can be expanded or
+exported, but cannot be opened as public sites without a public URL.
+
 | Tool | Input | Effect |
 |------|-------|--------|
 | `pmx_open_canvas` | `{}` | Open the real PMX workbench; standard UI resource plus ChatGPT entrypoints |

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { workbenchFetch } from '../state/workbench-transport';
+import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import {
   IconArrange,
   IconClearTrace,
@@ -399,14 +399,16 @@ export function ToolRail({
         >
           <IconArrange />
         </RailButton>
-        <RailButton
-          label={isTraceOn ? 'Disable trace' : 'Enable trace'}
-          active={isTraceOn}
-          onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
-        >
-          <IconTrace />
-        </RailButton>
-        {(isTraceOn || traceNodeCount > 0) && (
+        {!isHostedWorkbench() && (
+          <RailButton
+            label={isTraceOn ? 'Disable trace' : 'Enable trace'}
+            active={isTraceOn}
+            onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
+          >
+            <IconTrace />
+          </RailButton>
+        )}
+        {!isHostedWorkbench() && (isTraceOn || traceNodeCount > 0) && (
           <RailButton label="Clear trace" onClick={() => sendIntent('trace-clear')}>
             <IconClearTrace />
           </RailButton>

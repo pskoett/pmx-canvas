@@ -330,3 +330,117 @@ test('the real workbench fits a narrow host without optional context', async ({ 
   await expect(app.locator('.attention-toast.attention-tone-remove')).toHaveCount(0);
   await capture(page, 'workbench-app-narrow.png');
 });
+
+test('curated structured notes and AX focus reach the host context', async ({ page, request }) => {
+  await board(request, 'Structured host context');
+  const status = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'status',
+        title: 'Release status',
+        x: 30,
+        y: 90,
+        width: 360,
+        height: 260,
+        data: { phase: 'testing', message: 'Status sentinel cobalt' },
+      },
+    })
+  ).json();
+  const focused = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'context',
+        title: 'Focus source',
+        data: { cards: [{ title: 'Focus sentinel', summary: 'Investigate amber' }] },
+        x: 450,
+        y: 90,
+        width: 360,
+        height: 260,
+      },
+    })
+  ).json();
+  const unrelated = await note(request, 'Uncurated secret', 950);
+  const app = await mount(page);
+  await app.locator(`[data-node-id="${status.id}"] .ctx-pin-btn`).click();
+  await expect
+    .poll(() => page.evaluate(() => JSON.stringify(window.pmxTestHost.acknowledgedContexts.at(-1))))
+    .toContain('Status sentinel cobalt');
+  const pinBar = app.locator('.context-pin-bar');
+  await expect(pinBar).toBeInViewport();
+  expect(
+    await pinBar.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom <= innerHeight && rect.bottom >= innerHeight - 32 && rect.left >= 0 && rect.left < innerWidth / 3;
+    }),
+  ).toBe(true);
+  await pinBar.getByRole('button', { name: 'Clear all context pins' }).click();
+  await expect(pinBar).toHaveCount(0);
+  await app.locator(`[data-node-id="${status.id}"] .ctx-pin-btn`).click();
+  await app.locator(`[data-node-id="${focused.id}"]`).getByRole('button', { name: 'Set focus', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => JSON.stringify(window.pmxTestHost.acknowledgedContexts.at(-1))))
+    .toContain('Investigate amber');
+  const context = await page.evaluate(() => window.pmxTestHost.acknowledgedContexts.at(-1));
+  expect(context).toMatchObject({ structuredContent: { focusedNodeIds: [focused.id], pinnedNodeIds: [status.id] } });
+  expect(JSON.stringify(context)).not.toContain(unrelated);
+});
+
+test('snapshot restore refreshes context pins and AX focus in the hosted workbench', async ({ page, request }) => {
+  await board(request, 'Restore curated context');
+  const id = await note(request, 'Restored pin sentinel');
+  const app = await mount(page);
+  const pin = app.locator(`[data-node-id="${id}"] .ctx-pin-btn`);
+  await pin.click();
+  await request.post('/api/canvas/ax/focus', { data: { nodeIds: [id], primaryNodeId: id } });
+  await expect
+    .poll(() => page.evaluate(() => JSON.stringify(window.pmxTestHost.acknowledgedContexts.at(-1))))
+    .toContain(id);
+  const snapshot = await (await request.post('/api/canvas/snapshots', { data: { name: 'Curated baseline' } })).json();
+  await pin.click();
+  await request.post('/api/canvas/ax/focus', { data: { nodeIds: [] } });
+  await expect
+    .poll(() => page.evaluate(() => JSON.stringify(window.pmxTestHost.acknowledgedContexts.at(-1))))
+    .not.toContain(id);
+  await client.callTool({
+    name: 'pmx_workbench_request',
+    arguments: {
+      path: `/api/canvas/snapshots/${snapshot.id}`,
+      method: 'POST',
+      expectedBoardId: (await client.callTool({ name: 'pmx_read_canvas', arguments: {} })).structuredContent!.boardId,
+    },
+  });
+  await expect(pin).toHaveClass(/ctx-pin-active/);
+  await expect
+    .poll(() => page.evaluate(() => window.pmxTestHost.acknowledgedContexts.at(-1)))
+    .toMatchObject({ structuredContent: { pinnedNodeIds: [id], focusedNodeIds: [id] } });
+});
+
+test('hosted Attach files opens a chooser and imports a Markdown note', async ({ page, request }) => {
+  await board(request, 'Hosted file attachment');
+  const app = await mount(page);
+  const chooser = page.waitForEvent('filechooser');
+  await app.getByRole('button', { name: 'Attach files', exact: true }).click();
+  await (await chooser).setFiles({
+    name: 'attached-sentinel.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from('# Attachment sentinel cobalt'),
+  });
+  await expect(app.locator('.canvas-node').filter({ hasText: 'attached-sentinel.md' })).toContainText(
+    'Attachment sentinel cobalt',
+  );
+});
+
+test('hosted export delivers HTML through the host download capability', async ({ page, request }) => {
+  await board(request, 'Hosted download');
+  await note(request, 'Export sentinel cobalt');
+  const app = await mount(page);
+  await app.getByRole('button', { name: 'Export', exact: true }).click();
+  const dialog = app.getByRole('dialog', { name: 'Export board' });
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click();
+  await expect(dialog.getByTestId('export-result')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Download', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.pmxTestHost.downloads)).toHaveLength(1);
+  const download = await page.evaluate(() => window.pmxTestHost.downloads[0]);
+  expect(download).toMatchObject({ contents: [{ type: 'resource', resource: { mimeType: 'text/html' } }] });
+  expect(JSON.stringify(download)).toContain('Export sentinel cobalt');
+});

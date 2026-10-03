@@ -318,7 +318,7 @@ const snapshotRestoreOperation = defineOperation<z.infer<typeof snapshotRestoreS
       };
     },
   },
-  handler: async ({ id }) => {
+  handler: async ({ id }, ctx) => {
     // Awaits only the synchronous restore; restoreCanvasSnapshot fires the
     // async ext-app rehydration itself and schedules a deferred
     // canvas-layout-update through setCanvasLayoutUpdateEmitter when it
@@ -326,6 +326,9 @@ const snapshotRestoreOperation = defineOperation<z.infer<typeof snapshotRestoreS
     // add a manual emit here or the frame is doubled.
     const result = await restoreCanvasSnapshot(id ?? '');
     if (!result.ok) throw new OperationError('Snapshot not found', 404);
+    const nodeIds = [...canvasState.contextPinnedNodeIds];
+    ctx.emit('context-pins-changed', { count: nodeIds.length, nodeIds });
+    ctx.emit('ax-state-changed', {});
     return { ok: true };
   },
 });

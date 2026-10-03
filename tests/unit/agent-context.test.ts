@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { serializeNodeForAgentContext, summarizeNodeForAgentContext } from '../../src/server/agent-context.ts';
+import { serializeNodeForAgentContext, summarizeNodeForAgentContext } from '../../src/shared/agent-context.ts';
 import type { CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { searchNodes } from '../../src/server/spatial-analysis.ts';
 

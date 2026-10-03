@@ -28,7 +28,7 @@ import {
   type ContextBriefLibraryBoard,
   type ContextBriefSourceEntry,
 } from '../../context-brief.js';
-import { summarizeNodeForAgentContext } from '../../agent-context.js';
+import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { defineOperation, OperationError, type Operation, type OperationMcpToolHost } from '../types.js';
 import { buildSummaryFromLayout, isRecord } from './nodes.js';
 import { readTargetBoard } from './boards.js';

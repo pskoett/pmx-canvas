@@ -462,6 +462,77 @@ test('workbench transport preserves guards and authority, keeps hydration privat
   expect((await request('/api/workbench/webview/evaluate', 'POST', { script: '1+1' })).status).toBe(403);
 });
 
+test('workbench transport creates inert trace, json-render and graph nodes', async () => {
+  const { board } = await post('/api/canvas/boards', { name: 'Embedded renderers' });
+  await post('/api/canvas/boards/open', { id: board.id });
+  const request = async (path: string, body: unknown, method = 'POST') => {
+    const result = await client.callTool({
+      name: 'pmx_workbench_request',
+      arguments: {
+        path,
+        method,
+        expectedBoardId: board.id,
+        body: JSON.stringify(body),
+      },
+    });
+    return z.object({ status: z.number(), body: z.string() }).parse(result._meta?.response);
+  };
+  const trace = await request('/api/canvas/node', {
+    type: 'trace',
+    data: { toolName: 'read_file', category: 'mcp', status: 'success' },
+  });
+  expect(trace.status).toBe(200);
+  const traceNode = JSON.parse(trace.body);
+  expect(traceNode.data.toolName).toBe('read_file');
+  expect((await request(`/api/canvas/node/${traceNode.id}`, { data: { toolName: 'search' } }, 'PATCH')).status).toBe(
+    200,
+  );
+  expect(
+    (await request('/api/canvas/node', { type: 'trace', data: { toolName: 'read_file', transportConfig: {} } })).status,
+  ).toBe(403);
+  for (const [path, body, type] of [
+    [
+      '/api/canvas/json-render',
+      { spec: { root: 'card', elements: { card: { type: 'Card', props: { title: 'Embedded JSON' }, children: [] } } } },
+      'json-render',
+    ],
+    [
+      '/api/canvas/graph',
+      { graphType: 'bar', data: [{ label: 'One', value: 12 }], xKey: 'label', yKey: 'value' },
+      'graph',
+    ],
+  ] as const) {
+    const result = await request(path, body);
+    expect(result.status).toBe(200);
+    const node = JSON.parse(result.body);
+    const persisted = await (await fetch(`${base}/api/canvas/node/${node.id}`)).json();
+    expect(persisted.type).toBe(type);
+    const surface = await client.callTool({
+      name: 'pmx_workbench_request',
+      arguments: {
+        path: `/api/canvas/surface/${node.id}?inline-assets=1`,
+        method: 'GET',
+        expectedBoardId: board.id,
+      },
+    });
+    expect(z.object({ status: z.number() }).parse(surface._meta?.response).status).toBe(200);
+  }
+  const exported = await request('/api/canvas/export', {});
+  expect(exported.status).toBe(200);
+  const download = await client.callTool({
+    name: 'pmx_workbench_request',
+    arguments: {
+      path: JSON.parse(exported.body).url,
+      method: 'GET',
+      expectedBoardId: board.id,
+    },
+  });
+  const response = z.object({ status: z.number(), body: z.string() }).parse(download._meta?.response);
+  expect(response.status).toBe(200);
+  expect(response.body.toLowerCase().startsWith('<!doctype html>')).toBe(true);
+  expect(response.body.includes('Embedded renderers')).toBe(true);
+});
+
 test('local and attached app profiles cannot launch saved backends, forge sources, or resolve approvals', async () => {
   const peer = new Client({ name: 'attached-app-safety', version: '1' });
   const peerTransport = new StdioClientTransport({

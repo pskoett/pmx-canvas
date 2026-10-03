@@ -1,3 +1,4 @@
+import { isHostedWorkbench } from '../state/workbench-transport';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
 import {
@@ -171,7 +172,11 @@ export function SnapshotPanel({
           type="button"
           class="snapshot-action-btn snapshot-action-restore"
           onClick={() => setConfirming({ id: snap.id, action: 'restore' })}
-          title="Restore this snapshot — replaces the current canvas (undoable)"
+          title={
+            isHostedWorkbench()
+              ? 'Restore this snapshot — replaces the current canvas'
+              : 'Restore this snapshot — replaces the current canvas (undoable)'
+          }
           disabled={restoringId !== null}
         >
           {restoringId === snap.id ? 'Restoring…' : restoreLabel}
@@ -219,7 +224,11 @@ export function SnapshotPanel({
           {saving ? '…' : 'Save'}
         </button>
       </div>
-      <div class="snapshot-restore-note">Restoring replaces the current canvas. You can undo it if needed.</div>
+      <div class="snapshot-restore-note">
+        {isHostedWorkbench()
+          ? 'Restoring replaces the current canvas. Save a snapshot first to keep your current state.'
+          : 'Restoring replaces the current canvas. You can undo it if needed.'}
+      </div>
 
       <div class="snapshot-list">
         {loading && <div class="snapshot-empty">Loading…</div>}

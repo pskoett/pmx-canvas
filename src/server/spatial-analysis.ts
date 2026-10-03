@@ -11,7 +11,7 @@
  */
 
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge } from './canvas-state.js';
-import { summarizeNodeForAgentContext } from './agent-context.js';
+import { summarizeNodeForAgentContext } from '../shared/agent-context.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

@@ -37,17 +37,20 @@ export function canvasAppContext(
     nodes: Pick<CanvasAppSnapshot['nodes'][number], 'id' | 'type' | 'title' | 'text' | 'contentRevision'>[];
   },
   selectedIds: string[],
+  focusedIds: string[] = [],
 ) {
   const existing = new Set(snapshot.nodes.map((node) => node.id));
   const selected = new Set(selectedIds.filter((id) => existing.has(id)).slice(0, 20));
   const pinned = new Set(snapshot.pinnedNodeIds.filter((id) => existing.has(id)).slice(0, 20));
+  const focused = new Set(focusedIds.filter((id) => existing.has(id)).slice(0, 20));
   return {
     boardId: snapshot.boardId,
     boardName: snapshot.boardName,
     selectedNodeIds: [...selected],
+    focusedNodeIds: [...focused],
     pinnedNodeIds: [...pinned],
     nodes: snapshot.nodes
-      .filter((node) => selected.has(node.id) || pinned.has(node.id))
+      .filter((node) => selected.has(node.id) || pinned.has(node.id) || focused.has(node.id))
       .map((node) => ({
         id: node.id,
         type: node.type,

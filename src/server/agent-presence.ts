@@ -32,7 +32,7 @@ import {
   PRESENCE_TOOLING_SETTLE_MS,
   TRANSPORT_SOURCES,
 } from '../shared/agent-presence.js';
-import { serializeNodeForAgentContext } from './agent-context.js';
+import { serializeNodeForAgentContext } from '../shared/agent-context.js';
 import type { PmxAxActivityKind } from './ax-state.js';
 import { type CanvasNodeState, canvasState } from './canvas-state.js';
 import { OperationError } from './operations/types.js';

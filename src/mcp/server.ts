@@ -34,7 +34,7 @@ import { registerOperationTools, registerCompositeTools } from '../server/operat
 import { agentSourceLabel } from '../server/operations/invoker.js';
 import { contextReadFromPayload } from '../server/context-reads.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
-import { serializeNodeForAgentContext } from '../server/agent-context.js';
+import { serializeNodeForAgentContext } from '../shared/agent-context.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import {
   getCanvasNodeTitle,

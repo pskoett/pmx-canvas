@@ -6,11 +6,13 @@ import { z } from 'zod';
 const contexts: unknown[] = [];
 const acknowledgedContexts: unknown[] = [];
 const messages: unknown[] = [];
+const downloads: unknown[] = [];
 let initialResult: CallToolResult | undefined;
 const state = {
   contexts,
   acknowledgedContexts,
   messages,
+  downloads,
   failReads: false,
   rejectMessages: false,
   rejectContext: false,
@@ -37,6 +39,7 @@ const bridge = new AppBridge(
   { name: 'PMX test host', version: '1' },
   {
     serverTools: {},
+    ...(toolsOnly ? {} : { downloadFile: {} }),
     ...(toolsOnly ? {} : { updateModelContext: { text: {} }, message: { text: {} } }),
   },
   {
@@ -71,6 +74,10 @@ bridge.onupdatemodelcontext = async (input) => {
 bridge.onmessage = async (input) => {
   messages.push(input);
   return state.rejectMessages ? { isError: true } : {};
+};
+bridge.ondownloadfile = async (input) => {
+  downloads.push(input);
+  return {};
 };
 bridge.oninitialized = async () => {
   await bridge.sendToolInput({ arguments: {} });

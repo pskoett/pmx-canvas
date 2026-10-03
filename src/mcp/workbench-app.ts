@@ -13,6 +13,8 @@ const writes = new Set([
   'board.create-from',
   'board.delete',
   'node.add',
+  'jsonrender.add',
+  'graph.add',
   'node.update',
   'node.remove',
   'node.refresh',
@@ -65,7 +67,7 @@ function readableAsset(path: string): boolean {
       '/api/canvas/json-render/view',
       '/api/canvas/file-bytes',
     ].includes(path) ||
-    /^\/api\/canvas\/(surface|image|frame-documents)\/[^/]+$/.test(path) ||
+    /^\/api\/canvas\/(surface|image|frame-documents|exports)\/[^/]+$/.test(path) ||
     /^\/api\/canvas\/attachments\/[^/]+\/bytes$/.test(path)
   );
 }
@@ -136,7 +138,10 @@ export function registerWorkbenchApp(server: McpServer, ensureCanvas: () => Prom
             throw new OperationError('Resolve approvals and materialize flows in the local PMX workbench.', 403);
           if (op.name === 'node.add' || op.name === 'node.update') {
             const data = args.data;
-            const launchFields = ['transportConfig', 'toolName', 'toolInput', 'serverName', 'appSessionId'];
+            const nodeType = op.name === 'node.add' ? args.type : (await canvas.getNode(String(args.id)))?.type;
+            // Trace tool names describe past activity; they never launch a backend.
+            const launchFields = ['transportConfig', 'toolInput', 'serverName', 'appSessionId'];
+            if (nodeType !== 'trace') launchFields.push('toolName');
             if (
               (op.name === 'node.add' && args.type === 'mcp-app') ||
               (data && typeof data === 'object' && launchFields.some((field) => field in data))

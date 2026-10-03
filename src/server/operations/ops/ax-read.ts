@@ -13,7 +13,7 @@
  */
 import { agentPresence } from '../../agent-presence.js';
 import { z } from 'zod';
-import { buildAgentContextPreamble, serializeNodeForAgentContext } from '../../agent-context.js';
+import { buildAgentContextPreamble, serializeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from '../../ax-context.js';
 import { applyAxInteraction } from '../../ax-interaction.js';
 import {

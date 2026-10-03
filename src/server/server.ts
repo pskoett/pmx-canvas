@@ -65,7 +65,7 @@ import { overlapsAny } from '../shared/placement.js';
 import { CANVAS_APP_WRITE_CONTRACT } from '../shared/canvas-app.js';
 import { withoutExternalMcp } from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
-import { buildAgentContextPreamble } from './agent-context.js';
+import { buildAgentContextPreamble } from '../shared/agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';

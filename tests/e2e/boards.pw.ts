@@ -143,6 +143,9 @@ test('board switching refreshes approval labels and discards stale approval read
   } finally {
     release();
     await page.unrouteAll({ behavior: 'wait' });
+    await request.post('/api/canvas/ax/presence', {
+      data: { source: 'browser', attached: false },
+    });
   }
 });
 

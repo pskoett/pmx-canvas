@@ -38,10 +38,11 @@ export type CanvasAppSnapshot = z.infer<typeof canvasAppSnapshotSchema>;
 /** Share only curated text, never image bytes or the whole board's contents. */
 export declare function canvasAppContext(snapshot: Pick<CanvasAppSnapshot, 'boardId' | 'boardName' | 'pinnedNodeIds'> & {
     nodes: Pick<CanvasAppSnapshot['nodes'][number], 'id' | 'type' | 'title' | 'text' | 'contentRevision'>[];
-}, selectedIds: string[]): {
+}, selectedIds: string[], focusedIds?: string[]): {
     boardId: string | null;
     boardName: string;
     selectedNodeIds: string[];
+    focusedNodeIds: string[];
     pinnedNodeIds: string[];
     nodes: {
         id: string;

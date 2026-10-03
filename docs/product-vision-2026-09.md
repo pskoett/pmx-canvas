@@ -1,7 +1,7 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; release scope updated 2026-09-29
+**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
@@ -27,6 +27,22 @@
 0.8. Static export and the connected-memory features move into this release;
 their older release slots below are superseded. Publication is tracked by the
 GitHub release and npm version, not inferred from a source version bump.
+
+**ChatGPT plugin decision, 2026-10-03: deferred until hosted PMX Canvas.**
+The full, publicly installable ChatGPT plugin will wait for a hosted PMX Canvas
+runtime. The current local PMX process plus private Secure MCP Tunnel remains
+a development preview, not the intended public installation experience. Users
+should not have to keep a local process and private tunnel running to use the
+released ChatGPT plugin. Installing a plugin does not itself provision or host
+PMX, and the current preview connection is tied to the maintainer's runtime.
+
+Revisit the plugin when hosted PMX can provide authenticated, isolated user
+workspaces, durable board storage and a supported remote MCP endpoint. Then
+verify installation, account connection, node rendering, context synchronization
+and reconnect behavior in ChatGPT before public release. Preserve the preview
+and its fixes as groundwork; pause further full-plugin release work. This is a
+sequencing decision, not authorization to build or launch hosted PMX now, and it
+does not change local PMX Canvas's existing distribution.
 
 **Hold the line.** No host-compatibility work jumps the queue until 0.7 ships, with two exceptions: regressions the reference project catches, and a bug that blocks the maintainer's real work in the host they use daily (today the Copilot app, a WebKit pane the Chromium reference does not cover). The second exception is narrow on purpose: it covers a board that cannot be used, not a tile that paints late or a host the maintainer is only testing.
 
