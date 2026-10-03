@@ -20,6 +20,11 @@ cmd(
     const sourcePaths = [
       fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/extension.mjs', import.meta.url)),
       fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/steering-delivery.mjs', import.meta.url)),
+      fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/runtime.mjs', import.meta.url)),
+      fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/runtime.json', import.meta.url)),
+      fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/start-mcp.mjs', import.meta.url)),
+      fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/tools.json', import.meta.url)),
+      fileURLToPath(new URL('../../../.github/extensions/pmx-canvas/THIRD_PARTY_LICENSES.txt', import.meta.url)),
     ];
     const missingSource = sourcePaths.find((sourcePath) => !existsSync(sourcePath));
     if (missingSource) {

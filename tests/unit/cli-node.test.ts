@@ -820,6 +820,9 @@ describe('agent CLI node commands', () => {
 
     expect(existsSync(target)).toBe(true);
     expect(existsSync(deliveryRuntime)).toBe(true);
+    for (const file of ['runtime.mjs', 'runtime.json', 'start-mcp.mjs', 'tools.json']) {
+      expect(existsSync(join(dirname(target), file))).toBe(true);
+    }
   });
 
   test('fit command updates server viewport for canvas bounds', async () => {

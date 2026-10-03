@@ -263,19 +263,22 @@ describe('AX neutral-primitive parity and host isolation', () => {
     expect(pkg.files).toContain('.github/extensions/pmx-canvas/');
   });
 
-  test('the Copilot adapter only imports node:* and the Copilot extension SDK', () => {
-    const source = readFile('.github/extensions/pmx-canvas/extension.mjs');
-    const importLines = source.split('\n').filter((line) => /^\s*import\s/.test(line));
-    expect(importLines.length).toBeGreaterThan(0);
-    for (const line of importLines) {
-      const match = line.match(/from\s+["']([^"']+)["']/);
-      expect(match).not.toBeNull();
-      const specifier = match![1];
-      const allowed =
-        specifier.startsWith('node:') ||
-        specifier.startsWith('@github/copilot-sdk') ||
-        specifier === './steering-delivery.mjs';
-      expect(allowed).toBe(true);
+  test('the Copilot adapter and runtime only import Node, the SDK, and bundled helpers', () => {
+    for (const file of ['extension.mjs', 'runtime.mjs']) {
+      const source = readFile(`.github/extensions/pmx-canvas/${file}`);
+      const importLines = source.split('\n').filter((line) => /^\s*import\s/.test(line));
+      expect(importLines.length).toBeGreaterThan(0);
+      for (const line of importLines) {
+        const match = line.match(/from\s+["']([^"']+)["']/);
+        expect(match).not.toBeNull();
+        const specifier = match![1];
+        const allowed =
+          specifier.startsWith('node:') ||
+          specifier.startsWith('@github/copilot-sdk') ||
+          specifier === './steering-delivery.mjs' ||
+          specifier === './runtime.mjs';
+        expect(allowed).toBe(true);
+      }
     }
   });
 });

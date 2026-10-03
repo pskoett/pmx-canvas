@@ -367,6 +367,10 @@ validation — JSON report, exit 1 on failure.
 
 ### Use inside the GitHub Copilot app
 
+The standalone [agent plugin](docs/agent-plugin.md) in `plugins/pmx-canvas/` bundles PMX's
+MCP tools and native Copilot canvas. It uses the Agent Plugins 1.0 format: other compatible
+clients get the MCP tools and browser workbench, not Copilot's native side panel.
+
 This repository includes a project canvas extension:
 
 ```text

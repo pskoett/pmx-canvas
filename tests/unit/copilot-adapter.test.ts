@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadCopilotCanvas, type CanvasDefinition } from '../helpers/copilot-adapter.js';
 
-const workspaceA = '/tmp/pmx-adapter-workspace-a';
-const workspaceB = '/tmp/pmx-adapter-workspace-b';
+const workspaceA = realpathSync(mkdtempSync(join(tmpdir(), 'pmx-adapter-a-')));
+const workspaceB = realpathSync(mkdtempSync(join(tmpdir(), 'pmx-adapter-b-')));
 let reportedWorkspaceA = workspaceA;
 const writesA: string[] = [];
 const writesB: string[] = [];
@@ -43,6 +44,8 @@ beforeAll(async () => {
 afterAll(() => {
   serverA.stop(true);
   serverB.stop(true);
+  rmSync(workspaceA, { recursive: true, force: true });
+  rmSync(workspaceB, { recursive: true, force: true });
 });
 
 function action(name: string) {
@@ -66,8 +69,9 @@ describe('GitHub Copilot canvas adapter targeting', () => {
       extension.indexOf('async function claimCopilotSteering'),
       extension.indexOf('async function getAxTimeline'),
     );
-    expect(deliveryRuntime).toContain('const workspaceRoot = PROJECT_ROOT;');
-    expect(deliveryRuntime).not.toContain('copilotSession.workspacePath');
+    expect(deliveryRuntime).toContain('const workspaceRoot = sessionWorkspaceRoot;');
+    expect(extension).not.toContain('copilotSession.workspacePath');
+    expect(extension).toContain('copilotSession.rpc.metadata.snapshot()');
     expect(extension).toContain('{ attached: true });');
     expect(extension).not.toContain('{ attached: true, phase: "idle" });');
     expect(extension).not.toContain('console.log');

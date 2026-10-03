@@ -4,6 +4,10 @@ Use this reference when PMX Canvas is running inside the GitHub Copilot app as a
 extension. The adapter is intentionally thin: PMX Canvas remains the state owner, and the extension
 maps Copilot SDK features onto PMX AX primitives.
 
+The [standalone agent plugin](../../../docs/agent-plugin.md) bundles this adapter and PMX's
+MCP launcher. Its native canvas is Copilot-only; other Agent Plugins-compatible clients use
+the portable MCP tools and browser workbench.
+
 ## Adapter Identity
 
 - Extension path: `.github/extensions/pmx-canvas/extension.mjs`
@@ -17,9 +21,9 @@ maps Copilot SDK features onto PMX AX primitives.
    packaged extension directory into the repository:
    `mkdir -p .github/extensions && cp -R node_modules/pmx-canvas/.github/extensions/pmx-canvas .github/extensions/`
 2. Reload Copilot app extensions with `extensions_reload` so `project:pmx-canvas` is registered.
-3. Start or confirm a PMX Canvas daemon for the workspace: `pmx-canvas serve --daemon`
-   and `pmx-canvas serve status`. The adapter can auto-start in many local sessions, but a running
-   daemon is the most reliable setup for fresh agents.
+3. The adapter discovers a matching workspace daemon or starts the pinned package version
+   in `runtime.json` with Bun. It needs Bun on `PATH`, not a global `pmx-canvas` executable.
+   The shared daemon stays running when the extension exits.
 4. Open the canvas with `extensionId: "project:pmx-canvas"`, `canvasId: "pmx-canvas"`, and a stable
    `instanceId`.
 5. If the first `invoke_canvas_action` immediately after `open_canvas` returns
@@ -66,6 +70,8 @@ end it after each task. Explicit agent IDs are reserved for genuinely independen
   The Copilot app webview can leave nested `srcdoc` and `blob:` iframes blank, so PMX should route
   generated frame HTML through `/api/canvas/frame-documents/...` instead.
 - Connects to a matching local PMX server for the current workspace, or starts one when needed.
+- Uses the session's working directory for startup, context, presence, and steering; Copilot's
+  `workspacePath` points to session artifacts and is not the project root.
 - Reads `/api/canvas/ax/context` and injects pinned/focused context from
   `onUserPromptSubmitted`.
 - Exposes adapter actions for status, AX context refresh, AX focus, and explicit session steering.
@@ -137,15 +143,21 @@ All fields are optional:
 }
 ```
 
-Default discovery order:
+Default discovery:
 
-1. `serverUrl` input.
-2. `PMX_CANVAS_URL`.
-3. `PMX_CANVAS_PORT` / `PMX_WEB_CANVAS_PORT` / `4313` on loopback.
-4. Managed server startup for the current workspace when `autoStart` is not `false`.
+1. An explicit `serverUrl` input or `PMX_CANVAS_URL`, without silently choosing another target.
+2. Workspace daemon pid-file ports, the preferred `PMX_CANVAS_PORT` / `PMX_WEB_CANVAS_PORT`,
+   and the normal MCP fallback ports, verified against the workspace's real path.
+3. Serialized daemon startup for the session working directory when `autoStart` is not `false`.
 
 The adapter rejects an unrelated running PMX server unless `allowWorkspaceMismatch` is true,
 including when `serverUrl` is explicit.
+
+To package this adapter in another plugin, copy `extension.mjs`, `steering-delivery.mjs`,
+`runtime.mjs`, and `runtime.json`. For the portable MCP connector, also copy `start-mcp.mjs`,
+`tools.json`, and `THIRD_PARTY_LICENSES.txt`, and invoke `start-mcp.mjs` with Bun. The agent calls
+`canvas_connect_workspace` with its absolute project directory before using board tools;
+plugin initialization must never adopt the installation directory as a project.
 
 If discovery fails, the panel shows a connection page, not a partial workbench. It checks the
 original target automatically; **Check connection** retries immediately and **Start server**

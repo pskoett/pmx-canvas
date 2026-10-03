@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pmx-canvas",
+  "description": "PMX Canvas spatial workbench and MCP tools, with a native canvas panel in the GitHub Copilot app.",
+  "version": "0.7.3",
+  "author": {
+    "name": "pskoett",
+    "url": "https://github.com/pskoett"
+  },
+  "repository": "https://github.com/pskoett/pmx-canvas",
+  "homepage": "https://github.com/pskoett/pmx-canvas#readme",
+  "license": "MIT",
+  "keywords": [
+    "canvas",
+    "mcp",
+    "spatial",
+    "copilot-canvas"
+  ]
+}

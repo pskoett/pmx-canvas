@@ -3,6 +3,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { resolve } from 'node:path';
+import {
+  canonicalWorkspace,
+  ensurePmxServer,
+  explicitServerUrl,
+  findPmxServer,
+  preferredPort,
+  runtimeCommand,
+} from '../../.github/extensions/pmx-canvas/runtime.mjs';
 
 export type CanvasDefinition = {
   actions: Array<{ name: string; handler: (ctx: Record<string, unknown>) => Promise<unknown> }>;
@@ -28,6 +36,12 @@ export function loadCopilotCanvas(fetchImpl = globalThis.fetch): CanvasDefinitio
     'CanvasError',
     'createCanvas',
     'fetch',
+    'canonicalWorkspace',
+    'ensurePmxServer',
+    'explicitServerUrl',
+    'findPmxServer',
+    'preferredPort',
+    'runtimeCommand',
     source,
   );
   return load(
@@ -39,5 +53,11 @@ export function loadCopilotCanvas(fetchImpl = globalThis.fetch): CanvasDefinitio
     TestCanvasError,
     (definition: CanvasDefinition) => definition,
     fetchImpl,
+    canonicalWorkspace,
+    ensurePmxServer,
+    explicitServerUrl,
+    (workspace: string, input: Record<string, unknown>) => findPmxServer(workspace, input, fetchImpl),
+    preferredPort,
+    runtimeCommand,
   );
 }

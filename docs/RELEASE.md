@@ -11,6 +11,9 @@ single source of truth for the release dance — see also
 
 1. Land all the changes you want in the release on `main` with green CI.
 2. Bump `package.json` `version`.
+   Run `bun run build:plugin` to update the Agent Plugins manifest, canonical adapter runtime
+   pin, and generated plugin copies. Publish that exact npm runtime version before advertising
+   a GitHub plugin release pinned to it.
 3. Add a `## [X.Y.Z]` block to `CHANGELOG.md`.
 4. Commit, push, wait for `test.yml` green.
 5. `git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z` →

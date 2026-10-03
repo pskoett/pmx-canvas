@@ -1,0 +1,2551 @@
+{
+  "tools": [
+    {
+      "name": "canvas_pin_nodes",
+      "description": "Pin nodes to include them in the agent context. Pinned nodes appear in the canvas://pinned-context resource. The human can also pin nodes by clicking in the browser.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of node IDs to pin"
+          },
+          "mode": {
+            "description": "set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)",
+            "type": "string",
+            "enum": [
+              "set",
+              "add",
+              "remove"
+            ]
+          }
+        },
+        "required": [
+          "nodeIds"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_invoke_command",
+      "description": "Invoke a registry-gated PMX command intent (pmx.plan | pmx.execute | pmx.promote-context | pmx.summarize | pmx.review). Records a timeline event a host/agent can observe — NOT arbitrary execution; unknown names are rejected.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A command name from the PMX command registry."
+          },
+          "args": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "source": {
+            "description": "Optional host/source label. Defaults to mcp.",
+            "type": "string",
+            "enum": [
+              "agent",
+              "amp",
+              "api",
+              "browser",
+              "cli",
+              "codex",
+              "copilot",
+              "mcp",
+              "sdk",
+              "system"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_batch",
+      "description": "Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as \"$name\" for the created node id or \"$name.id\" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, edge.remove, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "description": "Operation name, e.g. \"node.add\" or \"edge.add\""
+                },
+                "assign": {
+                  "description": "Optional reference name for later operations",
+                  "type": "string"
+                },
+                "args": {
+                  "description": "Operation arguments",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "op"
+              ]
+            },
+            "description": "Ordered array of batch operations"
+          },
+          "full": {
+            "description": "Return full batch operation results. Default false compacts node-like payloads.",
+            "type": "boolean"
+          },
+          "verbose": {
+            "description": "Alias for full:true.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_import",
+      "description": "Agent-assisted document ingestion. List jobs, read attachment metadata/download bytes, submit bounded Markdown extraction, or report unavailable. Request, commit, and cancel are human-only HTTP actions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "read",
+              "submit",
+              "unavailable"
+            ],
+            "description": "Operation to perform: list | read | submit | unavailable."
+          },
+          "boardId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "inline": {
+            "type": "boolean"
+          },
+          "sections": {
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "markdown": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "title",
+                "markdown"
+              ]
+            }
+          },
+          "warnings": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          "agentDescription": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_snapshot",
+      "description": "Canvas snapshots: save the current state, list saved snapshots, restore one, delete one, garbage-collect old ones, or diff the live canvas against one. Action \"save\" stores a named snapshot; \"list\" returns saved snapshots (newest first); \"restore\" replaces the live canvas with a snapshot; \"delete\" removes one; \"gc\" keeps the newest N and deletes the rest (dryRun to preview); \"diff\" shows added/removed/modified nodes and edges versus a snapshot (by name or id).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "save",
+              "list",
+              "restore",
+              "delete",
+              "gc",
+              "diff"
+            ],
+            "description": "Operation to perform: save | list | restore | delete | gc | diff."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name for this snapshot (e.g., \"before refactor\", \"investigation v2\")"
+          },
+          "limit": {
+            "description": "Maximum snapshots to return (default: 20)",
+            "type": "number"
+          },
+          "q": {
+            "description": "Query alias used by the HTTP/CLI surface"
+          },
+          "query": {
+            "description": "Optional case-insensitive ID/name filter",
+            "type": "string"
+          },
+          "before": {
+            "description": "Only return snapshots created at or before this ISO timestamp",
+            "type": "string"
+          },
+          "after": {
+            "description": "Only return snapshots created at or after this ISO timestamp",
+            "type": "string"
+          },
+          "all": {
+            "description": "Return all snapshots instead of the default limit",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Snapshot ID or name to restore (from canvas_snapshot or snapshot list)",
+            "type": "string"
+          },
+          "keep": {
+            "description": "Number of newest snapshots to keep (default: 20)",
+            "type": "number"
+          },
+          "dryRun": {
+            "description": "Preview deletions without removing snapshot files",
+            "type": "boolean"
+          },
+          "snapshot": {
+            "type": "string",
+            "description": "Snapshot name or ID to compare against"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_board",
+      "description": "Boards in this workspace — the library of the human's and your working memory, filed in categories on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action \"list\" returns every board (with its category), most recently opened first; \"get\" reads one (default: the open board); \"create\" makes a new empty board WITHOUT opening it (optional category); \"open\" explicitly switches the shared workbench to id (null or omitted opens Home), changing the visible board and subsequent write target. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. \"update\" renames a board, files it under a category (category \"\" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with \"update\". Preserve an existing README unless the human asks to change it; humans can override the designation manually. Only the human deletes boards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "get",
+              "create",
+              "create-from",
+              "open",
+              "update"
+            ],
+            "description": "Operation to perform: list | get | create | create-from | open | update."
+          },
+          "id": {
+            "description": "Board id (default: the open board)"
+          },
+          "name": {
+            "description": "Board name"
+          },
+          "category": {
+            "description": "Folder path on Home, e.g. Engineering/Canvas"
+          },
+          "sourceBoardId": {
+            "type": "string",
+            "description": "Source board id"
+          },
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "includeReadme": {
+            "type": "boolean"
+          },
+          "includeStructure": {
+            "type": "boolean"
+          },
+          "preview": {
+            "description": "Return reusable cards and structure without creating",
+            "type": "boolean"
+          },
+          "readmeNodeId": {
+            "description": "Markdown node id used as the board README",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_node",
+      "description": "Create, read, update, or remove a canvas node. One tool for node CRUD: action \"add\" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); \"get\" reads one node by id; \"update\" patches an existing node (title, content, position, size, data); \"remove\" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use canvas_app (actions: open-mcp-app, diagram, build-artifact).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "get",
+              "update",
+              "remove"
+            ],
+            "description": "Operation to perform: add | get | update | remove."
+          },
+          "intentId": {
+            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "status",
+              "context",
+              "ledger",
+              "trace",
+              "file",
+              "diff",
+              "mermaid",
+              "image",
+              "webpage",
+              "mcp-app",
+              "html",
+              "group"
+            ],
+            "description": "Node type (prefer canvas_group {action:\"create\"} for groups)"
+          },
+          "title": {
+            "description": "Node title",
+            "type": "string"
+          },
+          "content": {
+            "description": "Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)",
+            "type": "string"
+          },
+          "path": {
+            "description": "Compatibility alias for image node content. Prefer content for image paths.",
+            "type": "string"
+          },
+          "url": {
+            "description": "Canonical webpage URL field for webpage nodes. Overrides content when both are provided.",
+            "type": "string"
+          },
+          "x": {
+            "description": "X position (auto-placed if omitted)",
+            "type": "number"
+          },
+          "y": {
+            "description": "Y position (auto-placed if omitted)",
+            "type": "number"
+          },
+          "width": {
+            "description": "Width in pixels (default: 720)",
+            "type": "number"
+          },
+          "height": {
+            "description": "Height in pixels (default: 600)",
+            "type": "number"
+          },
+          "strictSize": {
+            "description": "Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting",
+            "type": "boolean"
+          },
+          "children": {
+            "description": "Group-only alias for childIds. Node IDs to include in a generic group node."
+          },
+          "childIds": {
+            "description": "Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:\"create\"} for groups."
+          },
+          "childLayout": {
+            "description": "Group-only optional layout for grouped children.",
+            "type": "string",
+            "enum": [
+              "grid",
+              "column",
+              "flow"
+            ]
+          },
+          "color": {
+            "description": "Group-only frame accent color.",
+            "type": "string"
+          },
+          "toolName": {
+            "description": "Trace node tool or operation label",
+            "type": "string"
+          },
+          "category": {
+            "description": "Trace node category: mcp, file, subagent, or other",
+            "type": "string"
+          },
+          "status": {
+            "description": "Trace node status: running, success, or failed",
+            "type": "string"
+          },
+          "duration": {
+            "description": "Trace node duration badge text",
+            "type": "string"
+          },
+          "resultSummary": {
+            "description": "Trace node result summary",
+            "type": "string"
+          },
+          "error": {
+            "description": "Trace node error message",
+            "type": "string"
+          },
+          "data": {
+            "description": "Extra node data merged into the created node."
+          },
+          "html": {
+            "description": "HTML node document/fragment (html nodes only)."
+          },
+          "primitive": {
+            "description": "HTML primitive kind (html-primitive creation)."
+          },
+          "kind": {
+            "description": "Alias for primitive."
+          },
+          "summary": {
+            "description": "Agent-readable semantic summary (html nodes).",
+            "type": "string"
+          },
+          "agentSummary": {
+            "description": "Explicit agent-readable summary (html nodes).",
+            "type": "string"
+          },
+          "description": {
+            "description": "Short description included in search and pinned/spatial context (html nodes).",
+            "type": "string"
+          },
+          "presentation": {
+            "description": "Marks an html node as a fullscreen presentation/deck.",
+            "type": "boolean"
+          },
+          "slideTitles": {
+            "description": "Agent-readable slide titles for presentation HTML."
+          },
+          "embeddedNodeIds": {
+            "description": "Canvas node IDs embedded or represented by this HTML surface."
+          },
+          "embeddedUrls": {
+            "description": "URLs embedded or represented by this HTML surface."
+          },
+          "axCapabilities": {
+            "description": "Opt an html node into AX interactions. Merged into node data for html nodes; clamped to the node-type ceiling server-side."
+          },
+          "position": {
+            "description": "Geometry alias: { x, y } object form."
+          },
+          "size": {
+            "description": "Geometry alias: { width, height } object form."
+          },
+          "full": {
+            "description": "Return the full created node payload. Default false returns compact metadata.",
+            "type": "boolean"
+          },
+          "verbose": {
+            "description": "Alias for full:true.",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "description": "The node ID to retrieve"
+          },
+          "board": {
+            "description": "Board id to read without opening it.",
+            "type": "string"
+          },
+          "includeBlobs": {
+            "description": "Include full blob payloads instead of blob summaries."
+          },
+          "expectedContentRevision": {
+            "description": "Reject an edit based on stale content",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "spec": {
+            "description": "New json-render spec, or a graph payload with graphType/data for graph nodes",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "graphType": {
+            "description": "Graph type when updating a graph node",
+            "type": "string"
+          },
+          "xKey": {
+            "description": "Graph x/category key",
+            "type": "string"
+          },
+          "yKey": {
+            "description": "Graph y/value key",
+            "type": "string"
+          },
+          "chartHeight": {
+            "description": "Graph chart content height, distinct from node height",
+            "type": "number"
+          },
+          "collapsed": {
+            "description": "Collapse or expand the node",
+            "type": "boolean"
+          },
+          "pinned": {
+            "description": "Pin or unpin the node to exclude it from auto-arrange",
+            "type": "boolean"
+          },
+          "arrangeLocked": {
+            "description": "Prevent auto-arrange from moving this node. Pinned nodes are also skipped.",
+            "type": "boolean"
+          },
+          "refresh": {
+            "description": "Webpage nodes: pass true to re-fetch the page instead of patching fields."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_render",
+      "description": "Spec-driven content: discover the schema, validate a payload, or create a json-render / graph node. Action \"describe-schema\" returns the json-render component catalog + create schemas; \"validate\" checks a spec or graph payload without creating a node; \"add-json-render\" creates a json-render node from a complete spec; \"stream-json-render\" progressively builds one from SpecStream patches (omit nodeId to create, pass it back to append, done=true to finish); \"add-graph\" creates a chart node (line, bar, pie, area, scatter, radar, stacked-bar, composed, sparkline, dot-plot, bullet, slopegraph); \"workboard\" materializes a live AX work-item board (a json-render node with a column per status) that auto-refreshes whenever work items change — idempotent, rebuilding the existing board in place.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "describe-schema",
+              "validate",
+              "add-json-render",
+              "stream-json-render",
+              "add-graph",
+              "workboard"
+            ],
+            "description": "Operation to perform: describe-schema | validate | add-json-render | stream-json-render | add-graph | workboard."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "json-render",
+              "graph",
+              "html-primitive"
+            ],
+            "description": "Structured payload type to validate"
+          },
+          "spec": {
+            "description": "json-render spec to validate when type=\"json-render\""
+          },
+          "kind": {
+            "description": "HTML primitive kind when type=\"html-primitive\"",
+            "type": "string"
+          },
+          "primitive": {
+            "description": "Alias for kind when type=\"html-primitive\"",
+            "type": "string"
+          },
+          "primitiveData": {
+            "description": "HTML primitive data payload when type=\"html-primitive\"",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "data": {
+            "description": "Graph dataset when type=\"graph\""
+          },
+          "title": {
+            "description": "Optional graph title",
+            "type": "string"
+          },
+          "graphType": {
+            "description": "Graph type when type=\"graph\"",
+            "type": "string"
+          },
+          "xKey": {
+            "description": "X-axis key for line/bar graphs",
+            "type": "string"
+          },
+          "yKey": {
+            "description": "Y-axis key for line/bar graphs",
+            "type": "string"
+          },
+          "zKey": {
+            "description": "Optional bubble-size key for scatter charts",
+            "type": "string"
+          },
+          "nameKey": {
+            "description": "Slice name key for pie graphs",
+            "type": "string"
+          },
+          "valueKey": {
+            "description": "Value key for pie slices, sparkline, dot-plot, and the bullet measure",
+            "type": "string"
+          },
+          "axisKey": {
+            "description": "Category key for radar charts",
+            "type": "string"
+          },
+          "metrics": {
+            "description": "Series keys to plot as radar polygons",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "series": {
+            "description": "Series keys for stacked-bar segments",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "barKey": {
+            "description": "Bar series key for composed charts",
+            "type": "string"
+          },
+          "lineKey": {
+            "description": "Line series key for composed charts",
+            "type": "string"
+          },
+          "aggregate": {
+            "description": "Optional aggregation for repeated keys",
+            "type": "string",
+            "enum": [
+              "sum",
+              "count",
+              "avg"
+            ]
+          },
+          "color": {
+            "description": "Optional graph color",
+            "type": "string"
+          },
+          "colorBy": {
+            "description": "Bar charts only: how bars are colored (default 'series')",
+            "type": "string",
+            "enum": [
+              "series",
+              "category",
+              "value",
+              "none"
+            ]
+          },
+          "highlight": {
+            "description": "Bar charts only, colorBy='series': which bar gets the accent",
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "max",
+                      "min"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "barColor": {
+            "description": "Optional bar color for composed charts",
+            "type": "string"
+          },
+          "lineColor": {
+            "description": "Optional line color for composed charts",
+            "type": "string"
+          },
+          "labelKey": {
+            "description": "Category label key for dot-plot / bullet / slopegraph rows",
+            "type": "string"
+          },
+          "targetKey": {
+            "description": "Per-row target value key for bullet charts",
+            "type": "string"
+          },
+          "rangesKey": {
+            "description": "Per-row qualitative band thresholds key (number[]) for bullet charts",
+            "type": "string"
+          },
+          "beforeKey": {
+            "description": "Left-column value key for slopegraph",
+            "type": "string"
+          },
+          "afterKey": {
+            "description": "Right-column value key for slopegraph",
+            "type": "string"
+          },
+          "beforeLabel": {
+            "description": "Header label for the slopegraph left column",
+            "type": "string"
+          },
+          "afterLabel": {
+            "description": "Header label for the slopegraph right column",
+            "type": "string"
+          },
+          "sort": {
+            "description": "Row sort order for dot-plot (defaults to desc)",
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc",
+              "none"
+            ]
+          },
+          "fill": {
+            "description": "Sparkline: draw a light area fill under the line",
+            "type": "boolean"
+          },
+          "showEndDot": {
+            "description": "Sparkline: draw a dot at the last point (default true)",
+            "type": "boolean"
+          },
+          "showMinMax": {
+            "description": "Sparkline: mark the min and max points",
+            "type": "boolean"
+          },
+          "showValue": {
+            "description": "Sparkline: print the last value inline",
+            "type": "boolean"
+          },
+          "colorByDirection": {
+            "description": "Slopegraph: accent rising lines and mute falling ones (default off)",
+            "type": "boolean"
+          },
+          "height": {
+            "description": "Optional graph content height",
+            "type": "number"
+          },
+          "intentId": {
+            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "type": "string"
+          },
+          "x": {
+            "description": "Optional X position",
+            "type": "number"
+          },
+          "y": {
+            "description": "Optional Y position",
+            "type": "number"
+          },
+          "width": {
+            "description": "Optional node width",
+            "type": "number"
+          },
+          "nodeHeight": {
+            "description": "Alias for height — the frame-height name the graph and stream actions use",
+            "type": "number"
+          },
+          "strictSize": {
+            "description": "Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting",
+            "type": "boolean"
+          },
+          "nodeId": {
+            "description": "Existing streaming node id to append to; omit to create a new streaming node",
+            "type": "string"
+          },
+          "patches": {
+            "description": "SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines",
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              ]
+            }
+          },
+          "done": {
+            "description": "Set true on the final call to mark the stream complete",
+            "type": "boolean"
+          },
+          "showLegend": {
+            "description": "Show chart legend when supported; pass false for compact node layouts",
+            "type": "boolean"
+          },
+          "showLabels": {
+            "description": "Show direct labels when supported, such as pie slice labels (defaults to true)",
+            "type": "boolean"
+          },
+          "heightPx": {
+            "description": "SDK alias for nodeHeight (node frame height)",
+            "type": "number"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_edge",
+      "description": "Add, update, or remove an edge (connection) between two nodes. Action \"add\" connects two nodes (type: flow=sequential, depends-on=dependency, relation=general, references=cross-reference; from/to take node ids, or fromSearch/toSearch resolve by title/content); \"update\" patches an existing edge in place (label, type, style, animated); \"remove\" deletes an edge by id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update",
+              "remove"
+            ],
+            "description": "Operation to perform: add | remove."
+          },
+          "intentId": {
+            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "type": "string"
+          },
+          "from": {
+            "description": "Source node ID",
+            "type": "string"
+          },
+          "to": {
+            "description": "Target node ID",
+            "type": "string"
+          },
+          "fromSearch": {
+            "description": "Resolve the source node by exact or fuzzy title/content search",
+            "type": "string"
+          },
+          "toSearch": {
+            "description": "Resolve the target node by exact or fuzzy title/content search",
+            "type": "string"
+          },
+          "type": {
+            "description": "Edge type: flow, depends-on, relation, or references"
+          },
+          "label": {
+            "description": "Edge label text"
+          },
+          "style": {
+            "description": "Optional edge stroke style: solid, dashed, or dotted"
+          },
+          "animated": {
+            "description": "Animate the edge stroke"
+          },
+          "id": {
+            "description": "Edge ID to update",
+            "type": "string"
+          },
+          "edge_id": {
+            "description": "Alias for id (legacy HTTP body field)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_group",
+      "description": "Manage node groups. Action \"create\" makes a new group (optionally with initial child node ids); \"add\" moves nodes into an existing group; \"ungroup\" dissolves a group, releasing its children.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "add",
+              "ungroup"
+            ],
+            "description": "Operation to perform: create | add | ungroup."
+          },
+          "intentId": {
+            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Group title (default: \"Group\")",
+            "type": "string"
+          },
+          "childIds": {
+            "description": "Node IDs to include in the group. Group auto-sizes to fit them."
+          },
+          "color": {
+            "description": "Group accent color (CSS color string, e.g. \"#4a9eff\")",
+            "type": "string"
+          },
+          "x": {
+            "description": "X position (auto-computed from children if omitted)",
+            "type": "number"
+          },
+          "y": {
+            "description": "Y position (auto-computed from children if omitted)",
+            "type": "number"
+          },
+          "width": {
+            "description": "Width (auto-computed from children if omitted)",
+            "type": "number"
+          },
+          "height": {
+            "description": "Height (auto-computed from children if omitted)",
+            "type": "number"
+          },
+          "childLayout": {
+            "description": "Optional child auto-layout. Omit to preserve current child positions.",
+            "type": "string",
+            "enum": [
+              "grid",
+              "column",
+              "flow"
+            ]
+          },
+          "full": {
+            "description": "Return the full created group payload. Default false returns compact metadata.",
+            "type": "boolean"
+          },
+          "verbose": {
+            "description": "Alias for full:true.",
+            "type": "boolean"
+          },
+          "groupId": {
+            "description": "The group node ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_history",
+      "description": "Step through canvas mutation history. Action \"undo\" reverses the last mutation; \"redo\" reapplies it. History is session-scoped (in-memory, last 200 operations).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "undo",
+              "redo"
+            ],
+            "description": "Operation to perform: undo | redo."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_view",
+      "description": "Canvas viewport and layout control. Action \"arrange\" auto-lays-out nodes (grid/columns/etc.); \"focus\" pans/zooms the viewport to a node; \"fit\" zooms to fit all nodes in view; \"clear\" removes every node and edge from the canvas; \"remove-annotation\" deletes a human-drawn annotation by id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "get-tour",
+              "set-tour",
+              "arrange",
+              "focus",
+              "fit",
+              "clear",
+              "remove-annotation"
+            ],
+            "description": "Operation to perform: arrange | focus | fit | clear | remove-annotation | get-tour | set-tour."
+          },
+          "tour": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "stops": {
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "nodeId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": [
+                                "nodeId"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "viewport": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    },
+                                    "scale": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "x",
+                                    "y",
+                                    "scale"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "viewport"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "duration": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 3600
+                        },
+                        "easing": {
+                          "type": "string",
+                          "enum": [
+                            "linear",
+                            "ease-in-out",
+                            "ease-out"
+                          ]
+                        },
+                        "padding": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "pullback": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 4
+                        }
+                      },
+                      "required": [
+                        "target"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "stops"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ordered camera stops, or null to derive from groups"
+          },
+          "layout": {
+            "description": "Arrangement layout (default: grid)",
+            "type": "string",
+            "enum": [
+              "grid",
+              "column",
+              "flow"
+            ]
+          },
+          "id": {
+            "description": "Node ID to focus on"
+          },
+          "noPan": {
+            "description": "If true, raise/select the node without panning the viewport. Default false.",
+            "type": "boolean"
+          },
+          "width": {
+            "description": "Viewport width used for fit math (default 1440)",
+            "type": "number"
+          },
+          "height": {
+            "description": "Viewport height used for fit math (default 900)",
+            "type": "number"
+          },
+          "padding": {
+            "description": "World-space padding around fitted nodes (default 60)",
+            "type": "number"
+          },
+          "maxScale": {
+            "description": "Maximum zoom scale (default 1)",
+            "type": "number"
+          },
+          "nodeIds": {
+            "description": "Optional node IDs to fit instead of the whole canvas",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_query",
+      "description": "Read the board cheapest-first. Action \"context\" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); \"search\" finds nodes by title/content keywords; \"layout\" returns the full layout; \"validate\" checks geometry and endpoints.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "context",
+              "search",
+              "layout",
+              "validate"
+            ],
+            "description": "Operation to perform: context | search | layout | validate."
+          },
+          "consumer": {
+            "description": "Stable consumer id used for the durable board-scoped cursor"
+          },
+          "since": {
+            "description": "Explicit content revision; bypasses the durable consumer cursor"
+          },
+          "budget": {
+            "description": "Maximum response size in UTF-16 code units"
+          },
+          "q": {
+            "description": "Search query — matches against node titles, content, and file paths"
+          },
+          "scope": {
+            "description": "Search the active board or the full board library",
+            "type": "string",
+            "enum": [
+              "active",
+              "library"
+            ]
+          },
+          "limit": {
+            "description": "Max results to return (default: 10)",
+            "type": "number"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query — matches against node titles, content, and file paths"
+          },
+          "board": {
+            "description": "Board id to read without opening it.",
+            "type": "string"
+          },
+          "includeBlobs": {
+            "description": "Include full blob payloads instead of blob summaries."
+          },
+          "full": {
+            "description": "Return the full layout including node data. Default false keeps responses compact.",
+            "type": "boolean"
+          },
+          "verbose": {
+            "description": "Alias for full:true.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_app",
+      "description": "Open external / built-content apps on the canvas. Action \"open-mcp-app\" connects to an external MCP server that declares a ui:// app resource, calls a tool, and opens the result inside an mcp-app node (full transport call — pass transport + toolName); \"diagram\" draws a hand-drawn diagram via the hosted Excalidraw preset (pass elements); \"build-artifact\" bundles a single-file HTML web artifact from React/Tailwind source (title + appTsx) and optionally opens it on the canvas. build-artifact can be long-running (minutes) on cold workspaces — set a long client timeout.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "open-mcp-app",
+              "diagram",
+              "build-artifact"
+            ],
+            "description": "Operation to perform: open-mcp-app | diagram | build-artifact."
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Tool name on the external MCP server"
+          },
+          "serverName": {
+            "description": "Optional display name for the external MCP server",
+            "type": "string"
+          },
+          "toolArguments": {
+            "description": "Arguments passed to the external tool call",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "nodeId": {
+            "description": "Existing mcp-app node ID to update in place instead of creating a new node.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Optional canvas node title override",
+            "type": "string"
+          },
+          "x": {
+            "description": "X position (auto-placed if omitted)",
+            "type": "number"
+          },
+          "y": {
+            "description": "Y position (auto-placed if omitted)",
+            "type": "number"
+          },
+          "width": {
+            "description": "Width in pixels (default: 720)",
+            "type": "number"
+          },
+          "height": {
+            "description": "Height in pixels (default: 500)",
+            "type": "number"
+          },
+          "timeoutMs": {
+            "description": "Optional MCP request timeout in milliseconds for cold external app servers",
+            "type": "number"
+          },
+          "transport": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "stdio"
+                  },
+                  "command": {
+                    "type": "string",
+                    "description": "Executable used to start the external MCP server"
+                  },
+                  "args": {
+                    "description": "Arguments for the executable",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cwd": {
+                    "description": "Optional working directory",
+                    "type": "string"
+                  },
+                  "env": {
+                    "description": "Optional environment overrides",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "command"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "http"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Streamable HTTP MCP endpoint URL"
+                  },
+                  "headers": {
+                    "description": "Optional HTTP headers",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "url"
+                ]
+              }
+            ],
+            "description": "How PMX Canvas should connect to the external MCP server"
+          },
+          "elements": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON array string of Excalidraw elements"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "description": "Array of Excalidraw elements"
+              }
+            ],
+            "description": "Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format."
+          },
+          "appTsx": {
+            "type": "string",
+            "description": "Contents for src/App.tsx"
+          },
+          "indexCss": {
+            "description": "Optional contents for src/index.css",
+            "type": "string"
+          },
+          "mainTsx": {
+            "description": "Optional contents for src/main.tsx",
+            "type": "string"
+          },
+          "indexHtml": {
+            "description": "Optional contents for index.html",
+            "type": "string"
+          },
+          "files": {
+            "description": "Optional map of additional project-relative file paths to file contents",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "deps": {
+            "description": "Optional npm dependencies to install before bundling (e.g. [\"recharts\", \"framer-motion@^11\"]). Validated against npm-name format; flags and shell metacharacters are rejected.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projectPath": {
+            "description": "Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>",
+            "type": "string"
+          },
+          "outputPath": {
+            "description": "Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html",
+            "type": "string"
+          },
+          "openInCanvas": {
+            "description": "Open the generated artifact in canvas after build (default true)",
+            "type": "boolean"
+          },
+          "includeLogs": {
+            "description": "Include raw build stdout/stderr in the response (default false)",
+            "type": "boolean"
+          },
+          "initScriptPath": {
+            "description": "Optional script path override for tests/debugging. Must resolve inside the workspace.",
+            "type": "string"
+          },
+          "bundleScriptPath": {
+            "description": "Optional script path override for tests/debugging. Must resolve inside the workspace.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_webview",
+      "description": "Drive the headless Bun.WebView automation session for the workbench. Action \"status\" reads automation status (supported, active, backend, viewport, url); \"start\" starts/replaces the session (backend chrome|webkit, width, height, chromePath, chromeArgv, dataStoreDir); \"stop\" stops the active session; \"resize\" sets the viewport (width, height required); \"evaluate\" runs JavaScript in the page (pass exactly one of expression or script; script is wrapped in an async IIFE). Capturing a screenshot is NOT folded here — use the standalone canvas_screenshot tool (it returns a binary image payload).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "status",
+              "start",
+              "stop",
+              "resize",
+              "evaluate"
+            ],
+            "description": "Operation to perform: status | start | stop | resize | evaluate."
+          },
+          "backend": {
+            "description": "Automation backend. Default: webkit on macOS, chrome elsewhere.",
+            "type": "string",
+            "enum": [
+              "chrome",
+              "webkit"
+            ]
+          },
+          "width": {
+            "description": "Viewport width in pixels (default: 1280)"
+          },
+          "height": {
+            "description": "Viewport height in pixels (default: 800)"
+          },
+          "chromePath": {
+            "description": "Optional Chrome/Chromium executable path",
+            "type": "string"
+          },
+          "chromeArgv": {
+            "description": "Optional extra Chrome launch args",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dataStoreDir": {
+            "description": "Optional persistent data store directory",
+            "type": "string"
+          },
+          "expression": {
+            "description": "JavaScript expression to evaluate in the page context",
+            "type": "string"
+          },
+          "script": {
+            "description": "Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ax_state",
+      "description": "Read or set host-agnostic PMX AX state. Action \"get\" reads the AX state + agent-ready context (pinned/focused context, focus field); \"set-focus\" places node IDs in the AX focus field (nodeIds); \"set-policy\" patches the tool/prompt policy (tools.allowed|excluded|approvalRequired, prompt.systemAppend|mode — merges with existing); \"report-capability\" records a host/session capability for diagnostics; \"presence\" reads agent presence (who is writing, phase, attached session, context budget); \"set-presence\" updates this caller's presence (phase idle|thinking|tooling|waiting-approval, detail, focusNodeId, cursor, attached — attached:true starts a session, false ends it; contextUsage {used,total} reports the agent's real token window so the board's meter shows it instead of the pinned-context estimate). Adapters may pass a source label (e.g. codex).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "get",
+              "set-focus",
+              "set-policy",
+              "report-capability",
+              "presence",
+              "set-presence"
+            ],
+            "description": "Operation to perform: get | set-focus | set-policy | report-capability | presence | set-presence."
+          },
+          "includeContext": {
+            "description": "Include serialized agent-ready AX context. Default true.",
+            "type": "boolean"
+          },
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Node IDs to place in the AX focus field. Missing nodes are ignored."
+          },
+          "source": {
+            "description": "Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter."
+          },
+          "tools": {
+            "description": "Tool policy patch: allowed/excluded/approvalRequired arrays."
+          },
+          "prompt": {
+            "type": "object",
+            "properties": {
+              "systemAppend": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              }
+            }
+          },
+          "scope": {
+            "description": "Scope fence (human-owned, set from the workbench): { nodeIds, padding? } limits agent WRITES to those nodes plus padding px around them; null clears it. Agent calls that include it are refused (403) — read policy.scope instead."
+          },
+          "agentScopes": {
+            "description": "Per-agent territories: writer key (agentId or source) → { nodeIds, padding? } | null. The orchestration surface — fence each worker to its lane; you cannot set your own key.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "nodeIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "padding": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "nodeIds"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "host": {
+            "description": "Host identifier (e.g. copilot, codex).",
+            "type": "string"
+          },
+          "canvas": {
+            "type": "boolean"
+          },
+          "hooks": {
+            "type": "boolean"
+          },
+          "sessionMessaging": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "boolean"
+          },
+          "files": {
+            "type": "boolean"
+          },
+          "uiPrompts": {
+            "type": "boolean"
+          },
+          "raw": {
+            "description": "Optional raw capability payload for diagnostics.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "agentId": {
+            "description": "Stable identity for a genuinely separate agent, not a task name. Omit for the main agent when a host adapter already owns its session.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "description": "Display name for this writer; use detail for the current task",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "phase": {
+            "description": "idle | thinking | tooling | waiting-approval",
+            "type": "string",
+            "enum": [
+              "idle",
+              "thinking",
+              "tooling",
+              "waiting-approval"
+            ]
+          },
+          "detail": {
+            "description": "Tool / step name shown beside the phase",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "focusNodeId": {
+            "description": "Node the agent is working on",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cursor": {
+            "description": "Agent cursor in world coordinates",
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attached": {
+            "description": "true attaches a session; false detaches it. Read presence first and reuse your host adapter session instead of attaching another. Only detach sessions you own.",
+            "type": "boolean"
+          },
+          "contextUsage": {
+            "description": "The agent's real token window as {used,total} — shown on the board's context meter instead of the pinned-context estimate (null clears it)",
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "used": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "total": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "used",
+                  "total"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ax_work",
+      "description": "Manage canvas-bound AX work items and review annotations. Action \"add\" creates a work item (title, optional status todo|in-progress|blocked|done|cancelled, detail, nodeIds); \"update\" patches a work item by id (title/status/detail/nodeIds); \"annotate\" adds a review annotation (comment/finding) anchored to a node, file, or region (body, kind, severity, anchorType, nodeId/file/region). Work items and review annotations participate in snapshots and are exposed via canvas://ax-work.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "update",
+              "annotate"
+            ],
+            "description": "Operation to perform: add | update | annotate."
+          },
+          "title": {
+            "description": "Short title of the work item."
+          },
+          "status": {
+            "description": "Work item status. Defaults to todo."
+          },
+          "detail": {
+            "description": "Optional longer description."
+          },
+          "nodeIds": {
+            "description": "Optional node IDs this work item is tied to."
+          },
+          "source": {
+            "description": "Optional host/source label. Defaults to mcp."
+          },
+          "agentId": {
+            "description": "Optional per-agent identity within the host."
+          },
+          "id": {
+            "type": "string",
+            "description": "Work item ID to update."
+          },
+          "body": {
+            "type": "string",
+            "description": "Annotation body text."
+          },
+          "kind": {
+            "description": "Annotation kind. Default comment.",
+            "type": "string",
+            "enum": [
+              "comment",
+              "finding"
+            ]
+          },
+          "severity": {
+            "description": "Severity. Default info.",
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "anchorType": {
+            "description": "Anchor type. Default node.",
+            "type": "string",
+            "enum": [
+              "node",
+              "file",
+              "region"
+            ]
+          },
+          "nodeId": {
+            "description": "Node ID when anchorType is node.",
+            "type": "string"
+          },
+          "file": {
+            "description": "File path when anchorType is file.",
+            "type": "string"
+          },
+          "region": {
+            "description": "Region descriptor when anchorType is region.",
+            "type": "object",
+            "properties": {
+              "line": {
+                "type": "number"
+              },
+              "endLine": {
+                "type": "number"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          },
+          "author": {
+            "description": "Optional author label.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ax_gate",
+      "description": "Drive the full lifecycle of a canvas-bound AX gate — request, resolve, or await — across all three gate kinds. kind: approval | elicitation | mode. action: request (open a pending gate), resolve (approval/mode take a decision approved|rejected; elicitation takes a response object), await (block until the gate leaves pending or timeoutMs elapses; 0 = immediate read). Gates are canvas-bound, snapshotted, and exposed via canvas://ax-work. NOTE: the approval machine-readable action identifier is passed as approvalAction (the action field is the lifecycle discriminator).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "request",
+              "resolve",
+              "await"
+            ],
+            "description": "Operation to perform: request | resolve | await (× kind: approval | elicitation | mode)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "approval",
+              "elicitation",
+              "mode"
+            ],
+            "description": "Gate kind: approval | elicitation | mode."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title of what needs approval."
+          },
+          "detail": {
+            "description": "Optional explanation of the action and its impact.",
+            "type": "string"
+          },
+          "approvalAction": {
+            "description": "Optional machine-readable action identifier the approval gates.",
+            "type": "string"
+          },
+          "nodeIds": {
+            "description": "Optional node IDs this approval relates to."
+          },
+          "ttlMs": {
+            "description": "Unattended-approval TTL in ms; the gate auto-holds if unanswered (default 5 min, max 24 h).",
+            "type": "number"
+          },
+          "source": {
+            "description": "Optional host/source label. Defaults to mcp."
+          },
+          "id": {
+            "description": "Approval gate ID to resolve.",
+            "type": "string"
+          },
+          "decision": {
+            "description": "Approval decision."
+          },
+          "resolution": {
+            "description": "Optional human-readable resolution note."
+          },
+          "timeoutMs": {
+            "description": "Max ms to block (0 = immediate read; capped at 120000)."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The question or instruction for the human."
+          },
+          "fields": {
+            "description": "Optional field names to request (a simple structured form).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "response": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "description": "The structured answer."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "execute",
+              "autonomous"
+            ],
+            "description": "Requested target mode."
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "kind"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ax_timeline",
+      "description": "Read or write the bounded PMX AX timeline. Action \"read\" returns recent agent-events, evidence, and steering messages plus counts (limit); \"record-event\" records a normalized agent-event (kind prompt|assistant-message|tool-start|tool-result|failure|approval|steering, summary, detail, data); \"add-evidence\" records an evidence item (kind logs|tool-result|screenshot|file|diff|test-output, title, body, ref); \"send-steering\" records a steering message (message); \"reads\" returns the context read log — which canvas context each agent read and which pinned nodes reached it — with a per-consumer summary (limit). Timeline rows persist for diagnostics/continuity but are not restored by snapshots; exposed via canvas://ax-timeline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "read",
+              "record-event",
+              "add-evidence",
+              "send-steering",
+              "reads"
+            ],
+            "description": "Operation to perform: read | record-event | add-evidence | send-steering | reads."
+          },
+          "limit": {
+            "description": "Max rows per timeline table (default 50, max 200)."
+          },
+          "kind": {
+            "description": "Normalized event kind."
+          },
+          "summary": {
+            "type": "string",
+            "description": "Short human-readable summary of the event."
+          },
+          "detail": {
+            "description": "Optional longer detail or payload text.",
+            "type": "string"
+          },
+          "nodeIds": {
+            "description": "Optional node IDs this event relates to."
+          },
+          "data": {
+            "description": "Optional structured data payload."
+          },
+          "source": {
+            "description": "Optional host/source label. Defaults to mcp."
+          },
+          "agentId": {
+            "description": "Optional per-agent identity within the host."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short human-readable title for the evidence."
+          },
+          "body": {
+            "description": "Optional inline body/content.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional reference (path, URL, or external locator).",
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "description": "The steering instruction to deliver to the active agent session."
+          },
+          "target": {
+            "description": "The agentId/consumer this steer is addressed to. Omit to broadcast to all consumers.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ax_delivery",
+      "description": "Adapterless PMX AX delivery. Action \"claim\" claims pending undelivered steering for a consumer (loop-safe — never returns steering the consumer originated) plus pendingActivity (open work items / approval gates / elicitations / mode requests awaiting the agent); \"mark\" marks a steering message delivered by id so it is not handed out again. Resolve pendingActivity via canvas_ax_gate / canvas_ax_work, not mark.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "mark"
+            ],
+            "description": "Operation to perform: claim | mark."
+          },
+          "consumer": {
+            "description": "Consumer/source label to exclude from results (e.g. copilot, mcp)."
+          },
+          "limit": {
+            "description": "Max steering messages to return.",
+            "type": "number"
+          },
+          "order": {
+            "description": "Order of returned steering: \"oldest\" (FIFO, default) for ordered processing, or \"newest\" first to see the latest browser action when limited.",
+            "type": "string",
+            "enum": [
+              "newest",
+              "oldest"
+            ]
+          },
+          "timeoutMs": {
+            "description": "Max ms to block until steering arrives (0/omitted = immediate read).",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 120000
+          },
+          "id": {
+            "type": "string",
+            "description": "The steering message id to mark delivered."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_intent",
+      "description": "Ghost Cursor of Intent — announce the spatial move you are ABOUT to make so the canvas paints a faint pre-commit placeholder (legibility: the human sees the next move forming, and can veto it). Action \"signal\" registers an intent (kind create|move|connect|remove|edit; pass position for create/move, nodeId for move/edit/remove, edge for connect; optional label, reason, confidence 0..1, seq, ttlMs, and a stable id); \"update\" patches a live intent by id; \"clear\" abandons/dissolves it. To make veto authoritative, pass the returned id as intentId on the real canvas_node/canvas_edge/canvas_group/canvas_render mutation: vetoed or expired intents are rejected, and a successful linked mutation settles the ghost automatically. Intents are ephemeral presence: never persisted, never snapshotted, auto-expire (~8s).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "signal",
+              "update",
+              "clear"
+            ],
+            "description": "Operation to perform: signal | update | clear."
+          },
+          "kind": {
+            "description": "create | move | connect | remove | edit — the move about to be made.",
+            "type": "string",
+            "enum": [
+              "create",
+              "move",
+              "connect",
+              "remove",
+              "edit"
+            ]
+          },
+          "position": {
+            "description": "World coords: where a create forms, or the destination of a move.",
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ]
+          },
+          "nodeId": {
+            "description": "The existing node a move/edit/remove targets.",
+            "type": "string"
+          },
+          "edge": {
+            "description": "connect: the edge about to be drawn (from/to node ids + type).",
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "relation",
+                  "depends-on",
+                  "flow",
+                  "references"
+                ]
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "type"
+            ]
+          },
+          "nodeType": {
+            "description": "Node type the ghost renders (icon + type badge).",
+            "type": "string"
+          },
+          "label": {
+            "description": "Short action label shown on the ghost chip (\"Add evidence\").",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why — shown beneath the ghost. The legibility payoff.",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "0..1 → ghost opacity/solidity.",
+            "type": "number"
+          },
+          "seq": {
+            "description": "Ordering hint for staged-batch ghosts (numbered previsualization).",
+            "type": "number"
+          },
+          "ttlMs": {
+            "description": "Auto-expire after this many ms (default 8000, max 60000).",
+            "type": "number"
+          },
+          "id": {
+            "description": "Stable id to update/clear/veto later; auto-generated if omitted.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Optional source label of the signalling surface.",
+            "type": "string"
+          },
+          "vetoed": {
+            "description": "Veto the intent: dissolves the ghost AND poisons the id so a later linked settle is rejected (same as clear { vetoed:true }).",
+            "type": "boolean"
+          },
+          "settledNodeId": {
+            "description": "The real node this intent became — triggers the settle morph.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ax_interaction",
+      "description": "Submit a node-originated AX interaction: a capability-gated, validated event from an eligible node that maps onto an AX operation (work item, evidence, approval, review, focus, steering, event). Returns { ok: false, code } if the node type/metadata does not allow the interaction type or the payload is invalid.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ax.event.record",
+              "ax.steer",
+              "ax.work.create",
+              "ax.work.update",
+              "ax.evidence.add",
+              "ax.approval.request",
+              "ax.approval.resolve",
+              "ax.review.add",
+              "ax.focus.set",
+              "ax.command.invoke",
+              "ax.elicitation.request",
+              "ax.mode.request",
+              "ax.flow.materialize"
+            ],
+            "description": "Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set."
+          },
+          "sourceNodeId": {
+            "type": "string",
+            "description": "The node emitting the interaction."
+          },
+          "payload": {
+            "description": "Type-specific payload, e.g. {\"title\":\"...\"} for ax.work.create.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "sourceSurface": {
+            "type": "string",
+            "enum": [
+              "native-node",
+              "json-render",
+              "html-node",
+              "mcp-app",
+              "adapter"
+            ]
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Optional host/source label. Defaults to mcp.",
+            "type": "string",
+            "enum": [
+              "agent",
+              "amp",
+              "api",
+              "browser",
+              "cli",
+              "codex",
+              "copilot",
+              "mcp",
+              "sdk",
+              "system"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "sourceNodeId"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_ingest_activity",
+      "description": "Ingest a normalized agent activity (a tool/session event your harness forwards) so the board reacts automatically — primitive A, makes AX bidirectional. Always records a timeline event; kind-driven default reactions (overridable per call via `reactions`): failure/error → work item (blocked) + review finding + evidence (logs); tool-result + outcome:\"success\" → evidence (tool-result); everything else (tool-start, session-*, command, note) → event only. Set any reaction to false to suppress it, or to an object to override its fields. Returns { event, workItem, evidence, review }.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tool-start",
+              "tool-result",
+              "failure",
+              "error",
+              "session-start",
+              "session-end",
+              "command",
+              "note"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failure"
+            ]
+          },
+          "ref": {
+            "description": "A file path, URL, or commit the activity refers to (used as the review file anchor for failures).",
+            "type": "string"
+          },
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "reactions": {
+            "description": "Override or suppress the kind-driven default reactions.",
+            "type": "object",
+            "properties": {
+              "workItem": {
+                "anyOf": [
+                  {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "todo",
+                          "in-progress",
+                          "blocked",
+                          "done",
+                          "cancelled"
+                        ]
+                      },
+                      "detail": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "evidence": {
+                "anyOf": [
+                  {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "logs",
+                          "tool-result",
+                          "screenshot",
+                          "file",
+                          "diff",
+                          "test-output"
+                        ]
+                      },
+                      "body": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "review": {
+                "anyOf": [
+                  {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "info",
+                          "warning",
+                          "error"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "comment",
+                          "finding"
+                        ]
+                      },
+                      "anchorType": {
+                        "type": "string",
+                        "enum": [
+                          "node",
+                          "file",
+                          "region"
+                        ]
+                      },
+                      "nodeId": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "amp",
+              "api",
+              "browser",
+              "cli",
+              "codex",
+              "copilot",
+              "mcp",
+              "sdk",
+              "system"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "title"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "canvas_screenshot",
+      "description": "Capture a screenshot from the active Bun.WebView automation session. Returns both an MCP image payload and JSON metadata. Requires an active automation session started via canvas_webview with action \"start\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "description": "Screenshot format (default depends on Bun; png recommended)",
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "quality": {
+            "description": "Optional quality for lossy formats",
+            "type": "number"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}
