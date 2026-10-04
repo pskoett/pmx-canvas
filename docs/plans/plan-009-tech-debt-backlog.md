@@ -82,7 +82,7 @@ The remaining items were re-analyzed with pros/cons and tiered; the maintainer a
 
 ## Added during rail-chrome-v2 (2026-08-23, phases 1–5)
 
-Recorded while the redesign's phases land so nothing rides in silently. Plan: `design/rail-chrome-v2/PLAN.md`.
+Recorded while the redesign's phases land so nothing rides in silently. The redesign's plan was retired into `docs/design.md` and `docs/ax-state-contract.md` (2026-10-04).
 
 | Item | What's open |
 |---|---|

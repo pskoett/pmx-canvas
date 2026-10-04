@@ -71,3 +71,40 @@ record; redo replays `removeNode` inside suppressed recording
 **not** append a second note. Consumers should read `reanchoredIds` /
 `removedReviewIds` against the *current* canvas-bound state, not assume the
 referenced items are still re-anchored.
+
+## Agent presence (contract)
+
+Presence is the shape behind every agent surface in the rail chrome: the agent
+cursor and phase chip, the session panel, the command bar and the external
+steering indicator. It is **derived, in-memory and never persisted** — not a
+fourth partition, and not a second source of truth for work items, gates or
+steering, which stay in the AX state above. The shared shape lives in
+`src/shared/agent-presence.ts` (server and client import the same types and
+constants, so they cannot drift); the registry is `src/server/agent-presence.ts`.
+
+- **Sources.** Agent-originated mutations through `executeOperation` (no
+  workbench marker), `ax.activity.ingest` kinds (`session-start` /
+  `session-end` attach and detach; `tool-start` / `tool-result` / `failure` /
+  `error` drive the phase), and an explicit `ax.presence.set` for adapters with
+  richer hooks (`thinking`, cursor, focus).
+- **Modes.** `sessionActive` = any presence with `attached: true`. No presences →
+  quiet board; live but unattached writers → external steering (passive
+  indicator only); an attached session → the session panel and command bar.
+  Presence cursors render for every live writer regardless.
+- **Phase.** An agent mutation or `tool-start` → `tooling` (detail = op or tool
+  name), settling to `idle` after `PRESENCE_TOOLING_SETTLE_MS`; `thinking` only
+  via the explicit set, settling after `PRESENCE_THINKING_SETTLE_MS`; an attached
+  session with a pending approval gate reads as `waiting-approval`.
+- **Lifetime.** Unattached writers fade `PRESENCE_ACTIVITY_TTL_MS` after their
+  last write; attached sessions expire after `PRESENCE_ATTACHED_IDLE_TTL_MS`
+  without activity; `session-end` or an explicit `attached: false` removes the
+  presence immediately; at most `MAX_PRESENCES`, oldest evicted. Expiry emits,
+  so clients never run their own ticker.
+- **Transport.** One SSE frame, `agent-presence`, carries the full snapshot on
+  every change, including the last `MAX_ACTIVITY_ENTRIES` agent writes with a
+  one-line summary. `GET /api/canvas/ax/presence` for the connect-time read;
+  `POST /api/canvas/ax/presence` (`canvas_ax_state { action: "set-presence" }`)
+  for explicit updates.
+- **Budget.** `used` = estimated tokens of the `pinned-context.get` payload;
+  `total` = `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default
+  `CONTEXT_BUDGET_DEFAULT_TOKENS`).

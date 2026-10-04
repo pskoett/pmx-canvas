@@ -1,7 +1,7 @@
 /**
- * Agent presence — the contract behind every agent surface in the rail chrome
- * (rail-chrome-v2 phase 2). Shared by server and client so the two cannot
- * drift. See design/rail-chrome-v2/PLAN.md, "Phase 2 contract".
+ * Agent presence — the contract behind every agent surface in the rail chrome.
+ * Shared by server and client so the two cannot drift. See
+ * docs/ax-state-contract.md, "Agent presence (contract)".
  *
  * Presence is DERIVED from feeds that already exist (AX activity ingest,
  * agent-originated mutations) plus an explicit set for adapters with richer

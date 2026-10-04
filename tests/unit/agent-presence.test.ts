@@ -12,8 +12,8 @@ import {
   isSessionActive,
 } from '../../src/shared/agent-presence.ts';
 
-// rail-chrome-v2 phase 2: presence is DERIVED from feeds that already exist.
-// These tests pin the contract in design/rail-chrome-v2/PLAN.md.
+// Presence is DERIVED from feeds that already exist.
+// These tests pin the contract in docs/ax-state-contract.md ("Agent presence").
 
 let registry: AgentPresenceRegistry;
 let frames: Array<{ event: string; payload: Record<string, unknown> }>;

@@ -16,6 +16,8 @@
 
 **Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Undecided: generated surfaces (6b).
 
+**Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible with the curation evaluation, the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
+
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
 | Release scope | Content | Acceptance target (not a completion claim) |
