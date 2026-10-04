@@ -12,6 +12,15 @@ as source under [`design/`](design/), so agents and contributors can read the ex
 sizes, colours and copy. The drawings are the visual authority; this file is the
 contract and the schedule.
 
+**Before you build a surface** (any agent or contributor):
+
+1. Find its artboard in [The drawings](#the-drawings) and read the source for exact sizes,
+   colours, spacing and copy.
+2. Find its wave in the [Build plan](#build-plan) and confirm the function that produces its
+   data ships in the same change.
+3. Apply the [Principles](#principles), above all the fixed meaning colours.
+4. Meet the [Definition of done](#definition-of-done-for-any-design-work) before calling it done.
+
 ## The drawings
 
 Each `.dc.html` file is one artboard; `canvas.json` is the canvas layout (positions,

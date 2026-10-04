@@ -202,6 +202,32 @@ and coverage assertions are just as happy with month-old markup. `tests/unit/dem
 this by rebuilding every primitive from the stored `primitiveData` and byte-comparing against the
 current renderer. Regenerate and re-run that test after touching any of the above.
 
+## Design
+
+The design guide is [`docs/design.md`](docs/design.md); the drawings it refers to are the
+artboard sources in [`docs/design/`](docs/design/) (`*.dc.html`, layout in `canvas.json`). Read
+both before changing anything a person sees: styles under `src/client/theme/`, chrome, node
+renderers, Home, edges.
+
+1. **Build to the drawing, not the prose.** Find the surface's artboard in the table in
+   `docs/design.md` and take sizes, colours, spacing and copy from its source; values computed in
+   its `renderVals()` script are part of the drawing. If no artboard covers the surface, draw it
+   (or ask) before building; do not invent a look.
+2. **Ship with the wave.** `docs/design.md` pairs each design area with a vision move in numbered
+   waves. Design ships with the function that produces its data: do not restyle a surface ahead of
+   its wave, and do not ship a wave's function with the old styling.
+3. **Meaning colours are fixed.** Blue = in the agent's context (pinned). Violet = what the agent
+   did (read, created, edited, suggested). Amber = needs a look (warning, stale, out of date) and
+   nothing else. Relation inks never reuse these three. Every such mark also carries a glyph and a
+   word.
+4. **The drawings are the target; the code may lag.** Until wave 0 lands, today's CSS still uses
+   `--c-warn` for pins and attention and falls back to Arial on controls. Do not spread those
+   patterns; move the surface you touch toward the drawing.
+5. **Done means** the checks in `docs/design.md`: the 600 px Chromium reference, all nine themes,
+   the demo board regenerated, user-facing docs updated.
+6. **One design home.** Decisions and deviations go in `docs/design.md`; a drawing changed in the
+   proposal canvas is re-exported into `docs/design/` in the same change. No other design folders.
+
 ## Themes
 
 Nine themes: `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
@@ -401,7 +427,8 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
    plus `canvas-provenance.ts` (`CanvasNodeType`), `ax-interaction.ts`
    (`DEFAULT_NODE_AX_CAPABILITIES` — exhaustive record), `canvas-schema.ts` (create schema),
    `canvas-validation.ts` (`NODE_MIN_CREATE_SIZES` floor)
-2. Create a renderer component in `src/client/nodes/YourNode.tsx`
+2. Create a renderer component in `src/client/nodes/YourNode.tsx`, to its artboard in `docs/design/`
+   (draw one first if none exists — see [Design](#design))
 3. Add the case to the render switches in `src/client/canvas/CanvasViewport.tsx` AND
    `ExpandedNodeOverlay.tsx`, plus the exhaustive records in `state/node-factory.ts` and
    `canvas/kind-colors.ts` (the minimap + group chips read it), `types.ts` (union, `TYPE_LABELS`,

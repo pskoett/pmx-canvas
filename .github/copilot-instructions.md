@@ -1,5 +1,11 @@
 # Copilot Instructions
 
+## Design
+
+Before changing anything a person sees (styles, chrome, node renderers, Home, edges), follow the
+Design section of `AGENTS.md`: build to the drawings in `docs/design/` per the guide and build
+plan in `docs/design.md`.
+
 ## Agent Skill Pipeline
 
 This repo ships an agent-facing skill pipeline under `.agents/skills/`, `.claude/skills/`, and `.opencode/skills/`.
