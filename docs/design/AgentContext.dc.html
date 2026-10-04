@@ -74,16 +74,15 @@ body{margin:0}
 
 <div style="{{sc.node}} left: 60px; top: 330px; border: 1.5px solid #4BBCFF"><div style="{{sc.head}} background: rgba(75,188,255,0.10)"><span style="{{sc.title}}">Churn by plan</span><span style="{{sc.read}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{sc.ic}}"><path d="{{i.eye}}"></path></svg>read</span><span style="{{sc.pin}} position: relative"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.pin}}"></path></svg><span style="position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 999px; background: #B388FF; border: 2px solid #0f1d31"></span></span></div><div style="{{sc.body}}">chart · pinned by Claude</div></div>
 
-<div style="{{sc.node}} left: 360px; top: 330px; border: 1.5px solid #4BBCFF"><div style="{{sc.head}} background: rgba(75,188,255,0.10)"><span style="{{sc.title}}">SMB interviews</span><span style="{{sc.read}} background: rgba(244,197,66,0.14); color: #f4c542"><svg width="12" height="12" viewBox="0 0 24 24" style="{{sc.ic}}"><path d="{{i.warn}}"></path></svg>changed since read</span><span style="{{sc.pin}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.pin}}"></path></svg></span></div><div style="{{sc.body}}">notes · you added 2 calls at 14:15</div></div>
+<div style="{{sc.node}} left: 360px; top: 330px; border: 1.5px solid #4BBCFF"><div style="{{sc.head}} background: rgba(75,188,255,0.10)"><span style="{{sc.title}}">SMB interviews</span><span style="{{sc.read}} background: rgba(244,197,66,0.14); color: #f4c542"><svg width="12" height="12" viewBox="0 0 24 24" style="{{sc.ic}}"><path d="{{i.warn}}"></path></svg>changed</span><span style="{{sc.pin}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.pin}}"></path></svg></span></div><div style="{{sc.body}}">notes · you added 2 calls at 14:15</div></div>
 
 <div style="{{sc.node}} left: 640px; top: 330px; opacity: 0.35"><div style="{{sc.head}}"><span style="{{sc.title}}">Pricing notes</span></div><div style="{{sc.body}}">markdown · untouched by the agent</div></div>
 
 
-<div style="position: absolute; left: 60px; top: 440px; width: 300px; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 6px; font-size: 11px">
+<div style="position: absolute; left: 60px; top: 424px; width: 300px; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 6px; font-size: 11px">
 <span style="font-size: 12px; font-weight: 600; color: #e6eef7">Churn by plan</span>
 <span style="color: #b9c6d6"><span style="color: #B388FF">Pinned by Claude</span> · 14:04 — “the chart the churn finding rests on”</span>
 <span style="color: #b9c6d6"><span style="color: #B388FF">Read 3 times</span> · last 14:11</span>
-<span style="color: #b9c6d6">Created by you · Sep 30 · derived from churn-2025.csv</span>
 </div>
 
 <div style="position: absolute; left: 380px; top: 452px; width: 300px; display: flex; flex-direction: column; gap: 8px">
@@ -171,7 +170,7 @@ class Component extends DCLogic {
       mini: 'height:20px;padding:0 8px;border-radius:6px;font-size:11px;font-weight:500;line-height:20px;'
     };
     var sc = {
-      node: 'position:absolute;width:220px;height:84px;box-sizing:border-box;overflow:hidden;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);',
+      node: 'position:absolute;width:250px;height:84px;box-sizing:border-box;overflow:hidden;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);',
       head: 'display:flex;align-items:center;gap:6px;height:36px;padding:0 8px 0 10px;border-bottom:1px solid #1b2c44;',
       title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
       read: 'display:flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;color:' + V + ';background:' + VA + ';',

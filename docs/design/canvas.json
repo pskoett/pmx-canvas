@@ -2,6 +2,13 @@
   "v": 3,
   "attachments": {},
   "boards": {
+    "AgentContext.dc.html": {
+      "h": 1500,
+      "title": "What the agent did with context",
+      "w": 1440,
+      "x": 1520,
+      "y": 8100
+    },
     "Before.dc.html": {
       "h": 900,
       "title": "Today",
@@ -65,12 +72,26 @@
       "x": 1520,
       "y": 0
     },
+    "Pane600.dc.html": {
+      "h": 1000,
+      "title": "At 600 px — the reference pane",
+      "w": 1440,
+      "x": 4560,
+      "y": 8100
+    },
     "Relations.dc.html": {
       "h": 1340,
       "title": "Relations — a research board, today vs proposed",
       "w": 1440,
       "x": 0,
       "y": 6260
+    },
+    "Themes.dc.html": {
+      "h": 1220,
+      "title": "Meaning colours across all nine themes",
+      "w": 1440,
+      "x": 3040,
+      "y": 8100
     },
     "Tokens.dc.html": {
       "h": 1000,
@@ -107,6 +128,13 @@
       "x": 3040,
       "y": 6260
     },
+    "Vision.dc.html": {
+      "h": 1560,
+      "title": "How this proposal lines up with the vision",
+      "w": 1440,
+      "x": 0,
+      "y": 8100
+    },
     "Zoom.dc.html": {
       "h": 640,
       "title": "Zoomed out (fit all)",
@@ -114,33 +142,12 @@
       "x": 0,
       "y": 2740
     },
-    "Vision.dc.html": {
-      "x": 0,
-      "y": 8100,
-      "w": 1440,
-      "h": 1560,
-      "title": "How this proposal lines up with the vision"
-    },
-    "AgentContext.dc.html": {
-      "x": 1520,
-      "y": 8100,
-      "w": 1440,
-      "h": 1500,
-      "title": "What the agent did with context"
-    },
-    "Themes.dc.html": {
+    "TokenSystem.dc.html": {
       "x": 3040,
-      "y": 8100,
-      "w": 1440,
-      "h": 1220,
-      "title": "Meaning colours across all nine themes"
-    },
-    "Pane600.dc.html": {
-      "x": 4560,
-      "y": 8100,
+      "y": 1320,
       "w": 1440,
       "h": 1000,
-      "title": "At 600 px — the reference pane"
+      "title": "Token system — today and proposed"
     }
   },
   "createdOnFiles": {
@@ -163,7 +170,7 @@
       "fill": "orange",
       "text": "Light theme today is #F4EFE6 / #EFE7D4 — next to sepia's #F2E7D5 / #EBDCC2 the two are hard to tell apart. Proposed light is neutral: #F6F7F9 canvas, white nodes, #DDE2E9 lines.",
       "w": 380,
-      "x": 3040,
+      "x": 4560,
       "y": 1320
     },
     "t1": {
@@ -207,11 +214,12 @@
       "y": 5960
     },
     "t6": {
-      "x": 0,
-      "y": 7800,
-      "text": "The vision, the agent's activity, all themes, and 600 px",
       "kind": "title1",
-      "maxW": 6000
+      "maxW": 6000,
+      "text": "The vision, the agent's activity, all themes, and 600 px",
+      "w": 240,
+      "x": 0,
+      "y": 7800
     }
   },
   "order": [
@@ -219,6 +227,7 @@
     "Main.dc.html",
     "Light.dc.html",
     "Tokens.dc.html",
+    "TokenSystem.dc.html",
     "Chrome.dc.html",
     "Zoom.dc.html",
     "Home.dc.html",

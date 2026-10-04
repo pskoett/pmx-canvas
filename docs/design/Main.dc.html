@@ -58,7 +58,7 @@ body{margin:0}
 <p style="margin: 2px 0 0; font-size: 12px; color: {{c.muted}}">What the agent is doing, what context it holds, what it decided, and the tool calls behind it.</p>
 </div>
 
-<section style="{{s.node}} left: 48px; top: 88px; width: 400px; height: 340px; border: 1.5px solid {{c.accent}}; box-shadow: 0 0 0 3px {{c.accentRing}}, {{c.e1}}">
+<section style="{{s.nodePinned}}">
 <div style="{{s.head}}">
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 10h8M8 14h5"></path></svg>
 <span style="{{s.title}}">PMX Canvas — guided tour</span>
@@ -234,6 +234,7 @@ class Component extends DCLogic {
       ibtn: btnBase + 'width:24px;height:24px;border-radius:6px;background:transparent;color:' + c.muted + ';',
       ibtnOn: btnBase + 'width:24px;height:24px;border-radius:6px;background:' + c.panel2 + ';color:' + c.text + ';',
       node: 'position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;background:' + c.panel + ';border:1px solid ' + c.line + ';border-radius:10px;box-shadow:' + c.e1 + ';',
+      nodePinned: 'position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;background:' + c.panel + ';border:1.5px solid ' + c.accent + ';border-radius:10px;box-shadow:0 0 0 3px ' + c.accentRing + ', ' + c.e1 + ';left:48px;top:88px;width:400px;height:340px;',
       head: 'position:relative;display:flex;align-items:center;gap:8px;height:36px;flex-shrink:0;box-sizing:border-box;padding:0 8px 0 12px;border-bottom:1px solid ' + c.line + ';',
       title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + c.text + ';',
       trace: 'position:absolute;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:0 14px;background:' + c.panel + ';border:1px solid ' + c.line + ';border-radius:10px;box-shadow:' + c.e1 + ';',

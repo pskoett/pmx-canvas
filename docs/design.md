@@ -21,6 +21,78 @@ contract and the schedule.
 3. Apply the [Principles](#principles), above all the fixed meaning colours.
 4. Meet the [Definition of done](#definition-of-done-for-any-design-work) before calling it done.
 
+## Token system
+
+Drawn on [`TokenSystem.dc.html`](design/TokenSystem.dc.html); per-theme meaning colours on
+[`Themes.dc.html`](design/Themes.dc.html).
+
+### Today
+
+About 55 custom properties in `src/client/theme/global.css`, almost all colour:
+
+- **Palette:** `--c-bg`, `--c-panel`, `--c-panel-soft`, `--c-line`, `--c-text`, `--c-text-soft`,
+  `--c-muted`, `--c-dim`.
+- **Status colours that components borrow for meaning:** `--c-accent`, `--c-ok`, `--c-warn`,
+  `--c-warn-alt`, `--c-danger`, `--c-purple`, `--c-thinking`, `--c-subagent`.
+- **22 fixed alpha copies:** `--c-warn-10…60` (nine), `--c-accent-8…40` (eight), `--c-ok-10…25`,
+  `--c-danger-12`.
+- **Surfaces and effects:** `--c-panel-glass`, `--c-panel-overlay`, `--c-surface-*`,
+  `--c-input-bg`, `--c-shadow`, `--c-shadow-heavy`, `--c-glow-accent`.
+- **The only non-colour tokens:** `--font`, `--mono`, `--radius`, `--radius-sm`,
+  `--hud-bar-height`.
+- **A second scheme for embedded viewers:** `--color-*` in `surface-theme.css`, collapsed to dark
+  or light.
+
+What that causes: meaning is borrowed (pins and agent attention both use `--c-warn`, which
+`global.css` references 93 times, while the light theme hard-codes `#4BBCFF` for pins); there is no
+type, spacing or shadow scale (20 font sizes, 12 radii and 195 raw hex colours sit in the CSS);
+every new tint needs a new token; embedded viewers draw their own palette; `--c-subagent`
+(`#00E5FF`) sits next to the pin blue; and nothing checks any of it.
+
+### Proposed: three layers
+
+Components reference tokens only. Raw colour values live only in the theme files.
+
+1. **Palette** — defined by each theme, names kept: `--c-bg`, `--c-panel`, `--c-panel-soft`,
+   `--c-line`, `--c-text`, `--c-text-soft`, `--c-muted`, `--c-dim`, `--c-accent`,
+   `--c-on-accent`, `--c-ok`, `--c-danger`. The accent is the theme's flavour (primary buttons,
+   selection) and never carries a meaning below.
+2. **Meaning** — one hue in every theme, tuned only for lightness; used only for its meaning:
+
+   | Token | Means | Harbor (dark) | Daylight (light) |
+   |---|---|---|---|
+   | `--c-pin` | In the agent's context | `#4BBCFF` | `#1A7ABF` |
+   | `--c-agent` | What the agent did (replaces `--c-thinking`) | `#B388FF` | `#7C4DDB` |
+   | `--c-warn` | Needs a look: warning, stale, out of date | `#f4c542` | `#94600A` |
+   | `--c-rel-supports` | Evidence for | `#5FCFC0` | `#1E8C80` |
+   | `--c-rel-contradicts` | Evidence against | `#E59B6B` | `#B8572A` |
+   | `--c-rel-cites` | Where a claim or number comes from | `#7C9CFF` | tune in wave 0 |
+   | `--c-rel-derived` | Data lineage, flow | `#D5DEEA` | tune in wave 0 |
+   | `--c-rel-informs` | Answers, depends on | `#E58FB0` | tune in wave 0 |
+   | `--c-rel-related` | Loose link (dotted) | `#8ea3bd` | tune in wave 0 |
+
+   The other seven themes' values are drawn on the Themes board and fixed by the token test.
+3. **Scale** — the same in every theme:
+   - Fonts: `--font-ui` IBM Plex Sans, `--font-code` IBM Plex Mono, both bundled.
+   - Type: `--fs-meta` 11, `--fs-ui` 12, `--fs-body` 13, `--fs-title` 15, `--fs-heading` 20.
+   - Spacing: `--space-1` 4, `--space-2` 8, `--space-3` 12, `--space-4` 16, `--space-6` 24,
+     `--space-8` 32.
+   - Radius: `--r-control` 6, `--r-node` 10, `--r-overlay` 14, `--r-pill` 999.
+   - Elevation: `--e-1` nodes, `--e-2` floating chrome and menus. No glows.
+
+### Moving from today to proposed (wave 0)
+
+- Tints are derived — `color-mix(in srgb, var(--c-pin) 12%, transparent)` — so the 22 alpha
+  copies, `--c-warn-alt` and `--c-glow-accent` go.
+- `--c-thinking` becomes `--c-agent`. `--c-purple` is today a kind colour (graph, mermaid,
+  trace); kind colours become muted per-kind tints that never use a meaning hue.
+- The frame host hands embedded viewers the same tokens, replacing `--color-*`.
+- **Open decision:** `--c-subagent`. Recommended: subagents use `--c-agent` and are told apart by
+  name and cursor, not by a second blue.
+- **Checks:** a token test that keeps meaning colours apart from each other and from the palette,
+  with at least 3:1 contrast on `--c-panel`, in all nine themes; a check that rejects raw hex
+  outside the theme files; a check that every control computes `--font-ui`.
+
 ## The drawings
 
 Each `.dc.html` file is one artboard; `canvas.json` is the canvas layout (positions,
@@ -33,6 +105,7 @@ the same change.
 | [`Before.dc.html`](design/Before.dc.html) | The demo board as it renders today | — |
 | [`Main.dc.html`](design/Main.dc.html), [`Light.dc.html`](design/Light.dc.html) | The same board with the foundation applied, dark and light | 0 |
 | [`Tokens.dc.html`](design/Tokens.dc.html) | Typeface, type scale, radii, elevation, one meaning per colour | 0 |
+| [`TokenSystem.dc.html`](design/TokenSystem.dc.html) | The token system today vs proposed: palette, meaning, scale | 0 |
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
 | [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header and ⋯ menu, section headings, floating chrome | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |

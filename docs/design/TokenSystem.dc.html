@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Token system today and proposed</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 44px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">The token system — today and proposed</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Today is one flat list of about 55 colours that components borrow meaning from. Proposed is three layers — palette, meaning, scale — and components only ever reference tokens.</p>
+</div>
+
+<div style="flex: 1; display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 32px">
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">Today · src/client/theme/global.css</span>
+<div style="{{s.card}} gap: 10px">
+<div style="font-size: 15px; font-weight: 600">≈ 55 tokens, almost all colour</div>
+<sc-for list="{{today}}" as="g" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 11px; color: #8ea3bd">{{g.name}}</span>
+<div style="display: flex; flex-wrap: wrap; gap: 4px"><sc-for list="{{g.tokens}}" as="t" hint-placeholder-count="6"><span style="{{s.tok}}">{{t}}</span></sc-for></div>
+</div>
+</sc-for>
+</div>
+<div style="{{s.card}} gap: 6px">
+<div style="font-size: 12px; font-weight: 600">What goes wrong</div>
+<sc-for list="{{problems}}" as="p" hint-placeholder-count="6">
+<div style="display: flex; gap: 8px; font-size: 12px; color: #b9c6d6"><span style="color: #ff8a9b; flex-shrink: 0">✕</span><span>{{p}}</span></div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">Proposed · three layers</span>
+
+<div style="{{s.card}} gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="{{s.num}}">1</span><span style="font-size: 15px; font-weight: 600">Palette</span><span style="font-size: 12px; color: #8ea3bd">per theme · names kept · the accent is free for flavour (buttons, selection)</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{palette}}" as="t" hint-placeholder-count="12"><span style="{{s.swTok}}"><span style="width: 12px; height: 12px; border-radius: 3px; background: {{t.c}}; border: 1px solid #2a4566"></span>{{t.n}}</span></sc-for></div>
+</div>
+
+<div style="{{s.card}} gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="{{s.num}}">2</span><span style="font-size: 15px; font-weight: 600">Meaning</span><span style="font-size: 12px; color: #8ea3bd">one hue in every theme, tuned for lightness · used only for its meaning</span></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{meaning}}" as="t" hint-placeholder-count="9"><div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: #13243b"><span style="width: 14px; height: 14px; border-radius: 4px; background: {{t.c}}; flex-shrink: 0"></span><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #e6eef7">{{t.n}}</span><span style="font-size: 11px; color: #8ea3bd">{{t.m}}</span></span></div></sc-for>
+</div>
+</div>
+
+<div style="{{s.card}} gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="{{s.num}}">3</span><span style="font-size: 15px; font-weight: 600">Scale</span><span style="font-size: 12px; color: #8ea3bd">the same in every theme</span></div>
+<sc-for list="{{scale}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 90px 1fr; align-items: baseline; gap: 10px"><span style="font-size: 11px; color: #8ea3bd">{{r.k}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #e6eef7">{{r.v}}</span></div>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="3">
+<div style="{{s.card}} gap: 4px; padding: 12px 14px"><span style="font-size: 12px; font-weight: 600">{{r.t}}</span><span style="font-size: 11px; color: #b9c6d6">{{r.d}}</span></div>
+</sc-for>
+</div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      card: 'display:flex;flex-direction:column;padding:16px 18px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      tok: 'font-family:"IBM Plex Mono",monospace;font-size:11px;padding:1px 6px;border-radius:4px;background:#13243b;color:#b9c6d6;',
+      swTok: 'display:flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:11px;padding:3px 8px;border-radius:6px;background:#13243b;color:#e6eef7;',
+      num: 'width:22px;height:22px;border-radius:999px;background:#1b2c44;font-size:12px;font-weight:600;text-align:center;line-height:22px;flex-shrink:0;'
+    };
+    var today = [
+      { name: 'Palette (per theme)', tokens: ['--c-bg', '--c-panel', '--c-panel-soft', '--c-line', '--c-text', '--c-text-soft', '--c-muted', '--c-dim'] },
+      { name: 'Status colours, borrowed for meaning', tokens: ['--c-accent', '--c-ok', '--c-warn', '--c-warn-alt', '--c-danger', '--c-purple', '--c-thinking', '--c-subagent'] },
+      { name: 'Fixed alpha copies — 22 of them', tokens: ['--c-warn-10…60 ×9', '--c-accent-8…40 ×8', '--c-ok-10…25 ×4', '--c-danger-12'] },
+      { name: 'Surfaces and effects', tokens: ['--c-panel-glass', '--c-panel-overlay', '--c-surface-hover', '--c-surface-subtle', '--c-input-bg', '--c-shadow', '--c-shadow-heavy', '--c-glow-accent'] },
+      { name: 'Shape and type — the only non-colour tokens', tokens: ['--font', '--mono', '--radius', '--radius-sm', '--hud-bar-height'] },
+      { name: 'A second scheme for embedded viewers', tokens: ['--color-bg', '--color-text', '--color-accent', '--color-warning', '…'] }
+    ];
+    var problems = [
+      'Meaning is borrowed: a pin is --c-warn (amber, used 93 times in global.css), attention is --c-warn too; light theme hard-codes #4BBCFF instead.',
+      'No size, spacing or shadow tokens: 20 font sizes, 12 radii and 195 raw hex colours live directly in the CSS.',
+      'Alpha copies are fixed per colour, so every new tint is a new token (amber already has nine).',
+      'Embedded viewers get a different set (--color-*) collapsed to dark or light, so charts draw their own palette.',
+      '--c-subagent is cyan (#00E5FF), close to the pin blue.',
+      'Nothing checks any of it: no test that meanings stay apart, nothing stops a new raw hex.'
+    ];
+    var palette = [
+      { n: '--c-bg', c: '#081524' }, { n: '--c-panel', c: '#0f1d31' }, { n: '--c-panel-soft', c: '#13243b' }, { n: '--c-line', c: '#1b2c44' },
+      { n: '--c-text', c: '#e6eef7' }, { n: '--c-text-soft', c: '#b9c6d6' }, { n: '--c-muted', c: '#8ea3bd' }, { n: '--c-dim', c: '#6b7d94' },
+      { n: '--c-accent', c: '#4BBCFF' }, { n: '--c-on-accent', c: '#081524' }, { n: '--c-ok', c: '#2fd07f' }, { n: '--c-danger', c: '#ff6a7f' }
+    ];
+    var meaning = [
+      { n: '--c-pin', m: 'in the agent’s context', c: '#4BBCFF' },
+      { n: '--c-agent', m: 'what the agent did', c: '#B388FF' },
+      { n: '--c-warn', m: 'needs a look', c: '#f4c542' },
+      { n: '--c-rel-supports', m: 'evidence for', c: '#5FCFC0' },
+      { n: '--c-rel-contradicts', m: 'evidence against', c: '#E59B6B' },
+      { n: '--c-rel-cites', m: 'where it comes from', c: '#7C9CFF' },
+      { n: '--c-rel-derived', m: 'data lineage, flow', c: '#D5DEEA' },
+      { n: '--c-rel-informs', m: 'answers, depends on', c: '#E58FB0' },
+      { n: '--c-rel-related', m: 'loose link, dotted', c: '#8ea3bd' }
+    ];
+    var scale = [
+      { k: 'Type', v: '--fs-meta 11 · --fs-ui 12 · --fs-body 13 · --fs-title 15 · --fs-heading 20' },
+      { k: 'Spacing', v: '--space-1 4 · --space-2 8 · --space-3 12 · --space-4 16 · --space-6 24 · --space-8 32' },
+      { k: 'Radius', v: '--r-control 6 · --r-node 10 · --r-overlay 14 · --r-pill 999' },
+      { k: 'Elevation', v: '--e-1 nodes · --e-2 floating chrome and menus (no glows)' },
+      { k: 'Fonts', v: '--font-ui IBM Plex Sans · --font-code IBM Plex Mono (bundled)' }
+    ];
+    var rules = [
+      { t: 'Tints are derived', d: 'color-mix(in srgb, var(--c-pin) 12%, transparent) replaces the 22 fixed alpha copies.' },
+      { t: 'One set for every surface', d: 'The frame host hands the same tokens to embedded viewers; --color-* goes.' },
+      { t: 'Checked', d: 'A test keeps meanings apart from each other and the palette in all nine themes; no raw hex outside theme files.' }
+    ];
+    return { s: s, today: today, problems: problems, palette: palette, meaning: meaning, scale: scale, rules: rules };
+  }
+}
+</script>
+</body>
+</html>
