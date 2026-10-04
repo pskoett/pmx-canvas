@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Zoomed out — fit all</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 640px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
+<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">11 · Fit all on the demo board lands at 8%</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">41 of 70 nodes are embedded frames and render as empty cards. Below ~25%, draw each node as its kind and title at screen size.</p></div>
+<div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="position: relative; flex: 1; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background: #081524">
+<sc-for list="{{sections}}" as="sct" hint-placeholder-count="2">
+<div style="position: absolute; left: 24px; top: {{sct.y}}px; width: 600px; height: 10px; border-radius: 3px; background: #0f1d31; border: 1px solid #1b2c44; box-shadow: 0 0 0 1px rgba(244,197,66,0.3)"></div>
+</sc-for>
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="20">
+<div style="position: absolute; left: {{t.x}}px; top: {{t.y}}px; width: 112px; height: 72px; box-sizing: border-box; border-radius: 4px; background: #0f1d31; border: 1px solid #1b2c44; overflow: hidden"><div style="height: 6px; background: #13243b"></div></div>
+</sc-for>
+<span style="position: absolute; right: 12px; bottom: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5c6b80">8%</span>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
+<div style="position: relative; flex: 1; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background: #081524">
+<sc-for list="{{sections}}" as="sct" hint-placeholder-count="2">
+<div style="position: absolute; left: 24px; top: {{sct.yt}}px; font-size: 15px; font-weight: 600; line-height: 20px">{{sct.title}}</div>
+</sc-for>
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="20">
+<div style="position: absolute; left: {{t.x}}px; top: {{t.y}}px; width: 112px; height: 72px; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; background: #0f1d31; border: 1px solid #1b2c44; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" style="flex-shrink: 0; color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="{{t.icon}}"></path></svg><span style="font-size: 11px; color: #8ea3bd">{{t.kind}}</span></div>
+<span style="font-size: 12px; font-weight: 600; line-height: 1.3">{{t.title}}</span>
+</div>
+</sc-for>
+<span style="position: absolute; right: 12px; bottom: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">8%</span>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var chart = 'M4 4v16h16M8 16v-4M12 16V8M16 16v-6';
+    var html = 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14';
+    var charts = [
+      ['line', 'p95 latency'], ['bar', 'Merged PRs'], ['area', 'Nodes created'], ['pie', 'Node types'], ['stacked', 'CI minutes'],
+      ['composed', 'Throughput'], ['scatter', 'PR size'], ['radar', 'Coverage'], ['sparkline', 'Build time'], ['bullet', 'Release KPIs']
+    ];
+    var prims = [
+      ['html', 'Choice grid'], ['html', 'Plan timeline'], ['html', 'Review sheet'], ['html', 'PR write-up'], ['html', 'System map'],
+      ['html', 'Walkthrough'], ['html', 'Design sheet'], ['html', 'Component gallery'], ['html', 'Flowchart'], ['html', 'Triage board']
+    ];
+    var sections = [
+      { y: 22, yt: 18, title: '④ Charts' },
+      { y: 222, yt: 218, title: '⑦ HTML primitives' }
+    ];
+    var tiles = [];
+    function place(list, top, icon) {
+      list.forEach(function (it, i) {
+        tiles.push({ x: 24 + (i % 5) * 122, y: top + Math.floor(i / 5) * 82, kind: it[0], title: it[1], icon: icon });
+      });
+    }
+    place(charts, 50, chart);
+    place(prims, 250, html);
+    return { sections: sections, tiles: tiles };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home — map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5">
+
+<nav aria-label="Navigation" style="position: absolute; left: 0; top: 0; width: 52px; height: 960px; box-sizing: border-box; padding: 8px 0; background: #0f1d31; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px">
+<button aria-label="Home" style="width: 36px; height: 36px; border: 0; border-radius: 6px; padding: 0; background: rgba(75,188,255,0.14); color: #4BBCFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="4" y="4" width="16" height="16" rx="4"></rect><rect x="9" y="9" width="6" height="6" rx="1.5"></rect></svg></button>
+</nav>
+
+<header style="position: absolute; left: 52px; top: 0; right: 0; height: 96px; box-sizing: border-box; padding: 20px 32px 0; display: flex; align-items: flex-start; gap: 16px; border-bottom: 1px solid #1b2c44">
+<div style="flex: 1">
+<h1 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600">Library</h1>
+<div style="display: flex; align-items: center; gap: 12px; margin-top: 6px; font-size: 11px; color: #8ea3bd">
+<span style="display: flex; align-items: center; gap: 6px"><svg width="22" height="6" viewBox="0 0 22 6" style="fill: none; stroke: #D5DEEA; stroke-width: 2; stroke-linecap: round"><path d="M1 3 H21"></path></svg>portal</span>
+<span style="display: flex; align-items: center; gap: 6px"><svg width="22" height="6" viewBox="0 0 22 6" style="fill: none; stroke: #8ea3bd; stroke-width: 2; stroke-dasharray: 2 4; stroke-linecap: round"><path d="M1 3 H21"></path></svg>wiki link</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 999px; background: #4BBCFF"></span>in the agent's context</span>
+<span>faded = untouched 30 days+</span>
+<span>size = number of cards</span>
+</div>
+</div>
+<span style="height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); background: rgba(75,188,255,0.08); color: #4BBCFF; font-size: 12px; font-weight: 500; line-height: 28px">In context: 3 boards · ≈ 21k tokens</span>
+<div role="tablist" aria-label="View" style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #0f1d31">
+<button role="tab" aria-selected="false" style="height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #8ea3bd; font-family: inherit; font-size: 12px; font-weight: 500">Folders</button>
+<button role="tab" aria-selected="true" style="height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: #1b2c44; color: #e6eef7; font-family: inherit; font-size: 12px; font-weight: 500">Map</button>
+<button role="tab" aria-selected="false" style="height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #8ea3bd; font-family: inherit; font-size: 12px; font-weight: 500">Graph</button>
+</div>
+</header>
+
+<div style="position: absolute; left: 52px; top: 96px; width: 1388px; height: 864px; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.12) 1px, transparent 1.2px); background-size: 24px 24px">
+
+<div style="{{m.frame}} left: 40px; top: 130px; width: 560px; height: 520px; border-color: rgba(95,207,192,0.45); background: rgba(95,207,192,0.03)"></div>
+<span style="{{m.pill}} left: 56px; top: 120px; border-color: rgba(95,207,192,0.45)"><span style="{{m.hue}} background: #5FCFC0"></span>Tech Enabling<span style="{{m.n}}">12</span></span>
+<div style="{{m.frame}} left: 70px; top: 290px; width: 240px; height: 196px; border-color: rgba(95,207,192,0.28)"></div>
+<span style="{{m.sub}} left: 82px; top: 282px">OKRs · 3</span>
+<div style="{{m.frame}} left: 330px; top: 290px; width: 240px; height: 196px; border-color: rgba(95,207,192,0.28)"></div>
+<span style="{{m.sub}} left: 342px; top: 282px">Delivery metrics · 4</span>
+<div style="{{m.folder}} left: 70px; top: 510px; opacity: 0.6"><span style="{{m.hue}} background: #5FCFC0"></span>Product discovery<span style="{{m.n}}">2 boards · 41d</span></div>
+
+<div style="{{m.frame}} left: 640px; top: 130px; width: 420px; height: 520px; border-color: rgba(124,156,255,0.45); background: rgba(124,156,255,0.03)"></div>
+<span style="{{m.pill}} left: 656px; top: 120px; border-color: rgba(124,156,255,0.45)"><span style="{{m.hue}} background: #7C9CFF"></span>Research<span style="{{m.n}}">7</span></span>
+<div style="{{m.frame}} left: 660px; top: 290px; width: 180px; height: 196px; border-color: rgba(124,156,255,0.28)"></div>
+<span style="{{m.sub}} left: 672px; top: 282px">Pricing · 3</span>
+<div style="{{m.frame}} left: 860px; top: 290px; width: 180px; height: 196px; border-color: rgba(124,156,255,0.28)"></div>
+<span style="{{m.sub}} left: 872px; top: 282px">Competitors · 4</span>
+
+<div style="{{m.frame}} left: 1100px; top: 130px; width: 250px; height: 250px; border-color: rgba(229,143,176,0.45); background: rgba(229,143,176,0.03)"></div>
+<span style="{{m.pill}} left: 1116px; top: 120px; border-color: rgba(229,143,176,0.45)"><span style="{{m.hue}} background: #E58FB0"></span>Workshops<span style="{{m.n}}">2</span></span>
+
+<div style="{{m.frame}} left: 40px; top: 690px; width: 1310px; height: 140px; border-color: #3d5170"></div>
+<span style="{{m.pill}} left: 56px; top: 680px; border-color: #3d5170; color: #8ea3bd">Unfiled — no folder and no portal reaches these<span style="{{m.n}}">3</span></span>
+
+<svg width="1388" height="864" viewBox="0 0 1388 864" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="M 694 76 C 694 130, 300 120, 300 166" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 300 169 L 295.5 160 L 304.5 160 Z" style="fill: #D5DEEA"></path>
+<path d="M 694 76 C 694 130, 800 120, 800 166" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 800 169 L 795.5 160 L 804.5 160 Z" style="fill: #D5DEEA"></path>
+<path d="M 694 76 C 694 120, 1220 110, 1220 176" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 1220 179 L 1215.5 170 L 1224.5 170 Z" style="fill: #D5DEEA"></path>
+<path d="M 300 234 C 300 280, 190 270, 190 316" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 190 319 L 185.5 310 L 194.5 310 Z" style="fill: #D5DEEA"></path>
+<path d="M 300 234 C 300 280, 450 270, 450 316" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 450 319 L 445.5 310 L 454.5 310 Z" style="fill: #D5DEEA"></path>
+<path d="M 800 222 C 800 270, 750 270, 750 316" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 750 319 L 745.5 310 L 754.5 310 Z" style="fill: #D5DEEA"></path>
+<path d="M 800 222 C 800 270, 950 270, 950 316" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 950 319 L 945.5 310 L 954.5 310 Z" style="fill: #D5DEEA"></path>
+<path d="M 675 428 L 556 428" style="stroke: #8ea3bd; stroke-width: 2; stroke-dasharray: 2 5"></path><path d="M 552 428 L 561 423.5 L 561 432.5 Z" style="fill: #8ea3bd"></path>
+</svg>
+
+<div style="{{m.node}} left: 614px; top: 24px; width: 160px; height: 52px">Home<span style="{{m.meta}}">level 0 · 5 portals</span></div>
+<div style="{{m.node}} {{m.inctx}} left: 200px; top: 170px; width: 200px; height: 64px">Tech Enabling — overview<span style="{{m.meta}}">README · 18 cards</span><span style="{{m.badge}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></div>
+<div style="{{m.node}} {{m.inctx}} left: 90px; top: 320px; width: 200px; height: 60px">C4 2026 OKR planning<span style="{{m.meta}}">34 cards · yesterday</span><span style="{{m.badge}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></div>
+<div style="{{m.node}} left: 90px; top: 404px; width: 160px; height: 52px; opacity: 0.45">April OKRs<span style="{{m.meta}}">12 cards · 160d</span></div>
+<div style="{{m.node}} left: 350px; top: 320px; width: 200px; height: 56px">Delivery metrics<span style="{{m.meta}}">22 cards · 3d</span></div>
+<div style="{{m.node}} left: 350px; top: 400px; width: 200px; height: 56px">DORA dashboard<span style="{{m.meta}}">8 cards · 3d</span></div>
+<div style="{{m.node}} left: 720px; top: 170px; width: 160px; height: 52px">Research — index<span style="{{m.meta}}">README · 6 cards</span></div>
+<div style="{{m.node}} {{m.inctx}} left: 675px; top: 320px; width: 150px; height: 56px">Pricing research<span style="{{m.meta}}">27 cards · today</span><span style="{{m.badge}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></div>
+<div style="{{m.node}} left: 675px; top: 400px; width: 150px; height: 56px">Churn analysis<span style="{{m.meta}}">14 cards · 2d</span></div>
+<div style="{{m.node}} left: 875px; top: 320px; width: 150px; height: 56px">Competitor teardown<span style="{{m.meta}}">19 cards · 6d</span></div>
+<div style="{{m.node}} left: 875px; top: 400px; width: 150px; height: 52px; opacity: 0.6">Feature matrix<span style="{{m.meta}}">7 cards · 38d</span></div>
+<div style="{{m.node}} left: 1120px; top: 180px; width: 200px; height: 56px">Working with agents<span style="{{m.meta}}">deck · 11 cards</span></div>
+<div style="{{m.node}} left: 1120px; top: 270px; width: 160px; height: 52px">Workshop flow<span style="{{m.meta}}">5 cards · 9d</span></div>
+<div style="{{m.ghost}} left: 70px; top: 730px">Scratch 2026-09-30<span style="{{m.meta}}">4 cards</span></div>
+<div style="{{m.ghost}} left: 290px; top: 730px">Board 2026-10-04 06:27<span style="{{m.meta}}">70 cards</span></div>
+<div style="{{m.ghost}} left: 510px; top: 730px">Untitled<span style="{{m.meta}}">1 card</span></div>
+<span style="position: absolute; left: 576px; top: 438px; font-size: 11px; color: #8ea3bd; background: #081524; padding: 0 4px">[[DORA dashboard]]</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var m = {
+      frame: 'position:absolute;box-sizing:border-box;border-radius:14px;border:1.5px dashed;',
+      pill: 'position:absolute;display:flex;align-items:center;gap:8px;height:22px;padding:0 10px;border-radius:999px;border:1px solid;background:#0f1d31;font-size:12px;font-weight:600;line-height:20px;',
+      sub: 'position:absolute;height:18px;padding:0 8px;border-radius:999px;background:#081524;font-size:11px;font-weight:500;line-height:18px;color:#b9c6d6;',
+      hue: 'width:8px;height:8px;border-radius:3px;',
+      n: 'font-size:11px;font-weight:500;color:#6b7d94;',
+      folder: 'position:absolute;width:240px;height:40px;box-sizing:border-box;padding:0 12px;border-radius:8px;border:1px solid #1b2c44;background:#0f1d31;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;',
+      node: 'position:absolute;box-sizing:border-box;padding:6px 12px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);font-size:12px;font-weight:600;line-height:1.3;display:flex;flex-direction:column;justify-content:center;gap:1px;',
+      inctx: 'border:1.5px solid #4BBCFF;background:linear-gradient(rgba(75,188,255,0.10), rgba(75,188,255,0.10)), #0f1d31;',
+      badge: 'position:absolute;right:-7px;top:-7px;width:18px;height:18px;border-radius:999px;background:#4BBCFF;color:#081524;display:flex;align-items:center;justify-content:center;',
+      meta: 'font-size:11px;font-weight:400;color:#8ea3bd;',
+      ghost: 'position:absolute;width:200px;height:56px;box-sizing:border-box;padding:6px 12px;border-radius:10px;border:1.5px dashed #2a4566;background:rgba(15,29,49,0.5);font-size:12px;font-weight:600;color:#b9c6d6;display:flex;flex-direction:column;justify-content:center;gap:1px;'
+    };
+    return { m: m };
+  }
+}
+</script>
+</body>
+</html>

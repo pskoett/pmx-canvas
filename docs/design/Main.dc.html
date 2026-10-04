@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PMX Canvas — proposed</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: {{c.bg}}; color: {{c.text}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5">
+
+<nav aria-label="Tools" style="position: absolute; left: 0; top: 0; width: 52px; height: 900px; box-sizing: border-box; padding: 8px 0; background: {{c.panel}}; border-right: 1px solid {{c.line}}; display: flex; flex-direction: column; align-items: center; gap: 4px">
+<button aria-label="Home" style="{{s.rail}}"><svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="4" width="16" height="16" rx="4"></rect><rect x="9" y="9" width="6" height="6" rx="1.5"></rect></svg></button>
+<div style="width: 24px; height: 1px; margin: 6px 0; background: {{c.line}}"></div>
+<button aria-label="Select (V)" style="{{s.railOn}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5 3.5l13 7.5-5.6 1.6L10.8 18z"></path></svg></button>
+<button aria-label="Pan (Space)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 10.5V5a1.5 1.5 0 0 1 3 0v6M14 10.5V7a1.5 1.5 0 0 1 3 0v6.5a6.5 6.5 0 0 1-6.5 6.5h-.6a6 6 0 0 1-5-2.7l-1.8-3a1.5 1.5 0 0 1 2.5-1.6L8 14"></path></svg></button>
+<button aria-label="Connect (C)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><circle cx="6" cy="6" r="2.2"></circle><circle cx="18" cy="18" r="2.2"></circle><path d="M7.6 7.6l8.8 8.8"></path></svg></button>
+<div style="width: 24px; height: 1px; margin: 6px 0; background: {{c.line}}"></div>
+<button aria-label="Markdown note (M)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 10h8M8 14h5"></path></svg></button>
+<button aria-label="Attach files" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19.5h14"></path></svg></button>
+<button aria-label="Webpage (W)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="M3.5 9h17"></path></svg></button>
+<button aria-label="Group (G)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 3"><rect x="4" y="4" width="16" height="16" rx="3"></rect></svg></button>
+<button aria-label="Draw (A)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M4 20l4.2-1L19 8.2 15.8 5 5 15.8z"></path></svg></button>
+<button aria-label="Text note" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5.5 6h13M12 6v13"></path></svg></button>
+<div style="width: 24px; height: 1px; margin: 6px 0; background: {{c.line}}"></div>
+<button aria-label="Search and commands (⌘K)" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.6-4.6"></path></svg></button>
+<button aria-label="Arrange" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="4" width="6" height="6" rx="1.2"></rect><rect x="14" y="4" width="6" height="6" rx="1.2"></rect><rect x="4" y="14" width="6" height="6" rx="1.2"></rect><rect x="14" y="14" width="6" height="6" rx="1.2"></rect></svg></button>
+<div style="flex: 1"></div>
+<button aria-label="Settings: theme, snapshots, minimap, shortcuts, trace, feedback" style="{{s.rail}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg></button>
+</nav>
+
+<header style="position: absolute; left: 52px; top: 0; right: 0; height: 48px; box-sizing: border-box; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 8px; background: {{c.panel}}; border-bottom: 1px solid {{c.line}}">
+<span style="width: 8px; height: 8px; border-radius: 999px; background: {{c.ok}}"></span>
+<button style="{{s.ghost}} font-size: 13px; font-weight: 600; color: {{c.text}}; gap: 6px">Release review<svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M7 10l5 5 5-5"></path></svg></button>
+<span style="font-size: 11px; color: {{c.dim}}">70 nodes</span>
+<div style="flex: 1"></div>
+<button style="{{s.pill}}"><span style="width: 7px; height: 7px; border-radius: 999px; background: {{c.dim}}"></span>Start agent session<span style="font-size: 11px; color: {{c.dim}}">beta</span></button>
+<div style="width: 1px; height: 20px; margin: 0 4px; background: {{c.line}}"></div>
+<button style="{{s.btn}}">Export</button>
+<button style="{{s.btn}}">Present</button>
+<div style="width: 1px; height: 20px; margin: 0 4px; background: {{c.line}}"></div>
+<button aria-label="Zoom out" style="{{s.icon28}}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round"><circle cx="11" cy="11" r="6"></circle><path d="M8.5 11h5M20 20l-4.6-4.6"></path></svg></button>
+<span style="font-size: 12px; font-weight: 500; color: {{c.soft}}; font-variant-numeric: tabular-nums; width: 40px; text-align: center">100%</span>
+<button aria-label="Zoom in" style="{{s.icon28}}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round"><circle cx="11" cy="11" r="6"></circle><path d="M8.5 11h5M11 8.5v5M20 20l-4.6-4.6"></path></svg></button>
+<button aria-label="Fit all (F)" style="{{s.icon28}}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"></path></svg></button>
+</header>
+
+<main style="position: absolute; left: 52px; top: 48px; width: 1388px; height: 852px; overflow: hidden; background-color: {{c.bg}}; background-image: radial-gradient({{c.dot}} 1px, transparent 1.2px); background-size: 24px 24px">
+
+<div style="position: absolute; left: 48px; top: 20px; width: 900px">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; color: {{c.text}}">① Start here</h2>
+<p style="margin: 2px 0 0; font-size: 12px; color: {{c.muted}}">What the agent is doing, what context it holds, what it decided, and the tool calls behind it.</p>
+</div>
+
+<section style="{{s.node}} left: 48px; top: 88px; width: 400px; height: 340px; border: 1.5px solid {{c.accent}}; box-shadow: 0 0 0 3px {{c.accentRing}}, {{c.e1}}">
+<div style="{{s.head}}">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 10h8M8 14h5"></path></svg>
+<span style="{{s.title}}">PMX Canvas — guided tour</span>
+<svg role="img" aria-label="In agent context" width="15" height="15" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.accent}}; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg>
+</div>
+<div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 15px; font-weight: 600; line-height: 1.35">PMX Canvas</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.6; color: {{c.soft}}">An infinite spatial canvas that agents drive over <strong style="color: {{c.text}}; font-weight: 600">MCP</strong>, HTTP or the Bun SDK — and that humans steer by pinning nodes.</p>
+<div style="display: grid; grid-template-columns: 120px 1fr; font-size: 12px; border: 1px solid {{c.line}}; border-radius: 6px; overflow: hidden">
+<div style="{{s.th}}">Band</div><div style="{{s.th}}">Shows</div>
+<div style="{{s.td}}">① Start here</div><div style="{{s.tdm}}">status · context · ledger · trace</div>
+<div style="{{s.td}}">② Files &amp; review</div><div style="{{s.tdm}}">file · CSV · diff · image · webpage</div>
+<div style="{{s.td}}">③ Diagrams</div><div style="{{s.tdm}}">mermaid · raw HTML · MCP app</div>
+<div style="{{s.td}}">④ Charts</div><div style="{{s.tdm}}">all 12 graph types</div>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.6; color: {{c.soft}}">Pin a node in the browser and the agent reads it back from <code style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 5px; border-radius: 4px; background: {{c.panel2}}; color: {{c.text}}">canvas://pinned-context</code>.</p>
+</div>
+</section>
+
+<section style="{{s.node}} left: 480px; top: 88px; width: 340px; height: 140px">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 2px; background: {{c.attn}}"></div>
+<div style="{{s.head}}">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="8"></circle><path d="M8 12h2l1.5-3 2 6 1.5-3h1"></path></svg>
+<span style="{{s.title}}">Agent</span>
+<span style="font-size: 11px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: {{c.attnA}}; color: {{c.attn}}">updated 2m ago</span>
+</div>
+<div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 7px; height: 7px; border-radius: 999px; background: {{c.attn}}"></span><span style="font-weight: 600">Tooling</span><span style="color: {{c.muted}}">Rebuilding the release checklist</span></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: {{c.soft}}">canvas_render · release-auditor</div>
+<div style="display: flex; align-items: center; gap: 10px"><div style="flex: 1; height: 4px; border-radius: 999px; background: {{c.line}}; overflow: hidden"><div style="width: 60%; height: 4px; background: {{c.ok}}"></div></div><span style="font-size: 11px; color: {{c.muted}}">3 of 5 gates green</span></div>
+</div>
+</section>
+
+<div style="position: absolute; left: 649px; top: 228px; width: 1.5px; height: 44px; background: {{c.line}}"></div>
+<span style="{{s.edgeLabel}} left: 626px; top: 239px">runs</span>
+
+<div style="{{s.trace}} left: 480px; top: 272px; width: 340px; height: 56px">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.ok}}; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+<div style="flex: 1; min-width: 0"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500">canvas_query · search</div><div style="font-size: 11px; color: {{c.muted}}">7 nodes matched “release”</div></div>
+<span style="font-size: 11px; color: {{c.dim}}; font-variant-numeric: tabular-nums">38 ms</span>
+</div>
+
+<div style="position: absolute; left: 649px; top: 328px; width: 1.5px; height: 44px; background: {{c.line}}"></div>
+<span style="{{s.edgeLabel}} left: 628px; top: 339px">then</span>
+
+<div style="{{s.trace}} left: 480px; top: 372px; width: 340px; height: 56px">
+<span style="width: 16px; display: flex; justify-content: center"><span style="width: 8px; height: 8px; border-radius: 999px; background: {{c.attn}}; box-shadow: 0 0 0 4px {{c.attnA}}"></span></span>
+<div style="flex: 1; min-width: 0"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500">edit_file · CHANGELOG.md</div><div style="font-size: 11px; color: {{c.muted}}">Writing 0.4.7 highlights</div></div>
+<span style="font-size: 11px; color: {{c.dim}}; font-variant-numeric: tabular-nums">1.2 s</span>
+</div>
+
+<section style="{{s.node}} left: 852px; top: 88px; width: 420px; height: 340px">
+<div style="{{s.head}}">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M4 4v16h16M8 16v-4M12 16V8M16 16v-6"></path></svg>
+<span style="{{s.title}}">Merged PRs per week</span>
+<button aria-label="More actions" style="{{s.ibtnOn}}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: currentColor; stroke: none"><circle cx="6" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="18" cy="12" r="1.4"></circle></svg></button>
+<button aria-label="Close" style="{{s.ibtn}}"><svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+<div style="padding: 12px 16px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between"><span style="font-size: 11px; color: {{c.muted}}">bar · W23–W28</span><span style="font-size: 11px; color: {{c.muted}}"><span style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: {{c.accent}}"></span>merged</span></div>
+<div style="flex: 1; position: relative; display: flex; align-items: flex-end; gap: 18px; padding: 0 4px; border-bottom: 1px solid {{c.line}}; background-image: linear-gradient({{c.line}} 1px, transparent 1px); background-size: 100% 56px">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="6">
+<div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%"><div style="height: {{b.h}}px; border-radius: 4px 4px 0 0; background: {{b.fill}}"></div></div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 18px; padding: 0 4px">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="6">
+<span style="flex: 1; text-align: center; font-size: 11px; color: {{c.muted}}">{{b.label}}</span>
+</sc-for>
+</div>
+</div>
+</section>
+
+<div style="position: absolute; left: 48px; top: 456px; width: 900px">
+<h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; color: {{c.text}}">② Files &amp; review</h2>
+<p style="margin: 2px 0 0; font-size: 12px; color: {{c.muted}}">Inline file text, unified diffs, images and cached webpages.</p>
+</div>
+
+<section style="{{s.node}} left: 48px; top: 524px; width: 400px; height: 176px">
+<div style="{{s.head}}">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="M3.5 9h17"></path></svg>
+<span style="{{s.title}}">Model Context Protocol — Resources</span>
+</div>
+<div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: {{c.warnA}}; color: {{c.warn}}; font-size: 12px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4l9 16H3zM12 10v4M12 17v.5"></path></svg>Showing cached copy — live fetch failed</div>
+<div style="font-size: 13px; font-weight: 600">Resources</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.6; color: {{c.soft}}">Servers expose data and content that clients can read and use as context for model interactions.</p>
+</div>
+</section>
+
+<section style="{{s.node}} left: 480px; top: 524px; width: 340px; height: 176px">
+<div style="{{s.head}}">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M7 3.5h7l4 4V20.5H6V3.5zM14 3.5V8h4"></path></svg>
+<span style="{{s.title}}">node-sizes.ts</span>
+<span style="font-size: 11px; color: {{c.dim}}">src/shared</span>
+</div>
+<div style="flex: 1; padding: 10px 14px; background: {{c.codeBg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; color: {{c.soft}}; white-space: pre">export const NODE_MIN = { width: 180, height: 96 };
+
+export function clampSize(size) {
+  return {
+    width: Math.max(size.width, NODE_MIN.width),
+    height: Math.max(size.height, NODE_MIN.height),</div>
+</section>
+
+<section style="{{s.node}} left: 852px; top: 524px; width: 420px; height: 176px">
+<div style="{{s.head}}">
+<svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M12 6.5v6M9 9.5h6M9 17h6"></path></svg>
+<span style="{{s.title}}">Readability floor — 2 files</span>
+<span style="font-size: 11px; color: {{c.ok}}">+2</span><span style="font-size: 11px; color: {{c.danger}}">−2</span>
+</div>
+<div style="flex: 1; padding: 8px 0; background: {{c.codeBg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.7">
+<div style="padding: 0 14px; color: {{c.dim}}">@@ src/client/theme/global.css</div>
+<div style="padding: 0 14px; background: {{c.dangerA}}; color: {{c.danger}}">-  font-size: 10px;</div>
+<div style="padding: 0 14px; background: {{c.okA}}; color: {{c.ok}}">+  font-size: var(--fs-meta);</div>
+<div style="padding: 0 14px; background: {{c.dangerA}}; color: {{c.danger}}">-  border-radius: 12px 12px 8px 8px;</div>
+<div style="padding: 0 14px; background: {{c.okA}}; color: {{c.ok}}">+  border-radius: var(--r-node);</div>
+</div>
+</section>
+
+<button style="position: absolute; right: 16px; top: 16px; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 12px; border-radius: 999px; border: 1px solid {{c.line}}; background: {{c.panel}}; box-shadow: {{c.e2}}; color: {{c.soft}}; font-family: inherit; font-size: 12px; font-weight: 500">Updates<span style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: {{c.accent}}; color: {{c.onAccent}}; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">1</span></button>
+
+<div style="position: absolute; left: 594px; bottom: 20px; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 12px; border-radius: 999px; border: 1px solid {{c.accentRing}}; background: {{c.panel}}; box-shadow: {{c.e2}}; font-size: 12px; font-weight: 500; color: {{c.accent}}">
+<svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg>
+4 in context
+<button aria-label="Clear all context pins" style="width: 22px; height: 22px; border: 0; border-radius: 999px; background: {{c.accentA}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="12" height="12" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+
+<div style="position: absolute; right: 16px; bottom: 16px; width: 200px; height: 130px; box-sizing: border-box; border-radius: 10px; border: 1px solid {{c.line}}; background: {{c.panel}}; box-shadow: {{c.e2}}; overflow: hidden">
+<sc-for list="{{mini}}" as="m" hint-placeholder-count="12">
+<div style="position: absolute; left: {{m.x}}px; top: {{m.y}}px; width: {{m.w}}px; height: {{m.h}}px; border-radius: 2px; background: {{m.fill}}"></div>
+</sc-for>
+<div style="position: absolute; left: 10px; top: 10px; width: 64px; height: 44px; border: 1.5px solid {{c.soft}}; border-radius: 3px"></div>
+<span style="position: absolute; right: 8px; bottom: 6px; font-size: 11px; color: {{c.dim}}">100%</span>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var themes = {
+      dark: {
+        bg: '#081524', dot: 'rgba(142,163,189,0.14)', panel: '#0f1d31', panel2: '#13243b', line: '#1b2c44',
+        text: '#e6eef7', soft: '#b9c6d6', muted: '#8ea3bd', dim: '#6b7d94',
+        accent: '#4BBCFF', accentA: 'rgba(75,188,255,0.14)', accentRing: 'rgba(75,188,255,0.24)', onAccent: '#081524',
+        attn: '#B388FF', attnA: 'rgba(179,136,255,0.16)',
+        warn: '#f4c542', warnA: 'rgba(244,197,66,0.12)', ok: '#2fd07f', okA: 'rgba(47,208,127,0.10)',
+        danger: '#ff6a7f', dangerA: 'rgba(255,106,127,0.10)', codeBg: '#0b1828',
+        e1: '0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)', e2: '0 10px 30px rgba(0,0,0,0.45)',
+        mm: 'rgba(142,163,189,0.30)', bar: 'rgba(75,188,255,0.45)'
+      },
+      light: {
+        bg: '#F6F7F9', dot: 'rgba(11,23,38,0.12)', panel: '#FFFFFF', panel2: '#F2F4F7', line: '#DDE2E9',
+        text: '#0B1726', soft: '#3d4d63', muted: '#55657a', dim: '#6f7d90',
+        accent: '#1A7ABF', accentA: 'rgba(26,122,191,0.10)', accentRing: 'rgba(26,122,191,0.20)', onAccent: '#FFFFFF',
+        attn: '#7C4DDB', attnA: 'rgba(124,77,219,0.10)',
+        warn: '#94600A', warnA: 'rgba(214,150,30,0.14)', ok: '#1E7F51', okA: 'rgba(30,143,90,0.10)',
+        danger: '#B8344A', dangerA: 'rgba(201,58,79,0.08)', codeBg: '#F7F9FB',
+        e1: '0 1px 2px rgba(11,23,38,0.06), 0 4px 14px rgba(11,23,38,0.06)', e2: '0 10px 30px rgba(11,23,38,0.12)',
+        mm: 'rgba(11,23,38,0.14)', bar: 'rgba(26,122,191,0.35)'
+      }
+    };
+    var c = themes[this.props.theme] || themes.dark;
+    var btnBase = 'display:flex;align-items:center;justify-content:center;border:0;padding:0;font-family:inherit;cursor:pointer;';
+    var s = {
+      rail: btnBase + 'width:36px;height:36px;border-radius:6px;background:transparent;color:' + c.muted + ';',
+      railOn: btnBase + 'width:36px;height:36px;border-radius:6px;background:' + c.accentA + ';color:' + c.accent + ';',
+      ghost: btnBase + 'height:30px;padding:0 6px;border-radius:6px;background:transparent;',
+      pill: btnBase + 'gap:8px;height:30px;padding:0 12px;border-radius:999px;border:1px solid ' + c.line + ';background:transparent;color:' + c.muted + ';font-size:12px;font-weight:500;',
+      btn: btnBase + 'height:30px;padding:0 12px;border-radius:6px;border:1px solid ' + c.line + ';background:' + c.panel2 + ';color:' + c.text + ';font-size:12px;font-weight:500;',
+      icon28: btnBase + 'width:28px;height:28px;border-radius:6px;background:transparent;color:' + c.muted + ';',
+      ibtn: btnBase + 'width:24px;height:24px;border-radius:6px;background:transparent;color:' + c.muted + ';',
+      ibtnOn: btnBase + 'width:24px;height:24px;border-radius:6px;background:' + c.panel2 + ';color:' + c.text + ';',
+      node: 'position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;background:' + c.panel + ';border:1px solid ' + c.line + ';border-radius:10px;box-shadow:' + c.e1 + ';',
+      head: 'position:relative;display:flex;align-items:center;gap:8px;height:36px;flex-shrink:0;box-sizing:border-box;padding:0 8px 0 12px;border-bottom:1px solid ' + c.line + ';',
+      title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + c.text + ';',
+      trace: 'position:absolute;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:0 14px;background:' + c.panel + ';border:1px solid ' + c.line + ';border-radius:10px;box-shadow:' + c.e1 + ';',
+      edgeLabel: 'position:absolute;font-size:11px;line-height:20px;padding:0 8px;border-radius:999px;border:1px solid ' + c.line + ';background:' + c.panel2 + ';color:' + c.muted + ';',
+      th: 'padding:5px 10px;font-size:11px;font-weight:600;color:' + c.muted + ';background:' + c.panel2 + ';border-bottom:1px solid ' + c.line + ';',
+      td: 'padding:5px 10px;border-bottom:1px solid ' + c.line + ';color:' + c.text + ';',
+      tdm: 'padding:5px 10px;border-bottom:1px solid ' + c.line + ';color:' + c.muted + ';'
+    };
+    var heights = [92, 84, 118, 106, 128, 150];
+    var labels = ['W23', 'W24', 'W25', 'W26', 'W27', 'W28'];
+    var bars = heights.map(function (h, i) {
+      return { h: h, label: labels[i], fill: i === heights.length - 1 ? c.accent : c.bar };
+    });
+    var mini = [
+      { x: 10, y: 10, w: 22, h: 18, fill: c.accent },
+      { x: 36, y: 10, w: 18, h: 8, fill: c.mm }, { x: 36, y: 21, w: 18, h: 3, fill: c.mm }, { x: 36, y: 26, w: 18, h: 3, fill: c.mm },
+      { x: 58, y: 10, w: 22, h: 18, fill: c.mm },
+      { x: 10, y: 36, w: 22, h: 10, fill: c.mm }, { x: 36, y: 36, w: 18, h: 10, fill: c.mm }, { x: 58, y: 36, w: 22, h: 10, fill: c.mm },
+      { x: 92, y: 10, w: 26, h: 20, fill: c.mm }, { x: 122, y: 10, w: 26, h: 20, fill: c.mm }, { x: 152, y: 10, w: 26, h: 20, fill: c.mm },
+      { x: 92, y: 36, w: 26, h: 20, fill: c.mm }, { x: 122, y: 36, w: 26, h: 20, fill: c.mm }, { x: 152, y: 36, w: 26, h: 20, fill: c.mm },
+      { x: 10, y: 62, w: 22, h: 18, fill: c.mm }, { x: 36, y: 62, w: 22, h: 18, fill: c.mm }, { x: 62, y: 62, w: 22, h: 18, fill: c.mm },
+      { x: 92, y: 62, w: 26, h: 20, fill: c.mm }, { x: 122, y: 62, w: 26, h: 20, fill: c.mm }, { x: 152, y: 62, w: 26, h: 20, fill: c.mm },
+      { x: 10, y: 88, w: 50, h: 12, fill: c.mm }, { x: 92, y: 88, w: 26, h: 20, fill: c.mm }, { x: 122, y: 88, w: 26, h: 20, fill: c.mm }
+    ];
+    return { c: c, s: s, bars: bars, mini: mini };
+  }
+}
+</script>
+</body>
+</html>

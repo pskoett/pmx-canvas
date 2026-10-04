@@ -6,10 +6,37 @@ design work ships with which part of that order. Design never ships ahead of the
 function that produces its data, and function never ships with today's styling when
 its design is already drawn.*
 
-The drawings live in the **look-and-feel proposal canvas** (a private Design
-artifact: <https://claude.ai/artifact/NbLiHkjK9d57Se55vskoc3>). Board names below
-refer to its artboards. The canvas is the visual authority; this file is the
+The drawings are the **look-and-feel proposal canvas**: edited as a private Design
+artifact (<https://claude.ai/artifact/NbLiHkjK9d57Se55vskoc3>) and kept in the repo
+as source under [`design/`](design/), so agents and contributors can read the exact
+sizes, colours and copy. The drawings are the visual authority; this file is the
 contract and the schedule.
+
+## The drawings
+
+Each `.dc.html` file is one artboard; `canvas.json` is the canvas layout (positions,
+titles, notes). They render in the Design canvas (they need its runtime); in the repo
+they are read as source. When an artboard changes in the canvas, re-export it here in
+the same change.
+
+| File | Shows | Wave |
+|---|---|---|
+| [`Before.dc.html`](design/Before.dc.html) | The demo board as it renders today | — |
+| [`Main.dc.html`](design/Main.dc.html), [`Light.dc.html`](design/Light.dc.html) | The same board with the foundation applied, dark and light | 0 |
+| [`Tokens.dc.html`](design/Tokens.dc.html) | Typeface, type scale, radii, elevation, one meaning per colour | 0 |
+| [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
+| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header and ⋯ menu, section headings, floating chrome | 0 |
+| [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
+| [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt | 1 |
+| [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, context, README, board details | 1 |
+| [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library | 2 |
+| [`Relations.dc.html`](design/Relations.dc.html) | Relations on a research board, today vs proposed; edge anatomy; relation inks | 3 |
+| [`Flows.dc.html`](design/Flows.dc.html) | Data lineage with staleness, what a finding rests on, opening a group | 3, 5 |
+| [`Uses.dc.html`](design/Uses.dc.html) | One relation layer for research, dependencies, decisions and agent flows | 3 |
+| [`Types1.dc.html`](design/Types1.dc.html)–[`Types3.dc.html`](design/Types3.dc.html) | Every node type, today vs proposed | 0, 4 |
+| [`Zoom.dc.html`](design/Zoom.dc.html) | Fit-all readability when frames are unmounted | 4 |
+| [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the 600 px reference width | all |
+| [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
 ## Principles
 

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>600 px pane check</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 40px 56px; background: #050d17; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 16px">
+<div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">At 600 px — the reference pane</h1><p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Same designs inside a 600 px agent pane: one column, panels become drawers and sheets, nothing important hides behind a scrollbar.</p></div>
+<div style="display: flex; gap: 64px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Home · Folders</span>
+<div style="position: relative; width: 600px; height: 840px; border-radius: 12px; border: 1px solid #2a4566; overflow: hidden; background: #081524">
+<header style="display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 10px 0 12px; border-bottom: 1px solid #1b2c44; background: #0f1d31">
+<button aria-label="Folders" style="{{p.ib}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round"><path d="M4 7h16M4 12h16M4 17h10"></path></svg></button>
+<span style="font-size: 13px; font-weight: 600; flex: 1">Library</span>
+<div role="tablist" aria-label="View" style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44"><button role="tab" aria-selected="true" style="{{p.tabOn}}">Folders</button><button role="tab" aria-selected="false" style="{{p.tab}}">Map</button><button role="tab" aria-selected="false" style="{{p.tab}}">Graph</button></div>
+</header>
+<div style="padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(75,188,255,0.3); background: rgba(75,188,255,0.08); font-size: 12px"><span style="width: 16px; height: 16px; border-radius: 999px; background: #4BBCFF; color: #081524; display: flex; align-items: center; justify-content: center"><svg width="9" height="9" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span><span style="color: #4BBCFF; font-weight: 600">In context: 3 boards</span><span style="color: #8ea3bd; flex: 1">≈ 21k tokens</span><span style="color: #8ea3bd">Show ▾</span></div>
+<button style="align-self: flex-start; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid #1b2c44; background: #0f1d31; color: #e6eef7; font-family: inherit; font-size: 13px; font-weight: 600"><span style="width: 9px; height: 9px; border-radius: 3px; background: #5FCFC0"></span>Tech Enabling<span style="color: #6b7d94; font-weight: 400">· 12 ▾</span></button>
+<div style="display: flex; gap: 8px; overflow: hidden">
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="3"><span style="flex-shrink: 0; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #1b2c44; background: #0f1d31; font-size: 12px; font-weight: 500"><svg width="13" height="13" viewBox="0 0 24 24" style="fill: none; stroke: #8ea3bd; stroke-width: 1.7; stroke-linejoin: round"><path d="M4 7a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"></path></svg>{{c}}</span></sc-for>
+</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+<div style="display: flex; gap: 12px; padding: 10px; border-radius: 10px; border: {{r.border}}; background: #0f1d31; opacity: {{r.o}}">
+<div style="position: relative; width: 96px; height: 64px; flex-shrink: 0; border-radius: 6px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.16) 1px, transparent 1.2px); background-size: 8px 8px; border: 1px solid #1b2c44"><span style="position: absolute; left: 8px; top: 8px; width: 30px; height: 20px; border-radius: 2px; border: 1px solid {{r.l1}}; background: #13243b"></span><span style="position: absolute; left: 44px; top: 8px; width: 40px; height: 20px; border-radius: 2px; border: 1px solid #2a4566; background: #13243b"></span><span style="position: absolute; left: 8px; top: 34px; width: 76px; height: 20px; border-radius: 2px; border: 1px solid #2a4566; background: #13243b"></span></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; align-items: center; gap: 6px"><span style="font-size: 13px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.name}}</span><sc-if value="{{r.pin}}" hint-placeholder-val="{{ false }}"><span style="width: 16px; height: 16px; border-radius: 999px; background: #4BBCFF; color: #081524; display: flex; align-items: center; justify-content: center"><svg width="9" height="9" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if></div>
+<span style="font-size: 11px; color: #b9c6d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.readme}}</span>
+<span style="font-size: 11px; color: #6b7d94">{{r.meta}}</span>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px; border-top: 1px solid #2a4566; background: #0b1828; border-radius: 14px 14px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 6px">
+<span style="width: 36px; height: 4px; border-radius: 999px; background: #2a4566; align-self: center"></span>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; font-weight: 600; flex: 1">Tech Enabling — overview</span><button style="height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: #4BBCFF; color: #081524; font-family: inherit; font-size: 12px; font-weight: 600">Open</button></div>
+<span style="font-size: 11px; color: #8ea3bd">Details as a bottom sheet: README, 2 pinned cards, 4 links, in-context switch.</span>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">A board</span>
+<div style="position: relative; width: 600px; height: 840px; border-radius: 12px; border: 1px solid #2a4566; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px">
+<header style="position: absolute; left: 44px; top: 0; right: 0; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 8px 0 10px; border-bottom: 1px solid #1b2c44; background: #0f1d31">
+<span style="width: 7px; height: 7px; border-radius: 999px; background: #2fd07f"></span>
+<span style="font-size: 13px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Pricing research ▾</span>
+<span style="font-size: 12px; color: #8ea3bd">100%</span>
+<button aria-label="More: export, present, zoom, fit" style="{{p.ib}}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: currentColor; stroke: none"><circle cx="6" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="18" cy="12" r="1.4"></circle></svg></button>
+</header>
+<nav aria-label="Tools" style="position: absolute; left: 0; top: 0; width: 44px; height: 840px; box-sizing: border-box; padding: 6px 0; background: #0f1d31; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 2px">
+<sc-for list="{{rail}}" as="ic" hint-placeholder-count="9"><span style="width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: {{ic.c}}; background: {{ic.bg}}; margin-top: {{ic.mt}}px"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="{{ic.d}}"></path></svg></span></sc-for>
+</nav>
+<svg width="600" height="840" viewBox="0 0 600 840" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="M 200 330 C 200 290, 250 280, 250 236" style="stroke: #5FCFC0; stroke-width: 2"></path><path d="M 250 232 L 245.5 241 L 254.5 241 Z" style="fill: #5FCFC0"></path>
+<path d="M 420 330 C 420 290, 370 280, 370 236" style="stroke: #E59B6B; stroke-width: 2"></path><path d="M 370 232 L 365.5 241 L 374.5 241 Z" style="fill: #E59B6B"></path>
+</svg>
+<div style="{{p.node}} left: 180px; top: 120px; width: 260px; border: 1.5px solid #4BBCFF"><div style="{{p.head}} background: rgba(75,188,255,0.10)"><span style="{{p.title}}">Raise Pro to $24?</span><span style="{{p.mark}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5"></path></svg>read</span><span style="width: 18px; height: 18px; border-radius: 999px; background: #4BBCFF; color: #081524; display: flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></div><div style="{{p.body}}">Should Pro move from $19 to $24 in 2027?</div></div>
+<div style="{{p.node}} left: 64px; top: 330px; width: 250px"><div style="{{p.head}}"><span style="{{p.title}}">Churn flat after raise</span><span style="{{p.mark}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>by Claude</span></div><div style="{{p.body}}">Pro churn 2.1% → 2.2%.</div></div>
+<div style="{{p.node}} left: 330px; top: 330px; width: 250px"><div style="position: absolute; left: 0; right: 0; top: 0; height: 2.5px; background: #B388FF"></div><div style="{{p.head}}"><span style="{{p.title}}">SMB is price-sensitive</span><span style="{{p.mark}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M4 20l4.2-1L19 8.2 15.8 5 5 15.8z"></path></svg>edited</span></div><div style="{{p.body}}">6 of 9 would downgrade.</div></div>
+<div style="position: absolute; left: 56px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); background: #0f1d31; color: #4BBCFF; font-size: 12px; font-weight: 500">4 in context <span style="color: #f4c542">· 1 out of date</span></span>
+<span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(179,136,255,0.35); background: #0f1d31; color: #B388FF; font-size: 12px; font-weight: 500"><span style="width: 7px; height: 7px; border-radius: 999px; background: #B388FF"></span>Claude · 4 read · 1 edited</span>
+</div>
+<span style="font-size: 11px; color: #6b7d94">Minimap off by default under 700 px; the legend sits behind a “Relations” chip.</span>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var p = {
+      ib: 'width:32px;height:32px;border:0;border-radius:6px;padding:0;background:transparent;color:#8ea3bd;display:flex;align-items:center;justify-content:center;',
+      tab: 'height:26px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:#8ea3bd;font-family:inherit;font-size:12px;font-weight:500;',
+      tabOn: 'height:26px;padding:0 9px;border:0;border-radius:6px;background:#1b2c44;color:#e6eef7;font-family:inherit;font-size:12px;font-weight:500;',
+      node: 'position:absolute;height:92px;box-sizing:border-box;overflow:hidden;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);',
+      head: 'display:flex;align-items:center;gap:6px;height:36px;padding:0 8px 0 10px;border-bottom:1px solid #1b2c44;',
+      title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
+      mark: 'display:flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;color:#B388FF;background:rgba(179,136,255,0.16);flex-shrink:0;',
+      body: 'padding:8px 10px;font-size:12px;color:#b9c6d6;'
+    };
+    var chips = ['OKRs · 3', 'Delivery metrics · 4', 'Product discovery · 2'];
+    var rows = [
+      { name: 'Tech Enabling — overview', readme: 'Who we are, what we own and the three outcomes for 2027.', meta: '18 cards · 4 links · today', pin: true, border: '1.5px solid #4BBCFF', l1: '#4BBCFF', o: 1 },
+      { name: 'Platform roadmap 2027', readme: 'Quarterly themes, bets and team dependencies.', meta: '26 cards · 2 links · 4d ago', pin: false, border: '1px solid #1b2c44', l1: '#2a4566', o: 1 },
+      { name: 'Q3 risks and dependencies', readme: 'Retired risks from Q3. Kept for the record.', meta: '9 cards · 1 link · 74d ago', pin: false, border: '1px solid #1b2c44', l1: '#2a4566', o: 0.6 }
+    ];
+    var rail = [
+      { d: 'M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z', c: '#8ea3bd', bg: 'transparent', mt: 0 },
+      { d: 'M5 3.5l13 7.5-5.6 1.6L10.8 18z', c: '#4BBCFF', bg: 'rgba(75,188,255,0.14)', mt: 8 },
+      { d: 'M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M7.6 7.6l8.8 8.8', c: '#8ea3bd', bg: 'transparent', mt: 0 },
+      { d: 'M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5', c: '#8ea3bd', bg: 'transparent', mt: 8 },
+      { d: 'M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19.5h14', c: '#8ea3bd', bg: 'transparent', mt: 0 },
+      { d: 'M5.5 5h13a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 9h17', c: '#8ea3bd', bg: 'transparent', mt: 0 },
+      { d: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z', c: '#8ea3bd', bg: 'transparent', mt: 0 },
+      { d: 'M5 11a6 6 0 1 0 12 0a6 6 0 1 0-12 0M20 20l-4.6-4.6', c: '#8ea3bd', bg: 'transparent', mt: 8 },
+      { d: 'M4 7h9M17 7h3M4 17h3M11 17h9M13 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M7 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0', c: '#8ea3bd', bg: 'transparent', mt: 440 }
+    ];
+    return { p: p, chips: chips, rows: rows, rail: rail };
+  }
+}
+</script>
+</body>
+</html>

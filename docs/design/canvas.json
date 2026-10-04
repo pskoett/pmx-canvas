@@ -1,0 +1,241 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Before.dc.html": {
+      "h": 900,
+      "title": "Today",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Chrome.dc.html": {
+      "h": 820,
+      "title": "Rail, node header, section labels",
+      "w": 1440,
+      "x": 1520,
+      "y": 1320
+    },
+    "Context.dc.html": {
+      "h": 1400,
+      "title": "Nodes in context",
+      "w": 1440,
+      "x": 0,
+      "y": 4060
+    },
+    "Flows.dc.html": {
+      "h": 1280,
+      "title": "Lineage, evidence, open a group",
+      "w": 1440,
+      "x": 1520,
+      "y": 6260
+    },
+    "Home.dc.html": {
+      "h": 960,
+      "title": "Home — Folders: library tree, context, README",
+      "w": 1440,
+      "x": 1520,
+      "y": 2740
+    },
+    "HomeGraph.dc.html": {
+      "h": 960,
+      "title": "Home — Graph: every board and card, Obsidian-style",
+      "w": 1440,
+      "x": 4560,
+      "y": 2740
+    },
+    "HomeMap.dc.html": {
+      "h": 960,
+      "title": "Home — Map: boards, portals, wiki links",
+      "w": 1440,
+      "x": 3040,
+      "y": 2740
+    },
+    "Light.dc.html": {
+      "h": 900,
+      "title": "Proposed — light",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 900,
+      "title": "Proposed — dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "Relations.dc.html": {
+      "h": 1340,
+      "title": "Relations — a research board, today vs proposed",
+      "w": 1440,
+      "x": 0,
+      "y": 6260
+    },
+    "Tokens.dc.html": {
+      "h": 1000,
+      "title": "Tokens",
+      "w": 1440,
+      "x": 0,
+      "y": 1320
+    },
+    "Types1.dc.html": {
+      "h": 1780,
+      "title": "Node types 1/3 — markdown, status, context, ledger, trace, file",
+      "w": 1440,
+      "x": 1520,
+      "y": 4060
+    },
+    "Types2.dc.html": {
+      "h": 1780,
+      "title": "Node types 2/3 — diff, image, webpage, html, mermaid, mcp-app",
+      "w": 1440,
+      "x": 3040,
+      "y": 4060
+    },
+    "Types3.dc.html": {
+      "h": 1780,
+      "title": "Node types 3/3 — json-render, graph, group, board, prompt, response",
+      "w": 1440,
+      "x": 4560,
+      "y": 4060
+    },
+    "Uses.dc.html": {
+      "h": 1420,
+      "title": "One relation layer: research, dependencies, decisions, agent flows",
+      "w": 1440,
+      "x": 3040,
+      "y": 6260
+    },
+    "Zoom.dc.html": {
+      "h": 640,
+      "title": "Zoomed out (fit all)",
+      "w": 1440,
+      "x": 0,
+      "y": 2740
+    },
+    "Vision.dc.html": {
+      "x": 0,
+      "y": 8100,
+      "w": 1440,
+      "h": 1560,
+      "title": "How this proposal lines up with the vision"
+    },
+    "AgentContext.dc.html": {
+      "x": 1520,
+      "y": 8100,
+      "w": 1440,
+      "h": 1500,
+      "title": "What the agent did with context"
+    },
+    "Themes.dc.html": {
+      "x": 3040,
+      "y": 8100,
+      "w": 1440,
+      "h": 1220,
+      "title": "Meaning colours across all nine themes"
+    },
+    "Pane600.dc.html": {
+      "x": 4560,
+      "y": 8100,
+      "w": 1440,
+      "h": 1000,
+      "title": "At 600 px — the reference pane"
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-04T07:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "s1": {
+      "fill": "blue",
+      "text": "What changed between Today and Proposed\n\n1. Every control uses the UI font (Today: 365 of 401 render in Arial).\n2. IBM Plex Sans + Mono ship with the app instead of falling back per OS.\n3. Amber only means warning. Pinned nodes get a blue border, tinted header and pin badge, matched by a blue count chip (see “Nodes in context” below). Agent attention is a thin violet bar on the node header — no halos, no glowing fields.\n4. One scale: type 11/12/13/15/20, radii 6/10/14/pill, two shadow levels.\n5. Charts sit on the node surface (no black slab) and don't repeat the node title.\n\nAlso visible: chrome-less section headings, quiet node headers (⋯ + × on hover), Updates pill clear of nodes, neutral minimap.",
+      "w": 380,
+      "x": 4560,
+      "y": 0
+    },
+    "s2": {
+      "fill": "orange",
+      "text": "Light theme today is #F4EFE6 / #EFE7D4 — next to sepia's #F2E7D5 / #EBDCC2 the two are hard to tell apart. Proposed light is neutral: #F6F7F9 canvas, white nodes, #DDE2E9 lines.",
+      "w": 380,
+      "x": 3040,
+      "y": 1320
+    },
+    "t1": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Today → proposed (fixes 1–5)",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Token system and chrome (4, 7–9)",
+      "w": 240,
+      "x": 0,
+      "y": 1020
+    },
+    "t3": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "Zoomed out, and Home as the library: folders, map, graph",
+      "w": 240,
+      "x": 0,
+      "y": 2440
+    },
+    "t4": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "Nodes in context, and every node type",
+      "w": 240,
+      "x": 0,
+      "y": 3760
+    },
+    "t5": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Relations: one layer for research, dependencies, decisions and flows",
+      "w": 240,
+      "x": 0,
+      "y": 5960
+    },
+    "t6": {
+      "x": 0,
+      "y": 7800,
+      "text": "The vision, the agent's activity, all themes, and 600 px",
+      "kind": "title1",
+      "maxW": 6000
+    }
+  },
+  "order": [
+    "Before.dc.html",
+    "Main.dc.html",
+    "Light.dc.html",
+    "Tokens.dc.html",
+    "Chrome.dc.html",
+    "Zoom.dc.html",
+    "Home.dc.html",
+    "HomeMap.dc.html",
+    "HomeGraph.dc.html",
+    "Context.dc.html",
+    "Types1.dc.html",
+    "Types2.dc.html",
+    "Types3.dc.html",
+    "Relations.dc.html",
+    "Flows.dc.html",
+    "Uses.dc.html",
+    "Vision.dc.html",
+    "AgentContext.dc.html",
+    "Themes.dc.html",
+    "Pane600.dc.html"
+  ],
+  "pages": [],
+  "title": "PMX Canvas look-and-feel proposal"
+}

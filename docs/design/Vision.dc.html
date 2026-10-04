@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Proposal and the vision</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1560px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">How this proposal lines up with the vision</h1>
+<div style="padding: 14px 16px; border-radius: 10px; border: 1px solid #2a4566; background: #0f1d31; max-width: 1100px">
+<div style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">The promise (product-vision-2026-09.md)</div>
+<div style="font-size: 15px; font-weight: 500; line-height: 1.5; margin-top: 4px">One board is both the human's durable workspace and the agent's working memory … what the human curates is what the agent reads next.</div>
+<div style="font-size: 12px; color: #8ea3bd; margin-top: 6px">Build order and definition of done: <span style="font-family: 'IBM Plex Mono', monospace; color: #e6eef7">docs/design.md</span> (waves 0–5, each paired with a vision move). The look-and-feel work serves that sentence: <span style="color: #e6eef7">extended memory</span> you can see and organise (Home, relations, lineage), <span style="color: #4BBCFF">working memory</span> you can see and steer (in context), and <span style="color: #B388FF">what the agent actually did</span> with it (read, created, edited, suggested).</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+<section style="padding: 16px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 15px; font-weight: 600; flex: 1">{{r.area}}</span><span style="font-size: 11px; color: #6b7d94">{{r.boards}}</span></div>
+<div style="display: grid; grid-template-columns: 96px 1fr; row-gap: 6px; column-gap: 12px; font-size: 12px">
+<span style="color: #6b7d94">Vision</span><span>{{r.vision}}</span>
+<span style="color: #6b7d94">Builds on</span><span style="color: #b9c6d6">{{r.builds}}</span>
+<span style="color: #6b7d94">New work</span><span style="color: #b9c6d6">{{r.work}}</span>
+<span style="color: #6b7d94">Node types</span><span style="color: #b9c6d6">{{r.types}}</span>
+</div>
+<sc-if value="{{r.flag}}" hint-placeholder-val="{{ false }}"><div style="padding: 6px 10px; border-radius: 6px; background: rgba(244,197,66,0.10); color: #f4c542; font-size: 11px">{{r.flag}}</div></sc-if>
+</section>
+</sc-for>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Decisions this needs from you</h2>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{decisions}}" as="d" hint-placeholder-count="6">
+<div style="padding: 12px 14px; border-radius: 10px; border: 1px solid #1b2c44; background: #0b1828; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">{{d.q}}</span><span style="font-size: 11px; color: #8ea3bd">{{d.rec}}</span></div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #8ea3bd">
+<span style="font-weight: 600; color: #e6eef7">Respects the standing decisions:</span>
+<span>every node type stays (2026-09-06)</span><span>·</span><span>fleet layer stays</span><span>·</span><span>boards are the wiki; destination is “share this board”</span><span>·</span><span>Home is a view, not a board (2026-09-27)</span><span>·</span><span>reference surface Chromium at 600 px</span><span>·</span><span>no externals — the graph borrows Obsidian's look only</span><span>·</span><span>no backwards-compat shims</span>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var rows = [
+      { area: 'Look and feel: font, scale, colour tokens', boards: 'Today · Proposed · Tokens · Themes',
+        vision: 'Move 5 (keep every node type, unify how they render); move 9 (render for the 600 px pane).',
+        builds: 'Theme registry and the surface-theme token test; nine themes.',
+        work: 'Bundle Plex; controls inherit the font; type/radius/shadow scale; semantic tokens (pin, agent, warn, relation inks) per theme with a distinctness test.',
+        types: 'None added or removed.', flag: '' },
+      { area: 'Nodes in context', boards: 'Nodes in context',
+        vision: 'The promise’s second half; move 1 (one read, one brief).',
+        builds: 'Context pins, canvas://pinned-context, the pin bar, the v2 command-bar chips.',
+        work: 'Own pin style that survives selection and attention; “pinned by the agent” attribution; token estimate on the chip.',
+        types: 'None.', flag: '' },
+      { area: 'What the agent did', boards: 'What the agent did with context',
+        vision: 'The bet (“0.7 measures, 0.8 checks” whether pins change what the agent does); move 2 (the session projects itself onto the board); move 7 (record who answered).',
+        builds: 'Read instrumentation (context_reads, 0.7.0: who read, which nodes were delivered), attribution and revisions (0.7.0), presence activity feed, auto-ghost intents, session receipt.',
+        work: 'Show the recorded reads on nodes as “read”, “not read”, “changed since read”; who pinned; the activity lens and receipt.',
+        types: 'None. Marks are node chrome over existing provenance.', flag: 'Reads are already recorded but never shown — this is mostly UI over existing data.' },
+      { area: 'Relations layer', boards: 'Relations · Lineage · One layer, four uses',
+        vision: 'Move 0 (links between cards and boards); move 1 (relations belong in the brief); move 13 (recipe cards: staleness is the rot).',
+        builds: 'Edges (4 types, labels, styles), code-graph auto-edges, provenance source and refresh strategy.',
+        work: 'A reason on each edge; a per-board relation vocabulary; ports, lanes, legend, hover neighbourhood; stale propagation along “derived from”.',
+        types: 'None. It is the edge layer plus edge data.', flag: '' },
+      { area: 'Home: folders, map, graph', boards: 'Home · Map · Graph',
+        vision: 'Move 0 (boards are the wiki: README cards, board map, backlinks); Home is a view listing boards (decided 2026-09-27); move 14 (new board from this board links to the previous one).',
+        builds: 'Many boards, nested folders, library search, README/link cards, bounded cross-board context — all in 0.7.0.',
+        work: 'Context shown on boards; Map and Graph views generated like the code graph; a board-level “in context” switch (the vision’s “pin a board on the map”).',
+        types: 'None. Portals are the existing board node.', flag: 'The vision derives levels from portals; this proposal uses folders as the visible hierarchy.' },
+      { area: 'Embedded viewers', boards: 'Node types 2/3 and 3/3',
+        vision: 'Move 5: one frame host for every iframe-backed kind.',
+        builds: 'canvasThemeScheme (dark/light only), json-render and mermaid theming.',
+        work: 'The frame host passes the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments.',
+        types: 'None.', flag: '' },
+      { area: 'Chrome: rail, headers, section labels', boards: 'Rail, node header, section labels',
+        vision: 'Move 9 (600 px pane); rail-chrome v2 mockups remain the visual authority.',
+        builds: 'Rail-chrome v2 shell, ⋯ menu planned in phase 7.',
+        work: 'Settings menu for rarely used tools; ⋯ on node headers; markdown rendered as a heading variant.',
+        types: 'None (heading is a markdown display variant).', flag: '' },
+      { area: 'The 600 px pane', boards: '600 px check',
+        vision: 'Reference surface: Chromium at 600 px (2026-09-24).',
+        builds: 'Rail-chrome responsive rules.',
+        work: 'Every board above was drawn at 1440 px. Home collapses to one column (tree as a drawer, details as a sheet); legends wrap; inspectors become sheets.',
+        types: 'None.', flag: 'Each design needs its 600 px version before it is built.' }
+    ];
+    var decisions = [
+      { q: 'Folders or portal levels for Home?', rec: 'Recommend: folder = where a board lives (one place); portals and links = how boards relate, shown in Map and Graph.' },
+      { q: 'Show recorded reads on nodes?', rec: 'Recommend yes: context_reads already holds them; it turns the curation evaluation into something a person can see.' },
+      { q: 'Edge model: reason + per-board vocabulary?', rec: 'Recommend: keep type for direction and line style, add a free “kind” and a one-sentence reason.' },
+      { q: 'Meaning colours fixed across themes?', rec: 'Recommend: pin, agent, warning and relation inks keep one hue in every theme; accent stays free for flavour.' },
+      { q: 'Rename “dark” and “light”?', rec: 'Recommend Harbor (default) and Daylight; “high contrast” keeps its literal name. No alias for the old names.' },
+      { q: 'json-render default theme?', rec: 'Recommend: canvas theme by default; a spec can set its own theme to experiment with components and sites.' }
+    ];
+    return { rows: rows, decisions: decisions };
+  }
+}
+</script>
+</body>
+</html>

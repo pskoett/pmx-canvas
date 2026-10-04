@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nodes in context</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1400px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 36px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Nodes in context</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Pinned, agent-touched and selected are three different facts. Today they share one amber look; proposed, each has its own signal and they combine.</p>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Which two nodes are in context?</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+<sc-for list="{{scenes}}" as="sc" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">{{sc.label}}</span>
+<div style="position: relative; height: 290px; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background-color: {{sc.bg}}; background-image: radial-gradient({{sc.dot}} 1px, transparent 1.2px); background-size: 24px 24px">
+<sc-for list="{{sc.nodes}}" as="cell" hint-placeholder-count="6">
+<div style="position: absolute; left: {{cell.x}}px; top: {{cell.y}}px; width: 204px; height: 124px">
+<sc-if value="{{cell.field}}" hint-placeholder-val="{{ false }}"><div style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 20px; background: rgba(244,197,66,0.05); box-shadow: 0 0 30px rgba(244,197,66,0.12)"></div></sc-if>
+<div style="{{cell.node}}">
+<div style="{{cell.head}}">
+<svg width="14" height="14" viewBox="0 0 24 24" style="{{cell.icon}}"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
+<span style="{{cell.title}}">{{cell.name}}</span>
+<sc-if value="{{cell.oldPin}}" hint-placeholder-val="{{ false }}"><span style="color: #f4c542; font-size: 10px">●</span></sc-if>
+<sc-if value="{{cell.pin}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinBadge}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
+<span style="{{cell.ctl}}">{{cell.ctlText}}</span>
+</div>
+<div style="{{cell.body}}">{{cell.text}}</div>
+<sc-if value="{{cell.bar}}" hint-placeholder-val="{{ false }}"><div style="{{cell.barStyle}}"></div></sc-if>
+</div>
+<sc-if value="{{cell.handles}}" hint-placeholder-val="{{ false }}"><div style="{{cell.hTL}}"></div><div style="{{cell.hTR}}"></div><div style="{{cell.hBL}}"></div><div style="{{cell.hBR}}"></div></sc-if>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: {{sc.captionColor}}">{{sc.caption}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Every state, side by side</h2>
+<div style="display: grid; grid-template-columns: 120px repeat(6, minmax(0, 1fr)); column-gap: 12px; align-items: end">
+<span></span>
+<sc-for list="{{stateNames}}" as="sn" hint-placeholder-count="6"><span style="font-size: 12px; font-weight: 600; padding-bottom: 4px">{{sn}}</span></sc-for>
+</div>
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 120px repeat(6, minmax(0, 1fr)); column-gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid #1b2c44">
+<div style="padding-top: 12px"><div style="font-size: 12px; font-weight: 600">{{row.label}}</div><div style="font-size: 11px; color: #8ea3bd">{{row.sub}}</div></div>
+<sc-for list="{{row.cells}}" as="cell" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="position: relative; height: 128px; border-radius: 8px; background: {{row.bg}}">
+<sc-if value="{{cell.field}}" hint-placeholder-val="{{ false }}"><div style="position: absolute; left: 2px; top: 2px; right: 2px; bottom: 2px; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 18px; background: rgba(244,197,66,0.05); box-shadow: 0 0 24px rgba(244,197,66,0.12)"></div></sc-if>
+<div style="{{cell.node}}">
+<div style="{{cell.head}}">
+<svg width="14" height="14" viewBox="0 0 24 24" style="{{cell.icon}}"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
+<span style="{{cell.title}}">{{cell.name}}</span>
+<sc-if value="{{cell.oldPin}}" hint-placeholder-val="{{ false }}"><span style="color: #f4c542; font-size: 10px">●</span></sc-if>
+<sc-if value="{{cell.pin}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinBadge}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
+<span style="{{cell.ctl}}">{{cell.ctlText}}</span>
+</div>
+<div style="{{cell.body}}">{{cell.text}}</div>
+<sc-if value="{{cell.bar}}" hint-placeholder-val="{{ false }}"><div style="{{cell.barStyle}}"></div></sc-if>
+</div>
+<sc-if value="{{cell.handles}}" hint-placeholder-val="{{ false }}"><div style="{{cell.hTL}}"></div><div style="{{cell.hTR}}"></div><div style="{{cell.hBL}}"></div><div style="{{cell.hBR}}"></div></sc-if>
+</div>
+<span style="font-size: 11px; line-height: 1.4; color: {{cell.noteColor}}">{{cell.note}}</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">The context count</h2>
+<div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 24px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="display: flex; align-items: center; gap: 12px; align-self: flex-start; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid #f4c542; background: rgba(15,29,49,0.88); font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif">
+<span style="font-size: 12px; font-weight: 600; color: #f4c542">✦ 4 nodes in context</span>
+<span style="font-family: Arial, sans-serif; color: #8ea3bd">×</span>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Amber, the same color as warnings and the agent's halos.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — no session</span>
+<div style="display: flex; align-items: center; gap: 8px; align-self: flex-start; height: 32px; padding: 0 6px 0 12px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); background: #0f1d31; box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #4BBCFF; font-size: 12px; font-weight: 500">
+<svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg>
+4 in context
+<button aria-label="Clear all context pins" style="width: 22px; height: 22px; border: 0; border-radius: 999px; padding: 0; background: rgba(75,188,255,0.14); color: #4BBCFF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Same blue as the pin badge, so the count and the nodes read as one thing. Hover lights the four nodes.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — agent session (command bar)</span>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid #1b2c44; background: rgba(10,23,41,0.92)">
+<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{chips}}" as="ch" hint-placeholder-count="4">
+<span style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 4px 0 10px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.25); background: rgba(75,188,255,0.1); color: #4BBCFF; font-size: 11px; font-weight: 600">{{ch}}<button aria-label="Remove from context" style="width: 18px; height: 18px; border: 0; border-radius: 999px; padding: 0; background: transparent; color: #4BBCFF; display: flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></span>
+</sc-for>
+<span style="flex: 1"></span>
+<span style="display: flex; align-items: center; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd"><span style="width: 60px; height: 4px; border-radius: 2px; background: #1b2c44; overflow: hidden"><span style="display: block; width: 24%; height: 4px; background: #2fd07f"></span></span>48.2k / 200k</span>
+</div>
+<div style="display: flex; gap: 8px">
+<label style="flex: 1; display: flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid #1b2c44; background: #0f1d31"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message the agent</span><input placeholder="Steer the agent…" style="flex: 1; border: 0; outline: none; background: transparent; color: #e6eef7; font-family: inherit; font-size: 12px"></label>
+<button style="height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: #4BBCFF; color: #081524; font-family: inherit; font-size: 12px; font-weight: 600">Send</button>
+</div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Each pinned node becomes a named chip; × unpins it and the budget drops (your v2 mockup).</span>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var P = {
+      dark: { bg: '#081524', dot: 'rgba(142,163,189,0.14)', panel: '#0f1d31', line: '#1b2c44', text: '#e6eef7', soft: '#b9c6d6', muted: '#8ea3bd', accent: '#4BBCFF', accentA: 'rgba(75,188,255,0.12)', onAccent: '#081524', attn: '#B388FF', e1: '0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)' },
+      light: { bg: '#F6F7F9', dot: 'rgba(11,23,38,0.12)', panel: '#FFFFFF', line: '#DDE2E9', text: '#0B1726', soft: '#3d4d63', muted: '#55657a', accent: '#1A7ABF', accentA: 'rgba(26,122,191,0.09)', onAccent: '#FFFFFF', attn: '#7C4DDB', e1: '0 1px 2px rgba(11,23,38,0.06), 0 4px 14px rgba(11,23,38,0.06)' }
+    };
+    var inset = 'position:absolute;left:12px;top:12px;right:12px;bottom:12px;box-sizing:border-box;overflow:hidden;';
+    function handle(pos, fill, line) {
+      return 'position:absolute;' + pos + 'width:8px;height:8px;box-sizing:border-box;border-radius:2px;background:' + fill + ';border:1.5px solid ' + line + ';';
+    }
+    function today(state, name, text) {
+      var pinned = state === 'pin' || state === 'pinattn' || state === 'pinsel';
+      var primary = state === 'attn' || state === 'pinattn';
+      var border = '#1b2c44', shadow = '0 4px 24px rgba(0,0,0,0.3)';
+      if (state === 'sec') shadow = '0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1)';
+      if (state === 'sel') { border = '#4BBCFF'; shadow = '0 0 0 1px #4BBCFF, 0 0 0 4px rgba(75,188,255,0.1)'; }
+      if (pinned) { border = 'rgba(244,197,66,0.6)'; shadow = '0 0 0 2px #f4c542, 0 0 8px rgba(244,197,66,0.3)'; }
+      if (primary) shadow = '0 0 0 1px rgba(244,197,66,0.72), 0 12px 34px rgba(244,197,66,0.18), inset 0 0 0 1px rgba(244,197,66,0.28)';
+      var headBg = primary ? 'linear-gradient(90deg, rgba(244,197,66,0.12), transparent 68%), #0b1828' : '#0b1828';
+      var sel = state === 'sel' || state === 'pinsel';
+      return {
+        field: primary, oldPin: pinned, pin: false, bar: false, handles: sel, name: name, text: text,
+        node: inset + 'background:#0f1d31;border:1px solid ' + border + ';box-shadow:' + shadow + ';border-radius:12px 12px 8px 8px;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;',
+        head: 'display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-bottom:1px solid #1b2c44;background:' + headBg + ';',
+        icon: 'flex-shrink:0;color:#4BBCFF;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;',
+        title: 'flex:1;min-width:0;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eef7;',
+        ctl: 'font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;color:#8ea3bd;', ctlText: '⤢⌄×',
+        body: 'padding:6px 8px;font-size:9.5px;line-height:1.45;color:#b9c6d6;',
+        hTL: handle('left:8px;top:8px;', '#e6eef7', '#4BBCFF'), hTR: handle('right:8px;top:8px;', '#e6eef7', '#4BBCFF'),
+        hBL: handle('left:8px;bottom:8px;', '#e6eef7', '#4BBCFF'), hBR: handle('right:8px;bottom:8px;', '#e6eef7', '#4BBCFF')
+      };
+    }
+    function proposed(theme, state, name, text) {
+      var c = P[theme];
+      var pinned = state === 'pin' || state === 'pinattn' || state === 'pinsel';
+      var touched = state === 'attn' || state === 'pinattn';
+      var sel = state === 'sel' || state === 'pinsel';
+      var border = pinned ? '1.5px solid ' + c.accent : '1px solid ' + c.line;
+      var shadow = sel ? '0 0 0 3px ' + c.bg + ', 0 0 0 5px ' + c.accent + ', ' + c.e1 : c.e1;
+      return {
+        field: false, oldPin: false, pin: pinned, bar: touched, handles: sel, name: name, text: text,
+        node: inset + 'background:' + c.panel + ';border:' + border + ';box-shadow:' + shadow + ';border-radius:10px;font-family:"IBM Plex Sans",system-ui,sans-serif;',
+        head: 'display:flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 10px;border-bottom:1px solid ' + c.line + ';background:' + (pinned ? c.accentA : 'transparent') + ';',
+        icon: 'flex-shrink:0;color:' + (pinned ? c.accent : c.muted) + ';fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;',
+        title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + c.text + ';',
+        pinBadge: 'flex-shrink:0;width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:' + c.accent + ';color:' + c.onAccent + ';',
+        ctl: 'display:none;', ctlText: '',
+        body: 'padding:7px 10px;font-size:11px;line-height:1.5;color:' + c.soft + ';',
+        barStyle: 'position:absolute;left:0;right:0;top:0;height:2.5px;background:' + c.attn + ';',
+        hTL: handle('left:3px;top:3px;', c.panel, c.accent), hTR: handle('right:3px;top:3px;', c.panel, c.accent),
+        hBL: handle('left:3px;bottom:3px;', c.panel, c.accent), hBR: handle('right:3px;bottom:3px;', c.panel, c.accent)
+      };
+    }
+    var states = ['rest', 'pin', 'attn', 'pinattn', 'sel', 'pinsel'];
+    var stateNames = ['Resting', 'In context', 'Agent touched', 'In context + agent', 'Selected', 'In context + selected'];
+    var todayNotes = ['', 'Amber ring', 'Amber halo and glowing field', 'Looks the same as agent touched', 'Blue ring', 'Blue ring is lost; only the handles show'];
+    var badNotes = { 3: true, 5: true };
+    var newNotes = ['', 'Blue border, tinted header, pin badge', 'Violet bar across the top', 'Both signals, independently', 'Ring with a gap, plus handles', 'Pin styling stays inside the ring'];
+    var nm = 'Release runbook', tx = 'Pre-flight gates, tag → publish, smoke checklist.';
+    function rowOf(kind) {
+      return states.map(function (st, i) {
+        var cell = kind === 'today' ? today(st, nm, tx) : proposed(kind, st, nm, tx);
+        cell.note = kind === 'today' ? todayNotes[i] : (kind === 'dark' ? newNotes[i] : '');
+        cell.noteColor = kind === 'today' && badNotes[i] ? '#ff8a9b' : '#8ea3bd';
+        return cell;
+      });
+    }
+    var rows = [
+      { label: 'Today', sub: 'dark', bg: '#081524', cells: rowOf('today') },
+      { label: 'Proposed', sub: 'dark', bg: '#081524', cells: rowOf('dark') },
+      { label: 'Proposed', sub: 'light', bg: '#F6F7F9', cells: rowOf('light') }
+    ];
+    var pos = [[16, 24], [222, 24], [428, 24], [16, 150], [222, 150], [428, 150]];
+    var names = [
+      ['Release runbook', 'Pre-flight gates, tag → publish.'],
+      ['Decision ledger', '09:12 Ship 0.4.7 behind the smoke gate.'],
+      ['Readability floor', '2 files · +2 −2'],
+      ['Agent', 'Tooling · rebuilding the checklist.'],
+      ['node-sizes.ts', 'export const NODE_MIN = …'],
+      ['Sprint state', 'Review · 6 of 7 items merged']
+    ];
+    var todayStates = ['pinattn', 'sec', 'pinattn', 'sec', 'rest', 'attn'];
+    var newStates = ['pinattn', 'rest', 'pinattn', 'rest', 'rest', 'attn'];
+    function scene(fn) {
+      return pos.map(function (p, i) {
+        var cell = fn(i);
+        cell.x = p[0]; cell.y = p[1];
+        return cell;
+      });
+    }
+    var scenes = [
+      { label: 'Today', bg: '#081524', dot: 'rgba(142,163,189,0.10)', caption: 'Runbook and Readability floor are pinned — but Sprint state, which the agent only touched, looks identical.', captionColor: '#ff8a9b',
+        nodes: scene(function (i) { return today(todayStates[i], names[i][0], names[i][1]); }) },
+      { label: 'Proposed', bg: '#081524', dot: 'rgba(142,163,189,0.14)', caption: 'The two pinned nodes carry the blue border and pin badge. Sprint state, touched by the agent, only has the violet bar.', captionColor: '#8ea3bd',
+        nodes: scene(function (i) { return proposed('dark', newStates[i], names[i][0], names[i][1]); }) }
+    ];
+    var chips = ['Release runbook', 'PMX Canvas — guided tour', 'Readability floor', 'Working context'];
+    return { scenes: scenes, rows: rows, stateNames: stateNames, chips: chips };
+  }
+}
+</script>
+</body>
+</html>

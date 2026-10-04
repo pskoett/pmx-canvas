@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Look and feel tokens</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; align-items: baseline; gap: 16px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Look &amp; feel tokens</h1>
+<span style="font-size: 13px; color: #8ea3bd">One font, one scale, one meaning per color</span>
+</div>
+
+<div style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 24px">
+
+<section style="background: #0f1d31; border: 1px solid #1b2c44; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">1–2 · Typeface</h2>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<button style="font-family: Arial, sans-serif; font-size: 13px; height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #1b2c44; background: transparent; color: #e6eef7">Export</button>
+<button style="font-family: Arial, sans-serif; font-size: 13px; height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #1b2c44; background: transparent; color: #e6eef7">Present</button>
+<button style="font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #1b2c44; background: transparent; color: #8ea3bd">● Start agent session</button>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">365 of 401 buttons and inputs fall back to Arial; Plex is never loaded, so text is SF Pro on a Mac and Segoe or Roboto elsewhere.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<button style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500; height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #1b2c44; background: #13243b; color: #e6eef7">Export</button>
+<button style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500; height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #1b2c44; background: #13243b; color: #e6eef7">Present</button>
+<button style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #1b2c44; background: transparent; color: #8ea3bd">Start agent session</button>
+</div>
+</div>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 1px solid #1b2c44">
+<span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">IBM Plex Sans 400 · 500 · 600</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #b9c6d6">IBM Plex Mono 400 · 500 — canvas_query · search</span>
+<span style="font-size: 11px; color: #8ea3bd">Bundled with the app; controls inherit the font.</span>
+</div>
+</section>
+
+<section style="background: #0f1d31; border: 1px solid #1b2c44; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">4 · Type scale</h2>
+<div style="display: grid; grid-template-columns: 64px 1fr; row-gap: 12px; align-items: baseline">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">20 / 600</span><div><div style="font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.01em">② Files &amp; review</div><div style="font-size: 11px; color: #8ea3bd">Section headings on the board</div></div>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">15 / 600</span><div><div style="font-size: 15px; font-weight: 600">PMX Canvas — guided tour</div><div style="font-size: 11px; color: #8ea3bd">Expanded node, home titles, dialogs</div></div>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">13 / 400</span><div><div style="font-size: 13px">Pin a node and the agent reads it back.</div><div style="font-size: 11px; color: #8ea3bd">Body text and inputs</div></div>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">12 / 600</span><div><div style="font-size: 12px; font-weight: 600">Merged PRs per week</div><div style="font-size: 11px; color: #8ea3bd">Node titles, buttons, node body</div></div>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">11 / 500</span><div><div style="font-size: 11px; font-weight: 500; color: #b9c6d6">updated 2m ago · 38 ms</div><div style="font-size: 11px; color: #8ea3bd">Meta, captions, axis labels — the floor</div></div>
+</div>
+<div style="margin-top: auto; padding-top: 14px; border-top: 1px solid #1b2c44; font-size: 12px; color: #8ea3bd">Today: 20 sizes in global.css, 116 uses at 11.5px or smaller — including 8.5, 9, 9.5 and 10.5.</div>
+</section>
+
+<section style="background: #0f1d31; border: 1px solid #1b2c44; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">4 · Radii &amp; elevation</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border: 1.5px solid #4BBCFF; border-radius: 6px; background: rgba(75,188,255,0.06)"></div><span style="font-size: 12px; font-weight: 600">6</span><span style="font-size: 11px; color: #8ea3bd">Controls</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border: 1.5px solid #4BBCFF; border-radius: 10px; background: rgba(75,188,255,0.06)"></div><span style="font-size: 12px; font-weight: 600">10</span><span style="font-size: 11px; color: #8ea3bd">Nodes</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border: 1.5px solid #4BBCFF; border-radius: 14px; background: rgba(75,188,255,0.06)"></div><span style="font-size: 12px; font-weight: 600">14</span><span style="font-size: 11px; color: #8ea3bd">Groups, overlays</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; display: flex; align-items: center"><div style="width: 100%; height: 28px; border: 1.5px solid #4BBCFF; border-radius: 999px; background: rgba(75,188,255,0.06)"></div></div><span style="font-size: 12px; font-weight: 600">pill</span><span style="font-size: 11px; color: #8ea3bd">Chips</span></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 20px; border-radius: 10px; background: #081524">
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 64px; border-radius: 10px; background: #0f1d31; border: 1px solid #1b2c44; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)"></div><span style="font-size: 11px; color: #8ea3bd">e1 · nodes</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 64px; border-radius: 10px; background: #0f1d31; border: 1px solid #1b2c44; box-shadow: 0 10px 30px rgba(0,0,0,0.6)"></div><span style="font-size: 11px; color: #8ea3bd">e2 · floating chrome, menus</span></div>
+</div>
+<div style="margin-top: auto; padding-top: 14px; border-top: 1px solid #1b2c44; font-size: 12px; color: #8ea3bd">Today: 12 radius values; nodes use 12 / 12 / 8 / 8. Glows are not elevation — they go.</div>
+</section>
+
+<section style="background: #0f1d31; border: 1px solid #1b2c44; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">3 · One color, one meaning</h2>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 6px; background: #4BBCFF"></span><div><div style="font-size: 12px; font-weight: 600">--c-pin <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 400; color: #6b7d94">accent #4BBCFF</span></div><div style="font-size: 11px; color: #8ea3bd">In agent context: 1.5px ring and the context chip</div></div></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 6px; background: #B388FF"></span><div><div style="font-size: 12px; font-weight: 600">--c-attention <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 400; color: #6b7d94">#B388FF</span></div><div style="font-size: 11px; color: #8ea3bd">The agent touched it: 2px header bar. Already the agent's presence color.</div></div></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 6px; background: #f4c542"></span><div><div style="font-size: 12px; font-weight: 600">--c-warn <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 400; color: #6b7d94">#f4c542</span></div><div style="font-size: 11px; color: #8ea3bd">Warnings only</div></div></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 6px; background: #ff6a7f"></span><div><div style="font-size: 12px; font-weight: 600">--c-danger</div><div style="font-size: 11px; color: #8ea3bd">Errors, deletions</div></div></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 6px; background: #2fd07f"></span><div><div style="font-size: 12px; font-weight: 600">--c-ok</div><div style="font-size: 11px; color: #8ea3bd">Done, passing</div></div></div>
+</div>
+<div style="margin-top: auto; padding-top: 14px; border-top: 1px solid #1b2c44; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; color: #8ea3bd">Today, amber (--c-warn) means all of:</span>
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(244,197,66,0.12); color: #f4c542">warning</span>
+<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(244,197,66,0.12); color: #f4c542">context pin</span>
+<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(244,197,66,0.12); color: #f4c542">attention · primary</span>
+<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(244,197,66,0.12); color: #f4c542">attention · secondary</span>
+<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(244,197,66,0.12); color: #f4c542">webpage / status / html kind</span>
+</div>
+</div>
+</section>
+
+<section style="background: #0f1d31; border: 1px solid #1b2c44; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">6 · Light is not sepia</h2>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 11px; color: #8ea3bd">Light, today</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<div style="height: 44px; border-radius: 6px; background: #F4EFE6; color: #3d4d63; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#F4EFE6</div>
+<div style="height: 44px; border-radius: 6px; background: #EFE7D4; color: #3d4d63; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#EFE7D4</div>
+<div style="height: 44px; border-radius: 6px; background: #D6CBB4; color: #3d4d63; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#D6CBB4</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 11px; color: #8ea3bd">Sepia, today</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<div style="height: 44px; border-radius: 6px; background: #F2E7D5; color: #554833; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#F2E7D5</div>
+<div style="height: 44px; border-radius: 6px; background: #EBDCC2; color: #554833; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#EBDCC2</div>
+<div style="height: 44px; border-radius: 6px; background: #D3C1A0; color: #554833; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#D3C1A0</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 11px; color: #e6eef7; font-weight: 500">Light, proposed — canvas · node · line</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<div style="height: 44px; border-radius: 6px; background: #F6F7F9; color: #3d4d63; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#F6F7F9</div>
+<div style="height: 44px; border-radius: 6px; background: #FFFFFF; color: #3d4d63; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#FFFFFF</div>
+<div style="height: 44px; border-radius: 6px; background: #DDE2E9; color: #3d4d63; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 8px; box-sizing: border-box">#DDE2E9</div>
+</div>
+</div>
+</section>
+
+<section style="background: #0f1d31; border: 1px solid #1b2c44; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">5 · Embedded viewers use the theme</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; flex: 1">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="flex: 1; border-radius: 10px; background: #13243b; border: 1px solid #1b2c44; padding: 30px 8px 8px; display: flex">
+<div style="flex: 1; border-radius: 8px; background: #000000; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 10px; font-weight: 700; color: #f2f2f2">bar — merged PRs per week</span>
+<div style="flex: 1; display: flex; align-items: flex-end; gap: 6px"><div style="flex: 1; height: 40%; background: #2b4a6b"></div><div style="flex: 1; height: 36%; background: #2b4a6b"></div><div style="flex: 1; height: 56%; background: #2b4a6b"></div><div style="flex: 1; height: 50%; background: #2b4a6b"></div><div style="flex: 1; height: 72%; background: #4BBCFF"></div></div>
+</div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Viewer palette is pure black / pure white; title repeats.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
+<div style="flex: 1; border-radius: 10px; background: #13243b; border: 1px solid #1b2c44; padding: 30px 14px 14px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; color: #8ea3bd">bar · W24–W28</span>
+<div style="flex: 1; display: flex; align-items: flex-end; gap: 8px; border-bottom: 1px solid #1b2c44"><div style="flex: 1; height: 40%; border-radius: 3px 3px 0 0; background: rgba(75,188,255,0.45)"></div><div style="flex: 1; height: 36%; border-radius: 3px 3px 0 0; background: rgba(75,188,255,0.45)"></div><div style="flex: 1; height: 56%; border-radius: 3px 3px 0 0; background: rgba(75,188,255,0.45)"></div><div style="flex: 1; height: 50%; border-radius: 3px 3px 0 0; background: rgba(75,188,255,0.45)"></div><div style="flex: 1; height: 72%; border-radius: 3px 3px 0 0; background: #4BBCFF"></div></div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Viewer gets the canvas tokens, not just “dark”.</span>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

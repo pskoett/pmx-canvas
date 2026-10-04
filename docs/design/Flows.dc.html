@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lineage, evidence and drill-in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1280px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 32px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Lineage, evidence and drill-in</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">The same relation layer for data work: where a number came from and whether it's still current, what a finding rests on, and a group of sources opened with its outside links kept.</p>
+</div>
+
+<section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today — lineage drawn by hand</span>
+<div style="position: relative; width: 644px; height: 330px; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.10) 1px, transparent 1.2px); background-size: 24px 24px; font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif">
+<svg width="644" height="330" viewBox="0 0 644 330" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="M 152 148 C 164 148, 164 148, 176 148" style="stroke: #4BBCFF; stroke-width: 1.5; opacity: 0.85"></path><path d="M 176 148 L 168 144.8 L 168 151.2 Z" style="fill: #4BBCFF; opacity: 0.75"></path>
+<path d="M 308 148 C 320 148, 320 148, 332 148" style="stroke: #4BBCFF; stroke-width: 1.5; opacity: 0.85"></path><path d="M 332 148 L 324 144.8 L 324 151.2 Z" style="fill: #4BBCFF; opacity: 0.75"></path>
+<path d="M 464 148 C 476 148, 476 148, 488 148" style="stroke: #4BBCFF; stroke-width: 1.5; opacity: 0.85"></path><path d="M 488 148 L 480 144.8 L 480 151.2 Z" style="fill: #4BBCFF; opacity: 0.75"></path>
+</svg>
+<sc-for list="{{oldSteps}}" as="st" hint-placeholder-count="4">
+<div style="position: absolute; left: {{st.x}}px; top: 84px; width: 132px; height: 128px; box-sizing: border-box; border-radius: 12px 12px 8px 8px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 4px 24px rgba(0,0,0,0.3); overflow: hidden; display: flex; flex-direction: column">
+<div style="height: 26px; padding: 0 8px; display: flex; align-items: center; gap: 4px; background: #0b1828; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; color: {{st.ic}}">{{st.glyph}}</span><span style="flex: 1; font-size: 10.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{st.title}}</span></div>
+<div style="padding: 6px 8px; font-size: 9px; color: #b9c6d6; flex: 1">{{st.body}}</div>
+</div>
+</sc-for>
+<span style="position: absolute; left: 20px; top: 230px; font-size: 10px; color: #5c6b80">churn-raw.csv was replaced this morning.</span>
+</div>
+<span style="font-size: 12px; color: #ff8a9b">Blue “flow” links, the same as every other flow. When the raw export is replaced, the cleaned table, the chart and the finding all look current.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — lineage that knows it's stale</span>
+<div style="position: relative; width: 644px; height: 330px; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px">
+<svg width="644" height="330" viewBox="0 0 644 330" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round; stroke-linejoin: round">
+<path d="M 152 135 L 174 135" style="stroke: #f4c542; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 178 135 L 169 130.5 L 169 139.5 Z" style="fill: #f4c542"></path>
+<path d="M 308 135 L 330 135" style="stroke: #f4c542; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 334 135 L 325 130.5 L 325 139.5 Z" style="fill: #f4c542"></path>
+<path d="M 464 135 L 486 135" style="stroke: #f4c542; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 490 135 L 481 130.5 L 481 139.5 Z" style="fill: #f4c542"></path>
+<path d="M 400 190 L 400 246" style="stroke: #7C9CFF; stroke-width: 2"></path><path d="M 400 250 L 395.5 241 L 404.5 241 Z" style="fill: #7C9CFF"></path>
+</svg>
+<span style="position: absolute; left: 410px; top: 210px; font-size: 11px; color: #7C9CFF">cited by</span>
+<div style="{{c.step}} left: 24px">
+<div style="{{c.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{c.ic}}"><path d="M7 3.5h7l4 4V20.5H6V3.5zM14 3.5V8h4"></path></svg><span style="{{c.title}}">churn-raw.csv</span></div>
+<div style="{{c.body}}">14,212 rows</div>
+<div style="padding: 0 10px 8px"><span style="{{c.chip}} background: rgba(47,208,127,0.12); color: #2fd07f">updated 2h ago</span></div>
+</div>
+<div style="{{c.step}} left: 180px">
+<div style="{{c.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{c.ic}}"><path d="M7 3.5h7l4 4V20.5H6V3.5zM14 3.5V8h4"></path></svg><span style="{{c.title}}">churn-clean.csv</span></div>
+<div style="{{c.body}}">Trials and test accounts removed</div>
+<div style="padding: 0 10px 8px"><span style="{{c.chip}} background: rgba(244,197,66,0.12); color: #f4c542">stale</span></div>
+</div>
+<div style="{{c.step}} left: 336px">
+<div style="{{c.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{c.ic}}"><path d="M4 4v16h16M8 16v-4M12 16V8M16 16v-6"></path></svg><span style="{{c.title}}">Churn by plan</span></div>
+<div style="{{c.body}}">bar · monthly, by plan</div>
+<div style="padding: 0 10px 8px"><span style="{{c.chip}} background: rgba(244,197,66,0.12); color: #f4c542">stale</span></div>
+</div>
+<div style="{{c.step}} left: 492px">
+<div style="{{c.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{c.ic}}"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg><span style="{{c.title}}">Churn flat after raise</span></div>
+<div style="{{c.body}}">Finding · rests on a stale chart</div>
+<div style="padding: 0 10px 8px"><span style="{{c.chip}} background: rgba(244,197,66,0.12); color: #f4c542">check</span></div>
+</div>
+<div style="position: absolute; left: 300px; top: 252px; width: 200px; height: 56px; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; display: flex; flex-direction: column; justify-content: center"><span style="font-size: 12px; font-weight: 600">SMB is price-sensitive</span><span style="font-size: 11px; color: #8ea3bd">finding · also cites the chart</span></div>
+<div style="position: absolute; left: 24px; top: 262px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 11px; color: #f4c542">3 nodes downstream of a changed source</span>
+<div style="display: flex; gap: 6px"><button style="{{c.btn}}">Show lineage</button><button style="{{c.btn}}">Ask agent to refresh</button></div>
+</div>
+</div>
+<span style="font-size: 12px; color: #8ea3bd">“Derived from” links know their direction. When a source changes, everything downstream turns amber (a real warning) until it's refreshed or confirmed.</span>
+</div>
+
+</section>
+
+<section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — what a finding rests on (new)</span>
+<div style="position: relative; height: 560px; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background: rgba(4,10,18,0.9); display: flex">
+<div style="flex: 1; padding: 20px; display: flex; flex-direction: column">
+<div style="flex: 1; border-radius: 14px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 24px 64px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden">
+<div style="height: 40px; padding: 0 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1b2c44"><span style="font-size: 15px; font-weight: 600; flex: 1">Churn flat after last raise</span><span style="font-size: 11px; color: #6b7d94">finding</span></div>
+<div style="padding: 14px; color: #b9c6d6; font-size: 12px; line-height: 1.6">Pro churn was 2.1% in the three months before the 2024 raise and 2.2% after it. The effect is within normal month-to-month noise.</div>
+</div>
+</div>
+<aside style="width: 300px; box-sizing: border-box; padding: 18px 16px; border-left: 1px solid #1b2c44; background: #0b1828; display: flex; flex-direction: column; gap: 12px; overflow: hidden">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 600">Relations</span><button style="height: 24px; padding: 0 9px; border-radius: 6px; border: 1px solid #2a4566; background: #13243b; color: #e6eef7; font-family: inherit; font-size: 11px">Show on canvas</button></div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(244,197,66,0.12); color: #f4c542; font-size: 11px; font-weight: 500"><svg width="13" height="13" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4l9 16H3zM12 10v4M12 17v.5"></path></svg>Rests on a stale chart</div>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+<div>
+<div style="{{c.sec}}">{{g.name}}</div>
+<sc-for list="{{g.items}}" as="rel" hint-placeholder-count="2">
+<div style="{{c.rel}}"><div style="display: flex; align-items: center; gap: 6px"><svg width="16" height="6" viewBox="0 0 16 6" style="flex-shrink: 0; fill: none; stroke: {{rel.c}}; stroke-width: 2; stroke-linecap: round"><path d="M1 3 H15"></path></svg><span style="font-size: 11px; color: {{rel.c}}">{{rel.type}}</span><span style="font-size: 12px; font-weight: 600; color: #e6eef7">{{rel.target}}</span></div><div style="font-size: 11px; color: #8ea3bd; padding-left: 22px">{{rel.why}}</div></div>
+</sc-for>
+</div>
+</sc-for>
+</aside>
+</div>
+<span style="font-size: 12px; color: #8ea3bd">In the expanded node: evidence for, evidence against, and what uses this finding, each with its reason. Pinning the finding can bring its evidence into the agent's context too.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — open a group of sources (new)</span>
+<div style="position: relative; height: 560px; border-radius: 10px; border: 1px solid #1b2c44; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px">
+<div style="position: absolute; left: 16px; top: 14px; display: flex; align-items: center; gap: 6px; font-size: 12px"><span style="color: #8ea3bd">Q4 pricing</span><span style="color: #3d5170">/</span><span style="font-weight: 600">Pricing research</span><span style="margin-left: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid #1b2c44; color: #6b7d94">Esc</span><span style="font-size: 11px; color: #6b7d94">goes up</span></div>
+<div style="position: absolute; left: 24px; top: 52px; width: 596px; height: 300px; box-sizing: border-box; border-radius: 14px; border: 1.5px dashed rgba(75,188,255,0.35); background: rgba(75,188,255,0.03)"></div>
+<span style="position: absolute; left: 40px; top: 42px; height: 20px; padding: 0 9px; border-radius: 999px; background: #0f1d31; border: 1px solid rgba(75,188,255,0.35); font-size: 11px; font-weight: 600; line-height: 18px">Inside Pricing research</span>
+<svg width="644" height="560" viewBox="0 0 644 560" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round; stroke-linejoin: round">
+<path d="M 236 150 L 308 150" style="stroke: #7C9CFF; stroke-width: 2"></path><path d="M 312 150 L 303 145.5 L 303 154.5 Z" style="fill: #7C9CFF"></path>
+<path d="M 400 186 L 400 228" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 400 232 L 395.5 223 L 404.5 223 Z" style="fill: #D5DEEA"></path>
+<path d="M 140 186 C 140 300, 120 340, 120 420" style="stroke: #5FCFC0; stroke-width: 2"></path><path d="M 120 424 L 115.5 415 L 124.5 415 Z" style="fill: #5FCFC0"></path>
+<path d="M 450 306 C 450 372, 330 360, 330 420" style="stroke: #7C9CFF; stroke-width: 2"></path><path d="M 330 424 L 325.5 415 L 334.5 415 Z" style="fill: #7C9CFF"></path>
+<path d="M 540 424 C 540 360, 560 330, 560 186" style="stroke: #E59B6B; stroke-width: 2"></path><path d="M 560 182 L 555.5 191 L 564.5 191 Z" style="fill: #E59B6B"></path>
+</svg>
+<div style="{{c.card}} left: 48px; top: 114px; width: 188px">Competitor pricing<span style="{{c.meta}}">webpage · 4 rivals</span></div>
+<div style="{{c.card}} left: 312px; top: 114px; width: 176px">Price tiers<span style="{{c.meta}}">table · from the pages</span></div>
+<div style="{{c.card}} left: 312px; top: 234px; width: 176px">Tier comparison<span style="{{c.meta}}">chart</span></div>
+<div style="{{c.card}} left: 512px; top: 114px; width: 92px">Notes<span style="{{c.meta}}">markdown</span></div>
+<span style="position: absolute; left: 24px; top: 392px; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Outside</span>
+<div style="{{c.ghost}} left: 40px; top: 426px">Raise Pro to $24?<span style="{{c.meta}}">question · ① Question</span></div>
+<div style="{{c.ghost}} left: 250px; top: 426px">Decision memo<span style="{{c.meta}}">markdown · ④ Decision</span></div>
+<div style="{{c.ghost}} left: 460px; top: 426px">SMB interviews<span style="{{c.meta}}">notes · ② Evidence</span></div>
+</div>
+<span style="font-size: 12px; color: #8ea3bd">Opening a group keeps its outside links: the question it supports, the memo that cites it, the interview notes that push back.</span>
+</div>
+
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var c = {
+      step: 'position:absolute;top:80px;width:128px;height:110px;box-sizing:border-box;overflow:hidden;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);display:flex;flex-direction:column;',
+      head: 'display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-bottom:1px solid #1b2c44;',
+      ic: 'flex-shrink:0;color:#8ea3bd;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;',
+      title: 'font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
+      body: 'padding:6px 10px;font-size:11px;line-height:1.45;color:#b9c6d6;flex:1;',
+      chip: 'font-size:11px;line-height:18px;padding:0 7px;border-radius:999px;font-weight:500;',
+      btn: 'height:24px;padding:0 9px;border-radius:6px;border:1px solid #2a4566;background:#13243b;color:#e6eef7;font-family:inherit;font-size:11px;font-weight:500;',
+      sec: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;margin-bottom:4px;',
+      rel: 'padding:7px 0;border-bottom:1px solid #1b2c44;display:flex;flex-direction:column;gap:2px;',
+      card: 'position:absolute;height:72px;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);font-size:12px;font-weight:600;display:flex;flex-direction:column;gap:2px;',
+      ghost: 'position:absolute;width:170px;height:60px;box-sizing:border-box;padding:9px 12px;border-radius:10px;border:1.5px dashed #2a4566;background:rgba(15,29,49,0.5);font-size:12px;font-weight:600;color:#b9c6d6;display:flex;flex-direction:column;gap:2px;',
+      meta: 'font-size:11px;font-weight:400;color:#6b7d94;'
+    };
+    var oldSteps = [
+      { x: 20, title: 'churn-raw.csv', body: '14,212 rows', glyph: '▯', ic: '#4BBCFF' },
+      { x: 176, title: 'churn-clean.csv', body: 'Trials and test accounts removed', glyph: '▯', ic: '#4BBCFF' },
+      { x: 332, title: 'Churn by plan', body: 'bar · monthly, by plan', glyph: '▥', ic: '#b07aff' },
+      { x: 488, title: 'Churn flat after raise', body: 'Pro churn 2.1% → 2.2% after the 2024 raise.', glyph: '▤', ic: '#4BBCFF' }
+    ];
+    var groups = [
+      { name: 'Evidence for · 2', items: [
+        { type: 'cites', c: '#7C9CFF', target: 'Churn by plan', why: 'Pro churn 2.1% before vs 2.2% after.' },
+        { type: 'supports', c: '#5FCFC0', target: 'Competitor pricing', why: 'Rivals charge $25–29 for the same tier.' }
+      ] },
+      { name: 'Evidence against · 1', items: [
+        { type: 'contradicts', c: '#E59B6B', target: 'SMB is price-sensitive', why: 'SMB churn rose 0.6 pts after the raise.' }
+      ] },
+      { name: 'Used by · 1', items: [
+        { type: 'supports', c: '#5FCFC0', target: 'Raise Pro to $24?', why: 'The last raise did not move churn.' }
+      ] }
+    ];
+    return { c: c, oldSteps: oldSteps, groups: groups };
+  }
+}
+</script>
+</body>
+</html>

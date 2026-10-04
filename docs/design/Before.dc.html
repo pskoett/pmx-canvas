@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PMX Canvas — today</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: #081524; color: #e6eef7; font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif; font-size: 11px; line-height: 1.45">
+
+<nav aria-label="Tools" style="position: absolute; left: 0; top: 0; width: 52px; height: 900px; box-sizing: border-box; padding: 8px 0; background: #0b1828; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #8ea3bd">
+<button aria-label="Home" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #4BBCFF; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="4" y="4" width="16" height="16" rx="4"></rect><rect x="9" y="9" width="6" height="6" rx="1.5"></rect></svg></button>
+<button aria-label="Bug and feedback" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><rect x="8" y="7" width="8" height="12" rx="4"></rect><path d="M12 7V4M5 10h3M16 10h3M5 15h3M16 15h3M9 5l1.5 2M15 5l-1.5 2"></path></svg></button>
+<div style="width: 24px; height: 1px; margin: 4px 0; background: #1b2c44"></div>
+<button aria-label="Select (V)" style="width: 36px; height: 36px; border: 1px solid #2a4566; border-radius: 8px; background: #13243b; color: #4BBCFF; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round"><path d="M5 3.5l13 7.5-5.6 1.6L10.8 18z"></path></svg></button>
+<button aria-label="Pan (Space)" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 10.5V5a1.5 1.5 0 0 1 3 0v6M14 10.5V7a1.5 1.5 0 0 1 3 0v6.5a6.5 6.5 0 0 1-6.5 6.5h-.6a6 6 0 0 1-5-2.7l-1.8-3a1.5 1.5 0 0 1 2.5-1.6L8 14"></path></svg></button>
+<button aria-label="Connect (C)" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><circle cx="6" cy="6" r="2.2"></circle><circle cx="18" cy="18" r="2.2"></circle><path d="M7.6 7.6l8.8 8.8"></path></svg></button>
+<div style="width: 24px; height: 1px; margin: 4px 0; background: #1b2c44"></div>
+<button aria-label="Markdown note (M)" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 10h8M8 14h5"></path></svg></button>
+<button aria-label="Attach files" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19.5h14"></path></svg></button>
+<button aria-label="Webpage (W)" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="M3.5 9h17"></path></svg></button>
+<button aria-label="Group (G)" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-dasharray: 3 3"><rect x="4" y="4" width="16" height="16" rx="3"></rect></svg></button>
+<button aria-label="Draw (A)" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round"><path d="M4 20l4.2-1L19 8.2 15.8 5 5 15.8z"></path></svg></button>
+<button aria-label="Text note" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><path d="M5.5 6h13M12 6v13"></path></svg></button>
+<button aria-label="Eraser" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round"><path d="M4 15l9-9 6 6-7 7H8zM9 10l6 6M8 19h12"></path></svg></button>
+<div style="width: 24px; height: 1px; margin: 4px 0; background: #1b2c44"></div>
+<button aria-label="Search and commands" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.6-4.6"></path></svg></button>
+<button aria-label="Arrange" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="4" y="4" width="6" height="6" rx="1.2"></rect><rect x="14" y="4" width="6" height="6" rx="1.2"></rect><rect x="4" y="14" width="6" height="6" rx="1.2"></rect><rect x="14" y="14" width="6" height="6" rx="1.2"></rect></svg></button>
+<button aria-label="Enable trace" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle></svg></button>
+<button aria-label="Clear trace" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><circle cx="12" cy="12" r="8"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg></button>
+<button aria-label="Hide minimap" style="width: 36px; height: 36px; border: 1px solid #2a4566; border-radius: 8px; background: #13243b; color: #4BBCFF; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><rect x="11" y="11" width="6" height="5" rx="1"></rect></svg></button>
+<button aria-label="Snapshots" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"></path><circle cx="12" cy="13" r="3"></circle></svg></button>
+<button aria-label="Choose theme" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><circle cx="12" cy="12" r="4"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"></path></svg></button>
+<button aria-label="Shortcuts" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8ea3bd; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 10h1M11 10h1M15 10h1M8 14h8"></path></svg></button>
+</nav>
+
+<header style="position: absolute; left: 52px; top: 0; right: 0; height: 48px; box-sizing: border-box; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 10px; background: #0b1828; border-bottom: 1px solid #1b2c44">
+<span style="width: 9px; height: 9px; border-radius: 999px; background: #2fd07f"></span>
+<button style="font-family: Arial, sans-serif; font-size: 14px; font-weight: 700; color: #e6eef7; background: transparent; border: 0; padding: 0">Board 2026-10-04 06:27 ⌄</button>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5c6b80">pmx-mutfv69j · 70 nodes · 9 edges · 3 traces</span>
+<div style="flex: 1"></div>
+<button style="font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; color: #8ea3bd; background: transparent; border: 1px solid #1b2c44; border-radius: 999px; height: 28px; padding: 0 12px">● Start agent session  beta</button>
+<button style="font-family: Arial, sans-serif; font-size: 13px; color: #e6eef7; background: transparent; border: 1px solid #1b2c44; border-radius: 6px; height: 30px; padding: 0 12px">Export</button>
+<button style="font-family: Arial, sans-serif; font-size: 13px; color: #e6eef7; background: transparent; border: 1px solid #1b2c44; border-radius: 6px; height: 30px; padding: 0 12px">Present</button>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd; padding: 0 10px">⊖   52%   ⊕   ⛶</span>
+</header>
+
+<main style="position: absolute; left: 52px; top: 48px; width: 1388px; height: 852px; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.10) 1px, transparent 1.2px); background-size: 24px 24px">
+
+<div style="position: absolute; left: 32px; top: 6px; width: 1256px; height: 78px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+<div style="position: absolute; left: 32px; top: 72px; width: 432px; height: 372px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+<div style="position: absolute; left: 464px; top: 72px; width: 372px; height: 372px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+<div style="position: absolute; left: 836px; top: 72px; width: 502px; height: 372px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+<div style="position: absolute; left: 32px; top: 442px; width: 1256px; height: 78px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+<div style="position: absolute; left: 32px; top: 510px; width: 432px; height: 206px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+<div style="position: absolute; left: 836px; top: 510px; width: 452px; height: 206px; box-sizing: border-box; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 22px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)"></div>
+
+<section style="position: absolute; left: 48px; top: 16px; width: 1224px; height: 58px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="color: #4BBCFF">▤</span><span style="font-size: 11px; font-weight: 600">① Start here</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 8px">⤢⌄×</span></div>
+<div style="padding: 2px 10px; font-size: 9px; color: #b9c6d6">What the agent is doing, what context it holds, what it decided, and the tool calls behind it.</div>
+<div style="display: flex; justify-content: space-between; padding: 0 10px; font-family: Arial, sans-serif; font-size: 9px; color: #5c6b80"><span>Set as README</span><span>Edit</span></div>
+</section>
+
+<section style="position: absolute; left: 48px; top: 88px; width: 400px; height: 340px; box-sizing: border-box; background: #0f1d31; border: 1px solid rgba(244,197,66,0.6); border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 2px #f4c542, 0 0 8px rgba(244,197,66,0.3), 0 12px 34px rgba(244,197,66,0.18); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; background: linear-gradient(90deg, rgba(244,197,66,0.12), transparent 68%), #13243b; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(244,197,66,0.15); color: #f4c542">▤</span><span style="font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 7px">○✧↗⤢⌄×</span></div>
+<div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 12px; font-weight: 700">PMX Canvas</div>
+<div style="font-size: 9.5px; color: #b9c6d6">An infinite spatial canvas that agents drive over MCP, HTTP or the Bun SDK — and that humans steer by pinning nodes.</div>
+<div style="display: grid; grid-template-columns: 110px 1fr; font-size: 9px; border: 1px solid #1b2c44">
+<div style="padding: 3px 6px; background: #13243b; color: #8ea3bd">Band</div><div style="padding: 3px 6px; background: #13243b; color: #8ea3bd">Shows</div>
+<div style="padding: 3px 6px; border-top: 1px solid #1b2c44">① Start here</div><div style="padding: 3px 6px; border-top: 1px solid #1b2c44; color: #8ea3bd">status · context · ledger · trace</div>
+<div style="padding: 3px 6px; border-top: 1px solid #1b2c44">② Files &amp; review</div><div style="padding: 3px 6px; border-top: 1px solid #1b2c44; color: #8ea3bd">file · CSV · diff · image · webpage</div>
+<div style="padding: 3px 6px; border-top: 1px solid #1b2c44">③ Diagrams</div><div style="padding: 3px 6px; border-top: 1px solid #1b2c44; color: #8ea3bd">mermaid · raw HTML · MCP app</div>
+<div style="padding: 3px 6px; border-top: 1px solid #1b2c44">④ Charts</div><div style="padding: 3px 6px; border-top: 1px solid #1b2c44; color: #8ea3bd">all 12 graph types</div>
+</div>
+<div style="font-size: 9.5px; color: #b9c6d6">Pin a node in the browser and the agent reads it back from canvas://pinned-context.</div>
+</div>
+<div style="position: absolute; left: 12px; right: 12px; bottom: 6px; display: flex; justify-content: space-between; font-family: Arial, sans-serif; font-size: 9px; color: #5c6b80"><span>Set as README</span><span>Edit</span></div>
+</section>
+
+<section style="position: absolute; left: 480px; top: 88px; width: 340px; height: 140px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 1px rgba(244,197,66,0.72), 0 12px 34px rgba(244,197,66,0.18), inset 0 0 0 1px rgba(244,197,66,0.28); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: linear-gradient(90deg, rgba(244,197,66,0.12), transparent 68%), #13243b; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(47,208,127,0.15); color: #2fd07f">◉</span><span style="font-size: 11.5px; font-weight: 600">Agent</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 8px">⌄×</span></div>
+<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 5px; font-size: 10px">
+<div><span style="color: #4BBCFF">● </span><strong style="color: #4BBCFF">TOOLING</strong> <span style="color: #8ea3bd">Rebuilding the release checklist</span></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #f4c542">● canvas_render</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #4BBCFF">◦ release-auditor <span style="color: #5c6b80">(running)</span></div>
+<div style="color: #8ea3bd">3 of 5 gates green</div>
+</div>
+</section>
+
+<div style="position: absolute; left: 649px; top: 228px; width: 1.5px; height: 44px; background: #2a4566"></div>
+<span style="position: absolute; left: 622px; top: 238px; font-family: Arial, sans-serif; font-size: 11px; line-height: 22px; padding: 0 8px; border-radius: 4px; background: #13243b; border: 1px solid #2a4566; color: #b9c6d6">runs</span>
+
+<div style="position: absolute; left: 480px; top: 272px; width: 340px; height: 56px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 18px; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 999px; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1)">
+<span style="color: #2fd07f">✓</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #4BBCFF">canvas_query · search</span><span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #13243b; color: #5c6b80">38ms</span>
+</div>
+
+<div style="position: absolute; left: 649px; top: 328px; width: 1.5px; height: 44px; background: #2a4566"></div>
+<span style="position: absolute; left: 624px; top: 338px; font-family: Arial, sans-serif; font-size: 11px; line-height: 22px; padding: 0 8px; border-radius: 4px; background: #13243b; border: 1px solid #2a4566; color: #b9c6d6">then</span>
+
+<div style="position: absolute; left: 480px; top: 372px; width: 340px; height: 56px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 18px; background: #0f1d31; border: 1.5px solid #4BBCFF; border-radius: 999px; box-shadow: 0 0 14px rgba(75,188,255,0.35)">
+<span style="color: #5c6b80">◦</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #f4c542">edit_file · CHANGELOG.md</span><span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #13243b; color: #5c6b80">1.2s</span>
+</div>
+
+<section style="position: absolute; left: 852px; top: 88px; width: 470px; height: 340px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(244,197,66,0.12); color: #f4c542">▥</span><span style="font-size: 11.5px; font-weight: 600">bar — merged PRs per …</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 7px">↗⤢⌄×</span></div>
+<div style="position: absolute; left: 8px; right: 8px; top: 40px; height: 230px; box-sizing: border-box; padding: 12px 14px; background: #000000; border: 1px solid #1f1f1f; border-radius: 8px">
+<div style="font-size: 10px; font-weight: 700; color: #f2f2f2">bar — merged PRs per week</div>
+<div style="position: absolute; left: 40px; right: 16px; bottom: 30px; height: 150px; display: flex; align-items: flex-end; gap: 14px; border-left: 1px solid #333; border-bottom: 1px solid #333; padding: 0 8px">
+<div style="flex: 1; height: 92px; background: #2b4a6b"></div><div style="flex: 1; height: 84px; background: #2b4a6b"></div><div style="flex: 1; height: 118px; background: #2b4a6b"></div><div style="flex: 1; height: 106px; background: #2b4a6b"></div><div style="flex: 1; height: 128px; background: #2b4a6b"></div><div style="flex: 1; height: 146px; background: #4BBCFF"></div>
+</div>
+<div style="position: absolute; left: 48px; right: 16px; bottom: 12px; display: flex; justify-content: space-around; font-size: 8.5px; color: #8a8a8a"><span>W23</span><span>W24</span><span>W25</span><span>W26</span><span>W27</span><span>W28</span></div>
+</div>
+</section>
+
+<button style="position: absolute; right: 16px; top: 96px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 12px; border-radius: 999px; border: 1px solid #2a4566; background: #0f1d31; color: #e6eef7; font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">▣ UPDATES <span style="width: 18px; height: 18px; border-radius: 999px; background: #f4c542; color: #081524; font-size: 11px; display: flex; align-items: center; justify-content: center">1</span></button>
+
+<section style="position: absolute; left: 48px; top: 452px; width: 1224px; height: 58px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="color: #4BBCFF">▤</span><span style="font-size: 11px; font-weight: 600">② Files &amp; review</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 8px">⤢⌄×</span></div>
+<div style="padding: 2px 10px; font-size: 9px; color: #b9c6d6">Inline file text, unified diffs, images and cached webpages.</div>
+<div style="display: flex; justify-content: space-between; padding: 0 10px; font-family: Arial, sans-serif; font-size: 9px; color: #5c6b80"><span>Set as README</span><span>Edit</span></div>
+</section>
+
+<section style="position: absolute; left: 48px; top: 524px; width: 400px; height: 176px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(244,197,66,0.12); color: #f4c542">▭</span><span style="font-size: 11.5px; font-weight: 600">Model Context Protocol — Res…</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 7px">○↗⤢⌄×</span></div>
+<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 9.5px; padding: 4px 8px; border-radius: 4px; background: rgba(244,197,66,0.10); color: #f4c542">⚠ Showing cached copy — live fetch failed</div>
+<div style="font-size: 11px; font-weight: 700">Resources</div>
+<div style="font-size: 9.5px; color: #b9c6d6">Servers expose data and content that clients can read and use as context for model interactions.</div>
+</div>
+</section>
+
+<section style="position: absolute; left: 480px; top: 524px; width: 340px; height: 176px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(75,188,255,0.12); color: #4BBCFF">▯</span><span style="font-size: 11.5px; font-weight: 600">node-sizes.ts</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 7px">○↗⤢⌄×</span></div>
+<div style="padding: 8px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; line-height: 1.6; color: #b9c6d6; white-space: pre">export const NODE_MIN = { width: 180, height: 96 };
+
+export function clampSize(size) {
+  return {
+    width: Math.max(size.width, NODE_MIN.width),
+    height: Math.max(size.height, NODE_MIN.height),</div>
+</section>
+
+<section style="position: absolute; left: 852px; top: 524px; width: 420px; height: 176px; box-sizing: border-box; background: #0f1d31; border: 1px solid #1b2c44; border-radius: 12px 12px 8px 8px; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(75,188,255,0.12); color: #4BBCFF">±</span><span style="font-size: 11.5px; font-weight: 600">Readability floor — 2 files</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 7px">○✧↗⤢⌄×</span></div>
+<div style="padding: 6px 0; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; line-height: 1.7">
+<div style="padding: 0 12px; color: #5c6b80">@@ src/client/theme/global.css</div>
+<div style="padding: 0 12px; background: rgba(255,106,127,0.10); color: #ff6a7f">-  font-size: 10px;</div>
+<div style="padding: 0 12px; background: rgba(47,208,127,0.10); color: #2fd07f">+  font-size: var(--fs-meta);</div>
+<div style="padding: 0 12px; background: rgba(255,106,127,0.10); color: #ff6a7f">-  border-radius: 12px 12px 8px 8px;</div>
+<div style="padding: 0 12px; background: rgba(47,208,127,0.10); color: #2fd07f">+  border-radius: var(--r-node);</div>
+</div>
+</section>
+
+<button style="position: absolute; left: 574px; bottom: 20px; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(244,197,66,0.55); background: rgba(30,32,30,0.92); color: #f4c542; font-family: Arial, sans-serif; font-size: 13px; font-weight: 700">✦ 4 nodes in context <span style="color: #8ea3bd">×</span></button>
+
+<div style="position: absolute; right: 16px; bottom: 16px; width: 200px; height: 130px; box-sizing: border-box; border-radius: 8px; border: 1px solid #2a4566; background: #0b1828; overflow: hidden">
+<div style="position: absolute; left: 10px; top: 10px; width: 16px; height: 8px; background: #4BBCFF"></div>
+<div style="position: absolute; left: 30px; top: 10px; width: 20px; height: 8px; background: #2fd07f"></div>
+<div style="position: absolute; left: 54px; top: 10px; width: 14px; height: 8px; background: #2fd07f"></div>
+<div style="position: absolute; left: 10px; top: 22px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 32px; top: 22px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 54px; top: 22px; width: 18px; height: 10px; background: #2fd07f"></div>
+<div style="position: absolute; left: 10px; top: 36px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 32px; top: 36px; width: 18px; height: 10px; background: #4BBCFF"></div>
+<div style="position: absolute; left: 54px; top: 36px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 10px; top: 50px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 32px; top: 50px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 82px; top: 10px; width: 22px; height: 14px; background: #2fd07f"></div>
+<div style="position: absolute; left: 108px; top: 10px; width: 22px; height: 14px; background: #2fd07f"></div>
+<div style="position: absolute; left: 134px; top: 10px; width: 22px; height: 14px; background: #4BBCFF"></div>
+<div style="position: absolute; left: 82px; top: 28px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 108px; top: 28px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 134px; top: 28px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 160px; top: 28px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 82px; top: 50px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 108px; top: 50px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 134px; top: 50px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 160px; top: 50px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 82px; top: 72px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 108px; top: 72px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 134px; top: 72px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 160px; top: 72px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 10px; top: 72px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 32px; top: 72px; width: 18px; height: 10px; background: #8d6bff"></div>
+<div style="position: absolute; left: 82px; top: 94px; width: 22px; height: 18px; background: #c9a227"></div>
+<div style="position: absolute; left: 8px; top: 8px; width: 46px; height: 28px; border: 1.5px solid #4BBCFF"></div>
+<span style="position: absolute; right: 6px; bottom: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #5c6b80">52%</span>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

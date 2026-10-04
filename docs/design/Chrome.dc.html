@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rail, node header and section labels</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 820px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">7 · Tool rail in a 690px-tall window</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">20 buttons need 850px. Settings-type tools move into one menu.</p></div>
+<div style="display: flex; gap: 20px; align-items: flex-start">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="position: relative; width: 120px; height: 600px; border: 1px solid #1b2c44; border-radius: 10px; overflow: hidden; background: #081524">
+<div style="width: 52px; height: 600px; box-sizing: border-box; padding: 8px 0; background: #0b1828; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px">
+<sc-for list="{{railToday}}" as="i" hint-placeholder-count="20">
+<sc-if value="{{i.sep}}" hint-placeholder-val="{{ false }}"><div style="width: 24px; height: 1px; margin: 4px 0; background: #1b2c44; flex-shrink: 0"></div></sc-if>
+<sc-if value="{{i.btn}}" hint-placeholder-val="{{ true }}"><button aria-label="{{i.label}}" style="flex-shrink: 0; width: 36px; height: 36px; border: 0; border-radius: 8px; padding: 0; background: transparent; color: #8ea3bd; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.d}}"></path></svg></button></sc-if>
+</sc-for>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 60px; background: linear-gradient(transparent, rgba(255,106,127,0.18))"></div>
+</div>
+<span style="width: 120px; font-size: 11px; color: #ff8a9b">Snapshots, Theme and Shortcuts are cut off; Home scrolls away when you reach them.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; flex: 1">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
+<div style="position: relative; height: 600px; border: 1px solid #1b2c44; border-radius: 10px; overflow: hidden; background: #081524">
+<div style="width: 52px; height: 600px; box-sizing: border-box; padding: 8px 0; background: #0f1d31; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px">
+<sc-for list="{{railNew}}" as="i" hint-placeholder-count="12">
+<sc-if value="{{i.sep}}" hint-placeholder-val="{{ false }}"><div style="width: 24px; height: 1px; margin: 6px 0; background: #1b2c44; flex-shrink: 0"></div></sc-if>
+<sc-if value="{{i.grow}}" hint-placeholder-val="{{ false }}"><div style="flex: 1"></div></sc-if>
+<sc-if value="{{i.btn}}" hint-placeholder-val="{{ true }}"><button aria-label="{{i.label}}" style="{{i.style}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.d}}"></path></svg></button></sc-if>
+</sc-for>
+</div>
+<div role="menu" aria-label="Settings" style="position: absolute; left: 60px; bottom: 8px; width: 180px; box-sizing: border-box; padding: 6px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{settings}}" as="m" hint-placeholder-count="6">
+<sc-if value="{{m.sep}}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: #1b2c44"></div></sc-if>
+<sc-if value="{{m.btn}}" hint-placeholder-val="{{ true }}"><button role="menuitem" style="display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left">{{m.label}}<span style="font-size: 11px; color: #6b7d94">{{m.hint}}</span></button></sc-if>
+</sc-for>
+</div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">12 tools, then Settings: theme, snapshots, minimap, shortcuts, trace, feedback.</span>
+</div>
+
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">8 · Node header</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Six always-on icons become ⋯ and × on hover.</p></div>
+
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="border-radius: 12px 12px 8px 8px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44">
+<span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(244,197,66,0.12); color: #f4c542; font-family: -apple-system, system-ui, sans-serif">▤</span>
+<span style="flex: 1; min-width: 0; font-family: -apple-system, system-ui, sans-serif; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">PMX Canvas — guided t…</span>
+<sc-for list="{{oldIcons}}" as="o" hint-placeholder-count="6"><svg width="15" height="15" viewBox="0 0 24 24" style="flex-shrink: 0; color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{o.d}}"></path></svg></sc-for>
+</div>
+<div style="height: 44px; padding: 8px 10px; box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; font-size: 9.5px; color: #b9c6d6">An infinite spatial canvas that agents drive over MCP, HTTP or the Bun SDK.</div>
+</div>
+
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — resting</span>
+<div style="border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44">
+<svg width="16" height="16" viewBox="0 0 24 24" style="color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
+<span style="flex: 1; font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span>
+</div>
+<div style="height: 44px; padding: 10px 12px; box-sizing: border-box; font-size: 12px; color: #b9c6d6">An infinite spatial canvas that agents drive over MCP, HTTP or the Bun SDK.</div>
+</div>
+
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed — hover, ⋯ open</span>
+<div style="position: relative; border-radius: 10px; border: 1px solid #2a4566; background: #0f1d31; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)">
+<div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44">
+<svg width="16" height="16" viewBox="0 0 24 24" style="color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
+<span style="flex: 1; font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span>
+<button aria-label="More actions" style="width: 24px; height: 24px; border: 0; border-radius: 6px; padding: 0; background: #1b2c44; color: #e6eef7; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: currentColor; stroke: none"><circle cx="6" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="18" cy="12" r="1.4"></circle></svg></button>
+<button aria-label="Close" style="width: 24px; height: 24px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #8ea3bd; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+<div style="height: 44px"></div>
+<div role="menu" aria-label="Node actions" style="position: absolute; right: 36px; top: 34px; width: 210px; box-sizing: border-box; padding: 6px; border-radius: 10px; border: 1px solid #1b2c44; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{nodeMenu}}" as="m" hint-placeholder-count="8">
+<sc-if value="{{m.sep}}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: #1b2c44"></div></sc-if>
+<sc-if value="{{m.btn}}" hint-placeholder-val="{{ true }}"><button role="menuitem" style="display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px">{{m.label}}<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">{{m.hint}}</span></button></sc-if>
+</sc-for>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">9–10 · Section labels and floating chrome</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">A one-line caption doesn't need a node's chrome.</p></div>
+
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="padding: 10px; border: 1.5px solid rgba(244,197,66,0.45); border-radius: 20px; background: rgba(244,197,66,0.05); box-shadow: 0 0 36px rgba(244,197,66,0.14)">
+<div style="border-radius: 12px 12px 8px 8px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 0 0 1px rgba(244,197,66,0.3); overflow: hidden; font-family: -apple-system, system-ui, sans-serif">
+<div style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; background: #13243b; border-bottom: 1px solid #1b2c44"><span style="color: #4BBCFF; font-size: 11px">▤</span><span style="font-size: 11px; font-weight: 600">② Files &amp; review</span><span style="flex: 1"></span><span style="font-family: Arial, sans-serif; color: #8ea3bd; letter-spacing: 8px; font-size: 11px">⤢⌄×</span></div>
+<div style="padding: 3px 10px; font-size: 9px; color: #b9c6d6">Inline file text, unified diffs, images and cached webpages.</div>
+<div style="display: flex; justify-content: space-between; padding: 0 10px 3px; font-family: Arial, sans-serif; font-size: 9px; color: #5c6b80"><span>Set as README</span><span>Edit</span></div>
+</div>
+</div>
+
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
+<div style="padding: 20px 16px; border-radius: 10px; border: 1px dashed #1b2c44; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px">
+<div style="font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.01em">② Files &amp; review</div>
+<div style="font-size: 12px; color: #8ea3bd">Inline file text, unified diffs, images and cached webpages.</div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Same markdown node, rendered as a heading: no titlebar, no footer; controls appear on hover.</span>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 8px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
+<div style="position: relative; height: 120px; border-radius: 10px; border: 1px solid #1b2c44; background: #081524; overflow: hidden">
+<div style="position: absolute; left: 12px; right: -20px; top: 30px; height: 100px; border-radius: 10px; background: #0f1d31; border: 1px solid #1b2c44"><div style="height: 30px; border-bottom: 1px solid #1b2c44; background: #13243b; padding: 0 10px; font-size: 11px; line-height: 30px; font-weight: 600">Working context</div></div>
+<span style="position: absolute; right: 8px; top: 26px; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid #2a4566; background: #0f1d31; font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; line-height: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">UPDATES 1</span>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">The pill covers the node title.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
+<div style="position: relative; height: 120px; border-radius: 10px; border: 1px solid #1b2c44; background: #081524; overflow: hidden">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 44px; background: rgba(75,188,255,0.04); border-bottom: 1px dashed #1b2c44"></div>
+<div style="position: absolute; left: 12px; right: -20px; top: 54px; height: 100px; border-radius: 10px; background: #0f1d31; border: 1px solid #1b2c44"><div style="height: 30px; border-bottom: 1px solid #1b2c44; padding: 0 10px; font-size: 12px; line-height: 30px; font-weight: 600">Working context</div></div>
+<span style="position: absolute; right: 8px; top: 7px; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid #1b2c44; background: #0f1d31; font-size: 12px; font-weight: 500; line-height: 28px; color: #b9c6d6">Updates <span style="color: #4BBCFF">1</span></span>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Fit and focus keep a lane clear for floating chrome.</span>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var P = {
+      home: 'M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4zM10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3A1.5 1.5 0 0 1 10.5 9z',
+      bug: 'M10 7h4a3 3 0 0 1 3 3v5a5 5 0 0 1-10 0v-5a3 3 0 0 1 3-3zM12 7V4M4 11h3M17 11h3M4 16h3M17 16h3',
+      select: 'M5 3.5l13 7.5-5.6 1.6L10.8 18z',
+      pan: 'M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 10.5V5a1.5 1.5 0 0 1 3 0v6M14 10.5V7a1.5 1.5 0 0 1 3 0v6.5a6.5 6.5 0 0 1-6.5 6.5h-.6a6 6 0 0 1-5-2.7l-1.8-3a1.5 1.5 0 0 1 2.5-1.6L8 14',
+      connect: 'M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M7.6 7.6l8.8 8.8',
+      note: 'M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5',
+      attach: 'M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19.5h14',
+      web: 'M5.5 5h13a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 9h17',
+      group: 'M4 7V5.5A1.5 1.5 0 0 1 5.5 4H7M11 4h2M17 4h1.5A1.5 1.5 0 0 1 20 5.5V7M20 11v2M20 17v1.5a1.5 1.5 0 0 1-1.5 1.5H17M13 20h-2M7 20H5.5A1.5 1.5 0 0 1 4 18.5V17M4 13v-2',
+      draw: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      text: 'M5.5 6h13M12 6v13',
+      eraser: 'M4 15l9-9 6 6-7 7H8zM9 10l6 6M8 19h12',
+      search: 'M5 11a6 6 0 1 0 12 0a6 6 0 1 0-12 0M20 20l-4.6-4.6',
+      arrange: 'M5 4h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM15 4h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM5 14h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM15 14h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z',
+      traceOn: 'M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0',
+      traceOff: 'M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0M9 9l6 6M15 9l-6 6',
+      minimap: 'M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM12 11h4v4h-4z',
+      snap: 'M4 8h3l1.5-2h7L17 8h3v11H4zM9 13a3 3 0 1 0 6 0a3 3 0 1 0-6 0',
+      theme: 'M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M12 3v2M12 19v2M3 12h2M19 12h2',
+      keys: 'M5 6h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM7 10h1M11 10h1M15 10h1M8 14h8',
+      settings: 'M4 7h9M17 7h3M4 17h3M11 17h9M13 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M7 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
+      ctx: 'M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0',
+      ask: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
+      open: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
+      expand: 'M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7',
+      chevron: 'M7 10l5 5 5-5',
+      close: 'M7 7l10 10M17 7L7 17'
+    };
+    function b(label, d) { return { btn: true, sep: false, grow: false, label: label, d: d }; }
+    var sep = { btn: false, sep: true, grow: false };
+    var grow = { btn: false, sep: false, grow: true };
+    var railToday = [
+      b('Home', P.home), b('Bug and feedback', P.bug), sep,
+      b('Select', P.select), b('Pan', P.pan), b('Connect', P.connect), sep,
+      b('Markdown note', P.note), b('Attach files', P.attach), b('Webpage', P.web), b('Group', P.group), b('Draw', P.draw), b('Text note', P.text), b('Eraser', P.eraser), sep,
+      b('Search and commands', P.search), b('Arrange', P.arrange), b('Enable trace', P.traceOn), b('Clear trace', P.traceOff), b('Hide minimap', P.minimap), b('Snapshots', P.snap), b('Choose theme', P.theme), b('Shortcuts', P.keys)
+    ];
+    var base = 'flex-shrink:0;width:36px;height:36px;border:0;border-radius:6px;padding:0;display:flex;align-items:center;justify-content:center;font-family:inherit;';
+    var off = base + 'background:transparent;color:#8ea3bd;';
+    var on = base + 'background:rgba(75,188,255,0.14);color:#4BBCFF;';
+    var railNew = [
+      b('Home', P.home), sep,
+      b('Select', P.select), b('Pan', P.pan), b('Connect', P.connect), sep,
+      b('Markdown note', P.note), b('Attach files', P.attach), b('Webpage', P.web), b('Group', P.group), b('Draw', P.draw), b('Text note', P.text), sep,
+      b('Search and commands', P.search), b('Arrange', P.arrange), grow, b('Settings', P.settings)
+    ].map(function (i) {
+      if (!i.btn) return i;
+      return Object.assign({}, i, { style: i.label === 'Select' || i.label === 'Settings' ? on : off });
+    });
+    function m(label, hint, active) { return { btn: true, sep: false, label: label, hint: hint, bg: active ? '#1b2c44' : 'transparent' }; }
+    var msep = { btn: false, sep: true };
+    var settings = [m('Theme', 'Dark ›', true), m('Snapshots', ''), m('Minimap', 'On'), m('Keyboard shortcuts', '?'), msep, m('Trace', 'Off ›'), m('Send feedback', '')];
+    var nodeMenu = [m('Add to context', 'P', true), m('Ask agent', ''), m('Open in new tab', ''), m('Focus', '↵'), m('Collapse', ''), m('Set as README', ''), msep, m('Close', '⌫')];
+    var oldIcons = [{ d: P.ctx }, { d: P.ask }, { d: P.open }, { d: P.expand }, { d: P.chevron }, { d: P.close }];
+    return { railToday: railToday, railNew: railNew, settings: settings, nodeMenu: nodeMenu, oldIcons: oldIcons };
+  }
+}
+</script>
+</body>
+</html>

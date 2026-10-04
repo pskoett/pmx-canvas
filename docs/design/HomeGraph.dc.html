@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home — graph</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; background: #06111e; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5">
+
+<nav aria-label="Navigation" style="position: absolute; left: 0; top: 0; width: 52px; height: 960px; box-sizing: border-box; padding: 8px 0; background: #0f1d31; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px">
+<button aria-label="Home" style="width: 36px; height: 36px; border: 0; border-radius: 6px; padding: 0; background: rgba(75,188,255,0.14); color: #4BBCFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="4" y="4" width="16" height="16" rx="4"></rect><rect x="9" y="9" width="6" height="6" rx="1.5"></rect></svg></button>
+</nav>
+
+<header style="position: absolute; left: 52px; top: 0; width: 1088px; height: 64px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #1b2c44; background: #081524">
+<h1 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; flex: 1">Library</h1>
+<span style="font-size: 12px; color: #8ea3bd">24 boards · 312 cards · 61 links</span>
+<div role="tablist" aria-label="View" style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #0f1d31">
+<button role="tab" aria-selected="false" style="{{s.tab}}">Folders</button>
+<button role="tab" aria-selected="false" style="{{s.tab}}">Map</button>
+<button role="tab" aria-selected="true" style="{{s.tabOn}}">Graph</button>
+</div>
+</header>
+
+<div style="position: absolute; left: 52px; top: 64px; width: 1088px; height: 896px; overflow: hidden">
+<svg width="1088" height="896" viewBox="0 0 1088 896" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="{{e.memberDim}}" style="stroke: #2a3b55; stroke-width: 0.8; opacity: 0.5"></path>
+<path d="{{e.portalDim}}" style="stroke: #3d5170; stroke-width: 1.1; opacity: 0.45"></path>
+<path d="{{e.crossDim}}" style="stroke: #3d5170; stroke-width: 1; opacity: 0.45"></path>
+<path d="{{e.memberHi}}" style="stroke: #8ea3bd; stroke-width: 1"></path>
+<path d="{{e.portalHi}}" style="stroke: #D5DEEA; stroke-width: 1.6"></path>
+<path d="{{e.x0.d}}" style="stroke: {{e.x0.c}}; stroke-width: 1.8"></path>
+<path d="{{e.x1.d}}" style="stroke: {{e.x1.c}}; stroke-width: 1.8"></path>
+<path d="{{e.x2.d}}" style="stroke: {{e.x2.c}}; stroke-width: 1.8"></path>
+<path d="{{e.x3.d}}" style="stroke: {{e.x3.c}}; stroke-width: 1.8"></path>
+</svg>
+<sc-for list="{{cards}}" as="cd" hint-placeholder-count="120">
+<span style="position: absolute; left: {{cd.l}}px; top: {{cd.t}}px; width: {{cd.d}}px; height: {{cd.d}}px; border-radius: 999px; background: {{cd.fill}}; opacity: {{cd.o}}"></span>
+</sc-for>
+<sc-for list="{{boards}}" as="b" hint-placeholder-count="22">
+<span style="position: absolute; left: {{b.l}}px; top: {{b.t}}px; width: {{b.d}}px; height: {{b.d}}px; box-sizing: border-box; border-radius: 999px; background: {{b.fill}}; border: {{b.ring}}; box-shadow: {{b.glow}}; opacity: {{b.o}}"></span>
+<span style="position: absolute; left: {{b.lx}}px; top: {{b.ly}}px; width: 180px; text-align: center; font-size: {{b.fs}}px; font-weight: {{b.fw}}; color: #e6eef7; opacity: {{b.lo}}; white-space: nowrap">{{b.name}}</span>
+</sc-for>
+<div style="position: absolute; left: 24px; bottom: 20px; display: flex; gap: 14px; font-size: 11px; color: #8ea3bd">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 999px; background: #8ea3bd"></span>board</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 999px; background: #8ea3bd"></span>card</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 2px solid #4BBCFF"></span>in the agent's context</span>
+<span>hovering: Pricing research</span>
+</div>
+</div>
+
+<aside aria-label="Graph settings" style="position: absolute; left: 1140px; top: 0; width: 300px; height: 960px; box-sizing: border-box; padding: 18px 18px; background: #0b1828; border-left: 1px solid #1b2c44; display: flex; flex-direction: column; gap: 18px; overflow: hidden">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.sec}}">Filters</span>
+<label style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid #1b2c44; background: #0f1d31"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Filter the graph</span><input type="search" placeholder="Search boards and cards…" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: #e6eef7; font-family: inherit; font-size: 12px"></label>
+<sc-for list="{{filters}}" as="fl" hint-placeholder-count="5">
+<label style="{{s.check}}"><input type="checkbox" checked="{{fl.on}}" style="accent-color: #4BBCFF; margin: 0"><span style="flex: 1">{{fl.name}}</span><span style="font-size: 11px; color: #6b7d94">{{fl.n}}</span></label>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="{{s.sec}}">Groups · by folder</span>
+<sc-for list="{{groups}}" as="gr" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12px"><span style="width: 12px; height: 12px; border-radius: 999px; background: {{gr.c}}"></span><span style="flex: 1">{{gr.name}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6b7d94">{{gr.q}}</span></div>
+</sc-for>
+<span style="font-size: 12px; color: #8ea3bd">+ New group</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="{{s.sec}}">Links</span>
+<sc-for list="{{linkTypes}}" as="lt" hint-placeholder-count="3">
+<label style="{{s.check}}"><input type="checkbox" checked="{{lt.on}}" style="accent-color: #4BBCFF; margin: 0"><span style="flex: 1">{{lt.name}}</span><span style="font-size: 11px; color: #6b7d94">{{lt.n}}</span></label>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="{{s.sec}}">Display and forces</span>
+<sc-for list="{{sliders}}" as="sl" hint-placeholder-count="4">
+<label style="display: flex; flex-direction: column; gap: 2px; font-size: 12px"><span>{{sl.name}}</span><input type="range" min="0" max="100" value="{{sl.v}}" style="accent-color: #4BBCFF; width: 100%; margin: 0"></label>
+</sc-for>
+</div>
+
+<div style="margin-top: auto; padding: 12px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 999px; background: #7C9CFF; box-shadow: 0 0 0 2px #4BBCFF"></span><span style="font-size: 13px; font-weight: 600; flex: 1">Pricing research</span><span style="font-size: 11px; color: #6b7d94">Research › Pricing</span></div>
+<span style="font-size: 11px; color: #b9c6d6">27 cards · links to 5 boards · in context</span>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 12px"><span style="flex: 1">Local graph, depth</span><input type="range" min="1" max="4" value="2" style="accent-color: #4BBCFF; width: 110px; margin: 0"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">2</span></label>
+<div style="display: flex; gap: 6px"><button style="flex: 1; height: 28px; border: 0; border-radius: 6px; background: #4BBCFF; color: #081524; font-family: inherit; font-size: 12px; font-weight: 600">Open board</button><button style="height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid #2a4566; background: #0f1d31; color: #e6eef7; font-family: inherit; font-size: 12px">Remove from context</button></div>
+</div>
+</aside>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var HUE = { te: '#5FCFC0', re: '#7C9CFF', ws: '#E58FB0', none: '#6b7d94', home: '#D5DEEA' };
+    var B = [
+      { id: 'home', name: 'Home', x: 560, y: 120, n: 6, g: 'home' },
+      { id: 'ov', name: 'Tech Enabling — overview', x: 300, y: 250, n: 18, g: 'te', ctx: true },
+      { id: 'c4', name: 'C4 2026 OKR planning', x: 210, y: 380, n: 34, g: 'te', ctx: true },
+      { id: 'apr', name: 'April OKRs', x: 90, y: 300, n: 12, g: 'te', old: true },
+      { id: 'dm', name: 'Delivery metrics', x: 400, y: 390, n: 22, g: 'te' },
+      { id: 'dora', name: 'DORA dashboard', x: 470, y: 300, n: 8, g: 'te' },
+      { id: 'road', name: 'Platform roadmap 2027', x: 230, y: 140, n: 26, g: 'te' },
+      { id: 'q3', name: 'Q3 risks', x: 100, y: 170, n: 9, g: 'te', old: true },
+      { id: 'pd', name: 'Product discovery', x: 330, y: 520, n: 6, g: 'te', old: true },
+      { id: 'idx', name: 'Research — index', x: 700, y: 260, n: 6, g: 're' },
+      { id: 'pr', name: 'Pricing research', x: 690, y: 430, n: 27, g: 're', ctx: true },
+      { id: 'ch', name: 'Churn analysis', x: 540, y: 540, n: 14, g: 're' },
+      { id: 'smb', name: 'SMB interviews', x: 850, y: 470, n: 11, g: 're' },
+      { id: 'ct', name: 'Competitor teardown', x: 790, y: 610, n: 19, g: 're' },
+      { id: 'fm', name: 'Feature matrix', x: 920, y: 660, n: 7, g: 're', old: true },
+      { id: 'wwa', name: 'Working with agents', x: 930, y: 170, n: 11, g: 'ws' },
+      { id: 'wf', name: 'Workshop flow', x: 1010, y: 260, n: 5, g: 'ws' },
+      { id: 'u1', name: 'Scratch 2026-09-30', x: 990, y: 790, n: 4, g: 'none' },
+      { id: 'u2', name: 'Board 2026-10-04 06:27', x: 130, y: 740, n: 40, g: 'none' },
+      { id: 'u3', name: 'Untitled', x: 640, y: 800, n: 1, g: 'none' }
+    ];
+    var byId = {};
+    B.forEach(function (b) { byId[b.id] = b; });
+    var portals = [['home', 'ov'], ['home', 'idx'], ['home', 'wwa'], ['ov', 'c4'], ['ov', 'dm'], ['ov', 'road'], ['ov', 'pd'], ['c4', 'apr'], ['dm', 'dora'], ['road', 'q3'], ['idx', 'pr'], ['idx', 'ch'], ['idx', 'smb'], ['idx', 'ct'], ['ct', 'fm'], ['wwa', 'wf']];
+    var focus = 'pr';
+    var hiBoards = { pr: 1, idx: 1, ch: 1, smb: 1, ct: 1, c4: 1 };
+    var seed = 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+    function r1(v) { return Math.round(v * 10) / 10; }
+    var cards = [], memberDim = '', memberHi = '';
+    var cardPos = {};
+    B.forEach(function (b) {
+      var count = Math.min(b.n, 12);
+      var hi = b.id === focus;
+      cardPos[b.id] = [];
+      for (var i = 0; i < count; i++) {
+        var a = (i / count) * Math.PI * 2 + rnd() * 0.6;
+        var dist = 26 + Math.sqrt(b.n) * 3 + rnd() * 22;
+        var x = b.x + Math.cos(a) * dist, y = b.y + Math.sin(a) * dist;
+        cardPos[b.id].push({ x: x, y: y });
+        var seg = 'M ' + r1(b.x) + ' ' + r1(b.y) + ' L ' + r1(x) + ' ' + r1(y) + ' ';
+        if (hi) memberHi += seg; else memberDim += seg;
+        var d = 4 + rnd() * 2.5;
+        var o = hi ? 0.9 : (hiBoards[b.id] ? 0.45 : 0.18);
+        cards.push({ l: r1(x - d / 2), t: r1(y - d / 2), d: r1(d), fill: HUE[b.g], o: o });
+      }
+    });
+    var portalDim = '', portalHi = '';
+    portals.forEach(function (p) {
+      var a = byId[p[0]], b = byId[p[1]];
+      var seg = 'M ' + a.x + ' ' + a.y + ' L ' + b.x + ' ' + b.y + ' ';
+      if (p[0] === focus || p[1] === focus) portalHi += seg; else portalDim += seg;
+    });
+    function cardLink(fromB, fi, toB, ti) {
+      var f = cardPos[fromB][fi], t = cardPos[toB][ti];
+      return 'M ' + r1(f.x) + ' ' + r1(f.y) + ' Q ' + r1((f.x + t.x) / 2 + 20) + ' ' + r1((f.y + t.y) / 2 - 20) + ', ' + r1(t.x) + ' ' + r1(t.y);
+    }
+    var e = {
+      memberDim: memberDim || 'M 0 0', memberHi: memberHi || 'M 0 0', portalDim: portalDim, portalHi: portalHi || 'M 0 0',
+      crossDim: cardLink('dora', 1, 'ch', 3) + ' ' + cardLink('wwa', 2, 'ov', 5),
+      x0: { d: cardLink('pr', 4, 'c4', 2), c: '#E58FB0' },
+      x1: { d: cardLink('ch', 0, 'pr', 7), c: '#7C9CFF' },
+      x2: { d: cardLink('smb', 2, 'pr', 1), c: '#7C9CFF' },
+      x3: { d: cardLink('ct', 9, 'pr', 10), c: '#7C9CFF' }
+    };
+    var boards = B.map(function (b) {
+      var r = b.id === 'home' ? 11 : 5 + Math.sqrt(b.n) * 1.3;
+      var hi = !!hiBoards[b.id] || b.id === 'home';
+      var isFocus = b.id === focus;
+      var o = isFocus ? 1 : hi ? 0.95 : (b.old ? 0.25 : 0.4);
+      var d = r * 2;
+      return {
+        name: b.name, l: r1(b.x - r), t: r1(b.y - r), d: r1(d), fill: HUE[b.g], o: o,
+        ring: b.ctx ? '2.5px solid #4BBCFF' : '0',
+        glow: isFocus ? '0 0 0 6px rgba(124,156,255,0.18), 0 0 24px rgba(124,156,255,0.45)' : 'none',
+        lx: r1(b.x - 90), ly: r1(b.y + r + 4), fs: isFocus ? 13 : 11, fw: isFocus ? 600 : 500,
+        lo: isFocus ? 1 : hi ? 0.9 : (b.n >= 14 ? 0.35 : 0)
+      };
+    });
+    var filters = [
+      { name: 'Boards', n: 24, on: true }, { name: 'Cards', n: 312, on: true },
+      { name: 'Only in the agent’s context', n: 3, on: false }, { name: 'Unfiled and unlinked', n: 3, on: true },
+      { name: 'Archived', n: 5, on: false }
+    ];
+    var groups = [
+      { name: 'Tech Enabling', q: 'folder:TE', c: HUE.te },
+      { name: 'Research', q: 'folder:Research', c: HUE.re },
+      { name: 'Workshops', q: 'folder:Workshops', c: HUE.ws },
+      { name: 'Unfiled', q: 'no folder', c: HUE.none }
+    ];
+    var linkTypes = [
+      { name: 'Portals', n: 16, on: true }, { name: 'Wiki links', n: 12, on: true }, { name: 'Card relations (supports, cites…)', n: 33, on: true }
+    ];
+    var sliders = [{ name: 'Label fade', v: 55 }, { name: 'Node size', v: 40 }, { name: 'Repel', v: 62 }, { name: 'Link distance', v: 35 }];
+    var s = {
+      sec: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      check: 'display:flex;align-items:center;gap:8px;height:24px;font-size:12px;',
+      tab: 'height:28px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:#8ea3bd;font-family:inherit;font-size:12px;font-weight:500;',
+      tabOn: 'height:28px;padding:0 12px;border:0;border-radius:6px;background:#1b2c44;color:#e6eef7;font-family:inherit;font-size:12px;font-weight:500;'
+    };
+    return { e: e, cards: cards, boards: boards, filters: filters, groups: groups, linkTypes: linkTypes, sliders: sliders, s: s };
+  }
+}
+</script>
+</body>
+</html>

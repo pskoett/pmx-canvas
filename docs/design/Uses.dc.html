@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>One relation layer, four kinds of board</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1420px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 28px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">One relation layer, four kinds of board</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Each board picks a vocabulary — the relation types, their direction and ink. The mechanics stay the same: own ports, lanes, hover neighborhood, a reason on every link, and one highlight mode per vocabulary.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 40px">
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Research · evidence</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: what supports or contradicts a claim</span></div>
+<div style="{{u.canvas}}">
+<div style="{{u.legend}}"><span style="{{u.vocab}}">Research ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #5FCFC0"></span>supports<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E59B6B"></span>contradicts<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #7C9CFF"></span>cites<span style="{{u.n}}">3</span></span></div>
+<svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="M 170 180 C 170 140, 290 150, 290 112" style="stroke: #5FCFC0; stroke-width: 2"></path><path d="M 290 110 L 285.5 119 L 294.5 119 Z" style="fill: #5FCFC0"></path>
+<path d="M 474 180 C 474 140, 354 150, 354 112" style="stroke: #E59B6B; stroke-width: 2"></path><path d="M 354 110 L 349.5 119 L 358.5 119 Z" style="fill: #E59B6B"></path>
+<path d="M 100 330 C 100 290, 150 276, 150 236" style="stroke: #7C9CFF; stroke-width: 2"></path><path d="M 150 234 L 145.5 243 L 154.5 243 Z" style="fill: #7C9CFF"></path>
+<path d="M 280 330 C 280 290, 200 276, 200 236" style="stroke: #7C9CFF; stroke-width: 2"></path><path d="M 200 234 L 195.5 243 L 204.5 243 Z" style="fill: #7C9CFF"></path>
+<path d="M 524 330 C 524 290, 474 276, 474 236" style="stroke: #7C9CFF; stroke-width: 2"></path><path d="M 474 234 L 469.5 243 L 478.5 243 Z" style="fill: #7C9CFF"></path>
+</svg>
+<div style="{{u.node}} left: 242px; top: 56px">Raise Pro to $24?<span style="{{u.meta}}">question</span></div>
+<div style="{{u.node}} left: 90px; top: 180px">Churn flat after last raise<span style="{{u.meta}}">finding</span></div>
+<div style="{{u.node}} left: 394px; top: 180px">SMB is price-sensitive<span style="{{u.meta}}">finding</span></div>
+<div style="{{u.node}} left: 20px; top: 330px">Churn by plan<span style="{{u.meta}}">chart</span></div>
+<div style="{{u.node}} left: 200px; top: 330px">Competitor pricing<span style="{{u.meta}}">webpage</span></div>
+<div style="{{u.node}} left: 444px; top: 330px">SMB interviews<span style="{{u.meta}}">notes · 9 calls</span></div>
+<div style="{{u.tip}} left: 392px; top: 116px; width: 230px">contradicts · 6 of 9 SMB interviewees would downgrade at $24.</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Dependency analysis</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: what is affected if a node changes</span></div>
+<div style="{{u.canvas}}">
+<div style="{{u.legend}}"><span style="{{u.vocab}}">Dependencies ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E58FB0"></span>depends on<span style="{{u.n}}">5</span></span><span style="{{u.chip}} color: #f4c542; border-color: rgba(244,197,66,0.4)"><span style="{{u.sw}} background: #f4c542"></span>cycle<span style="{{u.n}}">1</span></span><span style="font-size: 11px; color: #b9c6d6; margin-left: 4px">Change auth-token.ts → 5 affected</span></div>
+<svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="M 105 108 C 105 150, 185 160, 185 196" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 185 198 L 180.5 189 L 189.5 189 Z" style="fill: #E58FB0"></path>
+<path d="M 322 108 C 322 150, 440 160, 440 196" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 440 198 L 435.5 189 L 444.5 189 Z" style="fill: #E58FB0"></path>
+<path d="M 539 108 C 539 150, 480 160, 480 196" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 480 198 L 475.5 189 L 484.5 189 Z" style="fill: #E58FB0"></path>
+<path d="M 185 248 C 185 290, 300 300, 300 336" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 300 338 L 295.5 329 L 304.5 329 Z" style="fill: #E58FB0"></path>
+<path d="M 459 248 C 459 290, 344 300, 344 336" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 344 338 L 339.5 329 L 348.5 329 Z" style="fill: #E58FB0"></path>
+<path d="M 260 216 L 378 216" style="stroke: #f4c542; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 382 216 L 373 211.5 L 373 220.5 Z" style="fill: #f4c542"></path>
+<path d="M 384 234 L 266 234" style="stroke: #f4c542; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 262 234 L 271 229.5 L 271 238.5 Z" style="fill: #f4c542"></path>
+</svg>
+<span style="position: absolute; left: 300px; top: 188px; height: 18px; padding: 0 7px; border-radius: 999px; background: rgba(244,197,66,0.14); color: #f4c542; font-size: 11px; font-weight: 600; line-height: 18px">cycle</span>
+<div style="{{u.dnode}} left: 30px; top: 60px">billing.ts<span style="{{u.depth}}">2</span></div>
+<div style="{{u.dnode}} left: 247px; top: 60px">webhooks.ts<span style="{{u.depth}}">2</span></div>
+<div style="{{u.dnode}} left: 464px; top: 60px">admin-ui.tsx<span style="{{u.depth}}">2</span></div>
+<div style="{{u.dnode}} left: 110px; top: 200px">session.ts<span style="{{u.depth}}">1</span></div>
+<div style="{{u.dnode}} left: 384px; top: 200px">api-client.ts<span style="{{u.depth}}">1</span></div>
+<div style="{{u.dnode}} left: 247px; top: 340px; box-shadow: 0 0 0 3px #081524, 0 0 0 5px #4BBCFF">auth-token.ts<span style="font-size: 11px; font-weight: 500; color: #4BBCFF">changed</span></div>
+<div style="{{u.dnode}} left: 470px; top: 400px; opacity: 0.35">legacy-sso.ts</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Decision tree</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: the chosen path; conditions always labeled</span></div>
+<div style="{{u.canvas}}">
+<div style="{{u.legend}}"><span style="{{u.vocab}}">Decision ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #D5DEEA"></span>option<span style="{{u.n}}">3</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #7C9CFF"></span>if…<span style="{{u.n}}">2</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #3d5170"></span>rejected<span style="{{u.n}}">2</span></span></div>
+<svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<path d="M 322 108 C 322 150, 105 140, 105 186" style="stroke: #3d5170; stroke-width: 1.5; stroke-dasharray: 5 4"></path><path d="M 105 188 L 100.5 179 L 109.5 179 Z" style="fill: #3d5170"></path>
+<path d="M 322 108 L 322 186" style="stroke: #D5DEEA; stroke-width: 3"></path><path d="M 322 190 L 316.5 179 L 327.5 179 Z" style="fill: #D5DEEA"></path>
+<path d="M 322 108 C 322 150, 539 140, 539 186" style="stroke: #3d5170; stroke-width: 1.5; stroke-dasharray: 5 4"></path><path d="M 539 188 L 534.5 179 L 543.5 179 Z" style="fill: #3d5170"></path>
+<path d="M 322 238 C 322 290, 215 290, 215 336" style="stroke: #7C9CFF; stroke-width: 3"></path><path d="M 215 340 L 209.5 329 L 220.5 329 Z" style="fill: #7C9CFF"></path>
+<path d="M 322 238 C 322 290, 429 290, 429 336" style="stroke: #7C9CFF; stroke-width: 1.5; opacity: 0.6"></path><path d="M 429 338 L 424.5 329 L 433.5 329 Z" style="fill: #7C9CFF; opacity: 0.6"></path>
+</svg>
+<span style="{{u.cond}} left: 128px; top: 278px">if SMB churn &gt; 3%</span>
+<span style="{{u.cond}} left: 400px; top: 278px; opacity: 0.7">otherwise</span>
+<div style="{{u.node}} left: 242px; top: 56px">Pro price for 2027<span style="{{u.meta}}">decision</span></div>
+<div style="{{u.node}} left: 25px; top: 190px; opacity: 0.45">Keep $19<span style="{{u.meta}}">rejected · margin</span></div>
+<div style="{{u.node}} left: 242px; top: 190px; border-color: #D5DEEA">✓ Raise to $24<span style="{{u.meta}}">chosen</span></div>
+<div style="{{u.node}} left: 459px; top: 190px; opacity: 0.45">Raise to $22<span style="{{u.meta}}">rejected · rivals at $25+</span></div>
+<div style="{{u.node}} left: 135px; top: 340px; border-color: #7C9CFF">✓ Grandfather SMB<span style="{{u.meta}}">outcome · 12 months</span></div>
+<div style="{{u.node}} left: 349px; top: 340px; opacity: 0.7">Raise for everyone<span style="{{u.meta}}">outcome</span></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Agent flow</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: progress — done, current, next, loop</span></div>
+<div style="{{u.canvas}}">
+<div style="{{u.legend}}"><span style="{{u.vocab}}">Flow ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #D5DEEA"></span>next<span style="{{u.n}}">3</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E59B6B"></span>if fails<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #8ea3bd"></span>loop<span style="{{u.n}}">1</span></span></div>
+<svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round; stroke-linejoin: round">
+<path d="M 152 185 L 174 185" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 178 185 L 169 180.5 L 169 189.5 Z" style="fill: #D5DEEA"></path>
+<path d="M 308 185 L 330 185" style="stroke: #B388FF; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 334 185 L 325 180.5 L 325 189.5 Z" style="fill: #B388FF"></path>
+<path d="M 464 185 L 486 185" style="stroke: #3d5170; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 490 185 L 481 180.5 L 481 189.5 Z" style="fill: #3d5170"></path>
+<path d="M 400 130 L 400 102 Q 400 94, 392 94 L 252 94 Q 244 94, 244 102 L 244 124" style="stroke: #E59B6B; stroke-width: 1.75; stroke-dasharray: 2 5"></path><path d="M 244 128 L 239.5 119 L 248.5 119 Z" style="fill: #E59B6B"></path>
+<path d="M 556 242 L 556 306 Q 556 314, 548 314 L 96 314 Q 88 314, 88 306 L 88 246" style="stroke: #8ea3bd; stroke-width: 1.75; stroke-dasharray: 6 5"></path><path d="M 88 242 L 83.5 251 L 92.5 251 Z" style="fill: #8ea3bd"></path>
+</svg>
+<span style="position: absolute; left: 270px; top: 84px; padding: 0 8px; height: 20px; border-radius: 999px; background: #081524; border: 1px solid rgba(229,155,107,0.4); font-size: 11px; line-height: 18px; color: #E59B6B">if tests fail</span>
+<span style="position: absolute; left: 252px; top: 304px; padding: 0 9px; height: 20px; border-radius: 999px; background: #0f1d31; border: 1px solid #2a4566; font-size: 11px; line-height: 18px; color: #b9c6d6">Next run · 2 of 5</span>
+<div style="{{u.step}} left: 24px"><span style="display: flex; align-items: center; gap: 6px"><span style="color: #2fd07f">✓</span>1. Reproduce</span><span style="{{u.meta}}">Failing test pins the bug.</span></div>
+<div style="{{u.step}} left: 180px"><span style="display: flex; align-items: center; gap: 6px"><span style="color: #2fd07f">✓</span>2. Fix</span><span style="{{u.meta}}">Wait for the bridge.</span></div>
+<div style="{{u.step}} left: 336px; border-color: #3a3060; box-shadow: 0 0 0 3px rgba(179,136,255,0.12)"><div style="position: absolute; left: 0; right: 0; top: 0; height: 2.5px; background: #B388FF"></div><span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 999px; background: #B388FF"></span>3. Verify</span><span style="{{u.meta}}">Agent · running e2e</span></div>
+<div style="{{u.step}} left: 492px; opacity: 0.55"><span>4. Ship</span><span style="{{u.meta}}">Tag, publish, smoke.</span></div>
+</div>
+</section>
+
+</div>
+
+<section style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{grammar}}" as="g" hint-placeholder-count="5">
+<div style="padding: 12px 14px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">{{g.t}}</span><span style="font-size: 11px; color: #8ea3bd">{{g.d}}</span></div>
+</sc-for>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1420}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var u = {
+      canvas: 'position:relative;width:644px;height:470px;border-radius:10px;border:1px solid #1b2c44;overflow:hidden;background-color:#081524;background-image:radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px);background-size:24px 24px;',
+      legend: 'position:absolute;left:12px;top:12px;right:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;z-index:1;',
+      vocab: 'height:24px;padding:0 10px;border-radius:6px;border:1px solid #2a4566;background:#13243b;font-size:11px;font-weight:600;line-height:22px;',
+      chip: 'display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid #1b2c44;background:#0f1d31;font-size:11px;font-weight:500;',
+      sw: 'width:14px;height:2.5px;border-radius:2px;',
+      n: 'color:#6b7d94;font-variant-numeric:tabular-nums;',
+      node: 'position:absolute;width:160px;height:52px;box-sizing:border-box;padding:7px 12px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);font-size:12px;font-weight:600;line-height:1.3;display:flex;flex-direction:column;justify-content:center;gap:1px;',
+      dnode: 'position:absolute;width:150px;height:48px;box-sizing:border-box;padding:0 12px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:space-between;',
+      depth: 'font-family:"IBM Plex Sans",sans-serif;min-width:18px;height:18px;border-radius:999px;background:rgba(229,143,176,0.16);color:#E58FB0;font-size:11px;font-weight:600;text-align:center;line-height:18px;',
+      meta: 'font-size:11px;font-weight:400;color:#8ea3bd;',
+      tip: 'position:absolute;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2a4566;background:#13243b;box-shadow:0 10px 30px rgba(0,0,0,0.55);font-size:11px;color:#b9c6d6;',
+      cond: 'position:absolute;height:20px;padding:0 8px;border-radius:999px;border:1px solid rgba(124,156,255,0.4);background:#081524;font-size:11px;line-height:18px;color:#7C9CFF;',
+      step: 'position:absolute;top:130px;width:128px;height:110px;box-sizing:border-box;overflow:hidden;padding:12px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);font-size:12px;font-weight:600;display:flex;flex-direction:column;gap:6px;'
+    };
+    var grammar = [
+      { t: 'Vocabulary per board', d: 'Research, Dependencies, Decision, Flow or your own types. Picked in the legend.' },
+      { t: 'Own ports, lanes', d: 'Links never stack; parallel ones run side by side with a count.' },
+      { t: 'Hover = neighborhood', d: 'Everything not connected steps back; the link explains itself.' },
+      { t: 'Reason on every link', d: 'One sentence agents write and humans read: the “why”.' },
+      { t: 'One highlight per vocabulary', d: 'Evidence, impact, chosen path, progress. Amber stays for warnings like cycles or stale data.' }
+    ];
+    return { u: u, grammar: grammar };
+  }
+}
+</script>
+</body>
+</html>
