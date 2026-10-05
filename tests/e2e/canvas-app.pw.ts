@@ -373,7 +373,9 @@ test('curated structured notes and AX focus reach the host context', async ({ pa
   expect(
     await pinBar.evaluate((element) => {
       const rect = element.getBoundingClientRect();
-      return rect.bottom <= innerHeight && rect.bottom >= innerHeight - 32 && rect.left >= 0 && rect.left < innerWidth / 3;
+      return (
+        rect.bottom <= innerHeight && rect.bottom >= innerHeight - 32 && rect.left >= 0 && rect.left < innerWidth / 3
+      );
     }),
   ).toBe(true);
   await pinBar.getByRole('button', { name: 'Clear all context pins' }).click();
