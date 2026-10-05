@@ -14,7 +14,7 @@
 
 **The bet inside it.** The first half is proven by use: every real board was agent-written and human-kept. The second half, that the board changes what an agent does, has never been observed. The plan tests it early (0.7 measures, 0.8 checks) and says in advance what happens if it fails.
 
-**Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Board pins are the working set across boards (2026-10-05, move 0a). Undecided: generated surfaces (6b).
+**Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Board pins are the working set across boards (2026-10-05, move 0a). A hosted team server separates workspace and personal libraries (2026-10-05, Part 3). Undecided: generated surfaces (6b).
 
 **Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible with the curation evaluation, the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
 
@@ -341,13 +341,23 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 | 2. Link | A read-only share link: `--listen` plus a board-scoped read token | move 7 in full |
 | 3. Comments | Viewers annotate and reply; comments are cards addressed to the owner | author on every node (Part 1) |
 | 4. Second writer | Another human writes to a shared board, with their own agent | the journal (move 4), concurrent boards (move 0, stage 2) |
-| 5. Accounts | Per-board roles (read, comment, write, answer asks), single-tenant | a team using step 4 |
+| 5. Accounts | Per-board roles (read, comment, write, answer asks), single-tenant; workspace and personal libraries | a team using step 4 |
 
 **What Part 2 already buys.** The journal (move 4) is the sync model: an ordered log with sequence numbers, per-consumer cursors and inverse patches is exactly what multiple clients need, and node-granular edits with compare-and-set on the node version resolve concurrent human edits without operational transforms or CRDTs. Per-writer tokens (move 7) become per-user credentials; author on every node (Part 1) becomes attribution; presence is already multi-writer with identity colors; the ask node with an attributed answer becomes an ask addressed to a person or a role.
 
 **Sharing is per board.** Sharing a board never shares what it links to. A portal to a board the viewer cannot see renders as a locked card with no title, and the viewer's brief never reaches past what they can see. This is where the [context vision's](product-context-vision-2026-09.md) publication and audience rules apply: an automatic derivative's audience cannot exceed its inputs', and publication is an explicit act, not a side effect of summarizing.
 
 **What is genuinely new at step 5.** Step 5 is a team server: the same binary run with `--listen` on a machine the team reaches, one store per team, not a multi-tenant service. Identity is the app's own (passkeys and email, federation optional later). If that server is not the owner's machine it has no workspace on disk, so file nodes become uploads with re-upload in place of the watcher. The brief is compiled from the attention of the people in an agent's session, not everyone's, so two people can work one board with different agents without steering each other's context.
+
+**Workspace and personal libraries (decided with the maintainer, 2026-10-05).** Once a team server has users (step 5), the library splits into two scopes, shown as two roots on Home, in Map and in Graph:
+
+- **Workspace** — the meta level: the team's shared folders and boards (areas, OKRs, decisions, shared research). Members see it according to their roles.
+- **Personal** — each user's own folders and boards, private to that user by default. A user organises them freely without touching the workspace tree.
+- **Crossing the line is deliberate.** A personal board reaches other people only when its owner shares it (per-board roles) or moves it into a workspace folder. Neither happens as a side effect of a link, a pin, an agent's write or a summary — the [context vision's](product-context-vision-2026-09.md) audience rule: a derived item never reaches a wider audience than its sources.
+- **Links are safe in both directions.** A personal board can portal or `[[link]]` to workspace boards. A workspace board that links to a personal board shows a locked card, with no title, to everyone who cannot read it.
+- **Pins and the brief are per user.** Card pins and board pins (move 0a) become each user's own working set: on a shared board, my pins steer my agent, not yours. The board's README stays the shared default. A user's brief draws on their personal boards and the workspace boards they can read, never on another user's personal boards.
+- **Agents act as their user.** An agent session belongs to one user and has exactly that user's read and write rights in both scopes.
+- **Local stays one scope.** A local install has one user, so its library is the workspace and nothing changes before step 5. Step 5 adds an owner to boards and folders (none means workspace) and a user to pins.
 
 **The vision it enables.** A quarterly OKR board with the PM, the team leads and each of their agents on it, every card attributed, every ask answered by the person it was addressed to, and the time scrubber showing how the plan changed and who changed it, reached from a link the PM sent after the workshop.
 
