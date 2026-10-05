@@ -9,8 +9,8 @@ export declare function runNodeAxInteraction(node: CanvasNodeState, type: string
 export declare const axNodeActionButtonStyle: {
     readonly padding: "3px 8px";
     readonly fontSize: "10px";
-    readonly background: "var(--c-accent-12)";
-    readonly border: "1px solid var(--c-accent-25)";
+    readonly background: "color-mix(in srgb, var(--c-accent) 12%, transparent)";
+    readonly border: "1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)";
     readonly borderRadius: "4px";
     readonly color: "var(--c-text-soft)";
     readonly cursor: "pointer";

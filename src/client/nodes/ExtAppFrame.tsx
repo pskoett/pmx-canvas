@@ -1384,10 +1384,14 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             padding: '6px 10px',
             fontSize: '11px',
             background:
-              sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger-12)' : 'var(--c-warn-10)',
+              sessionStatus === 'error' && !sessionErrorWithContent
+                ? 'color-mix(in srgb, var(--c-danger) 12%, transparent)'
+                : 'color-mix(in srgb, var(--c-warn) 10%, transparent)',
             color: sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger)' : 'var(--c-warn)',
             borderBottom: `1px solid ${
-              sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger-12)' : 'var(--c-warn-15)'
+              sessionStatus === 'error' && !sessionErrorWithContent
+                ? 'color-mix(in srgb, var(--c-danger) 12%, transparent)'
+                : 'color-mix(in srgb, var(--c-warn) 15%, transparent)'
             }`,
           }}
         >
@@ -1399,9 +1403,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           style={{
             padding: '6px 10px',
             fontSize: '11px',
-            background: 'var(--c-danger-12)',
+            background: 'color-mix(in srgb, var(--c-danger) 12%, transparent)',
             color: 'var(--c-danger)',
-            borderBottom: '1px solid var(--c-danger-12)',
+            borderBottom: '1px solid color-mix(in srgb, var(--c-danger) 12%, transparent)',
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
@@ -1418,7 +1422,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             }}
             style={{
               background: 'var(--c-surface-hover)',
-              border: '1px solid var(--c-danger-12)',
+              border: '1px solid color-mix(in srgb, var(--c-danger) 12%, transparent)',
               borderRadius: '3px',
               color: 'var(--c-danger)',
               cursor: 'pointer',
@@ -1513,7 +1517,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
               }}
               style={{
                 background: 'var(--c-surface-hover)',
-                border: '1px solid var(--c-warn-15)',
+                border: '1px solid color-mix(in srgb, var(--c-warn) 15%, transparent)',
                 borderRadius: '4px',
                 color: 'var(--c-warn)',
                 cursor: 'pointer',

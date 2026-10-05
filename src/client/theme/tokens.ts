@@ -12,10 +12,9 @@ export interface CanvasTokens {
   accent: string;
   ok: string;
   warn: string;
-  warnAlt: string;
   danger: string;
   purple: string;
-  thinking: string;
+  agent: string;
   subagent: string;
   font: string;
   mono: string;
@@ -42,10 +41,9 @@ export function getCanvasTokens(): CanvasTokens {
     accent: read('--c-accent'),
     ok: read('--c-ok'),
     warn: read('--c-warn'),
-    warnAlt: read('--c-warn-alt'),
     danger: read('--c-danger'),
     purple: read('--c-purple'),
-    thinking: read('--c-thinking'),
+    agent: read('--c-agent'),
     subagent: read('--c-subagent'),
     font: read('--font-ui'),
     mono: read('--font-code'),
@@ -62,11 +60,11 @@ export function invalidateTokenCache(): void {
 export const PHASE_COLORS: Record<string, string> = {
   idle: 'var(--c-muted)',
   running: 'var(--c-accent)',
-  planning: 'var(--c-thinking)',
-  thinking: 'var(--c-thinking)',
+  planning: 'var(--c-agent)',
+  thinking: 'var(--c-agent)',
   drafting: 'var(--c-accent)',
   tooling: 'var(--c-accent)',
   review: 'var(--c-ok)',
   'waiting-approval': 'var(--c-warn)',
-  waiting: 'var(--c-warn-alt)',
+  waiting: 'var(--c-warn)',
 };

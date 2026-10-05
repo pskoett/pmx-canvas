@@ -12,7 +12,7 @@ import type { CanvasEdge, CanvasNodeState } from '../types';
 // ── Edge type visual styles ──────────────────────────────────
 const EDGE_COLORS: Record<CanvasEdge['type'], string> = {
   relation: 'var(--c-muted)',
-  'depends-on': 'var(--c-warn)',
+  'depends-on': 'var(--c-rel-informs)',
   flow: 'var(--c-accent)',
   // --c-dim is a very low-contrast hairline in dark palettes (forest: #5D7566
   // on #0C1712); the dashed style is what distinguishes `references`.

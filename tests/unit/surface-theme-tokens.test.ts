@@ -23,7 +23,6 @@ const CORE_TOKENS = [
   '--c-accent',
   '--c-ok',
   '--c-warn',
-  '--c-warn-alt',
   '--c-danger',
   '--c-purple',
   '--c-pin',

@@ -65,7 +65,7 @@ const labelStyle = {
 
 const activeButtonStyle = {
   ...axNodeActionButtonStyle,
-  background: 'var(--c-accent-25)',
+  background: 'color-mix(in srgb, var(--c-accent) 25%, transparent)',
   color: 'var(--c-text)',
 } as const;
 

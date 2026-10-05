@@ -274,9 +274,9 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       style={{
         padding: '4px 8px',
         fontSize: '10px',
-        background: 'var(--c-ok-10)',
+        background: 'color-mix(in srgb, var(--c-ok) 10%, transparent)',
         color: 'var(--c-ok)',
-        borderBottom: '1px solid var(--c-ok-20)',
+        borderBottom: '1px solid color-mix(in srgb, var(--c-ok) 20%, transparent)',
         textTransform: 'uppercase',
         letterSpacing: '0.05em',
         fontWeight: 600,
@@ -357,7 +357,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
             style={{
               padding: '4px 10px',
               fontSize: '11px',
-              background: dirty ? 'var(--c-accent-25)' : 'var(--c-input-bg)',
+              background: dirty ? 'color-mix(in srgb, var(--c-accent) 25%, transparent)' : 'var(--c-input-bg)',
               border: `1px solid ${dirty ? 'var(--c-accent)' : 'var(--c-line)'}`,
               borderRadius: '6px',
               color: dirty ? 'var(--c-text)' : 'var(--c-dim)',

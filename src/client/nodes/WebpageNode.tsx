@@ -56,7 +56,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
     return <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>No webpage URL set</div>;
   }
 
-  const statusTone = status === 'ready' ? 'var(--c-ok)' : status === 'error' ? 'var(--c-danger)' : 'var(--c-warn)';
+  const statusTone = status === 'ready' ? 'var(--c-ok)' : status === 'error' ? 'var(--c-danger)' : 'var(--c-muted)';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%' }}>

@@ -1,6 +1,6 @@
 # Plan 015 — Design foundation (wave 0)
 
-**Status:** Steps 1, 2, 3a and 3b done (2026-10-05). Steps 3c and 4 not started.
+**Status:** Steps 1, 2, 3a, 3b and 3c done (2026-10-05). Steps 3d and 4 not started.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 0 ("ships alone, first"); vision moves 5, 9, 10.
 Drawings: [`TokenSystem`](../design/TokenSystem.dc.html), [`Tokens`](../design/Tokens.dc.html),
@@ -86,14 +86,25 @@ right-click), which already holds Collapse, Rename and Delete; "Open in new tab"
 moves into it from the header. The drawn "Ask agent" entry has no function yet and waits for one;
 "Set as README" stays in the markdown card footer for now.
 
-**3c. The rest of the old colours.**
-- Classify every remaining `--c-warn` use: pin → `--c-pin`, agent → `--c-agent`, a real warning
-  stays. `--c-thinking` becomes `--c-agent` everywhere (no alias).
-- Tints become `color-mix(in srgb, var(--c-…) N%, transparent)`; the 22 fixed alpha copies,
-  `--c-warn-alt` and `--c-glow-accent` go.
-- `--c-subagent`: decided 2026-10-05 — its own fuchsia beside the agent violet (done).
-- Check: raw-hex guard — no hex colour outside the theme blocks of the two theme files (start
-  with an allowlist of today's offenders and shrink it to zero within the wave).
+**3c. The rest of the old colours (done).**
+- Every remaining `--c-warn` use was sorted by meaning. Pin blue: the command-bar chips, the
+  context pin bar, the expanded overlay's pinned state and toggle, the pin HUD and the "Context
+  updated" toast. Agent violet: the "agent yielded" pill and a status node's active tool.
+  `--c-rel-informs`: `depends-on` edges. Neutral (accent or muted): generic toast and history
+  borders, cluster/neighbourhood toasts, group drop feedback, the budget bar at rest, "saving",
+  webpage loading, the "required" source tag. Real warnings stay amber: approval gates and
+  waiting phases, blocked status, reconnecting, budget warnings, image and app warnings, pending
+  asks.
+- Tints are `color-mix(in srgb, var(--c-…) N%, transparent)`; the fixed alpha copies,
+  `--c-warn-alt`, `--c-glow-accent` and `--c-thinking` are gone (`--c-agent` replaces it).
+- `tests/unit/raw-hex-guard.test.ts`: no hex colour in client code or outside `global.css`'s theme
+  blocks. Allowlisted as content, not theme: group frame colours, the annotation default, the
+  white behind webpage previews, and the embedded Mermaid viewer's fallback (goes in wave 4).
+
+**3d. Kind colours and the writer palette.** Kind colours (`kind-colors.ts`, the `--kind-accent`
+rules, trace file rows) and the multi-writer presence palette still borrow meaning hues (amber,
+pin blue, violet). The design guide calls for muted per-kind tints that never use a meaning hue;
+take the values from the Types boards.
 
 ### 4. Theme renames and the wave's definition of done
 

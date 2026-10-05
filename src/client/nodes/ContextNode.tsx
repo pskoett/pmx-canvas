@@ -298,8 +298,8 @@ export function ContextNode({
                       style={{
                         padding: '4px 8px',
                         fontSize: '10px',
-                        background: 'var(--c-accent-12)',
-                        border: '1px solid var(--c-accent-25)',
+                        background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
                         borderRadius: '4px',
                         color: 'var(--c-text-soft)',
                         cursor: 'pointer',
@@ -363,7 +363,7 @@ export function ContextNode({
                     style={{
                       fontSize: '9px',
                       padding: '1px 4px',
-                      background: 'var(--c-accent-10)',
+                      background: 'color-mix(in srgb, var(--c-accent) 10%, transparent)',
                       color: 'var(--c-accent)',
                       borderRadius: '3px',
                       display: 'inline-block',
@@ -402,8 +402,8 @@ export function ContextNode({
                       style={{
                         fontSize: '9px',
                         padding: '1px 4px',
-                        background: 'var(--c-warn-12)',
-                        color: 'var(--c-warn-alt)',
+                        background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
+                        color: 'var(--c-accent)',
                         borderRadius: '3px',
                         display: 'inline-block',
                       }}
@@ -420,8 +420,8 @@ export function ContextNode({
                       style={{
                         padding: '4px 8px',
                         fontSize: '10px',
-                        background: 'var(--c-accent-12)',
-                        border: '1px solid var(--c-accent-25)',
+                        background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
                         borderRadius: '4px',
                         color: 'var(--c-text-soft)',
                         cursor: 'pointer',
@@ -518,8 +518,8 @@ export function ContextNode({
                 style={{
                   padding: '4px 8px',
                   fontSize: '10px',
-                  background: 'var(--c-accent-12)',
-                  border: '1px solid var(--c-accent-25)',
+                  background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
                   borderRadius: '4px',
                   color: 'var(--c-text-soft)',
                   cursor: 'pointer',

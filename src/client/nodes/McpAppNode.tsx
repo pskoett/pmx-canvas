@@ -285,9 +285,9 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
           style={{
             padding: '4px 8px',
             fontSize: '10px',
-            background: 'var(--c-warn-10)',
+            background: 'color-mix(in srgb, var(--c-warn) 10%, transparent)',
             color: 'var(--c-warn)',
-            borderBottom: '1px solid var(--c-warn-15)',
+            borderBottom: '1px solid color-mix(in srgb, var(--c-warn) 15%, transparent)',
           }}
         >
           Unverified domain

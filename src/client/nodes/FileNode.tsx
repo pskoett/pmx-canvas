@@ -226,7 +226,7 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
           style={{
             fontSize: '9px',
             padding: '1px 5px',
-            background: 'var(--c-accent-12)',
+            background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
             color: 'var(--c-accent)',
             borderRadius: '3px',
             fontWeight: 600,

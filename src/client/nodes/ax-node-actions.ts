@@ -27,8 +27,8 @@ export async function runNodeAxInteraction(
 export const axNodeActionButtonStyle = {
   padding: '3px 8px',
   fontSize: '10px',
-  background: 'var(--c-accent-12)',
-  border: '1px solid var(--c-accent-25)',
+  background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
   borderRadius: '4px',
   color: 'var(--c-text-soft)',
   cursor: 'pointer',

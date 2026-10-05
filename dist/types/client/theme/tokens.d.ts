@@ -11,10 +11,9 @@ export interface CanvasTokens {
     accent: string;
     ok: string;
     warn: string;
-    warnAlt: string;
     danger: string;
     purple: string;
-    thinking: string;
+    agent: string;
     subagent: string;
     font: string;
     mono: string;
