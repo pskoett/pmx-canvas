@@ -5,6 +5,7 @@
  * WAL-mode persistence. Replaces the previous JSON file-based approach.
  */
 import { Database } from 'bun:sqlite';
+import type { ActorAttribution } from './attribution.js';
 import { type Tour } from '../shared/tour.js';
 import { type CanvasThemeName } from '../shared/themes.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, CanvasSnapshot, CanvasSnapshotListOptions, ViewportState } from './canvas-state.js';
@@ -20,8 +21,15 @@ export interface PersistedCanvasState {
     edges: CanvasEdge[];
     annotations?: CanvasAnnotation[];
     contextPins: string[];
+    /** Who pinned each context pin, when and why; pins without an entry have an unknown pinner. */
+    contextPinMeta?: Record<string, ContextPinMeta>;
     ax?: PmxAxState;
     revisionState?: PersistedRevisionState;
+}
+export interface ContextPinMeta {
+    pinnedBy: ActorAttribution;
+    pinnedAt: string;
+    reason?: string;
 }
 export interface PersistedRevisionState {
     revision: number;

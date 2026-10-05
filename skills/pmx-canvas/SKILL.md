@@ -116,7 +116,8 @@ the served catalog is a startup snapshot. Local mirrors still use `skills sync` 
    `canvas_view { action: "fit", nodeIds: [...] }` with exactly the new ids. See
    **In-View Placement & Sizing** below — auto-placement is board-relative, not camera-relative.
 8. **Verify context pins.** Pin with `canvas_pin_nodes` or the browser's **Pin as context**, then
-   read `canvas://pinned-context`.
+   read `canvas://pinned-context`. When you pin, pass a short `reason` — the human sees who pinned a
+   node and why.
 9. **Clean up temporary nodes.** Remove retry/test fixtures and restore the baseline snapshot when
    the task requires leaving the board unchanged.
 

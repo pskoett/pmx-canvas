@@ -1,6 +1,6 @@
 # Plan 016 — Context made visible (wave 1)
 
-**Status:** Slice 1a done (2026-10-05); 1b next.
+**Status:** Slice 1 done (2026-10-05); slice 2 (node marks) next.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -40,6 +40,12 @@ adds "pinned by the agent".
   stamps their revisions. `ax.reads.status` (`GET /api/canvas/ax/context-status`,
   `canvas_ax_timeline { action: "read-status" }`, `PmxCanvas.getNodeReadStatus`) returns, per node,
   the latest agent read: when, by whom, at which revision.
+- **1b, done.** Pins record who pinned them (`pinnedBy`, the same actor attribution as node
+  authorship: a person only with the workbench token), when, and an optional `reason`
+  (`canvas_pin_nodes` / `POST /api/canvas/context-pins` / `setContextPins(..., reason)`). Pins that
+  stay keep their attribution; undo restores it; it persists with the board and its snapshots
+  (`meta` on `context_pins` and `snapshot_pins`). Pins from before have an unknown pinner. The read
+  status returns `pins` alongside `nodes`.
 - `context_pins` gains `pinned_by` (actor attribution, same shape as `createdBy`), `pinned_at` and an
   optional `reason`. Pins made before this have an unknown pinner, not a guessed human.
 - One server read model, `nodeContextStatus(boardId)`: per node, last read (when, by whom, revision

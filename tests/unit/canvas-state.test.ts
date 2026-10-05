@@ -111,6 +111,12 @@ describe('canvas state manager', () => {
     expect(persisted.nodes.map((node) => node.id).sort()).toEqual([groupNode.id, secondNode.id]);
     expect(persisted.edges).toEqual([]);
     expect(persisted.contextPins).toEqual([secondNode.id]);
+    // A direct state write is an agent write; who pinned survives the round trip.
+    expect(persisted.contextPinMeta?.[secondNode.id]?.pinnedBy).toEqual({ actor: 'agent', source: 'sdk' });
+    expect(persisted.contextPinMeta?.[firstNode.id]).toBeUndefined();
+    resetCanvasForTests(workspaceRoot);
+    canvasState.loadFromDisk({ clearExisting: true });
+    expect(canvasState.getContextPinMeta()[secondNode.id]?.pinnedBy.actor).toBe('agent');
   });
 
   test('persists annotations separately from nodes and edges', async () => {

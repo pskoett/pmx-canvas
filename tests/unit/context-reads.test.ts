@@ -255,6 +255,53 @@ describe('context reads over HTTP', () => {
     expect((await status()).nodes.find((entry) => entry.nodeId === noted)?.readRevision).toBe(edited);
   });
 
+  test('pins record who pinned them, when and why; re-pinning keeps it and undo restores it', async () => {
+    // Human authorship needs the workbench token the page carries, not just the marker.
+    const html = await (await fetch(`${baseUrl}/workbench`)).text();
+    const token = JSON.parse(html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1] ?? '""') as string;
+    const human = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token };
+    const agent = { 'Content-Type': 'application/json', 'x-pmx-source': 'pin-agent' };
+    const create = async (title: string) =>
+      (
+        (await (
+          await fetch(`${baseUrl}/api/canvas/node`, {
+            method: 'POST',
+            headers: human,
+            body: JSON.stringify({ type: 'markdown', title, content: 'x' }),
+          })
+        ).json()) as { id: string }
+      ).id;
+    const mine = await create('Pinned by a person');
+    const theirs = await create('Pinned by the agent');
+    type Pins = Record<string, { pinnedBy: { actor: string; source: string }; pinnedAt: string; reason?: string }>;
+    const pins = async () =>
+      ((await (await fetch(`${baseUrl}/api/canvas/ax/context-status`)).json()) as { pins: Pins }).pins;
+    const pin = (headers: Record<string, string>, body: Record<string, unknown>) =>
+      fetch(`${baseUrl}/api/canvas/context-pins`, { method: 'POST', headers, body: JSON.stringify(body) });
+
+    await pin(human, { nodeIds: [mine] });
+    await pin(agent, { nodeIds: [theirs], mode: 'add', reason: 'the chart the finding rests on' });
+    const both = await pins();
+    expect(both[mine]?.pinnedBy.actor).toBe('human');
+    expect(both[theirs]).toMatchObject({
+      pinnedBy: { actor: 'agent', source: 'pin-agent' },
+      reason: 'the chart the finding rests on',
+    });
+
+    // Re-setting the same pins keeps who pinned them.
+    await pin(human, { nodeIds: [mine, theirs] });
+    expect((await pins())[theirs]?.pinnedBy.actor).toBe('agent');
+
+    // Unpinning drops the attribution; undo brings the pin back with it.
+    await pin(human, { nodeIds: [theirs], mode: 'remove' });
+    expect((await pins())[theirs]).toBeUndefined();
+    await fetch(`${baseUrl}/api/canvas/undo`, { method: 'POST', headers: human });
+    expect((await pins())[theirs]).toMatchObject({
+      pinnedBy: { actor: 'agent' },
+      reason: 'the chart the finding rests on',
+    });
+  });
+
   test('a proxy records the read its agent made, without becoming an agent writer', async () => {
     const response = await fetch(`${baseUrl}/api/canvas/ax/context-reads`, {
       method: 'POST',

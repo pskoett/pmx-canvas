@@ -1309,8 +1309,13 @@ export class PmxCanvas extends EventEmitter {
     return applyCanvasNodeUpdates(updates);
   }
 
-  setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): { count: number; nodeIds: string[] } {
-    const result = setCanvasContextPins(nodeIds, mode);
+  /** `reason` is kept with newly pinned nodes and shown to the human on hover. */
+  setContextPins(
+    nodeIds: string[],
+    mode: 'set' | 'add' | 'remove' = 'set',
+    reason?: string,
+  ): { count: number; nodeIds: string[] } {
+    const result = setCanvasContextPins(nodeIds, mode, reason);
     emitPrimaryWorkbenchEvent('context-pins-changed', { count: result.count, nodeIds: result.nodeIds });
     return result;
   }

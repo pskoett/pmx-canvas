@@ -545,7 +545,10 @@ const axReadsStatusShape = {
 };
 const axReadsStatusSchema = z.looseObject(axReadsStatusShape);
 
-/** Per node: when an agent last read its content, who, and at which revision (vs the node's revision now). */
+/**
+ * Per node: when an agent last read its content, who, and at which revision
+ * (vs the node's revision now); and per pin: who pinned it, when and why.
+ */
 const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchema>, Record<string, unknown>>({
   name: 'ax.reads.status',
   mutates: false,
@@ -558,7 +561,13 @@ const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchem
   handler: (input) => {
     const boardId =
       typeof input.board === 'string' && input.board.trim() ? input.board.trim() : canvasState.activeBoardId;
-    return { ok: true, boardId, nodes: canvasState.getNodeReadStatus(boardId) };
+    const pins =
+      boardId === canvasState.activeBoardId
+        ? canvasState.getContextPinMeta()
+        : boardId
+          ? (canvasState.readBoard(boardId, false)?.state.contextPinMeta ?? {})
+          : {};
+    return { ok: true, boardId, nodes: canvasState.getNodeReadStatus(boardId), pins };
   },
 });
 

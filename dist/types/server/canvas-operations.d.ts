@@ -179,7 +179,7 @@ export declare function applyCanvasNodeUpdates(updates: CanvasNodeUpdate[]): {
     applied: number;
     skipped: number;
 };
-export declare function setCanvasContextPins(nodeIds: string[], mode?: CanvasPinMode): {
+export declare function setCanvasContextPins(nodeIds: string[], mode?: CanvasPinMode, reason?: string): {
     count: number;
     nodeIds: string[];
 };

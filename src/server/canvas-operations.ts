@@ -1393,15 +1393,17 @@ export function applyCanvasNodeUpdates(updates: CanvasNodeUpdate[]): { applied: 
 export function setCanvasContextPins(
   nodeIds: string[],
   mode: CanvasPinMode = 'set',
+  reason?: string,
 ): { count: number; nodeIds: string[] } {
   const normalizePins = (ids: string[]): string[] =>
     ids.filter((id, index) => ids.indexOf(id) === index).slice(0, MAX_CONTEXT_PINS);
   const normalizedNodeIds = normalizePins(nodeIds);
+  const options = reason ? { reason } : {};
   if (mode === 'set') {
-    canvasState.setContextPins(normalizedNodeIds);
+    canvasState.setContextPins(normalizedNodeIds, options);
   } else if (mode === 'add') {
     const current = Array.from(canvasState.contextPinnedNodeIds);
-    canvasState.setContextPins(normalizePins([...current, ...normalizedNodeIds]));
+    canvasState.setContextPins(normalizePins([...current, ...normalizedNodeIds]), options);
   } else {
     const current = Array.from(canvasState.contextPinnedNodeIds);
     canvasState.setContextPins(current.filter((id) => !normalizedNodeIds.includes(id)));

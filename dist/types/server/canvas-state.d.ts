@@ -12,7 +12,7 @@
  * the one-shot boot migration into SQLite was retired.
  */
 import { type Tour } from '../shared/tour.js';
-import { type CanvasBoard, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
+import { type CanvasBoard, type ContextPinMeta, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type DocumentImport, type DocumentImportStatus, type ImportSection, type Attachment } from './document-import.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 import { type ActorAttribution } from './attribution.js';
@@ -171,6 +171,8 @@ declare class CanvasStateManager {
     private _tour;
     private _theme;
     private _contextPinnedNodeIds;
+    /** Who pinned each pin, when and why; kept only for ids in `_contextPinnedNodeIds`. */
+    private _contextPinMeta;
     private _workspaceRoot;
     private _contentRevision;
     private _revisionFloor;
@@ -623,7 +625,18 @@ declare class CanvasStateManager {
         steering: PmxAxSteeringMessage[];
         summary: PmxAxTimelineSummary;
     };
-    setContextPins(nodeIds: string[]): void;
+    /**
+     * Replace the pin set. Newly pinned nodes are attributed to the current
+     * actor (with `reason` when given); pins that stay keep their attribution.
+     * `restore` re-applies saved attribution, so undo does not re-attribute.
+     */
+    setContextPins(nodeIds: string[], options?: {
+        reason?: string;
+        restore?: Map<string, ContextPinMeta>;
+    }): void;
+    /** Who pinned each current pin, when and why (pins with an unknown pinner are absent). */
+    getContextPinMeta(): Record<string, ContextPinMeta>;
+    private pinMetaRecord;
     clearContextPins(): void;
     /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */
     groupNodes(groupId: string, childIds: string[], options?: GroupNodesOptions): boolean;

@@ -375,7 +375,7 @@ legacy tools the composites replaced.
 | Tool | Description |
 |------|-------------|
 | `canvas_batch` | Run a batch of canvas operations with `$ref` support |
-| `canvas_pin_nodes` | Pin nodes to include in agent context |
+| `canvas_pin_nodes` | Pin nodes to include in agent context (`nodeIds`, `mode` set/add/remove, optional `reason` shown to the human) |
 | `canvas_invoke_command` | Invoke a registry command (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`); records a `command` agent-event, unknown names rejected |
 | `canvas_ax_interaction` | Submit one capability-gated AX interaction envelope (`{ type, sourceNodeId, payload }`) that maps onto an AX operation; the server re-validates and clamps sandboxed surfaces to their own node |
 | `canvas_ingest_activity` | Ingest a harness-forwarded agent activity (tool/session event); the board auto-reacts with kind-driven, overridable defaults (failure → work item + review + evidence; `tool-result`+success → evidence). Makes AX bidirectional |

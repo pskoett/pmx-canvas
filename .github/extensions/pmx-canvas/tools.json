@@ -21,6 +21,10 @@
               "add",
               "remove"
             ]
+          },
+          "reason": {
+            "description": "Why these nodes matter; kept with newly pinned nodes and shown to the human on hover.",
+            "type": "string"
           }
         },
         "required": [

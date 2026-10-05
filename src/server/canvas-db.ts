@@ -6,6 +6,7 @@
  */
 
 import { Database } from 'bun:sqlite';
+import type { ActorAttribution } from './attribution.js';
 import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
 import { MIGRATED_SNAPSHOT_CATEGORY, normalizeBoardCategory } from '../shared/boards.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
@@ -122,6 +123,7 @@ const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS context_pins (
     board_id TEXT NOT NULL,
     node_id TEXT NOT NULL,
+    meta TEXT,
     PRIMARY KEY (board_id, node_id)
   );
 
@@ -185,6 +187,7 @@ const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS snapshot_pins (
     snapshot_id TEXT NOT NULL,
     node_id TEXT NOT NULL,
+    meta TEXT,
     PRIMARY KEY (snapshot_id, node_id)
   );
 
@@ -335,8 +338,27 @@ export interface PersistedCanvasState {
   edges: CanvasEdge[];
   annotations?: CanvasAnnotation[];
   contextPins: string[];
+  /** Who pinned each context pin, when and why; pins without an entry have an unknown pinner. */
+  contextPinMeta?: Record<string, ContextPinMeta>;
   ax?: PmxAxState;
   revisionState?: PersistedRevisionState;
+}
+
+export interface ContextPinMeta {
+  pinnedBy: ActorAttribution;
+  pinnedAt: string;
+  reason?: string;
+}
+
+function pinMetaJson(state: PersistedCanvasState, nodeId: string): string | null {
+  const meta = state.contextPinMeta?.[nodeId];
+  return meta ? JSON.stringify(meta) : null;
+}
+
+function pinMetaFromRows(rows: Array<{ node_id: string; meta: string | null }>): Record<string, ContextPinMeta> {
+  const meta: Record<string, ContextPinMeta> = {};
+  for (const row of rows) if (row.meta) meta[row.node_id] = JSON.parse(row.meta) as ContextPinMeta;
+  return meta;
 }
 
 export interface PersistedRevisionState {
@@ -401,6 +423,8 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'ax_steering', 'target', 'target TEXT');
   ensureColumn(db, 'context_reads', 'board_id', 'board_id TEXT');
   ensureColumn(db, 'context_reads', 'read_nodes', "read_nodes TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn(db, 'context_pins', 'meta', 'meta TEXT');
+  ensureColumn(db, 'snapshot_pins', 'meta', 'meta TEXT');
   ensureColumn(db, 'boards', 'category', 'category TEXT');
   ensureColumn(db, 'boards', 'readme_node_id', 'readme_node_id TEXT');
   ensureColumn(db, 'nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");
@@ -471,6 +495,7 @@ function migrateToBoards(db: Database, dbPath: string, boardName: string): void 
       if (existing.has(table)) db.exec(`ALTER TABLE ${table} RENAME TO ${table}_v1`);
     }
     if (existing.has('snapshots')) ensureColumn(db, 'snapshots', 'board_id', 'board_id TEXT');
+    if (existing.has('snapshot_pins')) ensureColumn(db, 'snapshot_pins', 'meta', 'meta TEXT');
     db.exec(SCHEMA_SQL);
 
     if (hasBoard) {
@@ -553,10 +578,10 @@ function snapshotsToBoards(db: Database): void {
       `INSERT INTO annotations (board_id, ${annotationColumns}) SELECT ?, ${annotationColumns} FROM snapshot_annotations WHERE snapshot_id = ?`,
       [boardId, snapshot.id],
     );
-    db.run('INSERT INTO context_pins (board_id, node_id) SELECT ?, node_id FROM snapshot_pins WHERE snapshot_id = ?', [
-      boardId,
-      snapshot.id,
-    ]);
+    db.run(
+      'INSERT INTO context_pins (board_id, node_id, meta) SELECT ?, node_id, meta FROM snapshot_pins WHERE snapshot_id = ?',
+      [boardId, snapshot.id],
+    );
     const ax = meta.get('ax_state');
     if (ax) db.run("INSERT INTO ax_state (board_id, key, value) VALUES (?, 'state', ?)", [boardId, ax]);
     deleteSnapshotFromDB(db, snapshot.id);
@@ -776,10 +801,12 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
     }
     deleteMissingRows(db, 'annotations', 'id', boardId, new Set(annotations.map((annotation) => annotation.id)));
 
-    // Save context pins (node_id is the whole row — nothing to update)
-    const insertPin = db.prepare('INSERT OR IGNORE INTO context_pins (board_id, node_id) VALUES (?, ?)');
+    // Save context pins with who pinned them
+    const insertPin = db.prepare(
+      'INSERT INTO context_pins (board_id, node_id, meta) VALUES (?, ?, ?) ON CONFLICT(board_id, node_id) DO UPDATE SET meta = excluded.meta WHERE context_pins.meta IS NOT excluded.meta',
+    );
     for (const pinId of state.contextPins) {
-      insertPin.run(boardId, pinId);
+      insertPin.run(boardId, pinId, pinMetaJson(state, pinId));
     }
     deleteMissingRows(db, 'context_pins', 'node_id', boardId, new Set(state.contextPins));
 
@@ -906,9 +933,11 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
   // Load context pins
   interface PinRow {
     node_id: string;
+    meta: string | null;
   }
-  const pinRows = db.query<PinRow, [string]>('SELECT node_id FROM context_pins WHERE board_id = ?').all(id);
+  const pinRows = db.query<PinRow, [string]>('SELECT node_id, meta FROM context_pins WHERE board_id = ?').all(id);
   const contextPins = pinRows.map((row) => row.node_id);
+  const contextPinMeta = pinMetaFromRows(pinRows);
 
   const axRow = db
     .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
@@ -926,6 +955,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     edges,
     annotations,
     contextPins,
+    contextPinMeta,
     ax: parsePersistedAxState(axRow?.value),
     revisionState: revisionRaw ? (JSON.parse(revisionRaw) as PersistedRevisionState) : undefined,
   };
@@ -1192,9 +1222,9 @@ export function saveSnapshotToDB(
     }
 
     // Insert snapshot pins
-    const insertPin = db.prepare('INSERT INTO snapshot_pins (snapshot_id, node_id) VALUES (?, ?)');
+    const insertPin = db.prepare('INSERT INTO snapshot_pins (snapshot_id, node_id, meta) VALUES (?, ?, ?)');
     for (const pinId of state.contextPins) {
-      insertPin.run(snapshot.id, pinId);
+      insertPin.run(snapshot.id, pinId, pinMetaJson(state, pinId));
     }
     db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [
       snapshot.id,
@@ -1349,11 +1379,13 @@ export function loadSnapshotFromDB(
   // Load snapshot pins
   interface PinRow {
     node_id: string;
+    meta: string | null;
   }
   const pinRows = db
-    .query<PinRow, [string]>('SELECT node_id FROM snapshot_pins WHERE snapshot_id = ?')
+    .query<PinRow, [string]>('SELECT node_id, meta FROM snapshot_pins WHERE snapshot_id = ?')
     .all(snapshotRow.id);
   const contextPins = pinRows.map((row) => row.node_id);
+  const contextPinMeta = pinMetaFromRows(pinRows);
 
   return {
     snapshot,
@@ -1365,6 +1397,7 @@ export function loadSnapshotFromDB(
       edges,
       annotations,
       contextPins,
+      contextPinMeta,
       ax: parsePersistedAxState(metaMap.get('ax_state')),
       revisionState: metaMap.has('revision_state')
         ? (JSON.parse(metaMap.get('revision_state')!) as PersistedRevisionState)

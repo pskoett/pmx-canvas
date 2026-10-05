@@ -55,6 +55,7 @@ import {
   setActiveBoardIdInDB,
   type CanvasBoard,
   finalizeCanvasDbForClose,
+  type ContextPinMeta,
   type PersistedCanvasState,
   type CanvasTheme,
   type AxTimelineQuery,
@@ -415,6 +416,8 @@ class CanvasStateManager {
   private _tour: Tour | undefined;
   private _theme: CanvasTheme = 'harbor';
   private _contextPinnedNodeIds = new Set<string>();
+  /** Who pinned each pin, when and why; kept only for ids in `_contextPinnedNodeIds`. */
+  private _contextPinMeta = new Map<string, ContextPinMeta>();
   private _workspaceRoot = process.cwd();
   private _contentRevision = 0;
   private _revisionFloor = 0;
@@ -1128,6 +1131,7 @@ class CanvasStateManager {
           edges: layout.edges,
           annotations: layout.annotations,
           contextPins: Array.from(this._contextPinnedNodeIds),
+          contextPinMeta: this.pinMetaRecord(),
           revisionState: this.revisionState(),
         },
       };
@@ -1485,6 +1489,7 @@ class CanvasStateManager {
         edges: Array.from(this.edges.values()),
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
+        contextPinMeta: this.pinMetaRecord(),
         ax: this.getAxState(),
         revisionState: this.revisionState(),
       });
@@ -1547,6 +1552,7 @@ class CanvasStateManager {
     this.edges.clear();
     this.annotations.clear();
     this._contextPinnedNodeIds.clear();
+    this._contextPinMeta.clear();
     this.ax.resetCanvasBound();
     this._contentRevision = state.revisionState?.revision ?? 0;
     this._revisionFloor = state.revisionState?.floor ?? 0;
@@ -1578,7 +1584,10 @@ class CanvasStateManager {
     }
     if (Array.isArray(state.contextPins)) {
       for (const pinId of state.contextPins) {
-        if (this.nodes.has(pinId)) this._contextPinnedNodeIds.add(pinId);
+        if (!this.nodes.has(pinId)) continue;
+        this._contextPinnedNodeIds.add(pinId);
+        const meta = state.contextPinMeta?.[pinId];
+        if (meta) this._contextPinMeta.set(pinId, structuredClone(meta));
       }
     }
     this.ax.applyPersistedAx(state.ax);
@@ -1684,6 +1693,7 @@ class CanvasStateManager {
         edges: Array.from(this.edges.values()),
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
+        contextPinMeta: this.pinMetaRecord(),
         ax: this.getAxState(),
         revisionState: this.revisionState(),
       });
@@ -1781,6 +1791,7 @@ class CanvasStateManager {
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       annotations: Array.from(this.annotations.values(), (annotation) => structuredClone(annotation)),
       contextPins: Array.from(this._contextPinnedNodeIds),
+      contextPinMeta: this.pinMetaRecord(),
       ax: this.getAxState(),
       revisionState: this.revisionState(),
     });
@@ -1795,6 +1806,7 @@ class CanvasStateManager {
         ? resolved.state.annotations.map((annotation) => structuredClone(annotation))
         : [],
       contextPins: Array.isArray(resolved.state.contextPins) ? [...resolved.state.contextPins] : [],
+      contextPinMeta: resolved.state.contextPinMeta ? structuredClone(resolved.state.contextPinMeta) : undefined,
       ax: resolved.state.ax ? structuredClone(resolved.state.ax) : createEmptyAxState(),
       revisionState: resolved.state.revisionState ? structuredClone(resolved.state.revisionState) : undefined,
     };
@@ -2099,6 +2111,7 @@ class CanvasStateManager {
     const cloned = existing ? structuredClone(existing) : null;
     const oldAxState = this.getAxState();
     const wasPinned = this._contextPinnedNodeIds.has(id);
+    const pinMeta = this._contextPinMeta.get(id);
     // The enclosing group's membership before this removal — restored verbatim on undo.
     let enclosingBefore: { id: string; children: string[] } | null = null;
     // A removed group DISSOLVES: its children are released — into the enclosing
@@ -2133,6 +2146,7 @@ class CanvasStateManager {
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this._contextPinnedNodeIds.delete(id);
+    this._contextPinMeta.delete(id);
     // Re-normalize canvas-bound AX against the surviving node set. This strips the
     // dangling node ref from work items / approval gates / elicitations / mode
     // requests (re-anchored) and drops node-anchored review annotations (removed).
@@ -2197,7 +2211,10 @@ class CanvasStateManager {
             }
           }
           for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
-          if (wasPinned) this._contextPinnedNodeIds.add(id);
+          if (wasPinned) {
+            this._contextPinnedNodeIds.add(id);
+            if (pinMeta) this._contextPinMeta.set(id, pinMeta);
+          }
           this.ax.applyPersistedAx(oldAxState);
           this.scheduleSave();
           this.notifyChange('nodes');
@@ -2894,25 +2911,57 @@ class CanvasStateManager {
     return this.ax.getAxTimeline(q);
   }
 
-  setContextPins(nodeIds: string[]): void {
+  /**
+   * Replace the pin set. Newly pinned nodes are attributed to the current
+   * actor (with `reason` when given); pins that stay keep their attribution.
+   * `restore` re-applies saved attribution, so undo does not re-attribute.
+   */
+  setContextPins(nodeIds: string[], options: { reason?: string; restore?: Map<string, ContextPinMeta> } = {}): void {
     const oldPins = Array.from(this._contextPinnedNodeIds);
+    const oldMeta = new Map(this._contextPinMeta);
+    const pinnedAt = new Date().toISOString();
     this._contextPinnedNodeIds.clear();
     for (const id of nodeIds) {
-      if (this.nodes.has(id)) {
-        this._contextPinnedNodeIds.add(id);
-      }
+      if (!this.nodes.has(id)) continue;
+      this._contextPinnedNodeIds.add(id);
+      const meta =
+        options.restore?.get(id) ??
+        (oldPins.includes(id) ? oldMeta.get(id) : undefined) ??
+        (oldPins.includes(id)
+          ? undefined
+          : { pinnedBy: currentActor(), pinnedAt, ...(options.reason ? { reason: options.reason } : {}) });
+      if (meta) this._contextPinMeta.set(id, meta);
     }
+    for (const id of [...this._contextPinMeta.keys()]) {
+      if (!this._contextPinnedNodeIds.has(id)) this._contextPinMeta.delete(id);
+    }
+    const newMeta = new Map(this._contextPinMeta);
     this.scheduleSave();
     this.notifyChange('pins');
     this.recordMutation({
       operationType: 'setPins',
       description: `Set context pins (${this._contextPinnedNodeIds.size} nodes)`,
-      forward: this.suppressed(() => this.setContextPins([...nodeIds])),
-      inverse: this.suppressed(() => this.setContextPins(oldPins)),
+      forward: this.suppressed(() => this.setContextPins([...nodeIds], { restore: newMeta })),
+      inverse: this.suppressed(() => this.setContextPins(oldPins, { restore: oldMeta })),
     });
   }
 
+  /** Who pinned each current pin, when and why (pins with an unknown pinner are absent). */
+  getContextPinMeta(): Record<string, ContextPinMeta> {
+    return this.pinMetaRecord();
+  }
+
+  private pinMetaRecord(): Record<string, ContextPinMeta> {
+    const record: Record<string, ContextPinMeta> = {};
+    for (const id of this._contextPinnedNodeIds) {
+      const meta = this._contextPinMeta.get(id);
+      if (meta) record[id] = structuredClone(meta);
+    }
+    return record;
+  }
+
   clearContextPins(): void {
+    this._contextPinMeta.clear();
     this._contextPinnedNodeIds.clear();
     this.scheduleSave();
     this.notifyChange('pins');
@@ -3044,6 +3093,7 @@ class CanvasStateManager {
     this.edges.clear();
     this.annotations.clear();
     this._contextPinnedNodeIds.clear();
+    this._contextPinMeta.clear();
     // Clears canvas-bound AX state (focus, work items, approvals, review annotations).
     // Timeline tables (ax_events/ax_evidence/ax_steering) and host capability are
     // deliberately retained per the AX state-partition policy.

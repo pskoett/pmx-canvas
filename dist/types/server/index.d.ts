@@ -523,7 +523,8 @@ export declare class PmxCanvas extends EventEmitter {
         applied: number;
         skipped: number;
     };
-    setContextPins(nodeIds: string[], mode?: 'set' | 'add' | 'remove'): {
+    /** `reason` is kept with newly pinned nodes and shown to the human on hover. */
+    setContextPins(nodeIds: string[], mode?: 'set' | 'add' | 'remove', reason?: string): {
         count: number;
         nodeIds: string[];
     };

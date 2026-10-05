@@ -46,6 +46,7 @@ const pinShape = {
     .unknown()
     .optional()
     .describe('set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)'),
+  reason: z.unknown().optional().describe('Why these nodes matter; kept with newly pinned nodes and shown on hover.'),
 };
 
 const pinSchema = z.looseObject(pinShape);
@@ -69,6 +70,10 @@ const pinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, u
         .enum(['set', 'add', 'remove'])
         .optional()
         .describe('set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)'),
+      reason: z
+        .string()
+        .optional()
+        .describe('Why these nodes matter; kept with newly pinned nodes and shown to the human on hover.'),
     },
     // The wire body is { ok, count } (legacy HTTP shape); the tool reports the
     // resulting pin list, so re-read it from the host. (Legacy RemoteCanvasAccess
@@ -91,7 +96,8 @@ const pinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, u
     // Legacy 'set' capped at MAX_PINS BEFORE setCanvasContextPins dedupes —
     // replicated as-is. add/remove (formerly client-side in the MCP access
     // layer) pass through; setCanvasContextPins normalizes them.
-    const result = setCanvasContextPins(mode === 'set' ? nodeIds.slice(0, MAX_PINS) : nodeIds, mode);
+    const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim().slice(0, 280) : undefined;
+    const result = setCanvasContextPins(mode === 'set' ? nodeIds.slice(0, MAX_PINS) : nodeIds, mode, reason);
     ctx.emit('context-pins-changed', { count: result.count, nodeIds: result.nodeIds });
     return { ok: true, count: result.count };
   },

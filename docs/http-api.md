@@ -399,10 +399,13 @@ when an agent should publish a cursor or `focusNodeId`.
 ## Pins
 
 ```bash
-# Pin nodes for agent context
+# Pin nodes for agent context (mode: set | add | remove; default set). Each newly
+# pinned node records who pinned it and when; an optional reason (max 280 chars)
+# is kept with it and shown to the human on hover. Pins that stay keep their
+# original attribution.
 curl -X POST http://localhost:4313/api/canvas/context-pins \
   -H "Content-Type: application/json" \
-  -d '{"nodeIds":["node-1","node-2"]}'
+  -d '{"nodeIds":["node-1","node-2"],"mode":"add","reason":"the chart the finding rests on"}'
 
 # Get pinned context
 curl http://localhost:4313/api/canvas/pinned-context
@@ -485,6 +488,7 @@ curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 # Read status — per node on a board (default: the open board), the latest agent
 # read that delivered its content: when, who, and the content revision it had.
 # A node whose current contentRevision is newer was changed since it was read.
+# pins maps each pinned node with a known pinner to { pinnedBy, pinnedAt, reason }.
 curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
 
 # Context reads — a proxy (an MCP server attached to this daemon, a host adapter)

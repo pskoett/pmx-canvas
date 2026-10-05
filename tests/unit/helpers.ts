@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { canvasState, type CanvasAnnotation, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { createEmptyAxState, type PmxAxState } from '../../src/server/ax-state.ts';
-import type { CanvasTheme } from '../../src/server/canvas-db.ts';
+import type { CanvasTheme, PersistedCanvasState } from '../../src/server/canvas-db.ts';
 import { loadStateFromDB, readThemeFromDB } from '../../src/server/canvas-db.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
@@ -128,6 +128,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
   edges: Array<{ id: string; from: string; to: string; type: string }>;
   annotations?: CanvasAnnotation[];
   contextPins: string[];
+  contextPinMeta?: PersistedCanvasState['contextPinMeta'];
   theme?: CanvasTheme;
   ax?: PmxAxState;
 } {
@@ -143,6 +144,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
           edges: state.edges,
           annotations: state.annotations,
           contextPins: state.contextPins,
+          contextPinMeta: state.contextPinMeta,
           theme: state.theme,
           ax: state.ax,
         };
