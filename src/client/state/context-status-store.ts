@@ -15,6 +15,7 @@ export interface NodeReadStatus {
   lastReadAt: string;
   lastReadBy: string;
   readRevision: number;
+  readCount: number;
 }
 
 export interface ContextPinMeta {
@@ -47,7 +48,7 @@ export async function refreshContextStatus(): Promise<void> {
 /** How an agent's context relates to one pinned node — the mark its header shows. */
 export type PinnedReadState =
   | { kind: 'not-read' }
-  | { kind: 'read'; by: string; at: string }
+  | { kind: 'read'; by: string; at: string; count: number }
   | { kind: 'changed'; by: string; at: string };
 
 export function pinnedReadState(nodeId: string, currentRevision: number): PinnedReadState {
@@ -56,7 +57,7 @@ export function pinnedReadState(nodeId: string, currentRevision: number): Pinned
   // Pinned after the latest read: the agent has not loaded it since you pinned it.
   if (!read || (pinnedAt && read.lastReadAt < pinnedAt)) return { kind: 'not-read' };
   if (currentRevision > read.readRevision) return { kind: 'changed', by: read.lastReadBy, at: read.lastReadAt };
-  return { kind: 'read', by: read.lastReadBy, at: read.lastReadAt };
+  return { kind: 'read', by: read.lastReadBy, at: read.lastReadAt, count: read.readCount };
 }
 
 /** Display name for an attributed writer: its agent id, else its transport label. */

@@ -99,7 +99,7 @@ export declare function estimateContextBudget(): ContextBudget;
 /** Returns the id of the pre-session snapshot the server took, if any. */
 type SessionStartListener = (presence: AgentPresence) => string | null;
 export type SessionEndReason = 'human' | 'agent' | 'idle-timeout';
-type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null, endedBy: SessionEndReason) => void;
+type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null, endedBy: SessionEndReason, startedAt: string | null) => void;
 export declare class AgentPresenceRegistry {
     private readonly presences;
     /** Newest first; bounded. Survives a writer fading — the feed is history, the writer list is presence. */

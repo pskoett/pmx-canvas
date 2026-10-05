@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
 import { isAgentPin, NodeContextMark } from './NodeContextMark';
+import { activityLensNodeIds } from '../state/session-store';
 import {
   activeNodeId,
   activeNeighborNodeIds,
@@ -423,6 +424,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isGroup ? 'group-node' : '',
     isStrictSize ? 'strict-size' : '',
     isAgentMutating ? 'agent-mutating' : '',
+    activityLensNodeIds.value && !activityLensNodeIds.value.has(node.id) ? 'lens-dimmed' : '',
   ]
     .filter(Boolean)
     .join(' ');

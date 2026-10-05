@@ -388,6 +388,48 @@ export interface SessionReceipt {
    * "vetoed" pile. */
   counts: { items: number; done: number; cancelled: number; rejected: number; held: number };
   snapshot: { id: string; name: string } | null;
+  /** What the session did with context (docs/design/AgentContext.dc.html receipt). */
+  context: SessionContextActivity;
+}
+
+export interface ReceiptNode {
+  id: string;
+  title: string;
+  reason?: string;
+}
+
+export interface SessionContextActivity {
+  read: ReceiptNode[];
+  pinned: ReceiptNode[];
+  created: ReceiptNode[];
+  edited: ReceiptNode[];
+  changedSinceRead: ReceiptNode[];
+}
+
+function receiptNodes(value: unknown): ReceiptNode[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.id !== 'string' || typeof record.title !== 'string') return [];
+    return [
+      { id: record.id, title: record.title, ...(typeof record.reason === 'string' ? { reason: record.reason } : {}) },
+    ];
+  });
+}
+
+/**
+ * The agent-activity lens: while on, nodes the last session did not touch
+ * (read, pin, create, edit) are dimmed. Null when off.
+ */
+export const activityLensNodeIds = signal<Set<string> | null>(null);
+
+export function setActivityLens(on: boolean): void {
+  const context = sessionReceipt.value?.context;
+  activityLensNodeIds.value =
+    on && context
+      ? new Set([...context.read, ...context.pinned, ...context.created, ...context.edited].map((node) => node.id))
+      : null;
 }
 
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
@@ -396,6 +438,7 @@ export const sessionReceipt = signal<SessionReceipt | null>(null);
 export function applySessionReceipt(data: Record<string, unknown>): void {
   const counts = data.counts as Partial<SessionReceipt['counts']> | undefined;
   const snapshot = data.snapshot as SessionReceipt['snapshot'] | undefined;
+  const context = data.context as Record<string, unknown> | undefined;
   if (typeof data.label !== 'string' || typeof data.endedAt !== 'string') return;
   // Keep history/timeline intact, but only interrupt for a changed top-level
   // session. Quiet endings must not replace an existing useful receipt.
@@ -417,11 +460,19 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
     },
     snapshot:
       snapshot && typeof snapshot.id === 'string' ? { id: snapshot.id, name: String(snapshot.name ?? '') } : null,
+    context: {
+      read: receiptNodes(context?.read),
+      pinned: receiptNodes(context?.pinned),
+      created: receiptNodes(context?.created),
+      edited: receiptNodes(context?.edited),
+      changedSinceRead: receiptNodes(context?.changedSinceRead),
+    },
   };
 }
 
 export function dismissSessionReceipt(): void {
   sessionReceipt.value = null;
+  activityLensNodeIds.value = null;
 }
 
 export function resetSessionStore(): void {

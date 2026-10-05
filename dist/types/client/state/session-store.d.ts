@@ -175,7 +175,27 @@ export interface SessionReceipt {
         id: string;
         name: string;
     } | null;
+    /** What the session did with context (docs/design/AgentContext.dc.html receipt). */
+    context: SessionContextActivity;
 }
+export interface ReceiptNode {
+    id: string;
+    title: string;
+    reason?: string;
+}
+export interface SessionContextActivity {
+    read: ReceiptNode[];
+    pinned: ReceiptNode[];
+    created: ReceiptNode[];
+    edited: ReceiptNode[];
+    changedSinceRead: ReceiptNode[];
+}
+/**
+ * The agent-activity lens: while on, nodes the last session did not touch
+ * (read, pin, create, edit) are dimmed. Null when off.
+ */
+export declare const activityLensNodeIds: import("@preact/signals-core").Signal<Set<string> | null>;
+export declare function setActivityLens(on: boolean): void;
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
 export declare const sessionReceipt: import("@preact/signals-core").Signal<SessionReceipt | null>;
 export declare function applySessionReceipt(data: Record<string, unknown>): void;

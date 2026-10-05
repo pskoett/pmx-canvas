@@ -147,20 +147,27 @@ agentPresence.setSessionStartListener((presence) => {
   const startedAt = new Date().toISOString();
   return canvasState.saveSnapshot(`Before session · ${presence.label} · ${startedAt.slice(11, 16)}`)?.id ?? null;
 });
-agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
+agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, startedAt) => {
   const ax = canvasState.getAxState();
   const endedAt = new Date().toISOString();
+  const layout = canvasState.getLayout();
   let snapshot = startSnapshotId
     ? (canvasState.listSnapshots({ all: true }).find((entry) => entry.id === startSnapshotId) ?? null)
     : null;
-  let unchanged = !startSnapshotId && canvasState.getLayout().nodes.length === 0;
+  let unchanged = !startSnapshotId && layout.nodes.length === 0;
+  // Nodes the session added and changed: the diff against the start snapshot,
+  // or every node when the board was empty at attach (no snapshot was taken).
+  let addedIds = startSnapshotId ? new Set<string>() : new Set(layout.nodes.map((node) => node.id));
+  let modifiedIds = new Set<string>();
   // A session that changed NOTHING on the board leaves no snapshot behind —
   // session churn (idle timeouts, receipt tests, attach/detach cycles) was
   // flooding the History drawer with identical boards.
   if (snapshot) {
     const snapData = canvasState.getSnapshotData(snapshot.id);
     if (snapData) {
-      const diff = diffLayouts(snapData.name, snapData, canvasState.getLayout());
+      const diff = diffLayouts(snapData.name, snapData, layout);
+      addedIds = new Set(diff.addedNodes.map((node) => node.id));
+      modifiedIds = new Set(diff.modifiedNodes.map((node) => node.id));
       if (
         diff.addedNodes.length === 0 &&
         diff.removedNodes.length === 0 &&
@@ -190,6 +197,10 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
     rejected: ax.approvalGates.filter((gate) => gate.status === 'rejected').length,
     held: ax.approvalGates.filter((gate) => gate.status === 'held').length,
   };
+  const context = sessionContextActivity(layout.nodes, startedAt, addedIds, modifiedIds);
+  // Reading or pinning is something the human wants to see even when the
+  // board itself did not change ("did the agent read what I pinned?").
+  if (context.read.length > 0 || context.pinned.length > 0) unchanged = false;
   // No agent `sessionId` here: the SSE envelope reserves that key for the
   // workbench session and would overwrite it. The label is what the receipt shows.
   emitPrimaryWorkbenchEvent('agent-session-ended', {
@@ -200,8 +211,60 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
     counts,
     unchanged,
     snapshot: snapshot ? { id: snapshot.id, name: snapshot.name } : null,
+    context,
   });
 });
+
+interface ReceiptNode {
+  id: string;
+  title: string;
+  reason?: string;
+}
+
+/**
+ * What an agent session did with the board's context (docs/design/AgentContext.dc.html
+ * lens and receipt): nodes read since it attached, pins it made, nodes it created and
+ * edited, and pinned nodes whose content changed after the latest read.
+ */
+function sessionContextActivity(
+  nodes: CanvasNodeState[],
+  startedAt: string | null,
+  addedIds: Set<string>,
+  modifiedIds: Set<string>,
+): {
+  read: ReceiptNode[];
+  pinned: ReceiptNode[];
+  created: ReceiptNode[];
+  edited: ReceiptNode[];
+  changedSinceRead: ReceiptNode[];
+} {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const entry = (node: CanvasNodeState): ReceiptNode => ({
+    id: node.id,
+    title: typeof node.data.title === 'string' && node.data.title.trim() ? node.data.title : node.id,
+  });
+  const boardId = canvasState.activeBoardId;
+  const read = startedAt
+    ? canvasState.getReadNodeIdsSince(boardId, startedAt).flatMap((id) => {
+        const node = byId.get(id);
+        return node ? [entry(node)] : [];
+      })
+    : [];
+  const pinned = Object.entries(canvasState.getContextPinMeta()).flatMap(([id, meta]) => {
+    const node = byId.get(id);
+    if (!node || meta.pinnedBy.actor !== 'agent' || !startedAt || meta.pinnedAt < startedAt) return [];
+    return [{ ...entry(node), ...(meta.reason ? { reason: meta.reason } : {}) }];
+  });
+  const created = nodes.filter((node) => addedIds.has(node.id) && node.createdBy?.actor === 'agent').map(entry);
+  const edited = nodes.filter((node) => modifiedIds.has(node.id) && node.lastEditedBy?.actor === 'agent').map(entry);
+  const readStatus = new Map(canvasState.getNodeReadStatus(boardId).map((status) => [status.nodeId, status]));
+  const changedSinceRead = [...canvasState.contextPinnedNodeIds].flatMap((id) => {
+    const node = byId.get(id);
+    const status = readStatus.get(id);
+    return node && status && (node.contentRevision ?? 0) > status.readRevision ? [entry(node)] : [];
+  });
+  return { read, pinned, created, edited, changedSinceRead };
+}
 
 // Webview-runner wiring (plan-008 Wave 3): the webview ops never import this
 // module — the Bun.WebView automation runner is injected here, mirroring the

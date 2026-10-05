@@ -44,7 +44,9 @@ describe('pinned nodes: read, not read, changed since read', () => {
 
   test('a read at the current revision says "read"; a newer revision says "changed since read"', () => {
     applyContextStatus({
-      nodes: [{ nodeId: 'n1', lastReadAt: '2026-10-05T10:05:00.000Z', lastReadBy: 'claude', readRevision: 5 }],
+      nodes: [
+        { nodeId: 'n1', lastReadAt: '2026-10-05T10:05:00.000Z', lastReadBy: 'claude', readRevision: 5, readCount: 1 },
+      ],
       pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } },
     });
     expect(markOf({ node: node({ contentRevision: 5 }), pinned: true })).toBe('read');
@@ -54,7 +56,9 @@ describe('pinned nodes: read, not read, changed since read', () => {
 
   test('a read from before the pin does not count: the agent has not loaded it since you pinned it', () => {
     applyContextStatus({
-      nodes: [{ nodeId: 'n1', lastReadAt: '2026-10-05T09:00:00.000Z', lastReadBy: 'claude', readRevision: 5 }],
+      nodes: [
+        { nodeId: 'n1', lastReadAt: '2026-10-05T09:00:00.000Z', lastReadBy: 'claude', readRevision: 5, readCount: 1 },
+      ],
       pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } },
     });
     expect(markOf({ node: node(), pinned: true })).toBe('not read');

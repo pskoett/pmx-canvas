@@ -2897,6 +2897,111 @@ body,
 .session-receipt-tile-value.tone-danger {
   color: var(--c-danger);
 }
+/* What the session did with context (docs/design/AgentContext.dc.html receipt). */
+.session-receipt-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.session-receipt-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c-warn) 10%, transparent);
+  color: var(--c-warn);
+  font-size: var(--fs-meta);
+}
+.session-receipt-warn svg,
+.session-receipt-context-head svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.session-receipt-context-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--c-line);
+}
+.session-receipt-context-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-agent);
+}
+.session-receipt-context-name {
+  flex: 1;
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  color: var(--c-text);
+}
+.session-receipt-context-count {
+  font-size: var(--fs-meta);
+  color: var(--c-dim);
+}
+.session-receipt-context-items {
+  padding-left: 19px;
+  font-size: var(--fs-meta);
+  color: var(--c-muted);
+}
+.session-receipt-mini {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--c-text);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.session-receipt-lens {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--c-muted);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.session-receipt-lens-track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--c-line);
+}
+.session-receipt-lens-knob {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--c-muted);
+}
+.session-receipt-lens.is-on .session-receipt-lens-track {
+  background: var(--c-agent);
+}
+.session-receipt-lens.is-on .session-receipt-lens-knob {
+  left: auto;
+  right: 2px;
+  background: var(--c-bg);
+}
+/* The lens: nodes the session did not touch step back. */
+.canvas-node.lens-dimmed {
+  opacity: 0.35;
+}
+
 .session-receipt-note,
 .session-receipt-diff {
   margin-top: 10px;

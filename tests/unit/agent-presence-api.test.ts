@@ -460,6 +460,49 @@ describe('agent presence over SSE', () => {
     expect(listed.find((entry) => entry.id === snapshot.id)?.name).toBe(snapshot.name);
   });
 
+  test('the receipt says what the session did with context: read, pinned, created, changed since read', async () => {
+    const html = await (await fetch(`${baseUrl}/workbench`)).text();
+    const token = JSON.parse(html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1] ?? '""') as string;
+    const human = { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token };
+    const agent = { 'x-pmx-source': 'copilot' };
+    const brief = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'Brief', content: 'v1', x: 0, y: 0 }, human)
+    ).json()) as { id: string };
+    const chart = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'Chart', content: 'x', x: 400, y: 0 }, human)
+    ).json()) as { id: string };
+    await postJson('/api/canvas/context-pins', { nodeIds: [brief.id] }, human);
+
+    await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await fetch(`${baseUrl}/api/canvas/ax/context`, { headers: agent });
+    await postJson(
+      '/api/canvas/context-pins',
+      { nodeIds: [chart.id], mode: 'add', reason: 'the finding rests on it' },
+      agent,
+    );
+    await postJson('/api/canvas/node', { type: 'markdown', title: 'Agent finding', x: 800, y: 0 }, agent);
+    // The person edits the pinned brief after the agent read it.
+    await fetch(`${baseUrl}/api/canvas/node/${brief.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...human },
+      body: JSON.stringify({ content: 'v2' }),
+    });
+
+    const receipt = readSseEvent('agent-session-ended', () => true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: false });
+    const payload = (await receipt) as {
+      unchanged: boolean;
+      context: Record<string, Array<{ id: string; title: string; reason?: string }>>;
+    };
+    expect(payload.unchanged).toBe(false);
+    expect(payload.context.read.map((node) => node.title)).toContain('Brief');
+    expect(payload.context.pinned).toEqual([{ id: chart.id, title: 'Chart', reason: 'the finding rests on it' }]);
+    expect(payload.context.created.map((node) => node.title)).toEqual(['Agent finding']);
+    expect(payload.context.changedSinceRead.map((node) => node.title)).toEqual(['Brief']);
+  });
+
   test("the browser's End button stamps the receipt endedBy human", async () => {
     await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: true });
     const receipt = readSseEvent('agent-session-ended', () => true);

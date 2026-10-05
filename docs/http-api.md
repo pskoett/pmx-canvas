@@ -638,8 +638,15 @@ the stream carries one `agent-session-ended` frame:
 ```json
 { "label": "Copilot", "parentAgentId": null, "endedAt": "…", "endedBy": "agent",
   "unchanged": false, "counts": { "items": 4, "done": 3, "cancelled": 1, "rejected": 0, "held": 0 },
-  "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00" } }
+  "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00" },
+  "context": { "read": [{ "id": "…", "title": "Brief" }], "pinned": [{ "id": "…", "title": "Chart", "reason": "…" }],
+               "created": [], "edited": [], "changedSinceRead": [{ "id": "…", "title": "Brief" }] } }
 ```
+
+`context` is what the session did with the board's context: nodes whose content an
+agent read since the session attached, pins the agent made (with their reason), nodes
+it created and edited (against the pre-session snapshot), and pinned nodes changed
+after their latest read. A session that only read or pinned is not `unchanged`.
 
 `items`/`done` count the work items on the board; cancelled items, rejected
 gates, and held gates have separate counts. `snapshot` is null when the board was
@@ -864,7 +871,10 @@ all consume this stream. Auto-reconnect with exponential backoff.
 `agent-presence` frames carry the full presence snapshot (the same body as
 `GET /api/canvas/ax/presence`) on every change, including TTL expiry — a
 client never needs its own expiry timer. `agent-session-ended` carries the
-session receipt (see [Agent presence](#agent-presence)).
+session receipt (see [Agent presence](#agent-presence)). `context-status-changed`
+(`{ boardId }`) says an agent read landed; the workbench refetches
+`GET /api/canvas/ax/context-status`. It is never an MCP notification, so a read
+cannot cause more reads.
 
 Every frame's payload is wrapped in an envelope that sets `sessionId` (the
 workbench session, used for reconnect/reload detection) and `timestamp` —

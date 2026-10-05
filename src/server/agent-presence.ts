@@ -205,6 +205,8 @@ interface StoredPresence extends AgentPresence {
   lastActivityNodeId: string | null;
   /** Snapshot of the board taken when this session attached (the receipt diffs against it). */
   startSnapshotId: string | null;
+  /** When this session attached (ISO); the receipt counts reads and pins from here. */
+  startedAt: string | null;
 }
 
 function presenceKey(source: string, agentId: string | null | undefined): string {
@@ -230,7 +232,12 @@ export function estimateContextBudget(): ContextBudget {
 /** Returns the id of the pre-session snapshot the server took, if any. */
 type SessionStartListener = (presence: AgentPresence) => string | null;
 export type SessionEndReason = 'human' | 'agent' | 'idle-timeout';
-type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null, endedBy: SessionEndReason) => void;
+type SessionEndListener = (
+  presence: AgentPresence,
+  startSnapshotId: string | null,
+  endedBy: SessionEndReason,
+  startedAt: string | null,
+) => void;
 
 export class AgentPresenceRegistry {
   private readonly presences = new Map<string, StoredPresence>();
@@ -392,6 +399,7 @@ export class AgentPresenceRegistry {
       phaseSetMs: now,
       toolingUntilMs: null,
       startSnapshotId: null,
+      startedAt: null,
     };
     const wasAttached = stored.attached;
     stored.lastSeenMs = now;
@@ -448,6 +456,7 @@ export class AgentPresenceRegistry {
       // moment stays the receipt baseline via the inherited snapshot. A
       // placeholder that already adopted work is a real session and stays.
       let inheritedSnapshotId: string | null = null;
+      let inheritedStartedAt: string | null = null;
       if (stored.source !== 'browser') {
         const placeholder = [...this.presences.values()].find(
           (presence) =>
@@ -463,13 +472,20 @@ export class AgentPresenceRegistry {
             if (target === placeholder.sessionId) this.aliases.set(channel, key);
           }
           inheritedSnapshotId = placeholder.startSnapshotId;
+          inheritedStartedAt = placeholder.startedAt;
         }
       }
       stored.startSnapshotId = inheritedSnapshotId ?? this.onSessionStart(this.publicView(stored, now));
+      stored.startedAt = inheritedStartedAt ?? new Date(now).toISOString();
     }
     if (input.attached === false) {
       if (wasAttached)
-        this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId, input.endedBy ?? 'agent');
+        this.onSessionEnd(
+          this.publicView(stored, now),
+          stored.startSnapshotId,
+          input.endedBy ?? 'agent',
+          stored.startedAt,
+        );
       // An explicit detach always removes the presence. In particular, a
       // worker that reports attached:false must not be refreshed into another
       // full activity TTL as an external writer.
@@ -585,7 +601,8 @@ export class AgentPresenceRegistry {
     const removed = this.presences.delete(sessionId);
     if (removed) {
       this.dropAliasesTo(sessionId);
-      if (stored?.attached) this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId, 'agent');
+      if (stored?.attached)
+        this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId, 'agent', stored.startedAt);
       this.scheduleEmit();
     }
     this.maybeStopSweeper();
@@ -700,7 +717,12 @@ export class AgentPresenceRegistry {
         this.presences.delete(key);
         this.dropAliasesTo(key);
         if (presence.attached)
-          this.onSessionEnd(this.publicView(presence, now), presence.startSnapshotId, 'idle-timeout');
+          this.onSessionEnd(
+            this.publicView(presence, now),
+            presence.startSnapshotId,
+            'idle-timeout',
+            presence.startedAt,
+          );
         changed = true;
         continue;
       }

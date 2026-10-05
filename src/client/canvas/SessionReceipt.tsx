@@ -1,6 +1,15 @@
 import { useState } from 'preact/hooks';
-import { dismissSessionReceipt, sessionReceipt } from '../state/session-store';
-import { IconClose } from '../icons';
+import { toggleContextPin } from '../state/canvas-store';
+import {
+  activityLensNodeIds,
+  dismissSessionReceipt,
+  type ReceiptNode,
+  type SessionContextActivity,
+  sessionReceipt,
+  setActivityLens,
+} from '../state/session-store';
+import { IconClose, IconPin } from '../icons';
+import { GLYPHS } from './NodeContextMark';
 import { workbenchFetch } from '../state/workbench-transport';
 
 /**
@@ -27,6 +36,83 @@ export function summarizeDiff(diff: unknown): DiffSummary | null {
     removed: count(d.removedNodes) + count(d.removedEdges),
     modified: count(d.modifiedNodes),
   };
+}
+
+const titles = (nodes: ReceiptNode[]) => nodes.map((node) => node.title).join(', ');
+
+/**
+ * What the session did with context (docs/design/AgentContext.dc.html): an
+ * amber line for pins it read that changed since, one row per kind of touch,
+ * and the lens switch that dims every node the session did not touch.
+ */
+function ReceiptContext({ context, label }: { context: SessionContextActivity; label: string }) {
+  const rows: Array<{ key: keyof SessionContextActivity; name: string; glyph: keyof typeof GLYPHS | 'pin' }> = [
+    { key: 'read', name: 'Read', glyph: 'eye' },
+    { key: 'pinned', name: 'Pinned', glyph: 'pin' },
+    { key: 'created', name: 'Created', glyph: 'spark' },
+    { key: 'edited', name: 'Edited', glyph: 'pen' },
+  ];
+  const present = rows.filter((row) => context[row.key].length > 0);
+  if (present.length === 0 && context.changedSinceRead.length === 0) return null;
+  const lensOn = activityLensNodeIds.value !== null;
+  return (
+    <div class="session-receipt-context" data-testid="session-receipt-context">
+      {context.changedSinceRead.length > 0 && (
+        <div class="session-receipt-warn">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d={GLYPHS.warn} />
+          </svg>
+          <span>
+            {titles(context.changedSinceRead)} changed after {label} read{' '}
+            {context.changedSinceRead.length === 1 ? 'it' : 'them'}.
+          </span>
+        </div>
+      )}
+      {present.map((row) => (
+        <div key={row.key} class="session-receipt-context-row" data-row={row.key}>
+          <div class="session-receipt-context-head">
+            {row.glyph === 'pin' ? (
+              <IconPin />
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d={GLYPHS[row.glyph]} />
+              </svg>
+            )}
+            <span class="session-receipt-context-name">{row.name}</span>
+            <span class="session-receipt-context-count">{context[row.key].length}</span>
+            {row.key === 'pinned' && (
+              <button
+                type="button"
+                class="session-receipt-mini"
+                onClick={() => {
+                  for (const node of context.pinned) toggleContextPin(node.id);
+                }}
+              >
+                Unpin
+              </button>
+            )}
+          </div>
+          <div class="session-receipt-context-items">
+            {row.key === 'pinned'
+              ? context.pinned.map((node) => (node.reason ? `${node.title} — “${node.reason}”` : node.title)).join('; ')
+              : titles(context[row.key])}
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={lensOn}
+        class={`session-receipt-lens${lensOn ? ' is-on' : ''}`}
+        onClick={() => setActivityLens(!lensOn)}
+      >
+        <span class="session-receipt-lens-track" aria-hidden="true">
+          <span class="session-receipt-lens-knob" />
+        </span>
+        Dim untouched nodes
+      </button>
+    </div>
+  );
 }
 
 export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => void }) {
@@ -109,6 +195,7 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           </div>
         )}
       </div>
+      <ReceiptContext context={receipt.context} label={receipt.label} />
       <div class="session-receipt-note">
         {receipt.snapshot
           ? 'A snapshot of the board from before this session is saved — restore it to undo the session.'

@@ -117,6 +117,7 @@ import {
   appendContextReadToDB,
   loadContextReadsFromDB,
   loadNodeReadStatusFromDB,
+  loadReadNodeIdsSince,
   type ContextRead,
   type ContextReadConsumerSummary,
   type ContextReadInput,
@@ -2904,6 +2905,12 @@ class CanvasStateManager {
   getNodeReadStatus(boardId: string | null = this._activeBoardId): NodeReadStatus[] {
     if (!this._db || !boardId) return [];
     return loadNodeReadStatusFromDB(this._db, boardId);
+  }
+
+  /** Nodes on a board whose content an agent read at or after `since` (ISO). */
+  getReadNodeIdsSince(boardId: string | null, since: string): string[] {
+    if (!this._db || !boardId) return [];
+    return loadReadNodeIdsSince(this._db, boardId, since);
   }
 
   getContextReads(limit?: number): { reads: ContextRead[]; summary: ContextReadConsumerSummary[] } {

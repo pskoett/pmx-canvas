@@ -59,6 +59,8 @@ export interface NodeReadStatus {
   lastReadBy: string;
   /** The node's content revision in that read; newer current revision means "changed since read". */
   readRevision: number;
+  /** How many retained agent reads delivered its content. */
+  readCount: number;
 }
 
 export interface ContextReadConsumerSummary {
@@ -235,16 +237,33 @@ export function loadNodeReadStatusFromDB(db: Database, boardId: string): NodeRea
   const status = new Map<string, NodeReadStatus>();
   for (const read of rows.map(rowToContextRead)) {
     for (const [nodeId, readRevision] of Object.entries(read.readNodes)) {
-      if (status.has(nodeId)) continue;
+      const known = status.get(nodeId);
+      if (known) {
+        known.readCount += 1;
+        continue;
+      }
       status.set(nodeId, {
         nodeId,
         lastReadAt: read.at,
         lastReadBy: read.consumer ?? read.agentId ?? read.source,
         readRevision,
+        readCount: 1,
       });
     }
   }
   return [...status.values()];
+}
+
+/** Every node on a board whose content an agent read at or after `since` (ISO). */
+export function loadReadNodeIdsSince(db: Database, boardId: string, since: string): string[] {
+  const rows = db
+    .query<{ read_nodes: string }, [string, string]>(
+      'SELECT read_nodes FROM context_reads WHERE board_id = ? AND at >= ? ORDER BY seq',
+    )
+    .all(boardId, since);
+  const ids = new Set<string>();
+  for (const row of rows) for (const id of Object.keys(JSON.parse(row.read_nodes) as object)) ids.add(id);
+  return [...ids];
 }
 
 /** Newest first. The summary covers every retained row, not just the returned page. */

@@ -1,6 +1,6 @@
 # Plan 016 — Context made visible (wave 1)
 
-**Status:** Slices 1–2 done (2026-10-05); slice 3 (lens and receipt) next.
+**Status:** Slices 1–3 done (2026-10-05); slice 4 (near a pin) next.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -78,6 +78,17 @@ session, with "see change" opening the diff and undo.
 
 The lens from `AgentContext.dc.html`: counts (read, created, edited, pinned) and the receipt rows
 with their actions (Unpin, Undo). Data from presence activity, revisions and slice 1.
+- **Done.** The existing session receipt (`agent-session-ended`) gains `context`: nodes read since
+  the session attached (presence now records `startedAt`), pins the agent made with their reason,
+  nodes it created and edited (the pre-session snapshot diff, filtered by authorship), and pinned
+  nodes changed since their latest read. A session that only read or pinned now gets a receipt.
+  The receipt card shows an amber line for out-of-date pins, Read / Pinned / Created / Edited rows
+  (Unpin on agent pins) and the lens switch "Dim untouched nodes". The read mark's hover says how
+  many times a node was read. Reads are counted per board in the session window, not per reader:
+  on a board with two agents at once, each receipt includes the other's reads.
+- **Not built:** per-row Undo of an edit (needs stored previous content); the pre-session snapshot
+  restore still undoes the whole session. The drawn bottom-bar placement of the lens is folded into
+  the receipt card, which already sits where session results appear.
 
 ### 4. Near a pin: neighbours in the brief, and the near mark
 

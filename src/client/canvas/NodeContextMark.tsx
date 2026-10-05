@@ -3,7 +3,7 @@ import type { CanvasNodeState } from '../types';
 import { BarHint } from './BarHint';
 
 // Glyphs from docs/design/AgentContext.dc.html (24-unit paths).
-const GLYPHS = {
+export const GLYPHS = {
   eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
   eyeOff:
     'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.6 6.6C3.8 8.3 2 12 2 12s3.5 6 10 6a9.6 9.6 0 0 0 4.4-1',
@@ -56,7 +56,7 @@ function markFor(node: CanvasNodeState, pinned: boolean): Mark | null {
       glyph: 'eye',
       word: 'read',
       label: 'Read by the agent',
-      body: `${state.by} loaded it at ${clock(state.at)}.${pinnedBy}`,
+      body: `${state.count > 1 ? `Read ${state.count} times · last` : 'Read'} ${clock(state.at)} by ${state.by}.${pinnedBy}`,
     };
   }
   // A person's edit ends the agent's byline (decided 2026-10-05).
