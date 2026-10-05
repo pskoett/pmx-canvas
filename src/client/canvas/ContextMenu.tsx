@@ -26,6 +26,7 @@ import {
   updateEdgeFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
+import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { askText } from './TextPrompt';
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -497,6 +498,16 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     label: node.collapsed ? 'Expand' : 'Collapse',
     action: () => toggleCollapsed(node.id),
   });
+
+  // Open as site — full-page standalone view of this node's surface, served
+  // from /api/canvas/surface/:id (same document as the canvas iframe). Opens
+  // via the system browser so embedded hosts do not trap it in their webview.
+  if (canOpenAsSite(node)) {
+    items.push({
+      label: 'Open in new tab',
+      action: () => void openNodeAsSite(node),
+    });
+  }
 
   // Context pin — add/remove from the human-curated agent context (report #63).
   // This is the PRIMARY "pin" in PMX's model ("pin nodes to curate context"); it

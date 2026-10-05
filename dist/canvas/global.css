@@ -997,6 +997,17 @@ body,
   color: var(--c-text);
 }
 
+/* ⋯ and × appear on hover or keyboard focus; expand and the context pin
+   always show (docs/design/Chrome.dc.html). */
+.canvas-node .node-controls .node-hover-control {
+  display: none;
+}
+
+.canvas-node:hover .node-controls .node-hover-control,
+.canvas-node:focus-within .node-controls .node-hover-control {
+  display: inline-flex;
+}
+
 .canvas-node .node-body {
   flex: 1;
   overflow: auto;

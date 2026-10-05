@@ -1344,7 +1344,9 @@ test('opens an html node as a standalone site with the current theme', async ({ 
   const htmlNode = page.locator('.canvas-node').filter({ hasText: 'Open As Site Target' });
   await expect(htmlNode).toHaveCount(1);
 
-  const openButton = htmlNode.locator('.node-controls button[title="Open as site"]');
+  await htmlNode.hover();
+  await htmlNode.getByRole('button', { name: 'More actions' }).click();
+  const openButton = page.locator('.context-menu-item').filter({ hasText: 'Open in new tab' });
   await expect(openButton).toHaveCount(1);
   await expect(htmlNode.getByTitle('Open in system browser')).toHaveCount(0);
 
@@ -1487,11 +1489,14 @@ test('#61: hosted ext-app nodes are not openable as a standalone site', async ({
   const surface = await request.get(`/api/canvas/surface/${id}`, { maxRedirects: 0 });
   expect(surface.status()).toBe(404);
 
-  // Client: the node shows NO "Open as site" control.
+  // Client: the node's ⋯ menu offers NO "Open in new tab".
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Ext app no open-as-site' });
   await expect(node).toHaveCount(1);
-  await expect(node.getByTitle('Open as site')).toHaveCount(0);
+  await node.hover();
+  await node.getByRole('button', { name: 'More actions' }).click();
+  await expect(page.locator('.context-menu-item').filter({ hasText: 'Collapse' })).toBeVisible();
+  await expect(page.locator('.context-menu-item').filter({ hasText: 'Open in new tab' })).toHaveCount(0);
 });
 
 test('#63: node context menu pins to the human-curated context set (primary "Pin as context")', async ({
@@ -1530,6 +1535,7 @@ test('#64: status nodes expose the standard remove (×) control', async ({ page,
   const node = page.locator('.canvas-node').filter({ hasText: 'Removable status' });
   await expect(node).toHaveCount(1);
 
+  await node.hover();
   const closeBtn = node.locator('.node-titlebar').getByTitle('Close');
   await expect(closeBtn).toBeVisible();
   await closeBtn.click();

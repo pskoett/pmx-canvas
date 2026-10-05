@@ -37,17 +37,7 @@ import {
 import { KIND_COLOR } from './kind-colors';
 import { reportHumanGrab, takeOverNode, yieldedNodes } from '../state/human-store';
 import { AxStepControls } from '../nodes/AxStepControls';
-import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
-import {
-  getNodeIcon,
-  IconChevronRight,
-  IconChevronDown,
-  IconClose,
-  IconMore,
-  IconExternalLink,
-  IconExpand,
-  IconPin,
-} from '../icons';
+import { getNodeIcon, IconChevronRight, IconClose, IconMore, IconExpand, IconPin } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 import { AUTO_FIT_TITLEBAR_HEIGHT, computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
@@ -681,6 +671,20 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   ⊙
                 </span>
               )}
+              {/* Expand and the context pin always show; the rest sit behind ⋯ and ×
+              on hover (docs/design/Chrome.dc.html). */}
+              {EXPANDABLE_TYPES.has(node.type) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    expandNode(node.id);
+                  }}
+                  title="Expand (focus mode)"
+                >
+                  <IconExpand size={14} />
+                </button>
+              )}
               <button
                 type="button"
                 class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
@@ -696,49 +700,23 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   <IconPin />
                 </span>
               </button>
-              {/* Open as site — full-page standalone view of this node's surface,
-              served from /api/canvas/surface/:id (same document as the canvas
-              iframe). Opens via the system browser so embedded hosts do not trap
-              it in their own webview. */}
-              {canOpenAsSite(node) && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void openNodeAsSite(node);
-                  }}
-                  title="Open as site"
-                >
-                  <IconExternalLink size={14} />
-                </button>
-              )}
-              {/* Expand — opens node as full-viewport overlay for focused work */}
-              {EXPANDABLE_TYPES.has(node.type) && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    expandNode(node.id);
-                  }}
-                  title="Expand (focus mode)"
-                >
-                  <IconExpand size={14} />
-                </button>
-              )}
               <button
                 type="button"
+                class="node-hover-control"
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleCollapsed(node.id);
+                  onContextMenu?.(e, node.id);
                 }}
-                title={node.collapsed ? 'Expand' : 'Collapse'}
+                title="More actions"
+                aria-label="More actions"
               >
-                {node.collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
+                <IconMore size={14} />
               </button>
               {/* Report #64: status nodes get the same remove control as every other
               node type (backend removal + undo/history handle status uniformly). */}
               <button
                 type="button"
+                class="node-hover-control"
                 onClick={(e) => {
                   e.stopPropagation();
                   void removeNodeFromClient(node.id);

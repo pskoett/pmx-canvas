@@ -1,6 +1,6 @@
 # Plan 015 — Design foundation (wave 0)
 
-**Status:** Steps 1, 2 and 3a done (2026-10-05). Steps 3b, 3c and 4 not started.
+**Status:** Steps 1, 2, 3a and 3b done (2026-10-05). Steps 3c and 4 not started.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 0 ("ships alone, first"); vision moves 5, 9, 10.
 Drawings: [`TokenSystem`](../design/TokenSystem.dc.html), [`Tokens`](../design/Tokens.dc.html),
@@ -80,8 +80,11 @@ Split into three slices after reading the code (2026-10-05):
 - Selection is a ring with a gap (3 px background, 2 px accent) outside the border, so pin styling
   survives it; base nodes take `--r-node` and `--e-1`.
 
-**3b. Node header overflow.** Expand and the context pin stay; the other controls (ask agent, open
-in new tab, collapse, set as README, close) move under ⋯ on hover, per `Chrome.dc.html`.
+**3b. Node header overflow (done).** Per `Chrome.dc.html`: expand and the context pin always show;
+⋯ and × appear on hover or keyboard focus. ⋯ opens the existing node menu (the same one as
+right-click), which already holds Collapse, Rename and Delete; "Open in new tab" (open as site)
+moves into it from the header. The drawn "Ask agent" entry has no function yet and waits for one;
+"Set as README" stays in the markdown card footer for now.
 
 **3c. The rest of the old colours.**
 - Classify every remaining `--c-warn` use: pin → `--c-pin`, agent → `--c-agent`, a real warning
@@ -133,5 +136,12 @@ warning amber.
   in `design.md`.
 
 ## Open
+
+- **Near a pin (decided 2026-10-05).** Nodes near a pin (up to 5 within 600 px,
+  `findNeighborhoods`) are treated as related, but the agent gets them only as titles, in
+  `canvas://pinned-context` and `canvas://spatial-context`; the main brief `canvas://context` does
+  not include them. Decided with the maintainer: no near-a-pin mark on the board until the brief
+  carries neighbours (vision move 1's ranker). The mark and that brief change ship together, in
+  wave 1; the design session draws the state ahead of it. Not part of wave 0.
 
 - The **folders-versus-portals** question (before wave 2).
