@@ -23,7 +23,7 @@ export function AnnotationLayer({ annotations }: { annotations: CanvasAnnotation
               y={point.y}
               fill={color}
               font-size={annotation.width}
-              font-family="var(--font)"
+              font-family="var(--font-ui)"
               font-weight="700"
               opacity="0.95"
             >

@@ -1,7 +1,6 @@
 # Plan 015 — Design foundation (wave 0)
 
-**Status:** Step 1 implemented and verified (2026-10-05): unit suite, build and typecheck pass;
-the tokens resolve per theme in the live bundle. Steps 2–4 not started.
+**Status:** Steps 1 and 2 done (2026-10-05). Steps 3–4 not started.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 0 ("ships alone, first"); vision moves 5, 9, 10.
 Drawings: [`TokenSystem`](../design/TokenSystem.dc.html), [`Tokens`](../design/Tokens.dc.html),
@@ -51,10 +50,16 @@ Each step is its own commit and leaves the suite green.
 
 - Ship Plex Sans (400/500/600) and Plex Mono (400/500) woff2 with the client bundle, `@font-face`
   in `global.css`, no CDN. Confirm the npm `files` list carries them.
+  *Done:* `@fontsource` packages are dev dependencies; `scripts/copy-fonts.ts` copies the latin
+  and latin-ext subsets (192 KB) and the OFL licence to `dist/canvas/fonts/`, which ships. The
+  single-file MCP app inlines them as data URIs. HTML nodes, json-render and exports still use the
+  `--font-sans`/`--font-mono` aliases without the faces until the frame host (wave 4).
 - Rename `--font`/`--mono` to `--font-ui`/`--font-code` (no aliases); `button, input, select,
   textarea { font: inherit }`; remove Arial fallbacks.
 - Check: a browser test that every visible control computes `--font-ui` and that the Plex faces
   are loaded (`document.fonts`).
+  *Done:* in `reference-pane.pw.ts`. Before: 365 of 400 controls on the demo board rendered in
+  Arial and no Plex face loaded; after: 0 of 389, all five faces loaded.
 
 ### 3. Pins and agent marks move to their meaning tokens
 

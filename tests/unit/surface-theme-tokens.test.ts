@@ -96,7 +96,7 @@ describe('surface-theme.css stays in sync with global.css', () => {
       '--e-1',
       '--e-2',
     ];
-    for (const token of ['--font', '--mono', ...scale]) {
+    for (const token of ['--font-ui', '--font-code', ...scale]) {
       expect(readVar(globalBlock, token), `${token} missing from global.css :root`).not.toBeNull();
       expect(readVar(surfaceBlock, token)).toBe(readVar(globalBlock, token));
     }

@@ -66,7 +66,7 @@ export function StatusNode({ node }: { node: CanvasNodeState }) {
       {activeTool && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--c-warn)' }}>
           <span style={{ fontSize: '10px' }}>⚙</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: '11px' }}>{activeTool}</span>
+          <span style={{ fontFamily: 'var(--font-code)', fontSize: '11px' }}>{activeTool}</span>
         </div>
       )}
 

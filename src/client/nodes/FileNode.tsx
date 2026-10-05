@@ -207,7 +207,7 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        fontFamily: 'var(--mono)',
+        fontFamily: 'var(--font-code)',
         fontSize: expanded ? '13px' : '11px',
       }}
     >

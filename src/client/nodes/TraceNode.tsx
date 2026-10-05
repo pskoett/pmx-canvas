@@ -68,7 +68,7 @@ export function TraceNode({ node }: { node: CanvasNodeState }) {
       >
         <div
           style={{
-            fontFamily: 'var(--mono)',
+            fontFamily: 'var(--font-code)',
             fontSize: '11px',
             fontWeight: 600,
             color: catColor,

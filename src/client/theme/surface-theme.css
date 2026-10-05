@@ -58,8 +58,8 @@
   --color-warning: #f4c542;
   --color-danger: #ff6a7f;
 
-  --font: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
+  --font-ui: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
+  --font-code: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   --font-sans: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   /* ── Scale (same in every theme; see docs/design.md) ───────── */
@@ -424,7 +424,7 @@ body {
   padding: 0;
   background: var(--c-bg);
   color: var(--c-text);
-  font-family: var(--font, system-ui, sans-serif);
+  font-family: var(--font-ui, system-ui, sans-serif);
   font-size: 14px;
   line-height: 1.5;
 }

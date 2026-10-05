@@ -228,6 +228,31 @@ test('the reference cases cover every node type the schema can create', async ({
   expect(CASES.map((entry) => entry.type).sort()).toEqual(creatable.sort());
 });
 
+test('every control renders in the bundled Plex faces', async ({ page, request }) => {
+  await resetBoard(request);
+  await postId(request, '/api/canvas/node', { type: 'markdown', title: 'Font check', content: 'Font sentinel' });
+
+  await page.goto('/workbench');
+  await expect(page.getByText('Font sentinel')).toBeVisible();
+  const report = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const controls = [...document.querySelectorAll('button, input, select, textarea')].filter(
+      (element) => element.getClientRects().length > 0,
+    );
+    return {
+      controls: controls.length,
+      offenders: controls
+        .map((element) => `${element.tagName}.${element.className}: ${getComputedStyle(element).fontFamily}`)
+        .filter((entry) => !/: "?IBM Plex (Sans|Mono)"?,/.test(entry)),
+      loaded: [...document.fonts].filter((face) => face.status === 'loaded').map((face) => face.family),
+    };
+  });
+
+  expect(report.controls).toBeGreaterThan(10);
+  expect(report.offenders).toEqual([]);
+  expect(report.loaded.some((family) => family.includes('IBM Plex Sans'))).toBe(true);
+});
+
 for (const referenceCase of CASES) {
   test(`${referenceCase.type} paints in a 600 px pane`, async ({ page, request }) => {
     await resetBoard(request);

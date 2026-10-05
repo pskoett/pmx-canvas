@@ -34,7 +34,7 @@ export function LedgerNode({ node }: { node: CanvasNodeState }) {
                 padding: '3px 0',
                 borderBottom: i < lines.length - 1 ? '1px solid rgba(45,55,90,0.3)' : 'none',
                 color: 'var(--c-text)',
-                fontFamily: 'var(--mono)',
+                fontFamily: 'var(--font-code)',
                 fontSize: '11px',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
@@ -62,7 +62,7 @@ export function LedgerNode({ node }: { node: CanvasNodeState }) {
           <span
             style={{
               color: 'var(--c-text)',
-              fontFamily: 'var(--mono)',
+              fontFamily: 'var(--font-code)',
               fontSize: '11px',
               textAlign: 'right',
               wordBreak: 'break-word',

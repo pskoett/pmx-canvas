@@ -47,8 +47,8 @@ export function getCanvasTokens(): CanvasTokens {
     purple: read('--c-purple'),
     thinking: read('--c-thinking'),
     subagent: read('--c-subagent'),
-    font: read('--font'),
-    mono: read('--mono'),
+    font: read('--font-ui'),
+    mono: read('--font-code'),
   };
   return cached;
 }

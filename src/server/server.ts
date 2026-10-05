@@ -1183,6 +1183,7 @@ const CANVAS_STATIC_MIME: Record<string, string> = {
   '.json': 'application/json',
   '.map': 'application/json',
   '.wasm': 'application/wasm',
+  '.woff2': 'font/woff2',
 };
 
 const CANVAS_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
