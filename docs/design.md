@@ -86,8 +86,15 @@ Components reference tokens only. Raw colour values live only in the theme files
 
 - Tints are derived — `color-mix(in srgb, var(--c-pin) 12%, transparent)` — so the 22 alpha
   copies, `--c-warn-alt` and `--c-glow-accent` go.
-- `--c-thinking` becomes `--c-agent`. `--c-purple` is today a kind colour (graph, mermaid,
-  trace); kind colours become muted per-kind tints that never use a meaning hue.
+- `--c-thinking` becomes `--c-agent`.
+- **Kinds carry no colour.** Type icons use `--c-muted`; the glyph tells the kind, plus the kind
+  word on zoomed-out tiles (Zoom board). Minimap rects and group-chip kind dots are neutral, and
+  only meaning colours mark them (pinned, agent at work). `KIND_COLOR`, `--kind-accent` and
+  `--c-purple` go. Nine kind hues cannot all stay clear of ten meaning colours in nine themes,
+  and every hue a kind borrows is one a meaning loses.
+- **Writers are told apart by name and initial, not hue.** An agent writer's cursor, avatar and
+  activity line use `--c-agent`, a subagent's `--c-subagent`, a human's `--c-text-soft`;
+  `WRITER_PALETTE` goes. Two agents on one board share the violet and differ by label.
 - The frame host hands embedded viewers the same tokens, replacing `--color-*`.
 - **Decided 2026-10-05:** `--c-subagent` stays as its own meaning colour, a fuchsia beside the
   agent violet (`#E879F9` on dark themes, `#A83BB0` on Daylight and Sepia, `#ff99ff` on High
