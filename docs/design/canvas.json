@@ -74,14 +74,14 @@
     },
     "Light.dc.html": {
       "h": 900,
-      "title": "Proposed — light",
+      "title": "Proposed — Daylight",
       "w": 1440,
       "x": 3040,
       "y": 0
     },
     "Main.dc.html": {
       "h": 900,
-      "title": "Proposed — dark",
+      "title": "Proposed — Harbor",
       "w": 1440,
       "x": 1520,
       "y": 0
@@ -189,7 +189,7 @@
     },
     "s2": {
       "fill": "orange",
-      "text": "Light theme today is #F4EFE6 / #EFE7D4 — next to sepia's #F2E7D5 / #EBDCC2 the two are hard to tell apart. Proposed light is neutral: #F6F7F9 canvas, white nodes, #DDE2E9 lines.",
+      "text": "The old light theme was #F4EFE6 / #EFE7D4 — next to sepia's #F2E7D5 / #EBDCC2 the two were hard to tell apart. Daylight (wave 0) is neutral: #F6F7F9 canvas, white nodes, #DDE2E9 lines.",
       "w": 380,
       "x": 4560,
       "y": 1320

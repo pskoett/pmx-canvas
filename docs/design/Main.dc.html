@@ -207,11 +207,11 @@ export function clampSize(size) {
 </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["harbor","daylight"],"default":"harbor"},"$preview":{"width":1440,"height":900}}'>
 class Component extends DCLogic {
   renderVals() {
     var themes = {
-      dark: {
+      harbor: {
         bg: '#081524', dot: 'rgba(142,163,189,0.14)', panel: '#0f1d31', panel2: '#13243b', line: '#1b2c44',
         text: '#e6eef7', soft: '#b9c6d6', muted: '#8ea3bd', dim: '#6b7d94',
         accent: '#4BBCFF', accentA: 'rgba(75,188,255,0.14)', accentRing: 'rgba(75,188,255,0.24)', onAccent: '#081524',
@@ -221,7 +221,7 @@ class Component extends DCLogic {
         e1: '0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)', e2: '0 10px 30px rgba(0,0,0,0.45)',
         mm: 'rgba(142,163,189,0.30)', bar: 'rgba(75,188,255,0.45)'
       },
-      light: {
+      daylight: {
         bg: '#F6F7F9', dot: 'rgba(11,23,38,0.12)', panel: '#FFFFFF', panel2: '#F2F4F7', line: '#DDE2E9',
         text: '#0B1726', soft: '#3d4d63', muted: '#55657a', dim: '#6f7d90',
         accent: '#1A7ABF', accentA: 'rgba(26,122,191,0.10)', accentRing: 'rgba(26,122,191,0.20)', onAccent: '#FFFFFF',
@@ -232,7 +232,7 @@ class Component extends DCLogic {
         mm: 'rgba(11,23,38,0.14)', bar: 'rgba(26,122,191,0.35)'
       }
     };
-    var c = themes[this.props.theme] || themes.dark;
+    var c = themes[this.props.theme] || themes.harbor;
     var btnBase = 'display:flex;align-items:center;justify-content:center;border:0;padding:0;font-family:inherit;cursor:pointer;';
     var s = {
       rail: btnBase + 'width:36px;height:36px;border-radius:6px;background:transparent;color:' + c.muted + ';',
