@@ -148,6 +148,13 @@
       "w": 1440,
       "h": 1000,
       "title": "Token system — today and proposed"
+    },
+    "BoardPins.dc.html": {
+      "x": 6080,
+      "y": 2740,
+      "w": 1440,
+      "h": 1100,
+      "title": "Board pins — a working set across boards"
     }
   },
   "createdOnFiles": {
@@ -191,8 +198,8 @@
     },
     "t3": {
       "kind": "title1",
-      "maxW": 6000,
-      "text": "Zoomed out, and Home as the library: folders, map, graph",
+      "maxW": 7520,
+      "text": "Zoomed out, Home as the library (folders, map, graph) and board pins",
       "w": 240,
       "x": 0,
       "y": 2440
@@ -233,6 +240,7 @@
     "Home.dc.html",
     "HomeMap.dc.html",
     "HomeGraph.dc.html",
+    "BoardPins.dc.html",
     "Context.dc.html",
     "Types1.dc.html",
     "Types2.dc.html",

@@ -14,7 +14,7 @@
 
 **The bet inside it.** The first half is proven by use: every real board was agent-written and human-kept. The second half, that the board changes what an agent does, has never been observed. The plan tests it early (0.7 measures, 0.8 checks) and says in advance what happens if it fails.
 
-**Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Undecided: generated surfaces (6b).
+**Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the reference surface is Chromium at 600 px for now (2026-09-24); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Board pins are the working set across boards (2026-10-05, move 0a). Undecided: generated surfaces (6b).
 
 **Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible with the curation evaluation, the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
 
@@ -167,6 +167,17 @@ The move the evidence demands before any other. A workspace holds many named boa
 - **State, in two stages.** Stage 1 (M, not S: `board_id` on five tables, snapshots scoped per board, a `board` target on every transport): one active board per server; opening a board saves and loads; other boards are read straight from SQLite; agent writes to a non-active board are refused. Only the human changes the active board, so an agent never swaps the board the human is looking at: an agent may create a board, its session binds to whichever board is active when it starts, and a session that needs another board asks for the switch with an ask card. Stage 2 (L): state managers keyed by board, after the journal, so an agent can work on one board while the human looks at another. `CanvasStateManager` is a singleton with 400+ call sites, which is why stage 2 waits.
 
 Objection: none, the panel did not see it. Risk: the wiki sprawls. Mitigation: the Unplaced lane and staleness on the map (move 13) make neglect visible instead of silent.
+
+### 0a. Board pins: a working set across boards (S–M)
+
+**Decided with the maintainer, 2026-10-05.** Pinning works at two levels with one gesture and one look. Pin a card and its content goes to the agent; pin a board and the whole board joins the agent's working set, wherever it sits in the library. This replaces "pinning a board on the map" above and settles the review's open question of board-level pins versus map pins: there is one board pin, set from Home (folders, map or graph), the board switcher, a portal card or the open board's top bar.
+
+- **What the agent gets.** The brief is tiered: the active board's pinned cards first; then each pinned board's README and its pinned cards, in full; then linked and same-folder boards as discovery only (README summary and pinned titles), as `context-brief.ts` does today. All tiers share the budget. When it runs out, a pinned board falls back to discovery and the context chip says so; nothing drops silently.
+- **Lifetime.** Board pins belong to the workspace: they survive board switches and restarts and are removed only by a person or an agent, attributed like card pins.
+- **Read, not write.** A pinned board is context. Writes still target the active board (stage 1); a board pin never widens what an agent may change.
+- **Agent surface.** `canvas://pinned-context` gains a pinned-boards section; `canvas_board` gains `pin` and `unpin`, with the HTTP route, SDK method and CLI command kept in step. Read instrumentation (`context_reads`) already records the board of each read, so "read / not read yet" works per board.
+- **Data.** A `board_pins` table: board id, who pinned, when.
+- **Design.** Wave 1 of [design.md](design.md); drawn on the BoardPins and Home boards.
 
 ### 1. One read, one brief (M)
 

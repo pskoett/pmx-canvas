@@ -110,7 +110,8 @@ the same change.
 | [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), section headings, floating chrome | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
 | [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt | 1 |
-| [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, context, README, board details | 1 |
+| [`BoardPins.dc.html`](design/BoardPins.dc.html) | Board pins: where you pin a board, the tiered brief, the context chip across boards | 1 |
+| [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details | 1 |
 | [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library | 2 |
 | [`Relations.dc.html`](design/Relations.dc.html) | Relations on a research board, today vs proposed; edge anatomy; relation inks | 3 |
 | [`Flows.dc.html`](design/Flows.dc.html) | Data lineage with staleness, what a finding rests on, opening a group | 3, 5 |
@@ -129,6 +130,11 @@ the same change.
   three. Each theme keeps its own surfaces and accent; the meaning colours keep
   their hue and are tuned only for lightness. A token test keeps them apart in all
   nine themes.
+- **Context pins at two levels, one look.** A card pin sends that card's content; a board
+  pin brings the whole board into the agent's working set, from anywhere in the library
+  ([vision move 0a](product-vision-2026-09.md#0a-board-pins-a-working-set-across-boards-sm)).
+  Both use the outline pin (not in context) and the filled blue badge (in context), and the
+  context chip counts both: "4 cards · 3 boards in context".
 - **Every mark has a glyph and a word**, so it reads without colour, and explains
   itself on hover.
 - **One font and one scale.** IBM Plex Sans and Mono, bundled with the app (no CDN);
@@ -156,7 +162,7 @@ implementation table).
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
 | **0. Foundation** — ships alone, first | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; 600 px reference passes; demo board regenerated |
-| **1. Context made visible** — next batch, with the curation evaluation | Part 1 bet, moves 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board-level "in context" switch and Home's context section | What the agent did with context, Nodes in context, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
+| **1. Context made visible** — next batch, with the curation evaluation | Part 1 bet, moves 0a, 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node and per board as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board pins (`board_pins`, tiered brief, `canvas_board pin/unpin`) and Home's pinned-boards section | What the agent did with context, Nodes in context, Board pins, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
 | **2. Connected memory views** — next batch, remaining wiki/graph work | Moves 0, 14 | Board map projection (generated like the code graph), wiki links, direct cross-board card edges, previous-board chains | Home Map, Home Graph | Map and Graph are generated from the library; orphans visible; works at 600 px |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |

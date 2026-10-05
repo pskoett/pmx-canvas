@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board pins</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; box-sizing: border-box; padding: 44px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 24px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Board pins — a working set across boards</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">One gesture at two levels. Pin a card and its content goes to the agent. Pin a board and the whole board joins the agent's working set, wherever it sits in the library.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 600px minmax(0, 1fr); gap: 40px">
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">Where you pin a board — same pin, same place</span>
+
+<div style="{{s.card}}">
+<span style="{{s.cap}}">Home — board cards</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div style="border-radius: 10px; border: 1.5px solid #4BBCFF; background: #0f1d31; overflow: hidden"><div style="position: relative; height: 70px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 10px 10px; border-bottom: 1px solid #1b2c44"><span style="{{s.pinOn}} position: absolute; right: 8px; top: 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 8px 10px"><div style="font-size: 12px; font-weight: 600">C4 2026 OKR planning</div><div style="font-size: 11px; color: #8ea3bd">in context · 34 cards</div></div></div>
+<div style="border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; overflow: hidden"><div style="position: relative; height: 70px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 10px 10px; border-bottom: 1px solid #1b2c44"><span style="{{s.pinOff}} position: absolute; right: 8px; top: 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 8px 10px"><div style="font-size: 12px; font-weight: 600">Platform roadmap 2027</div><div style="font-size: 11px; color: #8ea3bd">click the pin to add · 26 cards</div></div></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div style="{{s.card}}">
+<span style="{{s.cap}}">Board switcher</span>
+<sc-for list="{{switcher}}" as="b" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; background: {{b.bg}}"><span style="width: 8px; height: 8px; border-radius: 3px; background: {{b.hue}}"></span><span style="flex: 1; font-size: 12px; font-weight: 500">{{b.name}}</span><span style="{{b.pinStyle}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div>
+</sc-for>
+</div>
+<div style="{{s.card}}">
+<span style="{{s.cap}}">A portal card on a board</span>
+<div style="border-radius: 10px; border: 1.5px solid #4BBCFF; background: #0f1d31; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 10px; border-bottom: 1px solid #1b2c44; background: rgba(75,188,255,0.10)"><svg width="14" height="14" viewBox="0 0 24 24" style="color: #4BBCFF; {{s.ic}}"><path d="M5 6h9v12H5zM14 9l5-3v12l-5-3"></path></svg><span style="flex: 1; font-size: 12px; font-weight: 600">Pricing research</span><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div>
+<div style="padding: 8px 10px; font-size: 11px; color: #8ea3bd">Board · 27 cards · pinned here, so it travels with you</div>
+</div>
+</div>
+</div>
+
+<div style="{{s.card}}">
+<span style="{{s.cap}}">The open board's top bar</span>
+<div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border-radius: 8px; background: #0f1d31; border: 1px solid #1b2c44">
+<span style="width: 7px; height: 7px; border-radius: 999px; background: #2fd07f"></span>
+<span style="font-size: 13px; font-weight: 600">Pricing research ▾</span>
+<span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span>
+<span style="flex: 1"></span>
+<span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); color: #4BBCFF; font-size: 12px; font-weight: 500">4 cards · 3 boards in context</span>
+</div>
+</div>
+
+<div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid #1b2c44; background: #0b1828; font-size: 12px; color: #b9c6d6"><span style="color: #4BBCFF; font-weight: 600; flex-shrink: 0">Read, not write.</span><span>A pinned board is context. The agent still writes only to the board that's open; pinning never widens what it may change.</span></div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">What the agent gets — the brief, in order</span>
+<sc-for list="{{tiers}}" as="t" hint-placeholder-count="3">
+<div style="{{s.card}} gap: 8px; border-color: {{t.border}}">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="width: 22px; height: 22px; border-radius: 999px; background: {{t.numBg}}; color: {{t.numC}}; font-size: 12px; font-weight: 600; text-align: center; line-height: 22px; flex-shrink: 0">{{t.n}}</span><span style="font-size: 15px; font-weight: 600; flex: 1">{{t.title}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">{{t.tokens}}</span></div>
+<span style="font-size: 12px; color: #8ea3bd">{{t.what}}</span>
+<sc-for list="{{t.rows}}" as="r" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 6px; background: #13243b; font-size: 12px"><span style="{{r.mark}}">{{r.markText}}</span><span style="flex: 1; font-weight: 500">{{r.name}}</span><span style="font-size: 11px; color: #8ea3bd">{{r.detail}}</span></div>
+</sc-for>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #8ea3bd"><span style="width: 200px; height: 6px; border-radius: 999px; background: #1b2c44; overflow: hidden; display: block"><span style="display: block; width: 77%; height: 6px; background: #f4c542"></span></span><span style="font-family: 'IBM Plex Mono', monospace; color: #e6eef7; white-space: nowrap">24.5k / 32k</span><span>Over budget, a pinned board falls back to discovery — said on the chip, never silent.</span></div>
+</section>
+
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">On any board — the context chip, opened</span>
+<div style="display: flex; gap: 24px; align-items: flex-start">
+<div style="width: 420px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 600">In the agent's context</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">24.5k tokens</span></div>
+<span style="{{s.cap}}">Boards · 3</span>
+<sc-for list="{{chipBoards}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 8px; height: 28px; font-size: 12px"><span style="width: 8px; height: 8px; border-radius: 3px; background: {{r.hue}}"></span><span style="flex: 1">{{r.name}}</span><span style="{{r.readStyle}}">{{r.read}}</span><span style="color: #6b7d94">×</span></div>
+</sc-for>
+<span style="{{s.cap}}">Cards on this board · 4</span>
+<div style="font-size: 12px; color: #b9c6d6">Raise Pro to $24? · Churn flat after last raise · SMB is price-sensitive · Competitor pricing</div>
+</div>
+<div style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="3">
+<div style="{{s.card}} gap: 4px"><span style="font-size: 12px; font-weight: 600">{{r.t}}</span><span style="font-size: 11px; color: #b9c6d6">{{r.d}}</span></div>
+</sc-for>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = { pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20' };
+    var pinOn = 'width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#4BBCFF;color:#081524;';
+    var pinOff = 'width:18px;height:18px;box-sizing:border-box;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid #6b7d94;color:#b9c6d6;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      cap: 'font-size:11px;font-weight:500;color:#8ea3bd;',
+      card: 'display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:10px;border:1px solid #1b2c44;background:#0b1828;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;',
+      pinOn: pinOn, pinOff: pinOff
+    };
+    var switcher = [
+      { name: 'Pricing research', hue: '#7C9CFF', pinStyle: pinOn, bg: '#13243b' },
+      { name: 'C4 2026 OKR planning', hue: '#5FCFC0', pinStyle: pinOn, bg: 'transparent' },
+      { name: 'Tech Enabling — overview', hue: '#5FCFC0', pinStyle: pinOn, bg: 'transparent' },
+      { name: 'Platform roadmap 2027', hue: '#5FCFC0', pinStyle: pinOff, bg: 'transparent' }
+    ];
+    var mOn = 'font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;background:rgba(75,188,255,0.14);color:#4BBCFF;';
+    var mDisc = 'font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;background:#1b2c44;color:#8ea3bd;';
+    var tiers = [
+      { n: '1', title: 'This board’s pinned cards', tokens: '9k', what: 'Full content, as today.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
+        rows: [{ name: '4 cards on Pricing research', detail: 'full text', mark: mOn, markText: 'cards' }] },
+      { n: '2', title: 'Pinned boards', tokens: '14k', what: 'Each board’s README and its pinned cards, in full. New.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
+        rows: [{ name: 'Tech Enabling — overview', detail: 'README + 2 pinned · 6k', mark: mOn, markText: 'board' },
+               { name: 'C4 2026 OKR planning', detail: 'README + 3 pinned · 8k', mark: mOn, markText: 'board' }] },
+      { n: '3', title: 'Discovery', tokens: '1.5k', what: 'Linked and same-folder boards: README summary and pinned titles only — today’s behaviour.', border: '#1b2c44', numBg: '#1b2c44', numC: '#b9c6d6',
+        rows: [{ name: 'Churn analysis · SMB interviews · Competitor teardown', detail: 'summaries', mark: mDisc, markText: 'linked' }] }
+    ];
+    var read = 'font-size:11px;font-weight:500;padding:0 6px;border-radius:999px;background:rgba(179,136,255,0.16);color:#B388FF;';
+    var notRead = 'font-size:11px;font-weight:500;padding:0 6px;border-radius:999px;background:#1b2c44;color:#8ea3bd;';
+    var chipBoards = [
+      { name: 'Pricing research (this board)', hue: '#7C9CFF', read: 'read 2m ago', readStyle: read },
+      { name: 'Tech Enabling — overview', hue: '#5FCFC0', read: 'read 2m ago', readStyle: read },
+      { name: 'C4 2026 OKR planning', hue: '#5FCFC0', read: 'not read yet', readStyle: notRead }
+    ];
+    var rules = [
+      { t: 'Lasts until you unpin', d: 'Board pins belong to the workspace: they survive board switches and restarts. You or the agent can pin; the agent’s pins carry its violet dot.' },
+      { t: 'Seen like card pins', d: 'Read and “not read yet” come from the recorded reads, per board — so you know which boards the agent actually loaded.' },
+      { t: 'Agents use the same pins', d: 'canvas://pinned-context lists pinned boards; canvas_board pin / unpin sets them, with the HTTP route, SDK and CLI kept in step.' }
+    ];
+    return { s: s, i: i, switcher: switcher, tiers: tiers, chipBoards: chipBoards, rules: rules };
+  }
+}
+</script>
+</body>
+</html>

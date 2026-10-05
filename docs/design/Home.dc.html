@@ -31,7 +31,7 @@ body{margin:0}
 </label>
 
 <div style="display: flex; flex-direction: column; gap: 2px">
-<span style="{{s.sec}}">In the agent's context</span>
+<span style="{{s.sec}}">Pinned boards</span>
 <sc-for list="{{brief}}" as="b" hint-placeholder-count="3">
 <button style="{{s.row}}"><span style="width: 16px; height: 16px; border-radius: 999px; background: #4BBCFF; color: #081524; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span><span style="{{s.name}}">{{b.name}}</span><span style="{{s.count}}">{{b.where}}</span></button>
 </sc-for>
@@ -95,7 +95,7 @@ body{margin:0}
 <sc-for list="{{bd.rects}}" as="r" hint-placeholder-count="6">
 <div style="position: absolute; left: {{r.x}}px; top: {{r.y}}px; width: {{r.w}}px; height: {{r.h}}px; box-sizing: border-box; border-radius: 3px; background: #13243b; border: 1px solid {{r.line}}"></div>
 </sc-for>
-<sc-if value="{{bd.pin}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: 10px; top: 10px; width: 20px; height: 20px; border-radius: 999px; background: #4BBCFF; color: #081524; display: flex; align-items: center; justify-content: center"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
+<sc-if value="{{bd.unpinned}}" hint-placeholder-val="{{ false }}"><button aria-label="Pin board to the agent's context" style="position: absolute; right: 10px; top: 10px; width: 20px; height: 20px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid #6b7d94; background: #0f1d31; color: #b9c6d6; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button></sc-if><sc-if value="{{bd.pin}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: 10px; top: 10px; width: 20px; height: 20px; border-radius: 999px; background: #4BBCFF; color: #081524; display: flex; align-items: center; justify-content: center"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
 </div>
 <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
 <div style="font-size: 13px; font-weight: 600">{{bd.name}}</div>
@@ -187,11 +187,11 @@ class Component extends DCLogic {
     var line = '#1b2c44', pin = '#4BBCFF';
     function rect(x, y, w, h, l) { return { x: x, y: y, w: w, h: h, line: l || line }; }
     var boards = [
-      { name: 'Tech Enabling — overview', pin: true, readme: 'Who we are, what we own and the three outcomes for 2027.', cards: '18 cards', links: '↔ 4 links', when: 'today', o: 1, border: '1.5px solid #4BBCFF',
+      { name: 'Tech Enabling — overview', pin: true, unpinned: false, readme: 'Who we are, what we own and the three outcomes for 2027.', cards: '18 cards', links: '↔ 4 links', when: 'today', o: 1, border: '1.5px solid #4BBCFF',
         rects: [rect(16, 14, 110, 12), rect(16, 34, 60, 40, pin), rect(84, 34, 42, 40, pin), rect(134, 14, 100, 60), rect(16, 82, 218, 30)] },
-      { name: 'Platform roadmap 2027', pin: false, readme: 'Quarterly themes, bets and the dependencies between teams.', cards: '26 cards', links: '↔ 2 links', when: '4d ago', o: 1, border: '1px solid #1b2c44',
+      { name: 'Platform roadmap 2027', pin: false, unpinned: true, readme: 'Quarterly themes, bets and the dependencies between teams.', cards: '26 cards', links: '↔ 2 links', when: '4d ago', o: 1, border: '1px solid #1b2c44',
         rects: [rect(16, 16, 50, 30), rect(74, 16, 50, 30), rect(132, 16, 50, 30), rect(190, 16, 44, 30), rect(16, 56, 218, 20), rect(16, 84, 140, 28)] },
-      { name: 'Q3 risks and dependencies', pin: false, readme: 'Retired risks from Q3. Kept for the record.', cards: '9 cards', links: '↔ 1 link', when: '74d ago', o: 0.6, border: '1px solid #1b2c44',
+      { name: 'Q3 risks and dependencies', pin: false, unpinned: true, readme: 'Retired risks from Q3. Kept for the record.', cards: '9 cards', links: '↔ 1 link', when: '74d ago', o: 0.6, border: '1px solid #1b2c44',
         rects: [rect(30, 20, 60, 40), rect(120, 30, 60, 40), rect(60, 76, 60, 34), rect(170, 80, 50, 30)] }
     ];
     var pinnedCards = ['Team charter', '2027 outcomes'];
