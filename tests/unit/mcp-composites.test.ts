@@ -1088,8 +1088,16 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
     expect(cleared.ok).toBe(true);
     expect(cleared.cleared).toBe(true);
 
-    // A create intent missing its position is a loud validation error.
-    const bad = await call(client, 'canvas_intent', { action: 'signal', kind: 'create' });
+    // A create intent may omit its position: the canvas ghosts it where the
+    // node will be auto-placed.
+    const placed = parseJsonText<{ intent: { id: string; position?: { x: number; y: number } } }>(
+      await call(client, 'canvas_intent', { action: 'signal', kind: 'create', nodeType: 'markdown' }),
+    );
+    expect(placed.intent.position).toEqual({ x: 40, y: 80 });
+    await call(client, 'canvas_intent', { action: 'clear', id: placed.intent.id });
+
+    // A move intent missing its destination is still a loud validation error.
+    const bad = await call(client, 'canvas_intent', { action: 'signal', kind: 'move', nodeId: 'md-1' });
     expect(bad.isError).toBe(true);
 
     // Intents are presence-only: they never enter the canvas layout.
