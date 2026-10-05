@@ -114,6 +114,7 @@ the same change.
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
 | [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), section headings, floating chrome | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
+| [`NearPin.dc.html`](design/NearPin.dc.html) | Near a pin: the dotted “near” chip on a pinned node's unpinned neighbours, tethers on hover, the moment of change, combinations, 600 px; ships with the brief carrying neighbours (title + summary, reason “near <pin>”) | 1 |
 | [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt | 1 |
 | [`BoardPins.dc.html`](design/BoardPins.dc.html) | Board pins: where you pin a board, the tiered brief, the context chip across boards | 1 |
 | [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details | 1 |

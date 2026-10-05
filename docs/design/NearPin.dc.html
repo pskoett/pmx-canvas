@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Near a pin</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 2020px; box-sizing: border-box; padding: 44px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 28px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Near a pin</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd; max-width: 1100px">Each pinned node pulls up to five unpinned nodes whose centres are within 600 px into the agent's brief — each as its title and a short summary, with “near &lt;pin&gt;” as the reason, never its full content. They get their own, weaker mark: a dotted chip with the word “near”. The mark ships in wave 1 together with that brief change, so it claims exactly what the agent receives.</p>
+</div>
+
+<section style="display: grid; grid-template-columns: 860px minmax(0, 1fr); gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">1 · At rest</span>
+<div style="{{s.scene}} height: 420px">
+<sc-for list="{{rest}}" as="n" hint-placeholder-count="6">
+<div style="{{n.box}}">
+<div style="{{n.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.kind}}"><path d="{{i.note}}"></path></svg><span style="{{s.title}}">{{n.title}}</span>
+<sc-if value="{{n.near}}" hint-placeholder-val="{{ false }}"><span style="{{s.chip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>{{n.nearText}}</span></sc-if>
+<span style="{{s.expand}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.expand}}"></path></svg></span>
+<span style="{{n.pinStyle}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span>
+</div>
+<div style="padding: 7px 10px; font-size: 11px; color: #8ea3bd">{{n.meta}}</div>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #8ea3bd">Two pins. Price page copy and Churn deep-dive are near Release runbook; Pricing notes is near both pins (“near 2”). Q3 risks is farther than 600 px, so it carries nothing.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">The mark</span>
+<div style="{{s.card}} gap: 12px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="{{s.chip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>near</span><span style="font-size: 12px; color: #b9c6d6">Dotted ring with a dot, the word “near”, a dotted pin-blue outline. In the header after the title, before expand and the pin.</span></div>
+<div style="display: flex; align-items: center; gap: 10px"><span style="{{s.chip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>near 2</span><span style="font-size: 12px; color: #b9c6d6">Near more than one pin: the count. Hover lists the pins.</span></div>
+<div style="height: 1px; background: #1b2c44"></div>
+<sc-for list="{{compare}}" as="c" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 110px 1fr; gap: 10px; font-size: 12px"><span style="font-weight: 600">{{c.k}}</span><span style="color: #b9c6d6">{{c.v}}</span></div>
+</sc-for>
+</div>
+<div style="{{s.card}} gap: 6px">
+<span style="font-size: 12px; font-weight: 600">What the agent gets (wave 1 brief)</span>
+<span style="font-size: 12px; color: #b9c6d6">In the main brief, after the pinned cards: each near node's title and a short summary, nearest first, with the pin it is near as the reason. Never its full content — pin it for that.</span>
+<div style="padding: 8px 10px; border-radius: 6px; background: #06111e; border: 1px solid #1b2c44; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1.6; color: #b9c6d6; white-space: pre-wrap">near “Release runbook” · 240 px
+Price page copy — Draft copy for the Pro plan page: headline, three benefits, FAQ.</div>
+</div>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 860px minmax(0, 1fr); gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">2 · Which pin? Hover a pin to see its neighbours</span>
+<div style="{{s.scene}} height: 420px">
+<svg width="860" height="420" viewBox="0 0 860 420" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
+<circle cx="425" cy="192" r="285" style="stroke: rgba(75,188,255,0.25); stroke-width: 1.5; stroke-dasharray: 3 6"></circle>
+<path d="{{tether.a}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
+<path d="{{tether.b}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
+<path d="{{tether.c}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
+</svg>
+<span style="position: absolute; left: 640px; top: 392px; font-size: 11px; color: rgba(75,188,255,0.7)">600 px from Release runbook</span>
+<sc-for list="{{hover}}" as="n" hint-placeholder-count="6">
+<div style="{{n.box}}">
+<div style="{{n.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.kind}}"><path d="{{i.note}}"></path></svg><span style="{{s.title}}">{{n.title}}</span>
+<sc-if value="{{n.near}}" hint-placeholder-val="{{ false }}"><span style="{{n.chipStyle}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>{{n.nearText}}</span></sc-if>
+<span style="{{s.expand}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.expand}}"></path></svg></span>
+<span style="{{n.pinStyle}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span>
+</div>
+<div style="padding: 7px 10px; font-size: 11px; color: #8ea3bd">{{n.meta}}</div>
+</div>
+</sc-for>
+<sc-for list="{{nums}}" as="m" hint-placeholder-count="3"><span style="position: absolute; left: {{m.x}}px; top: {{m.y}}px; width: 20px; height: 20px; border-radius: 999px; background: #081524; border: 1px dotted #4BBCFF; color: #4BBCFF; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px">{{m.n}}</span></sc-for>
+</div>
+<span style="font-size: 12px; color: #8ea3bd">Dotted tethers, numbered nearest first, and the 600 px radius while the pin is hovered or selected. Tethers are drawn in screen space, so they still join a pin and its neighbours at fit zoom. Other nodes are untouched.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">Hover a near chip</span>
+<div style="padding: 12px 14px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">Near 2 pins</span>
+<div style="display: flex; justify-content: space-between; font-size: 12px"><span>Release runbook</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">240 px</span></div>
+<div style="display: flex; justify-content: space-between; font-size: 12px"><span>Readability floor</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">410 px</span></div>
+<span style="font-size: 11px; color: #b9c6d6">The agent gets this node's title and a short summary, not its full content.</span>
+<div style="display: flex; gap: 6px"><button style="height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: #4BBCFF; color: #081524; font-family: inherit; font-size: 11px; font-weight: 600">Pin to send content</button><button style="height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #2a4566; background: transparent; color: #e6eef7; font-family: inherit; font-size: 11px">Show pins</button></div>
+</div>
+<span style="{{s.label}}">The context chip</span>
+<div style="padding: 12px; border-radius: 12px; border: 1px solid #2a4566; background: #13243b; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 600">In the agent's context</span><span style="font-size: 11px; color: #8ea3bd">2 cards · 3 near</span></div>
+<span style="font-size: 11px; color: #8ea3bd">Pinned · full content</span>
+<span style="font-size: 12px">Release runbook · Readability floor</span>
+<span style="font-size: 11px; color: #8ea3bd">Near your pins · title and summary</span>
+<span style="font-size: 12px; color: #b9c6d6">Price page copy · Churn deep-dive · Pricing notes</span>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">3 · The moment it changes</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+<sc-for list="{{moments}}" as="mo" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="{{s.scene}} height: 190px">
+<sc-if value="{{mo.ring}}" hint-placeholder-val="{{ false }}"><svg width="420" height="190" viewBox="0 0 420 190" style="position: absolute; left: 0; top: 0; fill: none"><circle cx="110" cy="95" r="150" style="stroke: rgba(75,188,255,0.35); stroke-width: 1.5; stroke-dasharray: 3 6"></circle></svg></sc-if>
+<div style="{{s.pinnedBox}} left: 20px; top: 60px"><div style="{{s.pinnedHead}}"><span style="{{s.title}}">Release runbook</span><span style="{{s.pinOn}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span></div></div>
+<div style="{{mo.box}}"><div style="{{s.plainHead}}"><span style="{{s.title}}">Price page copy</span><sc-if value="{{mo.chip}}" hint-placeholder-val="{{ false }}"><span style="{{mo.chipStyle}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>near</span></sc-if></div></div>
+</div>
+<span style="font-size: 12px; font-weight: 600">{{mo.t}}</span>
+<span style="font-size: 12px; color: #8ea3bd">{{mo.d}}</span>
+<div style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; border: 1px solid #1b2c44; background: #0f1d31; font-size: 11px; color: #b9c6d6"><span style="width: 6px; height: 6px; border-radius: 999px; background: #4BBCFF; flex-shrink: 0"></span>{{mo.update}}</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: minmax(0, 1fr) 640px; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">4 · It survives the other states</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+<sc-for list="{{combos}}" as="cb" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="position: relative; height: 104px; border-radius: 8px; background: #06111e">
+<div style="{{cb.box}}">
+<sc-if value="{{cb.bar}}" hint-placeholder-val="{{ false }}"><div style="position: absolute; left: 0; right: 0; top: 0; height: 2.5px; background: #B388FF"></div></sc-if>
+<div style="{{cb.head}}"><span style="{{s.title}}">Price page copy</span>
+<sc-if value="{{cb.near}}" hint-placeholder-val="{{ false }}"><span style="{{s.chip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>{{cb.nearText}}</span></sc-if>
+<span style="{{cb.pinStyle}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span>
+</div>
+<div style="padding: 6px 10px; font-size: 11px; color: #8ea3bd">copy draft · v3</div>
+</div>
+<sc-if value="{{cb.handles}}" hint-placeholder-val="{{ false }}"><span style="{{s.h}} left: 7px; top: 7px"></span><span style="{{s.h}} right: 7px; top: 7px"></span><span style="{{s.h}} left: 7px; bottom: 7px"></span><span style="{{s.h}} right: 7px; bottom: 7px"></span></sc-if>
+</div>
+<span style="font-size: 12px; font-weight: 600">{{cb.t}}</span>
+<span style="font-size: 11px; color: #8ea3bd">{{cb.d}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">At 600 px — the narrow end</span>
+<div style="position: relative; width: 600px; height: 360px; border-radius: 12px; border: 1px solid #2a4566; overflow: hidden; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px">
+<svg width="600" height="360" viewBox="0 0 600 360" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round"><path d="M 300 108 L 160 196" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path><path d="M 300 108 L 440 196" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path></svg>
+<div style="{{s.pinnedBox}} left: 190px; top: 24px; width: 220px"><div style="{{s.pinnedHead}}"><span style="{{s.title}}">Release runbook</span><span style="{{s.expand}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.expand}}"></path></svg></span><span style="{{s.pinOn}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 7px 10px; font-size: 11px; color: #8ea3bd">pinned · hovered</div></div>
+<div style="{{s.plainBox}} left: 24px; top: 196px; width: 270px"><div style="{{s.plainHead}}"><span style="{{s.title}}">Price page copy draft for Pro</span><span style="{{s.chip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>near</span><span style="{{s.pinOff}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 7px 10px; font-size: 11px; color: #8ea3bd">The title truncates first; the chip keeps its word.</div></div>
+<div style="{{s.plainBox}} left: 306px; top: 196px; width: 270px"><div style="{{s.plainHead}}"><span style="{{s.title}}">Pricing notes</span><span style="{{s.chip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>near 2</span><span style="{{s.pinOff}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 7px 10px; font-size: 11px; color: #8ea3bd">near 2 pins</div></div>
+<span style="position: absolute; left: 24px; bottom: 14px; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); background: #0f1d31; color: #4BBCFF; font-size: 12px; font-weight: 500">2 in context · 3 near</span>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2020}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      note: 'M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5',
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      expand: 'M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7'
+    };
+    var pinOn = 'width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#4BBCFF;color:#081524;';
+    var pinOff = 'width:18px;height:18px;box-sizing:border-box;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid #6b7d94;color:#b9c6d6;';
+    var chip = 'display:flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:999px;border:1px dotted #4BBCFF;color:#7fcfff;font-size:11px;font-weight:500;flex-shrink:0;white-space:nowrap;';
+    var chipLit = chip + 'background:rgba(75,188,255,0.12);';
+    var chipPulse = chip + 'background:rgba(75,188,255,0.18);box-shadow:0 0 0 4px rgba(75,188,255,0.12);';
+    var chipFade = chip + 'opacity:0.35;';
+    var e1 = '0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24)';
+    var boxBase = 'position:absolute;box-sizing:border-box;overflow:hidden;border-radius:10px;background:#0f1d31;box-shadow:' + e1 + ';';
+    var headBase = 'display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 10px;border-bottom:1px solid #1b2c44;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      scene: 'position:relative;border-radius:10px;border:1px solid #1b2c44;overflow:hidden;background-color:#081524;background-image:radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px);background-size:24px 24px;',
+      card: 'display:flex;flex-direction:column;padding:14px 16px;border-radius:10px;border:1px solid #1b2c44;background:#0b1828;',
+      kind: 'flex-shrink:0;color:#8ea3bd;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;',
+      title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
+      ring: 'flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-dasharray:2.2 2.6;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;',
+      ic2: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;',
+      expand: 'width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#b9c6d6;',
+      chip: chip, pinOn: pinOn, pinOff: pinOff,
+      pinnedBox: boxBase + 'width:180px;border:1.5px solid #4BBCFF;',
+      pinnedHead: headBase + 'background:rgba(75,188,255,0.10);',
+      plainBox: boxBase + 'border:1px solid #1b2c44;',
+      plainHead: headBase,
+      h: 'position:absolute;width:8px;height:8px;box-sizing:border-box;border-radius:2px;background:#0f1d31;border:1.5px solid #4BBCFF;'
+    };
+    function node(x, y, title, meta, kind, nearText, chipStyle) {
+      var pinned = kind === 'pin';
+      return {
+        title: title, meta: meta, near: !!nearText, nearText: nearText || '', chipStyle: chipStyle || chip,
+        box: boxBase + 'left:' + x + 'px;top:' + y + 'px;width:250px;height:84px;border:' + (pinned ? '1.5px solid #4BBCFF' : '1px solid #1b2c44') + ';',
+        head: headBase + (pinned ? 'background:rgba(75,188,255,0.10);' : ''),
+        pinStyle: pinned ? pinOn : pinOff
+      };
+    }
+    var rest = [
+      node(300, 150, 'Release runbook', 'pinned', 'pin'),
+      node(30, 40, 'Price page copy', 'near Release runbook', '', 'near'),
+      node(580, 40, 'Churn deep-dive', 'near Release runbook', '', 'near'),
+      node(40, 290, 'Pricing notes', 'near both pins', '', 'near 2'),
+      node(330, 300, 'Readability floor', 'pinned', 'pin'),
+      node(590, 300, 'Q3 risks', 'more than 600 px away', '')
+    ];
+    var hover = [
+      node(300, 150, 'Release runbook', 'pinned · hovered', 'pin'),
+      node(30, 40, 'Price page copy', 'near · 1st', '', 'near', chipLit),
+      node(580, 40, 'Churn deep-dive', 'near · 3rd', '', 'near', chipLit),
+      node(40, 290, 'Pricing notes', 'near · 2nd', '', 'near 2', chipLit),
+      node(330, 300, 'Readability floor', 'pinned', 'pin'),
+      node(590, 300, 'Q3 risks', 'not near', '')
+    ];
+    var tether = { a: 'M 425 192 L 155 124', b: 'M 425 192 L 705 124', c: 'M 425 192 L 165 290' };
+    var nums = [{ n: '1', x: 120, y: 128 }, { n: '3', x: 700, y: 128 }, { n: '2', x: 170, y: 262 }];
+    var compare = [
+      { k: 'Near', v: 'dotted chip in the header; the border does not change' },
+      { k: 'Pinned', v: 'solid 1.5 px border, tinted header, filled badge' },
+      { k: 'Selected', v: 'a ring with a gap outside the node, plus handles' },
+      { k: 'Agent editing', v: 'violet bar across the top' }
+    ];
+    var moments = [
+      { t: 'Dragging toward a pin', d: 'The nearest pin shows its 600 px radius while you drag; the chip previews “near” once the centre is inside.', ring: true, chip: true, chipStyle: chip + 'opacity:0.6;', update: 'Release runbook · 600 px',
+        box: boxBase + 'border:1px solid #1b2c44;left:220px;top:110px;width:180px;' },
+      { t: 'Dropped inside', d: 'The chip pulses once. One Updates entry names the node and the pin — no generic toast.', ring: false, chip: true, chipStyle: chipPulse, update: '“Price page copy” is now near “Release runbook” — the agent gets its title and summary.',
+        box: boxBase + 'border:1px solid #1b2c44;left:220px;top:110px;width:180px;' },
+      { t: 'Moved out', d: 'The chip fades out; the entry says the agent no longer sees it.', ring: false, chip: true, chipStyle: chipFade, update: '“Price page copy” left “Release runbook” — it is out of the agent’s brief.',
+        box: boxBase + 'border:1px solid #1b2c44;left:236px;top:18px;width:170px;' }
+    ];
+    function combo(t, d, opts) {
+      var sel = !!opts.sel, pinned = !!opts.pinned;
+      var shadow = sel ? '0 0 0 3px #06111e, 0 0 0 5px #4BBCFF, ' + e1 : e1;
+      return {
+        t: t, d: d, near: !!opts.near, nearText: opts.nearText || 'near', bar: !!opts.bar, handles: sel,
+        box: 'position:absolute;left:14px;top:14px;right:14px;bottom:14px;box-sizing:border-box;overflow:hidden;border-radius:10px;background:#0f1d31;box-shadow:' + shadow + ';border:' + (pinned ? '1.5px solid #4BBCFF' : '1px solid #1b2c44') + ';',
+        head: 'display:flex;align-items:center;gap:6px;height:32px;padding:0 8px 0 10px;border-bottom:1px solid #1b2c44;' + (pinned ? 'background:rgba(75,188,255,0.10);' : ''),
+        pinStyle: pinned ? pinOn : pinOff
+      };
+    }
+    var combos = [
+      combo('Near', 'The chip only.', { near: true }),
+      combo('Near + selected', 'The chip inside, the gap ring outside.', { near: true, sel: true }),
+      combo('Near + agent editing', 'The violet bar on top, the chip in the header.', { near: true, bar: true }),
+      combo('Near two pins', 'The count; hover lists both pins.', { near: true, nearText: 'near 2' }),
+      combo('Pinned', 'Never “near”: only unpinned nodes are neighbours. Pin it and the chip goes.', { pinned: true }),
+      combo('Pinned + agent editing', 'Pin styling and the violet bar; no chip.', { pinned: true, bar: true })
+    ];
+    return { s: s, i: i, rest: rest, hover: hover, tether: tether, nums: nums, compare: compare, moments: moments, combos: combos };
+  }
+}
+</script>
+</body>
+</html>
