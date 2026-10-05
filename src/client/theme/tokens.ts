@@ -13,7 +13,6 @@ export interface CanvasTokens {
   ok: string;
   warn: string;
   danger: string;
-  purple: string;
   agent: string;
   subagent: string;
   font: string;
@@ -42,7 +41,6 @@ export function getCanvasTokens(): CanvasTokens {
     ok: read('--c-ok'),
     warn: read('--c-warn'),
     danger: read('--c-danger'),
-    purple: read('--c-purple'),
     agent: read('--c-agent'),
     subagent: read('--c-subagent'),
     font: read('--font-ui'),

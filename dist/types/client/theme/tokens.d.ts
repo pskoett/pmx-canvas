@@ -12,7 +12,6 @@ export interface CanvasTokens {
     ok: string;
     warn: string;
     danger: string;
-    purple: string;
     agent: string;
     subagent: string;
     font: string;

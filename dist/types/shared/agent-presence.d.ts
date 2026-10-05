@@ -121,10 +121,3 @@ export declare function externalWriters(presences: readonly AgentPresence[]): Ag
 export declare function estimateTokens(text: string): number;
 /** Chip label per phase — shared by the top-bar chip and the on-canvas cursor chip. */
 export declare function agentPhaseLabel(presence: Pick<AgentPresence, 'phase' | 'detail'>): string;
-/**
- * Stable per-agent identity hue (0-359) from the writer key. Phase colors
- * kept telling the human WHAT an agent is doing while erasing WHO — two
- * thinking agents rendered identically. Identity rides the glyph/border;
- * phase stays on dots and labels.
- */
-export declare function agentIdentityHue(key: string): number;

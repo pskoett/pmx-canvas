@@ -1,7 +1,7 @@
 import { useRef } from 'preact/hooks';
-import { agentIdentityHue, agentPhaseLabel, type AgentPresence } from '../../shared/agent-presence.js';
+import { agentPhaseLabel, type AgentPresence } from '../../shared/agent-presence.js';
 import { nodes, viewport } from '../state/canvas-store';
-import { agentPresences, presenceWorldPosition } from '../state/presence-store';
+import { agentPresences, presenceWorldPosition, writerColor } from '../state/presence-store';
 
 /**
  * Agent presence layer (rail-chrome-v2 phase 3): one cursor + phase chip per
@@ -49,7 +49,7 @@ export function AgentPresenceLayer() {
           data-session-id={presence.sessionId}
           style={{
             transform: `translate(${position.x}px, ${position.y}px)`,
-            '--identity-color': `hsl(${agentIdentityHue(presence.sessionId)} 65% 62%)`,
+            '--identity-color': writerColor(presence.sessionId),
           }}
         >
           <div class="agent-cursor-inner" style={{ transform: `scale(${counterScale})` }}>

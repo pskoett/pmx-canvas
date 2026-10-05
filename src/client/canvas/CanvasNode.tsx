@@ -34,7 +34,6 @@ import {
   ungroupFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
-import { KIND_COLOR } from './kind-colors';
 import { reportHumanGrab, takeOverNode, yieldedNodes } from '../state/human-store';
 import { AxStepControls } from '../nodes/AxStepControls';
 import { getNodeIcon, IconChevronRight, IconClose, IconMore, IconExpand, IconPin } from '../icons';
@@ -474,7 +473,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             <div class="group-chip-name">{title}</div>
             <div class="group-chip-meta">
               {groupKindDots.map((kind) => (
-                <span key={kind} class="group-kind-dot" style={{ background: KIND_COLOR[kind] }} aria-hidden="true" />
+                <span key={kind} class="group-kind-dot" aria-hidden="true" />
               ))}
               <span class="group-chip-count">
                 {groupChildren.length} node{groupChildren.length === 1 ? '' : 's'}

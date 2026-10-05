@@ -24,7 +24,6 @@ const CORE_TOKENS = [
   '--c-ok',
   '--c-warn',
   '--c-danger',
-  '--c-purple',
   '--c-pin',
   '--c-on-pin',
   '--c-agent',

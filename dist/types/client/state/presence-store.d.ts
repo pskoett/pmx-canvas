@@ -17,6 +17,11 @@ export declare const activityFeedOpen: import("@preact/signals-core").Signal<boo
 export declare const writersSheetOpen: import("@preact/signals-core").Signal<boolean>;
 /** Feed filter: a writer's sessionId, or null for all. */
 export declare const activityFilter: import("@preact/signals-core").Signal<string | null>;
+/**
+ * A writer's colour says what it is, not who: agents take the agent violet,
+ * subagents (fleet workers) the subagent fuchsia. Writers are told apart by
+ * name and initial (docs/design.md, "Kinds carry no colour").
+ */
 export declare function writerColor(sessionId: string): string;
 /** Avatar initial: first letter of the label, upper-cased. */
 export declare function writerInitial(label: string): string;

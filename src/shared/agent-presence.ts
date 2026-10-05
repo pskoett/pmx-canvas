@@ -148,15 +148,3 @@ export function agentPhaseLabel(presence: Pick<AgentPresence, 'phase' | 'detail'
       return 'Idle';
   }
 }
-
-/**
- * Stable per-agent identity hue (0-359) from the writer key. Phase colors
- * kept telling the human WHAT an agent is doing while erasing WHO — two
- * thinking agents rendered identically. Identity rides the glyph/border;
- * phase stays on dots and labels.
- */
-export function agentIdentityHue(key: string): number {
-  let hash = 5381;
-  for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash + key.charCodeAt(i)) | 0;
-  return ((hash % 360) + 360) % 360;
-}

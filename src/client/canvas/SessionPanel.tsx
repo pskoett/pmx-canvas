@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import { IconChevronRight, IconUndo } from '../icons';
 import { useNow } from './use-now';
-import { agentIdentityHue, agentPhaseLabel } from '../../shared/agent-presence.js';
+import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 import { focusNode, selectedNodeIds } from '../state/canvas-store';
-import { activeSession, agentPresences } from '../state/presence-store';
+import { activeSession, agentPresences, writerColor } from '../state/presence-store';
 import {
   type ApprovalGateView,
   endSession,
@@ -281,12 +281,9 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
             {entry.label}
           </span>
           {/* With several assistants on one board, "Assistant · 23:11" answers
-              nothing — every row names its writer in that writer's identity hue. */}
+              nothing — every row names its writer. */}
           {entry.who && (
-            <span
-              class="session-timeline-who"
-              style={{ '--identity-color': `hsl(${agentIdentityHue(entry.who)} 65% 62%)` }}
-            >
+            <span class="session-timeline-who" style={{ '--identity-color': writerColor(entry.who) }}>
               {writerDisplay(entry.who)}
             </span>
           )}

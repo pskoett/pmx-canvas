@@ -150,21 +150,26 @@ describe('idle cursors leave the board', () => {
   });
 });
 
-describe('identity colors', () => {
-  test('two agents in the SAME phase wear DIFFERENT identity colors', () => {
+describe('writer colors', () => {
+  // docs/design.md, "Kinds carry no colour": a writer's colour says WHAT it is
+  // (agent violet, subagent fuchsia); its name and initial say WHO.
+  test('agents share the agent violet and are told apart by name; subagents wear the subagent colour', () => {
     applyPresenceSnapshot({
       presences: [
-        presence({ sessionId: 'copilot', phase: 'thinking', cursor: { x: 5, y: 5 } }),
-        presence({ sessionId: 'claude-code', phase: 'thinking', cursor: { x: 50, y: 50 } }),
+        presence({ sessionId: 'copilot', label: 'copilot', phase: 'thinking', cursor: { x: 5, y: 5 } }),
+        presence({ sessionId: 'claude-code', label: 'claude-code', phase: 'thinking', cursor: { x: 50, y: 50 } }),
+        presence({ sessionId: 'run1:impl', parentAgentId: 'copilot', cursor: { x: 90, y: 90 } }),
       ],
     });
     const { container } = render(<AgentPresenceLayer />);
-    const colors = [...container.querySelectorAll('.agent-cursor')].map((el) =>
-      (el as HTMLElement).style.getPropertyValue('--identity-color'),
-    );
-    expect(colors).toHaveLength(2);
-    expect(colors[0]).toBeTruthy();
-    expect(colors[0]).not.toBe(colors[1]);
+    const cursors = [...container.querySelectorAll('.agent-cursor')] as HTMLElement[];
+    const colorOf = (id: string) =>
+      cursors.find((el) => el.dataset.sessionId === id)?.style.getPropertyValue('--identity-color');
+    expect(colorOf('copilot')).toBe('var(--c-agent)');
+    expect(colorOf('claude-code')).toBe('var(--c-agent)');
+    expect(colorOf('run1:impl')).toBe('var(--c-subagent)');
+    expect(container.textContent).toContain('copilot');
+    expect(container.textContent).toContain('claude-code');
   });
 });
 

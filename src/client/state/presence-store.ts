@@ -32,18 +32,13 @@ export const writersSheetOpen = signal(false);
 export const activityFilter = signal<string | null>(null);
 
 /**
- * Per-writer identity colors from the accent set, agent-violet first,
- * assigned in order of first appearance and stable for the page's life — a
- * writer that fades and returns keeps its color.
+ * A writer's colour says what it is, not who: agents take the agent violet,
+ * subagents (fleet workers) the subagent fuchsia. Writers are told apart by
+ * name and initial (docs/design.md, "Kinds carry no colour").
  */
-const WRITER_PALETTE = ['var(--c-purple)', 'var(--c-accent)', 'var(--c-ok)', 'var(--c-warn)', 'var(--c-danger)'];
-const writerColors = new Map<string, string>();
 export function writerColor(sessionId: string): string {
-  const known = writerColors.get(sessionId);
-  if (known) return known;
-  const color = WRITER_PALETTE[writerColors.size % WRITER_PALETTE.length]!;
-  writerColors.set(sessionId, color);
-  return color;
+  const presence = agentPresences.value.find((entry) => entry.sessionId === sessionId);
+  return presence?.parentAgentId ? 'var(--c-subagent)' : 'var(--c-agent)';
 }
 
 /** Avatar initial: first letter of the label, upper-cased. */

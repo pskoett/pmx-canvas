@@ -1,12 +1,16 @@
-import { agentIdentityHue } from '../../shared/agent-presence.js';
 import type { Signal } from '@preact/signals';
 import { useCallback, useRef } from 'preact/hooks';
 import { fenceRectFromNodes } from '../../shared/scope-fence.js';
-import { selectedNodeIds } from '../state/canvas-store';
-import { agentPresences, presenceWorldPosition } from '../state/presence-store';
+import { contextPinnedNodeIds, selectedNodeIds } from '../state/canvas-store';
+import {
+  agentPresences,
+  mutatingNodeIds,
+  presenceWorldPosition,
+  sessionActive,
+  writerColor,
+} from '../state/presence-store';
 import { scopeFence } from '../state/session-store';
 import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
-import { KIND_COLOR } from './kind-colors';
 
 /**
  * Minimap v2 (rail-chrome-v2 phase 7, design item 19): a true-scale node map
@@ -141,6 +145,8 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
   );
 
   const selected = selectedNodeIds.value;
+  const pinned = contextPinnedNodeIds.value;
+  const agentAtWork = sessionActive.value ? mutatingNodeIds.value : new Set<string>();
   const fence = scopeFence.value;
   const fenceRect = fence
     ? fenceRectFromNodes(
@@ -177,14 +183,13 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
         return (
           <span
             key={node.id}
-            class={`minimap-node${isGroup ? ' is-group' : ''}${selected.has(node.id) ? ' is-selected' : ''}`}
+            class={`minimap-node${isGroup ? ' is-group' : ''}${selected.has(node.id) ? ' is-selected' : ''}${pinned.has(node.id) ? ' is-pinned' : ''}${agentAtWork.has(node.id) ? ' is-agent' : ''}`}
             data-kind={node.type}
             style={{
               left: `${toX(node.position.x)}px`,
               top: `${toY(node.position.y)}px`,
               width: `${Math.max(isGroup ? 6 : 4, node.size.width * scale)}px`,
               height: `${Math.max(isGroup ? 5 : 3, node.size.height * scale)}px`,
-              '--kind': KIND_COLOR[node.type],
             }}
           />
         );
@@ -207,7 +212,7 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
           style={{
             left: `${toX(dot.at.x) - 4}px`,
             top: `${toY(dot.at.y) - 4}px`,
-            '--identity-color': `hsl(${agentIdentityHue(dot.id)} 65% 62%)`,
+            '--identity-color': writerColor(dot.id),
           }}
         />
       ))}

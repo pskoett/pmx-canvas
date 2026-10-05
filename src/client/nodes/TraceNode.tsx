@@ -1,10 +1,12 @@
 import type { CanvasNodeState } from '../types';
 import { buildTraceDisplayModel } from './trace-model';
 
+// Categories carry no colour (docs/design.md, "Kinds carry no colour"); only a
+// subagent's work takes its meaning colour.
 const CATEGORY_COLORS: Record<string, string> = {
-  mcp: 'var(--c-accent)',
-  file: 'var(--c-warn)',
-  subagent: 'var(--c-purple)',
+  mcp: 'var(--c-muted)',
+  file: 'var(--c-muted)',
+  subagent: 'var(--c-subagent)',
   other: 'var(--c-muted)',
 };
 

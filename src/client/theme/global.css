@@ -94,7 +94,6 @@
   --c-ok: #2fd07f;
   --c-warn: #f4c542;
   --c-danger: #ff6a7f;
-  --c-purple: #b07aff;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -182,7 +181,6 @@
   --c-ok: #1a9f55;
   --c-warn: #94600A;
   --c-danger: #d32f2f;
-  --c-purple: #7c4dff;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1A7ABF;
   --c-on-pin: #FFFFFF;
@@ -227,7 +225,6 @@
   --c-ok: #00ff00;
   --c-warn: #ffff00;
   --c-danger: #ff0000;
-  --c-purple: #e040fb;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #00ffff;
   --c-on-pin: #000000;
@@ -270,7 +267,6 @@
   --c-ok: #34D399;
   --c-warn: #F5C452;
   --c-danger: #FF6B8A;
-  --c-purple: #B388FF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -313,7 +309,6 @@
   --c-ok: #3E7D4F;
   --c-warn: #8A5A00;
   --c-danger: #B3402E;
-  --c-purple: #8456B0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1F6FA8;
   --c-on-pin: #FFFFFF;
@@ -359,7 +354,6 @@
   --c-ok: #74C596;
   --c-warn: #E8C476;
   --c-danger: #D9707C;
-  --c-purple: #B48EAD;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #6EC1F5;
   --c-on-pin: #081524;
@@ -402,7 +396,6 @@
   --c-ok: #4CC38A;
   --c-warn: #F5B944;
   --c-danger: #F0566A;
-  --c-purple: #A78BFA;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -445,7 +438,6 @@
   --c-ok: #74D99F;
   --c-warn: #E0B84F;
   --c-danger: #E57373;
-  --c-purple: #A88FE0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -488,7 +480,6 @@
   --c-ok: #52C880;
   --c-warn: #E4C465;
   --c-danger: #D67670;
-  --c-purple: #BC8FB4;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -705,24 +696,8 @@ body,
   justify-content: center;
   width: calc(14px * var(--node-chrome-scale, 1));
   height: calc(14px * var(--node-chrome-scale, 1));
-  color: var(--kind-accent, var(--c-accent));
+  color: var(--c-muted);
   flex-shrink: 0;
-}
-
-/* Node kind accents (rail-chrome-v2): the icon carries the kind. */
-.canvas-node[data-node-type='image'],
-.canvas-node[data-node-type='mermaid'] {
-  --kind-accent: var(--c-warn);
-}
-.canvas-node[data-node-type='webpage'],
-.canvas-node[data-node-type='status'],
-.canvas-node[data-node-type='trace'] {
-  --kind-accent: var(--c-ok);
-}
-.canvas-node[data-node-type='context'],
-.canvas-node[data-node-type='prompt'],
-.canvas-node[data-node-type='response'] {
-  --kind-accent: var(--c-purple);
 }
 
 .canvas-node .node-type-badge {
@@ -1154,7 +1129,7 @@ body,
 .agent-chip.phase-thinking,
 .agent-cursor.phase-thinking,
 .minimap-presence.phase-thinking {
-  --presence-color: var(--c-purple);
+  --presence-color: var(--c-agent);
 }
 .agent-chip.phase-tooling,
 .agent-cursor.phase-tooling,
@@ -1473,7 +1448,7 @@ body,
   color: var(--c-muted);
 }
 .session-live.phase-thinking {
-  --presence-color: var(--c-purple);
+  --presence-color: var(--c-agent);
 }
 .session-live.phase-tooling {
   --presence-color: var(--c-accent);
@@ -1801,7 +1776,7 @@ body,
   --tone: var(--c-danger);
 }
 .session-timeline-row.tone-purple {
-  --tone: var(--c-purple);
+  --tone: var(--c-agent);
 }
 .session-timeline-dot {
   width: 6px;
@@ -1878,7 +1853,7 @@ body,
   color: var(--c-muted);
 }
 .session-scope.is-fenced {
-  background: color-mix(in srgb, var(--c-purple) 8%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 8%, transparent);
   color: var(--c-text-soft);
 }
 .session-scope-dot {
@@ -1889,14 +1864,14 @@ body,
   flex-shrink: 0;
 }
 .session-scope.is-fenced .session-scope-dot {
-  background: var(--c-purple);
+  background: var(--c-agent);
 }
 .session-scope-text {
   flex: 1;
   min-width: 0;
 }
 .session-scope-text strong {
-  color: var(--c-purple);
+  color: var(--c-agent);
 }
 .session-scope-action {
   padding: 3px 9px;
@@ -1910,8 +1885,8 @@ body,
   white-space: nowrap;
 }
 .session-scope-action:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--c-purple) 45%, transparent);
-  color: var(--c-purple);
+  border-color: color-mix(in srgb, var(--c-agent) 45%, transparent);
+  color: var(--c-agent);
 }
 .session-scope-action:disabled {
   opacity: 0.5;
@@ -1925,9 +1900,9 @@ body,
   top: 0;
   z-index: 1;
   pointer-events: none;
-  border: 1.5px dashed color-mix(in srgb, var(--c-purple) 40%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--c-agent) 40%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--c-purple) 3%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 3%, transparent);
 }
 .scope-fence-pill {
   position: absolute;
@@ -1935,9 +1910,9 @@ body,
   transform-origin: 0 50%;
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--c-purple) 35%, transparent);
-  background: color-mix(in srgb, var(--c-panel) 92%, var(--c-purple) 8%);
-  color: var(--c-purple);
+  border: 1px solid color-mix(in srgb, var(--c-agent) 35%, transparent);
+  background: color-mix(in srgb, var(--c-panel) 92%, var(--c-agent) 8%);
+  color: var(--c-agent);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -2104,7 +2079,7 @@ body,
 
 .command-bar-icon {
   flex-shrink: 0;
-  color: var(--c-purple);
+  color: var(--c-agent);
 }
 .command-bar-input {
   flex: 1;
@@ -2208,9 +2183,9 @@ body,
   gap: 8px;
   padding: 4px 12px 4px 6px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--c-purple) 35%, transparent);
-  background: color-mix(in srgb, var(--c-purple) 8%, transparent);
-  color: var(--c-purple);
+  border: 1px solid color-mix(in srgb, var(--c-agent) 35%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 8%, transparent);
+  color: var(--c-agent);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -2218,7 +2193,7 @@ body,
 }
 .external-indicator:hover,
 .external-indicator[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--c-purple) 15%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 15%, transparent);
 }
 .external-indicator-avatars {
   display: inline-flex;
@@ -2239,7 +2214,7 @@ body,
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--c-purple);
+  background: var(--c-agent);
   flex-shrink: 0;
   animation: presence-pulse 1.4s ease-in-out infinite;
 }
@@ -2253,7 +2228,7 @@ body,
   display: flex;
   flex-direction: column;
   background: var(--c-panel);
-  border: 1px solid color-mix(in srgb, var(--c-purple) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-agent) 30%, transparent);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   /* Popover-level like the rail menus: above the minimap, below the rail. */
@@ -2300,7 +2275,7 @@ body,
   border-bottom: 1px solid var(--c-line);
 }
 .activity-filter {
-  --writer: var(--c-purple);
+  --writer: var(--c-agent);
   padding: 2px 9px;
   border-radius: 999px;
   border: 1px solid var(--c-line);
@@ -2331,7 +2306,7 @@ body,
   border-bottom: none;
 }
 .activity-row.is-pending {
-  background: color-mix(in srgb, var(--c-purple) 5%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 5%, transparent);
 }
 .activity-glyph {
   flex-shrink: 0;
@@ -2352,7 +2327,7 @@ body,
   color: var(--c-accent);
 }
 .activity-glyph.tone-purple {
-  color: var(--c-purple);
+  color: var(--c-agent);
 }
 .activity-main {
   flex: 1;
@@ -2427,7 +2402,7 @@ body,
   color: var(--c-text);
 }
 .activity-feed-link.is-accent {
-  color: var(--c-purple);
+  color: var(--c-agent);
 }
 .activity-feed-link.is-accent:hover {
   text-decoration: underline;
@@ -2508,8 +2483,8 @@ body,
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--c-purple) 12%, transparent);
-  color: var(--c-purple);
+  background: color-mix(in srgb, var(--c-agent) 12%, transparent);
+  color: var(--c-agent);
 }
 .writers-meta {
   font: 9.5px var(--font-code);
@@ -2575,14 +2550,22 @@ body,
 .minimap-node {
   position: absolute;
   border-radius: 1.5px;
-  background: var(--kind);
+  background: var(--c-muted);
   opacity: 0.55;
 }
 .minimap-node.is-group {
-  background: color-mix(in srgb, var(--kind) 4%, transparent);
-  border: 1px dashed color-mix(in srgb, var(--kind) 55%, transparent);
+  background: color-mix(in srgb, var(--c-muted) 4%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--c-muted) 55%, transparent);
   opacity: 1;
   border-radius: 2px;
+}
+.minimap-node.is-pinned {
+  background: var(--c-pin);
+  opacity: 0.9;
+}
+.minimap-node.is-agent {
+  background: var(--c-agent);
+  opacity: 0.9;
 }
 .minimap-node.is-selected {
   outline: 1px solid var(--c-accent);
@@ -2590,9 +2573,9 @@ body,
 }
 .minimap-fence {
   position: absolute;
-  border: 1px dashed color-mix(in srgb, var(--c-purple) 45%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--c-agent) 45%, transparent);
   border-radius: 2px;
-  background: color-mix(in srgb, var(--c-purple) 3%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 3%, transparent);
 }
 .minimap-presence {
   position: absolute;
@@ -2812,8 +2795,8 @@ body,
   flex-shrink: 0;
 }
 .start-session-btn:hover {
-  border-color: color-mix(in srgb, var(--c-purple) 40%, transparent);
-  color: var(--c-purple);
+  border-color: color-mix(in srgb, var(--c-agent) 40%, transparent);
+  color: var(--c-agent);
 }
 .start-session-dot {
   width: 7px;
@@ -2822,7 +2805,7 @@ body,
   background: var(--c-dim);
 }
 .start-session-btn:hover .start-session-dot {
-  background: var(--c-purple);
+  background: var(--c-agent);
 }
 .session-end {
   padding: 3px 10px;
@@ -5005,16 +4988,16 @@ html.is-node-resizing .ext-app-preview-catcher {
 }
 
 .attention-tone-group {
-  border-color: color-mix(in srgb, var(--c-purple) 24%, transparent);
+  border-color: color-mix(in srgb, var(--c-accent) 24%, transparent);
 }
 
 .attention-toast.attention-tone-group {
-  color: color-mix(in srgb, var(--c-purple) 78%, var(--c-text) 22%);
+  color: color-mix(in srgb, var(--c-accent) 78%, var(--c-text) 22%);
 }
 
 .attention-tone-group .attention-history-kind,
 .attention-tone-group .attention-toast-title {
-  color: color-mix(in srgb, var(--c-purple) 78%, var(--c-text) 22%);
+  color: color-mix(in srgb, var(--c-accent) 78%, var(--c-text) 22%);
 }
 
 .attention-tone-cluster,
@@ -5271,6 +5254,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   width: 6px;
   height: 6px;
   border-radius: 2px;
+  background: var(--c-muted);
   opacity: 0.8;
 }
 .group-chip-count {
@@ -5883,8 +5867,8 @@ html.is-node-resizing .ext-app-preview-catcher {
   border-radius: 10px;
 }
 .snapshot-item.is-session {
-  border-color: color-mix(in srgb, var(--c-purple) 30%, transparent);
-  background: color-mix(in srgb, var(--c-purple) 5%, transparent);
+  border-color: color-mix(in srgb, var(--c-agent) 30%, transparent);
+  background: color-mix(in srgb, var(--c-agent) 5%, transparent);
 }
 .snapshot-item-head {
   display: flex;
@@ -5895,7 +5879,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--c-purple);
+  background: var(--c-agent);
   flex-shrink: 0;
 }
 .snapshot-item-glyph {
@@ -6100,7 +6084,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   color: var(--c-accent);
 }
 .command-palette-icon.tone-purple {
-  color: var(--c-purple);
+  color: var(--c-agent);
 }
 .command-palette-icon.tone-muted {
   color: var(--c-muted);
@@ -6308,7 +6292,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   border-color: color-mix(in srgb, var(--c-accent) 40%, transparent);
 }
 .empty-state-action.is-agent:hover {
-  border-color: color-mix(in srgb, var(--c-purple) 45%, transparent);
+  border-color: color-mix(in srgb, var(--c-agent) 45%, transparent);
 }
 .empty-state-action .tone-accent {
   color: var(--c-accent);
@@ -6320,7 +6304,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   color: var(--c-ok);
 }
 .empty-state-action .tone-purple {
-  color: var(--c-purple);
+  color: var(--c-agent);
 }
 .empty-state-action-label {
   flex: 1;

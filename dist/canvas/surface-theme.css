@@ -31,7 +31,6 @@
   --c-ok: #2fd07f;
   --c-warn: #f4c542;
   --c-danger: #ff6a7f;
-  --c-purple: #b07aff;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -99,7 +98,6 @@
   --c-ok: #1a9f55;
   --c-warn: #94600A;
   --c-danger: #d32f2f;
-  --c-purple: #7c4dff;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1A7ABF;
   --c-on-pin: #FFFFFF;
@@ -144,7 +142,6 @@
   --c-ok: #00ff00;
   --c-warn: #ffff00;
   --c-danger: #ff0000;
-  --c-purple: #e040fb;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #00ffff;
   --c-on-pin: #000000;
@@ -186,7 +183,6 @@
   --c-ok: #34D399;
   --c-warn: #F5C452;
   --c-danger: #FF6B8A;
-  --c-purple: #B388FF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -228,7 +224,6 @@
   --c-ok: #3E7D4F;
   --c-warn: #8A5A00;
   --c-danger: #B3402E;
-  --c-purple: #8456B0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1F6FA8;
   --c-on-pin: #FFFFFF;
@@ -273,7 +268,6 @@
   --c-ok: #74C596;
   --c-warn: #E8C476;
   --c-danger: #D9707C;
-  --c-purple: #B48EAD;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #6EC1F5;
   --c-on-pin: #081524;
@@ -315,7 +309,6 @@
   --c-ok: #4CC38A;
   --c-warn: #F5B944;
   --c-danger: #F0566A;
-  --c-purple: #A78BFA;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -357,7 +350,6 @@
   --c-ok: #74D99F;
   --c-warn: #E0B84F;
   --c-danger: #E57373;
-  --c-purple: #A88FE0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;
@@ -399,7 +391,6 @@
   --c-ok: #52C880;
   --c-warn: #E4C465;
   --c-danger: #D67670;
-  --c-purple: #BC8FB4;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-on-pin: #081524;

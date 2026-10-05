@@ -1,6 +1,6 @@
 # Plan 015 — Design foundation (wave 0)
 
-**Status:** Steps 1, 2, 3a, 3b and 3c done (2026-10-05). Steps 3d and 4 not started.
+**Status:** Steps 1–3 done (2026-10-05). Step 4 not started.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 0 ("ships alone, first"); vision moves 5, 9, 10.
 Drawings: [`TokenSystem`](../design/TokenSystem.dc.html), [`Tokens`](../design/Tokens.dc.html),
@@ -101,10 +101,14 @@ moves into it from the header. The drawn "Ask agent" entry has no function yet a
   blocks. Allowlisted as content, not theme: group frame colours, the annotation default, the
   white behind webpage previews, and the embedded Mermaid viewer's fallback (goes in wave 4).
 
-**3d. Kind colours and the writer palette.** Kind colours (`kind-colors.ts`, the `--kind-accent`
-rules, trace file rows) and the multi-writer presence palette still borrow meaning hues (amber,
-pin blue, violet). The design guide calls for muted per-kind tints that never use a meaning hue;
-take the values from the Types boards.
+**3d. Kind colours and the writer palette (done).** Per the design session's rule in `design.md`
+(2b74c7b4): kinds carry no colour. Type icons, group kind dots and minimap rectangles are
+`--c-muted`; the minimap marks only meaning — pinned nodes in `--c-pin`, nodes an agent is
+editing in `--c-agent`. `KIND_COLOR`, the `--kind-accent` rules and `--c-purple` are gone (agent
+chrome that borrowed purple now uses `--c-agent`). Writers are told apart by name and initial: the
+writer palette and the per-agent `agentIdentityHue` are gone; an agent's cursor, chip, minimap dot
+and activity rows take `--c-agent`, a subagent's `--c-subagent`. Trace categories go neutral except
+subagent rows.
 
 ### 4. Theme renames and the wave's definition of done
 
