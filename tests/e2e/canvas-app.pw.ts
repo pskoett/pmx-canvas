@@ -127,6 +127,9 @@ test('real workbench creates boards, edits notes, drags and pins without a dupli
   page,
   request,
 }) => {
+  // A long end-to-end flow: 18-23 s alone, 22-52 s inside a loaded parallel
+  // run, so the default 30 s budget timed it out while every step still passed.
+  test.setTimeout(60_000);
   await request.post('/api/canvas/boards/open', { data: { id: null } });
   const app = await mount(page);
   await expect(app.getByTestId('home-view')).toBeVisible();
