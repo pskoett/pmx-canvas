@@ -26,6 +26,14 @@ const CORE_TOKENS = [
   '--c-warn-alt',
   '--c-danger',
   '--c-purple',
+  '--c-pin',
+  '--c-agent',
+  '--c-rel-supports',
+  '--c-rel-contradicts',
+  '--c-rel-cites',
+  '--c-rel-derived',
+  '--c-rel-informs',
+  '--c-rel-related',
 ];
 
 const THEME_SELECTORS = [
@@ -66,11 +74,42 @@ describe('surface-theme.css stays in sync with global.css', () => {
     });
   }
 
-  test('font tokens match in :root', () => {
+  test('font and scale tokens match in :root', () => {
     const globalBlock = selectorBlock(globalCss, ':root');
     const surfaceBlock = selectorBlock(surfaceCss, ':root');
-    for (const token of ['--font', '--mono']) {
+    const scale = [
+      '--fs-meta',
+      '--fs-ui',
+      '--fs-body',
+      '--fs-title',
+      '--fs-heading',
+      '--space-1',
+      '--space-2',
+      '--space-3',
+      '--space-4',
+      '--space-6',
+      '--space-8',
+      '--r-control',
+      '--r-node',
+      '--r-overlay',
+      '--r-pill',
+      '--e-1',
+      '--e-2',
+    ];
+    for (const token of ['--font', '--mono', ...scale]) {
+      expect(readVar(globalBlock, token), `${token} missing from global.css :root`).not.toBeNull();
       expect(readVar(surfaceBlock, token)).toBe(readVar(globalBlock, token));
+    }
+  });
+
+  test('light-theme elevation overrides match', () => {
+    for (const selector of [':root[data-theme="light"]', ':root[data-theme="sepia"]']) {
+      const globalBlock = selectorBlock(globalCss, selector);
+      const surfaceBlock = selectorBlock(surfaceCss, selector);
+      for (const token of ['--e-1', '--e-2']) {
+        expect(readVar(globalBlock, token), `${token} missing from global.css ${selector}`).not.toBeNull();
+        expect(readVar(surfaceBlock, token)).toBe(readVar(globalBlock, token));
+      }
     }
   });
 

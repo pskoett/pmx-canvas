@@ -33,6 +33,15 @@
   --c-warn-alt: #FFB300;
   --c-danger: #ff6a7f;
   --c-purple: #b07aff;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #4BBCFF;
+  --c-agent: #B388FF;
+  --c-rel-supports: #5FCFC0;
+  --c-rel-contradicts: #E59B6B;
+  --c-rel-cites: #7C9CFF;
+  --c-rel-derived: #D5DEEA;
+  --c-rel-informs: #E58FB0;
+  --c-rel-related: #8ea3bd;
 
   /* Common aliases authored HTML might use. */
   --color-bg: #081524;
@@ -53,6 +62,24 @@
   --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   --font-sans: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
+  /* ── Scale (same in every theme; see docs/design.md) ───────── */
+  --fs-meta: 11px;
+  --fs-ui: 12px;
+  --fs-body: 13px;
+  --fs-title: 15px;
+  --fs-heading: 20px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --r-control: 6px;
+  --r-node: 10px;
+  --r-overlay: 14px;
+  --r-pill: 999px;
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.24);
+  --e-2: 0 10px 30px rgba(0, 0, 0, 0.6);
 
   color-scheme: dark light;
 }
@@ -69,10 +96,22 @@
   --c-dim: #8794a6;
   --c-accent: #1A7ABF;
   --c-ok: #1a9f55;
-  --c-warn: #c89b2a;
+  --c-warn: #94600A;
   --c-warn-alt: #b8860b;
   --c-danger: #d32f2f;
   --c-purple: #7c4dff;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #1A7ABF;
+  --c-agent: #7C4DDB;
+  --c-rel-supports: #1E8C80;
+  --c-rel-contradicts: #B8572A;
+  --c-rel-cites: #4257C9;
+  --c-rel-derived: #4A5566;
+  --c-rel-informs: #B03F72;
+  --c-rel-related: #5c6b80;
+  /* Light themes: ink-tinted shadows (the drawn black ones are for dark surfaces). */
+  --e-1: 0 1px 2px rgba(8, 21, 36, 0.1), 0 6px 20px rgba(8, 21, 36, 0.08);
+  --e-2: 0 10px 30px rgba(8, 21, 36, 0.18);
 
   --color-bg: #F4EFE6;
   --color-panel: #EFE7D4;
@@ -85,7 +124,7 @@
   --color-text-dim: #8794a6;
   --color-accent: #1A7ABF;
   --color-success: #1a9f55;
-  --color-warning: #c89b2a;
+  --color-warning: #94600A;
   --color-danger: #d32f2f;
 }
 
@@ -105,6 +144,15 @@
   --c-warn-alt: #ffcc00;
   --c-danger: #ff0000;
   --c-purple: #e040fb;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #00ffff;
+  --c-agent: #e040fb;
+  --c-rel-supports: #00e5c0;
+  --c-rel-contradicts: #ff8a00;
+  --c-rel-cites: #8c9eff;
+  --c-rel-derived: #ffffff;
+  --c-rel-informs: #ff80ab;
+  --c-rel-related: #aaaaaa;
 
   --color-bg: #000000;
   --color-panel: #0a0a0a;
@@ -137,6 +185,15 @@
   --c-warn-alt: #FFB300;
   --c-danger: #FF6B8A;
   --c-purple: #B388FF;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #4BBCFF;
+  --c-agent: #B388FF;
+  --c-rel-supports: #5FCFC0;
+  --c-rel-contradicts: #E59B6B;
+  --c-rel-cites: #7C9CFF;
+  --c-rel-derived: #D5DEEA;
+  --c-rel-informs: #E58FB0;
+  --c-rel-related: #8D96BC;
 
   --color-bg: #0A0D1C;
   --color-panel: #12172E;
@@ -165,10 +222,22 @@
   --c-dim: #978870;
   --c-accent: #B4632C;
   --c-ok: #3E7D4F;
-  --c-warn: #A97B1E;
+  --c-warn: #8A5A00;
   --c-warn-alt: #8F6A0D;
   --c-danger: #B3402E;
   --c-purple: #8456B0;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #1F6FA8;
+  --c-agent: #7046A6;
+  --c-rel-supports: #1E8C80;
+  --c-rel-contradicts: #A3461C;
+  --c-rel-cites: #3D50B0;
+  --c-rel-derived: #4E4433;
+  --c-rel-informs: #9C3A66;
+  --c-rel-related: #6B6A66;
+  /* Light themes: ink-tinted shadows (the drawn black ones are for dark surfaces). */
+  --e-1: 0 1px 2px rgba(8, 21, 36, 0.1), 0 6px 20px rgba(8, 21, 36, 0.08);
+  --e-2: 0 10px 30px rgba(8, 21, 36, 0.18);
 
   --color-bg: #F2E7D5;
   --color-panel: #EBDCC2;
@@ -181,7 +250,7 @@
   --color-text-dim: #978870;
   --color-accent: #B4632C;
   --color-success: #3E7D4F;
-  --color-warning: #A97B1E;
+  --color-warning: #8A5A00;
   --color-danger: #B3402E;
 }
 
@@ -201,6 +270,15 @@
   --c-warn-alt: #E0A93F;
   --c-danger: #D9707C;
   --c-purple: #B48EAD;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #6EC1F5;
+  --c-agent: #B388FF;
+  --c-rel-supports: #5FCFC0;
+  --c-rel-contradicts: #E59B6B;
+  --c-rel-cites: #7C9CFF;
+  --c-rel-derived: #D5DEEA;
+  --c-rel-informs: #E58FB0;
+  --c-rel-related: #939DB1;
 
   --color-bg: #20242E;
   --color-panel: #2A2F3C;
@@ -233,6 +311,15 @@
   --c-warn-alt: #FFB300;
   --c-danger: #F0566A;
   --c-purple: #A78BFA;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #4BBCFF;
+  --c-agent: #B388FF;
+  --c-rel-supports: #5FCFC0;
+  --c-rel-contradicts: #E59B6B;
+  --c-rel-cites: #7C9CFF;
+  --c-rel-derived: #D5DEEA;
+  --c-rel-informs: #E58FB0;
+  --c-rel-related: #96948D;
 
   --color-bg: #0B0B0C;
   --color-panel: #161618;
@@ -265,6 +352,15 @@
   --c-warn-alt: #D9A421;
   --c-danger: #E57373;
   --c-purple: #A88FE0;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #4BBCFF;
+  --c-agent: #B388FF;
+  --c-rel-supports: #4FC9D9;
+  --c-rel-contradicts: #E59B6B;
+  --c-rel-cites: #7C9CFF;
+  --c-rel-derived: #D5DEEA;
+  --c-rel-informs: #E58FB0;
+  --c-rel-related: #8BA695;
 
   --color-bg: #0C1712;
   --color-panel: #14231B;
@@ -297,6 +393,15 @@
   --c-warn-alt: #FFB300;
   --c-danger: #D67670;
   --c-purple: #BC8FB4;
+  /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
+  --c-pin: #4BBCFF;
+  --c-agent: #B388FF;
+  --c-rel-supports: #5FCFC0;
+  --c-rel-contradicts: #E59B6B;
+  --c-rel-cites: #7C9CFF;
+  --c-rel-derived: #D5DEEA;
+  --c-rel-informs: #E58FB0;
+  --c-rel-related: #9CA49C;
 
   --color-bg: #0B0D0B;
   --color-panel: #171A17;

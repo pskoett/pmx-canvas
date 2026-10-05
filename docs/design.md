@@ -78,7 +78,9 @@ Components reference tokens only. Raw colour values live only in the theme files
    - Spacing: `--space-1` 4, `--space-2` 8, `--space-3` 12, `--space-4` 16, `--space-6` 24,
      `--space-8` 32.
    - Radius: `--r-control` 6, `--r-node` 10, `--r-overlay` 14, `--r-pill` 999.
-   - Elevation: `--e-1` nodes, `--e-2` floating chrome and menus. No glows.
+   - Elevation: `--e-1` nodes, `--e-2` floating chrome and menus. No glows. The one per-theme
+     exception (decided 2026-10-05): the drawn black shadows are for dark surfaces; Daylight and
+     Sepia use ink-tinted ones (`rgba(8, 21, 36, …)` at 10/8% and 18%).
 
 ### Moving from today to proposed (wave 0)
 
