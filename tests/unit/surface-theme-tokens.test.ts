@@ -38,7 +38,7 @@ const CORE_TOKENS = [
 
 const THEME_SELECTORS = [
   ':root',
-  ':root[data-theme="light"]',
+  ':root[data-theme="daylight"]',
   ':root[data-theme="high-contrast"]',
   ':root[data-theme="midnight"]',
   ':root[data-theme="sepia"]',
@@ -103,7 +103,7 @@ describe('surface-theme.css stays in sync with global.css', () => {
   });
 
   test('light-theme elevation overrides match', () => {
-    for (const selector of [':root[data-theme="light"]', ':root[data-theme="sepia"]']) {
+    for (const selector of [':root[data-theme="daylight"]', ':root[data-theme="sepia"]']) {
       const globalBlock = selectorBlock(globalCss, selector);
       const surfaceBlock = selectorBlock(surfaceCss, selector);
       for (const token of ['--e-1', '--e-2']) {

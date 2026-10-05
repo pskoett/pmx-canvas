@@ -11,8 +11,8 @@
  */
 
 export const CANVAS_THEMES = [
-  'dark',
-  'light',
+  'harbor',
+  'daylight',
   'high-contrast',
   'midnight',
   'sepia',
@@ -28,7 +28,7 @@ export function isCanvasTheme(value: unknown): value is CanvasThemeName {
   return typeof value === 'string' && (CANVAS_THEMES as readonly string[]).includes(value);
 }
 
-export function normalizeCanvasThemeName(value: unknown, fallback: CanvasThemeName = 'dark'): CanvasThemeName {
+export function normalizeCanvasThemeName(value: unknown, fallback: CanvasThemeName = 'harbor'): CanvasThemeName {
   return isCanvasTheme(value) ? value : fallback;
 }
 
@@ -43,8 +43,8 @@ export interface CanvasThemeMeta {
 }
 
 export const CANVAS_THEME_META: Record<CanvasThemeName, CanvasThemeMeta> = {
-  dark: { label: 'Dark', scheme: 'dark', swatchBg: '#081524', swatchAccent: '#4BBCFF' },
-  light: { label: 'Light', scheme: 'light', swatchBg: '#F4EFE6', swatchAccent: '#1A7ABF' },
+  harbor: { label: 'Harbor', scheme: 'dark', swatchBg: '#081524', swatchAccent: '#4BBCFF' },
+  daylight: { label: 'Daylight', scheme: 'light', swatchBg: '#F6F7F9', swatchAccent: '#1A7ABF' },
   'high-contrast': { label: 'High contrast', scheme: 'dark', swatchBg: '#000000', swatchAccent: '#00ffff' },
   midnight: { label: 'Midnight', scheme: 'dark', swatchBg: '#0A0D1C', swatchAccent: '#8B96FF' },
   sepia: { label: 'Sepia', scheme: 'light', swatchBg: '#F2E7D5', swatchAccent: '#B4632C' },

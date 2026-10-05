@@ -78,7 +78,7 @@ describe('iframe-backed viewer refresh', () => {
   test('retains the painted frame until the replacement has loaded', () => {
     const view = render(
       <RefreshingViewerFrame
-        source={{ src: '/viewer?v=1&theme=dark' }}
+        source={{ src: '/viewer?v=1&theme=harbor' }}
         iframeRef={frameRef}
         onLoad={() => {}}
         title="viewer"
@@ -90,7 +90,7 @@ describe('iframe-backed viewer refresh', () => {
 
     view.rerender(
       <RefreshingViewerFrame
-        source={{ src: '/viewer?v=2&theme=dark' }}
+        source={{ src: '/viewer?v=2&theme=harbor' }}
         iframeRef={frameRef}
         onLoad={() => {}}
         title="viewer"
@@ -114,7 +114,7 @@ describe('iframe-backed viewer refresh', () => {
   test('preserves the theme in repeated replacement URLs', () => {
     const view = render(
       <RefreshingViewerFrame
-        source={{ src: '/viewer?v=1&theme=light' }}
+        source={{ src: '/viewer?v=1&theme=daylight' }}
         iframeRef={frameRef}
         onLoad={() => {}}
         title="viewer"
@@ -123,7 +123,7 @@ describe('iframe-backed viewer refresh', () => {
     for (let version = 2; version <= 4; version += 1) {
       view.rerender(
         <RefreshingViewerFrame
-          source={{ src: `/viewer?v=${version}&theme=light` }}
+          source={{ src: `/viewer?v=${version}&theme=daylight` }}
           iframeRef={frameRef}
           onLoad={() => {}}
           title="viewer"
@@ -132,7 +132,7 @@ describe('iframe-backed viewer refresh', () => {
       const frames = view.container.querySelectorAll('iframe');
       expect(frames).toHaveLength(2);
       fireEvent.load(frames[1]!);
-      expect(view.container.querySelector('iframe')?.getAttribute('src')).toContain(`v=${version}&theme=light`);
+      expect(view.container.querySelector('iframe')?.getAttribute('src')).toContain(`v=${version}&theme=daylight`);
     }
   });
 });

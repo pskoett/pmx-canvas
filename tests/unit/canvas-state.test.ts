@@ -140,22 +140,22 @@ describe('canvas state manager', () => {
   });
 
   test('persists the selected canvas theme', async () => {
-    expect(canvasState.theme).toBe('dark');
-    expect(canvasState.setTheme('light')).toBe('light');
+    expect(canvasState.theme).toBe('harbor');
+    expect(canvasState.setTheme('daylight')).toBe('daylight');
 
     await waitForPersistence();
     const persisted = readPersistedCanvasState(workspaceRoot);
-    expect(persisted.theme).toBe('light');
+    expect(persisted.theme).toBe('daylight');
 
     resetCanvasForTests(workspaceRoot);
     // An empty workspace has no board to open (Home); the theme is workspace-wide.
     expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(false);
-    expect(canvasState.theme).toBe('light');
-    expect(canvasState.getLayout().theme).toBe('light');
+    expect(canvasState.theme).toBe('daylight');
+    expect(canvasState.getLayout().theme).toBe('daylight');
   });
 
   test('treats missing persisted theme metadata as no saved preference', async () => {
-    canvasState.setTheme('light');
+    canvasState.setTheme('daylight');
     canvasState.flushToDisk();
 
     const dbPath = join(workspaceRoot, '.pmx-canvas', 'canvas.db');

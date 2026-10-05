@@ -58,7 +58,7 @@ describe('GitHub Copilot canvas adapter targeting', () => {
   test('adapter source exposes the expected native surfaces', () => {
     const extension = readFileSync(join(process.cwd(), '.github/extensions/pmx-canvas/extension.mjs'), 'utf8');
     expect(extension).toContain('id: "pmx-canvas"');
-    expect(extension).toContain('url: `${pmx.baseUrl}/workbench?theme=light`');
+    expect(extension).toContain('url: `${pmx.baseUrl}/workbench?theme=daylight`');
     expect(extension).toContain('"/api/canvas/ax/context"');
     expect(extension).toContain('onUserPromptSubmitted');
     expect(extension).toContain('createSteeringDeliveryPump');
@@ -83,7 +83,7 @@ describe('GitHub Copilot canvas adapter targeting', () => {
       instanceId: 'panel-a',
       input: { serverUrl, workspaceRoot: workspaceA, autoStart: false },
     });
-    expect(opened.url).toBe(`${serverUrl}/workbench?theme=light`);
+    expect(opened.url).toBe(`${serverUrl}/workbench?theme=daylight`);
 
     const result = (await action('add_work_item')({
       instanceId: 'panel-a',

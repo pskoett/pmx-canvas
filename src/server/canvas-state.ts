@@ -411,7 +411,7 @@ class CanvasStateManager {
   private annotations = new Map<string, CanvasAnnotation>();
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
   private _tour: Tour | undefined;
-  private _theme: CanvasTheme = 'dark';
+  private _theme: CanvasTheme = 'harbor';
   private _contextPinnedNodeIds = new Set<string>();
   private _workspaceRoot = process.cwd();
   private _contentRevision = 0;

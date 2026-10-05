@@ -259,7 +259,7 @@ surfaces (the core never imports a host SDK).
   (MCP + in-app Browser) are exactly what the canvas requires.
 - **Claude Code desktop app** — the workbench runs in the desktop app's
   built-in browser pane alongside the PMX MCP server, same zero-adapter recipe
-  as Codex: open `http://localhost:4313/workbench?theme=light` (or
+  as Codex: open `http://localhost:4313/workbench?theme=daylight` (or
   `?theme=auto` to follow the app's appearance) in the app's browser and the
   live board, pins, and Ghost Cursor all work in-panel — themed to match the
   pane without changing what other clients see.

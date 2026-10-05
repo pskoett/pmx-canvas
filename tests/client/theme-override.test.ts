@@ -39,10 +39,10 @@ describe('sessionThemeParam', () => {
 
 describe('initSessionThemeOverride', () => {
   test('applies a named theme and marks the override active', () => {
-    setPageUrl('http://localhost:3000/workbench?theme=light');
+    setPageUrl('http://localhost:3000/workbench?theme=daylight');
     const apply = mock((_theme: string) => {});
     initSessionThemeOverride(apply);
-    expect(apply.mock.calls).toEqual([['light']]);
+    expect(apply.mock.calls).toEqual([['daylight']]);
     expect(themeOverrideActive()).toBe(true);
     clearThemeOverride();
     expect(themeOverrideActive()).toBe(false);
@@ -61,7 +61,7 @@ describe('initSessionThemeOverride', () => {
     initSessionThemeOverride(apply);
     // Environment-derived: whatever scheme this DOM reports maps to its theme
     // (the live host-flip behavior is covered by the e2e emulateMedia test).
-    const expected = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    const expected = window.matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'harbor';
     expect(apply.mock.calls).toEqual([[expected]]);
     expect(themeOverrideActive()).toBe(true);
   });
@@ -70,13 +70,13 @@ describe('initSessionThemeOverride', () => {
     // connectSSE re-runs initSessionThemeOverride on every transport drop and
     // the URL param survives — but the user's explicit pick must stick for
     // the page lifetime (only a reload re-activates the host default).
-    setPageUrl('http://localhost:3000/workbench?theme=light');
+    setPageUrl('http://localhost:3000/workbench?theme=daylight');
     const apply = mock((_theme: string) => {});
     initSessionThemeOverride(apply);
     expect(themeOverrideActive()).toBe(true);
     clearThemeOverride();
     initSessionThemeOverride(apply);
     expect(themeOverrideActive()).toBe(false);
-    expect(apply.mock.calls).toEqual([['light']]);
+    expect(apply.mock.calls).toEqual([['daylight']]);
   });
 });

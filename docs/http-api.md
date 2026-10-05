@@ -887,7 +887,7 @@ override the orb default).
 
 `/workbench?theme=<name>` gives that browser session its own theme without
 touching the server-global theme other clients see — embedding hosts use it to
-match their chrome (the bundled Copilot extension opens `?theme=light`).
+match their chrome (the bundled Copilot extension opens `?theme=daylight`).
 `?theme=auto` follows the host's `prefers-color-scheme` live. Picking a theme
 from the toolbar ends the override and saves globally as usual.
 

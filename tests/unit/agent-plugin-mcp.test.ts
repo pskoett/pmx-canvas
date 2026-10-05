@@ -132,7 +132,7 @@ describe('portable plugin MCP workspace connector', () => {
       instanceId: 'portable-proof',
       input: { workspaceRoot: workspace, serverUrl, autoStart: false },
     });
-    expect(panel.url).toBe(`${serverUrl}/workbench?theme=light`);
+    expect(panel.url).toBe(`${serverUrl}/workbench?theme=daylight`);
     const health = await (await fetch(`${serverUrl}/health`)).json();
     expect(realpathSync(health.workspace)).toBe(workspace);
     expect(JSON.stringify(await (await fetch(`${serverUrl}/api/canvas/state`)).json())).toContain(

@@ -1,6 +1,6 @@
 # Plan 015 — Design foundation (wave 0)
 
-**Status:** Steps 1–3 done (2026-10-05). Step 4 not started.
+**Status:** Wave 0 done (2026-10-05): steps 1–4 are on main.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 0 ("ships alone, first"); vision moves 5, 9, 10.
 Drawings: [`TokenSystem`](../design/TokenSystem.dc.html), [`Tokens`](../design/Tokens.dc.html),
@@ -110,14 +110,20 @@ writer palette and the per-agent `agentIdentityHue` are gone; an agent's cursor,
 and activity rows take `--c-agent`, a subagent's `--c-subagent`. Trace categories go neutral except
 subagent rows.
 
-### 4. Theme renames and the wave's definition of done
+### 4. Theme renames and the wave's definition of done (done)
 
-- `dark` → `harbor`, `light` → `daylight` in `src/shared/themes.ts`, CSS selectors, CLI, env and
-  docs; no aliases (stored or passed old names fall back to the default). Daylight gets the drawn
-  neutral surfaces (`#F6F7F9` / `#FFFFFF` / `#DDE2E9`) instead of beige.
-- Reference cases at 600, 1024 and 1920 px, and all nine themes; regenerate the demo board
-  (`bun run scripts/generate-demo-board.ts`) and pass `tests/unit/demo.test.ts`; update
-  `docs/design.md`, readme and skills where theme names or tokens appear.
+- `dark` → `harbor` (label Harbor, still the default) and `light` → `daylight` (label Daylight) in
+  `src/shared/themes.ts`, the CSS selectors, the defaults (state, persistence, client), the command
+  palette toggle (now by scheme), the CLI help, the bundled Copilot extension (`?theme=daylight`),
+  docs, skills, CLAUDE.md and AGENTS.md. No aliases: a stored or passed `dark`/`light` falls back
+  to Harbor, so anyone who had chosen the light theme picks Daylight once.
+- Viewer scheme parameters stay `dark`/`light` (the json-render viewer and embedded MCP apps speak
+  schemes, not theme ids); the static export maps its scheme to Harbor or Daylight for surface
+  documents.
+- Daylight takes the drawn neutral surfaces from `Main.dc.html` (`#F6F7F9` / `#FFFFFF` /
+  `#F2F4F7` / `#DDE2E9`, text `#0B1726`, ok `#1E7F51`, danger `#B8344A`) instead of beige.
+- Definition of done: reference cases at 600, 1024 and 1920 px in the e2e gate; the token test
+  covers all nine themes; the demo board regenerated (deterministic: two runs, same file).
 
 ## Step 1 colour table
 

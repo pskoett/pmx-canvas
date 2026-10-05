@@ -128,11 +128,11 @@ pmx-canvas                     # Start and open browser (port 4313)
 pmx-canvas --no-open           # Start without opening browser (for agents)
 pmx-canvas --port=8080         # Custom port
 pmx-canvas --demo              # Start with sample content
-pmx-canvas --theme=light       # Light theme
+pmx-canvas --theme=daylight    # Daylight theme
 pmx-canvas --version           # Print installed version and exit
 ```
 
-`--theme` accepts `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, or `volt` (0.4.x; the rail's theme picker lists the same nine). Same value can be set via
+`--theme` accepts `harbor` (default), `daylight`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, or `volt` (0.4.x; the rail's theme picker lists the same nine). Same value can be set via
 the `PMX_CANVAS_THEME` environment variable, or picked live from the left tool rail.
 
 Start the canvas once per session, then reuse it. Use `--no-open` when running as an agent — the

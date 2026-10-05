@@ -47,7 +47,7 @@ for (const recovery of ['automatic', 'button']) {
 
       // Automatic recovery polls every 2s with a 500ms health timeout. Allow a
       // transient slow probe to fail and retry before requiring real navigation.
-      await expect(page).toHaveURL(`${baseURL}/workbench?theme=light`, { timeout: 10_000 });
+      await expect(page).toHaveURL(`${baseURL}/workbench?theme=daylight`, { timeout: 10_000 });
       await expect(page.getByRole('button', { name: `Board: Recovered ${recovery} board` })).toBeVisible();
       const action = canvas.actions.find((candidate) => candidate.name === 'add_work_item')!;
       const result = await action.handler({ instanceId, input: { title: 'Recovered adapter task' } });

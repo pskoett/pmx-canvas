@@ -223,7 +223,7 @@ function renderShell(entry) {
           if (response.ok && target.ok && target.baseUrl) {
             // Load the real workbench at its own origin, including its token,
             // Home, boards, and relative API paths. The shell is not a proxy.
-            window.location.replace(target.baseUrl + '/workbench?theme=light');
+            window.location.replace(target.baseUrl + '/workbench?theme=daylight');
             return;
           }
           status.textContent = target.error || 'No matching PMX Canvas server is running.';
@@ -813,7 +813,7 @@ const pmxCanvas = createCanvas({
             return {
                 title: "PMX Canvas",
                 status: "Connected",
-                url: `${pmx.baseUrl}/workbench?theme=light`,
+                url: `${pmx.baseUrl}/workbench?theme=daylight`,
             };
         }
 

@@ -208,6 +208,8 @@ async function collect(
   if (!read) return null;
   const { board, state } = read;
   const theme = canvasThemeScheme(state.theme ?? canvasState.theme);
+  // Exports collapse to a scheme; surface documents take the theme that draws it.
+  const surfaceTheme = theme === 'light' ? 'daylight' : 'harbor';
   const remoteImages = new Set<string>();
   const links = new Set<string>();
   const frameNetworkDestinations = new Set<string>();
@@ -383,7 +385,8 @@ async function collect(
         const html = text(data.html) || text(data.content);
         collectFrameNetworkDestinations(html, frameNetworkDestinations);
         manifest.frames += 1;
-        if (withFrames) card.frame = buildHtmlSurfaceDocument(html, { theme, title, inlineThemeCss: themeCss });
+        if (withFrames)
+          card.frame = buildHtmlSurfaceDocument(html, { theme: surfaceTheme, title, inlineThemeCss: themeCss });
         break;
       }
       case 'mermaid':
@@ -395,7 +398,7 @@ async function collect(
               '<script src="/canvas/mermaid-entry.js"></script>',
               `<script src="${MERMAID_SRC}"></script>`,
             ),
-            { theme, title, inlineThemeCss: themeCss },
+            { theme: surfaceTheme, title, inlineThemeCss: themeCss },
           );
         }
         break;

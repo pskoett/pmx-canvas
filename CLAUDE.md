@@ -156,7 +156,7 @@ pmx-canvas serve --daemon      # Start daemonized server with pid/log tracking
 pmx-canvas serve status        # Check daemon health + pid state
 pmx-canvas serve stop          # Stop daemonized server
 pmx-canvas --mcp               # Run as MCP server
-pmx-canvas --theme=light       # Start with light theme
+pmx-canvas --theme=daylight    # Start with the Daylight theme
 bun run lint                   # Biome lint + format check (lint:fix to write)
 ```
 
@@ -230,9 +230,9 @@ renderers, Home, edges.
 
 ## Themes
 
-Nine themes: `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
-- CLI: `--theme=light`
-- Env: `PMX_CANVAS_THEME=light`
+Nine themes: `harbor` (default), `daylight`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
+- CLI: `--theme=daylight`
+- Env: `PMX_CANVAS_THEME=daylight`
 - Browser: rail theme picker (sun/moon button in the left tool rail opens the theme menu)
 
 Embedded dark/light-only viewers (json-render, MCP apps) collapse named themes to their scheme via `canvasThemeScheme` (e.g. `sepia` → light, `ember` → dark).

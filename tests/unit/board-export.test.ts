@@ -183,13 +183,13 @@ describe('static board export', () => {
   test('uses one board snapshot when state changes while export collection awaits', async () => {
     const boardId = canvasState.activeBoardId;
     if (!boardId) throw new Error('Expected an active board.');
-    canvasState.setTheme('dark');
+    canvasState.setTheme('harbor');
     const before = canvasState.getLayout();
     const [from, to] = before.nodes;
     if (!from || !to) throw new Error('Expected at least two nodes.');
 
     const pending = buildBoardExport(boardId, false);
-    canvasState.setTheme('light');
+    canvasState.setTheme('daylight');
     const edgeId = 'edge-added-while-export-awaits';
     expect(canvasState.addEdge({ id: edgeId, from: from.id, to: to.id, type: 'relation' })).toBe(true);
 
@@ -202,7 +202,7 @@ describe('static board export', () => {
     expect((JSON.parse(boardJson ?? '{}') as { edges: unknown[] }).edges).toHaveLength(before.edges.length);
 
     canvasState.removeEdge(edgeId);
-    canvasState.setTheme('dark');
+    canvasState.setTheme('harbor');
   });
 
   test('renders readable tables and preserves the display content of plain node types', async () => {

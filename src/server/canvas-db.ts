@@ -48,7 +48,7 @@ const SCHEMA_VERSION = 2;
 
 export type CanvasTheme = CanvasThemeName;
 
-export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'dark'): CanvasTheme {
+export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'harbor'): CanvasTheme {
   return normalizeCanvasThemeName(value, fallback);
 }
 

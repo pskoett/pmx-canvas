@@ -278,7 +278,7 @@ Server options:
   --log-file=PATH  Daemon log file (default: ./.pmx-canvas/daemon-${port}.log)
   --pid-file=PATH  Optional daemon PID file (default: ./.pmx-canvas/daemon-${port}.pid)
   --wait-ms=MS   Health-check wait budget for daemon mode (default: 10000)
-  --theme=THEME  Theme: dark (default), light, high-contrast, midnight, sepia, arctic, ember, forest, volt
+  --theme=THEME  Theme: harbor (default), daylight, high-contrast, midnight, sepia, arctic, ember, forest, volt
   --webview-automation        Start a headless Bun.WebView automation session for /workbench
   --webview-backend=BACKEND   Bun.WebView backend: chrome or webkit
   --webview-width=PX          Automation WebView width (default: 1280)

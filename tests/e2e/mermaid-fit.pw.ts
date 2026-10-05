@@ -56,7 +56,7 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   const svg = frame.locator('.mermaid-diagram > svg');
   await expect(svg).toBeVisible();
 
-  for (const theme of ['dark', 'light']) {
+  for (const theme of ['harbor', 'daylight']) {
     await page.getByRole('button', { name: 'Choose theme' }).click();
     await page
       .locator('.toolbar-menu')
@@ -136,7 +136,7 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   await page.keyboard.press('Escape');
 
   // The same URL opened top-level is the existing Open as site 100% route.
-  await page.goto(`/api/canvas/surface/${id}?theme=light`);
+  await page.goto(`/api/canvas/surface/${id}?theme=daylight`);
   const standalone = page.locator('.mermaid-diagram > svg');
   await expect(standalone).toBeVisible();
   const site = await geometry(standalone);

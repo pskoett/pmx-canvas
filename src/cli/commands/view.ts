@@ -179,7 +179,7 @@ cmd(
   [
     'pmx-canvas serve',
     'pmx-canvas serve --port=8080 --no-open',
-    'pmx-canvas serve --demo --theme=light',
+    'pmx-canvas serve --demo --theme=daylight',
     'pmx-canvas --no-open --webview-automation',
   ],
   async (_args) => {

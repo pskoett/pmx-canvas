@@ -68,7 +68,7 @@ async function clearCanvas(request: APIRequestContext): Promise<void> {
   await request.post('/api/canvas/ax/policy', { data: { scope: null }, headers: { 'x-pmx-workbench': '1' } });
   await request.post('/api/canvas/clear', { headers: { 'x-pmx-workbench': '1' } });
   await request.post('/api/canvas/context-pins', { data: { nodeIds: [] }, headers: { 'x-pmx-workbench': '1' } });
-  await request.post('/api/canvas/theme', { data: { theme: 'dark' }, headers: { 'x-pmx-workbench': '1' } });
+  await request.post('/api/canvas/theme', { data: { theme: 'harbor' }, headers: { 'x-pmx-workbench': '1' } });
 }
 
 async function currentCanvasState(request: APIRequestContext): Promise<{
@@ -1337,7 +1337,7 @@ test('opens an html node as a standalone site with the current theme', async ({ 
   });
 
   await request.post('/api/canvas/theme', {
-    data: { theme: 'light' },
+    data: { theme: 'daylight' },
   });
 
   await page.goto('/workbench');
@@ -1364,8 +1364,8 @@ test('opens an html node as a standalone site with the current theme', async ({ 
   const popup = await popupPromise;
 
   // Same stable surface URL the in-canvas iframe loads — one render path.
-  await expect(popup).toHaveURL(/\/api\/canvas\/surface\/.*theme=light/);
-  await expect(popup.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(popup).toHaveURL(/\/api\/canvas\/surface\/.*theme=daylight/);
+  await expect(popup.locator('html')).toHaveAttribute('data-theme', 'daylight');
   await expect(popup.getByText('Standalone surface render')).toBeVisible();
   await popup.close();
 });
@@ -2335,7 +2335,7 @@ test('html presentation nodes live-update theme inside sandboxed iframes', async
   await expect(htmlNode.frameLocator('iframe').getByText('Theme sentinel')).toBeVisible();
 
   const before = await htmlNode.frameLocator('iframe').locator('#theme-bg').textContent();
-  await selectTheme(page, 'Light');
+  await selectTheme(page, 'Daylight');
 
   await expect.poll(async () => htmlNode.frameLocator('iframe').locator('#theme-bg').textContent()).not.toBe(before);
 });
@@ -3037,7 +3037,7 @@ test('dark bar-chart viewer keeps tooltip without the bright hover cursor overla
   });
   const created = (await createResponse.json()) as { url: string };
 
-  await page.goto(`${created.url}&theme=dark`);
+  await page.goto(`${created.url}&theme=harbor`);
 
   const firstBar = page.locator('.recharts-bar-rectangle').first();
   await expect(firstBar).toBeVisible();
@@ -3619,12 +3619,12 @@ test('light theme marks context-pinned nodes in its own pin blue', async ({ page
 
   await page.goto('/workbench');
   // Switch to light theme through the real toolbar control so the choice is
-  // persisted server-side. A raw setAttribute('data-theme','light') is not
+  // persisted server-side. A raw setAttribute('data-theme','daylight') is not
   // persisted, so a later SSE round-trip (e.g. the pin below now also flips
   // the node's effective pinned flag) would re-apply the server's stored
   // theme and clobber it — flaking this assertion.
-  await selectTheme(page, 'Light');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await selectTheme(page, 'Daylight');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
 
   const note = page.locator('.canvas-node').filter({ hasText: 'Light theme pin' });
   await expect(note).toHaveCount(1);
@@ -3663,9 +3663,9 @@ test('annotations use theme contrast colors and can be erased', async ({ page, r
   await expect(annotation).toHaveCSS('stroke', 'rgb(244, 239, 230)');
 
   await page.evaluate(() => {
-    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.setAttribute('data-theme', 'daylight');
   });
-  await expect(annotation).toHaveCSS('stroke', 'rgb(8, 21, 36)');
+  await expect(annotation).toHaveCSS('stroke', 'rgb(11, 23, 38)');
 
   await pickAnnotateTool(page, 'Eraser');
   // World (160,120) renders at region origin (rail 52px, bar 44px) + world.
@@ -3722,24 +3722,24 @@ test('can start pen and text annotations over nodes', async ({ page, request }) 
 
 test('annotation toolbar actions preserve the current light theme', async ({ page }) => {
   await page.goto('/workbench');
-  await selectTheme(page, 'Light');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await selectTheme(page, 'Daylight');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
 
   await pickAnnotateTool(page, 'Draw (A)');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
   await expect(page.getByRole('button', { name: 'Draw (A)' })).toHaveAttribute('aria-pressed', 'true');
   await pickAnnotateTool(page, 'Draw (A)');
   await expect(page.getByRole('button', { name: 'Draw (A)' })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
 
   await pickAnnotateTool(page, 'Eraser');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
 });
 
 test('theme selection persists for fresh browser sessions', async ({ page, request, context }) => {
   await page.goto('/workbench');
-  await selectTheme(page, 'Light');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await selectTheme(page, 'Daylight');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
 
   await expect
     .poll(async () => {
@@ -3747,15 +3747,15 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
       const body = (await response.json()) as { theme?: string };
       return body.theme;
     })
-    .toBe('light');
+    .toBe('daylight');
 
   const secondPage = await context.newPage();
   await secondPage.goto('/workbench');
-  await expect(secondPage.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(secondPage.locator('html')).toHaveAttribute('data-theme', 'daylight');
   await secondPage.close();
 
-  await selectTheme(page, 'Dark');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await selectTheme(page, 'Harbor');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'harbor');
 
   await expect
     .poll(async () => {
@@ -3763,11 +3763,11 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
       const body = (await response.json()) as { theme?: string };
       return body.theme;
     })
-    .toBe('dark');
+    .toBe('harbor');
 
   const thirdPage = await context.newPage();
   await thirdPage.goto('/workbench');
-  await expect(thirdPage.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(thirdPage.locator('html')).toHaveAttribute('data-theme', 'harbor');
   await thirdPage.close();
 
   // A NEW named theme must survive the same round-trip: the client whitelist
@@ -4180,11 +4180,11 @@ test('?theme= session override themes one panel without touching the server-glob
   page,
   request,
 }) => {
-  await page.goto('/workbench?theme=light');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto('/workbench?theme=daylight');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
   // The server-global theme is untouched — every other client still gets dark.
   const shared = (await request.get('/api/canvas/theme').then((r) => r.json())) as { theme?: string };
-  expect(shared.theme).toBe('dark');
+  expect(shared.theme).toBe('harbor');
 
   // An explicit pick from the picker ends the override and saves globally.
   await selectTheme(page, 'Ember');
@@ -4197,9 +4197,9 @@ test('?theme= session override themes one panel without touching the server-glob
 test('?theme=auto follows the host color scheme live', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/workbench?theme=auto');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
   await page.emulateMedia({ colorScheme: 'dark' });
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'harbor');
 });
 
 test('theme menu opens anchored to the theme button, not the toolbar edge (Finding T)', async ({ page }) => {

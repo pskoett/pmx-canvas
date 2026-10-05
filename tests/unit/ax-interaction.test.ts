@@ -33,7 +33,7 @@ function makeManager(node: CanvasNodeState | undefined) {
     getNode: (id) => (node && node.id === id ? node : undefined),
     getLayout: () => ({
       viewport: { x: 0, y: 0, scale: 1 },
-      theme: 'dark',
+      theme: 'harbor',
       nodes: [...nodes.values()],
       edges: [...edges.values()],
       annotations: [],

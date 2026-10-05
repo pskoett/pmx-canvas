@@ -76,7 +76,7 @@ export function initSessionThemeOverride(apply: (theme: CanvasThemeName) => void
   }
   schemeQuery = window.matchMedia('(prefers-color-scheme: light)');
   schemeListener = () => {
-    if (active && schemeQuery) apply(schemeQuery.matches ? 'light' : 'dark');
+    if (active && schemeQuery) apply(schemeQuery.matches ? 'daylight' : 'harbor');
   };
   schemeListener();
   schemeQuery.addEventListener('change', schemeListener);

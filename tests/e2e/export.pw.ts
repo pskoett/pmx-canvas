@@ -106,7 +106,10 @@ for (const scheme of ['light', 'dark']) {
     request,
   }, testInfo) => {
     await request.post('/api/canvas/clear', { headers: HUMAN });
-    await request.post('/api/canvas/theme', { headers: HUMAN, data: { theme: scheme } });
+    await request.post('/api/canvas/theme', {
+      headers: HUMAN,
+      data: { theme: scheme === 'light' ? 'daylight' : 'harbor' },
+    });
     const markdown = [
       '# Release review',
       'A readable summary with **clear emphasis**, `inline code`, and enough space to scan.',

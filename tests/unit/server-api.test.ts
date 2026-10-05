@@ -250,7 +250,7 @@ describe('canvas server HTTP API', () => {
     intentRegistry.reset();
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
-      canvasState.setTheme('dark');
+      canvasState.setTheme('harbor');
     });
     canvasState.clearAllSnapshots();
     mutationHistory.reset();
@@ -596,7 +596,7 @@ describe('canvas server HTTP API', () => {
     expect(node?.data.content).toBe(mermaidSource);
 
     // The surface serves the ESCAPED source plus the renderer bundle script.
-    const res = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?theme=dark`);
+    const res = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?theme=harbor`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
@@ -607,7 +607,7 @@ describe('canvas server HTTP API', () => {
 
     // srcdoc-mode fetches ask for inlined assets: hosts that block sub-frame
     // documents block the script subresource too, so the renderer is embedded.
-    const inline = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?theme=dark&inline-assets=1`);
+    const inline = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?theme=harbor&inline-assets=1`);
     expect(inline.status).toBe(200);
     const inlineBody = await inline.text();
     expect(inlineBody).toContain('<pre class="mermaid-source"');
@@ -1488,7 +1488,7 @@ describe('canvas server HTTP API', () => {
       pinned: false,
       data: { title: 'Doc', html: '<main>Surface body</main>' },
     });
-    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-html?theme=light`);
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-html?theme=daylight`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
@@ -1499,7 +1499,7 @@ describe('canvas server HTTP API', () => {
     // Theme tokens are INLINED (not linked) so srcdoc-rendered surfaces in
     // nested-iframe hosts stay styled without a subresource load.
     expect(body).toContain('data-pmx-surface-theme');
-    expect(body).toContain('data-theme="light"');
+    expect(body).toContain('data-theme="daylight"');
     // The standalone tab title falls back to the node title (Bug #35) so the
     // browser tab shows "Doc" instead of the raw surface URL.
     expect(body).toContain('<title>Doc</title>');
@@ -1533,7 +1533,7 @@ describe('canvas server HTTP API', () => {
     await fetch(`${baseUrl}/api/canvas/theme`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme: 'dark' }),
+      body: JSON.stringify({ theme: 'harbor' }),
     });
   });
 
@@ -2632,12 +2632,12 @@ describe('canvas server HTTP API', () => {
       pinned: false,
       data: { viewerType: 'json-render', spec: { root: 'x', elements: {} } },
     });
-    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-jsonrender?theme=dark`, { redirect: 'manual' });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-jsonrender?theme=harbor`, { redirect: 'manual' });
     expect(res.status).toBe(302);
     const location = res.headers.get('location') ?? '';
     expect(location).toContain('/api/canvas/json-render/view');
     expect(location).toContain('nodeId=surface-jsonrender');
-    expect(location).toContain('theme=dark');
+    expect(location).toContain('theme=harbor');
     // #65: "Open as site" is a standalone tab → display=site (fills the viewport).
     expect(location).toContain('display=site');
   });
@@ -6014,10 +6014,10 @@ describe('canvas server HTTP API', () => {
     const ok = await jsonRequest<{ ok: boolean; opened: boolean; url: string }>('/api/canvas/open-external', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodeId: node.id, url: `${surfaceUrl}?theme=light` }),
+      body: JSON.stringify({ nodeId: node.id, url: `${surfaceUrl}?theme=daylight` }),
     });
     expect(ok.ok).toBe(true);
-    expect(ok.url).toBe(`${surfaceUrl}?theme=light`);
+    expect(ok.url).toBe(`${surfaceUrl}?theme=daylight`);
     expect(typeof ok.opened).toBe('boolean'); // false under PMX_CANVAS_DISABLE_BROWSER_OPEN
 
     const defaultTheme = await jsonRequest<{ ok: boolean; url: string }>('/api/canvas/open-external', {
@@ -6025,7 +6025,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodeId: node.id }),
     });
-    expect(defaultTheme.url).toBe(`${surfaceUrl}?theme=dark`);
+    expect(defaultTheme.url).toBe(`${surfaceUrl}?theme=harbor`);
 
     const missing = await fetch(`${baseUrl}/api/canvas/open-external`, {
       method: 'POST',
@@ -6043,7 +6043,7 @@ describe('canvas server HTTP API', () => {
     const wrongNodeUrl = await fetch(`${baseUrl}/api/canvas/open-external`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodeId: node.id, url: '/api/canvas/surface/other?theme=light' }),
+      body: JSON.stringify({ nodeId: node.id, url: '/api/canvas/surface/other?theme=daylight' }),
     });
     expect(wrongNodeUrl.status).toBe(400);
   });
@@ -6096,7 +6096,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ nodeId: graph.id }),
     });
     expect(allowed.ok).toBe(true);
-    expect(allowed.url).toBe(`/api/canvas/surface/${graph.id}?theme=dark`);
+    expect(allowed.url).toBe(`/api/canvas/surface/${graph.id}?theme=harbor`);
     // PMX_CANVAS_DISABLE_BROWSER_OPEN=1 keeps the real system browser out of tests.
     expect(allowed.opened).toBe(false);
     await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${graph.id}`, { method: 'DELETE' });
@@ -6152,15 +6152,15 @@ describe('canvas server HTTP API', () => {
     const updated = await jsonRequest<{ ok: boolean; theme: string }>('/api/canvas/theme', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme: 'light' }),
+      body: JSON.stringify({ theme: 'daylight' }),
     });
-    expect(updated).toEqual({ ok: true, theme: 'light' });
+    expect(updated).toEqual({ ok: true, theme: 'daylight' });
 
     const current = await jsonRequest<{ ok: boolean; theme: string }>('/api/canvas/theme');
-    expect(current).toEqual({ ok: true, theme: 'light' });
+    expect(current).toEqual({ ok: true, theme: 'daylight' });
 
     const state = await jsonRequest<{ theme?: string }>('/api/canvas/state');
-    expect(state.theme).toBe('light');
+    expect(state.theme).toBe('daylight');
   });
 
   test('accepts edge style and animation flags over HTTP', async () => {
@@ -6766,7 +6766,7 @@ describe('canvas server HTTP API', () => {
     expect(jsonViewer.headers.get('content-type')).toContain('text/html');
     expect(await jsonViewer.text()).toContain('Ops Dashboard');
 
-    const darkJsonViewer = await fetch(`${baseUrl}${jsonRender.url}&theme=dark`);
+    const darkJsonViewer = await fetch(`${baseUrl}${jsonRender.url}&theme=harbor`);
     expect(darkJsonViewer.ok).toBe(true);
     const darkJsonHtml = await darkJsonViewer.text();
     expect(darkJsonHtml).toContain('"dark"');

@@ -1,5 +1,5 @@
 export declare function parseRecordOptions(flags: Record<string, string | boolean>): {
-    theme: "dark" | "light" | "high-contrast" | "midnight" | "sepia" | "arctic" | "ember" | "forest" | "volt" | undefined;
+    theme: "harbor" | "daylight" | "high-contrast" | "midnight" | "sepia" | "arctic" | "ember" | "forest" | "volt" | undefined;
     present: boolean;
     tourFile: string | undefined;
     chromePath: string | undefined;

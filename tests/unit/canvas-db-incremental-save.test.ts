@@ -19,7 +19,7 @@ let boardId: string;
 function makeState(nodeCount: number, htmlBytes = 64): PersistedCanvasState {
   return {
     version: 1,
-    theme: 'dark',
+    theme: 'harbor',
     viewport: { x: 0, y: 0, scale: 1 },
     nodes: Array.from({ length: nodeCount }, (_, i) => ({
       id: `n${i}`,

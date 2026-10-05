@@ -192,7 +192,7 @@ export function resetCanvasForTests(workspaceRoot: string): void {
   });
   mutationHistory.reset();
   canvasState.setWorkspaceRoot(workspaceRoot);
-  canvasState.setTheme('dark');
+  canvasState.setTheme('harbor');
 }
 
 /**

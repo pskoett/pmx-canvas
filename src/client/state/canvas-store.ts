@@ -40,7 +40,7 @@ export const reconnectAttempt = signal<number>(0);
 export const reconnectDelay = signal<number>(0);
 export const sessionId = signal<string>('');
 export const traceEnabled = signal<boolean>(false);
-export const canvasTheme = signal<string>('dark');
+export const canvasTheme = signal<string>('harbor');
 export const hasInitialServerLayout = signal<boolean>(false);
 // Compact AX state snapshot (work items, focus, …) mirrored from the server and
 // pushed into AX-enabled surfaces so authored boards can render the live queue.

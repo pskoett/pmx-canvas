@@ -7,25 +7,28 @@ import {
 } from '../../src/server/html-surface.ts';
 
 describe('normalizeSurfaceTheme', () => {
-  test('accepts every registered theme, defaults to dark', () => {
-    expect(normalizeSurfaceTheme('light')).toBe('light');
+  test('accepts every registered theme, defaults to harbor', () => {
+    expect(normalizeSurfaceTheme('daylight')).toBe('daylight');
     expect(normalizeSurfaceTheme('high-contrast')).toBe('high-contrast');
-    expect(normalizeSurfaceTheme('dark')).toBe('dark');
+    expect(normalizeSurfaceTheme('harbor')).toBe('harbor');
+    // The pre-wave-0 names are gone, not aliased.
+    expect(normalizeSurfaceTheme('dark')).toBe('harbor');
+    expect(normalizeSurfaceTheme('light')).toBe('harbor');
     // The named themes added in 0.4.x route through the shared registry.
     expect(normalizeSurfaceTheme('midnight')).toBe('midnight');
     expect(normalizeSurfaceTheme('sepia')).toBe('sepia');
     expect(normalizeSurfaceTheme('arctic')).toBe('arctic');
     expect(normalizeSurfaceTheme('ember')).toBe('ember');
     expect(normalizeSurfaceTheme('forest')).toBe('forest');
-    expect(normalizeSurfaceTheme('nonsense')).toBe('dark');
-    expect(normalizeSurfaceTheme(null)).toBe('dark');
+    expect(normalizeSurfaceTheme('nonsense')).toBe('harbor');
+    expect(normalizeSurfaceTheme(null)).toBe('harbor');
   });
 });
 
 describe('buildHtmlSurfaceDocument inline theme css', () => {
   test('inlines supplied stylesheet content instead of the link (srcdoc embeds)', () => {
     const doc = buildHtmlSurfaceDocument('<main>Hi</main>', {
-      theme: 'dark',
+      theme: 'harbor',
       inlineThemeCss: ':root { --c-bg: #081524; }',
     });
     expect(doc).toContain('<style data-pmx-surface-theme>:root { --c-bg: #081524; }</style>');
@@ -48,12 +51,12 @@ describe('buildMermaidSurfaceHtml', () => {
 describe('buildHtmlSurfaceDocument', () => {
   test('links the same-origin theme stylesheet and sets data-theme on a full document', () => {
     const doc = buildHtmlSurfaceDocument('<!doctype html><html><head><title>x</title></head><body>Hi</body></html>', {
-      theme: 'light',
+      theme: 'daylight',
       themeToken: 'theme-abc',
     });
     expect(doc).toContain(`<link rel="stylesheet" href="${SURFACE_THEME_STYLESHEET}">`);
-    expect(doc).toContain('data-theme="light"');
-    expect(doc).toContain('data-pmx-canvas-theme="light"');
+    expect(doc).toContain('data-theme="daylight"');
+    expect(doc).toContain('data-pmx-canvas-theme="daylight"');
     expect(doc).toContain('data-pmx-canvas-theme-bridge');
     expect(doc).toContain('theme-update');
     expect(doc).toContain('theme-abc');
@@ -61,7 +64,7 @@ describe('buildHtmlSurfaceDocument', () => {
   });
 
   test('wraps a fragment into a full document', () => {
-    const doc = buildHtmlSurfaceDocument('<main>Report</main>', { theme: 'dark' });
+    const doc = buildHtmlSurfaceDocument('<main>Report</main>', { theme: 'harbor' });
     expect(doc.startsWith('<!doctype html>')).toBe(true);
     expect(doc).toContain('<meta charset="utf-8">');
     expect(doc).toContain('<main>Report</main>');
@@ -70,11 +73,11 @@ describe('buildHtmlSurfaceDocument', () => {
 
   test('marks presentation mode + embeds exit token only when requested', () => {
     const review = buildHtmlSurfaceDocument('<!doctype html><html><head></head><body>Deck</body></html>', {
-      theme: 'dark',
+      theme: 'harbor',
       presentation: false,
     });
     const present = buildHtmlSurfaceDocument('<!doctype html><html><head></head><body>Deck</body></html>', {
-      theme: 'dark',
+      theme: 'harbor',
       presentation: true,
       presentationExitToken: 'presentation-xyz',
     });
@@ -86,11 +89,11 @@ describe('buildHtmlSurfaceDocument', () => {
   });
 
   test('injects the AX bridge only when enabled, with sanitized token + nodeId', () => {
-    const off = buildHtmlSurfaceDocument('<body>x</body>', { theme: 'dark' });
+    const off = buildHtmlSurfaceDocument('<body>x</body>', { theme: 'harbor' });
     expect(off).not.toContain('window.PMX_AX');
 
     const on = buildHtmlSurfaceDocument('<body>x</body>', {
-      theme: 'dark',
+      theme: 'harbor',
       axBridge: true,
       axToken: 'ax-abc',
       nodeId: 'node-1',
@@ -101,7 +104,7 @@ describe('buildHtmlSurfaceDocument', () => {
     expect(on).toContain('PMX_AX_NODE_ID = "node-1"');
 
     const evil = buildHtmlSurfaceDocument('<body>x</body>', {
-      theme: 'dark',
+      theme: 'harbor',
       axBridge: true,
       axToken: 'a</script><x>',
       nodeId: 'n',
@@ -110,13 +113,13 @@ describe('buildHtmlSurfaceDocument', () => {
   });
 
   test('injects a fallback <title> for a fragment when given a title', () => {
-    const doc = buildHtmlSurfaceDocument('<main>Report</main>', { theme: 'dark', title: 'Quarterly Dashboard' });
+    const doc = buildHtmlSurfaceDocument('<main>Report</main>', { theme: 'harbor', title: 'Quarterly Dashboard' });
     expect(doc).toContain('<title>Quarterly Dashboard</title>');
   });
 
   test('injects a fallback <title> into a full document head when the author HTML has none', () => {
     const doc = buildHtmlSurfaceDocument('<html><head><meta charset="utf-8"></head><body>full</body></html>', {
-      theme: 'dark',
+      theme: 'harbor',
       title: 'Full Doc Title',
     });
     expect(doc).toContain('<title>Full Doc Title</title>');
@@ -124,7 +127,7 @@ describe('buildHtmlSurfaceDocument', () => {
 
   test('injects a fallback <title> even when author HTML only has a nested SVG <title>', () => {
     const fragment = buildHtmlSurfaceDocument('<svg><title>icon label</title><rect /></svg>', {
-      theme: 'dark',
+      theme: 'harbor',
       title: 'Node Title',
     });
     expect(fragment).toContain('<title>Node Title</title>');
@@ -132,7 +135,7 @@ describe('buildHtmlSurfaceDocument', () => {
 
     const fullDoc = buildHtmlSurfaceDocument(
       '<html><head><meta charset="utf-8"></head><body><svg><title>icon</title></svg></body></html>',
-      { theme: 'dark', title: 'Doc Title' },
+      { theme: 'harbor', title: 'Doc Title' },
     );
     expect(fullDoc).toContain('<title>Doc Title</title>');
   });
@@ -140,26 +143,26 @@ describe('buildHtmlSurfaceDocument', () => {
   test('does not override an author-provided <title>', () => {
     const doc = buildHtmlSurfaceDocument(
       '<!doctype html><html><head><title>Author Title</title></head><body>x</body></html>',
-      { theme: 'dark', title: 'Node Title' },
+      { theme: 'harbor', title: 'Node Title' },
     );
     expect(doc).toContain('<title>Author Title</title>');
     expect(doc).not.toContain('<title>Node Title</title>');
   });
 
   test('omits a <title> when no title is provided', () => {
-    const doc = buildHtmlSurfaceDocument('<main>x</main>', { theme: 'dark' });
+    const doc = buildHtmlSurfaceDocument('<main>x</main>', { theme: 'harbor' });
     expect(doc).not.toContain('<title>');
   });
 
   test('escapes a title so it cannot break out of the <title> element', () => {
-    const doc = buildHtmlSurfaceDocument('<main>x</main>', { theme: 'dark', title: '<script>x</script> & Co' });
+    const doc = buildHtmlSurfaceDocument('<main>x</main>', { theme: 'harbor', title: '<script>x</script> & Co' });
     expect(doc).toContain('<title>&lt;script&gt;x&lt;/script&gt; &amp; Co</title>');
     expect(doc).not.toContain('<title><script>x</script>');
   });
 
   test('sanitizes caller tokens so they cannot break out of the inline script', () => {
     const doc = buildHtmlSurfaceDocument('<body>x</body>', {
-      theme: 'dark',
+      theme: 'harbor',
       themeToken: 'abc</script><script>alert(1)</script>',
       presentation: true,
       presentationExitToken: 'tok"; evil()',

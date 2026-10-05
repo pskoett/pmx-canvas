@@ -16,6 +16,7 @@ import { startSession } from '../state/session-store';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
+import { canvasThemeScheme } from '../../shared/themes.js';
 import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
 import { activeBoardId, openBoard } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
@@ -269,11 +270,11 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
         },
       },
       {
-        label: 'Toggle theme (dark/light)',
+        label: 'Toggle theme (Harbor/Daylight)',
         icon: IconMoon,
         iconTone: 'muted',
         action: () => {
-          const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
+          const next = canvasThemeScheme(canvasTheme.value) === 'dark' ? 'daylight' : 'harbor';
           // An explicit pick ends any ?theme= session override, same as the
           // toolbar picker — otherwise the session stays sticky-overridden.
           clearThemeOverride();

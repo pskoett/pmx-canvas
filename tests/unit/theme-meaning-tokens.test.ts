@@ -12,7 +12,7 @@ const globalCss = readFileSync(resolve(import.meta.dir, '../../src/client/theme/
 
 const THEME_SELECTORS = [
   ':root',
-  ':root[data-theme="light"]',
+  ':root[data-theme="daylight"]',
   ':root[data-theme="high-contrast"]',
   ':root[data-theme="midnight"]',
   ':root[data-theme="sepia"]',

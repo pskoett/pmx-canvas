@@ -182,8 +182,8 @@ function surfaceIframe(): HTMLIFrameElement {
 describe('useSurfaceFrame', () => {
   test('src mode passes the URL through', () => {
     iframeMode.value = 'src';
-    render(<SurfaceProbe url="/api/canvas/surface/n1?theme=dark" />);
-    expect(surfaceIframe().getAttribute('src')).toBe('/api/canvas/surface/n1?theme=dark');
+    render(<SurfaceProbe url="/api/canvas/surface/n1?theme=harbor" />);
+    expect(surfaceIframe().getAttribute('src')).toBe('/api/canvas/surface/n1?theme=harbor');
     expect(surfaceIframe().hasAttribute('srcdoc')).toBe(false);
   });
 
@@ -203,10 +203,10 @@ describe('useSurfaceFrame', () => {
       });
     }) as typeof fetch;
 
-    render(<SurfaceProbe url="/api/canvas/surface/n1?theme=dark&v=abc" />);
+    render(<SurfaceProbe url="/api/canvas/surface/n1?theme=harbor&v=abc" />);
     await flush();
 
-    expect(calls).toEqual(['/api/canvas/surface/n1?theme=dark&v=abc&inline-assets=1']);
+    expect(calls).toEqual(['/api/canvas/surface/n1?theme=harbor&v=abc&inline-assets=1']);
     expect(surfaceIframe().getAttribute('srcdoc')).toContain('inline surface');
     expect(surfaceIframe().hasAttribute('src')).toBe(false);
   });

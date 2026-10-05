@@ -68,8 +68,8 @@ test('feedback rail button opens a private draft and hands only entered fields t
 });
 
 for (const [theme, width] of [
-  ['dark', 1280],
-  ['light', 390],
+  ['harbor', 1280],
+  ['daylight', 390],
 ] as const) {
   test(`feedback and agent menus use the ${theme} theme at ${width}px`, async ({ browser, request }, testInfo) => {
     await request.post('/api/canvas/theme', { data: { theme } });
@@ -114,7 +114,7 @@ for (const [theme, width] of [
       for (const source of ['menu-author', 'menu-reviewer']) {
         await request.post('/api/canvas/ax/presence', { data: { source, attached: false } });
       }
-      await request.post('/api/canvas/theme', { data: { theme: 'dark' } });
+      await request.post('/api/canvas/theme', { data: { theme: 'harbor' } });
     }
   });
 }

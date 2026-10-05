@@ -456,7 +456,7 @@ Use the visible workbench when the human is actively curating layout:
 - Embedding hosts can open `/workbench?theme=<name>` (or `?theme=auto` to follow the host's
   light/dark appearance) for a session-local default theme that never changes the server-global
   theme other clients see; an explicit pick from the theme menu ends the override. The bundled
-  Copilot extension opens its panel with `?theme=light`.
+  Copilot extension opens its panel with `?theme=daylight`.
 
 After changing files under `src/client/`, rebuild with `bun run build` before manual browser
 verification.

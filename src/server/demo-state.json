@@ -3134,7 +3134,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 41,
+      "contentRevision": 46,
       "kind": "markdown",
       "title": "Sprint 41 — canvas polish",
       "content": "Three nodes, one frame. Moving the frame moves the children; ungrouping leaves them exactly where they are.\n\n- Group children keep their own positions by default\n- `childLayout` opts into auto-packing\n- The frame is stored as `data.children` on the group",
@@ -3174,7 +3174,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 42,
+      "contentRevision": 47,
       "kind": "status",
       "title": "Sprint state",
       "content": null,
@@ -3215,7 +3215,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 43,
+      "contentRevision": 48,
       "kind": "trace",
       "title": "canvas_group",
       "content": null,
@@ -3256,7 +3256,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 44,
+      "contentRevision": 45,
       "kind": "group",
       "title": "Sprint 41",
       "content": null,
@@ -3292,7 +3292,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 45,
+      "contentRevision": 49,
       "kind": "markdown",
       "title": "⑦ HTML primitives",
       "content": "All 21 generated communication surfaces — self-contained sandboxed documents, no build step.",
@@ -3377,7 +3377,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 46,
+      "contentRevision": 50,
       "kind": "html",
       "title": "How should the demo board be generated?",
       "content": "Side-by-side options with tradeoffs, pros, cons, and code or evidence snippets.",
@@ -3487,7 +3487,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 47,
+      "contentRevision": 51,
       "kind": "html",
       "title": "Demo board rebuild",
       "content": "Implementation plan with milestones, data flow, code checkpoints, and risks.",
@@ -3566,7 +3566,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 48,
+      "contentRevision": 52,
       "kind": "html",
       "title": "Review — auto-fit floor",
       "content": "Annotated PR/code review sheet with severity-colored findings and diff excerpts.",
@@ -3654,7 +3654,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 49,
+      "contentRevision": 53,
       "kind": "html",
       "title": "PR — replace the demo board",
       "content": "Reviewer-ready PR narrative with motivation, before/after, file tour, test plan, and rollout notes.",
@@ -3766,7 +3766,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 50,
+      "contentRevision": 54,
       "kind": "html",
       "title": "Canvas server map",
       "content": "Module or architecture map with boxes, relationships, entry points, and hot paths.",
@@ -3895,7 +3895,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 51,
+      "contentRevision": 55,
       "kind": "html",
       "title": "Walkthrough — creating a node",
       "content": "Guided code-path map with modules, ordered file steps, snippets, key files, and gotchas.",
@@ -3998,7 +3998,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 52,
+      "contentRevision": 56,
       "kind": "html",
       "title": "Board typography directions",
       "content": "Visual design directions, tokens, swatches, type samples, and rationale.",
@@ -4081,7 +4081,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 53,
+      "contentRevision": 57,
       "kind": "html",
       "title": "Node titlebar states",
       "content": "Contact sheet for component variants, states, sizes, and accessibility notes.",
@@ -4179,7 +4179,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 54,
+      "contentRevision": 58,
       "kind": "html",
       "title": "Node expand transition",
       "content": "Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config.",
@@ -4265,7 +4265,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 55,
+      "contentRevision": 59,
       "kind": "html",
       "title": "Release pipeline",
       "content": "Clickable flowchart for pipelines, user journeys, process diagrams, and failure paths.",
@@ -4360,7 +4360,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 56,
+      "contentRevision": 60,
       "kind": "html",
       "title": "Why a spatial canvas",
       "content": "Arrow-key HTML deck with sections, speaker notes, and copyable JSON payload. Slides: Chat is a queue, work is a graph, The canvas is the agent’s working memory, Pinning is the steering wheel.",
@@ -4478,7 +4478,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 57,
+      "contentRevision": 61,
       "kind": "html",
       "title": "PMX Canvas 0.4.7 briefing",
       "content": "PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata. Slides: Where we are, What changed in 0.4.7, Next.",
@@ -4643,7 +4643,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 58,
+      "contentRevision": 62,
       "kind": "html",
       "title": "Figures — the collaboration loop",
       "content": "Inline SVG figure sheet with captions and per-figure SVG copy/export controls.",
@@ -4749,7 +4749,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 59,
+      "contentRevision": 63,
       "kind": "html",
       "title": "How context pins work",
       "content": "Readable explainer with TLDR, collapsible steps, annotated snippets, FAQ, and glossary.",
@@ -4870,7 +4870,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 60,
+      "contentRevision": 64,
       "kind": "html",
       "title": "Blank ext-app tiles on WebKit",
       "content": "Post-incident report with impact metrics, minute-by-minute timeline, root cause, log excerpts, and action checklist.",
@@ -4956,7 +4956,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 61,
+      "contentRevision": 65,
       "kind": "html",
       "title": "Weekly canvas status",
       "content": "Skimmable report with metrics, shipped/slipped lists, blockers, and next actions.",
@@ -5042,7 +5042,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 62,
+      "contentRevision": 66,
       "kind": "html",
       "title": "Post-0.4.7 triage",
       "content": "Draggable Now/Next/Later/Cut board with copy-as-markdown export.",
@@ -5134,7 +5134,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 63,
+      "contentRevision": 67,
       "kind": "html",
       "title": "Canvas feature flags",
       "content": "Form-like editor for flags or structured config with dependency warnings and copy-diff export.",
@@ -5203,7 +5203,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 64,
+      "contentRevision": 68,
       "kind": "html",
       "title": "Board summary prompt",
       "content": "Side-by-side prompt/template editor with live variable previews and copy export.",
@@ -5256,7 +5256,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 65,
+      "contentRevision": 69,
       "kind": "html",
       "title": "Agent board",
       "content": "Live agent work board: hand the agent tasks, watch status, steer, and run bounded task loops.",
@@ -5337,7 +5337,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 77,
+      "contentRevision": 85,
       "kind": "html",
       "title": "Release flow",
       "content": "HTML primitive: ax-flow\nLive task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board.\nRelease flow PMX HTML primitive / ax-flow Release flow Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board. Copy JSON Copy prompt AX bridge unavailable This flow is not running as an AX-enabled canvas node, so its controls are inert. Release flow Each step is a canvas AX work item. Materialize drops the same flow onto the board as real nodes. loops back to step 1 · max 3 runs Run the flow Queue every step A step is queued once — after that its status control advances it (todo → in-progress → done). or run the whole flow as a bounded loop: max runs Start loop Steer Queue steering message Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent. Loop run 0 of 0 Each run is its own work item. When you mark the current run done , the surface opens the next run...",
@@ -5373,7 +5373,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 67,
+      "contentRevision": 71,
       "kind": "markdown",
       "title": "⑧ Agent at work",
       "content": "A task caught mid-flight: one work item per step, status chips on the nodes, controls that steer the agent.",
@@ -5454,7 +5454,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 78,
+      "contentRevision": 86,
       "kind": "markdown",
       "title": "1. Reproduce",
       "content": "Ran the publish gate 20× in a loop. Fails 3 in 20, always on the registry probe.",
@@ -5500,7 +5500,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 79,
+      "contentRevision": 87,
       "kind": "markdown",
       "title": "2. Fix",
       "content": "Retry the probe with backoff instead of failing the gate on the first timeout.",
@@ -5592,7 +5592,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 81,
+      "contentRevision": 83,
       "kind": "markdown",
       "title": "4. Ship",
       "content": "Land the patch, then watch the next three releases.",
@@ -5628,7 +5628,7 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 82,
+      "contentRevision": 88,
       "kind": "markdown",
       "title": "How to read this band",
       "content": "Each step is a real **AX work item**, so the chip on a step node is the\nagent’s live status — it moves as the agent works.\n\nThe buttons in each step footer steer it: **Start**, **Done** and\n**Blocked** write that step’s work item, which the agent reads back from\n`canvas://ax-work`.\n\nStep 2 is pinned, so `canvas://pinned-context` hands the agent the\nstep it is actually on.",
