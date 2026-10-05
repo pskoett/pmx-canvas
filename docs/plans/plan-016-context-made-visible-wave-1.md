@@ -1,0 +1,100 @@
+# Plan 016 — Context made visible (wave 1)
+
+**Status:** Slice 1a done (2026-10-05); 1b next.
+**Date:** 2026-10-05
+**Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
+Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
+[`NearPin`](../design/NearPin.dc.html), [`BoardPins`](../design/BoardPins.dc.html),
+[`Home`](../design/Home.dc.html) (Folders).
+
+## Done when (from design.md)
+
+From the board alone, a person can answer "did the agent read what I pinned, and is its copy
+current?" The evaluation in `docs/evals/` reads the same data.
+
+## What exists and what is missing
+
+| Need | Today | Gap |
+|---|---|---|
+| Who wrote a node | `createdBy` / `lastEditedBy` per node, per-board `contentRevision` (plan 014) | none |
+| What an agent read | `context_reads`: per read, which **pinned** ids were in the payload (plan 011) | every delivered node, and the content revision it had when delivered |
+| Who pinned a node | `context_pins (board_id, node_id)` | who, when, and an optional why |
+| Board pins | none | `board_pins`, brief tiers, `canvas_board pin/unpin` in all four layers |
+| Neighbours in the brief | titles only, in `canvas://pinned-context` / `spatial-context` | the brief carries them (title + summary, reason "near <pin>") |
+
+## Slices
+
+Each slice is its own commit and leaves the suite green. Design ships with its function: no mark
+appears before the data that backs it.
+
+### 1. Data: what was read, at which revision, and who pinned (no UI)
+
+Split in two: 1a (reads) is enough for read / not read / changed since read; 1b (pin attribution)
+adds "pinned by the agent".
+
+- **1a, done.** `context_reads` records every node whose serialized form was delivered (not just
+  pins) and its `contentRevision` at read time, in a `read_nodes` column. Same "delivered" rule as
+  plan 011 (a serialized node carrying the id; a bare id list or a title does not count). The reader
+  side reports every node-shaped id it delivered (`readNodeIds`, so an MCP server attached to a
+  daemon only posts the record); the server keeps the ids that are nodes on the read board and
+  stamps their revisions. `ax.reads.status` (`GET /api/canvas/ax/context-status`,
+  `canvas_ax_timeline { action: "read-status" }`, `PmxCanvas.getNodeReadStatus`) returns, per node,
+  the latest agent read: when, by whom, at which revision.
+- `context_pins` gains `pinned_by` (actor attribution, same shape as `createdBy`), `pinned_at` and an
+  optional `reason`. Pins made before this have an unknown pinner, not a guessed human.
+- One server read model, `nodeContextStatus(boardId)`: per node, last read (when, by whom, revision
+  read), current revision, pinned (by whom, when, why). Served over HTTP and SDK and MCP alongside
+  the existing context-reads surface (four layers in step); the workbench reads it through SSE.
+- **Check:** unit tests for delivered-all-nodes, revision capture, pin attribution through every
+  write path (workbench → human, agent writes → agent id/source), and the status model.
+
+### 2. Node marks: read, not read yet, changed since read, pinned by the agent, created, edited
+
+Built to `AgentContext.dc.html`: eye + "read" (hover: who, when); eye-off + "not read" on a pin the
+agent has not loaded since it was pinned; amber warn + "changed since read" when the current revision
+is newer than the revision read; violet dot on the pin badge when an agent pinned it (hover: why);
+"by <agent>" byline on agent-created nodes until a person edits them; violet bar + "edited" for the
+session, with "see change" opening the diff and undo.
+- **Check:** client tests per state; e2e at 600/1024/1920 that a pinned-then-changed node shows
+  "changed since read" after an agent read, and clears after the next read.
+
+### 3. After a session: the agent-activity lens and receipt
+
+The lens from `AgentContext.dc.html`: counts (read, created, edited, pinned) and the receipt rows
+with their actions (Unpin, Undo). Data from presence activity, revisions and slice 1.
+
+### 4. Near a pin: neighbours in the brief, and the near mark
+
+- The brief (`canvas://context`) carries each pin's neighbours (up to 5 within 600 px, nearest
+  first) as title + short summary, reason "near <pin title>", never full content; they share the
+  budget after pinned cards.
+- The `NearPin.dc.html` mark: dotted "near" chip, tethers on hovering a pin, the drag preview and
+  the single Updates entry that replaces "Neighborhood changed". "read" from slice 2 then also
+  covers neighbours honestly (title + summary delivered).
+
+### 5. Board pins
+
+Per vision move 0a and `BoardPins.dc.html`: `board_pins` table (board, who, when); `canvas_board`
+`pin`/`unpin` across PmxCanvas, HTTP, MCP and CLI; the tiered brief (active board's pins, then each
+pinned board's README + pinned cards, then discovery); the context chip counts "N cards · M boards";
+Home's pinned-boards section per `Home.dc.html`. Read status per board from slice 1.
+
+### 6. The curation evaluation
+
+`docs/evals/curation-effect.md`: one fixed task, run with the brief delivered on a curated and an
+uncurated board, scored on criteria written before the first run (vision Part 1, item 4). It reads
+the same `context_reads` data as slice 1 to confirm delivery before scoring effect. Running it
+needs the maintainer's real agent sessions; the decision rule is the vision's.
+
+## Out of wave 1
+
+- "Suggested by the agent" (dashed node, accept/reject): needs agent suggestions as a function
+  (vision move 3, wave 5). The drawing exists; it ships with that function.
+- Home Map and Graph (wave 2).
+
+## Defaults (change if the maintainer disagrees)
+
+- **Read by whom.** Any agent reader on that board counts; the mark shows the most recent reader
+  and time on hover. The workbench's own reads never count.
+- **Changed since read** compares against the most recent read of that node by any agent.
+- **Unknown pinner.** Existing pins show no agent dot; only pins attributed to an agent get it.

@@ -906,6 +906,11 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getContextReads(limit);
   }
 
+  /** Per node on a board: when an agent last read its content, who, and the content revision it read. */
+  getNodeReadStatus(board?: string): ReturnType<typeof canvasState.getNodeReadStatus> {
+    return canvasState.getNodeReadStatus(board ?? canvasState.activeBoardId);
+  }
+
   listWorkItems(): PmxAxWorkItem[] {
     return canvasState.getWorkItems();
   }

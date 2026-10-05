@@ -502,6 +502,10 @@ const axReadsRecordShape = {
   source: z.string().optional().describe('Transport label (default "api").'),
   pinnedNodeIds: z.array(z.string()).optional().describe('Pins at read time; defaults to the current pins.'),
   deliveredNodeIds: z.array(z.string()).describe('Pinned ids present in what the agent received.'),
+  readNodeIds: z
+    .array(z.string())
+    .optional()
+    .describe('Ids of every serialized node in what the agent received; defaults to deliveredNodeIds.'),
   bytes: z.number().int().nonnegative().describe('Size of what the agent received.'),
   boardId: z.string().nullable().optional().describe('Board that was read, captured before delivery.'),
 };
@@ -527,11 +531,34 @@ const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchem
         agentId: input.agentId ?? null,
         pinnedNodeIds: input.pinnedNodeIds ?? [...canvasState.contextPinnedNodeIds],
         deliveredNodeIds: input.deliveredNodeIds,
+        ...(input.readNodeIds ? { readNodeIds: input.readNodeIds } : {}),
         bytes: input.bytes,
       },
       input.boardId === undefined ? canvasState.activeBoardId : input.boardId,
     );
     return { ok: true, read };
+  },
+});
+
+const axReadsStatusShape = {
+  board: z.string().optional().describe('Board id; defaults to the open board.'),
+};
+const axReadsStatusSchema = z.looseObject(axReadsStatusShape);
+
+/** Per node: when an agent last read its content, who, and at which revision (vs the node's revision now). */
+const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchema>, Record<string, unknown>>({
+  name: 'ax.reads.status',
+  mutates: false,
+  input: axReadsStatusSchema,
+  inputShape: axReadsStatusShape,
+  http: {
+    method: 'GET',
+    path: '/api/canvas/ax/context-status',
+  },
+  handler: (input) => {
+    const boardId =
+      typeof input.board === 'string' && input.board.trim() ? input.board.trim() : canvasState.activeBoardId;
+    return { ok: true, boardId, nodes: canvasState.getNodeReadStatus(boardId) };
   },
 });
 
@@ -545,4 +572,5 @@ export const axTimelineOperations: Operation[] = [
   axCommandInvokeOperation,
   axReadsListOperation,
   axReadsRecordOperation,
+  axReadsStatusOperation,
 ];

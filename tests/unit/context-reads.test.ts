@@ -212,6 +212,49 @@ describe('context reads over HTTP', () => {
     });
   });
 
+  test('read status records each delivered node at its revision, so a later edit reads as changed since read', async () => {
+    const human = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
+    const create = async (title: string) =>
+      (
+        (await (
+          await fetch(`${baseUrl}/api/canvas/node`, {
+            method: 'POST',
+            headers: human,
+            body: JSON.stringify({ type: 'markdown', title, content: 'first' }),
+          })
+        ).json()) as { id: string }
+      ).id;
+    const noted = await create('Status note');
+    const other = await create('Unread note');
+    type Status = { nodes: Array<{ nodeId: string; lastReadBy: string; readRevision: number }> };
+    const status = async () => (await (await fetch(`${baseUrl}/api/canvas/ax/context-status`)).json()) as Status;
+    const revisionOf = async (id: string) =>
+      ((await (await fetch(`${baseUrl}/api/canvas/node/${id}`)).json()) as { contentRevision?: number })
+        .contentRevision ?? 0;
+
+    // The layout delivers every node's content, pinned or not; the workbench's own read never counts.
+    await fetch(`${baseUrl}/api/canvas/state`, { headers: { 'x-pmx-workbench': '1' } });
+    expect((await status()).nodes.some((entry) => entry.nodeId === noted)).toBe(false);
+    await fetch(`${baseUrl}/api/canvas/state`, { headers: { 'x-pmx-source': 'status-agent' } });
+    const first = (await status()).nodes.find((entry) => entry.nodeId === noted);
+    expect(first).toMatchObject({ lastReadBy: 'status-agent', readRevision: await revisionOf(noted) });
+    expect((await status()).nodes.some((entry) => entry.nodeId === other)).toBe(true);
+
+    // A person edits the note: the read revision stays behind the node's revision.
+    await fetch(`${baseUrl}/api/canvas/node/${noted}`, {
+      method: 'PATCH',
+      headers: human,
+      body: JSON.stringify({ content: 'second' }),
+    });
+    const edited = await revisionOf(noted);
+    expect(edited).toBeGreaterThan(first?.readRevision ?? 0);
+    expect((await status()).nodes.find((entry) => entry.nodeId === noted)?.readRevision).toBe(first?.readRevision);
+
+    // The next agent read catches up.
+    await fetch(`${baseUrl}/api/canvas/state`, { headers: { 'x-pmx-source': 'status-agent' } });
+    expect((await status()).nodes.find((entry) => entry.nodeId === noted)?.readRevision).toBe(edited);
+  });
+
   test('a proxy records the read its agent made, without becoming an agent writer', async () => {
     const response = await fetch(`${baseUrl}/api/canvas/ax/context-reads`, {
       method: 'POST',

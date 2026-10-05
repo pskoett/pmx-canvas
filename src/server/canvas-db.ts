@@ -400,6 +400,7 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'ax_steering', 'agent_id', 'agent_id TEXT');
   ensureColumn(db, 'ax_steering', 'target', 'target TEXT');
   ensureColumn(db, 'context_reads', 'board_id', 'board_id TEXT');
+  ensureColumn(db, 'context_reads', 'read_nodes', "read_nodes TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, 'boards', 'category', 'category TEXT');
   ensureColumn(db, 'boards', 'readme_node_id', 'readme_node_id TEXT');
   ensureColumn(db, 'nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");

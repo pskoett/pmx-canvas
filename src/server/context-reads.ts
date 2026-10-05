@@ -37,15 +37,29 @@ export interface ContextRead {
   agentId: string | null;
   pinnedNodeIds: string[];
   deliveredNodeIds: string[];
+  /** Every node on the read board whose content was delivered, with its content revision at read time. */
+  readNodes: Record<string, number>;
   bytes: number;
   /** The board open when the read happened (null on Home). */
   boardId: string | null;
 }
 
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'> & {
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId' | 'readNodes'> & {
   /** Explicit read target, captured before asynchronous formatting/proxy work. */
   boardId?: string | null;
+  /** Ids of every serialized node in what the reader received; the server keeps those on the board. */
+  readNodeIds?: string[];
 };
+
+/** One node's read state on a board: the latest agent read that delivered its content. */
+export interface NodeReadStatus {
+  nodeId: string;
+  lastReadAt: string;
+  /** Who read it: consumer, else agent id, else transport label. */
+  lastReadBy: string;
+  /** The node's content revision in that read; newer current revision means "changed since read". */
+  readRevision: number;
+}
 
 export interface ContextReadConsumerSummary {
   consumer: string;
@@ -57,12 +71,13 @@ export interface ContextReadConsumerSummary {
 }
 
 /**
- * Pinned nodes whose serialized node (an object carrying `"id": "<id>"`) is in
- * what the reader received. A bare id list, a title, or a clipped-off node does
- * not count — the agent got the pin's name, not its content.
+ * Ids of every serialized node (an object carrying `"id": "<id>"`, or a
+ * `nodeId` with its text) in what the reader received. A bare id list, a
+ * title, or a clipped-off node does not count — the agent got the node's
+ * name, not its content. Non-node ids (edges, intents) are dropped by the
+ * caller against the board's nodes.
  */
-export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[] {
-  const pinned = new Set(pinnedNodeIds);
+export function deliveredIds(payloadText: string): Set<string> {
   const delivered = new Set<string>();
   const objectStarts: number[] = [];
   let inString = false;
@@ -89,11 +104,10 @@ export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string)
           typeof value === 'object' &&
           value !== null &&
           !Array.isArray(value) &&
-          ((typeof (value as { id?: unknown }).id === 'string' && pinned.has((value as { id: string }).id)) ||
+          (typeof (value as { id?: unknown }).id === 'string' ||
             (typeof (value as { nodeId?: unknown }).nodeId === 'string' &&
               (value as { titleOnly?: unknown }).titleOnly !== true &&
-              typeof (value as { text?: unknown }).text === 'string' &&
-              pinned.has((value as { nodeId: string }).nodeId)))
+              typeof (value as { text?: unknown }).text === 'string'))
         ) {
           delivered.add(
             typeof (value as { id?: unknown }).id === 'string'
@@ -107,17 +121,25 @@ export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string)
     }
   }
 
+  return delivered;
+}
+
+/** Pinned nodes whose content is in what the reader received (see `deliveredIds`). */
+export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[] {
+  const delivered = deliveredIds(payloadText);
   return pinnedNodeIds.filter((id) => delivered.has(id));
 }
 
 export function contextReadFromPayload(
-  base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes'>,
+  base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds'>,
   payload: unknown,
 ): ContextReadInput {
   const text = typeof payload === 'string' ? payload : (JSON.stringify(payload) ?? '');
+  const delivered = deliveredIds(text);
   return {
     ...base,
-    deliveredNodeIds: deliveredPinnedIds(base.pinnedNodeIds, text),
+    deliveredNodeIds: base.pinnedNodeIds.filter((id) => delivered.has(id)),
+    readNodeIds: [...delivered],
     bytes: Buffer.byteLength(text, 'utf-8'),
   };
 }
@@ -135,15 +157,21 @@ export const CONTEXT_READS_SCHEMA_SQL = `
     pinned_node_ids TEXT NOT NULL DEFAULT '[]',
     delivered_node_ids TEXT NOT NULL DEFAULT '[]',
     bytes INTEGER NOT NULL DEFAULT 0,
-    board_id TEXT
+    board_id TEXT,
+    read_nodes TEXT NOT NULL DEFAULT '{}'
   );
 `;
 
-export function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null): ContextRead {
+export function appendContextReadToDB(
+  db: Database,
+  input: ContextReadInput,
+  boardId: string | null,
+  readNodes: Record<string, number> = {},
+): ContextRead {
   const id = `read-${randomUUID()}`;
   const at = new Date().toISOString();
   db.run(
-    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id, read_nodes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       id,
       at,
@@ -156,11 +184,13 @@ export function appendContextReadToDB(db: Database, input: ContextReadInput, boa
       JSON.stringify(input.deliveredNodeIds),
       input.bytes,
       boardId,
+      JSON.stringify(readNodes),
     ],
   );
   const seq = Number(db.query<{ seq: number }, []>('SELECT last_insert_rowid() AS seq').get()?.seq ?? 0);
   db.run('DELETE FROM context_reads WHERE seq <= ?', [seq - CONTEXT_READ_RETENTION]);
-  return { ...input, seq, id, at, boardId };
+  const { readNodeIds: _readNodeIds, ...record } = input;
+  return { ...record, seq, id, at, boardId, readNodes };
 }
 
 interface ContextReadRow {
@@ -176,6 +206,7 @@ interface ContextReadRow {
   delivered_node_ids: string;
   bytes: number;
   board_id: string | null;
+  read_nodes: string;
 }
 
 function rowToContextRead(row: ContextReadRow): ContextRead {
@@ -190,9 +221,30 @@ function rowToContextRead(row: ContextReadRow): ContextRead {
     agentId: row.agent_id,
     pinnedNodeIds: JSON.parse(row.pinned_node_ids) as string[],
     deliveredNodeIds: JSON.parse(row.delivered_node_ids) as string[],
+    readNodes: JSON.parse(row.read_nodes) as Record<string, number>,
     bytes: row.bytes,
     boardId: row.board_id,
   };
+}
+
+/** Per node on a board, the latest agent read that delivered its content (newest row wins). */
+export function loadNodeReadStatusFromDB(db: Database, boardId: string): NodeReadStatus[] {
+  const rows = db
+    .query<ContextReadRow, [string]>('SELECT * FROM context_reads WHERE board_id = ? ORDER BY seq DESC')
+    .all(boardId);
+  const status = new Map<string, NodeReadStatus>();
+  for (const read of rows.map(rowToContextRead)) {
+    for (const [nodeId, readRevision] of Object.entries(read.readNodes)) {
+      if (status.has(nodeId)) continue;
+      status.set(nodeId, {
+        nodeId,
+        lastReadAt: read.at,
+        lastReadBy: read.consumer ?? read.agentId ?? read.source,
+        readRevision,
+      });
+    }
+  }
+  return [...status.values()];
 }
 
 /** Newest first. The summary covers every retained row, not just the returned page. */

@@ -115,9 +115,11 @@ import { currentActor, unknownActor, type ActorAttribution } from './attribution
 import {
   appendContextReadToDB,
   loadContextReadsFromDB,
+  loadNodeReadStatusFromDB,
   type ContextRead,
   type ContextReadConsumerSummary,
   type ContextReadInput,
+  type NodeReadStatus,
 } from './context-reads.js';
 
 function logCanvasStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
@@ -2852,11 +2854,31 @@ class CanvasStateManager {
   recordContextRead(input: ContextReadInput, boardId: string | null = this._activeBoardId): ContextRead | null {
     if (!this._db) return null;
     try {
-      return appendContextReadToDB(this._db, input, boardId);
+      return appendContextReadToDB(this._db, input, boardId, this.readRevisions(input, boardId));
     } catch (error) {
       logCanvasStateWarning('record context read failed', error);
       return null;
     }
+  }
+
+  /** The delivered ids that are nodes on the read board, each with its content revision now. */
+  private readRevisions(input: ContextReadInput, boardId: string | null): Record<string, number> {
+    if (!boardId) return {};
+    const nodes =
+      boardId === this._activeBoardId ? [...this.nodes.values()] : (this.readBoard(boardId, false)?.state.nodes ?? []);
+    const byId = new Map(nodes.map((node) => [node.id, node.contentRevision ?? 0]));
+    const revisions: Record<string, number> = {};
+    for (const id of input.readNodeIds ?? input.deliveredNodeIds) {
+      const revision = byId.get(id);
+      if (revision !== undefined) revisions[id] = revision;
+    }
+    return revisions;
+  }
+
+  /** Per node on a board, the latest agent read that delivered its content. */
+  getNodeReadStatus(boardId: string | null = this._activeBoardId): NodeReadStatus[] {
+    if (!this._db || !boardId) return [];
+    return loadNodeReadStatusFromDB(this._db, boardId);
   }
 
   getContextReads(limit?: number): { reads: ContextRead[]; summary: ContextReadConsumerSummary[] } {

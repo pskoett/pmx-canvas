@@ -295,6 +295,8 @@ export declare class PmxCanvas extends EventEmitter {
     restoreBackup(file: string): Promise<void>;
     /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
     getContextReads(limit?: number): ReturnType<typeof canvasState.getContextReads>;
+    /** Per node on a board: when an agent last read its content, who, and the content revision it read. */
+    getNodeReadStatus(board?: string): ReturnType<typeof canvasState.getNodeReadStatus>;
     listWorkItems(): PmxAxWorkItem[];
     addWorkItem(input: {
         title: string;

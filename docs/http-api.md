@@ -482,11 +482,19 @@ curl "http://localhost:4313/api/canvas/ax/timeline?limit=50"
 # automatically; the workbench's own reads are not.
 curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 
+# Read status — per node on a board (default: the open board), the latest agent
+# read that delivered its content: when, who, and the content revision it had.
+# A node whose current contentRevision is newer was changed since it was read.
+curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
+
 # Context reads — a proxy (an MCP server attached to this daemon, a host adapter)
 # records the read its agent actually made. Its own fetches send
 # `x-pmx-proxied-read: 1` so they are not recorded twice.
 # Pass boardId captured at read time (null for Home); omitting it uses the
 # currently open board. MCP bytes measure the final formatted text response.
+# readNodeIds lists every serialized node in what the agent received (pinned or
+# not); the server keeps those on the board and stamps their revisions. Omitted,
+# it defaults to deliveredNodeIds.
 curl -X POST http://localhost:4313/api/canvas/ax/context-reads \
   -H "Content-Type: application/json" \
   -d '{"channel":"adapter","resource":"copilot:prompt-context","consumer":"copilot","pinnedNodeIds":["node-1"],"deliveredNodeIds":["node-1"],"bytes":2048}'

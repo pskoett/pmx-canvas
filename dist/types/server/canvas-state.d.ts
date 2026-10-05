@@ -16,7 +16,7 @@ import { type CanvasBoard, type PersistedCanvasState, type CanvasTheme, type AxT
 import { type DocumentImport, type DocumentImportStatus, type ImportSection, type Attachment } from './document-import.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 import { type ActorAttribution } from './attribution.js';
-import { type ContextRead, type ContextReadConsumerSummary, type ContextReadInput } from './context-reads.js';
+import { type ContextRead, type ContextReadConsumerSummary, type ContextReadInput, type NodeReadStatus } from './context-reads.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -609,6 +609,10 @@ declare class CanvasStateManager {
     getAxTimelineSummary(): PmxAxTimelineSummary;
     /** Records one agent context read (diagnostics; never notifies, so a read cannot trigger reads). */
     recordContextRead(input: ContextReadInput, boardId?: string | null): ContextRead | null;
+    /** The delivered ids that are nodes on the read board, each with its content revision now. */
+    private readRevisions;
+    /** Per node on a board, the latest agent read that delivered its content. */
+    getNodeReadStatus(boardId?: string | null): NodeReadStatus[];
     getContextReads(limit?: number): {
         reads: ContextRead[];
         summary: ContextReadConsumerSummary[];

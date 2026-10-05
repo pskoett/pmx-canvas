@@ -2003,7 +2003,7 @@
     },
     {
       "name": "canvas_ax_timeline",
-      "description": "Read or write the bounded PMX AX timeline. Action \"read\" returns recent agent-events, evidence, and steering messages plus counts (limit); \"record-event\" records a normalized agent-event (kind prompt|assistant-message|tool-start|tool-result|failure|approval|steering, summary, detail, data); \"add-evidence\" records an evidence item (kind logs|tool-result|screenshot|file|diff|test-output, title, body, ref); \"send-steering\" records a steering message (message); \"reads\" returns the context read log — which canvas context each agent read and which pinned nodes reached it — with a per-consumer summary (limit). Timeline rows persist for diagnostics/continuity but are not restored by snapshots; exposed via canvas://ax-timeline.",
+      "description": "Read or write the bounded PMX AX timeline. Action \"read\" returns recent agent-events, evidence, and steering messages plus counts (limit); \"record-event\" records a normalized agent-event (kind prompt|assistant-message|tool-start|tool-result|failure|approval|steering, summary, detail, data); \"add-evidence\" records an evidence item (kind logs|tool-result|screenshot|file|diff|test-output, title, body, ref); \"send-steering\" records a steering message (message); \"reads\" returns the context read log — which canvas context each agent read and which pinned nodes reached it — with a per-consumer summary (limit); \"read-status\" returns, per node on a board, when an agent last read its content, who, and the content revision it read (board). Timeline rows persist for diagnostics/continuity but are not restored by snapshots; exposed via canvas://ax-timeline.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2014,9 +2014,10 @@
               "record-event",
               "add-evidence",
               "send-steering",
-              "reads"
+              "reads",
+              "read-status"
             ],
-            "description": "Operation to perform: read | record-event | add-evidence | send-steering | reads."
+            "description": "Operation to perform: read | record-event | add-evidence | send-steering | reads | read-status."
           },
           "limit": {
             "description": "Max rows per timeline table (default 50, max 200)."
@@ -2065,6 +2066,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 80
+          },
+          "board": {
+            "description": "Board id; defaults to the open board.",
+            "type": "string"
           }
         },
         "required": [
