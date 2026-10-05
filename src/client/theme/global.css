@@ -99,6 +99,7 @@
   --c-thinking: #B388FF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -208,6 +209,7 @@
   --c-thinking: #7C4DFF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1A7ABF;
+  --c-on-pin: #FFFFFF;
   --c-agent: #7C4DDB;
   --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
@@ -274,6 +276,7 @@
   --c-thinking: #E040FB;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #00ffff;
+  --c-on-pin: #000000;
   --c-agent: #e040fb;
   --c-subagent: #ff99ff;
   --c-rel-supports: #00e5c0;
@@ -338,6 +341,7 @@
   --c-thinking: #B388FF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -402,6 +406,7 @@
   --c-thinking: #8456B0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1F6FA8;
+  --c-on-pin: #FFFFFF;
   --c-agent: #7046A6;
   --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
@@ -469,6 +474,7 @@
   --c-thinking: #B48EAD;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #6EC1F5;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -533,6 +539,7 @@
   --c-thinking: #A78BFA;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -597,6 +604,7 @@
   --c-thinking: #A88FE0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #4FC9D9;
@@ -661,6 +669,7 @@
   --c-thinking: #BC8FB4;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -759,12 +768,13 @@ body,
 /* Node card shared styles */
 .canvas-node {
   position: absolute;
-  /* Standard card shell (rail-chrome-v2): node surface, 12px radius, soft
-     shadow. Every node kind shares it; the kind shows in the icon color. */
+  /* Standard card shell (docs/design/Context.dc.html): node surface, node
+     radius, first elevation. Every node kind shares it; the kind shows in
+     the icon color. */
   background: var(--c-panel);
   border: 1px solid var(--c-line);
-  border-radius: 12px;
-  box-shadow: 0 4px 24px var(--c-shadow);
+  border-radius: var(--r-node);
+  box-shadow: var(--e-1);
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -1558,17 +1568,10 @@ body,
   color: var(--c-muted);
 }
 
-/* Node shimmer: the node an attached agent is mutating right now */
-.canvas-node.agent-mutating {
-  border-color: color-mix(in srgb, var(--c-accent) 45%, transparent) !important;
-  background-image: linear-gradient(
-    100deg,
-    transparent 20%,
-    color-mix(in srgb, var(--c-accent) 13%, transparent) 50%,
-    transparent 80%
-  );
-  background-size: 200% 100%;
-  animation: presence-shimmer 1.6s linear infinite;
+/* The node an attached agent is editing right now: the violet agent bar
+   across the top of the header (docs/design/Context.dc.html). */
+.canvas-node.agent-mutating .node-titlebar {
+  box-shadow: inset 0 2.5px 0 var(--c-agent);
 }
 
 @keyframes presence-pulse {
@@ -1580,14 +1583,6 @@ body,
     opacity: 0.45;
   }
 }
-@keyframes presence-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
 
 /* Reduced motion: keep every static color state, drop the motion. */
 @media (prefers-reduced-motion: reduce) {
@@ -1595,12 +1590,8 @@ body,
     transition: none;
   }
   .agent-chip-dot,
-  .agent-cursor-dot,
-  .canvas-node.agent-mutating {
+  .agent-cursor-dot {
     animation: none;
-  }
-  .canvas-node.agent-mutating {
-    background-image: none;
   }
 }
 
@@ -4079,10 +4070,6 @@ html.is-node-resizing .canvas-node {
   transition: box-shadow 0.15s ease !important;
 }
 
-html.is-node-dragging .attention-field-layer {
-  visibility: hidden;
-}
-
 html.is-node-dragging,
 html.is-node-dragging *,
 html.is-canvas-panning,
@@ -4572,34 +4559,33 @@ html.is-node-resizing .ext-app-preview-catcher {
 
 /* ── Multi-node selection (item 13: outline, corner handles, soft glow) ── */
 .canvas-node.selected {
-  border-color: var(--c-accent);
-  box-shadow: 0 0 0 1px var(--c-accent), 0 0 0 4px color-mix(in srgb, var(--c-accent) 10%, transparent);
+  box-shadow: 0 0 0 3px var(--c-bg), 0 0 0 5px var(--c-accent), var(--e-1);
 }
 .node-selection-handle {
   position: absolute;
-  width: 7px;
-  height: 7px;
-  background: var(--c-bg);
+  width: 8px;
+  height: 8px;
+  background: var(--c-panel);
   border: 1.5px solid var(--c-accent);
   border-radius: 2px;
   pointer-events: none;
   z-index: 3;
 }
 .node-selection-handle.is-tl {
-  left: -4px;
-  top: -4px;
+  left: -9px;
+  top: -9px;
 }
 .node-selection-handle.is-tr {
-  right: -4px;
-  top: -4px;
+  right: -9px;
+  top: -9px;
 }
 .node-selection-handle.is-bl {
-  left: -4px;
-  bottom: -4px;
+  left: -9px;
+  bottom: -9px;
 }
 .node-selection-handle.is-br {
-  right: -4px;
-  bottom: -4px;
+  right: -9px;
+  bottom: -9px;
 }
 
 /* Lasso rectangle overlay */
@@ -4896,179 +4882,49 @@ html.is-node-resizing .ext-app-preview-catcher {
   cursor: default;
 }
 .selection-bar-action.is-pin:hover {
-  background: color-mix(in srgb, var(--c-warn) 10%, transparent);
-  color: var(--c-warn);
+  background: color-mix(in srgb, var(--c-pin) 10%, transparent);
+  color: var(--c-pin);
 }
 .selection-bar-icon.is-danger:hover {
   background: color-mix(in srgb, var(--c-danger) 12%, transparent);
   color: var(--c-danger);
 }
 
-/* ── Context-pinned nodes — amber glow ───────────────────────── */
+/* ── Node states (docs/design/Context.dc.html) ─────────────────
+   In context: pin-blue border, tinted header, blue kind icon and the filled
+   pin badge. Selection is a ring with a gap outside the border, so the pin
+   styling survives it. */
 .canvas-node.context-pinned {
-  border-color: var(--c-warn-60);
-  box-shadow: 0 0 0 2px var(--c-warn), 0 0 8px var(--c-warn-30);
+  border: 1.5px solid var(--c-pin);
 }
 
-.canvas-node.context-pinned .node-type-badge {
-  background: var(--c-warn-15);
-  color: var(--c-warn);
+.canvas-node.context-pinned .node-titlebar {
+  background: color-mix(in srgb, var(--c-pin) 12%, var(--c-panel));
 }
 
-:root[data-theme="light"] .canvas-node.context-pinned {
-  border-color: #4BBCFF;
-  box-shadow: 0 0 0 2px #4BBCFF, 0 0 12px rgba(75, 188, 255, 0.28);
+.canvas-node.context-pinned .node-type-icon {
+  color: var(--c-pin);
 }
 
-:root[data-theme="light"] .canvas-node.context-pinned .node-type-badge {
-  background: rgba(75, 188, 255, 0.14);
-  color: #1588CE;
-}
-
-/* ── Attention layer — human-facing semantic feedback ───────── */
-.canvas-node.attention-focus-primary {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--c-warn) 72%, transparent),
-    0 12px 34px color-mix(in srgb, var(--c-warn) 18%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--c-warn) 28%, transparent);
-}
-
-.canvas-node.attention-focus-primary .node-titlebar {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--c-warn) 12%, transparent), transparent 68%),
-    var(--c-panel-soft);
-}
-
-:root[data-theme="light"] .canvas-node.attention-focus-primary {
-  box-shadow:
-    0 0 0 1px rgba(75, 188, 255, 0.72),
-    0 12px 34px rgba(75, 188, 255, 0.2),
-    inset 0 0 0 1px rgba(75, 188, 255, 0.18);
-}
-
-:root[data-theme="light"] .canvas-node.attention-focus-primary .node-titlebar {
-  background:
-    linear-gradient(90deg, rgba(75, 188, 255, 0.14), transparent 68%),
-    var(--c-panel-soft);
-}
-
-.canvas-node.attention-focus-secondary {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--c-warn) 30%, transparent),
-    0 8px 24px color-mix(in srgb, var(--c-warn) 10%, transparent);
-}
-
-.canvas-node.attention-focus-secondary .node-type-badge {
-  background: color-mix(in srgb, var(--c-warn) 10%, transparent);
-  color: color-mix(in srgb, var(--c-warn) 88%, var(--c-text) 12%);
-}
-
-:root[data-theme="light"] .canvas-node.attention-focus-secondary {
-  box-shadow:
-    0 0 0 1px rgba(75, 188, 255, 0.32),
-    0 8px 24px rgba(75, 188, 255, 0.12);
-}
-
-:root[data-theme="light"] .canvas-node.attention-focus-secondary .node-type-badge {
-  background: rgba(75, 188, 255, 0.12);
-  color: #1588CE;
-}
-
+/* A short pulse on the nodes a canvas change touched (pin, connect, group).
+   Accent, not a meaning colour: it says "this changed", nothing more. */
 .canvas-node.attention-pulse {
   animation: attention-node-pulse 0.9s ease;
-}
-
-:root[data-theme="light"] .canvas-node.attention-pulse {
-  animation-name: attention-node-pulse-light;
 }
 
 @keyframes attention-node-pulse {
   0% {
     transform: translateZ(0) scale(1);
-    box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--c-warn) 0%, transparent),
-      0 4px 24px var(--c-shadow);
   }
   38% {
     transform: translateZ(0) scale(1.012);
     box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--c-warn) 35%, transparent),
-      0 16px 34px color-mix(in srgb, var(--c-warn) 16%, transparent);
+      0 0 0 3px color-mix(in srgb, var(--c-accent) 35%, transparent),
+      var(--e-1);
   }
   100% {
     transform: translateZ(0) scale(1);
   }
-}
-
-@keyframes attention-node-pulse-light {
-  0% {
-    transform: translateZ(0) scale(1);
-    box-shadow:
-      0 0 0 0 rgba(75, 188, 255, 0),
-      0 4px 24px var(--c-shadow);
-  }
-  38% {
-    transform: translateZ(0) scale(1.012);
-    box-shadow:
-      0 0 0 3px rgba(75, 188, 255, 0.32),
-      0 16px 34px rgba(75, 188, 255, 0.18);
-  }
-  100% {
-    transform: translateZ(0) scale(1);
-  }
-}
-
-.attention-field-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.attention-field-region,
-.attention-field-node {
-  position: absolute;
-  pointer-events: none;
-}
-
-.attention-field-region {
-  background:
-    radial-gradient(circle at 25% 30%, color-mix(in srgb, var(--c-warn) 16%, transparent), transparent 62%),
-    linear-gradient(135deg, color-mix(in srgb, var(--c-warn) 10%, transparent), color-mix(in srgb, var(--c-accent) 5%, transparent));
-  border: 1px solid color-mix(in srgb, var(--c-warn) 22%, transparent);
-  opacity: 0.8;
-  filter: blur(18px);
-}
-
-.attention-field-node.attention-field-primary {
-  border: 1px solid color-mix(in srgb, var(--c-warn) 38%, transparent);
-  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c-warn) 16%, transparent), transparent 72%);
-  box-shadow: 0 0 38px color-mix(in srgb, var(--c-warn) 18%, transparent);
-}
-
-.attention-field-node.attention-field-secondary {
-  border: 1px solid color-mix(in srgb, var(--c-warn) 18%, transparent);
-  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c-warn) 9%, transparent), transparent 74%);
-  box-shadow: 0 0 24px color-mix(in srgb, var(--c-warn) 10%, transparent);
-}
-
-:root[data-theme="light"] .attention-field-region {
-  background:
-    radial-gradient(circle at 25% 30%, rgba(75, 188, 255, 0.16), transparent 62%),
-    linear-gradient(135deg, rgba(75, 188, 255, 0.1), rgba(75, 188, 255, 0.05));
-  border: 1px solid rgba(75, 188, 255, 0.22);
-}
-
-:root[data-theme="light"] .attention-field-node.attention-field-primary {
-  border: 1px solid rgba(75, 188, 255, 0.4);
-  background: radial-gradient(circle at 50% 50%, rgba(75, 188, 255, 0.18), transparent 72%);
-  box-shadow: 0 0 38px rgba(75, 188, 255, 0.2);
-}
-
-:root[data-theme="light"] .attention-field-node.attention-field-secondary {
-  border: 1px solid rgba(75, 188, 255, 0.18);
-  background: radial-gradient(circle at 50% 50%, rgba(75, 188, 255, 0.1), transparent 74%);
-  box-shadow: 0 0 24px rgba(75, 188, 255, 0.12);
 }
 
 /* Anchored to the canvas region (not the window): since the rail-chrome
@@ -5921,24 +5777,37 @@ html.is-node-resizing .ext-app-preview-catcher {
   border-radius: 0 !important;
 }
 
-/* ── Context pin button on node title bar ────────────────────── */
-.node-controls .ctx-pin-btn {
-  color: var(--c-muted);
-  opacity: 0;
-  transition: opacity 0.15s;
+/* ── Context pin on the node header (docs/design/Chrome.dc.html) ──
+   Always visible: an outline pin in a circle when the node is not in
+   context, the filled pin-blue badge when it is. */
+.canvas-node .node-controls .ctx-pin-btn:hover {
+  background: none;
 }
 
-.canvas-node:hover .ctx-pin-btn {
-  opacity: 0.7;
+/* The drawn 18 px circle sits inside the standard control hit target. */
+.ctx-pin-mark {
+  width: calc(18px * var(--node-chrome-scale, 1));
+  height: calc(18px * var(--node-chrome-scale, 1));
+  box-sizing: border-box;
+  border: 1.5px solid var(--c-muted);
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(13px * var(--node-chrome-scale, 1));
+  color: var(--c-text-soft);
 }
 
-.ctx-pin-btn.ctx-pin-active {
-  color: var(--c-warn);
-  opacity: 1 !important;
+.ctx-pin-btn:hover .ctx-pin-mark {
+  border-color: var(--c-pin);
+  background: color-mix(in srgb, var(--c-pin) 12%, transparent);
+  color: var(--c-pin);
 }
 
-:root[data-theme="light"] .ctx-pin-btn.ctx-pin-active {
-  color: #4BBCFF;
+.ctx-pin-btn.ctx-pin-active .ctx-pin-mark {
+  border-color: var(--c-pin);
+  background: var(--c-pin);
+  color: var(--c-on-pin);
 }
 
 /* ── Context pin HUD — top-right pill ────────────────────────── */
@@ -6692,8 +6561,6 @@ html.is-node-resizing .ext-app-preview-catcher {
     animation: none !important;
   }
 
-  .attention-field-region,
-  .attention-field-node,
   .canvas-node {
     transition: none !important;
   }

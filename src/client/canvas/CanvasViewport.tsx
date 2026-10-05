@@ -38,7 +38,6 @@ import {
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { AnnotationTool, CanvasAnnotation, CanvasNodeState } from '../types';
-import { FocusFieldLayer } from './FocusFieldLayer';
 import { importFiles } from './import-files';
 import { IntentLayer } from './IntentLayer';
 import { AgentPresenceLayer } from './AgentPresenceLayer';
@@ -855,7 +854,6 @@ export function CanvasViewport({
           left: 0,
         }}
       >
-        <FocusFieldLayer />
         <ScopeFenceLayer />
         <IntentLayer />
         <AgentPresenceLayer />

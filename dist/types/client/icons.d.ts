@@ -13,7 +13,6 @@ export declare function IconExpand(p: IconProps): JSX.Element;
 export declare function IconArrowLeft(p: IconProps): JSX.Element;
 export declare function IconRefresh(p: IconProps): JSX.Element;
 export declare function IconUndo(p: IconProps): JSX.Element;
-export declare function IconSparkle(p: IconProps): JSX.Element;
 /** Upload into a tray — attach a document. */
 export declare function IconUpload(p: IconProps): JSX.Element;
 /** Dropdown disclosure, sized like the other toolbar icons. */
@@ -50,7 +49,7 @@ export declare function IconSearch(p: IconProps): JSX.Element;
 export declare function IconShortcuts(p: IconProps): JSX.Element;
 /** Speech bubble — steer the agent (command bar composer). */
 export declare function IconSteer(p: IconProps): JSX.Element;
-/** Framed pin — context pinning. */
+/** Push pin — context pinning (docs/design/Chrome.dc.html). */
 export declare function IconPin(p: IconProps): JSX.Element;
 /** Focus Field — PMX Canvas brand mark (concentric rounded squares → lit core). */
 export declare function IconLogo({ size, class: className }: IconProps): JSX.Element;

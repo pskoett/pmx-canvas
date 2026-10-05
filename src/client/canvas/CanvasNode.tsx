@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
-import { attentionPrimaryNodeIds, attentionPulseNodeIds, attentionSecondaryNodeIds } from '../state/attention-store';
+import { attentionPulseNodeIds } from '../state/attention-store';
 import {
   activeNodeId,
   activeNeighborNodeIds,
@@ -46,7 +46,7 @@ import {
   IconMore,
   IconExternalLink,
   IconExpand,
-  IconSparkle,
+  IconPin,
 } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -137,8 +137,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isActive = activeNodeId.value === node.id;
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
-  const isAttentionPrimary = attentionPrimaryNodeIds.value.has(node.id);
-  const isAttentionSecondary = !isAttentionPrimary && attentionSecondaryNodeIds.value.has(node.id);
   const isAttentionPulse = attentionPulseNodeIds.value.has(node.id);
   const isNeighbor = !isActive && activeNeighborNodeIds.value.has(node.id);
   const searchSet = searchHighlightIds.value;
@@ -428,8 +426,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isSearchDimmed ? 'search-dimmed' : '',
     isSelected ? 'selected' : '',
     isContextPinned ? 'context-pinned' : '',
-    isAttentionPrimary ? 'attention-focus-primary' : '',
-    isAttentionSecondary ? 'attention-focus-secondary' : '',
     isAttentionPulse ? 'attention-pulse' : '',
     isPinned ? 'pinned' : '',
     isTrace ? 'trace-node' : '',
@@ -693,8 +689,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   toggleContextPin(node.id);
                 }}
                 title={isContextPinned ? 'Remove from context' : 'Add to context'}
+                aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                aria-pressed={isContextPinned}
               >
-                <IconSparkle size={14} />
+                <span class="ctx-pin-mark">
+                  <IconPin />
+                </span>
               </button>
               {/* Open as site — full-page standalone view of this node's surface,
               served from /api/canvas/surface/:id (same document as the canvas

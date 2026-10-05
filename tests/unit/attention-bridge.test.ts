@@ -4,9 +4,6 @@ import {
   attentionHistory,
   attentionHistoryOpen,
   attentionHistoryUnread,
-  attentionPrimaryNodeIds,
-  attentionRegions,
-  attentionSecondaryNodeIds,
   attentionToast,
 } from '../../src/client/state/attention-store.ts';
 import { makeNode } from './helpers.ts';
@@ -57,9 +54,6 @@ describe('attention bridge', () => {
       },
     });
 
-    expect(Array.from(attentionPrimaryNodeIds.value)).toEqual(['a']);
-    expect(Array.from(attentionSecondaryNodeIds.value)).toEqual([]);
-    expect(attentionRegions.value).toHaveLength(1);
     expect(attentionToast.value?.title).toBe('Context updated');
     expect(attentionToast.value?.detail).toContain('Bug report');
     expect(attentionHistory.value[0]?.title).toBe('Context updated');
@@ -67,7 +61,7 @@ describe('attention bridge', () => {
     expect(attentionHistoryUnread.value).toBe(1);
   });
 
-  test('promotes nearby nodes into the focus field when neighborhood semantics change', () => {
+  test('reports a neighborhood change when a node moves next to a pin', () => {
     syncAttentionFromSse({
       event: 'canvas-layout-update',
       data: {
@@ -99,9 +93,6 @@ describe('attention bridge', () => {
       },
     });
 
-    expect(Array.from(attentionPrimaryNodeIds.value)).toEqual(['a']);
-    expect(Array.from(attentionSecondaryNodeIds.value)).toEqual(['b']);
-    expect(attentionRegions.value[0]?.nodeIds).toEqual(['a', 'b']);
     expect(attentionHistory.value[0]?.title).toBe('Neighborhood changed');
     expect(attentionHistory.value[0]?.detail).toContain('auth.ts');
   });

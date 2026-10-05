@@ -35,6 +35,7 @@
   --c-purple: #b07aff;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -103,6 +104,7 @@
   --c-purple: #7c4dff;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1A7ABF;
+  --c-on-pin: #FFFFFF;
   --c-agent: #7C4DDB;
   --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
@@ -148,6 +150,7 @@
   --c-purple: #e040fb;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #00ffff;
+  --c-on-pin: #000000;
   --c-agent: #e040fb;
   --c-subagent: #ff99ff;
   --c-rel-supports: #00e5c0;
@@ -190,6 +193,7 @@
   --c-purple: #B388FF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -232,6 +236,7 @@
   --c-purple: #8456B0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1F6FA8;
+  --c-on-pin: #FFFFFF;
   --c-agent: #7046A6;
   --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
@@ -277,6 +282,7 @@
   --c-purple: #B48EAD;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #6EC1F5;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -319,6 +325,7 @@
   --c-purple: #A78BFA;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
@@ -361,6 +368,7 @@
   --c-purple: #A88FE0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #4FC9D9;
@@ -403,6 +411,7 @@
   --c-purple: #BC8FB4;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
+  --c-on-pin: #081524;
   --c-agent: #B388FF;
   --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;

@@ -1,6 +1,6 @@
 # Plan 015 — Design foundation (wave 0)
 
-**Status:** Steps 1 and 2 done (2026-10-05). Steps 3–4 not started.
+**Status:** Steps 1, 2 and 3a done (2026-10-05). Steps 3b, 3c and 4 not started.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 0 ("ships alone, first"); vision moves 5, 9, 10.
 Drawings: [`TokenSystem`](../design/TokenSystem.dc.html), [`Tokens`](../design/Tokens.dc.html),
@@ -63,14 +63,32 @@ Each step is its own commit and leaves the suite green.
 
 ### 3. Pins and agent marks move to their meaning tokens
 
-- Pins use `--c-pin` (outline pin when not in context, filled blue badge when in context, as on
-  `Chrome` / `Context`); drop the light theme's hard-coded `#4BBCFF` overrides.
-- Agent attention uses `--c-agent`: the violet header bar replaces amber halos and focus fields.
-  `--c-thinking` becomes `--c-agent` everywhere (no alias).
+Split into three slices after reading the code (2026-10-05):
+
+**3a. Node states and the context pin (done).** Built to `Context.dc.html` and `Chrome.dc.html`:
+- In context: 1.5 px `--c-pin` border, header tinted 12% pin, pin-blue kind icon, and the header
+  pin control always visible — outline pin in a circle when out of context, the filled `--c-pin`
+  badge (`--c-on-pin` glyph, new token) when in. The light theme's hard-coded `#4BBCFF` overrides
+  are gone.
+- The amber "attention" halo was not agent activity: it was semantic attention derived from pins
+  (primary = the pinned nodes, secondary = their unpinned neighbours, plus a glow around pinned
+  clusters). Decided with the maintainer: pin style only — the halos, neighbour halos and the
+  focus field (`FocusFieldLayer`) are removed. The change pulse stays, in the neutral accent.
+- The violet agent bar (2.5 px `--c-agent` across the header) marks live agent edits
+  (`agent-mutating`), replacing the accent-blue shimmer; wave 1 extends it to read, created and
+  edited. The design session corrected the Context board's "Today" row to match.
+- Selection is a ring with a gap (3 px background, 2 px accent) outside the border, so pin styling
+  survives it; base nodes take `--r-node` and `--e-1`.
+
+**3b. Node header overflow.** Expand and the context pin stay; the other controls (ask agent, open
+in new tab, collapse, set as README, close) move under ⋯ on hover, per `Chrome.dc.html`.
+
+**3c. The rest of the old colours.**
+- Classify every remaining `--c-warn` use: pin → `--c-pin`, agent → `--c-agent`, a real warning
+  stays. `--c-thinking` becomes `--c-agent` everywhere (no alias).
 - Tints become `color-mix(in srgb, var(--c-…) N%, transparent)`; the 22 fixed alpha copies,
   `--c-warn-alt` and `--c-glow-accent` go.
-- `--c-subagent`: decided 2026-10-05 — its own fuchsia beside the agent violet, added to the
-  meaning layer and the token test (done ahead of this step; replaces the cyan).
+- `--c-subagent`: decided 2026-10-05 — its own fuchsia beside the agent violet (done).
 - Check: raw-hex guard — no hex colour outside the theme blocks of the two theme files (start
   with an allowlist of today's offenders and shrink it to zero within the wave).
 

@@ -112,14 +112,6 @@ export function IconUndo(p: IconProps): JSX.Element {
   );
 }
 
-export function IconSparkle(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <path d="m8 1 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" />
-    </Icon>
-  );
-}
-
 /** Upload into a tray — attach a document. */
 export function IconUpload(p: IconProps): JSX.Element {
   return (
@@ -326,13 +318,11 @@ export function IconSteer(p: IconProps): JSX.Element {
   );
 }
 
-/** Framed pin — context pinning. */
+/** Push pin — context pinning (docs/design/Chrome.dc.html). */
 export function IconPin(p: IconProps): JSX.Element {
   return (
     <Icon {...p}>
-      <rect x="2" y="5" width="12" height="9" rx="1.5" />
-      <line x1="11" y1="1.5" x2="11" y2="5" />
-      <circle cx="11" cy="4.5" r="1.6" fill="currentColor" stroke="none" />
+      <path d="M6 2.67h4l-.53 3.66 1.86 2H4.67l1.86-2zM8 8.33v5" />
     </Icon>
   );
 }

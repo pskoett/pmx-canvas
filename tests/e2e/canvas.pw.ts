@@ -940,12 +940,12 @@ test('dragging a grouped child ignores its own parent frame as a snap target', a
     .toBe(284);
 });
 
-test('dragging nodes suppresses attention field overlays', async ({ page, request }) => {
+test('dragging a node does not select text', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
       title: 'Blue overlay drag guard',
-      content: 'Drag me without repainting focus fields.',
+      content: 'Drag me without selecting text.',
       x: 420,
       y: 260,
       width: 420,
@@ -954,15 +954,6 @@ test('dragging nodes suppresses attention field overlays', async ({ page, reques
   });
 
   await page.goto('/workbench');
-
-  await page.evaluate(() => {
-    const worldLayer = document.querySelector('.canvas-viewport > div');
-    if (!worldLayer) throw new Error('Canvas world layer not found.');
-    const field = document.createElement('div');
-    field.className = 'attention-field-layer';
-    field.setAttribute('data-test-attention-field', 'true');
-    worldLayer.prepend(field);
-  });
 
   const node = page.locator('.canvas-node').filter({ hasText: 'Blue overlay drag guard' });
   await expect(node).toHaveCount(1);
@@ -978,7 +969,6 @@ test('dragging nodes suppresses attention field overlays', async ({ page, reques
   await expect
     .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging')))
     .toBe(true);
-  await expect(page.locator('[data-test-attention-field="true"]')).toHaveCSS('visibility', 'hidden');
   await expect(page.locator('html')).toHaveCSS('user-select', 'none');
   await expect.poll(async () => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
 
@@ -988,7 +978,6 @@ test('dragging nodes suppresses attention field overlays', async ({ page, reques
   await expect
     .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging')))
     .toBe(false);
-  await expect(page.locator('[data-test-attention-field="true"]')).toHaveCSS('visibility', 'visible');
 });
 
 test('keeps the browser, pinned context, and agent-driven canvas mutations in sync', async ({ page, request }) => {
@@ -1262,7 +1251,7 @@ test('semantic attention layer shows focus and interpretation history', async ({
   await page.getByRole('button', { name: /recent updates/i }).click();
   await expect(page.locator('.attention-history')).toContainText('Context updated');
   await expect(page.locator('.context-pin-bar')).toHaveCount(0);
-  await expect(bugReport).toHaveClass(/attention-focus-primary/);
+  await expect(bugReport).toHaveClass(/context-pinned/);
 
   await request.patch(`/api/canvas/node/${authNode.id}`, {
     data: {
@@ -1270,7 +1259,6 @@ test('semantic attention layer shows focus and interpretation history', async ({
     },
   });
 
-  await expect(authTs).toHaveClass(/attention-focus-secondary/);
   await expect(page.locator('.attention-history')).toContainText('Neighborhood changed');
 });
 
@@ -3611,7 +3599,7 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
     .toBe(true);
 });
 
-test('light theme uses a high-contrast blue for context-pinned nodes', async ({ page, request }) => {
+test('light theme marks context-pinned nodes in its own pin blue', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
@@ -3645,12 +3633,10 @@ test('light theme uses a high-contrast blue for context-pinned nodes', async ({ 
     })
     .toContain(created.id);
 
-  await expect(note).toHaveCSS('border-top-color', 'rgb(75, 188, 255)');
-  await expect
-    .poll(async () => {
-      return await note.evaluate((element) => getComputedStyle(element).boxShadow);
-    })
-    .toContain('75, 188, 255');
+  // --c-pin in the light theme (docs/design/Themes.dc.html), on the border
+  // and the filled header badge.
+  await expect(note).toHaveCSS('border-top-color', 'rgb(26, 122, 191)');
+  await expect(note.locator('.ctx-pin-mark')).toHaveCSS('background-color', 'rgb(26, 122, 191)');
 });
 
 test('annotations use theme contrast colors and can be erased', async ({ page, request }) => {

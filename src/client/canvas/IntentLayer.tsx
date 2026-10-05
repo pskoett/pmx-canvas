@@ -8,8 +8,8 @@ import type { CanvasNodeState } from '../types';
 
 /**
  * Ghost Cursor of Intent overlay. Renders the agent's pre-commit moves as faint
- * placeholders in world space (it lives inside the canvas transform, like
- * FocusFieldLayer, so positions are world coords). Five kinds:
+ * placeholders in world space (it lives inside the canvas transform, so positions
+ * are world coords). Five kinds:
  *   create  → dashed ghost node with icon + type badge
  *   move    → ghost at the destination + a dashed trail from the current node
  *   connect → dashed bezier in the edge-type color

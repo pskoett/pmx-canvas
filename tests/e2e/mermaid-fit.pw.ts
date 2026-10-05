@@ -107,8 +107,15 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   });
   await expect(frame.locator('.mermaid-source')).toHaveAttribute('data-fit', 'contain');
   await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeLessThan(240);
+  // The node shrinks over its height transition; wait for the diagram to refit
+  // the settled frame rather than sampling one intermediate frame.
+  await expect
+    .poll(async () => {
+      const small = await geometry(svg);
+      return small.bottom - small.viewportHeight;
+    })
+    .toBeLessThanOrEqual(1);
   const small = await geometry(svg);
-  expect(small.bottom).toBeLessThanOrEqual(small.viewportHeight + 1);
 
   await request.patch(`/api/canvas/node/${id}`, { data: { size: { width: 600, height: 480 } } });
   await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeGreaterThan(240);

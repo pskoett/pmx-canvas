@@ -11,7 +11,6 @@ import {
 import {
   pushAttentionHistory,
   resetAttentionState,
-  setAttentionFocus,
   setAttentionPulse,
   setAttentionToast,
   type AttentionEntry,
@@ -242,11 +241,6 @@ function entryFromEvent(event: SemanticWatchEvent): AttentionEntry | null {
   }
 }
 
-function applyAttentionSnapshot(): void {
-  const snapshot = reducer.getAttentionSnapshot();
-  setAttentionFocus(snapshot.primaryFocusNodeIds, snapshot.secondaryFocusNodeIds, snapshot.regions);
-}
-
 function flushToastQueue(): void {
   if (toastTimer !== null) return;
   const next = toastQueue.shift() ?? null;
@@ -321,8 +315,6 @@ export function syncAttentionFromSse(message: SseMessage): void {
     .handleMessage(message)
     .map((event) => entryFromEvent(event))
     .filter((entry): entry is AttentionEntry => entry !== null);
-
-  applyAttentionSnapshot();
 
   for (const entry of entries) {
     if (shouldSuppressEntry(entry)) continue;
