@@ -36,6 +36,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -103,6 +104,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1A7ABF;
   --c-agent: #7C4DDB;
+  --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
   --c-rel-contradicts: #B8572A;
   --c-rel-cites: #4257C9;
@@ -147,6 +149,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #00ffff;
   --c-agent: #e040fb;
+  --c-subagent: #ff99ff;
   --c-rel-supports: #00e5c0;
   --c-rel-contradicts: #ff8a00;
   --c-rel-cites: #8c9eff;
@@ -188,6 +191,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -229,6 +233,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1F6FA8;
   --c-agent: #7046A6;
+  --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
   --c-rel-contradicts: #A3461C;
   --c-rel-cites: #3D50B0;
@@ -273,6 +278,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #6EC1F5;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -314,6 +320,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -355,6 +362,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #4FC9D9;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -396,6 +404,7 @@
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;

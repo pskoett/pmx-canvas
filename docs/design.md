@@ -89,8 +89,11 @@ Components reference tokens only. Raw colour values live only in the theme files
 - `--c-thinking` becomes `--c-agent`. `--c-purple` is today a kind colour (graph, mermaid,
   trace); kind colours become muted per-kind tints that never use a meaning hue.
 - The frame host hands embedded viewers the same tokens, replacing `--color-*`.
-- **Open decision:** `--c-subagent`. Recommended: subagents use `--c-agent` and are told apart by
-  name and cursor, not by a second blue.
+- **Decided 2026-10-05:** `--c-subagent` stays as its own meaning colour, a fuchsia beside the
+  agent violet (`#E879F9` on dark themes, `#A83BB0` on Daylight and Sepia, `#ff99ff` on High
+  contrast) instead of a second cyan next to the pin blue. It reads as agent work, is told
+  apart from the main agent at a glance, and is held apart from every other meaning colour by
+  the token test.
 - **Checks:** a token test that keeps meaning colours apart from each other and from the palette,
   with at least 3:1 contrast on `--c-panel`, in all nine themes; a check that rejects raw hex
   outside the theme files; a check that every control computes `--font-ui`.

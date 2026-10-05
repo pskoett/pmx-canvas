@@ -22,7 +22,7 @@ const THEME_SELECTORS = [
   ':root[data-theme="volt"]',
 ];
 
-const CORE = ['--c-pin', '--c-agent', '--c-warn'];
+const CORE = ['--c-pin', '--c-agent', '--c-subagent', '--c-warn'];
 const RELATIONS = [
   '--c-rel-supports',
   '--c-rel-contradicts',

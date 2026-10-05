@@ -69,8 +69,8 @@ Each step is its own commit and leaves the suite green.
   `--c-thinking` becomes `--c-agent` everywhere (no alias).
 - Tints become `color-mix(in srgb, var(--c-…) N%, transparent)`; the 22 fixed alpha copies,
   `--c-warn-alt` and `--c-glow-accent` go.
-- `--c-subagent`: folded into `--c-agent` (the design guide's recommendation; subagents are told
-  apart by name and cursor). **Needs the maintainer's confirmation before this step.**
+- `--c-subagent`: decided 2026-10-05 — its own fuchsia beside the agent violet, added to the
+  meaning layer and the token test (done ahead of this step; replaces the cyan).
 - Check: raw-hex guard — no hex colour outside the theme blocks of the two theme files (start
   with an allowlist of today's offenders and shrink it to zero within the wave).
 
@@ -116,4 +116,4 @@ warning amber.
 
 ## Open
 
-- **`--c-subagent`** (before step 3) and the **folders-versus-portals** question (before wave 2).
+- The **folders-versus-portals** question (before wave 2).

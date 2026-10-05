@@ -97,10 +97,10 @@
   --c-danger: #ff6a7f;
   --c-purple: #b07aff;
   --c-thinking: #B388FF;
-  --c-subagent: #00E5FF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -206,10 +206,10 @@
   --c-danger: #d32f2f;
   --c-purple: #7c4dff;
   --c-thinking: #7C4DFF;
-  --c-subagent: #00838F;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1A7ABF;
   --c-agent: #7C4DDB;
+  --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
   --c-rel-contradicts: #B8572A;
   --c-rel-cites: #4257C9;
@@ -272,10 +272,10 @@
   --c-danger: #ff0000;
   --c-purple: #e040fb;
   --c-thinking: #E040FB;
-  --c-subagent: #18FFFF;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #00ffff;
   --c-agent: #e040fb;
+  --c-subagent: #ff99ff;
   --c-rel-supports: #00e5c0;
   --c-rel-contradicts: #ff8a00;
   --c-rel-cites: #8c9eff;
@@ -336,10 +336,10 @@
   --c-danger: #FF6B8A;
   --c-purple: #B388FF;
   --c-thinking: #B388FF;
-  --c-subagent: #22D3EE;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -400,10 +400,10 @@
   --c-danger: #B3402E;
   --c-purple: #8456B0;
   --c-thinking: #8456B0;
-  --c-subagent: #0E7C7B;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #1F6FA8;
   --c-agent: #7046A6;
+  --c-subagent: #A83BB0;
   --c-rel-supports: #1E8C80;
   --c-rel-contradicts: #A3461C;
   --c-rel-cites: #3D50B0;
@@ -467,10 +467,10 @@
   --c-danger: #D9707C;
   --c-purple: #B48EAD;
   --c-thinking: #B48EAD;
-  --c-subagent: #6FD6C4;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #6EC1F5;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -531,10 +531,10 @@
   --c-danger: #F0566A;
   --c-purple: #A78BFA;
   --c-thinking: #A78BFA;
-  --c-subagent: #38BDF8;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -595,10 +595,10 @@
   --c-danger: #E57373;
   --c-purple: #A88FE0;
   --c-thinking: #A88FE0;
-  --c-subagent: #4FD8CE;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #4FC9D9;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;
@@ -659,10 +659,10 @@
   --c-danger: #D67670;
   --c-purple: #BC8FB4;
   --c-thinking: #BC8FB4;
-  --c-subagent: #6CA0E0;
   /* ── Meaning (one hue per meaning in every theme; see docs/design.md) ── */
   --c-pin: #4BBCFF;
   --c-agent: #B388FF;
+  --c-subagent: #E879F9;
   --c-rel-supports: #5FCFC0;
   --c-rel-contradicts: #E59B6B;
   --c-rel-cites: #7C9CFF;

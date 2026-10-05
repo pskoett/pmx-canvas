@@ -28,6 +28,7 @@ const CORE_TOKENS = [
   '--c-purple',
   '--c-pin',
   '--c-agent',
+  '--c-subagent',
   '--c-rel-supports',
   '--c-rel-contradicts',
   '--c-rel-cites',
