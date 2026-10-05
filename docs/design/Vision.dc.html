@@ -50,7 +50,7 @@ body{margin:0}
 
 <section style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #8ea3bd">
 <span style="font-weight: 600; color: #e6eef7">Respects the standing decisions:</span>
-<span>every node type stays (2026-09-06)</span><span>·</span><span>fleet layer stays</span><span>·</span><span>boards are the wiki; destination is “share this board”</span><span>·</span><span>Home is a view, not a board (2026-09-27)</span><span>·</span><span>reference surface Chromium at 600 px</span><span>·</span><span>no externals — the graph borrows Obsidian's look only</span><span>·</span><span>no backwards-compat shims</span>
+<span>every node type stays (2026-09-06)</span><span>·</span><span>fleet layer stays</span><span>·</span><span>boards are the wiki; destination is “share this board”</span><span>·</span><span>Home is a view, not a board (2026-09-27)</span><span>·</span><span>reference widths 600, 1024 and 1920 px (2026-10-05)</span><span>·</span><span>no externals — the graph borrows Obsidian's look only</span><span>·</span><span>no backwards-compat shims</span>
 </section>
 
 </div>
@@ -60,7 +60,7 @@ class Component extends DCLogic {
   renderVals() {
     var rows = [
       { area: 'Look and feel: font, scale, colour tokens', boards: 'Today · Proposed · Tokens · Themes',
-        vision: 'Move 5 (keep every node type, unify how they render); move 9 (render for the 600 px pane).',
+        vision: 'Move 5 (keep every node type, unify how they render); move 9 (render for agent panes and full windows).',
         builds: 'Theme registry and the surface-theme token test; nine themes.',
         work: 'Bundle Plex; controls inherit the font; type/radius/shadow scale; semantic tokens (pin, agent, warn, relation inks) per theme with a distinctness test.',
         types: 'None added or removed.', flag: '' },
@@ -90,15 +90,15 @@ class Component extends DCLogic {
         work: 'The frame host passes the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments.',
         types: 'None.', flag: '' },
       { area: 'Chrome: rail, headers, section labels', boards: 'Rail, node header, section labels',
-        vision: 'Move 9 (600 px pane); rail-chrome v2 mockups remain the visual authority.',
+        vision: 'Move 9 (agent panes and full windows); the proposal canvas is the visual authority.',
         builds: 'Rail-chrome v2 shell, ⋯ menu planned in phase 7.',
         work: 'Settings menu for rarely used tools; ⋯ on node headers; markdown rendered as a heading variant.',
         types: 'None (heading is a markdown display variant).', flag: '' },
-      { area: 'The 600 px pane', boards: '600 px check',
-        vision: 'Reference surface: Chromium at 600 px (2026-09-24).',
+      { area: 'Reference widths: 600, 1024, 1920 px', boards: 'At 600 px — the narrow end',
+        vision: 'Reference cases at 600, 1024 and 1920 px in Chromium (decided 2026-10-05), replacing the single 600 px pane of 2026-09-24. The workbench runs in agent-host panes, resizable side browsers and full windows.',
         builds: 'Rail-chrome responsive rules.',
         work: 'Every board above was drawn at 1440 px. Home collapses to one column (tree as a drawer, details as a sheet); legends wrap; inspectors become sheets.',
-        types: 'None.', flag: 'Each design needs its 600 px version before it is built.' }
+        types: 'None.', flag: 'Each design needs its narrow (600 px) and full-window versions before it is built.' }
     ];
     var decisions = [
       { q: 'Folders or portal levels for Home?', rec: 'Recommend: folder = where a board lives (one place); portals and links = how boards relate, shown in Map and Graph.' },

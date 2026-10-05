@@ -17,7 +17,7 @@ body{margin:0}
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Nodes in context</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Pinned, agent-touched and selected are three different facts. Today they share one amber look; proposed, each has its own signal and they combine.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Pinned, being edited by the agent, and selected are three different facts. Today a pin spreads an amber halo to its neighbours and an agent edit is a faint blue sheen; proposed, each fact has its own signal and they combine.</p>
 </div>
 
 <section style="display: flex; flex-direction: column; gap: 12px">
@@ -138,18 +138,23 @@ class Component extends DCLogic {
       return 'position:absolute;' + pos + 'width:8px;height:8px;box-sizing:border-box;border-radius:2px;background:' + fill + ';border:1.5px solid ' + line + ';';
     }
     function today(state, name, text) {
-      var pinned = state === 'pin' || state === 'pinattn' || state === 'pinsel';
-      var primary = state === 'attn' || state === 'pinattn';
+      var pinned = state === 'pin' || state === 'pinagent' || state === 'pinsel';
+      var agent = state === 'agent' || state === 'pinagent';
+      // semantic-attention.ts: the pinned nodes are the primary focus, so a pin always brings the halo and field
+      var primary = pinned;
       var border = '#1b2c44', shadow = '0 4px 24px rgba(0,0,0,0.3)';
       if (state === 'sec') shadow = '0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1)';
       if (state === 'sel') { border = '#4BBCFF'; shadow = '0 0 0 1px #4BBCFF, 0 0 0 4px rgba(75,188,255,0.1)'; }
       if (pinned) { border = 'rgba(244,197,66,0.6)'; shadow = '0 0 0 2px #f4c542, 0 0 8px rgba(244,197,66,0.3)'; }
       if (primary) shadow = '0 0 0 1px rgba(244,197,66,0.72), 0 12px 34px rgba(244,197,66,0.18), inset 0 0 0 1px rgba(244,197,66,0.28)';
       var headBg = primary ? 'linear-gradient(90deg, rgba(244,197,66,0.12), transparent 68%), #0b1828' : '#0b1828';
+      // agent-mutating before wave 0: accent border at 45% and a moving accent sheen
+      var bg = agent ? 'linear-gradient(100deg, transparent 20%, rgba(75,188,255,0.13) 50%, transparent 80%), #0f1d31' : '#0f1d31';
+      if (agent) border = 'rgba(75,188,255,0.45)';
       var sel = state === 'sel' || state === 'pinsel';
       return {
         field: primary, oldPin: pinned, pin: false, pinOff: false, expand: false, bar: false, handles: sel, name: name, text: text,
-        node: inset + 'background:#0f1d31;border:1px solid ' + border + ';box-shadow:' + shadow + ';border-radius:12px 12px 8px 8px;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;',
+        node: inset + 'background:' + bg + ';border:1px solid ' + border + ';box-shadow:' + shadow + ';border-radius:12px 12px 8px 8px;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;',
         head: 'display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-bottom:1px solid #1b2c44;background:' + headBg + ';',
         icon: 'flex-shrink:0;color:#4BBCFF;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;',
         title: 'flex:1;min-width:0;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eef7;',
@@ -161,8 +166,8 @@ class Component extends DCLogic {
     }
     function proposed(theme, state, name, text) {
       var c = P[theme];
-      var pinned = state === 'pin' || state === 'pinattn' || state === 'pinsel';
-      var touched = state === 'attn' || state === 'pinattn';
+      var pinned = state === 'pin' || state === 'pinagent' || state === 'pinsel';
+      var touched = state === 'agent' || state === 'pinagent';
       var sel = state === 'sel' || state === 'pinsel';
       var border = pinned ? '1.5px solid ' + c.accent : '1px solid ' + c.line;
       var shadow = sel ? '0 0 0 3px ' + c.bg + ', 0 0 0 5px ' + c.accent + ', ' + c.e1 : c.e1;
@@ -182,11 +187,11 @@ class Component extends DCLogic {
         hBL: handle('left:3px;bottom:3px;', c.panel, c.accent), hBR: handle('right:3px;bottom:3px;', c.panel, c.accent)
       };
     }
-    var states = ['rest', 'pin', 'attn', 'pinattn', 'sel', 'pinsel'];
-    var stateNames = ['Resting', 'In context', 'Agent touched', 'In context + agent', 'Selected', 'In context + selected'];
-    var todayNotes = ['', 'Amber ring', 'Amber halo and glowing field', 'Looks the same as agent touched', 'Blue ring', 'Blue ring is lost; only the handles show'];
-    var badNotes = { 3: true, 5: true };
-    var newNotes = ['', 'Blue border, tinted header, pin badge', 'Violet bar across the top', 'Both signals, independently', 'Ring with a gap, plus handles', 'Pin styling stays inside the ring'];
+    var states = ['rest', 'pin', 'agent', 'pinagent', 'sel', 'pinsel'];
+    var stateNames = ['Resting', 'In context', 'Agent editing', 'In context + agent editing', 'Selected', 'In context + selected'];
+    var todayNotes = ['Plain — unless it sits next to a pin: then it gets an amber halo too', 'Amber ring, halo and glowing field — all from the pin', 'A faint blue sheen in the accent, the colour of a selection', 'The pin’s amber halo with the blue sheen', 'Blue ring', 'Blue ring is lost; only the handles show'];
+    var badNotes = { 0: true, 2: true, 5: true };
+    var newNotes = ['', 'Blue border, tinted header, pin badge — no halos, no field', 'Violet bar while the agent edits; read, created and edited marks follow in wave 1', 'Both signals, independently', 'Ring with a gap, plus handles', 'Pin styling stays inside the ring'];
     var nm = 'Release runbook', tx = 'Pre-flight gates, tag → publish, smoke checklist.';
     function rowOf(kind) {
       return states.map(function (st, i) {
@@ -210,8 +215,8 @@ class Component extends DCLogic {
       ['node-sizes.ts', 'export const NODE_MIN = …'],
       ['Sprint state', 'Review · 6 of 7 items merged']
     ];
-    var todayStates = ['pinattn', 'sec', 'pinattn', 'sec', 'rest', 'attn'];
-    var newStates = ['pinattn', 'rest', 'pinattn', 'rest', 'rest', 'attn'];
+    var todayStates = ['pin', 'sec', 'pin', 'sec', 'rest', 'agent'];
+    var newStates = ['pin', 'rest', 'pin', 'rest', 'rest', 'agent'];
     function scene(fn) {
       return pos.map(function (p, i) {
         var cell = fn(i);
@@ -220,9 +225,9 @@ class Component extends DCLogic {
       });
     }
     var scenes = [
-      { label: 'Today', bg: '#081524', dot: 'rgba(142,163,189,0.10)', caption: 'Runbook and Readability floor are pinned — but Sprint state, which the agent only touched, looks identical.', captionColor: '#ff8a9b',
+      { label: 'Today', bg: '#081524', dot: 'rgba(142,163,189,0.10)', caption: 'Runbook and Readability floor are pinned — but their unpinned neighbours glow amber too, and Sprint state, which the agent is editing, only gets a faint blue sheen.', captionColor: '#ff8a9b',
         nodes: scene(function (i) { return today(todayStates[i], names[i][0], names[i][1]); }) },
-      { label: 'Proposed', bg: '#081524', dot: 'rgba(142,163,189,0.14)', caption: 'The two pinned nodes carry the blue border and pin badge. Sprint state, touched by the agent, only has the violet bar.', captionColor: '#8ea3bd',
+      { label: 'Proposed', bg: '#081524', dot: 'rgba(142,163,189,0.14)', caption: 'Only the two pinned nodes carry the blue border and pin badge. Sprint state, which the agent is editing, has the violet bar.', captionColor: '#8ea3bd',
         nodes: scene(function (i) { return proposed('dark', newStates[i], names[i][0], names[i][1]); }) }
     ];
     var chips = ['Release runbook', 'PMX Canvas — guided tour', 'Readability floor', 'Working context'];

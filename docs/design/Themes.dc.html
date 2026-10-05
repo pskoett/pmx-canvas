@@ -21,7 +21,7 @@ body{margin:0}
 <p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Each theme keeps its own surfaces and accent (buttons, selection). The meaning colours — in context, agent, warning and the relation inks — keep the same hue in every theme, tuned only for lightness, and a token test checks they stay apart.</p>
 </div>
 <div style="display: flex; gap: 8px; font-size: 11px; color: #8ea3bd">
-<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #4BBCFF"></span>in context</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #4BBCFF"></span>in context</span><span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #E879F9"></span>subagent</span>
 <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #B388FF"></span>agent</span>
 <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #f4c542"></span>warning</span>
 <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #5FCFC0"></span>supports</span>
@@ -43,16 +43,16 @@ body{margin:0}
 <path d="M 100 112 C 100 92, 150 84, 150 70" style="stroke: {{t.sup}}; stroke-width: 2"></path><path d="M 150 66 L 145.5 75 L 154.5 75 Z" style="fill: {{t.sup}}"></path>
 <path d="M 290 112 C 290 92, 240 84, 240 70" style="stroke: {{t.con}}; stroke-width: 2"></path><path d="M 240 66 L 235.5 75 L 244.5 75 Z" style="fill: {{t.con}}"></path>
 </svg>
-<div style="position: absolute; left: 100px; top: 14px; width: 198px; height: 52px; box-sizing: border-box; border-radius: 9px; border: 1.5px solid {{t.pin}}; background: {{t.panel}}; overflow: hidden">
+<div style="{{t.n1}}">
 <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 9px; background: {{t.pinTint}}; border-bottom: 1px solid {{t.line}}"><span style="flex: 1; font-size: 11px; font-weight: 600; color: {{t.text}}">Raise Pro to $24?</span><span style="width: 16px; height: 16px; border-radius: 999px; background: {{t.pin}}; color: {{t.onPin}}; display: flex; align-items: center; justify-content: center"><svg width="9" height="9" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></div>
 <div style="padding: 3px 9px; font-size: 10px; color: {{t.muted}}">question · in context</div>
 </div>
-<div style="position: absolute; left: 14px; top: 114px; width: 172px; height: 70px; box-sizing: border-box; border-radius: 9px; border: 1px solid {{t.line}}; background: {{t.panel}}; overflow: hidden">
+<div style="{{t.n2}}">
 <div style="height: 2.5px; background: {{t.agent}}"></div>
 <div style="display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 9px; border-bottom: 1px solid {{t.line}}"><span style="flex: 1; font-size: 11px; font-weight: 600; color: {{t.text}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Churn flat</span><span style="height: 16px; padding: 0 6px; border-radius: 999px; background: {{t.agentTint}}; color: {{t.agent}}; font-size: 10px; font-weight: 500; line-height: 16px">edited</span></div>
 <div style="padding: 4px 9px; font-size: 10px; color: {{t.muted}}">supports the question</div>
 </div>
-<div style="position: absolute; left: 204px; top: 114px; width: 180px; height: 70px; box-sizing: border-box; border-radius: 9px; border: 1px solid {{t.line}}; background: {{t.panel}}; overflow: hidden">
+<div style="{{t.n3}}">
 <div style="display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 6px 0 9px; border-bottom: 1px solid {{t.line}}"><span style="flex: 1; font-size: 11px; font-weight: 600; color: {{t.text}}">SMB interviews</span></div>
 <div style="padding: 5px 9px; display: flex; align-items: center; gap: 6px"><span style="height: 16px; padding: 0 6px; border-radius: 999px; background: {{t.warnTint}}; color: {{t.warn}}; font-size: 10px; font-weight: 500; line-height: 16px">changed since read</span><span style="height: 18px; padding: 0 7px; border-radius: 5px; background: {{t.accent}}; color: {{t.onAccent}}; font-size: 10px; font-weight: 600; line-height: 18px">Open</span></div>
 </div>
@@ -77,15 +77,19 @@ class Component extends DCLogic {
       var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
       return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
     }
-    var DARK = { pin: '#4BBCFF', onPin: '#081524', agent: '#B388FF', sup: '#5FCFC0', con: '#E59B6B' };
-    var LIGHT = { pin: '#1A7ABF', onPin: '#FFFFFF', agent: '#7C4DDB', sup: '#1E8C80', con: '#B8572A' };
+    var DARK = { pin: '#4BBCFF', onPin: '#081524', agent: '#B388FF', subagent: '#E879F9', sup: '#5FCFC0', con: '#E59B6B', e1: '0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)' };
+    var LIGHT = { pin: '#1A7ABF', onPin: '#FFFFFF', agent: '#7C4DDB', subagent: '#A83BB0', sup: '#1E8C80', con: '#B8572A', e1: '0 1px 2px rgba(8,21,36,0.1), 0 6px 20px rgba(8,21,36,0.08)' };
     function t(o) {
       var base = o.scheme === 'light' ? LIGHT : DARK;
       var x = Object.assign({}, base, o);
       x.pinTint = hexA(x.pin, o.scheme === 'light' ? 0.10 : 0.12);
       x.agentTint = hexA(x.agent, 0.16);
       x.warnTint = hexA(x.warn, 0.14);
-      x.swatches = [x.bg, x.panel, x.accent, x.pin, x.agent, x.warn, x.sup];
+      x.swatches = [x.bg, x.panel, x.accent, x.pin, x.agent, x.subagent, x.warn, x.sup];
+      var nodeBase = 'position:absolute;box-sizing:border-box;border-radius:9px;overflow:hidden;background:' + x.panel + ';box-shadow:' + x.e1 + ';';
+      x.n1 = nodeBase + 'left:100px;top:14px;width:198px;height:52px;border:1.5px solid ' + x.pin + ';';
+      x.n2 = nodeBase + 'left:14px;top:114px;width:172px;height:70px;border:1px solid ' + x.line + ';';
+      x.n3 = nodeBase + 'left:204px;top:114px;width:180px;height:70px;border:1px solid ' + x.line + ';';
       x.noteColor = o.bad ? '#ff8a9b' : '#8ea3bd';
       return x;
     }
@@ -93,13 +97,13 @@ class Component extends DCLogic {
       t({ name: 'Harbor', was: 'was “dark” · default', scheme: 'dark', bg: '#081524', panel: '#0f1d31', line: '#1b2c44', text: '#e6eef7', muted: '#8ea3bd', accent: '#4BBCFF', onAccent: '#081524', warn: '#f4c542',
           note: 'Accent and pin are the same blue here, so selection is told apart by its gap ring and handles.' }),
       t({ name: 'Daylight', was: 'was “light”', scheme: 'light', bg: '#F6F7F9', panel: '#FFFFFF', line: '#DDE2E9', text: '#0B1726', muted: '#55657a', accent: '#1A7ABF', onAccent: '#FFFFFF', warn: '#94600A',
-          note: 'Neutral surfaces instead of beige, so it no longer looks like Sepia.' }),
-      t({ name: 'High contrast', was: 'unchanged', scheme: 'dark', bg: '#000000', panel: '#0a0a0a', line: '#ffffff', text: '#ffffff', muted: '#cccccc', accent: '#00ffff', onAccent: '#000000', warn: '#ffff00', pin: '#00ffff', onPin: '#000000', agent: '#e040fb', sup: '#00e5c0', con: '#ff8a00',
+          note: 'Neutral surfaces instead of beige, so it no longer looks like Sepia. Shadows are ink-tinted, not black.' }),
+      t({ name: 'High contrast', was: 'unchanged', scheme: 'dark', bg: '#000000', panel: '#0a0a0a', line: '#ffffff', text: '#ffffff', muted: '#cccccc', accent: '#00ffff', onAccent: '#000000', warn: '#ffff00', pin: '#00ffff', onPin: '#000000', agent: '#e040fb', subagent: '#ff99ff', sup: '#00e5c0', con: '#ff8a00',
           note: 'Keeps a literal name. Meaning colours use the theme’s own pure hues.' }),
       t({ name: 'Midnight', was: 'unchanged', scheme: 'dark', bg: '#0A0D1C', panel: '#12172E', line: '#232B4A', text: '#E6E9F7', muted: '#8D96BC', accent: '#8B96FF', onAccent: '#0A0D1C', warn: '#F5C452',
           note: 'Accent periwinkle sits between pin blue and agent violet — pin can’t be the accent here.', bad: true }),
       t({ name: 'Sepia', was: 'unchanged', scheme: 'light', bg: '#F2E7D5', panel: '#EBDCC2', line: '#D3C1A0', text: '#2E2416', muted: '#77664C', accent: '#B4632C', onAccent: '#FFFFFF', warn: '#8A5A00', pin: '#1F6FA8', agent: '#7046A6', con: '#A3461C',
-          note: 'Accent copper is close to the warning brown — another reason pin is its own colour.', bad: true }),
+          note: 'Accent copper is close to the warning brown — another reason pin is its own colour. Shadows are ink-tinted.', bad: true }),
       t({ name: 'Arctic', was: 'unchanged', scheme: 'dark', bg: '#20242E', panel: '#2A2F3C', line: '#3A4152', text: '#E9EDF4', muted: '#939DB1', accent: '#7FC8DE', onAccent: '#20242E', warn: '#E8C476', pin: '#6EC1F5',
           note: 'Works as is; pin is a touch bluer than the accent ice.' }),
       t({ name: 'Ember', was: 'unchanged', scheme: 'dark', bg: '#0B0B0C', panel: '#161618', line: '#29292C', text: '#EDEBE6', muted: '#96948D', accent: '#F34E1C', onAccent: '#0B0B0C', warn: '#F5B944',
