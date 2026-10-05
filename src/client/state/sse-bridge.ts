@@ -2,7 +2,7 @@ import { findOpenCanvasPosition } from '../utils/placement.js';
 import { ownsCamera } from './presentation';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
-import type { CanvasAnnotation, CanvasEdge, CanvasNodeState } from '../types';
+import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, NodeActor } from '../types';
 import {
   activeNodeId,
   addEdge,
@@ -31,6 +31,7 @@ import {
   resetCanvasInteractionState,
 } from './canvas-store';
 import { applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
+import { applyContextStatus, refreshContextStatus } from './context-status-store';
 import {
   fetchAgentPresence,
   fetchAxSurfaceState,
@@ -368,8 +369,16 @@ function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
     collapsed: raw.collapsed === true,
     pinned: raw.pinned === true,
     contentRevision: typeof raw.contentRevision === 'number' ? raw.contentRevision : 0,
+    ...(isActor(raw.createdBy) ? { createdBy: raw.createdBy } : {}),
+    ...(isActor(raw.lastEditedBy) ? { lastEditedBy: raw.lastEditedBy } : {}),
     data,
   };
+}
+
+function isActor(value: unknown): value is NodeActor {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.actor === 'string' && typeof record.source === 'string';
 }
 
 function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
@@ -484,6 +493,7 @@ function resyncForBoardSwitch(): void {
   resetCanvasInteractionState();
   resetAttentionBridge();
   dismissSessionReceipt();
+  applyContextStatus({});
   axSurfaceState.value = null;
   void refreshAxSurface();
   const layoutAtRequest = layoutRevision;
@@ -511,6 +521,7 @@ function handleConnected(data: Record<string, unknown>): void {
   // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
   // keep it live from here on.
   void fetchAgentPresence().then(applyPresenceSnapshot);
+  void refreshContextStatus();
   // Human collaborators (phase 8): announce this tab and read who else is here.
   // An `?agent=<key>` tab is an AGENT's view — it must not heartbeat a human
   // guest cursor (its writes already book as the agent).
@@ -1035,6 +1046,11 @@ function handleContextPinsChanged(data: Record<string, unknown>): void {
   const nodeIds = Array.isArray(data.nodeIds) ? data.nodeIds.filter((id): id is string => typeof id === 'string') : [];
   replaceContextPinsFromServer(nodeIds);
   syncAttentionFromSse({ event: 'context-pins-changed', data });
+  void refreshContextStatus();
+}
+
+function handleContextStatusChanged(): void {
+  void refreshContextStatus();
 }
 
 // AX state changes arrive as per-primitive deltas; rather than reduce them, treat
@@ -1111,6 +1127,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ext-app-update': handleExtAppUpdate,
   'ext-app-result': handleExtAppResult,
   'context-pins-changed': handleContextPinsChanged,
+  'context-status-changed': handleContextStatusChanged,
   'boards-changed': applyBoards,
   'canvas-layout-update': handleCanvasLayoutUpdate,
   'canvas-focus-node': handleCanvasFocusNode,

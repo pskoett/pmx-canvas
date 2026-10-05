@@ -5581,6 +5581,59 @@ html.is-node-resizing .ext-app-preview-catcher {
   background: none;
 }
 
+/* ── What agents did with this node (docs/design/AgentContext.dc.html) ──
+   One chip after the title: glyph + word, hover explains. Violet = the agent
+   did it, muted = not yet, amber = needs a look. */
+.node-context-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--node-chrome-scale, 1));
+  height: calc(20px * var(--node-chrome-scale, 1));
+  padding: 0 calc(7px * var(--node-chrome-scale, 1));
+  border-radius: var(--r-pill);
+  font-size: calc(var(--fs-meta) * var(--node-chrome-scale, 1));
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.node-context-mark svg {
+  width: calc(12px * var(--node-chrome-scale, 1));
+  height: calc(12px * var(--node-chrome-scale, 1));
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.node-context-mark.is-agent {
+  color: var(--c-agent);
+  background: color-mix(in srgb, var(--c-agent) 16%, transparent);
+}
+.node-context-mark.is-muted {
+  color: var(--c-muted);
+  background: var(--c-panel-soft);
+}
+.node-context-mark.is-warn {
+  color: var(--c-warn);
+  background: color-mix(in srgb, var(--c-warn) 14%, transparent);
+}
+
+/* Pinned by an agent: a violet dot on the pin badge. */
+.ctx-pin-mark {
+  position: relative;
+}
+.ctx-pin-agent-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  background: var(--c-agent);
+  border: 2px solid var(--c-panel);
+}
+
 /* The drawn 18 px circle sits inside the standard control hit target. */
 .ctx-pin-mark {
   width: calc(18px * var(--node-chrome-scale, 1));

@@ -131,7 +131,9 @@ describe('board switcher', () => {
     await act(async () => {
       fireEvent.click(getByText('Discovery'));
     });
-    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ id: 'b-disc' });
+    // A switch also refetches board state; check the open request itself.
+    const lastOpen = () => calls.filter((call) => call.url === '/api/canvas/boards/open').at(-1);
+    expect(JSON.parse(String(lastOpen()?.init?.body))).toEqual({ id: 'b-disc' });
 
     const discoveryButton = await waitFor(() => getByRole('button', { name: /Board: Discovery/ }));
     fireEvent.click(discoveryButton);
@@ -139,7 +141,7 @@ describe('board switcher', () => {
       fireEvent.click(getByText('All boards (Home)'));
     });
     await waitFor(() => {
-      expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ id: null });
+      expect(JSON.parse(String(lastOpen()?.init?.body))).toEqual({ id: null });
     });
   });
 

@@ -455,6 +455,8 @@ class CanvasStateManager {
 
   // ── Work-item change listener (single slot, for live workboard refresh) ──
   private _workItemsChangedListener: (() => void) | null = null;
+  /** Single slot (architecture rule 8): server.ts tells the workbench a read landed. Never MCP. */
+  private _contextReadListener: ((boardId: string | null) => void) | null = null;
 
   /**
    * Register THE work-item change listener (single slot, last-write-wins).
@@ -462,6 +464,10 @@ class CanvasStateManager {
    * status mirror), so live views like the workboard can rebuild from the
    * fresh work-item list.
    */
+  setContextReadListener(listener: ((boardId: string | null) => void) | null): void {
+    this._contextReadListener = listener;
+  }
+
   setWorkItemsChangedListener(listener: (() => void) | null): void {
     this._workItemsChangedListener = listener;
   }
@@ -2871,7 +2877,9 @@ class CanvasStateManager {
   recordContextRead(input: ContextReadInput, boardId: string | null = this._activeBoardId): ContextRead | null {
     if (!this._db) return null;
     try {
-      return appendContextReadToDB(this._db, input, boardId, this.readRevisions(input, boardId));
+      const read = appendContextReadToDB(this._db, input, boardId, this.readRevisions(input, boardId));
+      this._contextReadListener?.(boardId);
+      return read;
     } catch (error) {
       logCanvasStateWarning('record context read failed', error);
       return null;

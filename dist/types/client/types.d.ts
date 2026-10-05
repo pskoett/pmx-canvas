@@ -19,7 +19,15 @@ export interface CanvasNodeState {
     collapsed: boolean;
     pinned: boolean;
     contentRevision?: number;
+    /** Who created / last edited the node's content (server attribution). */
+    createdBy?: NodeActor;
+    lastEditedBy?: NodeActor;
     data: Record<string, unknown>;
+}
+export interface NodeActor {
+    actor: 'human' | 'agent' | 'system' | 'unknown';
+    source: string;
+    agentId?: string;
 }
 export interface CanvasEdge {
     id: string;

@@ -187,12 +187,15 @@ declare class CanvasStateManager {
      */
     onChange(cb: (type: CanvasChangeType) => void): () => void;
     private _workItemsChangedListener;
+    /** Single slot (architecture rule 8): server.ts tells the workbench a read landed. Never MCP. */
+    private _contextReadListener;
     /**
      * Register THE work-item change listener (single slot, last-write-wins).
      * Fired after addWorkItem/updateWorkItem completes (including the node
      * status mirror), so live views like the workboard can rebuild from the
      * fresh work-item list.
      */
+    setContextReadListener(listener: ((boardId: string | null) => void) | null): void;
     setWorkItemsChangedListener(listener: (() => void) | null): void;
     private notifyWorkItemsChanged;
     private notifyChange;

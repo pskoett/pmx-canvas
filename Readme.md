@@ -112,6 +112,10 @@ Steer the agent and see its work, without prompt engineering or copy-paste.
 Pin a node in the browser and the MCP server fires a
 `notifications/resources/updated` event the agent's harness picks up
 immediately — an explicit, low-noise control over what the agent sees next.
+Each pinned node then shows whether an agent has read it since you pinned it,
+and turns amber with "changed since read" when you edit it after the agent's
+last read. Nodes an agent created or edited carry its name until you edit them,
+and a pin an agent made carries a violet dot with its reason on hover.
 
 On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
 canvas into a shared workspace between you and the agent:

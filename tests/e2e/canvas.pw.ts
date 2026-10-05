@@ -3605,6 +3605,49 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
     .toBe(true);
 });
 
+test('a pinned node shows whether the agent read it and whether its copy is current', async ({ page, request }) => {
+  const created = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Read state note', content: 'first', x: 420, y: 260 },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  const note = page.locator(`.canvas-node[data-node-id="${created.id}"]`);
+  await expect(note).toHaveCount(1);
+  await note.locator('.ctx-pin-btn').click();
+  const mark = note.locator('.node-context-mark');
+  await expect(mark).toHaveAttribute('data-mark', 'not read');
+
+  // An agent reads the brief: the pin is read.
+  await request.get('/api/canvas/ax/context', { headers: { 'x-pmx-source': 'read-state-agent' } });
+  await expect(mark).toHaveAttribute('data-mark', 'read');
+
+  // A person edits it: the agent's copy is out of date, in amber.
+  const token = await page.evaluate(
+    () => (window as Window & { __PMX_WORKBENCH_TOKEN?: string }).__PMX_WORKBENCH_TOKEN,
+  );
+  await request.patch(`/api/canvas/node/${created.id}`, {
+    headers: { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token ?? '' },
+    data: { content: 'second' },
+  });
+  await expect(mark).toHaveAttribute('data-mark', 'changed since read');
+  await expect(mark).toHaveCSS(
+    'color',
+    await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--c-warn)';
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    }),
+  );
+
+  // The next read catches up.
+  await request.get('/api/canvas/ax/context', { headers: { 'x-pmx-source': 'read-state-agent' } });
+  await expect(mark).toHaveAttribute('data-mark', 'read');
+});
+
 test('light theme marks context-pinned nodes in its own pin blue', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/node', {
     data: {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
+import { isAgentPin, NodeContextMark } from './NodeContextMark';
 import {
   activeNodeId,
   activeNeighborNodeIds,
@@ -664,6 +665,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 {title}
               </span>
             )}
+            <NodeContextMark node={node} pinned={isContextPinned} />
             <div class="node-controls">
               {isPinned && (
                 <span class="pin-indicator" title="Pinned">
@@ -697,6 +699,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               >
                 <span class="ctx-pin-mark">
                   <IconPin />
+                  {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
                 </span>
               </button>
               <button

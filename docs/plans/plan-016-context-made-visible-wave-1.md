@@ -1,6 +1,6 @@
 # Plan 016 — Context made visible (wave 1)
 
-**Status:** Slice 1 done (2026-10-05); slice 2 (node marks) next.
+**Status:** Slices 1–2 done (2026-10-05); slice 3 (lens and receipt) next.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -63,6 +63,16 @@ is newer than the revision read; violet dot on the pin badge when an agent pinne
 session, with "see change" opening the diff and undo.
 - **Check:** client tests per state; e2e at 600/1024/1920 that a pinned-then-changed node shows
   "changed since read" after an agent read, and clears after the next read.
+- **Done.** Decided with the maintainer (2026-10-05): the read / not read / changed since read marks
+  show on **pinned** nodes only (a full-layout read delivers every node, so marking all of them
+  would cover the board); unpinned reads go to the lens (slice 3). "by <agent>" and "edited" stay
+  until a person edits the node. One chip per node (`NodeContextMark`), glyph + word, explained
+  on hover; agent pins get the violet dot. The workbench refetches the read status on connect, on
+  pin changes and when a read lands (`context-status-changed`, sent to the browser only), and
+  ignores an answer for a board it has left. Not built: "see change" (diff and undo of an agent
+  edit) needs stored previous content, which revisions do not keep yet.
+- **Note.** The demo board is generated through the API as agent writes, so its nodes show
+  "by sdk" until edited.
 
 ### 3. After a session: the agent-activity lens and receipt
 

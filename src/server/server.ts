@@ -3285,6 +3285,12 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
     primaryWorkbenchAutoOpenEnabled = options.autoOpenBrowser;
   }
 
+  // A recorded agent read changes what the workbench marks as read; tell the
+  // browser only (an MCP notification would make a read cause more reads).
+  canvasState.setContextReadListener((boardId) => {
+    emitPrimaryWorkbenchEvent('context-status-changed', { boardId });
+  });
+
   // Ensure direct HTTP server usage records undo/redo history, not just PmxCanvas.start().
   canvasState.onMutation((info) => {
     mutationHistory.record({
