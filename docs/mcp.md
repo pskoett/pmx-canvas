@@ -323,7 +323,7 @@ Announce the spatial move you are **about** to make so the canvas paints a faint
 pre-commit placeholder (a "ghost"). The human sees the next move forming — and can
 veto it — before the mutation lands.
 
-- `signal` — register an intent: `kind` (`create` \| `move` \| `connect` \| `remove` \| `edit`) plus the anchor it renders against (`position` for create/move, `nodeId` for move/edit/remove, `edge` for connect). Optional `label`, `reason`, `confidence` (0..1 → ghost opacity), `seq` (staged-batch ordering), `ttlMs` (default ~8s), and a stable `id` to update/clear later.
+- `signal` — register an intent: `kind` (`create` \| `move` \| `connect` \| `remove` \| `edit`) plus the anchor it renders against (`position` for move, optional for create; `nodeId` for move/edit/remove; `edge` for connect). A create without `position` forms where the canvas will auto-place the node, and the linked create lands there. Optional `label`, `reason`, `confidence` (0..1 → ghost opacity), `seq` (staged-batch ordering), `ttlMs` (default ~8s), and a stable `id` to update/clear later.
 - `update` — patch a live intent by `id` (position/label/reason/confidence/ttlMs).
 - `clear` — abandon/dissolve it explicitly. Normal linked mutations settle automatically.
 

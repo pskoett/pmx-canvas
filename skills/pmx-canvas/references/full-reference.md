@@ -508,7 +508,7 @@ coming and can veto it mid-thought. Intents are ephemeral presence: never
 persisted, auto-expiring (~8s), never in `canvas_query layout`.
 
 Narrate → linked mutation → automatic settle:
-1. `canvas_intent { action: "signal", kind: "create", position: { x, y }, nodeType: "markdown", label: "Add evidence", reason: "capturing the failing test", confidence: 0.8 }` → returns `intent.id`.
+1. `canvas_intent { action: "signal", kind: "create", nodeType: "markdown", label: "Add evidence", reason: "capturing the failing test", confidence: 0.8 }` → returns `intent.id` and the `position` the canvas chose.
 2. Make the real move and pass that id: `canvas_node { action: "add", intentId: <intent.id>, ... }`.
 3. PMX rejects the mutation if the intent was vetoed or expired; otherwise the
    successful mutation settles the ghost into the resulting node automatically.
@@ -522,9 +522,13 @@ mcp-app) and `canvas_webview` do **not** accept an `intentId` and reject it with
 400 — to telegraph one of those, signal a ghost, then `clear` it (or let it
 expire) and run the open *without* an `intentId`.
 
-Per kind, pass the anchor it renders against: `position` for `create`/`move`,
-`nodeId` for `move`/`edit`/`remove`, `edge: { from, to, type }` for `connect`. The
-payoff is **legibility** — `reason` is shown beneath the ghost.
+Per kind, pass the anchor it renders against: `position` for `move` (optional for
+`create`), `nodeId` for `move`/`edit`/`remove`, `edge: { from, to, type }` for
+`connect`. **Omit `position` on a create unless you know where the node goes:** the
+canvas then forms the ghost where it will auto-place the node, keeps staged ghosts
+from stacking, and lands the linked create on its ghost. Never pass a placeholder
+such as `{ x: 0, y: 0 }`. The payoff is **legibility** — `reason` is shown beneath
+the ghost.
 
 **When to use vs skip.** Signal for adds, removes, and moves of visible nodes;
 connecting nodes; creating groups; layout reorganizations; meaningful title/content

@@ -801,7 +801,10 @@ registry's kind validation. Pick the operation by method + path:
 # (default 8000, max 60000), so cleanup is optional.
 curl -X POST http://localhost:4313/api/canvas/ax/intent \
   -H "Content-Type: application/json" \
-  -d '{"kind":"create","position":{"x":400,"y":300},"nodeType":"markdown","label":"Add evidence","reason":"collecting run logs"}'
+  -d '{"kind":"create","nodeType":"markdown","label":"Add evidence","reason":"collecting run logs"}'
+# A create may omit "position": the ghost forms where the canvas will auto-place
+# the node (returned in intent.position), and a create linked by intentId with no
+# x/y lands there. Pass "position" only when you know where the node goes.
 
 # Update the ghost (position/label/reason/confidence/ttlMs; vetoed:true dissolves
 # it AND poisons the id so a later linked settle is rejected)

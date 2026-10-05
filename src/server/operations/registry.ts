@@ -109,6 +109,20 @@ function allowedIntentKinds(name: string, rawInput: unknown): readonly PmxAxInte
  * chunk is exactly the high-frequency churn class the batch exemption exists
  * for; the stream's CREATING call (no nodeId yet) still ghosts once.
  */
+/**
+ * A linked create that carries no x/y lands on its ghost, so the node appears
+ * where the human watched it form. A group built from children keeps the frame
+ * its children give it.
+ */
+function landOnGhost(name: string, rawInput: unknown, intentId: string): unknown {
+  if (!INTENT_KINDS_BY_OPERATION[name]?.includes('create')) return rawInput;
+  const input = asRecord(rawInput);
+  if (typeof input.x === 'number' || typeof input.y === 'number') return rawInput;
+  if (name === 'group.create' && Array.isArray(input.childIds) && input.childIds.length > 0) return rawInput;
+  const position = intentRegistry.list().find((intent) => intent.id === intentId)?.position;
+  return position ? { ...input, x: position.x, y: position.y } : rawInput;
+}
+
 function autoGhostExempt(name: string, rawInput: unknown): boolean {
   if (name !== 'jsonrender.stream') return false;
   const input =
@@ -507,15 +521,16 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     throw new OperationError(`Operation "${name}" cannot be committed through a ghost intent.`);
   }
   if (intentId) {
+    const input = landOnGhost(name, rawInput, intentId);
     return intentRegistry.runCommit(
       intentId,
       allowedKinds!,
       async () => {
-        const result = await op.execute(rawInput, operationContext);
+        const result = await op.execute(input, operationContext);
         if (op.mutates) {
           emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
         }
-        notePresence(name, rawInput, meta, op, result);
+        notePresence(name, input, meta, op, result);
         return result;
       },
       settledNodeId,

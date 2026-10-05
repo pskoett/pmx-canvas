@@ -15,9 +15,12 @@
  */
 import { z } from 'zod';
 import { INTENT_EDGE_TYPES, INTENT_KINDS } from '../../../shared/ax-intent.js';
+import { canvasState } from '../../canvas-state.js';
 import { intentRegistry } from '../../intent-registry.js';
+import { findOpenCanvasPosition } from '../../placement.js';
 import { readJsonValue } from '../http.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
+import { defaultNodeSize } from './nodes.js';
 
 const positionShape = z.object({ x: z.number(), y: z.number() });
 
@@ -28,7 +31,11 @@ const intentSignalShape = {
     .enum(INTENT_KINDS)
     .optional()
     .describe('create | move | connect | remove | edit — the move about to be made.'),
-  position: positionShape.optional().describe('World coords: where a create forms, or the destination of a move.'),
+  position: positionShape
+    .optional()
+    .describe(
+      'World coords: the destination of a move, or where a create forms. Omit it for a create to ghost where the canvas will place the node.',
+    ),
   nodeId: z.string().optional().describe('The existing node a move/edit/remove targets.'),
   edge: z
     .object({ from: z.string(), to: z.string(), type: z.enum(INTENT_EDGE_TYPES) })
@@ -46,6 +53,24 @@ const intentSignalShape = {
 
 const intentSignalSchema = z.looseObject(intentSignalShape);
 
+/**
+ * Where a create without a position will land: the same auto-placement the
+ * create ops use, with live create ghosts as obstacles so staged ghosts do not
+ * stack. An agent announcing work before it knows the layout must not have to
+ * guess a position (a guessed 0,0 put every first ghost in the top-left corner).
+ */
+function openPositionForCreate(nodeType: unknown): { x: number; y: number } {
+  const size = defaultNodeSize(typeof nodeType === 'string' ? nodeType : 'markdown');
+  const ghosts = intentRegistry
+    .list()
+    .flatMap((intent) =>
+      intent.kind === 'create' && intent.position
+        ? [{ position: intent.position, size: defaultNodeSize(intent.nodeType ?? 'markdown') }]
+        : [],
+    );
+  return findOpenCanvasPosition([...canvasState.getLayout().nodes, ...ghosts], size.width, size.height);
+}
+
 const intentSignalOperation = defineOperation<z.infer<typeof intentSignalSchema>, Record<string, unknown>>({
   name: 'intent.signal',
   mutates: false,
@@ -53,7 +78,11 @@ const intentSignalOperation = defineOperation<z.infer<typeof intentSignalSchema>
   inputShape: intentSignalShape,
   http: { method: 'POST', path: '/api/canvas/ax/intent' },
   handler: (input) => {
-    const intent = intentRegistry.signal(input);
+    const placed =
+      input.kind === 'create' && !input.position
+        ? { ...input, position: openPositionForCreate(input.nodeType) }
+        : input;
+    const intent = intentRegistry.signal(placed);
     return { ok: true, intent } as unknown as Record<string, unknown>;
   },
 });

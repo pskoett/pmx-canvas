@@ -355,6 +355,37 @@ describe('canvas server HTTP API', () => {
     expect(canvasState.getNode(committed.id)?.data.title).toBe('Committed node');
     expect(intentRegistry.list().some((intent) => intent.id === 'http-commit')).toBe(false);
 
+    // A create intent may omit its position: the ghost forms where the node
+    // will actually land, staged ghosts do not stack, and the linked create
+    // lands on its own ghost (not world 0,0 or wherever the agent guessed).
+    const occupied = canvasState.getLayout().nodes.map((node) => ({ ...node.position, ...node.size }));
+    const placedA = await jsonRequest<{ intent: { position: { x: number; y: number } } }>('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'auto-place-a', kind: 'create', nodeType: 'markdown' }),
+    });
+    const placedB = await jsonRequest<{ intent: { position: { x: number; y: number } } }>('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'auto-place-b', kind: 'create', nodeType: 'markdown' }),
+    });
+    const a = placedA.intent.position;
+    const b = placedB.intent.position;
+    expect(a).toBeDefined();
+    expect(b).not.toEqual(a);
+    for (const rect of occupied) {
+      const overlaps =
+        a.x < rect.x + rect.width && a.x + 640 > rect.x && a.y < rect.y + rect.height && a.y + 420 > rect.y;
+      expect(overlaps).toBe(false);
+    }
+    const landed = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intentId: 'auto-place-a', type: 'markdown', title: 'Lands on its ghost' }),
+    });
+    expect(canvasState.getNode(landed.id)?.position).toEqual(a);
+    await jsonRequest('/api/canvas/ax/intent/auto-place-b', { method: 'DELETE' });
+
     const blankIntent = await fetch(`${baseUrl}/api/canvas/node`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
