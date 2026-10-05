@@ -107,7 +107,7 @@ the same change.
 | [`Tokens.dc.html`](design/Tokens.dc.html) | Typeface, type scale, radii, elevation, one meaning per colour | 0 |
 | [`TokenSystem.dc.html`](design/TokenSystem.dc.html) | The token system today vs proposed: palette, meaning, scale | 0 |
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
-| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header and ⋯ menu, section headings, floating chrome | 0 |
+| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (context pin always visible, the rest under ⋯), section headings, floating chrome | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
 | [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt | 1 |
 | [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, context, README, board details | 1 |
@@ -134,9 +134,12 @@ the same change.
 - **One font and one scale.** IBM Plex Sans and Mono, bundled with the app (no CDN);
   every control inherits the font. Type 11/12/13/15/20; radii 6/10/14/pill; two
   shadow levels. No glow is used as elevation.
-- **Quiet chrome.** Node headers show title and kind; controls appear on hover under
-  ⋯. Section labels are a heading display of the markdown node. Rarely used tools
-  live in one settings menu on the rail.
+- **Quiet chrome, with the context pin always in reach.** Every node header shows its
+  kind, title and context pin: an outline pin in a circle when the node is not in
+  context (click or `P` to add), the filled blue badge when it is (click to remove),
+  always in the same place. The other controls (ask agent, open, focus, collapse,
+  set as README, close) appear on hover under ⋯ and ×. Section labels are a heading
+  display of the markdown node. Rarely used tools live in one settings menu on the rail.
 - **Relations are the edge layer, not node types.** Design work adds no node type;
   the vision's own `ask` node (move 3) is separate.
 - **The 600 px pane is the reference surface.** Every drawing gets a 600 px version

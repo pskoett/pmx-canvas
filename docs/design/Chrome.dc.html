@@ -57,7 +57,7 @@ body{margin:0}
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 14px">
-<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">8 · Node header</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Six always-on icons become ⋯ and × on hover.</p></div>
+<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">8 · Node header</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">The context pin always shows; the other five icons go behind ⋯ on hover.</p></div>
 
 <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
 <div style="border-radius: 12px 12px 8px 8px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
@@ -74,6 +74,7 @@ body{margin:0}
 <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44">
 <svg width="16" height="16" viewBox="0 0 24 24" style="color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
 <span style="flex: 1; font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span>
+<button aria-label="Add to context (P)" style="width: 18px; height: 18px; box-sizing: border-box; border: 1.5px solid #6b7d94; border-radius: 999px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 </div>
 <div style="height: 44px; padding: 10px 12px; box-sizing: border-box; font-size: 12px; color: #b9c6d6">An infinite spatial canvas that agents drive over MCP, HTTP or the Bun SDK.</div>
 </div>
@@ -83,6 +84,7 @@ body{margin:0}
 <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44">
 <svg width="16" height="16" viewBox="0 0 24 24" style="color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
 <span style="flex: 1; font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span>
+<button aria-label="Add to context (P)" style="width: 18px; height: 18px; box-sizing: border-box; border: 1.5px solid #6b7d94; border-radius: 999px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 <button aria-label="More actions" style="width: 24px; height: 24px; border: 0; border-radius: 6px; padding: 0; background: #1b2c44; color: #e6eef7; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: currentColor; stroke: none"><circle cx="6" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="18" cy="12" r="1.4"></circle></svg></button>
 <button aria-label="Close" style="width: 24px; height: 24px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #8ea3bd; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
 </div>
@@ -194,7 +196,7 @@ class Component extends DCLogic {
     function m(label, hint, active) { return { btn: true, sep: false, label: label, hint: hint, bg: active ? '#1b2c44' : 'transparent' }; }
     var msep = { btn: false, sep: true };
     var settings = [m('Theme', 'Dark ›', true), m('Snapshots', ''), m('Minimap', 'On'), m('Keyboard shortcuts', '?'), msep, m('Trace', 'Off ›'), m('Send feedback', '')];
-    var nodeMenu = [m('Add to context', 'P', true), m('Ask agent', ''), m('Open in new tab', ''), m('Focus', '↵'), m('Collapse', ''), m('Set as README', ''), msep, m('Close', '⌫')];
+    var nodeMenu = [m('Ask agent', '', true), m('Open in new tab', ''), m('Focus', '↵'), m('Collapse', ''), m('Set as README', ''), msep, m('Close', '⌫')];
     var oldIcons = [{ d: P.ctx }, { d: P.ask }, { d: P.open }, { d: P.expand }, { d: P.chevron }, { d: P.close }];
     return { railToday: railToday, railNew: railNew, settings: settings, nodeMenu: nodeMenu, oldIcons: oldIcons };
   }

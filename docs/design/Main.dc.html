@@ -62,7 +62,7 @@ body{margin:0}
 <div style="{{s.head}}">
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 10h8M8 14h5"></path></svg>
 <span style="{{s.title}}">PMX Canvas — guided tour</span>
-<svg role="img" aria-label="In agent context" width="15" height="15" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.accent}}; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg>
+<span role="img" aria-label="In agent context" style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span>
 </div>
 <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
 <div style="font-size: 15px; font-weight: 600; line-height: 1.35">PMX Canvas</div>
@@ -84,6 +84,7 @@ body{margin:0}
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="8"></circle><path d="M8 12h2l1.5-3 2 6 1.5-3h1"></path></svg>
 <span style="{{s.title}}">Agent</span>
 <span style="font-size: 11px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: {{c.attnA}}; color: {{c.attn}}">updated 2m ago</span>
+<button aria-label="Add to context (P)" style="{{s.pinOff}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 </div>
 <div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px">
 <div style="display: flex; align-items: center; gap: 8px"><span style="width: 7px; height: 7px; border-radius: 999px; background: {{c.attn}}"></span><span style="font-weight: 600">Tooling</span><span style="color: {{c.muted}}">Rebuilding the release checklist</span></div>
@@ -114,6 +115,7 @@ body{margin:0}
 <div style="{{s.head}}">
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M4 4v16h16M8 16v-4M12 16V8M16 16v-6"></path></svg>
 <span style="{{s.title}}">Merged PRs per week</span>
+<button aria-label="Add to context (P)" style="{{s.pinOff}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 <button aria-label="More actions" style="{{s.ibtnOn}}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: currentColor; stroke: none"><circle cx="6" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="18" cy="12" r="1.4"></circle></svg></button>
 <button aria-label="Close" style="{{s.ibtn}}"><svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
 </div>
@@ -141,6 +143,7 @@ body{margin:0}
 <div style="{{s.head}}">
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="M3.5 9h17"></path></svg>
 <span style="{{s.title}}">Model Context Protocol — Resources</span>
+<button aria-label="Add to context (P)" style="{{s.pinOff}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 </div>
 <div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: {{c.warnA}}; color: {{c.warn}}; font-size: 12px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4l9 16H3zM12 10v4M12 17v.5"></path></svg>Showing cached copy — live fetch failed</div>
@@ -154,6 +157,7 @@ body{margin:0}
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M7 3.5h7l4 4V20.5H6V3.5zM14 3.5V8h4"></path></svg>
 <span style="{{s.title}}">node-sizes.ts</span>
 <span style="font-size: 11px; color: {{c.dim}}">src/shared</span>
+<button aria-label="Add to context (P)" style="{{s.pinOff}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 </div>
 <div style="flex: 1; padding: 10px 14px; background: {{c.codeBg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; color: {{c.soft}}; white-space: pre">export const NODE_MIN = { width: 180, height: 96 };
 
@@ -168,6 +172,7 @@ export function clampSize(size) {
 <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink: 0; color: {{c.muted}}; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M12 6.5v6M9 9.5h6M9 17h6"></path></svg>
 <span style="{{s.title}}">Readability floor — 2 files</span>
 <span style="font-size: 11px; color: {{c.ok}}">+2</span><span style="font-size: 11px; color: {{c.danger}}">−2</span>
+<button aria-label="Add to context (P)" style="{{s.pinOff}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 </div>
 <div style="flex: 1; padding: 8px 0; background: {{c.codeBg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.7">
 <div style="padding: 0 14px; color: {{c.dim}}">@@ src/client/theme/global.css</div>
@@ -235,6 +240,8 @@ class Component extends DCLogic {
       ibtnOn: btnBase + 'width:24px;height:24px;border-radius:6px;background:' + c.panel2 + ';color:' + c.text + ';',
       node: 'position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;background:' + c.panel + ';border:1px solid ' + c.line + ';border-radius:10px;box-shadow:' + c.e1 + ';',
       nodePinned: 'position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;background:' + c.panel + ';border:1.5px solid ' + c.accent + ';border-radius:10px;box-shadow:0 0 0 3px ' + c.accentRing + ', ' + c.e1 + ';left:48px;top:88px;width:400px;height:340px;',
+      pinOff: btnBase + 'flex-shrink:0;width:18px;height:18px;box-sizing:border-box;border-radius:999px;border:1.5px solid ' + c.dim + ';background:transparent;color:' + c.soft + ';',
+      pinOn: 'flex-shrink:0;width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:' + c.accent + ';color:' + c.onAccent + ';',
       head: 'position:relative;display:flex;align-items:center;gap:8px;height:36px;flex-shrink:0;box-sizing:border-box;padding:0 8px 0 12px;border-bottom:1px solid ' + c.line + ';',
       title: 'flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + c.text + ';',
       trace: 'position:absolute;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:0 14px;background:' + c.panel + ';border:1px solid ' + c.line + ';border-radius:10px;box-shadow:' + c.e1 + ';',

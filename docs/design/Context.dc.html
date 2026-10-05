@@ -35,7 +35,7 @@ body{margin:0}
 <svg width="14" height="14" viewBox="0 0 24 24" style="{{cell.icon}}"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
 <span style="{{cell.title}}">{{cell.name}}</span>
 <sc-if value="{{cell.oldPin}}" hint-placeholder-val="{{ false }}"><span style="color: #f4c542; font-size: 10px">●</span></sc-if>
-<sc-if value="{{cell.pin}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinBadge}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
+<sc-if value="{{cell.pinOff}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinOffStyle}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if><sc-if value="{{cell.pin}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinBadge}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
 <span style="{{cell.ctl}}">{{cell.ctlText}}</span>
 </div>
 <div style="{{cell.body}}">{{cell.text}}</div>
@@ -69,7 +69,7 @@ body{margin:0}
 <svg width="14" height="14" viewBox="0 0 24 24" style="{{cell.icon}}"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
 <span style="{{cell.title}}">{{cell.name}}</span>
 <sc-if value="{{cell.oldPin}}" hint-placeholder-val="{{ false }}"><span style="color: #f4c542; font-size: 10px">●</span></sc-if>
-<sc-if value="{{cell.pin}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinBadge}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
+<sc-if value="{{cell.pinOff}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinOffStyle}}"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if><sc-if value="{{cell.pin}}" hint-placeholder-val="{{ false }}"><span style="{{cell.pinBadge}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></span></sc-if>
 <span style="{{cell.ctl}}">{{cell.ctlText}}</span>
 </div>
 <div style="{{cell.body}}">{{cell.text}}</div>
@@ -148,7 +148,7 @@ class Component extends DCLogic {
       var headBg = primary ? 'linear-gradient(90deg, rgba(244,197,66,0.12), transparent 68%), #0b1828' : '#0b1828';
       var sel = state === 'sel' || state === 'pinsel';
       return {
-        field: primary, oldPin: pinned, pin: false, bar: false, handles: sel, name: name, text: text,
+        field: primary, oldPin: pinned, pin: false, pinOff: false, bar: false, handles: sel, name: name, text: text,
         node: inset + 'background:#0f1d31;border:1px solid ' + border + ';box-shadow:' + shadow + ';border-radius:12px 12px 8px 8px;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;',
         head: 'display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-bottom:1px solid #1b2c44;background:' + headBg + ';',
         icon: 'flex-shrink:0;color:#4BBCFF;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;',
@@ -167,7 +167,8 @@ class Component extends DCLogic {
       var border = pinned ? '1.5px solid ' + c.accent : '1px solid ' + c.line;
       var shadow = sel ? '0 0 0 3px ' + c.bg + ', 0 0 0 5px ' + c.accent + ', ' + c.e1 : c.e1;
       return {
-        field: false, oldPin: false, pin: pinned, bar: touched, handles: sel, name: name, text: text,
+        field: false, oldPin: false, pin: pinned, pinOff: !pinned,
+        pinOffStyle: 'flex-shrink:0;width:18px;height:18px;box-sizing:border-box;border-radius:999px;border:1.5px solid ' + c.muted + ';color:' + c.soft + ';display:flex;align-items:center;justify-content:center;', bar: touched, handles: sel, name: name, text: text,
         node: inset + 'background:' + c.panel + ';border:' + border + ';box-shadow:' + shadow + ';border-radius:10px;font-family:"IBM Plex Sans",system-ui,sans-serif;',
         head: 'display:flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 10px;border-bottom:1px solid ' + c.line + ';background:' + (pinned ? c.accentA : 'transparent') + ';',
         icon: 'flex-shrink:0;color:' + (pinned ? c.accent : c.muted) + ';fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;',
