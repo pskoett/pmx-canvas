@@ -113,6 +113,7 @@ the same change.
 | [`BoardPins.dc.html`](design/BoardPins.dc.html) | Board pins: where you pin a board, the tiered brief, the context chip across boards | 1 |
 | [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details | 1 |
 | [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library | 2 |
+| [`HomeTeam.dc.html`](design/HomeTeam.dc.html) | Home on a team server: workspace and personal libraries, per-user pins, moving a board into the workspace, locked links (look ahead) | Later (Part 3, step 5) |
 | [`Relations.dc.html`](design/Relations.dc.html) | Relations on a research board, today vs proposed; edge anatomy; relation inks | 3 |
 | [`Flows.dc.html`](design/Flows.dc.html) | Data lineage with staleness, what a finding rests on, opening a group | 3, 5 |
 | [`Uses.dc.html`](design/Uses.dc.html) | One relation layer for research, dependencies, decisions and agent flows | 3 |
@@ -167,7 +168,7 @@ implementation table).
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |
 | **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
-| **Later — share ladder** | Part 3 | Read-only link, comments, second writer; at step 5, workspace and personal libraries with per-user pins | Not drawn yet: Home, Map and Graph get two roots (Workspace, Personal); locked cards for boards a viewer cannot read | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal crosses into the workspace without an explicit share or move |
+| **Later — share ladder** | Part 3 | Read-only link, comments, second writer; at step 5, workspace and personal libraries with per-user pins | HomeTeam (look ahead): Home with two roots (Workspace, Personal), your pins across both, an explicit move with its effects spelled out, locked cards for boards a viewer cannot read | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal crosses into the workspace without an explicit share or move |
 
 **Folders and portals.** Home uses folders as the visible hierarchy (where a board
 lives, one place); portals and links are how boards relate and appear in Map and

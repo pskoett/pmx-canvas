@@ -155,6 +155,13 @@
       "w": 1440,
       "h": 1100,
       "title": "Board pins — a working set across boards"
+    },
+    "HomeTeam.dc.html": {
+      "x": 7600,
+      "y": 2740,
+      "w": 1440,
+      "h": 1000,
+      "title": "Home on a team server — workspace and personal (step 5, look ahead)"
     }
   },
   "createdOnFiles": {
@@ -198,7 +205,7 @@
     },
     "t3": {
       "kind": "title1",
-      "maxW": 7520,
+      "maxW": 9040,
       "text": "Zoomed out, Home as the library (folders, map, graph) and board pins",
       "w": 240,
       "x": 0,
@@ -241,6 +248,7 @@
     "HomeMap.dc.html",
     "HomeGraph.dc.html",
     "BoardPins.dc.html",
+    "HomeTeam.dc.html",
     "Context.dc.html",
     "Types1.dc.html",
     "Types2.dc.html",

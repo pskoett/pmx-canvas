@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home on a team server</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 1000px; overflow: hidden; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5">
+
+<nav aria-label="Navigation" style="position: absolute; left: 0; top: 0; width: 52px; height: 1000px; box-sizing: border-box; padding: 8px 0; background: #0f1d31; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px">
+<button aria-label="Home" style="width: 36px; height: 36px; border: 0; border-radius: 6px; padding: 0; background: rgba(75,188,255,0.14); color: #4BBCFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6"><rect x="4" y="4" width="16" height="16" rx="4"></rect><rect x="9" y="9" width="6" height="6" rx="1.5"></rect></svg></button>
+<div style="flex: 1"></div>
+<span aria-label="Signed in" style="width: 30px; height: 30px; border-radius: 999px; background: #2a4566; color: #e6eef7; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin-bottom: 6px">You</span>
+</nav>
+
+<aside aria-label="Library" style="position: absolute; left: 52px; top: 0; width: 280px; height: 1000px; box-sizing: border-box; padding: 16px 12px; background: #0b1828; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; gap: 14px">
+<button style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid #1b2c44; background: #0f1d31; color: #e6eef7; font-family: inherit; text-align: left">
+<svg width="16" height="16" viewBox="0 0 24 24" style="{{s.icon}}"><path d="{{i.team}}"></path></svg><span style="flex: 1; font-size: 13px; font-weight: 600">Tech Enabling team</span><span style="font-size: 11px; color: #6b7d94">12 members ▾</span></button>
+
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="{{s.sec}}">Your pinned boards</span>
+<sc-for list="{{pinned}}" as="b" hint-placeholder-count="3">
+<div style="{{s.row}}"><span style="{{s.pinOn}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span><span style="{{s.name}}">{{b.name}}</span><span style="{{b.tag}}">{{b.scope}}</span></div>
+</sc-for>
+<span style="font-size: 11px; color: #6b7d94; padding: 2px 8px 0 32px">Only you see these pins · ≈ 19k tokens</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 0 8px 4px"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icon}}"><path d="{{i.team}}"></path></svg><span style="{{s.secInline}}">Workspace</span><span style="font-size: 11px; color: #6b7d94">shared</span></div>
+<sc-for list="{{workspace}}" as="f" hint-placeholder-count="5">
+<div style="{{f.style}}"><span style="width: {{f.indent}}px; flex-shrink: 0"></span><span style="width: 8px; height: 8px; border-radius: 3px; background: {{f.hue}}; flex-shrink: 0"></span><span style="{{s.name}}">{{f.name}}</span><span style="font-size: 11px; color: #6b7d94">{{f.role}}</span></div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 0 8px 4px"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icon}}"><path d="{{i.person}}"></path></svg><span style="{{s.secInline}}">Personal</span><span style="font-size: 11px; color: #6b7d94">only you</span></div>
+<sc-for list="{{personal}}" as="f" hint-placeholder-count="4">
+<div style="{{f.style}}"><span style="width: {{f.indent}}px; flex-shrink: 0"></span><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.icon}} flex-shrink: 0"><path d="{{f.icon}}"></path></svg><span style="{{s.name}}">{{f.name}}</span><span style="font-size: 11px; color: #6b7d94">{{f.n}}</span></div>
+</sc-for>
+</div>
+</aside>
+
+<main style="position: absolute; left: 332px; top: 0; width: 808px; height: 1000px; box-sizing: border-box; padding: 24px 32px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; align-items: flex-start; gap: 16px">
+<div style="flex: 1">
+<div style="font-size: 12px; color: #6b7d94">Personal <span style="color: #3d5170">/</span> <span style="color: #b9c6d6">Pricing drafts</span></div>
+<h1 style="margin: 2px 0 0; font-size: 20px; line-height: 28px; font-weight: 600; display: flex; align-items: center; gap: 10px"><svg width="16" height="16" viewBox="0 0 24 24" style="{{s.icon}}"><path d="{{i.person}}"></path></svg>Pricing drafts</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #b9c6d6">Your boards. Nobody else sees them until you share or move one.</p>
+</div>
+<div role="tablist" aria-label="View" style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #0f1d31"><button role="tab" aria-selected="true" style="{{s.tabOn}}">Folders</button><button role="tab" aria-selected="false" style="{{s.tab}}">Map</button><button role="tab" aria-selected="false" style="{{s.tab}}">Graph</button></div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{boards}}" as="bd" hint-placeholder-count="3">
+<article style="border-radius: 10px; border: {{bd.border}}; background: #0f1d31; overflow: hidden">
+<div style="position: relative; height: 96px; border-bottom: 1px solid #1b2c44; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 12px 12px">
+<span style="{{bd.pinStyle}} position: absolute; right: 10px; top: 10px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span>
+</div>
+<div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 13px; font-weight: 600">{{bd.name}}</div>
+<div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8ea3bd"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.icon}}"><path d="{{bd.icon}}"></path></svg>{{bd.access}}</div>
+</div>
+</article>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 12px; border: 1px solid #2a4566; background: #0f1d31; box-shadow: 0 10px 30px rgba(0,0,0,0.5)">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 15px; font-weight: 600; flex: 1">Move “Pricing research” to the workspace</span><span style="font-size: 11px; color: #6b7d94">from Personal / Pricing drafts</span></div>
+<label style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #8ea3bd">Workspace folder</span>
+<span style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid #2a4566; background: #13243b; font-size: 13px"><span style="width: 8px; height: 8px; border-radius: 3px; background: #7C9CFF"></span>Research / Pricing<span style="flex: 1"></span><span style="color: #6b7d94">▾</span></span></label>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 8px; background: #13243b; font-size: 12px">
+<span style="font-weight: 600">What changes</span>
+<sc-for list="{{effects}}" as="e" hint-placeholder-count="4"><div style="display: flex; gap: 8px; color: #b9c6d6"><span style="color: {{e.c}}; flex-shrink: 0">{{e.g}}</span><span>{{e.t}}</span></div></sc-for>
+</div>
+<div style="display: flex; justify-content: flex-end; gap: 8px"><button style="height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid #2a4566; background: transparent; color: #e6eef7; font-family: inherit; font-size: 12px; font-weight: 500">Share instead…</button><button style="height: 32px; padding: 0 14px; border: 0; border-radius: 6px; background: #4BBCFF; color: #081524; font-family: inherit; font-size: 12px; font-weight: 600">Move to workspace</button></div>
+</div>
+</main>
+
+<aside aria-label="Board details" style="position: absolute; left: 1140px; top: 0; width: 300px; height: 1000px; box-sizing: border-box; padding: 20px 18px; background: #0b1828; border-left: 1px solid #1b2c44; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #6b7d94">Workspace · Decisions</span><span style="font-size: 15px; font-weight: 600">Q4 pricing decision</span><span style="font-size: 11px; color: #8ea3bd">You can read · 3 editors · 12 members can read</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="{{s.secInline}} padding: 0">Links · 4</span>
+<sc-for list="{{links}}" as="lk" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 12px; color: {{lk.c}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icon}} flex-shrink: 0"><path d="{{lk.icon}}"></path></svg><span style="flex: 1">{{lk.name}}</span><span style="font-size: 11px; color: #6b7d94">{{lk.kind}}</span></div>
+</sc-for>
+</div>
+<div style="padding: 10px 12px; border-radius: 8px; border: 1px dashed #3d5170; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #b9c6d6"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icon}}"><path d="{{i.lock}}"></path></svg>A private board</div>
+<span style="font-size: 11px; color: #8ea3bd">What a teammate sees for a link to someone's personal board: no title, no summary, not in their agent's brief.</span>
+</div>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="5"><div style="display: flex; gap: 8px; font-size: 11px; color: #b9c6d6"><span style="color: #4BBCFF; flex-shrink: 0">•</span><span><b style="font-weight: 600; color: #e6eef7">{{r.t}}</b> {{r.d}}</span></div></sc-for>
+</div>
+</aside>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      team: 'M9 11a3 3 0 1 0 0-6a3 3 0 1 0 0 6zM3 20a6 6 0 0 1 12 0M17 11a2.5 2.5 0 1 0 0-5M21 20a5 5 0 0 0-4-4.9',
+      person: 'M12 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7zM5 20a7 7 0 0 1 14 0',
+      lock: 'M7 11h10v9H7zM9 11V8a3 3 0 0 1 6 0v3',
+      folder: 'M4 7a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z',
+      share: 'M8 12a2 2 0 1 0 0 .01M16 7a2 2 0 1 0 0 .01M16 17a2 2 0 1 0 0 .01M9.8 11l4.4-3M9.8 13l4.4 3',
+      arrow: 'M5 12h14M13 6l6 6-6 6'
+    };
+    var rowBase = 'display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;';
+    var pinOn = 'width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#4BBCFF;color:#081524;';
+    var pinOn18 = 'width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#4BBCFF;color:#081524;';
+    var pinOff18 = 'width:18px;height:18px;box-sizing:border-box;border-radius:999px;display:flex;align-items:center;justify-content:center;border:1.5px solid #6b7d94;color:#b9c6d6;';
+    var tagW = 'font-size:11px;padding:0 6px;border-radius:999px;border:1px solid #2a4566;color:#b9c6d6;';
+    var tagP = 'font-size:11px;padding:0 6px;border-radius:999px;border:1px dashed #3d5170;color:#8ea3bd;';
+    var s = {
+      sec: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;padding:0 8px 4px;',
+      secInline: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#8ea3bd;flex:1;',
+      row: rowBase,
+      name: 'flex:1;min-width:0;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
+      icon: 'fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:#8ea3bd;',
+      ic2: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;',
+      pinOn: pinOn,
+      tab: 'height:28px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:#8ea3bd;font-family:inherit;font-size:12px;font-weight:500;',
+      tabOn: 'height:28px;padding:0 12px;border:0;border-radius:6px;background:#1b2c44;color:#e6eef7;font-family:inherit;font-size:12px;font-weight:500;'
+    };
+    var pinned = [
+      { name: 'Q4 pricing decision', scope: 'workspace', tag: tagW },
+      { name: 'C4 2026 OKR planning', scope: 'workspace', tag: tagW },
+      { name: 'Pricing research', scope: 'personal', tag: tagP }
+    ];
+    function w(name, role, depth, hue, sel) { return { name: name, role: role, indent: depth * 16, hue: hue, style: rowBase + (sel ? 'background:#13243b;' : '') }; }
+    var workspace = [
+      w('Tech Enabling', 'edit', 0, '#5FCFC0'), w('OKRs', 'edit', 1, '#5FCFC0'),
+      w('Research', 'edit', 0, '#7C9CFF'), w('Decisions', 'read', 0, '#E58FB0'), w('Workshops', 'comment', 0, '#E59B6B')
+    ];
+    function p(name, n, depth, sel, icon) { return { name: name, n: n, indent: depth * 16, icon: icon || i.folder, style: rowBase + (sel ? 'background:#13243b;' : '') }; }
+    var personal = [p('Pricing drafts', 3, 0, true), p('1:1 prep', 4, 0), p('Reading notes', 9, 0), p('Scratch', 2, 0)];
+    var boards = [
+      { name: 'Pricing research', access: 'Only you', icon: i.lock, pinStyle: pinOn18, border: '1.5px solid #4BBCFF' },
+      { name: 'Churn deep-dive', access: 'Shared with 2 people', icon: i.share, pinStyle: pinOff18, border: '1px solid #1b2c44' },
+      { name: 'Price page copy', access: 'Only you', icon: i.lock, pinStyle: pinOff18, border: '1px solid #1b2c44' }
+    ];
+    var effects = [
+      { g: '+', c: '#2fd07f', t: 'All 12 members of Tech Enabling team can read it; editors of Research can change it.' },
+      { g: '+', c: '#2fd07f', t: 'It can appear in teammates’ search, Map and Graph — and in their agents’ briefs if they pin it.' },
+      { g: '=', c: '#8ea3bd', t: 'Your pins stay yours. Its links to your other personal boards stay locked for everyone else.' },
+      { g: '!', c: '#f4c542', t: 'Moving is the step that shares it. Nothing becomes shared through a link, a pin or an agent edit.' }
+    ];
+    var links = [
+      { name: 'C4 2026 OKR planning', kind: 'workspace', icon: i.arrow, c: '#e6eef7' },
+      { name: 'Competitor teardown', kind: 'workspace', icon: i.arrow, c: '#e6eef7' },
+      { name: 'Pricing research', kind: 'your personal', icon: i.arrow, c: '#e6eef7' },
+      { name: 'A private board', kind: 'locked', icon: i.lock, c: '#8ea3bd' }
+    ];
+    var rules = [
+      { t: 'Personal is private', d: 'until you share or move it.' },
+      { t: 'Crossing over is explicit:', d: 'share (per-board roles) or move into a workspace folder.' },
+      { t: 'Pins are yours;', d: 'the board README is the shared default.' },
+      { t: 'Agents act as you,', d: 'with your rights, never reading others’ personal boards.' },
+      { t: 'Local installs', d: 'have one scope; this arrives with step 5.' }
+    ];
+    return { s: s, i: i, pinned: pinned, workspace: workspace, personal: personal, boards: boards, effects: effects, links: links, rules: rules };
+  }
+}
+</script>
+</body>
+</html>
