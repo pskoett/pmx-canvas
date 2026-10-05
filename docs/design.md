@@ -121,7 +121,7 @@ the same change.
 | [`Uses.dc.html`](design/Uses.dc.html) | One relation layer for research, dependencies, decisions and agent flows | 3 |
 | [`Types1.dc.html`](design/Types1.dc.html)–[`Types3.dc.html`](design/Types3.dc.html) | Every node type, today vs proposed | 0, 4 |
 | [`Zoom.dc.html`](design/Zoom.dc.html) | Fit-all readability when frames are unmounted | 4 |
-| [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the 600 px reference width | all |
+| [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
 ## Principles
@@ -153,8 +153,11 @@ the same change.
   display of the markdown node. Rarely used tools live in one settings menu on the rail.
 - **Relations are the edge layer, not node types.** Design work adds no node type;
   the vision's own `ask` node (move 3) is separate.
-- **The 600 px pane is the reference surface.** Every drawing gets a 600 px version
-  before it is built (proposal board "At 600 px").
+- **Any size, from a side pane to a full window.** The workbench lives in narrow agent-host
+  panes, the resizable side browser in the Claude desktop app, and full browser windows. Every
+  drawing shows the narrow end (600 px) and a full window before it is built, and the build
+  is checked at 600, 1024 and 1920 px (proposal board
+  "At 600 px" for the narrow end). Decided 2026-10-05, replacing the single 600 px reference.
 
 ## Build plan
 
@@ -164,9 +167,9 @@ implementation table).
 
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
-| **0. Foundation** — ships alone, first | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; 600 px reference passes; demo board regenerated |
+| **0. Foundation** — ships alone, first | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; reference cases pass at 600, 1024 and 1920 px; demo board regenerated |
 | **1. Context made visible** — next batch, with the curation evaluation | Part 1 bet, moves 0a, 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node and per board as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board pins (`board_pins`, tiered brief, `canvas_board pin/unpin`) and Home's pinned-boards section | What the agent did with context, Nodes in context, Board pins, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
-| **2. Connected memory views** — next batch, remaining wiki/graph work | Moves 0, 14 | Board map projection (generated like the code graph), wiki links, direct cross-board card edges, previous-board chains | Home Map, Home Graph | Map and Graph are generated from the library; orphans visible; works at 600 px |
+| **2. Connected memory views** — next batch, remaining wiki/graph work | Moves 0, 14 | Board map projection (generated like the code graph), wiki links, direct cross-board card edges, previous-board chains | Home Map, Home Graph | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |
 | **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
@@ -179,9 +182,9 @@ needs the maintainer's confirmation before wave 2.
 
 ## Definition of done for any design work
 
-1. It is drawn in the proposal canvas first, including its 600 px version.
+1. It is drawn in the proposal canvas first, at 600 px and at full-window width.
 2. It is built to the drawing, with the function it shows (see the plan above).
-3. It passes in all nine themes and the 600 px Chromium reference.
+3. It passes in all nine themes and at the three Chromium widths, 600, 1024 and 1920 px.
 4. It touches no meaning colour except through the meaning tokens.
 5. The demo board is regenerated (`bun run scripts/generate-demo-board.ts`) and
    `tests/unit/demo.test.ts` passes.

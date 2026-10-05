@@ -16,8 +16,8 @@ there is no type, spacing, radius or elevation scale and no check that keeps any
 
 ## Wave done when (from design.md)
 
-No control renders in a fallback font; the token test passes for all nine themes; the 600 px
-Chromium reference passes; the demo board is regenerated.
+No control renders in a fallback font; the token test passes for all nine themes; the reference
+cases pass at 600, 1024 and 1920 px; the demo board is regenerated.
 
 ## Steps
 
@@ -79,7 +79,7 @@ Each step is its own commit and leaves the suite green.
 - `dark` → `harbor`, `light` → `daylight` in `src/shared/themes.ts`, CSS selectors, CLI, env and
   docs; no aliases (stored or passed old names fall back to the default). Daylight gets the drawn
   neutral surfaces (`#F6F7F9` / `#FFFFFF` / `#DDE2E9`) instead of beige.
-- 600 px Chromium reference and all nine themes; regenerate the demo board
+- Reference cases at 600, 1024 and 1920 px, and all nine themes; regenerate the demo board
   (`bun run scripts/generate-demo-board.ts`) and pass `tests/unit/demo.test.ts`; update
   `docs/design.md`, readme and skills where theme names or tokens appear.
 

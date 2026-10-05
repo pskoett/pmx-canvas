@@ -223,7 +223,7 @@ renderers, Home, edges.
 4. **The drawings are the target; the code may lag.** Until wave 0 lands, today's CSS still uses
    `--c-warn` for pins and attention and falls back to Arial on controls. Do not spread those
    patterns; move the surface you touch toward the drawing.
-5. **Done means** the checks in `docs/design.md`: the 600 px Chromium reference, all nine themes,
+5. **Done means** the checks in `docs/design.md`: the reference cases at 600, 1024 and 1920 px, all nine themes,
    the demo board regenerated, user-facing docs updated.
 6. **One design home.** Decisions and deviations go in `docs/design.md`; a drawing changed in the
    proposal canvas is re-exported into `docs/design/` in the same change. No other design folders.

@@ -1,11 +1,11 @@
 /**
- * Reference surface: every node type must paint in a 600 px Chromium pane.
- *
- * The workbench lives in a 500–600 px panel inside Claude Code, Codex and
- * Copilot, not in the 1440×900 window the rest of the suite runs at. This file
- * runs only in the `pane-600` Playwright project (playwright.config.ts) and is
- * part of the required e2e gate, so a node type that paints blank at pane width
- * blocks the release (docs/product-vision-2026-09.md, move 5).
+ * Reference cases: every node type must paint at every size the workbench
+ * lives at — a 600 px agent-host pane or Claude desktop side browser, the
+ * middle (1024 px, between the layout breakpoints) and a full 1920 px window.
+ * This file runs in the `narrow-600`, `middle-1024` and `wide-1920` Playwright
+ * projects (playwright.config.ts) and is part of the required e2e gate, so a
+ * node type that paints blank at any of them blocks the release
+ * (docs/product-vision-2026-09.md, moves 5 and 9).
  *
  * Each type gets its own test so a failure names the type. A test creates the
  * node at its default size, focuses it the way an agent would, and asserts what
@@ -254,7 +254,7 @@ test('every control renders in the bundled Plex faces', async ({ page, request }
 });
 
 for (const referenceCase of CASES) {
-  test(`${referenceCase.type} paints in a 600 px pane`, async ({ page, request }) => {
+  test(`${referenceCase.type} paints in the viewport`, async ({ page, request }) => {
     await resetBoard(request);
     const id = await referenceCase.create(request);
 
@@ -263,7 +263,7 @@ for (const referenceCase of CASES) {
     await expect(node).toBeVisible();
 
     // Focus the way an agent does; the client refines the pan against the real
-    // canvas region, which is what differs at pane width.
+    // canvas region, which is what differs between widths.
     await request.post('/api/canvas/focus', { data: { id }, headers: WORKBENCH });
     await expect(node).toBeInViewport();
 

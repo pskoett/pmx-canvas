@@ -29,12 +29,23 @@ export default defineConfig({
       testIgnore: '**/reference-pane.pw.ts',
       use: { viewport: { width: 1440, height: 900 } },
     },
-    // The release reference surface: every node type must paint at the width of
-    // the agent-host panes the workbench actually lives in (reference-pane.pw.ts).
+    // The reference cases (reference-pane.pw.ts) run across the sizes the
+    // workbench lives at: an agent-host pane or the Claude desktop side browser,
+    // the middle between the 900/1180 px layout breakpoints, and a full window.
     {
-      name: 'pane-600',
+      name: 'narrow-600',
       testMatch: '**/reference-pane.pw.ts',
       use: { viewport: { width: 600, height: 900 } },
+    },
+    {
+      name: 'middle-1024',
+      testMatch: '**/reference-pane.pw.ts',
+      use: { viewport: { width: 1024, height: 768 } },
+    },
+    {
+      name: 'wide-1920',
+      testMatch: '**/reference-pane.pw.ts',
+      use: { viewport: { width: 1920, height: 1080 } },
     },
   ],
   webServer: {

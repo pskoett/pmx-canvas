@@ -68,10 +68,11 @@ and check `$?`, then read the file.
 
 - In the product source checkout, Bun tests live under `tests/unit/`.
 - In the product source checkout, Playwright browser smoke lives under `tests/e2e/`.
-- Playwright runs two projects: `desktop` (1440×900, the whole suite) and `pane-600` (600×900,
-  `tests/e2e/reference-pane.pw.ts` only). `pane-600` is the release reference surface: every node
-  type must paint there. A new node type fails its coverage test until it gets a reference case.
-  Run it alone with `bash scripts/run-playwright.sh --project=pane-600`.
+- Playwright runs `desktop` (1440×900, the whole suite except the reference cases) and three
+  reference projects for `tests/e2e/reference-pane.pw.ts`: `narrow-600`, `middle-1024` and
+  `wide-1920`. The workbench lives anywhere from a narrow side pane to a full window, so every
+  node type must paint at all three. A new node type fails its coverage test until it gets a
+  reference case. Run one width alone with `bash scripts/run-playwright.sh --project=narrow-600`.
 - Product CI runs those checkout suites: Bun coverage plus the browser smoke flow.
 - An isolated installed consumer instead tests the package's public transports and host behavior;
   it does not run or depend on the product checkout's source suites.
