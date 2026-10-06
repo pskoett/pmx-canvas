@@ -4261,6 +4261,72 @@ test('theme menu opens anchored to the theme button, not the toolbar edge (Findi
   expect(Math.abs(menuBox.y + menuBox.height - (buttonBox.y + buttonBox.height))).toBeLessThan(24);
 });
 
+test('plain title-bar click selects only that node; shift-click adds; drag moves without selecting', async ({
+  page,
+  request,
+}) => {
+  const ids: string[] = [];
+  for (const [i, title] of ['Sel A', 'Sel B', 'Sel C'].entries()) {
+    const created = (await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title, content: title, x: 120 + i * 260, y: 80, width: 220, height: 120 },
+      })
+    ).json()) as { id: string };
+    ids.push(created.id);
+  }
+  await request.post('/api/canvas/group', {
+    data: { title: 'Sel frame', x: 120, y: 360, width: 420, height: 220 },
+  });
+
+  await page.goto('/workbench');
+  const bar = page.locator('.selection-bar');
+  const nodeByTitle = (title: string) => page.locator('.canvas-node').filter({ hasText: title });
+  const titleIcon = (title: string) => nodeByTitle(title).locator('.node-titlebar .node-type-icon');
+
+  // A plain click on the title bar selects the node and offers "Pin as context".
+  await titleIcon('Sel A').click();
+  await expect(bar).toContainText('1 node selected');
+  await expect(bar.getByRole('button', { name: 'Pin as context' })).toBeVisible();
+
+  // Shift-click on two more title bars grows the selection to three (the 0.6.4 script).
+  await titleIcon('Sel B').click({ modifiers: ['Shift'] });
+  await titleIcon('Sel C').click({ modifiers: ['Shift'] });
+  await expect(bar).toContainText('3 nodes selected');
+  await bar.getByRole('button', { name: 'Pin as context' }).click();
+  await expect
+    .poll(async () => {
+      const pinned = (await (await request.get('/api/canvas/pinned-context')).json()) as { nodeIds: string[] };
+      return [...pinned.nodeIds].sort().join(',');
+    })
+    .toBe([...ids].sort().join(','));
+
+  // A plain click replaces a multi-selection rather than adding to it.
+  await titleIcon('Sel A').click({ modifiers: ['Shift'] });
+  await titleIcon('Sel B').click({ modifiers: ['Shift'] });
+  await expect(bar).toContainText('2 nodes selected');
+  await titleIcon('Sel C').click();
+  await expect(bar).toContainText('1 node selected');
+  await expect(nodeByTitle('Sel C')).toHaveClass(/\bselected\b/);
+
+  // A group frame's edge row behaves the same way.
+  await page.locator('.canvas-node[data-node-type="group"] .group-name').click();
+  await expect(bar).toContainText('1 node selected');
+  await expect(page.locator('.canvas-node[data-node-type="group"]')).toHaveClass(/\bselected\b/);
+  await titleIcon('Sel A').click({ modifiers: ['Shift'] });
+  await expect(bar).toContainText('2 nodes selected');
+
+  // A drag moves the node and leaves the selection alone.
+  await page.keyboard.press('Escape');
+  await expect(bar).toHaveCount(0);
+  const before = await nodeByTitle('Sel B').boundingBox();
+  await dragNodeTitlebar(page, nodeByTitle('Sel B'), 80, 40);
+  const after = await nodeByTitle('Sel B').boundingBox();
+  if (!before || !after) throw new Error('missing bounding boxes');
+  expect(after.x - before.x).toBeGreaterThan(60);
+  expect(after.y - before.y).toBeGreaterThan(25);
+  await expect(bar).toHaveCount(0);
+});
+
 test('select tool lassos on background drag; pan tool and Space pan instead', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Lasso A', content: 'a', x: 120, y: 80, width: 200, height: 120 },
