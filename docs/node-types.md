@@ -228,15 +228,39 @@ Specs preserve top-level `state` and element-level `repeat`, `watch`, and
 `$state` only reads a value. Nested repeats can use `statePath: { "$item": "tasks" }`
 to iterate the current item's tasks. Watchers run after changes, not on mount.
 
-**Seed form values through bindings, not literal `value` props.** In shadcn
-0.21, `Input`, `Textarea`, `Select`, `Radio`, `Slider`, `ToggleGroup`, and
-`Tabs` ignore an unbound `value`; `ButtonGroup` ignores unbound `selected`.
-This includes read-only `$state` expressions. PMX returns a `warnings` array
-from `POST /api/canvas/json-render`, `POST /api/canvas/schema/validate`, and
-`canvas_render` actions `add-json-render` and `validate`. Warnings name the
-element/property; they do not reject or rewrite the spec. PMX does not invent
-state paths because repeated controls and existing actions may need distinct
-or deliberately shared state.
+**Literal form values are bound for you.** In shadcn 0.21, `Input`,
+`Textarea`, `Select`, `Radio`, `Slider`, `ToggleGroup`, and `Tabs` ignore an
+unbound `value`, and `ButtonGroup` ignores an unbound `selected`, so the control
+would render empty. During validation PMX rewrites a literal value on these
+props into `{ "$bindState": "/form/<elementKey>" }` and seeds
+`state.form.<elementKey>` with it (adding `-2`, `-3`, … if that field already
+exists). This input:
+
+```json
+{ "type": "Input", "props": { "label": "Postcode", "value": "nw1 6xe" } }
+```
+
+is stored as (bare elements are wrapped under the key `root`):
+
+```json
+{
+  "root": "root",
+  "state": { "form": { "root": "nw1 6xe" } },
+  "elements": {
+    "root": {
+      "type": "Input",
+      "props": { "label": "Postcode", "name": "root", "value": { "$bindState": "/form/root" } }
+    }
+  }
+}
+```
+
+PMX does not rewrite `$state` or other expressions, controls inside a `repeat`
+(one path would be shared by every item), or specs whose `state.form` is not an
+object. For those it returns a `warnings` array naming the element/property from
+`POST /api/canvas/json-render`, `POST /api/canvas/schema/validate`, and
+`canvas_render` actions `add-json-render` and `validate`. Bind them yourself
+when the field needs a known path for actions, watchers, or `$state` reads:
 
 ```json
 {
@@ -259,7 +283,7 @@ Inside repeats, use `$bindItem` with seeded item data. `Checkbox`/`Switch`
 honor literal `checked`, `Toggle` honors literal `pressed`, and `Tabs` honors
 `defaultValue` for an uncontrolled initial tab. `Pagination` reads `page`
 directly; `DropdownMenu.value` is an output binding for selection, not a
-displayed selection. These do not require the same ignored-value warning.
+displayed selection. These are neither rewritten nor warned about.
 Use two-way bindings whenever edits or form checks must participate in state.
 
 Cards keep their body in `children` and accept

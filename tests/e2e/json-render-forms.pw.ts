@@ -2,13 +2,14 @@ import { expect, test } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 2 });
 
-test('form warnings reach HTTP callers and seeded bindings render editable values', async ({ page, request }) => {
+test('literal form values render bound; unbindable values warn', async ({ page, request }) => {
   const spec = {
     root: 'root',
     state: { postcode: 'nw1 6xe', notes: 'Delivery note', city: 'London' },
     elements: {
-      root: { type: 'Stack', props: {}, children: ['literal', 'input', 'textarea', 'select', 'echo'] },
-      literal: { type: 'Input', props: { label: 'Unbound postcode', value: 'nw1 6xe' } },
+      root: { type: 'Stack', props: {}, children: ['literal', 'readOnly', 'input', 'textarea', 'select', 'echo'] },
+      literal: { type: 'Input', props: { label: 'Literal postcode', value: 'nw1 6xe' } },
+      readOnly: { type: 'Input', props: { label: 'Read-only postcode', value: { $state: '/postcode' } } },
       input: { type: 'Input', props: { label: 'Postcode', value: { $bindState: '/postcode' } } },
       textarea: { type: 'Textarea', props: { label: 'Notes', value: { $bindState: '/notes' } } },
       select: {
@@ -22,7 +23,7 @@ test('form warnings reach HTTP callers and seeded bindings render editable value
   expect(validated.ok()).toBe(true);
   const validation = await validated.json();
   expect(validation.warnings).toHaveLength(1);
-  expect(validation.warnings[0]).toContain('elements.literal.props.value');
+  expect(validation.warnings[0]).toContain('elements.readOnly.props.value');
   const created = await request.post('/api/canvas/json-render', {
     data: { title: 'Form binding regression', spec },
   });
@@ -31,7 +32,10 @@ test('form warnings reach HTTP callers and seeded bindings render editable value
   expect(body.warnings).toEqual(validation.warnings);
   try {
     await page.goto(body.url);
-    await expect(page.getByLabel('Unbound postcode', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('Literal postcode', { exact: true })).toHaveValue('nw1 6xe');
+    await page.getByLabel('Literal postcode', { exact: true }).fill('E1 6AN');
+    await expect(page.getByLabel('Literal postcode', { exact: true })).toHaveValue('E1 6AN');
+    await expect(page.getByLabel('Read-only postcode', { exact: true })).toHaveValue('');
     await expect(page.getByLabel('Postcode', { exact: true })).toHaveValue('nw1 6xe');
     await expect(page.getByLabel('Notes')).toHaveValue('Delivery note');
     await expect(page.getByRole('combobox')).toHaveText('London');

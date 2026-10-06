@@ -272,17 +272,29 @@ describe('MCP composite tools (plan-006)', () => {
     expect(schemaComposite.mcp?.nodeTypeRouting).toBeTruthy();
 
     const formSpec = { type: 'Input', props: { label: 'Postcode', value: 'nw1 6xe' } };
-    const formValidation = parseJsonText<{ ok: boolean; warnings: string[] }>(
-      await call(client, 'canvas_render', { action: 'validate', type: 'json-render', spec: formSpec }),
-    );
+    const formValidation = parseJsonText<{
+      ok: boolean;
+      warnings: string[];
+      normalizedSpec: { state: Record<string, unknown>; elements: Record<string, { props: Record<string, unknown> }> };
+    }>(await call(client, 'canvas_render', { action: 'validate', type: 'json-render', spec: formSpec }));
     expect(formValidation.ok).toBe(true);
-    expect(formValidation.warnings).toHaveLength(1);
-    expect(formValidation.warnings[0]).toContain('elements.root.props.value');
-    expect(formValidation.warnings[0]).toContain('$bindState');
+    expect(formValidation.warnings).toEqual([]);
+    expect(formValidation.normalizedSpec.state).toEqual({ form: { root: 'nw1 6xe' } });
+    expect(formValidation.normalizedSpec.elements.root.props.value).toEqual({ $bindState: '/form/root' });
     const formCreated = parseJsonText<{ warnings: string[]; sizeAdjustment: { reason: string } }>(
       await call(client, 'canvas_render', { action: 'add-json-render', spec: formSpec }),
     );
     expect(formCreated.warnings).toEqual(formValidation.warnings);
+    const readOnlyValidation = parseJsonText<{ warnings: string[] }>(
+      await call(client, 'canvas_render', {
+        action: 'validate',
+        type: 'json-render',
+        spec: { type: 'Input', props: { label: 'Postcode', value: { $state: '/postcode' } } },
+      }),
+    );
+    expect(readOnlyValidation.warnings).toHaveLength(1);
+    expect(readOnlyValidation.warnings[0]).toContain('elements.root.props.value');
+    expect(readOnlyValidation.warnings[0]).toContain('$bindState');
     expect(formCreated.sizeAdjustment.reason).toBe('defaulted');
 
     const valid = parseJsonText<{ ok?: boolean }>(

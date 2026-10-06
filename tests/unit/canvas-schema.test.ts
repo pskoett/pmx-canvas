@@ -65,9 +65,10 @@ function getNodeType(type: string): CanvasCreateTypeSchema {
   return entry;
 }
 
-test('json-render warns about ignored form values without rewriting bindings or state', () => {
+test('json-render binds literal form values and warns only about what it cannot bind', () => {
   const state = { postcode: 'nw1 6xe' };
   const elements = {
+    root: { type: 'Stack', props: {}, children: ['input'] },
     input: { type: 'Input', props: { label: 'Postcode', value: 'nw1 6xe' } },
     textarea: { type: 'Textarea', props: { label: 'Notes', value: 'Keep this' } },
     select: { type: 'Select', props: { label: 'City', options: ['A', 'B'], value: 'B' } },
@@ -78,6 +79,8 @@ test('json-render warns about ignored form values without rewriting bindings or 
     tabs: { type: 'Tabs', props: { tabs: [{ label: 'A', value: 'a' }], value: 'b' } },
     read: { type: 'Input', props: { label: 'Read only expression', value: { $state: '/postcode' } } },
     bound: { type: 'Input', props: { label: 'Bound', value: { $bindState: '/postcode' } } },
+    list: { type: 'Stack', props: {}, repeat: { statePath: '/items' }, children: ['repeatedLiteral', 'repeated'] },
+    repeatedLiteral: { type: 'Input', props: { label: 'Item literal', value: 'same' } },
     repeated: { type: 'Input', props: { label: 'Item', value: { $bindItem: 'postcode' } } },
     empty: { type: 'Input', props: { label: 'Empty' } },
     checkbox: { type: 'Checkbox', props: { label: 'Check', checked: true } },
@@ -86,16 +89,59 @@ test('json-render warns about ignored form values without rewriting bindings or 
     defaultTab: { type: 'Tabs', props: { tabs: [{ label: 'A', value: 'a' }], defaultValue: 'a' } },
     pagination: { type: 'Pagination', props: { page: 2, totalPages: 3 } },
   };
-  const result = validateStructuredCanvasPayload({ type: 'json-render', spec: { root: 'input', state, elements } });
+  const result = validateStructuredCanvasPayload({ type: 'json-render', spec: { root: 'root', state, elements } });
+  const spec = result.normalizedSpec;
+  const propsOf = (key: string) => (spec?.elements[key] as { props: Record<string, unknown> }).props;
+
+  expect(spec?.state).toEqual({
+    postcode: 'nw1 6xe',
+    form: {
+      input: 'nw1 6xe',
+      textarea: 'Keep this',
+      select: 'B',
+      radio: 'B',
+      slider: 0,
+      toggleGroup: '',
+      buttonGroup: 'b',
+      tabs: 'b',
+    },
+  });
+  expect(propsOf('input').value).toEqual({ $bindState: '/form/input' });
+  expect(propsOf('slider').value).toEqual({ $bindState: '/form/slider' });
+  expect(propsOf('buttonGroup').selected).toEqual({ $bindState: '/form/buttonGroup' });
+  expect(propsOf('bound').value).toEqual({ $bindState: '/postcode' });
+  expect(propsOf('repeatedLiteral').value).toBe('same');
+  expect(propsOf('checkbox').checked).toBe(true);
+
   const warnings = result.warnings ?? [];
-  expect(warnings).toHaveLength(9);
-  for (const key of ['input', 'textarea', 'select', 'radio', 'slider', 'toggleGroup', 'buttonGroup', 'tabs', 'read']) {
-    expect(warnings.some((warning) => warning.includes(`elements.${key}.props.`))).toBe(true);
-  }
+  expect(warnings).toHaveLength(2);
+  expect(warnings[0]).toContain('elements.read.props.value');
+  expect(warnings[1]).toContain('elements.repeatedLiteral.props.value');
   expect(warnings[0]).toContain('$bindState');
-  expect(warnings[0]).toContain('state');
-  expect(result.normalizedSpec?.state).toEqual(state);
-  expect(result.normalizedSpec?.elements.input).toMatchObject({ props: { value: 'nw1 6xe' } });
+});
+
+test('json-render literal binding keeps author state and skips a non-object state.form', () => {
+  const taken = validateStructuredCanvasPayload({
+    type: 'json-render',
+    spec: {
+      root: 'postcode',
+      state: { form: { postcode: 'author value' } },
+      elements: { postcode: { type: 'Input', props: { label: 'Postcode', value: 'nw1 6xe' } } },
+    },
+  });
+  expect(taken.normalizedSpec?.state).toEqual({ form: { postcode: 'author value', 'postcode-2': 'nw1 6xe' } });
+  expect(taken.warnings).toEqual([]);
+
+  const scalarForm = validateStructuredCanvasPayload({
+    type: 'json-render',
+    spec: {
+      root: 'postcode',
+      state: { form: 'not an object' },
+      elements: { postcode: { type: 'Input', props: { label: 'Postcode', value: 'nw1 6xe' } } },
+    },
+  });
+  expect(scalarForm.normalizedSpec?.elements.postcode).toMatchObject({ props: { value: 'nw1 6xe' } });
+  expect(scalarForm.warnings).toHaveLength(1);
 });
 
 describe('describeCanvasSchema — MCP tool surface', () => {

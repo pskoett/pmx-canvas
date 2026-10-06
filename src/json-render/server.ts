@@ -472,6 +472,73 @@ function normalizeSpec(spec: Record<string, unknown>): Record<string, unknown> {
   return changed ? { ...spec, elements: normalizedElements } : spec;
 }
 
+/** shadcn 0.21 ignores these props unless the renderer supplies a two-way binding. */
+const BINDING_ONLY_PROPS: Record<string, string> = {
+  Input: 'value',
+  Textarea: 'value',
+  Select: 'value',
+  Radio: 'value',
+  Slider: 'value',
+  ToggleGroup: 'value',
+  ButtonGroup: 'selected',
+  Tabs: 'value',
+};
+
+/** Element keys rendered once per item of a `repeat`; a single state path would be shared by every item. */
+function collectRepeatedElementKeys(elements: Record<string, unknown>): Set<string> {
+  const repeated = new Set<string>();
+  const visit = (key: string): void => {
+    const element = asRecord(elements[key]);
+    if (!element) return;
+    const slots = Object.values(asRecord(element.slots) ?? {}).flat();
+    for (const child of [...(Array.isArray(element.children) ? element.children : []), ...slots]) {
+      if (typeof child === 'string' && !repeated.has(child)) {
+        repeated.add(child);
+        visit(child);
+      }
+    }
+  };
+  for (const [key, element] of Object.entries(elements)) {
+    if (asRecord(element)?.repeat !== undefined) visit(key);
+  }
+  return repeated;
+}
+
+/**
+ * Rewrite a literal value on a binding-only form prop (e.g. Input `value: "nw1 6xe"`) into
+ * `{ $bindState: "/form/<element>" }` and seed that path in `state`, so the control shows the
+ * value instead of rendering empty. Controls inside a repeat, or a spec whose `state.form` is not
+ * an object, are left alone and still reported by `jsonRenderFormWarnings`.
+ */
+function bindLiteralFormValues(spec: Record<string, unknown>): Record<string, unknown> {
+  const elements = asRecord(spec.elements);
+  if (!elements) return spec;
+  if (spec.state !== undefined && !asRecord(spec.state)) return spec;
+  const state = asRecord(spec.state) ?? {};
+  if (state.form !== undefined && !asRecord(state.form)) return spec;
+  const form: Record<string, unknown> = { ...(asRecord(state.form) ?? {}) };
+  const repeated = collectRepeatedElementKeys(elements);
+  const nextElements: Record<string, unknown> = { ...elements };
+  let changed = false;
+
+  for (const [key, rawElement] of Object.entries(elements)) {
+    const element = asRecord(rawElement);
+    const prop = typeof element?.type === 'string' ? BINDING_ONLY_PROPS[element.type] : undefined;
+    const props = asRecord(element?.props);
+    if (!element || !prop || !props || repeated.has(key)) continue;
+    const value = props[prop];
+    if (value === undefined || asRecord(value)) continue;
+    const base = deriveElementName(key);
+    let field = base;
+    for (let n = 2; field in form; n++) field = `${base}-${n}`;
+    form[field] = value;
+    nextElements[key] = { ...element, props: { ...props, [prop]: { $bindState: `/form/${field}` } } };
+    changed = true;
+  }
+
+  return changed ? { ...spec, state: { ...state, form }, elements: nextElements } : spec;
+}
+
 function isBareJsonRenderElement(spec: Record<string, unknown>): boolean {
   return typeof spec.type === 'string' && !('root' in spec) && !('elements' in spec);
 }
@@ -528,7 +595,7 @@ export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpe
     }
   }
 
-  const normalizedSpec = normalizeSpec(specRecord);
+  const normalizedSpec = bindLiteralFormValues(normalizeSpec(specRecord));
   const validation = catalog.validate(normalizedSpec);
   if (!validation.success || !validation.data) {
     throw new Error(formatValidationError(validation.error));
@@ -542,30 +609,20 @@ export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpe
   return propsValidation.data as JsonRenderSpec;
 }
 
-/** shadcn 0.21 ignores these props unless the renderer supplies a two-way binding. */
+/** Binding-only form props that normalization could not bind (see bindLiteralFormValues). */
 export function jsonRenderFormWarnings(spec: JsonRenderSpec): string[] {
-  const bindingOnlyProps: Record<string, string> = {
-    Input: 'value',
-    Textarea: 'value',
-    Select: 'value',
-    Radio: 'value',
-    Slider: 'value',
-    ToggleGroup: 'value',
-    ButtonGroup: 'selected',
-    Tabs: 'value',
-  };
   const warnings: string[] = [];
   for (const [key, rawElement] of Object.entries(spec.elements)) {
     const element = asRecord(rawElement);
     const type = typeof element?.type === 'string' ? element.type : '';
-    const prop = bindingOnlyProps[type];
+    const prop = BINDING_ONLY_PROPS[type];
     if (!prop) continue;
     const value = asRecord(element?.props)?.[prop];
     if (value === undefined || value === null) continue;
     const expression = asRecord(value);
     if (hasString(expression?.$bindState) || hasString(expression?.$bindItem)) continue;
     warnings.push(
-      `elements.${key}.props.${prop}: ${type} ignores an unbound ${prop} (including literal values and $state expressions). Use { "$bindState": "/form/field" } and seed spec.state.form.field with the initial value; inside a repeat use $bindItem with seeded item data.${type === 'Tabs' ? ' For an uncontrolled initial tab, use defaultValue instead.' : ''}`,
+      `elements.${key}.props.${prop}: ${type} ignores an unbound ${prop}. PMX binds literal values automatically, but not $state or other expressions, controls inside a repeat, or specs whose state.form is not an object. Use { "$bindState": "/form/field" } and seed spec.state.form.field with the initial value; inside a repeat use $bindItem with seeded item data.${type === 'Tabs' ? ' For an uncontrolled initial tab, use defaultValue instead.' : ''}`,
     );
   }
   return warnings;
