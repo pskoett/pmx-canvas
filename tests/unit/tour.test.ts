@@ -42,7 +42,11 @@ describe('board tour', () => {
       expect(saved.isError).not.toBe(true);
       const result = await client.callTool({ name: 'canvas_view', arguments: { action: 'get-tour' } });
       const content = result.content as Array<{ type: string; text?: string }>;
-      expect(JSON.parse(content.find((c) => c.type === 'text')!.text!)).toEqual({ tour, derived: false, position: null });
+      expect(JSON.parse(content.find((c) => c.type === 'text')!.text!)).toEqual({
+        tour,
+        derived: false,
+        position: null,
+      });
       await client.callTool({ name: 'canvas_history', arguments: { action: 'undo' } });
       const undone = await client.callTool({ name: 'canvas_view', arguments: { action: 'get-tour' } });
       const undoneContent = undone.content as Array<{ type: string; text?: string }>;
@@ -54,7 +58,11 @@ describe('board tour', () => {
       await client.callTool({ name: 'canvas_history', arguments: { action: 'redo' } });
       const redone = await client.callTool({ name: 'canvas_view', arguments: { action: 'get-tour' } });
       const redoneContent = redone.content as Array<{ type: string; text?: string }>;
-      expect(JSON.parse(redoneContent.find((c) => c.type === 'text')!.text!)).toEqual({ tour, derived: false, position: null });
+      expect(JSON.parse(redoneContent.find((c) => c.type === 'text')!.text!)).toEqual({
+        tour,
+        derived: false,
+        position: null,
+      });
       const text = (result: Awaited<ReturnType<Client['callTool']>>) =>
         JSON.parse((result.content as Array<{ type: string; text?: string }>).find((c) => c.type === 'text')!.text!);
       const went = await client.callTool({ name: 'canvas_view', arguments: { action: 'tour-go', step: 'next' } });
@@ -64,7 +72,9 @@ describe('board tour', () => {
         arguments: { action: 'move', viewport: { x: 5, y: 6, scale: 0.5 }, duration: 0 },
       });
       expect(text(moved).viewport).toEqual({ x: 5, y: 6, scale: 0.5 });
-      expect((await client.callTool({ name: 'canvas_view', arguments: { action: 'tour-exit' } })).isError).not.toBe(true);
+      expect((await client.callTool({ name: 'canvas_view', arguments: { action: 'tour-exit' } })).isError).not.toBe(
+        true,
+      );
     } finally {
       await client.close();
       await transport.close();

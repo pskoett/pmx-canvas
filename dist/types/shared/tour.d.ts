@@ -4,9 +4,39 @@ export declare const cameraSchema: z.ZodObject<{
     y: z.ZodNumber;
     scale: z.ZodNumber;
 }, z.core.$strip>;
+/** A world-space box: `{ x, y }` is its top-left corner. */
+export declare const rectSchema: z.ZodObject<{
+    x: z.ZodNumber;
+    y: z.ZodNumber;
+    width: z.ZodNumber;
+    height: z.ZodNumber;
+}, z.core.$strip>;
+export declare const tourTargetSchema: z.ZodUnion<readonly [z.ZodObject<{
+    nodeId: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    rect: z.ZodObject<{
+        x: z.ZodNumber;
+        y: z.ZodNumber;
+        width: z.ZodNumber;
+        height: z.ZodNumber;
+    }, z.core.$strip>;
+}, z.core.$strict>, z.ZodObject<{
+    viewport: z.ZodObject<{
+        x: z.ZodNumber;
+        y: z.ZodNumber;
+        scale: z.ZodNumber;
+    }, z.core.$strip>;
+}, z.core.$strict>]>;
 export declare const tourStopSchema: z.ZodObject<{
     target: z.ZodUnion<readonly [z.ZodObject<{
         nodeId: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        rect: z.ZodObject<{
+            x: z.ZodNumber;
+            y: z.ZodNumber;
+            width: z.ZodNumber;
+            height: z.ZodNumber;
+        }, z.core.$strip>;
     }, z.core.$strict>, z.ZodObject<{
         viewport: z.ZodObject<{
             x: z.ZodNumber;
@@ -28,6 +58,13 @@ export declare const tourSchema: z.ZodObject<{
         target: z.ZodUnion<readonly [z.ZodObject<{
             nodeId: z.ZodString;
         }, z.core.$strict>, z.ZodObject<{
+            rect: z.ZodObject<{
+                x: z.ZodNumber;
+                y: z.ZodNumber;
+                width: z.ZodNumber;
+                height: z.ZodNumber;
+            }, z.core.$strip>;
+        }, z.core.$strict>, z.ZodObject<{
             viewport: z.ZodObject<{
                 x: z.ZodNumber;
                 y: z.ZodNumber;
@@ -47,6 +84,7 @@ export declare const tourSchema: z.ZodObject<{
 export type Tour = z.infer<typeof tourSchema>;
 export type TourStop = z.infer<typeof tourStopSchema>;
 export type Camera = z.infer<typeof cameraSchema>;
+export type Rect = z.infer<typeof rectSchema>;
 export interface TourNode {
     id: string;
     type: string;
