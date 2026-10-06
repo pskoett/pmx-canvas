@@ -229,6 +229,17 @@ describe('portable plugin MCP workspace connector', () => {
       const tCall = Date.now();
       const leak = client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'Must not leak' } }).then((r) => console.log('DBG call resolved', Date.now() - tCall, JSON.stringify(r)), (e) => console.log('DBG call rejected', Date.now() - tCall, String(e)));
       await leak;
+      for (const [label, run] of [
+        ['call2', () => client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'x' } })],
+        ['read', () => client.readResource({ uri: 'canvas://layout' })],
+        ['list', () => client.listResources()],
+      ] as const) {
+        const t = Date.now();
+        await run().then(
+          (r) => console.log('DBG', label, 'resolved', Date.now() - t, JSON.stringify(r).slice(0, 200)),
+          (e) => console.log('DBG', label, 'rejected', Date.now() - t, String(e).slice(0, 200)),
+        );
+      }
       await expect(
         client.callTool({
           name: 'canvas_node',
