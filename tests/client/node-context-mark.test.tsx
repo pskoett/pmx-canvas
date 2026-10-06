@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { NearPinMark, NodeContextMark, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
 import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
+import { nearPins } from '../../src/client/state/near-pin-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
 import type { CanvasNodeState, NodeActor } from '../../src/client/types.ts';
 
@@ -116,6 +117,29 @@ describe('near a pin', () => {
     cleanup();
     expect(nearOf(far)).toBeNull();
     expect(nearOf(pinA, true)).toBeNull();
+    nodes.value = new Map();
+    contextPinnedNodeIds.value = new Set();
+  });
+});
+
+describe('near a pin: performance', () => {
+  test('moving a node keeps the near map identity unless a neighbourhood changes', () => {
+    const pin = node({ id: 'pin', data: { title: 'Release runbook' } });
+    const close = node({ id: 'close', position: { x: 200, y: 0 } });
+    const far = node({ id: 'far', position: { x: 3000, y: 0 } });
+    const put = (...list: CanvasNodeState[]) => {
+      nodes.value = new Map(list.map((entry) => [entry.id, entry]));
+    };
+    put(pin, close, far);
+    contextPinnedNodeIds.value = new Set(['pin']);
+    const first = nearPins.value;
+    // Drag frames: the far node and the near node move, no neighbourhood changes.
+    put(pin, { ...close, position: { x: 230, y: 10 } }, { ...far, position: { x: 2800, y: 0 } });
+    expect(nearPins.value).toBe(first);
+    // The far node comes within 600 px: now the map changes.
+    put(pin, close, { ...far, position: { x: 400, y: 0 } });
+    expect(nearPins.value).not.toBe(first);
+    expect([...nearPins.value.keys()].sort()).toEqual(['close', 'far']);
     nodes.value = new Map();
     contextPinnedNodeIds.value = new Set();
   });

@@ -103,8 +103,20 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   that changed since the cursor arrives in full as `changed` instead; a first read delivers every
   node in full, so it has no near entries. The client computes the same `findNeighborhoods` and
   shows the dotted "near" / "near N" chip on unpinned nodes, with the pins and distances on hover.
-- **4b, next.** Tethers and the 600 px radius when hovering a pin, the drag preview, and the single
-  Updates entry that replaces "Neighborhood changed".
+- **4b, next.** Tethers and the 600 px radius when hovering a pin, the drag preview, the single
+  Updates entry that replaces "Neighborhood changed", the context chip's "N cards · M near" count,
+  and "Pin to send content" in the chip's hover. The maintainer agreed the design (2026-10-06) on
+  the condition that performance stays good:
+  - **Budget.** No added work per drag frame beyond the neighbour calculation for the board
+    (measured 0.8 ms at 1,000 nodes / 40 pins; guarded at < 8 ms by
+    `tests/unit/near-pin-performance.test.ts`) and the dragged card against the pins (O(pins)).
+  - **No fan-out.** The near map keeps its identity while no card's set of pins changes, so the
+    chips re-render only when a neighbourhood does, not on every frame (done ahead of 4b, guarded
+    by a client test). Distances, which change every frame, are computed only for an open hover.
+  - **Lines and radius** are drawn only while a pin is hovered or selected, for that pin alone, in
+    one SVG layer; nothing renders for pins at rest.
+  - **Check.** A headed drag on a 300-node board with 20 pins records no long task (> 50 ms)
+    attributable to near-a-pin.
 
 ### 5. Board pins
 

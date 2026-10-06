@@ -1,5 +1,7 @@
 import { useState } from 'preact/hooks';
 import { contextPinMeta, pinnedReadState, writerName } from '../state/context-status-store';
+import { centerDistance } from '../../server/spatial-analysis.js';
+import { nodes } from '../state/canvas-store';
 import { nearPins } from '../state/near-pin-store';
 import type { CanvasNodeState } from '../types';
 import { BarHint } from './BarHint';
@@ -119,7 +121,15 @@ export function NearPinMark({ node, pinned }: { node: CanvasNodeState; pinned: b
   const near = pinned ? undefined : nearPins.value.get(node.id);
   if (!near || near.length === 0) return null;
   const word = near.length > 1 ? `near ${near.length}` : 'near';
-  const where = near.map((pin) => `“${pin.pinTitle}” (${pin.distance} px)`).join(', ');
+  // Distances change every drag frame; read them only while the hint is open.
+  const where = open
+    ? near
+        .map((pin) => {
+          const pinNode = nodes.value.get(pin.pinNodeId);
+          return pinNode ? `“${pin.pinTitle}” (${Math.round(centerDistance(node, pinNode))} px)` : `“${pin.pinTitle}”`;
+        })
+        .join(', ')
+    : '';
   return (
     <BarHint
       label={open ? `Near ${where}` : 'Near a pin'}

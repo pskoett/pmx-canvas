@@ -73,7 +73,7 @@ export interface SpatialContext {
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /** Euclidean distance between two node centers */
-function centerDistance(a: CanvasNodeState, b: CanvasNodeState): number {
+export function centerDistance(a: CanvasNodeState, b: CanvasNodeState): number {
   const ax = a.position.x + a.size.width / 2;
   const ay = a.position.y + a.size.height / 2;
   const bx = b.position.x + b.size.width / 2;
