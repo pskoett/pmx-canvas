@@ -71,11 +71,25 @@ function fullyContains(group: CanvasNodeState, child: CanvasNodeState): boolean 
   );
 }
 
-function isGroupChildPair(group: CanvasNodeState, child: CanvasNodeState): boolean {
-  if (group.type !== 'group') return false;
+function isDirectGroupChild(group: CanvasNodeState, child: CanvasNodeState): boolean {
   if (child.data.parentGroup === group.id) return true;
   const children = group.data.children;
   return Array.isArray(children) && children.includes(child.id);
+}
+
+/** True when `child` sits anywhere inside `group` — a nested group's members are
+ *  inside every ancestor frame, not overlapping it. */
+function isGroupChildPair(group: CanvasNodeState, child: CanvasNodeState, byId: Map<string, CanvasNodeState>): boolean {
+  if (group.type !== 'group') return false;
+  const seen = new Set<string>();
+  let current: CanvasNodeState | undefined = child;
+  while (current && !seen.has(current.id)) {
+    if (isDirectGroupChild(group, current)) return true;
+    seen.add(current.id);
+    const parentId: unknown = current.data.parentGroup;
+    current = typeof parentId === 'string' ? byId.get(parentId) : undefined;
+  }
+  return false;
 }
 
 function pair(a: CanvasNodeState, b: CanvasNodeState): CanvasValidationPair {
@@ -101,6 +115,7 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
   const containments: CanvasContainmentIssue[] = [];
   const containmentViolations: CanvasContainmentIssue[] = [];
   const groupFrameOverlaps: CanvasValidationPair[] = [];
+  const byId = new Map(layout.nodes.map((node) => [node.id, node]));
 
   for (let i = 0; i < layout.nodes.length; i++) {
     const a = layout.nodes[i]!;
@@ -108,11 +123,11 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
       const b = layout.nodes[j]!;
       if (!overlaps(a, b)) continue;
 
-      if (isGroupChildPair(a, b)) {
+      if (isGroupChildPair(a, b, byId)) {
         (fullyContains(a, b) ? containments : containmentViolations).push(containment(a, b));
         continue;
       }
-      if (isGroupChildPair(b, a)) {
+      if (isGroupChildPair(b, a, byId)) {
         (fullyContains(b, a) ? containments : containmentViolations).push(containment(b, a));
         continue;
       }

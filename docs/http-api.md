@@ -222,7 +222,10 @@ curl http://localhost:4313/api/canvas/state
 # Search the library (omit scope for the active board)
 curl "http://localhost:4313/api/canvas/search?q=auth&limit=10&scope=library"
 
-# Validate the current layout
+# Validate the current layout. Reports collisions, groupFrameOverlaps (a group
+# frame covering a node that is not one of its members, nested members
+# included — e.g. after a group auto-fits around enlarged children),
+# containmentViolations, missingEdgeEndpoints, and advisory sizeWarnings.
 curl http://localhost:4313/api/canvas/validate
 
 # Inspect running-server schemas
@@ -379,6 +382,12 @@ curl -X POST http://localhost:4313/api/canvas/viewport \
   -H "Content-Type: application/json" \
   -d '{"x":64,"y":96,"scale":0.8}'
 
+# Centre world point (400, 300) in the visible canvas area at zoom 0.8
+# (omit scale to keep the current zoom). Responds with the resulting viewport.
+curl -X POST http://localhost:4313/api/canvas/viewport \
+  -H "Content-Type: application/json" \
+  -d '{"center":{"x":400,"y":300},"scale":0.8}'
+
 # Fit selected nodes (omit nodeIds to fit the whole canvas)
 curl -X POST http://localhost:4313/api/canvas/fit \
   -H "Content-Type: application/json" \
@@ -392,7 +401,17 @@ curl -X POST http://localhost:4313/api/canvas/focus \
 
 Viewport `x`/`y`, fit `width`/`height`, and fit padding are interpreted against
 the **canvas area**, excluding the tool rail, top bar, and other surrounding
-page chrome—not the full browser window. Camera, fit, and focus-only requests
+page chrome—not the full browser window.
+
+`{x, y, scale}` is the transform of the canvas world inside the canvas area:
+a world point `(wx, wy)` appears at canvas-area point `(wx * scale + x,
+wy * scale + y)`. The canvas area starts right of the 52 px tool rail and below
+the 44 px top bar in the default layout, so to put world `(wx, wy)` at browser
+window point `(sx, sy)` send `x = sx - 52 - wx * scale` and
+`y = sy - 44 - wy * scale`. `center` does this for the middle of the canvas
+area, using the size the open workbench last reported (1440×900 when no tab has
+reported one); it cannot be combined with `x`/`y`. Floating overlays inside the
+canvas area (command bar, minimap) are not subtracted. Camera, fit, and focus-only requests
 do not create or refresh agent writer presence. Use the explicit presence API
 when an agent should publish a cursor or `focusNodeId`.
 
@@ -560,7 +579,7 @@ without the workbench's own `x-pmx-workbench: 1` marker) registers its caller
 as a `tooling` writer, the activity feed drives attach/detach and phase
 (`session-start`, `session-end`, `tool-start`, `tool-result`), and adapters
 with richer hooks can set a phase, cursor, or focus explicitly. Writers fade
-90 s after their last write; attached sessions expire after 30 min of quiet
+5 min after their last write; attached sessions expire after 30 min of quiet
 without a `session-end`.
 
 ```bash

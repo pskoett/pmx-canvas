@@ -228,7 +228,7 @@ content.
 
 ```bash
 pmx-canvas node schema --type json-render --component Table --summary
-pmx-canvas validate                                                      # Layout validation
+pmx-canvas validate                                                      # Layout validation (collisions, groupFrameOverlaps, sizeWarnings)
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
 pmx-canvas validate spec --type html-primitive --kind choice-grid --data-json '{"items":[{"title":"A"}]}' --summary
 ```

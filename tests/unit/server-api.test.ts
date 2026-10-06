@@ -1846,6 +1846,30 @@ describe('canvas server HTTP API', () => {
     }
   });
 
+  test('a group auto-fit over a non-member is reported by create and flagged by validate', async () => {
+    const post = async (path: string, body: unknown) =>
+      (await fetch(`${baseUrl}/api/canvas/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then((r) => r.json())) as { id: string; sizeAdjustment?: { reason: string } };
+
+    const member = await post('node', { type: 'markdown', content: 'm', x: 9000, y: 9000, width: 360, height: 180 });
+    const neighbour = await post('node', { type: 'markdown', content: 'n', x: 9000, y: 9230, width: 360, height: 180 });
+    const group = await post('group', { title: 'Fit', childIds: [member.id] });
+    expect(group.sizeAdjustment?.reason).toBe('fit-to-children');
+
+    const validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as {
+      groupFrameOverlaps: Array<{ aId: string; bId: string }>;
+    };
+    const flagged = validation.groupFrameOverlaps.filter((p) => [p.aId, p.bId].includes(group.id));
+    expect(flagged).toEqual([expect.objectContaining({ aId: neighbour.id, bId: group.id })]);
+
+    for (const id of [group.id, member.id, neighbour.id]) {
+      await fetch(`${baseUrl}/api/canvas/node/${id}`, { method: 'DELETE' });
+    }
+  });
+
   test('structured create reports only actual size adjustments; updates keep requested dimensions', async () => {
     const spec = { root: 'text', elements: { text: { type: 'Text', props: { text: 'Size report' }, children: [] } } };
     for (const [route, payload] of [
@@ -4683,6 +4707,48 @@ describe('canvas server HTTP API', () => {
 
     const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(state.viewport).toEqual({ x: 120, y: -80, scale: 1.5 });
+  });
+
+  test('centres a world point in the reported canvas area', async () => {
+    // The browser reports its canvas-region size (not the window) with every viewport write.
+    await fetch(`${baseUrl}/api/canvas/viewport`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientWidth: 1000, clientHeight: 600 }),
+    });
+    const centred = await jsonRequest<{ ok: boolean; viewport: { x: number; y: number; scale: number } }>(
+      '/api/canvas/viewport',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ center: { x: 200, y: 100 }, scale: 2 }),
+      },
+    );
+    expect(centred.viewport).toEqual({ x: 100, y: 100, scale: 2 });
+    // screen = world * scale + viewport lands the point at the area's middle.
+    expect(200 * centred.viewport.scale + centred.viewport.x).toBe(500);
+    expect(100 * centred.viewport.scale + centred.viewport.y).toBe(300);
+
+    // Without scale it keeps the current zoom.
+    const keptZoom = await jsonRequest<{ viewport: { x: number; y: number; scale: number } }>('/api/canvas/viewport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ center: { x: 0, y: 0 } }),
+    });
+    expect(keptZoom.viewport).toEqual({ x: 500, y: 300, scale: 2 });
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.viewport).toEqual({ x: 500, y: 300, scale: 2 });
+  });
+
+  test('rejects a malformed center or one mixed with x/y', async () => {
+    for (const body of [{ center: { x: 1 } }, { center: 'middle' }, { center: { x: 1, y: 2 }, x: 5 }]) {
+      const response = await fetch(`${baseUrl}/api/canvas/viewport`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(400);
+    }
   });
 
   test('can suppress browser-driven viewport updates from undo history', async () => {

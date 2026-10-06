@@ -255,6 +255,42 @@ describe('canvas operations', () => {
     expect(validation.groupFrameOverlaps).toEqual([expect.objectContaining({ aId: 'group-a', bId: 'outsider' })]);
     expect(validation.summary.groupFrameOverlaps).toBe(1);
   });
+
+  test('validation treats a nested group member as inside every ancestor frame', () => {
+    canvasState.addNode(
+      makeNode({
+        id: 'outer',
+        type: 'group',
+        position: { x: 0, y: 0 },
+        size: { width: 800, height: 500 },
+        data: { children: ['inner'] },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'inner',
+        type: 'group',
+        position: { x: 40, y: 40 },
+        size: { width: 600, height: 360 },
+        data: { children: ['leaf'], parentGroup: 'outer' },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'leaf',
+        type: 'markdown',
+        position: { x: 80, y: 100 },
+        size: { width: 360, height: 200 },
+        data: { parentGroup: 'inner' },
+      }),
+    );
+
+    const validation = validateCanvasLayout(canvasState.getLayout());
+
+    expect(validation.groupFrameOverlaps).toEqual([]);
+    expect(validation.collisions).toEqual([]);
+    expect(validation.ok).toBe(true);
+  });
 });
 
 describe('image node validation', () => {
