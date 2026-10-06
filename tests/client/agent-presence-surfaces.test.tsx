@@ -244,6 +244,13 @@ describe('fleet roll-up', () => {
     expect(container.querySelectorAll('.agent-chip-workers')).toHaveLength(1);
     expect(container.querySelector('.agent-chip-workers')?.textContent).toBe('+3 workers');
   });
+
+  test('same-source workers whose orchestrator detached stay visible, with no roll-up of each other', () => {
+    applyPresenceSnapshot({ presences: sameSourceWorkers() });
+    const { container } = render(<TopBar />);
+    expect(container.querySelectorAll('.agent-chip:not(.agent-chip-more)')).toHaveLength(3);
+    expect(container.querySelectorAll('.agent-chip-workers')).toHaveLength(0);
+  });
 });
 
 describe('agent presence layer', () => {

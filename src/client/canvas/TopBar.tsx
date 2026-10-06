@@ -56,6 +56,7 @@ function AgentChip() {
       !allSessions.some(
         (candidate) =>
           candidate.sessionId !== session.sessionId &&
+          !candidate.parentAgentId &&
           (candidate.sessionId === session.parentAgentId || candidate.source === session.parentAgentId),
       ),
   );
@@ -83,12 +84,16 @@ function AgentChip() {
       <span class="agent-chips">
         {visible.map((session) => {
           // Fleet roll-up: workers declaring this session as their parent count
-          // into its chip instead of growing the bar one chip per worker.
-          const workers = agentPresences.value.filter(
-            (presence) =>
-              presence.parentAgentId != null &&
-              (presence.parentAgentId === session.sessionId || presence.parentAgentId === session.source),
-          ).length;
+          // into its chip instead of growing the bar one chip per worker. A
+          // worker's own chip carries no roll-up: same-source siblings would
+          // otherwise match it through `session.source`.
+          const workers = session.parentAgentId
+            ? 0
+            : agentPresences.value.filter(
+                (presence) =>
+                  presence.parentAgentId != null &&
+                  (presence.parentAgentId === session.sessionId || presence.parentAgentId === session.source),
+              ).length;
           return (
             <BarHint
               key={session.sessionId}
