@@ -156,6 +156,15 @@ warning amber.
   (10/8% and 18%) instead of the drawn black ones; recorded as the one per-theme scale exception
   in `design.md`.
 
+## Decided 2026-10-06
+
+- **Folders, not levels.** Folders are the one browsing hierarchy; portals and links stay a graph
+  the agent navigates (links/backlinks on `canvas://boards`) and Map/Graph draw (vision move 0,
+  `design.md`). Unblocks wave 2.
+- **The theme rename ships as a breaking change** (no aliases): the release changelog lists it
+  under Breaking, with `--theme=light`, `PMX_CANVAS_THEME=light`, a saved Light choice and
+  `?theme=light` all falling back to Harbor.
+
 ## Open
 
 - **Near a pin (decided 2026-10-05).** Nodes near a pin (up to 5 within 600 px,
@@ -163,6 +172,6 @@ warning amber.
   `canvas://pinned-context` and `canvas://spatial-context`; the main brief `canvas://context` does
   not include them. Decided with the maintainer: no near-a-pin mark on the board until the brief
   carries neighbours (vision move 1's ranker). The mark and that brief change ship together, in
-  wave 1; the design session draws the state ahead of it. Not part of wave 0.
+  wave 1; the design session draws the state ahead of it. Not part of wave 0. **Built** in plan 016
+  slice 4a (brief + chip); the hover lines, drag preview and Updates entry follow in 4b.
 
-- The **folders-versus-portals** question (before wave 2).

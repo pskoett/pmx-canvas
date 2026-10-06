@@ -186,10 +186,11 @@ implementation table).
 | **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
 | **Later — share ladder** | Part 3 | Read-only link, comments, second writer; at step 5, workspace and personal libraries with per-user pins | HomeTeam (look ahead): Home with two roots (Workspace, Personal), your pins across both, an explicit move with its effects spelled out, locked cards for boards a viewer cannot read | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal crosses into the workspace without an explicit share or move |
 
-**Folders and portals.** Home uses folders as the visible hierarchy (where a board
-lives, one place); portals and links are how boards relate and appear in Map and
-Graph. This replaces the review's portal-derived levels as the navigation tree; it
-needs the maintainer's confirmation before wave 2.
+**Folders and portals (decided 2026-10-06).** Home uses folders as the visible hierarchy (where a
+board lives, one place); portals and links are how boards relate: a many-to-many graph the agent
+navigates through links and backlinks on `canvas://boards`, and that Map and Graph draw. This
+replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
+links disagree, the Map shows it (folders as regions) rather than forcing them to match.
 
 ## Definition of done for any design work
 
