@@ -34,9 +34,18 @@ export function explicitServerUrl(input = {}) {
     return url.toString().replace(/\/$/, "");
 }
 
+const NO_SERVER = "No matching PMX Canvas server is running.";
+
 export async function probePmxServer(baseUrl, workspaceRoot, input = {}, fetchImpl = fetch) {
+    let response;
     try {
-        const response = await fetchImpl(`${baseUrl}/health`, { signal: AbortSignal.timeout(500) });
+        response = await fetchImpl(`${baseUrl}/health`, { signal: AbortSignal.timeout(500) });
+    } catch {
+        // Nothing answered (refused, timed out). The raw fetch error ("fetch failed") is not
+        // actionable; a reachable server's own failure below is reported verbatim.
+        return { ok: false, baseUrl, health: null, workspaceOk: false, error: NO_SERVER };
+    }
+    try {
         if (!response.ok) throw new Error(`Health check returned HTTP ${response.status}.`);
         const health = await response.json();
         const workspaceOk = typeof health.workspace === "string" &&
@@ -76,7 +85,7 @@ export async function findPmxServer(workspaceRoot, input = {}, fetchImpl = fetch
     const results = await Promise.all(ports.map((candidate) =>
         probePmxServer(`http://127.0.0.1:${candidate}`, workspaceRoot, input, fetchImpl)));
     return results.find((result) => result.ok) ??
-        { ok: false, baseUrl: null, health: null, workspaceOk: false, error: "No matching PMX Canvas server is running." };
+        { ok: false, baseUrl: null, health: null, workspaceOk: false, error: NO_SERVER };
 }
 
 async function portAvailable(port) {

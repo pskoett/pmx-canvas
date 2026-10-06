@@ -73,6 +73,13 @@ describe('shared plugin runtime', () => {
     await expect(ensurePmxServer(root, { serverUrl: result.baseUrl })).rejects.toThrow('belongs to');
   });
 
+  test('an unreachable explicit target reports no server, not the raw fetch error', async () => {
+    const result = await findPmxServer(workspace(), { serverUrl: 'http://127.0.0.1:4313' }, async () => {
+      throw new Error('fetch failed');
+    });
+    expect(result).toMatchObject({ ok: false, error: 'No matching PMX Canvas server is running.' });
+  });
+
   test('canonicalizes symlinked macOS temporary roots', async () => {
     const root = workspace();
     const server = fixture(root);
