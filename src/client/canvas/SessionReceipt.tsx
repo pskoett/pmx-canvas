@@ -3,7 +3,6 @@ import { toggleContextPin } from '../state/canvas-store';
 import {
   activityLensNodeIds,
   dismissSessionReceipt,
-  RECEIPT_AUTO_DISMISS_MS,
   type ReceiptNode,
   type SessionContextActivity,
   sessionReceipt,
@@ -18,9 +17,9 @@ import { workbenchFetch } from '../state/workbench-transport';
  * at the canvas region's top-right after a session ends — what the session did
  * (items / done / vetoed), the pre-session snapshot (taken at attach, so View
  * diff shows the session's changes and a restore undoes them), and History
- * (the snapshots panel). Client-side state, cleared on dismiss — or after
- * RECEIPT_AUTO_DISMISS_MS untouched (see applySessionReceipt for which
- * endings show at all and how a burst merges into one card).
+ * (the snapshots panel). Client-side state, cleared on dismiss (see
+ * applySessionReceipt for which endings show at all and how a burst merges
+ * into one card).
  */
 
 export interface DiffSummary {
@@ -122,22 +121,8 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
   const receipt = sessionReceipt.value;
   const [diff, setDiff] = useState<DiffSummary | null>(null);
   const [loadingDiff, setLoadingDiff] = useState(false);
-  // Pointer over / focus inside pauses the timer; any click keeps the card.
-  const [paused, setPaused] = useState(false);
-  const [kept, setKept] = useState(false);
-  useEffect(() => {
-    // A new or merged receipt: the old diff no longer describes it.
-    setDiff(null);
-    if (!receipt) {
-      setPaused(false);
-      setKept(false);
-    }
-  }, [receipt]);
-  useEffect(() => {
-    if (!receipt || paused || kept) return;
-    const timer = setTimeout(dismissSessionReceipt, RECEIPT_AUTO_DISMISS_MS);
-    return () => clearTimeout(timer);
-  }, [receipt, paused, kept]);
+  // A new or merged receipt: the old diff no longer describes it.
+  useEffect(() => setDiff(null), [receipt]);
   if (!receipt) return null;
 
   const viewDiff = async () => {
@@ -162,16 +147,7 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
     : `${String(ended.getHours()).padStart(2, '0')}:${String(ended.getMinutes()).padStart(2, '0')}`;
 
   return (
-    <div
-      class="session-receipt"
-      data-testid="session-receipt"
-      role="status"
-      onPointerEnter={() => setPaused(true)}
-      onPointerLeave={() => setPaused(false)}
-      onFocusIn={() => setPaused(true)}
-      onFocusOut={() => setPaused(false)}
-      onPointerDown={() => setKept(true)}
-    >
+    <div class="session-receipt" data-testid="session-receipt" role="status">
       <div class="session-receipt-head">
         <span class="session-receipt-dot" aria-hidden="true" />
         <span class="session-receipt-title">

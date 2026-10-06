@@ -674,13 +674,16 @@ after their latest read. A session that only read or pinned is not `unchanged`.
 gates, and held gates have separate counts. `snapshot` is null when the board was
 empty at attach or unchanged at end (the redundant snapshot is removed).
 The browser shows a receipt only for a changed top-level session: `unchanged: true`
-and worker endings (`parentAgentId` set) never open or replace a popup. An empty
+and worker endings (`parentAgentId` set) never open, replace, or extend a popup —
+the orchestrator's receipt covers the board since it attached. An empty
 board that stays empty is unchanged too. This only filters the popup: session-end
 events, timeline records, and changed-session snapshots remain available.
-There is at most one receipt, replaced by the next qualifying ending and kept until
-dismissed so restore/diff actions do not disappear on a timer. Its *View
-diff* is `GET /api/canvas/snapshots/<id>/diff` against that snapshot, and
-restoring the snapshot undoes the session. Adapters should end their session
+There is at most one receipt. Qualifying endings that arrive while it is up merge
+into it ("3 sessions ended", their labels, the union of their context); a merged
+receipt has no *View diff* and points to History, which keeps each session's
+snapshot. The receipt is kept until dismissed so restore/diff actions do not
+disappear on a timer. A single session's *View diff* is `GET /api/canvas/snapshots/<id>/diff` against that
+snapshot, and restoring the snapshot undoes the session. Adapters should end their session
 explicitly so the human gets the receipt promptly rather than after the idle
 expiry. The browser's *Start agent session* button is this same endpoint
 (`source: "browser"`, `attached: true`) — subsequent agent-less writes are

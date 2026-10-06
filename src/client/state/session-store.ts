@@ -438,13 +438,6 @@ export function setActivityLens(on: boolean): void {
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
 export const sessionReceipt = signal<SessionReceipt | null>(null);
 
-/**
- * How long an untouched receipt stays up. Hovering or focusing the card pauses
- * it; using it (any click) keeps it until dismissed. Safe to let go: History
- * keeps each changed session's snapshot with View diff and Restore.
- */
-export const RECEIPT_AUTO_DISMISS_MS = 10_000;
-
 function unionNodes(a: ReceiptNode[], b: ReceiptNode[]): ReceiptNode[] {
   const seen = new Set(a.map((node) => node.id));
   return [...a, ...b.filter((node) => !seen.has(node.id))];

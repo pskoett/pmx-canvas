@@ -11,12 +11,7 @@ import {
   replaceContextPinsFromServer,
 } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
-import {
-  applySessionReceipt,
-  RECEIPT_AUTO_DISMISS_MS,
-  resetSessionStore,
-  sessionReceipt,
-} from '../../src/client/state/session-store.ts';
+import { applySessionReceipt, resetSessionStore, sessionReceipt } from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 // rail-chrome-v2 phase 5: the human's steering surface while a session is
@@ -517,29 +512,16 @@ describe('session receipt', () => {
     expect(container.querySelectorAll('[data-testid="session-receipt"]')).toHaveLength(1);
   });
 
-  describe('auto-dismiss', () => {
+  describe('no timer', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
 
-    test('an untouched receipt goes away on its own', () => {
-      act(() => applySessionReceipt(ended));
-      render(<SessionReceipt onOpenSnapshots={() => {}} />);
-      act(() => jest.advanceTimersByTime(RECEIPT_AUTO_DISMISS_MS - 1));
-      expect(sessionReceipt.value).not.toBeNull();
-      act(() => jest.advanceTimersByTime(1));
-      expect(sessionReceipt.value).toBeNull();
-    });
-
-    test('hover pauses the timer; a click keeps the card until dismissed', () => {
+    test('an untouched receipt is still up after 12 s — it stays until dismissed', () => {
       act(() => applySessionReceipt(ended));
       const { getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
-      act(() => fireEvent.pointerEnter(getByTestId('session-receipt')));
-      act(() => jest.advanceTimersByTime(RECEIPT_AUTO_DISMISS_MS * 2));
+      act(() => jest.advanceTimersByTime(12_000));
       expect(sessionReceipt.value).not.toBeNull();
-      act(() => fireEvent.pointerLeave(getByTestId('session-receipt')));
-      act(() => fireEvent.pointerDown(getByTestId('session-receipt')));
-      act(() => jest.advanceTimersByTime(RECEIPT_AUTO_DISMISS_MS * 2));
-      expect(sessionReceipt.value).not.toBeNull();
+      expect(getByTestId('session-receipt')).toBeTruthy();
     });
   });
 });
