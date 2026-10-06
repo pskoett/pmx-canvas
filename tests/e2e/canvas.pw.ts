@@ -1875,7 +1875,13 @@ test('ax-board primitive: clicking Add task creates real AX work and the board r
 
   // Drive the REAL controls — type into the real input, click the real button.
   await frame.locator('#ax-task-title').fill('e2e board task');
-  await frame.getByRole('button', { name: 'Add task' }).click();
+  // As in the Materialize test, confirm the transformed iframe received the
+  // pointer before checking the AX operation. Never retry the result assertion.
+  const addTask = frame.getByRole('button', { name: 'Add task' });
+  await expect(async () => {
+    await addTask.click();
+    expect(await addTask.evaluate((button) => document.activeElement === button)).toBe(true);
+  }).toPass({ timeout: 5_000 });
 
   // The click produced real AX state on the server (documented read route).
   await expect
@@ -2090,7 +2096,11 @@ test('ax-board primitive: a bounded loop advances on done, stops on Stop, and ne
 
   await frame.locator('#ax-task-title').fill('loop task');
   await frame.locator('#ax-loop-runs').fill('2');
-  await frame.getByRole('button', { name: 'Start loop' }).click();
+  const startLoop = frame.getByRole('button', { name: 'Start loop' });
+  await expect(async () => {
+    await startLoop.click();
+    expect(await startLoop.evaluate((button) => document.activeElement === button)).toBe(true);
+  }).toPass({ timeout: 5_000 });
   await expect(frame.locator('#ax-loop-run')).toHaveText('run 1 of 2');
   await expect.poll(async () => await runsNamed('loop task — run 1/2')).toBe(1);
 
