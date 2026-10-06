@@ -29,8 +29,7 @@ async function invokeMcpOperation(
   consumer: string | null,
 ) {
   const board = typeof opInput.board === 'string' && opInput.board.trim() ? opInput.board.trim() : undefined;
-  const deliversFullNode = op.name !== 'node.get' || formatInput.full === true || formatInput.verbose === true;
-  const readTarget = CONTEXT_READ_OPS.has(op.name) && deliversFullNode ? await host.prepareContextRead(board) : null;
+  const readTarget = CONTEXT_READ_OPS.has(op.name) ? await host.prepareContextRead(board) : null;
   if (readTarget?.boardId && 'board' in op.inputShape) {
     opInput = { ...opInput, board: readTarget.boardId };
     formatInput = { ...formatInput, board: readTarget.boardId };
@@ -44,6 +43,12 @@ async function invokeMcpOperation(
       .filter((item): item is Extract<(typeof formatted.content)[number], { type: 'text' }> => item.type === 'text')
       .map((item) => item.text)
       .join('');
+    if (op.name === 'node.get') {
+      // Compact responses can still deliver text. Metadata without text or
+      // data must not mark unseen content read.
+      const node = JSON.parse(text) as { data?: unknown; content?: string | null };
+      if (node.data === undefined && !node.content) return formatted;
+    }
     try {
       await host.recordContextRead(
         contextReadFromPayload(

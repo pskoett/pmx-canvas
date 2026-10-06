@@ -30,6 +30,7 @@ action: "read-status", board }`. No entry means no recorded content delivery;
 Re-read that card with `full: true`, then check status again before acting on it.
 Full HTTP/CLI node reads and SDK `getNode` also record the delivered revision;
 compact MCP metadata, CLI `--summary`/`--field`, and workbench reads do not.
+Compact MCP responses that contain text (such as Markdown) do count as delivery.
 In 0.8.0, direct node gets were untracked; use a context read on that version.
 A read mark proves delivery, not understanding or approval. Agent attribution
 describes who acted; it never grants permission or wakes an idle agent.

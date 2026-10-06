@@ -1049,7 +1049,7 @@ describe('MCP parity with CLI', () => {
     ]);
   });
 
-  test('records canvas_node get only when full content is delivered', async () => {
+  test('records canvas_node get text or full data, but not metadata-only reads', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
       await closeTransportAndReapChild(session.transport);
@@ -1066,7 +1066,27 @@ describe('MCP parity with CLI', () => {
         },
       })) as ToolResultShape,
     );
-    await session.client.callTool({ name: 'canvas_node', arguments: { action: 'get', id: node.id } });
+    const metadataOnly = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', type: 'markdown', title: 'Title only' },
+      })) as ToolResultShape,
+    );
+    const metadata = parseJsonText<{ content: string | null; data?: unknown }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: metadataOnly.id },
+      })) as ToolResultShape,
+    );
+    expect(metadata.content).toBeNull();
+    expect(metadata.data).toBeUndefined();
+    const compact = parseJsonText<{ content: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: node.id },
+      })) as ToolResultShape,
+    );
+    expect(compact.content).toBe('full body');
     await session.client.callTool({ name: 'canvas_node', arguments: { action: 'get', id: node.id, full: true } });
     const log = parseJsonText<{ reads: Array<{ resource: string; readNodes: Record<string, number> }> }>(
       (await session.client.callTool({
@@ -1075,8 +1095,8 @@ describe('MCP parity with CLI', () => {
       })) as ToolResultShape,
     );
     const reads = log.reads.filter((read) => read.resource === 'node.get');
-    expect(reads).toHaveLength(1);
-    expect(Object.keys(reads[0]?.readNodes ?? {})).toEqual([node.id]);
+    expect(reads).toHaveLength(2);
+    for (const read of reads) expect(Object.keys(read.readNodes)).toEqual([node.id]);
 
     const base = `http://localhost:${session.port}`;
     const edited = await fetch(`${base}/api/canvas/node/${node.id}`, {
@@ -1096,7 +1116,7 @@ describe('MCP parity with CLI', () => {
     );
     expect(refreshed.nodes.find((entry) => entry.nodeId === node.id)).toMatchObject({
       readRevision: current.node.contentRevision,
-      readCount: 2,
+      readCount: 3,
     });
   });
 
