@@ -83,10 +83,22 @@ pmx-canvas record --mode deterministic --present --fps 30 --resolution 1920x1080
 pmx-canvas record --mode deterministic --tour-file tour.json --present --output frames
 
 # Alternatively, sample the live presentation while agents update the board
-pmx-canvas record --duration 10 --present --theme light --output activity.mp4
+pmx-canvas record --duration 10 --present --theme daylight --output activity.mp4
 
 # Keep recording until SIGINT (Ctrl+C) or SIGTERM, then encode
 pmx-canvas record --stop-on-signal --output live.mp4
+```
+
+A board walkthrough end to end: save the `tour.json` above, preview it with
+**Present**, then render it at video quality and record a live pass while an
+agent works:
+
+```bash
+pmx-canvas tour set --file tour.json
+pmx-canvas record --mode deterministic --present --theme midnight --resolution 1920x1080 --fps 30 --output walkthrough.mp4
+pmx-canvas record --duration 20 --present --resolution 1920x1080 --output agent-pass.mp4 &
+pmx-canvas node add --type markdown --title "Findings" --content "Added while recording"
+wait
 ```
 
 Options: `--mode realtime|deterministic` (default realtime), `--resolution WIDTHxHEIGHT`
@@ -95,19 +107,22 @@ Options: `--mode realtime|deterministic` (default realtime), `--resolution WIDTH
 for deterministic mode, `--chrome-path PATH`, and required `--output PATH`.
 Global `--port` / `--server-url` work here too. Existing output paths are refused.
 
-An `.mp4` output uses ffmpeg/H.264; any other path is a PNG sequence directory.
+An `.mp4` output uses ffmpeg/H.264; any other path is a frame sequence directory
+(`frame-000000.png` in deterministic mode, `frame-000000.jpg` in realtime mode).
 Frames and `recording.json` are retained at `<output>.frames` even after video
-encoding. If ffmpeg is missing, the command clearly reports the PNG fallback
-and returns that directory. Encoding failures retain frames and exit nonzero.
+encoding. If ffmpeg is missing, the command clearly reports the frame-sequence
+fallback and returns that directory. Encoding failures retain frames and exit nonzero.
 
 Deterministic mode resolves target geometry once and writes
 `max(1, ceil(duration × fps))` frames per stop, including each endpoint. It sets
 the camera, waits for two animation frames, checks the applied camera, then
 captures. Duplicate a target to hold it. This makes **camera timing** deterministic,
 not animated iframe content, fonts loaded later, network assets, or concurrent
-board edits. Realtime mode samples the live board; slow captures repeat frames
-to preserve wall-clock speed, with the repeated-frame count in `recording.json`.
-Capture has no audio. Chrome and a Bun runtime with WebView support are required.
+board edits. Realtime mode records Chrome's screencast (a JPEG per paint) and
+resamples it to `--fps` by paint timestamp, so footage keeps wall-clock speed;
+ticks with no new paint repeat the previous frame, counted as `duplicated` in
+`recording.json`. Capture has no audio. Chrome and a Bun runtime with WebView
+support are required; Chrome gets 60 seconds to cold-start.
 Recording is a local CLI/file operation, not a remote HTTP/MCP file-writing API;
 HTTP/MCP manage tours and retain their existing screenshot/automation surfaces.
 
