@@ -14,7 +14,7 @@ import {
 const directories = [];
 const servers = [];
 function workspace() {
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pmx-plugin-runtime-')));
+  const directory = realpathSync.native(mkdtempSync(join(tmpdir(), 'pmx-plugin-runtime-')));
   directories.push(directory);
   return directory;
 }

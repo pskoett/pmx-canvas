@@ -9,7 +9,8 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(runtimeVersion)) {
 }
 
 export function canonicalWorkspace(path) {
-    const directory = realpathSync(resolve(path));
+    // .native expands Windows 8.3 short names (RUNNER~1), so every caller compares one spelling.
+    const directory = realpathSync.native(resolve(path));
     if (!statSync(directory).isDirectory()) throw new Error("PMX Canvas workspace must be a directory.");
     return directory;
 }

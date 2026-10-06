@@ -48,6 +48,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Fleet workers stay visible in the top bar after their orchestrator ends its session, and only the orchestrator's chip counts its workers.
 - `validate` no longer reports nodes inside nested groups as overlapping their outer group's frame.
 - Long unbroken words in work board item titles wrap inside their card instead of spilling into the next column.
+- On Windows, the portable agent plugin no longer accepts its own installation folder as the project workspace.
 
 ## [0.7.3] - 2026-10-01
 

@@ -18,7 +18,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadCopilotCanvas } from '../helpers/copilot-adapter.js';
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), 'pmx-plugin-mcp-')));
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'pmx-plugin-mcp-')));
 const plugin = join(root, 'installed-plugin');
 const workspace = join(root, 'project');
 const otherWorkspace = join(root, 'other-project');
@@ -214,14 +214,23 @@ describe('portable plugin MCP workspace connector', () => {
       port: Number(port),
       fetch: () => Response.json({ ok: true, workspace: otherWorkspace }),
     });
+    // Await the rejection itself: on Windows, `expect(promise).rejects` blocks this process's
+    // event loop, so `foreign` (served here) never answers the connector's probe and it times out.
+    const refusal = (request: Promise<unknown>) =>
+      request.then(
+        () => 'resolved',
+        (error) => String(error),
+      );
     try {
-      await expect(
-        client.callTool({
-          name: 'canvas_node',
-          arguments: { action: 'add', type: 'markdown', title: 'Must not leak' },
-        }),
-      ).rejects.toThrow('another workspace');
-      await expect(client.readResource({ uri: 'canvas://layout' })).rejects.toThrow('another workspace');
+      expect(
+        await refusal(
+          client.callTool({
+            name: 'canvas_node',
+            arguments: { action: 'add', type: 'markdown', title: 'Must not leak' },
+          }),
+        ),
+      ).toContain('another workspace');
+      expect(await refusal(client.readResource({ uri: 'canvas://layout' }))).toContain('another workspace');
     } finally {
       foreign.stop(true);
     }
