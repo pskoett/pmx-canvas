@@ -1406,7 +1406,7 @@ for (const iframeMode of ['src', 'srcdoc'] as const) {
       data: {
         type: 'html',
         title: `AX capability lifecycle ${iframeMode}`,
-        html: '<input aria-label="draft"><button onclick="go()">Create work</button><output id="ack">idle</output><script>window.__boot=Math.random();async function go(){const r=window.PMX_AX?await window.PMX_AX.emit("ax.work.create",{title:"late-capability-work"}):null;document.getElementById("ack").textContent=r?(r.ok?"accepted":"denied"):"unavailable"}</script>',
+        html: '<input aria-label="draft"><button onclick="go()">Create work</button><output id="ack">idle</output><script>window.__boot=Math.random();async function go(){const r=window.PMX_AX?await window.PMX_AX.emit("ax.work.create",{title:document.querySelector("input").value}):null;document.getElementById("ack").textContent=r?(r.ok?"accepted":"denied"):"unavailable"}</script>',
         data: { axCapabilities: { enabled: false } },
         x: 640,
         y: 260,
@@ -1423,14 +1423,16 @@ for (const iframeMode of ['src', 'srcdoc'] as const) {
     await expect(draft).toBeVisible();
     const hasAxBridge = () => frame.locator('body').evaluate(() => 'PMX_AX' in window);
     await expect.poll(hasAxBridge).toBe(false);
-    const workCount = async () => {
+    const workTitles = async () => {
       const ax = await (await request.get('/api/canvas/ax')).json();
-      return ax.state.workItems.filter((item: { title: string }) => item.title === 'late-capability-work').length;
+      return ax.state.workItems.map((item: { title: string }) => item.title).sort();
     };
-    const createWork = async (ack: string, count: number) => {
+    const createWork = async (title: string, ack: string, expectedTitles: string[]) => {
+      // Distinct titles avoid the server's 2.5-second duplicate-submit window.
+      await draft.fill(title);
       await frame.getByRole('button', { name: 'Create work' }).press('Enter');
       await expect(frame.locator('#ack')).toHaveText(ack);
-      expect(await workCount()).toBe(count);
+      expect(await workTitles()).toEqual(expectedTitles);
     };
 
     let boot = await frame.locator('body').evaluate(() => (window as Window & { __boot?: number }).__boot);
@@ -1447,16 +1449,16 @@ for (const iframeMode of ['src', 'srcdoc'] as const) {
 
     await updateCapabilities({ enabled: true, allowed: ['ax.work.create'] });
     await expect.poll(hasAxBridge).toBe(true);
-    await createWork('accepted', 1);
+    await createWork('first enabled work', 'accepted', ['first enabled work']);
     await updateCapabilities({ enabled: false });
     await expect.poll(hasAxBridge).toBe(false);
-    await createWork('unavailable', 1);
+    await createWork('disabled work', 'unavailable', ['first enabled work']);
     await updateCapabilities({ enabled: true, allowed: ['ax.steer'] });
     await expect.poll(hasAxBridge).toBe(true);
-    await createWork('denied', 1);
+    await createWork('disallowed work', 'denied', ['first enabled work']);
     await updateCapabilities({ enabled: true, allowed: ['ax.work.create'] });
     await expect.poll(hasAxBridge).toBe(true);
-    await createWork('accepted', 2);
+    await createWork('re-enabled work', 'accepted', ['first enabled work', 're-enabled work']);
   });
 }
 
