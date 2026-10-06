@@ -3,6 +3,45 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-10-06
+
+### Highlights
+
+- A new look across the canvas: IBM Plex everywhere, one meaning per colour (blue in context, violet what the agent did, amber needs a look), quieter node headers.
+- Every pinned node now shows whether an agent has read it and whether its copy is out of date.
+- After an agent session, the receipt shows what it read, pinned, created and edited, and can dim everything it did not touch.
+- Cards near a pin travel into the agent's brief as a short summary and are marked "near" on the board.
+
+### Breaking
+
+- The `dark` and `light` themes are renamed `harbor` and `daylight`, with no aliases: `--theme=light`, `PMX_CANVAS_THEME=light`, `?theme=light` and a saved Light choice now fall back to Harbor, so pick Daylight once after upgrading.
+
+### Added
+
+- Pinned nodes show "not read", "read" or amber "changed since read", with who read them and when on hover.
+- Pins record who pinned them, when and why; agents can pass a `reason` to `canvas_pin_nodes`, and an agent's pin carries a violet dot.
+- Nodes an agent created or edited show its name until you edit them.
+- The session receipt lists what the session read, pinned, created and edited, flags pins changed since the agent read them, and has a "Dim untouched nodes" switch.
+- The context brief carries each pin's nearby cards (up to five within 600 px) as title and short summary, and the board marks them "near".
+- `GET /api/canvas/ax/context-status`, `canvas_ax_timeline { action: "read-status" }` and `getNodeReadStatus()` report, per node, the latest agent read and the revision it read.
+- A create intent may omit its position: the ghost forms where the node will land and the linked create lands on it.
+- Subagents have their own fuchsia colour, beside the agent violet.
+
+### Changed
+
+- IBM Plex Sans and Mono ship with the app, and every control uses them.
+- Pinned nodes use a blue border, tinted header and an always-visible pin badge; the amber halos and focus glow are gone.
+- Node headers show expand and the context pin at rest; the other actions sit behind ⋯ and × on hover, and "Open in new tab" moved into the node menu.
+- Selection draws a ring outside the border, so a selected pinned node keeps its pin styling.
+- Type icons and the minimap are neutral; only meaning colours (pinned, agent at work) stand out, and agents are told apart by name.
+- Daylight uses neutral white surfaces instead of beige.
+- The reference cases run at 600, 1024 and 1920 px.
+
+### Fixed
+
+- Agent ghosts no longer appear in the top-left corner when an agent announces work before it knows the layout.
+- The Copilot panel shows "No matching PMX Canvas server is running" again when the server is unreachable.
+
 ## [0.7.3] - 2026-10-01
 
 ### Fixed

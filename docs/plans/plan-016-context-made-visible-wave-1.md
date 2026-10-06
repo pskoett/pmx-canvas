@@ -86,6 +86,8 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   (Unpin on agent pins) and the lens switch "Dim untouched nodes". The read mark's hover says how
   many times a node was read. Reads are counted per board in the session window, not per reader:
   on a board with two agents at once, each receipt includes the other's reads.
+  The receipt also reads the board open when the session ends; a session whose board the person
+  switched away from mid-session reports the newly open board (known limit, 0.8.0 review).
 - **Not built:** per-row Undo of an edit (needs stored previous content); the pre-session snapshot
   restore still undoes the whole session. The drawn bottom-bar placement of the lens is folded into
   the receipt card, which already sits where session results appear.

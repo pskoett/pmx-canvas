@@ -261,7 +261,9 @@ function sessionContextActivity(
   const changedSinceRead = [...canvasState.contextPinnedNodeIds].flatMap((id) => {
     const node = byId.get(id);
     const status = readStatus.get(id);
-    return node && status && (node.contentRevision ?? 0) > status.readRevision ? [entry(node)] : [];
+    // Only pins this session read: the receipt says "changed after <agent> read it".
+    const readThisSession = status && startedAt !== null && status.lastReadAt >= startedAt;
+    return node && status && readThisSession && (node.contentRevision ?? 0) > status.readRevision ? [entry(node)] : [];
   });
   return { read, pinned, created, edited, changedSinceRead };
 }
