@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { cleanup, render } from '@testing-library/preact';
-import { NodeContextMark, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
+import { cleanup, fireEvent, render } from '@testing-library/preact';
+import { NearPinMark, NodeContextMark, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
+import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
 import type { CanvasNodeState, NodeActor } from '../../src/client/types.ts';
 
@@ -89,5 +90,33 @@ describe('unpinned nodes: the agent byline until a person edits', () => {
 
   test('a person-made, person-edited node has no mark', () => {
     expect(markOf({ node: node({ createdBy: human, lastEditedBy: human }), pinned: false })).toBeNull();
+  });
+});
+
+describe('near a pin', () => {
+  test('an unpinned node within 600 px of pins says "near" (or "near N"); a far or pinned node does not', () => {
+    const pinA = node({ id: 'pin-a', data: { title: 'Release runbook' } });
+    const pinB = node({ id: 'pin-b', position: { x: 300, y: 0 }, data: { title: 'Rollout' } });
+    const close = node({ id: 'close', position: { x: 150, y: 0 } });
+    const far = node({ id: 'far', position: { x: 3000, y: 0 } });
+    nodes.value = new Map([pinA, pinB, close, far].map((entry) => [entry.id, entry]));
+    contextPinnedNodeIds.value = new Set(['pin-a', 'pin-b']);
+    const nearOf = (target: CanvasNodeState, pinned = false) => {
+      const { container } = render(<NearPinMark node={target} pinned={pinned} />);
+      const text = container.querySelector('.node-near-mark')?.textContent ?? null;
+      cleanup();
+      return text;
+    };
+    expect(nearOf(close)).toBe('near 2');
+    // At rest the node must not contain the pins' titles; hovering the chip names them.
+    const { container } = render(<NearPinMark node={close} pinned={false} />);
+    expect(container.textContent).not.toContain('Release runbook');
+    fireEvent.mouseEnter(container.querySelector('.node-near-mark') as Element);
+    expect(container.textContent).toContain('Release runbook');
+    cleanup();
+    expect(nearOf(far)).toBeNull();
+    expect(nearOf(pinA, true)).toBeNull();
+    nodes.value = new Map();
+    contextPinnedNodeIds.value = new Set();
   });
 });

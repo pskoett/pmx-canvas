@@ -49,6 +49,56 @@ function library(boardId: string, linkIds: string[], category = 'okr'): ContextB
   };
 }
 
+function at(id: string, x: number, content = `${id} body`, revision = 1): CanvasNodeState {
+  return { ...node(id, content, revision), position: { x, y: 0 } };
+}
+
+describe('near a pin (docs/design/NearPin.dc.html)', () => {
+  test('neighbours follow the pins as title + short summary, nearest first, never full content', () => {
+    const long = 'Detail. '.repeat(200);
+    const brief = compileContextBrief(
+      input({
+        nodes: [at('pin', 0), at('near-b', 300, long), at('near-a', 150, long), at('far', 2000)],
+        pinnedNodeIds: ['pin'],
+        contentRevision: 1,
+        since: 1,
+      }),
+    );
+    const entries = brief.document?.entries ?? [];
+    expect(entries.map((entry) => [entry.nodeId, entry.reason])).toEqual([
+      ['pin', 'pinned'],
+      ['near-a', 'near'],
+      ['near-b', 'near'],
+    ]);
+    const near = entries.find((entry) => entry.nodeId === 'near-a');
+    expect(near?.near).toEqual({ pinNodeId: 'pin', pinTitle: 'pin' });
+    expect(near?.text.length).toBeLessThan(long.length);
+  });
+
+  test('a neighbour that changed since the cursor arrives in full as a change, not as near', () => {
+    const brief = compileContextBrief(
+      input({
+        nodes: [at('pin', 0, 'pin body', 1), at('neighbour', 200, 'fresh edit', 2)],
+        pinnedNodeIds: ['pin'],
+        contentRevision: 2,
+        since: 1,
+      }),
+    );
+    expect(brief.document?.entries.map((entry) => [entry.nodeId, entry.reason])).toEqual([
+      ['pin', 'pinned'],
+      ['neighbour', 'changed'],
+    ]);
+  });
+
+  test('at most five neighbours per pin', () => {
+    const neighbours = Array.from({ length: 7 }, (_, index) => at(`n${index}`, 100 + index * 50));
+    const brief = compileContextBrief(
+      input({ nodes: [at('pin', 0), ...neighbours], pinnedNodeIds: ['pin'], contentRevision: 1, since: 1 }),
+    );
+    expect(brief.document?.entries.filter((entry) => entry.reason === 'near')).toHaveLength(5);
+  });
+});
+
 describe('compileContextBrief', () => {
   test('curation delivers both selected decisions under the same noisy-board budget', () => {
     const snapshot = input({

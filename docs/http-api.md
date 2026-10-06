@@ -418,7 +418,10 @@ curl 'http://localhost:4313/api/canvas/context?consumer=codex&budget=16000'
 `consumer` is optional. Supply a stable unique value only for a durable,
 board-scoped cursor; without `consumer` or `since`, each request starts from the
 beginning. An explicit `since` never advances a cursor. The brief prioritizes
-pins, then relevant current-board changes and asks, then compact linked or
+pins, then each pin's neighbours (reason `near`: up to five unpinned cards within
+600 px, nearest first, as title + a short summary with `near: { pinNodeId,
+pinTitle }`; pin a card to send its full content), then relevant current-board
+changes and asks, then compact linked or
 same-folder board context. Every item carries source board/card IDs. If card text
 is clipped, use those IDs with the board/node read route rather than guessing
 from the excerpt. Reading inactive boards does not open them.

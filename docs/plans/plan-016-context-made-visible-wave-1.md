@@ -1,6 +1,6 @@
 # Plan 016 — Context made visible (wave 1)
 
-**Status:** Slices 1–3 done (2026-10-05); slice 4 (near a pin) next.
+**Status:** Slices 1–3 and 4a done (2026-10-05); 4b (tethers, drag preview, Updates entry) next.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -98,6 +98,13 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
 - The `NearPin.dc.html` mark: dotted "near" chip, tethers on hovering a pin, the drag preview and
   the single Updates entry that replaces "Neighborhood changed". "read" from slice 2 then also
   covers neighbours honestly (title + summary delivered).
+- **4a, done.** The brief carries `near` entries right after the pinned cards (each whole or
+  absent, title + summary capped at 280 characters, `near: { pinNodeId, pinTitle }`); a neighbour
+  that changed since the cursor arrives in full as `changed` instead; a first read delivers every
+  node in full, so it has no near entries. The client computes the same `findNeighborhoods` and
+  shows the dotted "near" / "near N" chip on unpinned nodes, with the pins and distances on hover.
+- **4b, next.** Tethers and the 600 px radius when hovering a pin, the drag preview, and the single
+  Updates entry that replaces "Neighborhood changed".
 
 ### 5. Board pins
 

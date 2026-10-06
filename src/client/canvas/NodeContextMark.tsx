@@ -1,4 +1,6 @@
+import { useState } from 'preact/hooks';
 import { contextPinMeta, pinnedReadState, writerName } from '../state/context-status-store';
+import { nearPins } from '../state/near-pin-store';
 import type { CanvasNodeState } from '../types';
 import { BarHint } from './BarHint';
 
@@ -103,4 +105,42 @@ export function NodeContextMark({ node, pinned }: { node: CanvasNodeState; pinne
 /** Pinned by an agent: the violet dot on the pin badge. */
 export function isAgentPin(nodeId: string): boolean {
   return contextPinMeta.value[nodeId]?.pinnedBy.actor === 'agent';
+}
+
+/**
+ * Near a pin (docs/design/NearPin.dc.html): a dotted pin-blue chip on an
+ * unpinned node the brief carries as title + short summary. Weaker than "in
+ * context" on purpose: the agent never gets this node's full content.
+ */
+export function NearPinMark({ node, pinned }: { node: CanvasNodeState; pinned: boolean }) {
+  // The pins' titles join this node's DOM only while the chip is hovered or
+  // focused: at rest the node must not contain other nodes' titles.
+  const [open, setOpen] = useState(false);
+  const near = pinned ? undefined : nearPins.value.get(node.id);
+  if (!near || near.length === 0) return null;
+  const word = near.length > 1 ? `near ${near.length}` : 'near';
+  const where = near.map((pin) => `“${pin.pinTitle}” (${pin.distance} px)`).join(', ');
+  return (
+    <BarHint
+      label={open ? `Near ${where}` : 'Near a pin'}
+      body="The agent gets its title and a short summary, not its full content. Pin it to send its content."
+      align="end"
+      tapToOpen
+    >
+      <span
+        class="node-near-mark"
+        data-near={near.map((pin) => pin.pinNodeId).join(' ')}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocusIn={() => setOpen(true)}
+        onFocusOut={() => setOpen(false)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="8" class="node-near-ring" />
+          <circle cx="12" cy="12" r="2.2" class="node-near-dot" />
+        </svg>
+        {word}
+      </span>
+    </BarHint>
+  );
 }

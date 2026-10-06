@@ -5723,6 +5723,35 @@ html.is-node-resizing .ext-app-preview-catcher {
   background: color-mix(in srgb, var(--c-warn) 14%, transparent);
 }
 
+/* Near a pin (docs/design/NearPin.dc.html): dotted, weaker than in context. */
+.node-near-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--node-chrome-scale, 1));
+  height: calc(18px * var(--node-chrome-scale, 1));
+  padding: 0 calc(7px * var(--node-chrome-scale, 1));
+  border: 1px dotted var(--c-pin);
+  border-radius: var(--r-pill);
+  color: color-mix(in srgb, var(--c-pin) 75%, var(--c-text));
+  font-size: calc(var(--fs-meta) * var(--node-chrome-scale, 1));
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.node-near-mark svg {
+  width: calc(12px * var(--node-chrome-scale, 1));
+  height: calc(12px * var(--node-chrome-scale, 1));
+}
+.node-near-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 2.2 2.6;
+}
+.node-near-dot {
+  fill: currentColor;
+}
+
 /* Pinned by an agent: a violet dot on the pin badge. */
 .ctx-pin-mark {
   position: relative;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
-import { isAgentPin, NodeContextMark } from './NodeContextMark';
+import { isAgentPin, NearPinMark, NodeContextMark } from './NodeContextMark';
 import { activityLensNodeIds } from '../state/session-store';
 import {
   activeNodeId,
@@ -667,6 +667,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 {title}
               </span>
             )}
+            <NearPinMark node={node} pinned={isContextPinned} />
             <NodeContextMark node={node} pinned={isContextPinned} />
             <div class="node-controls">
               {isPinned && (

@@ -20,7 +20,8 @@ At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
 falling back to broader resources. The budget is UTF-16 code units, not tokens.
 Use one stable consumer ID per agent/adapter only when durable deltas are wanted;
-omit it for a fresh read. Pins are highest priority. If a source card is clipped,
+omit it for a fresh read. Pins are highest priority, then the cards near each pin
+(reason `near`, title + short summary only). If a source card is clipped or near,
 pull that card explicitly by its returned board/card IDs.
 
 When authoring a board, establish its README without waiting for the human to

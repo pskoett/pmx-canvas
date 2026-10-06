@@ -1,5 +1,7 @@
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
-export type ContextBriefReason = 'pinned' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+export type ContextBriefReason = 'pinned' | 'near' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+/** A near entry carries a short summary, never full content: pin the node to send that. */
+export declare const NEAR_SUMMARY_LENGTH = 280;
 export interface ContextBriefSourceEntry {
     sourceBoardId: string;
     nodeId: string;
@@ -57,6 +59,11 @@ export interface CompiledContextEntry {
     text: string;
     /** A linked board's pin title is discovery metadata, not delivery of that pinned card. */
     titleOnly?: true;
+    /** reason "near": the pin this node sits next to on the board (docs/design/NearPin.dc.html). */
+    near?: {
+        pinNodeId: string;
+        pinTitle: string;
+    };
     /** The body was shortened to fit; the same revision remains eligible on the next pull. */
     truncated?: true;
     provenance?: {

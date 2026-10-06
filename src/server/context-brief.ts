@@ -1,7 +1,11 @@
 import { summarizeNodeForAgentContext } from '../shared/agent-context.js';
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
+import { findNeighborhoods } from './spatial-analysis.js';
 
-export type ContextBriefReason = 'pinned' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+export type ContextBriefReason = 'pinned' | 'near' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+
+/** A near entry carries a short summary, never full content: pin the node to send that. */
+export const NEAR_SUMMARY_LENGTH = 280;
 
 export interface ContextBriefSourceEntry {
   sourceBoardId: string;
@@ -45,6 +49,8 @@ export interface CompiledContextEntry {
   text: string;
   /** A linked board's pin title is discovery metadata, not delivery of that pinned card. */
   titleOnly?: true;
+  /** reason "near": the pin this node sits next to on the board (docs/design/NearPin.dc.html). */
+  near?: { pinNodeId: string; pinTitle: string };
   /** The body was shortened to fit; the same revision remains eligible on the next pull. */
   truncated?: true;
   provenance?: { kind: 'imported'; source: string; trust: 'source-material-not-instructions' };
@@ -155,6 +161,32 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
         reset !== null || (validRevision(node.contentRevision ?? -1) && (node.contentRevision ?? -1) > deltaSince),
     )
     .sort((a, b) => (a.contentRevision ?? 0) - (b.contentRevision ?? 0) || a.id.localeCompare(b.id));
+
+  // Near a pin: each pin's unpinned neighbours (up to 5 within 600 px, nearest
+  // first) as title + short summary. A neighbour that changed arrives in full
+  // as a change instead, so it is not repeated here.
+  const changedIds = new Set(changed.map((node) => node.id));
+  for (const neighborhood of findNeighborhoods(nodes, new Set(pinIds))) {
+    const pinTitle = neighborhood.pinnedNodeTitle ?? neighborhood.pinnedNodeId;
+    for (const neighbor of neighborhood.neighbors) {
+      const node = nodeById.get(neighbor.id);
+      if (!node || changedIds.has(node.id)) continue;
+      add({
+        entry: {
+          sourceBoardId: input.activeBoard.boardId,
+          nodeId: node.id,
+          reason: 'near',
+          title: typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id,
+          text: summarizeNodeForAgentContext(node, {
+            defaultTextLength: NEAR_SUMMARY_LENGTH,
+            webpageTextLength: NEAR_SUMMARY_LENGTH,
+          }),
+          near: { pinNodeId: neighborhood.pinnedNodeId, pinTitle },
+        },
+      });
+    }
+  }
+
   for (const node of changed) add(compileNode(node, input.activeBoard.boardId, 'changed', budget));
 
   for (const entry of [...(input.entries ?? [])].sort((a, b) => {
@@ -284,6 +316,11 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       const partial = fitPartial(candidate.entry);
       if (partial) delivered.push(partial);
     }
+  }
+  // Neighbours come right after the pins they sit next to; each is whole or absent.
+  for (const candidate of candidates.filter((item) => !reset && item.entry.reason === 'near')) {
+    const proposed = [...delivered, candidate.entry];
+    if (fits(makeDocument(proposed))) delivered.push(candidate.entry);
   }
   if (reset && !deltaBlocked) {
     const resetEntries = candidates
