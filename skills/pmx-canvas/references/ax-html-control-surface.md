@@ -24,6 +24,12 @@ Without `axCapabilities.enabled = true`, `window.PMX_AX` is **not** injected —
 renders but can't emit. `allowed` narrows what it may emit (never escalates the type's
 ceiling). Flip an existing node on with `canvas_node({ action: "update", id, axCapabilities: { enabled: true, allowed: [...] } })`.
 
+Changing effective capabilities reloads the mounted HTML document in both `src` and
+`srcdoc` modes, including disable/re-enable and allowed-action changes. Unsaved iframe-local
+drafts reset: save important state through durable AX primitives before changing capabilities.
+Wait for the new document, invoke the action, and verify both its acknowledgement and persisted
+result. On 0.8.0, late enabling required a deliberate remount; upgrading fixes that missing bridge.
+
 ## Three footguns (this is why a hand-rolled node looks "inert")
 
 1. **The iframe is sandboxed opaque-origin** (no `allow-same-origin`). `localStorage`,

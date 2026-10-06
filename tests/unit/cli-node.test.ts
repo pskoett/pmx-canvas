@@ -897,6 +897,7 @@ describe('agent CLI node commands', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        title: 'Protected custom title',
         spec: {
           root: 'card',
           elements: {
@@ -937,8 +938,15 @@ describe('agent CLI node commands', () => {
     };
     expect(output.ok).toBe(true);
     expect(output.id).toBe(created.id);
-    expect(output.node.data.title).toBe('After');
+    expect(output.node.data.title).toBe('Protected custom title');
     expect(output.node.data.spec.elements.copy?.props?.text).toBe('After body');
+
+    const renamed = await jsonRequest<{ node: { data: { title: string } } }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Explicit rename', spec: output.node.data.spec }),
+    });
+    expect(renamed.node.data.title).toBe('Explicit rename');
   });
 
   test('node update can rebuild graph chart config without treating chart height as frame height', async () => {
@@ -2806,6 +2814,31 @@ exit 2
     try {
       await runAgentCli(['node', 'get', created.id, '--summary']);
       await runAgentCli(['node', 'get', created.id, '--field', 'title', '--field', 'graphConfig']);
+      const compactReads = await jsonRequest<{ reads: Array<{ resource: string; readNodes: Record<string, number> }> }>(
+        '/api/canvas/ax/context-reads?limit=500',
+      );
+      expect(
+        compactReads.reads.filter((read) => read.resource === 'node.get' && created.id in read.readNodes),
+      ).toHaveLength(0);
+      await runAgentCli(['node', 'get', created.id]);
+      const fullStatus = await jsonRequest<{ nodes: Array<{ nodeId: string; readRevision: number }> }>(
+        '/api/canvas/ax/context-status',
+      );
+      const firstRevision = fullStatus.nodes.find((node) => node.nodeId === created.id)?.readRevision;
+      expect(firstRevision).toBeNumber();
+      const edited = await jsonRequest<{ node: { contentRevision: number } }>(`/api/canvas/node/${created.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Edited after CLI read' }),
+      });
+      expect(edited.node.contentRevision).toBeGreaterThan(firstRevision!);
+      await runAgentCli(['node', 'get', created.id]);
+      const refreshed = await jsonRequest<{ nodes: Array<{ nodeId: string; readRevision: number }> }>(
+        '/api/canvas/ax/context-status',
+      );
+      expect(refreshed.nodes.find((node) => node.nodeId === created.id)?.readRevision).toBe(
+        edited.node.contentRevision,
+      );
       await runAgentCli(['layout', '--summary']);
       await runAgentCli(['history', '--summary']);
       await runAgentCli(['history', '--compact']);
@@ -2813,7 +2846,7 @@ exit 2
       console.log = originalLog;
     }
 
-    expect(log).toHaveBeenCalledTimes(5);
+    expect(log).toHaveBeenCalledTimes(7);
 
     const nodeSummary = JSON.parse(log.mock.calls[0]?.[0] as string) as {
       id: string;
@@ -2850,7 +2883,7 @@ exit 2
       }),
     );
 
-    const layoutSummary = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+    const layoutSummary = JSON.parse(log.mock.calls[4]?.[0] as string) as {
       totalNodes: number;
       totalEdges: number;
       nodesByType: Record<string, number>;
@@ -2859,7 +2892,7 @@ exit 2
     expect(layoutSummary.totalEdges).toBe(0);
     expect(layoutSummary.nodesByType.graph).toBe(1);
 
-    const historySummary = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+    const historySummary = JSON.parse(log.mock.calls[5]?.[0] as string) as {
       totalMutations: number;
       countsByOperation: Record<string, number>;
       recent: Array<{ description: string }>;
@@ -2868,7 +2901,7 @@ exit 2
     expect(historySummary.countsByOperation.addNode).toBeGreaterThan(0);
     expect(historySummary.recent.length).toBeGreaterThan(0);
 
-    const historyCompact = JSON.parse(log.mock.calls[4]?.[0] as string) as {
+    const historyCompact = JSON.parse(log.mock.calls[6]?.[0] as string) as {
       totalMutations: number;
       entries: Array<{ description: string; status: string }>;
     };

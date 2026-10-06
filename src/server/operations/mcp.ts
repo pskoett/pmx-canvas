@@ -29,7 +29,8 @@ async function invokeMcpOperation(
   consumer: string | null,
 ) {
   const board = typeof opInput.board === 'string' && opInput.board.trim() ? opInput.board.trim() : undefined;
-  const readTarget = CONTEXT_READ_OPS.has(op.name) ? await host.prepareContextRead(board) : null;
+  const deliversFullNode = op.name !== 'node.get' || formatInput.full === true || formatInput.verbose === true;
+  const readTarget = CONTEXT_READ_OPS.has(op.name) && deliversFullNode ? await host.prepareContextRead(board) : null;
   if (readTarget?.boardId && 'board' in op.inputShape) {
     opInput = { ...opInput, board: readTarget.boardId };
     formatInput = { ...formatInput, board: readTarget.boardId };

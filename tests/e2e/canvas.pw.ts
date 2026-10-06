@@ -1400,6 +1400,65 @@ test('html bridge: an opted-in html node emits an AX interaction via window.PMX_
     .toBe(true);
 });
 
+for (const iframeMode of ['src', 'srcdoc'] as const) {
+  test(`html bridge: mounted capability changes rebootstrap the ${iframeMode} surface`, async ({ page, request }) => {
+    const created = await request.post('/api/canvas/node', {
+      data: {
+        type: 'html',
+        title: `AX capability lifecycle ${iframeMode}`,
+        html: '<input aria-label="draft"><button onclick="go()">Create work</button><output id="ack">idle</output><script>window.__boot=Math.random();async function go(){const r=window.PMX_AX?await window.PMX_AX.emit("ax.work.create",{title:"late-capability-work"}):null;document.getElementById("ack").textContent=r?(r.ok?"accepted":"denied"):"unavailable"}</script>',
+        data: { axCapabilities: { enabled: false } },
+        x: 640,
+        y: 260,
+        width: 520,
+        height: 360,
+      },
+    });
+    const nodeId = ((await created.json()) as { id: string }).id;
+    await page.goto(`/workbench?iframe-mode=${iframeMode}`);
+    const node = page.locator('.canvas-node').filter({ hasText: `AX capability lifecycle ${iframeMode}` });
+    const frame = node.frameLocator('iframe');
+    const draft = frame.getByRole('textbox', { name: 'draft' });
+    await expect(draft).toBeVisible();
+    const hasAxBridge = () => frame.locator('body').evaluate(() => 'PMX_AX' in window);
+    await expect.poll(hasAxBridge).toBe(false);
+    const workCount = async () => {
+      const ax = await (await request.get('/api/canvas/ax')).json();
+      return ax.state.workItems.filter((item: { title: string }) => item.title === 'late-capability-work').length;
+    };
+    const createWork = async (ack: string, count: number) => {
+      await frame.getByRole('button', { name: 'Create work' }).press('Enter');
+      await expect(frame.locator('#ack')).toHaveText(ack);
+      expect(await workCount()).toBe(count);
+    };
+
+    let boot = await frame.locator('body').evaluate(() => (window as Window & { __boot?: number }).__boot);
+    const updateCapabilities = async (axCapabilities: { enabled: boolean; allowed?: string[] }) => {
+      await draft.fill('unsaved draft');
+      const response = await request.patch(`/api/canvas/node/${nodeId}`, { data: { axCapabilities } });
+      expect(response.ok()).toBe(true);
+      await expect(draft).toHaveValue('');
+      await expect
+        .poll(() => frame.locator('body').evaluate(() => (window as Window & { __boot?: number }).__boot))
+        .not.toBe(boot);
+      boot = await frame.locator('body').evaluate(() => (window as Window & { __boot?: number }).__boot);
+    };
+
+    await updateCapabilities({ enabled: true, allowed: ['ax.work.create'] });
+    await expect.poll(hasAxBridge).toBe(true);
+    await createWork('accepted', 1);
+    await updateCapabilities({ enabled: false });
+    await expect.poll(hasAxBridge).toBe(false);
+    await createWork('unavailable', 1);
+    await updateCapabilities({ enabled: true, allowed: ['ax.steer'] });
+    await expect.poll(hasAxBridge).toBe(true);
+    await createWork('denied', 1);
+    await updateCapabilities({ enabled: true, allowed: ['ax.work.create'] });
+    await expect.poll(hasAxBridge).toBe(true);
+    await createWork('accepted', 2);
+  });
+}
+
 test('html bridge: window.PMX_AX.emit resolves with the result so the surface can self-confirm (#55)', async ({
   page,
   request,
@@ -3698,8 +3757,8 @@ test('a pinned node shows whether the agent read it and whether its copy is curr
     }),
   );
 
-  // The next read catches up.
-  await request.get('/api/canvas/ax/context', { headers: { 'x-pmx-source': 'read-state-agent' } });
+  // A direct full-node read also catches up, without reading the rest of the board.
+  await request.get(`/api/canvas/node/${created.id}`, { headers: { 'x-pmx-source': 'read-state-agent' } });
   await expect(mark).toHaveAttribute('data-mark', 'read');
 });
 

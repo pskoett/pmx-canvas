@@ -394,7 +394,7 @@ export function buildJsonRenderNodeUpdate(
 ): { data: Record<string, unknown>; spec: JsonRenderSpec } {
   if (node.type !== 'json-render') throw new Error(`Node "${node.id}" is not a json-render node.`);
   const spec = normalizeAndValidateJsonRenderSpec(input.spec);
-  const title = input.title?.trim() || inferJsonRenderNodeTitle(spec);
+  const title = input.title?.trim() || pickString(node.data, 'title') || inferJsonRenderNodeTitle(spec);
   // Bump specVersion so the viewer URL changes: the iframe src is keyed on
   // nodeId + ?v=specVersion, and the viewer only reads the spec at document
   // load. Without the bump the src is byte-identical after a content update,

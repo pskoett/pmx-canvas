@@ -22,7 +22,17 @@ falling back to broader resources. The budget is UTF-16 code units, not tokens.
 Use one stable consumer ID per agent/adapter only when durable deltas are wanted;
 omit it for a fresh read. Pins are highest priority, then the cards near each pin
 (reason `near`, title + short summary only). If a source card is clipped or near,
-pull that card explicitly by its returned board/card IDs.
+pull that card explicitly with `canvas_node { action: "get", board, id, full: true }`.
+
+**Read → check → refresh:** after reading context, inspect `canvas_ax_timeline {
+action: "read-status", board }`. No entry means no recorded content delivery;
+`readRevision < contentRevision` on the current card means changed since read.
+Re-read that card with `full: true`, then check status again before acting on it.
+Full HTTP/CLI node reads and SDK `getNode` also record the delivered revision;
+compact MCP metadata, CLI `--summary`/`--field`, and workbench reads do not.
+In 0.8.0, direct node gets were untracked; use a context read on that version.
+A read mark proves delivery, not understanding or approval. Agent attribution
+describes who acted; it never grants permission or wakes an idle agent.
 
 When authoring a board, establish its README without waiting for the human to
 click a button. Read `canvas_board { action: "get" }`; if `readmeNodeId` is null,
@@ -382,6 +392,12 @@ What the session asks of you:
   `agentId` values are for actual independent subagents, not steps in one chat. Attaching over a
   non-empty board saved a `Before session · …` snapshot; detaching emits the receipt (items
   done / vetoed, a diff against that snapshot, one-click restore) — an idle timeout delays it.
+- **Inspect receipt touch rows:** Read lists delivered content, Pinned lists pins, and
+  Created/Edited come from the session snapshot diff. Creating then editing one card puts
+  it in Created, not both rows. A stale warning means the pin changed after its read.
+  For example, after reading A, editing existing B and creating C, use **Dim untouched
+  nodes** to fade an untouched D to 0.35 opacity; A/B/C remain visible. The lens changes
+  presentation, not content, pin membership, approval or delivery.
 - **403 = outside the scope fence.** The human may fence you to a region (`policy.scope`): writes
   outside it are refused with a reason naming the node or position (a fenced group frame
   grants its members too). Read `policy.scope` in `canvas://ax-context`, ask the human to widen

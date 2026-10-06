@@ -1049,6 +1049,57 @@ describe('MCP parity with CLI', () => {
     ]);
   });
 
+  test('records canvas_node get only when full content is delivered', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(session.transport);
+      removeTestWorkspace(session.workspaceRoot);
+    });
+    const node = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Read target',
+          content: 'full body',
+        },
+      })) as ToolResultShape,
+    );
+    await session.client.callTool({ name: 'canvas_node', arguments: { action: 'get', id: node.id } });
+    await session.client.callTool({ name: 'canvas_node', arguments: { action: 'get', id: node.id, full: true } });
+    const log = parseJsonText<{ reads: Array<{ resource: string; readNodes: Record<string, number> }> }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_timeline',
+        arguments: { action: 'reads' },
+      })) as ToolResultShape,
+    );
+    const reads = log.reads.filter((read) => read.resource === 'node.get');
+    expect(reads).toHaveLength(1);
+    expect(Object.keys(reads[0]?.readNodes ?? {})).toEqual([node.id]);
+
+    const base = `http://localhost:${session.port}`;
+    const edited = await fetch(`${base}/api/canvas/node/${node.id}`, {
+      method: 'PATCH',
+      headers: await trustedHumanHeaders(base),
+      body: JSON.stringify({ content: 'new human revision' }),
+    });
+    expect(edited.ok).toBe(true);
+    const current = (await edited.json()) as { node: { contentRevision: number } };
+    expect(current.node.contentRevision).toBeGreaterThan(reads[0]!.readNodes[node.id]!);
+    await session.client.callTool({ name: 'canvas_node', arguments: { action: 'get', id: node.id, verbose: true } });
+    const refreshed = parseJsonText<{ nodes: Array<{ nodeId: string; readRevision: number; readCount: number }> }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_timeline',
+        arguments: { action: 'read-status' },
+      })) as ToolResultShape,
+    );
+    expect(refreshed.nodes.find((entry) => entry.nodeId === node.id)).toMatchObject({
+      readRevision: current.node.contentRevision,
+      readCount: 2,
+    });
+  });
+
   test('attributes delayed AX context resource and prompt reads to the board in their returned payload', async () => {
     type ContextPayload = { boardId: string; pinned: { nodeIds: string[] } };
     type ReadLog = {

@@ -391,8 +391,10 @@ export async function executeOperation(
       ...(typeof inputAgentId === 'string' && inputAgentId.trim() ? { agentId: inputAgentId.trim() } : {}),
     },
     async () => {
-      const recordRead = CONTEXT_READ_OPS.has(name) && !meta.fromWorkbench && !meta.proxiedRead;
       const input = asRecord(rawInput);
+      const deliversContext =
+        name !== 'node.get' || (input.contextDelivery !== false && input.contextDelivery !== 'false');
+      const recordRead = CONTEXT_READ_OPS.has(name) && deliversContext && !meta.fromWorkbench && !meta.proxiedRead;
       const requestedBoard =
         recordRead && 'board' in getOperation(name).inputShape && isString(input.board) && input.board.trim()
           ? input.board.trim()

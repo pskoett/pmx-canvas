@@ -17,6 +17,7 @@ export type ContextReadChannel = (typeof CONTEXT_READ_CHANNELS)[number];
 
 /** Registry reads that hand an agent canvas context; recorded in executeOperation. */
 export const CONTEXT_READ_OPS = new Set([
+  'node.get',
   'pinned-context.get',
   'ax.context.get',
   'ax.get',

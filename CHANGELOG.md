@@ -15,6 +15,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - CLI help lists `board open` instead of incorrectly saying only humans can open boards.
 - Embedded JSON forms use the bundled IBM Plex fonts, including in hosted viewers and offline exports.
 - Browser workflow guidance lists the current Harbor and Daylight theme names.
+- Full node reads update read badges; compact metadata and field-only CLI reads do not.
+- Replacing a JSON form's spec preserves its custom title unless explicitly renamed.
+- Changing an HTML card's AX capabilities reloads its bridge, including late enable and disable/re-enable.
+- Agent guidance explains stale-read refreshes, receipt touch rows and the dim-untouched lens.
 
 ## [0.8.0] - 2026-10-06
 

@@ -12,6 +12,14 @@ export function shouldShowPresentationControls(node: CanvasNodeState): boolean {
   return node.type === 'html' && node.data.presentation === true;
 }
 
+export function htmlAxCapabilitySignature(value: unknown): string {
+  const capabilities = value as { enabled?: unknown; allowed?: unknown } | undefined;
+  if (capabilities?.enabled !== true) return 'disabled';
+  if (!Array.isArray(capabilities.allowed)) return 'enabled:default';
+  const allowed = [...new Set(capabilities.allowed.filter((item): item is string => typeof item === 'string'))].sort();
+  return allowed.length > 0 ? `enabled:${allowed.join(',')}` : 'disabled';
+}
+
 export function HtmlNode({
   node,
   expanded = false,
@@ -27,10 +35,12 @@ export function HtmlNode({
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const theme = canvasTheme.value;
+  const axCapabilitySignature = htmlAxCapabilitySignature(node.data.axCapabilities);
   // Stable per-mount nonce that authorizes parent → iframe theme-update messages.
   const themeToken = useMemo(() => `theme-${crypto.randomUUID()}`, []);
-  // Per-mount nonce authorizing iframe → parent AX emits (Phase 3 HTML bridge).
-  const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
+  // Rotate the nonce when capabilities change: both the URL and injected srcdoc
+  // change, rebootstrapping the bridge and rejecting emits from the old document.
+  const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, [axCapabilitySignature]);
   // Per-mount nonce for the content-height reporter (node grows to fit content).
   const frameToken = useMemo(() => `frame-${crypto.randomUUID()}`, []);
   const html =

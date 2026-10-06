@@ -83,6 +83,7 @@ import { executeOperation, runCanvasBatchOperation, type OpenMcpAppCoreResult } 
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
+import { contextReadFromPayload } from './context-reads.js';
 import {
   buildHtmlPrimitive,
   getHtmlPrimitiveSemanticMetadata,
@@ -1253,10 +1254,29 @@ export class PmxCanvas extends EventEmitter {
   }
 
   getNode(id: string, options?: { board?: string }): SdkCanvasNode | undefined {
+    const boardId = options?.board ?? canvasState.activeBoardId;
+    const board = options?.board ? canvasState.readBoard(options.board) : null;
+    if (options?.board && !board) throw new Error(`Board "${options.board}" not found.`);
     const node = options?.board
-      ? this.getLayout(options).nodes.find((candidate) => candidate.id === id)
+      ? board?.layout.nodes.find((candidate) => candidate.id === id)
       : canvasState.getNode(id);
-    return node ? toSdkNode(node) : undefined;
+    if (!node) return undefined;
+    const result = toSdkNode(node);
+    canvasState.recordContextRead(
+      contextReadFromPayload(
+        {
+          channel: 'operation',
+          resource: 'node.get',
+          source: 'sdk',
+          consumer: null,
+          agentId: null,
+          pinnedNodeIds: options?.board ? (board?.state.contextPins ?? []) : [...canvasState.contextPinnedNodeIds],
+        },
+        result,
+      ),
+      boardId,
+    );
+    return result;
   }
 
   search(query: string): ReturnType<typeof searchNodes> {

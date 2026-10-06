@@ -772,6 +772,68 @@
           "type": "output_check"
         }
       ]
+    },
+    {
+      "id": 32,
+      "name": "read-refresh-and-receipt-loop",
+      "prompt": "On a disposable board, pin A and B. Read A, then let the human edit it. Refresh only A before acting. Read nearby card C's source too. End your self-owned session after editing existing D and creating then editing E. Explain the receipt and dim untouched F. Does a read badge mean you understood or approved the content?",
+      "expected_output": "Uses a stable consumer for context and checks read-status. Fetches stale A and nearby C with canvas_node get full:true; compares recorded and current content revisions, leaving B unread unless actually delivered. Explains compact metadata/CLI projections do not record full delivery and 0.8.0 direct gets were untracked. Receipt Read/Pinned are descriptive, D is Edited, E is Created only; untouched F dims. Does not equate attribution or delivery with approval, understanding or idle wakeup.",
+      "assertions": [
+        {
+          "name": "refreshes-exact-stale-source",
+          "description": "Checks revisions, fetches full A/C by board and node ID, verifies refreshed status, and does not falsely claim unrelated B was read",
+          "type": "output_check"
+        },
+        {
+          "name": "explains-receipt-without-authority",
+          "description": "Distinguishes Created from Edited, verifies an untouched lens control, and calls reads delivery evidence rather than understanding, approval or wakeup",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "first-entry-header-targets",
+      "prompt": "Verify Expand and Add to context on a disposable card by moving directly from outside to each at-rest button coordinate. A prior release shifted controls on hover and sometimes deleted cards. Is a successful keyboard Enter enough to close this bug?",
+      "expected_output": "Measures at-rest targets before hover, clicks those original coordinates on first entry, and checks expansion/pin state plus retained node identity. Includes keyboard activation only as a control, not pointer proof. Uses Undo if a test-owned card is accidentally deleted and retains failure evidence.",
+      "assertions": [
+        {
+          "name": "tests-real-first-entry-pointer",
+          "description": "Uses original at-rest coordinates, confirms intended action and no deletion, and does not substitute pre-hover or keyboard-only success",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "spec-only-title-preservation",
+      "prompt": "Create a JSON card titled Protected custom title whose spec heading is Different heading. Replace only its spec with a New heading, then explicitly rename it. What should happen to its title and local form draft?",
+      "expected_output": "Verifies spec-only replacement preserves Protected custom title, explicit rename changes it, and authored spec replacement resets local runtime state. On old 0.8.0, includes the existing title as a workaround rather than silently accepting inferred renaming.",
+      "assertions": [
+        {
+          "name": "checks-independent-title-and-spec",
+          "description": "Uses distinct custom/inferred names, checks spec-only preservation and explicit rename, and distinguishes runtime reset from title loss",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "late-html-ax-enable",
+      "prompt": "Mount an HTML form with AX disabled, then enable ax.work.create without changing its HTML. Exercise enable, disable, re-enable and allowed-action changes in src and srcdoc. Can we preserve unsaved iframe drafts or claim that a queued steer wakes an idle agent?",
+      "expected_output": "Saves important local data before capability changes, which reload the HTML document. Waits for bridge bootstrap, exercises the action and verifies acknowledgement plus persisted work, and checks denial while disabled or not allowed. Tests both modes rather than using focus-mode remount as proof. Describes 0.8.0's workaround separately; no idle-wakeup claim.",
+      "assertions": [
+        {
+          "name": "verifies-mounted-capability-lifecycle",
+          "description": "Tests both embed modes on the mounted card, checks permitted and forbidden effects, and verifies real persistence rather than just bridge presence",
+          "type": "output_check"
+        },
+        {
+          "name": "respects-draft-and-delivery-boundaries",
+          "description": "Warns capability changes reload local drafts, preserves important data beforehand, and distinguishes queued steering from host delivery",
+          "type": "output_check"
+        }
+      ]
     }
   ]
 }

@@ -7013,7 +7013,7 @@ describe('canvas server HTTP API', () => {
     });
     expect(updatedJson.id).toBe(jsonRender.id);
     expect(updatedJson.node.id).toBe(jsonRender.id);
-    expect(updatedJson.node.data.title).toBe('Updated JSON UI');
+    expect(updatedJson.node.data.title).toBe('Original JSON UI');
     expect(updatedJson.node.data.spec.elements.copy?.props?.text).toBe('Updated body');
 
     const graph = await jsonRequest<{

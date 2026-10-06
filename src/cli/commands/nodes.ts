@@ -796,11 +796,12 @@ cmd(
     const id = positional[0];
     if (!id) die('Missing node ID', 'pmx-canvas node get <node-id>');
 
+    const requestedFields = collectRequestedFields(args, flags);
     const result = (await invokeOperation('node.get', {
       id,
       board: typeof flags.board === 'string' ? flags.board : undefined,
+      contextDelivery: !flags.summary && !flags.compact && requestedFields.length === 0,
     })) as Record<string, unknown>;
-    const requestedFields = collectRequestedFields(args, flags);
     if (requestedFields.length > 0) {
       const picked = Object.fromEntries(requestedFields.map((field) => [field, resolveNodeFieldValue(result, field)]));
       const missing = requestedFields.filter((field) => picked[field] === undefined);
@@ -893,7 +894,7 @@ cmd(
       frameHeight !== undefined ||
       arrangeLocked !== undefined
     ) {
-      const existing = (await invokeOperation('node.get', { id })) as {
+      const existing = (await invokeOperation('node.get', { id, contextDelivery: false })) as {
         position: { x: number; y: number };
         size: { width: number; height: number };
         data: Record<string, unknown>;

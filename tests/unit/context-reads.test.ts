@@ -10,6 +10,8 @@ import {
   type ContextReadConsumerSummary,
 } from '../../src/server/context-reads.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { PmxCanvas } from '../../src/server/index.ts';
+import { canvasState } from '../../src/server/canvas-state.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 describe('context read log', () => {
@@ -229,8 +231,11 @@ describe('context reads over HTTP', () => {
     type Status = { nodes: Array<{ nodeId: string; lastReadBy: string; readRevision: number }> };
     const status = async () => (await (await fetch(`${baseUrl}/api/canvas/ax/context-status`)).json()) as Status;
     const revisionOf = async (id: string) =>
-      ((await (await fetch(`${baseUrl}/api/canvas/node/${id}`)).json()) as { contentRevision?: number })
-        .contentRevision ?? 0;
+      (
+        (await (await fetch(`${baseUrl}/api/canvas/node/${id}`, { headers: { 'x-pmx-workbench': '1' } })).json()) as {
+          contentRevision?: number;
+        }
+      ).contentRevision ?? 0;
 
     // The layout delivers every node's content, pinned or not; the workbench's own read never counts.
     await fetch(`${baseUrl}/api/canvas/state`, { headers: { 'x-pmx-workbench': '1' } });
@@ -253,6 +258,80 @@ describe('context reads over HTTP', () => {
     // The next agent read catches up.
     await fetch(`${baseUrl}/api/canvas/state`, { headers: { 'x-pmx-source': 'status-agent' } });
     expect((await status()).nodes.find((entry) => entry.nodeId === noted)?.readRevision).toBe(edited);
+  });
+
+  test('HTTP node get records only that node and refreshes its revision after a human edit', async () => {
+    const human = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
+    const create = async (title: string) =>
+      (
+        (await (
+          await fetch(`${baseUrl}/api/canvas/node`, {
+            method: 'POST',
+            headers: human,
+            body: JSON.stringify({ type: 'markdown', title, content: 'first' }),
+          })
+        ).json()) as { id: string }
+      ).id;
+    const read = await create('Read me');
+    const unread = await create('Leave me unread');
+    const status = async () =>
+      (
+        (await (await fetch(`${baseUrl}/api/canvas/ax/context-status`)).json()) as {
+          nodes: Array<{ nodeId: string; readRevision: number }>;
+        }
+      ).nodes;
+
+    await fetch(`${baseUrl}/api/canvas/node/${read}`, { headers: { 'x-pmx-source': 'codex-http' } });
+    const first = (await status()).find((node) => node.nodeId === read)?.readRevision;
+    expect(first).toBeNumber();
+    expect((await status()).some((node) => node.nodeId === unread)).toBe(false);
+
+    await fetch(`${baseUrl}/api/canvas/node/${read}`, {
+      method: 'PATCH',
+      headers: human,
+      body: JSON.stringify({ content: 'human edit' }),
+    });
+    await fetch(`${baseUrl}/api/canvas/node/${read}`, { headers: { 'x-pmx-source': 'codex-http' } });
+    expect((await status()).find((node) => node.nodeId === read)?.readRevision).toBeGreaterThan(first ?? 0);
+  });
+
+  test('SDK getNode records only its board-scoped target', async () => {
+    const human = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
+    const first = (await (
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ type: 'markdown', title: 'SDK target', content: 'body' }),
+      })
+    ).json()) as { id: string };
+    const second = (await (
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ type: 'markdown', title: 'SDK unread', content: 'body' }),
+      })
+    ).json()) as { id: string };
+    const sdk = new PmxCanvas();
+    expect(sdk.getNode(first.id)?.id).toBe(first.id);
+    const status = (await (await fetch(`${baseUrl}/api/canvas/ax/context-status`)).json()) as {
+      nodes: Array<{ nodeId: string; lastReadBy: string }>;
+    };
+    expect(status.nodes.find((node) => node.nodeId === first.id)?.lastReadBy).toBe('sdk');
+    expect(status.nodes.some((node) => node.nodeId === second.id)).toBe(false);
+    const targetBoard = canvasState.activeBoardId!;
+    const otherBoard = canvasState.createBoard('Unrelated active board')!;
+    expect(canvasState.switchBoard(otherBoard.id)).toBe(true);
+    try {
+      const delivered = sdk.getNode(first.id, { board: targetBoard });
+      expect(delivered?.id).toBe(first.id);
+      expect(canvasState.getNodeReadStatus()).toEqual([]);
+      expect(canvasState.getNodeReadStatus(targetBoard).find((node) => node.nodeId === first.id)?.readCount).toBe(2);
+      expect(sdk.getNode('missing', { board: targetBoard })).toBeUndefined();
+      expect(() => sdk.getNode(first.id, { board: 'missing-board' })).toThrow('not found');
+      expect(canvasState.activeBoardId).toBe(otherBoard.id);
+    } finally {
+      canvasState.switchBoard(targetBoard);
+    }
   });
 
   test('pins record who pinned them, when and why; re-pinning keeps it and undo restores it', async () => {

@@ -294,6 +294,9 @@ against the node's top-level `contentRevision`; stale content returns `409`
 without changing the node. Conditional edits cannot request webpage refresh.
 The private MCP App uses these guards to reject stale board actions and note drafts.
 
+Replacing a JSON-render node's `spec` preserves its current title; include `title`
+to rename it explicitly. A new authored spec still resets the viewer's local drafts.
+
 Mermaid nodes accept `data: { "fit": "contain" | "none" }` on both
 `POST /api/canvas/node` and `PATCH /api/canvas/node/:id`. The default, `contain`,
 shrinks overflowing diagrams without changing aspect ratio; `none` keeps 100%
@@ -504,7 +507,9 @@ curl "http://localhost:4313/api/canvas/ax/timeline?limit=50"
 # nodes were in what came back (newest first, default 50, max 500; the per-consumer
 # summary covers the whole retained log of 5,000 reads). Agent reads of pinned
 # context, AX context, AX state, summary, spatial context and layout are recorded
-# automatically; the workbench's own reads are not.
+# automatically, as are individual GET /api/canvas/node/:id reads (only the
+# delivered node). The workbench's own reads are not. A projecting client may
+# pass contextDelivery=false on node GET to avoid marking unseen content read.
 curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 
 # Read status — per node on a board (default: the open board), the latest agent

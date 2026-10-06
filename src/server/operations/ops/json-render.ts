@@ -309,7 +309,11 @@ const jsonRenderStreamOperation = defineOperation<z.infer<typeof jsonRenderStrea
       // node degrades to the bare { ok, id, nodeId } payload.
       let created: Record<string, unknown> = { ok: true, id, nodeId: id };
       try {
-        const node = (await host.invoker().invoke('node.get', { id, includeBlobs: true })) as CanvasNodeState;
+        const node = (await host.invoker().invoke('node.get', {
+          id,
+          includeBlobs: true,
+          contextDelivery: false,
+        })) as CanvasNodeState;
         created = { ok: true, node: compactNodePayload(node), id, nodeId: id };
       } catch {
         // keep the bare payload (legacy c.getNode → undefined path)

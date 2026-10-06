@@ -491,7 +491,10 @@ wanted. Omitting both `consumer` and `since` starts from the beginning; explicit
 `since` does not update a cursor. The budget is UTF-16 code units (default
 16,000; maximum 100,000), not model tokens. Pins are prioritized. If an entry is
 truncated, follow its source board/card IDs with `canvas_board get` and
-`canvas_node get` rather than inferring the missing text.
+`canvas_node { action: "get", board, id, full: true }` rather than inferring the missing text.
+Full node reads record only that node's delivered content revision; compact metadata
+does not. Inspect `canvas_ax_timeline { action: "read-status", board }` and re-read
+stale cards before acting. Read marks prove delivery, not understanding or approval.
 
 ### Skills extension (SEP-2640)
 
