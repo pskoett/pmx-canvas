@@ -52,6 +52,8 @@ Usage:
 
 Presentation and capture:
   pmx-canvas tour get|set             Read or persist ordered camera stops
+  pmx-canvas tour go <n|next|previous> Present a stop; tour exit leaves presentation
+  pmx-canvas camera move --node <id>  Ease the camera to a node, --rect or --viewport
   pmx-canvas record --help            Optionally capture the same board tour or live presentation
 
 Server:

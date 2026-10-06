@@ -46,9 +46,11 @@ for no README, do not recreate it. Read-only tasks do not create one.
 
 For presentations, `canvas_view { action: "set-tour", tour: { stops: [...] } }`
 persists ordered camera stops; `get-tour` reads them (or derived group order).
-Each stop targets `{ nodeId }` (including groups) or `{ viewport: { x, y, scale } }`,
-with optional `duration` seconds, `easing`, screen-pixel `padding`, and `pullback`.
-Open `/workbench?present=1` for chrome-free viewing. Optionally capture that same
+Each stop targets `{ nodeId }` (including groups), a world `{ rect: { x, y, width, height } }`,
+or `{ viewport: { x, y, scale } }`, with optional `duration` seconds, `easing`, screen-pixel
+`padding`, and `pullback`. Drive it with `tour-go` (`stop` index or `step: "next" | "previous"`)
+and `tour-exit`; `move` eases the camera to a `nodeId`, `rect` or `viewport` without a tour.
+Camera actions never enter undo history. Open `/workbench?present=1` for chrome-free viewing. Optionally capture that same
 tour with `pmx-canvas record --mode deterministic --present --output tour.mp4`.
 There is no separate recording model. Read [Tours and recording](references/tours-and-recording.md)
 for the authoritative stop, viewport, persistence, reset, group-order, and capture behavior.
@@ -225,7 +227,7 @@ always authoritative, independent of the installed release version.
 | `canvas_edge` | `add`, `update`, `remove` |
 | `canvas_group` | `create`, `add`, `ungroup` |
 | `canvas_history` | `undo`, `redo` |
-| `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation`, `get-tour`, `set-tour` |
+| `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation`, `get-tour`, `set-tour`, `tour-go`, `tour-exit`, `move` |
 | `canvas_query` | `context`, `search`, `layout`, `validate` |
 | `canvas_webview` | `status`, `start`, `stop`, `resize`, `evaluate` |
 | `canvas_app` | `open-mcp-app`, `diagram`, `build-artifact` |

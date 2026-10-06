@@ -1,8 +1,20 @@
 import { z } from 'zod';
 
 export const cameraSchema = z.object({ x: z.number(), y: z.number(), scale: z.number().positive() });
+/** A world-space box: `{ x, y }` is its top-left corner. */
+export const rectSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+});
+export const tourTargetSchema = z.union([
+  z.strictObject({ nodeId: z.string().min(1) }),
+  z.strictObject({ rect: rectSchema }),
+  z.strictObject({ viewport: cameraSchema }),
+]);
 export const tourStopSchema = z.object({
-  target: z.union([z.strictObject({ nodeId: z.string().min(1) }), z.strictObject({ viewport: cameraSchema })]),
+  target: tourTargetSchema,
   duration: z.number().nonnegative().max(3600).optional(),
   easing: z.enum(['linear', 'ease-in-out', 'ease-out']).optional(),
   padding: z.number().nonnegative().optional(),
@@ -12,6 +24,7 @@ export const tourSchema = z.object({ stops: z.array(tourStopSchema).max(1000) })
 export type Tour = z.infer<typeof tourSchema>;
 export type TourStop = z.infer<typeof tourStopSchema>;
 export type Camera = z.infer<typeof cameraSchema>;
+export type Rect = z.infer<typeof rectSchema>;
 export interface TourNode {
   id: string;
   type: string;
@@ -30,15 +43,20 @@ export function derivedTour(nodes: TourNode[]): Tour {
 
 export function resolveStop(stop: TourStop, nodes: TourNode[], width: number, height: number): Camera {
   if ('viewport' in stop.target) return stop.target.viewport;
+  if ('rect' in stop.target) return fitRect(stop.target.rect, stop.padding, width, height);
   const id = stop.target.nodeId;
   const node = nodes.find((n) => n.id === id);
   if (!node) throw new Error(`Tour target not found: ${id}`);
-  const padding = stop.padding ?? 40;
+  return fitRect({ ...node.position, ...node.size }, stop.padding, width, height);
+}
+
+/** Centre a world-space rect in a width×height area with screen-space padding. */
+function fitRect(rect: Rect, padding = 40, width: number, height: number): Camera {
   if (padding * 2 >= Math.min(width, height)) throw new Error('Tour padding exceeds viewport');
-  const scale = Math.min((width - padding * 2) / node.size.width, (height - padding * 2) / node.size.height);
+  const scale = Math.min((width - padding * 2) / rect.width, (height - padding * 2) / rect.height);
   return {
-    x: width / 2 - (node.position.x + node.size.width / 2) * scale,
-    y: height / 2 - (node.position.y + node.size.height / 2) * scale,
+    x: width / 2 - (rect.x + rect.width / 2) * scale,
+    y: height / 2 - (rect.y + rect.height / 2) * scale,
     scale,
   };
 }

@@ -617,8 +617,8 @@ export function replaceViewport(next: ViewportState): void {
   viewport.value = next;
 }
 
-export function commitViewport(next: ViewportState): void {
-  commitViewportWithOptions(next);
+export function commitViewport(next: ViewportState, options: { recordHistory?: boolean } = {}): void {
+  commitViewportWithOptions(next, options);
 }
 
 function commitViewportWithOptions(next: ViewportState, options: { recordHistory?: boolean } = {}): void {
@@ -733,6 +733,32 @@ export function animateViewport(
   }
 
   animationId = requestAnimationFrame(tick);
+}
+
+/**
+ * Drive the camera along `frameAt(t)`, t in [0, 1], over `duration` ms — the
+ * tour/camera-move path. Shares animateViewport's slot, so a pan gesture or a
+ * capture frame (cancelViewportAnimation) interrupts it. Duration 0 jumps.
+ */
+export function animateCameraPath(
+  frameAt: (t: number) => ViewportState,
+  duration: number,
+  onDone?: (end: ViewportState) => void,
+): void {
+  cancelViewportAnimation();
+  const start = performance.now();
+  const tick = (now: number) => {
+    const t = duration <= 0 ? 1 : Math.min(1, (now - start) / duration);
+    viewport.value = frameAt(t);
+    if (t < 1) {
+      animationId = requestAnimationFrame(tick);
+    } else {
+      animationId = null;
+      onDone?.(viewport.value);
+    }
+  };
+  if (duration <= 0) tick(start);
+  else animationId = requestAnimationFrame(tick);
 }
 
 /** Cancel any in-flight viewport animation (e.g. when user starts dragging). */

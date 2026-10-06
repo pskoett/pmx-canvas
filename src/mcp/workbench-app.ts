@@ -38,6 +38,8 @@ const writes = new Set([
   'snapshot.restore',
   'snapshot.delete',
   'tour.set',
+  'tour.go',
+  'tour.exit',
   'ax.focus.set',
   'ax.policy.set',
   'ax.work.create',

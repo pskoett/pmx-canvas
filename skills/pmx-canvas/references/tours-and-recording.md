@@ -19,10 +19,11 @@ Persist a tour with `canvas_view { action: "set-tour", tour: { stops: [...] } }`
 ```
 
 - `nodeId` may identify a card or group. Its persisted position and size determine the camera.
+- `rect` is a world-space box `{ x, y, width, height }` (top-left corner plus size).
 - An explicit viewport is `{ x, y, scale }`, with positive `scale`. Translation is screen-space:
   `screen = world * scale + offset`.
 - `duration` is transition time in seconds (default 1; zero jumps). Valid values are 0–3600.
-- `padding` is screen pixels around a node target (default 40).
+- `padding` is screen pixels around a node or rect target (default 40).
 - `easing` is `linear`, `ease-in-out` (default), or `ease-out`.
 - `pullback` is 0–4 (default 0). It zooms out during the move without changing either endpoint.
 - A tour contains at most 1000 stops.
@@ -38,6 +39,20 @@ with the board. Setting `tour: null` resets to a derived tour: groups ordered by
 ID. A saved `{ "stops": [] }` intentionally has no stops; it does not enable group derivation.
 Preserve the tour of each board when working across boards and target the intended board before
 setting or reading it.
+
+## Drive a tour
+
+The server holds one in-memory tour cursor per board. `canvas_view { action: "tour-go", stop: 0 }`
+starts presenting in open workbenches; `step: "next" | "previous"` moves relative to wherever the
+audience is (a human's arrow keys move the same cursor) and clamps at the ends. Pass
+`present: false` to move only viewers already presenting. `canvas_view { action: "tour-exit" }`
+leaves presentation everywhere. `get-tour` reports `position` (the current stop, or null).
+
+`canvas_view { action: "move", nodeId | rect | viewport, duration, easing, padding, pullback }`
+eases the camera without a tour. Outside a presentation the end camera becomes the board
+viewport. Tour steps and moves never enter undo history, never count as agent writes, and are
+allowed under a scope fence. Viewers with reduced motion jump instead of animating; a
+deterministic capture ignores both.
 
 ## Capture prerequisites and behavior
 

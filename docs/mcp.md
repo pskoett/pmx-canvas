@@ -21,6 +21,10 @@ nodes in the browser, agents are notified immediately.
 `canvas_view { action: "get-tour" }` returns `{ tour, derived }`, using group
 reading order when there is no saved tour. `canvas_view { action: "set-tour",
 tour: { stops: [...] } }` persists an ordered tour; `tour: null` resets it.
+`canvas_view { action: "tour-go", stop: 0 }` (or `step: "next" | "previous"`)
+presents a stop in the workbench, `"tour-exit"` leaves presentation, and
+`canvas_view { action: "move", nodeId | rect | viewport, duration, easing, padding, pullback }`
+eases the camera. None of these enter undo history.
 See the [tour model and CLI walkthrough](cli.md#tour-and-presentation) for stop
 fields. Recording is a local CLI operation; no remote recording/file-writing
 tool is added.
@@ -245,7 +249,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_edge` | `add` · `update` · `remove` | `canvas_add_edge`, `canvas_update_edge`, `canvas_remove_edge` |
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
-| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
 | `canvas_query` | `context` · `search` · `layout` · `validate` | `context` is new; the others replace `canvas_search`, `canvas_get_layout`, `canvas_validate` |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_resize`, `canvas_evaluate` |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_build_web_artifact` |

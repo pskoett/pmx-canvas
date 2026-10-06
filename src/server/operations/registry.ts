@@ -330,6 +330,9 @@ const PRESENCE_EXEMPT_OPS = new Set([
   'viewport.set',
   'view.fit',
   'node.focus',
+  'tour.go',
+  'tour.exit',
+  'camera.move',
   'ax.focus.set',
 ]);
 

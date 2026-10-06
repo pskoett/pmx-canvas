@@ -1,5 +1,6 @@
 import { findOpenCanvasPosition } from '../utils/placement.js';
-import { ownsCamera } from './presentation';
+import { cameraSchema, tourStopSchema } from '../../shared/tour.js';
+import { ownsCamera, playStop, presentationError, presenting, presentStop, recordingCamera } from './presentation';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, NodeActor } from '../types';
@@ -11,6 +12,7 @@ import {
   axSurfaceState,
   bringToFront,
   cancelViewportAnimation,
+  commitViewport,
   canvasTheme,
   connectionStatus,
   replaceContextPinsFromServer,
@@ -1017,6 +1019,40 @@ function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
   replaceViewport({ x, y, scale });
 }
 
+// Tour steps and camera moves animate locally; a deterministic capture owns
+// its camera outright and ignores both.
+function handleCanvasTourStep(data: Record<string, unknown>): void {
+  if (recordingCamera.value) return;
+  // A human stepping in one tab moves tabs already presenting; only a
+  // `present` step (the agent's default) starts presenting elsewhere.
+  if (!presenting.value && data.present !== true) return;
+  const stop = tourStopSchema.safeParse(data.stop);
+  if (stop.success) presentStop(stop.data);
+}
+
+function handleCanvasTourExit(): void {
+  if (recordingCamera.value) return;
+  presenting.value = false;
+  presentationError.value = '';
+}
+
+function handleCanvasCameraMove(data: Record<string, unknown>): void {
+  if (recordingCamera.value) return;
+  const stop = tourStopSchema.safeParse(data.stop);
+  if (!stop.success) return;
+  try {
+    // The presentation camera is local; otherwise the end camera becomes the
+    // board viewport — unrecorded, so a camera move is never an undo step.
+    playStop(stop.data, presenting.value ? undefined : (end) => commitViewport(end, { recordHistory: false }));
+  } catch {
+    // Target not in this tab's layout yet: take the server's resolved camera.
+    const fallback = cameraSchema.safeParse(data.viewport);
+    if (!fallback.success) return;
+    cancelViewportAnimation();
+    replaceViewport(fallback.data);
+  }
+}
+
 function handleContextUsage(data: Record<string, unknown>): void {
   const id = 'context-main';
   const existing = nodes.value.get(id);
@@ -1132,6 +1168,9 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'canvas-layout-update': handleCanvasLayoutUpdate,
   'canvas-focus-node': handleCanvasFocusNode,
   'canvas-viewport-update': handleCanvasViewportUpdate,
+  'canvas-tour-step': handleCanvasTourStep,
+  'canvas-tour-exit': handleCanvasTourExit,
+  'canvas-camera-move': handleCanvasCameraMove,
   'context-usage': handleContextUsage,
   'trace-state': handleTraceState,
   'theme-changed': handleThemeChanged,

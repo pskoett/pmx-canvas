@@ -65,6 +65,59 @@ cmd(
     output(await invokeOperation('tour.set', { tour }));
   },
 );
+cmd(
+  'tour go',
+  'Present a stop in the workbench: an index, next or previous',
+  ['pmx-canvas tour go 0', 'pmx-canvas tour go next', 'pmx-canvas tour go previous --no-present'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help) return showCommandHelp('tour go');
+    const to = positional[0];
+    if (to === undefined) throw new Error('Missing stop: an index, next or previous');
+    const target = to === 'next' || to === 'previous' ? { step: to } : { stop: Number(to) };
+    output(await invokeOperation('tour.go', { ...target, ...(flags['no-present'] ? { present: false } : {}) }));
+  },
+);
+cmd('tour exit', 'Leave presentation in every viewer', ['pmx-canvas tour exit'], async () => {
+  output(await invokeOperation('tour.exit', {}));
+});
+
+function numberList(flag: string | boolean | undefined, name: string, length: number): number[] | undefined {
+  if (flag === undefined) return undefined;
+  const values = typeof flag === 'string' ? flag.split(',').map(Number) : [];
+  if (values.length !== length || values.some((v) => !Number.isFinite(v))) {
+    throw new Error(`--${name} needs ${length} comma-separated numbers`);
+  }
+  return values;
+}
+
+cmd(
+  'camera move',
+  'Ease the camera to a node, world rect or viewport (not an undo step)',
+  [
+    'pmx-canvas camera move --node <id> --duration 2 --pullback 0.6',
+    'pmx-canvas camera move --rect -400,200,1600,900 --easing ease-out',
+    'pmx-canvas camera move --viewport 80,100,0.5 --duration 0',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help) return showCommandHelp('camera move');
+    const rect = numberList(flags.rect, 'rect', 4);
+    const viewport = numberList(flags.viewport, 'viewport', 3);
+    const optional = (key: string) => (flags[key] === undefined ? {} : { [key]: Number(flags[key]) });
+    output(
+      await invokeOperation('camera.move', {
+        ...(typeof flags.node === 'string' ? { nodeId: flags.node } : {}),
+        ...(rect ? { rect: { x: rect[0], y: rect[1], width: rect[2], height: rect[3] } } : {}),
+        ...(viewport ? { viewport: { x: viewport[0], y: viewport[1], scale: viewport[2] } } : {}),
+        ...(typeof flags.easing === 'string' ? { easing: flags.easing } : {}),
+        ...optional('duration'),
+        ...optional('padding'),
+        ...optional('pullback'),
+      }),
+    );
+  },
+);
 
 // Bun.WebView is not in bun-types yet; record needs its CDP channel, which the
 // shared automation session does not expose, so it owns its own Chrome view.

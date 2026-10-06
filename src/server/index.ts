@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events';
-import { derivedTour, type Tour } from '../shared/tour.js';
+import { derivedTour, type Camera, type Tour, type TourStop } from '../shared/tour.js';
+import { exitTour, goToTourStop, moveCamera, type TourStep, type TourStepResult } from './tour-control.js';
 export type { Tour, TourStop } from '../shared/tour.js';
+export type { TourStep, TourStepResult } from './tour-control.js';
 import { agentPresence } from './agent-presence.js';
 import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
@@ -569,6 +571,26 @@ export class PmxCanvas extends EventEmitter {
     assertInsideFence('tour.set', { boardWide: true });
     canvasState.setTour(tour);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  }
+
+  /** Present a tour stop (index, `next` or `previous`) in the workbench. Not recorded in undo history. */
+  goToTourStop(step: TourStep, options?: { present?: boolean }): TourStepResult {
+    const result = goToTourStop(step);
+    emitPrimaryWorkbenchEvent('canvas-tour-step', { ...result, present: options?.present !== false });
+    return result;
+  }
+
+  /** Leave presentation in every viewer. */
+  exitTour(): void {
+    exitTour();
+    emitPrimaryWorkbenchEvent('canvas-tour-exit', {});
+  }
+
+  /** Ease the camera to a node, world rect or viewport. Not recorded in undo history. */
+  moveCamera(stop: TourStop): { viewport: Camera } {
+    const result = moveCamera(stop);
+    emitPrimaryWorkbenchEvent('canvas-camera-move', result);
+    return { viewport: result.viewport };
   }
 
   clear(): void {
