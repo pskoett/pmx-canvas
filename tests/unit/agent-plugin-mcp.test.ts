@@ -205,18 +205,24 @@ describe('portable plugin MCP workspace connector', () => {
       throw new Error('Missing bound server URL.');
     }
     const port = new URL(content.serverUrl).port;
+    const t0 = Date.now();
     execFileSync(process.execPath, ['run', resolve('src/cli/index.ts'), 'serve', 'stop', `--port=${port}`], {
       cwd: workspace,
       env: { ...process.env, PMX_CANVAS_WORKSPACE_ROOT: workspace },
       timeout: 15_000,
       stdio: 'pipe',
     });
+    console.log('DBG stop ms', Date.now() - t0);
     const foreign = Bun.serve({
       hostname: '127.0.0.1',
       port: Number(port),
       fetch: () => Response.json({ ok: true, workspace: otherWorkspace }),
     });
+    console.log('DBG foreign up ms', Date.now() - t0);
     try {
+      const tCall = Date.now();
+      const leak = client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'Must not leak' } }).then((r) => console.log('DBG call resolved', Date.now() - tCall, JSON.stringify(r)), (e) => console.log('DBG call rejected', Date.now() - tCall, String(e)));
+      await leak;
       await expect(
         client.callTool({
           name: 'canvas_node',

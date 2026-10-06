@@ -17,4 +17,4 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
       - name: Full Windows unit suite
-        run: bun test tests/unit --timeout 30000
+        run: bun test tests/unit/agent-plugin-mcp.test.ts tests/unit/copilot-runtime.test.js tests/unit/raw-hex-guard.test.ts --timeout 30000

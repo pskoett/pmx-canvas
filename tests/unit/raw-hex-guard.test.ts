@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 
 // Raw colour values live only in the theme blocks of the two theme files
 // (docs/design.md, "Token system"); everything else references tokens. The
@@ -39,7 +39,7 @@ describe('raw hex colours stay in the theme files', () => {
   test('client components reference tokens', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles(clientDir)) {
-      const rel = relative(root, file);
+      const rel = relative(root, file).split(sep).join('/');
       const allowed = ALLOWED[rel] ?? [];
       for (const hex of stripComments(readFileSync(file, 'utf-8')).match(HEX) ?? []) {
         if (!allowed.includes(hex)) offenders.push(`${rel}: ${hex}`);
