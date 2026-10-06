@@ -1417,7 +1417,8 @@ for (const iframeMode of ['src', 'srcdoc'] as const) {
     const nodeId = ((await created.json()) as { id: string }).id;
     await page.goto(`/workbench?iframe-mode=${iframeMode}`);
     const node = page.locator('.canvas-node').filter({ hasText: `AX capability lifecycle ${iframeMode}` });
-    const frame = node.frameLocator('iframe');
+    // During reload the hidden replacement coexists with the painted document.
+    const frame = node.frameLocator('iframe:visible');
     const draft = frame.getByRole('textbox', { name: 'draft' });
     await expect(draft).toBeVisible();
     const hasAxBridge = () => frame.locator('body').evaluate(() => 'PMX_AX' in window);
