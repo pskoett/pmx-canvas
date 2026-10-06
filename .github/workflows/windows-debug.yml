@@ -14,5 +14,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Path diagnostics
         run: bun run scripts/debug/win-paths.ts
-      - name: Connector test
-        run: bun test --timeout 30000 tests/unit/agent-plugin-mcp.test.ts
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Full Windows unit suite
+        run: bun test tests/unit --timeout 30000

@@ -18,7 +18,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadCopilotCanvas } from '../helpers/copilot-adapter.js';
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), 'pmx-plugin-mcp-')));
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'pmx-plugin-mcp-')));
 const plugin = join(root, 'installed-plugin');
 const workspace = join(root, 'project');
 const otherWorkspace = join(root, 'other-project');
