@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [0.8.1] - 2026-10-06
+## [0.8.2] - 2026-10-06
 
 ### Changed
 
@@ -13,6 +13,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - Context pin and expand buttons stay in place when hover actions appear, so clicks reach the intended control in standalone and hosted workbenches.
 - CLI help lists `board open` instead of incorrectly saying only humans can open boards.
+- Embedded JSON forms use the bundled IBM Plex fonts, including in hosted viewers and offline exports.
+- Browser workflow guidance lists the current Harbor and Daylight theme names.
 
 ## [0.8.0] - 2026-10-06
 

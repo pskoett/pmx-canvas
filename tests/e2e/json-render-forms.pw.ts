@@ -2,6 +2,57 @@ import { expect, test } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 2 });
 
+for (const theme of ['harbor', 'daylight']) {
+  for (const mode of ['src', 'srcdoc']) {
+    test(`embedded JSON controls load bundled Plex (${theme}, ${mode})`, async ({ page, request }, info) => {
+      const response = await request.post('/api/canvas/json-render', {
+        data: {
+          title: `Plex form ${theme}`,
+          x: 80,
+          y: 80,
+          width: 520,
+          height: 380,
+          spec: {
+            root: 'root',
+            elements: {
+              root: { type: 'Stack', props: {}, children: ['name', 'notes', 'button'] },
+              name: { type: 'Input', props: { label: 'Name', value: 'Plex form sentinel' } },
+              notes: { type: 'Textarea', props: { label: 'Notes', value: 'Readable embedded controls' } },
+              button: { type: 'Button', props: { label: 'Continue', variant: 'primary' } },
+            },
+          },
+        },
+      });
+      expect(response.ok(), await response.text()).toBe(true);
+      const { id } = await response.json();
+      try {
+        await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+        await page.goto(`/workbench?theme=${theme}&iframe-mode=${mode}`);
+        const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+        const frame = node.frameLocator('iframe');
+        await expect(frame.getByLabel('Name', { exact: true })).toHaveValue('Plex form sentinel');
+        const report = await frame.locator('body').evaluate(async () => {
+          await document.fonts.ready;
+          return {
+            families: [...document.querySelectorAll('input, textarea, label, button')].map(
+              (element) => getComputedStyle(element).fontFamily,
+            ),
+            loaded: [...document.fonts]
+              .filter((face) => face.status === 'loaded' && face.family.includes('IBM Plex Sans'))
+              .map((face) => face.weight),
+          };
+        });
+        expect(report.families).toHaveLength(5);
+        for (const family of report.families) expect(family).toMatch(/^"?IBM Plex Sans"?,/);
+        expect(report.loaded).toEqual(expect.arrayContaining(['400', '500']));
+        await node.screenshot({ path: info.outputPath(`${theme}-${mode}-plex.png`) });
+      } finally {
+        await request.delete(`/api/canvas/node/${id}`);
+      }
+    });
+  }
+}
+
 test('literal form values render bound; unbindable values warn', async ({ page, request }) => {
   const spec = {
     root: 'root',

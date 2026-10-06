@@ -184,7 +184,6 @@ function App({ store }: { store: StateStore }) {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'var(--muted-foreground, #666)',
-          fontFamily: 'system-ui',
         }}
       >
         Waiting for UI spec...

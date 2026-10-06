@@ -44,7 +44,7 @@ for the authoritative stop, viewport, persistence, reset, group-order, and captu
 
 ## Runtime prerequisites
 
-PMX Canvas 0.8.1 requires **Bun >=1.4.2**, including when installed through npm.
+PMX Canvas 0.8.2 requires **Bun >=1.4.2**, including when installed through npm.
 Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
 use an absolute executable path if needed. Install/configure only when requested.
 For pinned installation, MCP configuration, managed services, and disposable verification,
@@ -443,7 +443,7 @@ Use the visible workbench when the human is actively curating layout:
   carries the tools (Select V, Pan Space, Connect C), Markdown note M, Attach files, webpage W,
   group G, and separate Draw A, Text note and Eraser buttons for board feedback,
   and utilities: search & commands (Cmd+K — actions with shortcuts, then jump-to-node), arrange,
-  trace, minimap, history, the theme picker (nine themes: dark, light, high-contrast, midnight,
+  trace, minimap, history, the theme picker (nine themes: harbor, daylight, high-contrast, midnight,
   sepia, arctic, ember, forest, volt), and shortcuts (?). The top bar holds the connection dot,
   workspace title, the session chip / gate badge / context meter while a session is attached
   (or the external-writers indicator and *Start agent session* otherwise), and the zoom cluster

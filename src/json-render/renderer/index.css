@@ -5,6 +5,11 @@
 
 @custom-variant dark (&:is([data-theme="dark"] *));
 
+@theme {
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
 :root {
   --radius: 0.5rem;
   --background: oklch(1 0 0);
@@ -135,7 +140,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     margin: 0;
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-sans);
   }
 }
 

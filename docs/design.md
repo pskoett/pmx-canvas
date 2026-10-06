@@ -152,7 +152,8 @@ the same change.
 - **Every mark has a glyph and a word**, so it reads without colour, and explains
   itself on hover.
 - **One font and one scale.** IBM Plex Sans and Mono, bundled with the app (no CDN);
-  every control inherits the font. Type 11/12/13/15/20; radii 6/10/14/pill; two
+  every control inherits the font, including embedded JSON forms. Self-contained
+  viewers embed the font bytes for hosted and offline use. Type 11/12/13/15/20; radii 6/10/14/pill; two
   shadow levels. No glow is used as elevation.
 - **Quiet chrome, with expand and the context pin always in reach.** Every node header
   shows its kind, title, expand (`⤢`, Enter — on the types that expand: markdown,

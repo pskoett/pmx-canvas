@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
+import { CANVAS_THEMES } from '../../src/shared/themes.ts';
 
 describe('bundled skills', () => {
+  test('browser workflow theme names match the shipped registry', () => {
+    const skill = readBundledSkill('pmx-canvas')!;
+    const themeList = skill.match(/nine themes: ([^)]+)\)/)?.[1];
+    expect(themeList?.split(',').map((theme) => theme.trim())).toEqual([...CANVAS_THEMES]);
+  });
+
   test('installation pins and runtime prerequisite match the package version', async () => {
     const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
     const guide = await Bun.file(

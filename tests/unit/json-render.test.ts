@@ -6,7 +6,16 @@ import {
   emptyStreamingSpec,
   normalizeAndValidateJsonRenderSpec,
   normalizeGraphType,
+  readJsonRenderBundle,
 } from '../../src/json-render/server.ts';
+
+test('viewer fonts are self-contained for srcdoc and offline exports', async () => {
+  const { css } = await readJsonRenderBundle();
+  const faces = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((match) => match[1]!);
+  expect(faces.some((face) => face.includes('font-family: "IBM Plex Sans"'))).toBe(true);
+  expect(faces.some((face) => face.includes('font-family: "IBM Plex Mono"'))).toBe(true);
+  for (const face of faces) expect(face).toMatch(/src:\s*url\("data:font\/woff2;base64,[A-Za-z0-9+/=]+"\)/);
+});
 
 test('viewer runtime nonce is sanitized and independent of AX enablement', async () => {
   const html = await buildJsonRenderViewerHtml({

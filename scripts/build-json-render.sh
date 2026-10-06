@@ -24,6 +24,20 @@ fi
   -o "${CSS_OUT}" \
   --minify
 
+# Viewer documents inline this stylesheet, including in srcdoc and offline
+# exports. Reuse the workbench's bundled faces without relative font requests.
+bun run - <<'JS'
+const { readFileSync, writeFileSync } = require("node:fs");
+const faces = readFileSync("src/client/theme/global.css", "utf8").match(/@font-face\s*\{[^}]*\}/g);
+if (!faces) throw new Error("Workbench font declarations are missing");
+const fontCss = faces.join("\n").replace(
+  /url\("fonts\/([\w.-]+\.woff2)"\)/g,
+  (_, file) => `url("data:font/woff2;base64,${readFileSync(`dist/canvas/fonts/${file}`).toString("base64")}")`,
+);
+const cssPath = "dist/json-render/index.css";
+writeFileSync(cssPath, fontCss + "\n" + readFileSync(cssPath, "utf8"));
+JS
+
 # Stale-bundle gate (Bun script — the build must not depend on python3): the
 # dist bundle counts as up to date when both artifacts exist and neither is
 # older than the newest renderer source. Feeds the timeout fallback below.
