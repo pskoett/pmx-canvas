@@ -155,12 +155,13 @@ export declare function endSession(session: {
     agentId: string | null;
 }): Promise<boolean>;
 export interface SessionReceipt {
-    label: string;
+    /** Distinct labels of the sessions on this card (one unless merged). */
+    labels: string[];
+    /** Endings folded into this card (see applySessionReceipt). */
+    sessions: number;
     endedAt: string;
     /** Why it ended — the receipt should answer this, not leave the human asking. */
     endedBy?: 'human' | 'agent' | 'idle-timeout';
-    /** The session changed nothing on the board (its pre-session snapshot was dropped). */
-    unchanged?: boolean;
     /** Cancelled (withdrawn items), rejected (human's explicit no on a gate), and
      * held (TTL expired unanswered) are three different outcomes — never one
      * "vetoed" pile. */
@@ -171,6 +172,8 @@ export interface SessionReceipt {
         rejected: number;
         held: number;
     };
+    /** The pre-session snapshot; null when the board was empty at attach, or on a
+     * merged receipt (each session's snapshot is in History). */
     snapshot: {
         id: string;
         name: string;
@@ -198,6 +201,13 @@ export declare const activityLensNodeIds: import("@preact/signals-core").Signal<
 export declare function setActivityLens(on: boolean): void;
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
 export declare const sessionReceipt: import("@preact/signals-core").Signal<SessionReceipt | null>;
+/**
+ * The receipt rule: a pop-up only for a top-level session that changed the
+ * board or read/pinned context. `unchanged` endings and worker endings
+ * (`parentAgentId` set — their orchestrator's receipt covers the board since
+ * it attached) stay in the timeline and History only, and never replace or
+ * extend an open receipt. Qualifying endings while one is up merge into it.
+ */
 export declare function applySessionReceipt(data: Record<string, unknown>): void;
 export declare function dismissSessionReceipt(): void;
 export declare function resetSessionStore(): void;

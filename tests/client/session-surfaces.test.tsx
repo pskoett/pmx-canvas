@@ -519,7 +519,9 @@ describe('session receipt', () => {
     test('an untouched receipt is still up after 12 s — it stays until dismissed', () => {
       act(() => applySessionReceipt(ended));
       const { getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
-      act(() => jest.advanceTimersByTime(12_000));
+      act(() => {
+        jest.advanceTimersByTime(12_000);
+      });
       expect(sessionReceipt.value).not.toBeNull();
       expect(getByTestId('session-receipt')).toBeTruthy();
     });

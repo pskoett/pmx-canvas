@@ -26,6 +26,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - `GET /api/canvas/ax/context-status`, `canvas_ax_timeline { action: "read-status" }` and `getNodeReadStatus()` report, per node, the latest agent read and the revision it read.
 - A create intent may omit its position: the ghost forms where the node will land and the linked create lands on it.
 - Subagents have their own fuchsia colour, beside the agent violet.
+- `POST /api/canvas/viewport` accepts `center: {x, y}` to centre a world point in the visible canvas area, and the HTTP and MCP docs now explain the viewport coordinate space.
 
 ### Changed
 
@@ -41,6 +42,12 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - Agent ghosts no longer appear in the top-left corner when an agent announces work before it knows the layout.
 - The Copilot panel shows "No matching PMX Canvas server is running" again when the server is unreachable.
+- json-render form inputs given a plain `value` now show it instead of rendering empty.
+- Sessions that end together now share one receipt instead of the later one replacing the earlier.
+- An agent that reports a working phase and then streams cursor moves keeps showing as working instead of dropping to Idle.
+- Fleet workers stay visible in the top bar after their orchestrator ends its session, and only the orchestrator's chip counts its workers.
+- `validate` no longer reports nodes inside nested groups as overlapping their outer group's frame.
+- Long unbroken words in work board item titles wrap inside their card instead of spilling into the next column.
 
 ## [0.7.3] - 2026-10-01
 

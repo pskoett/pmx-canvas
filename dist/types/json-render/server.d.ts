@@ -66,7 +66,7 @@ export type GraphChartType = 'LineChart' | 'BarChart' | 'PieChart' | 'AreaChart'
 export declare function escapeInlineScriptSource(source: string): string;
 export declare function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback?: string): string;
 export declare function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec;
-/** shadcn 0.21 ignores these props unless the renderer supplies a two-way binding. */
+/** Binding-only form props that normalization could not bind (see bindLiteralFormValues). */
 export declare function jsonRenderFormWarnings(spec: JsonRenderSpec): string[];
 export declare function normalizeGraphType(value: string): GraphChartType;
 export declare function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec;
