@@ -10,7 +10,7 @@ import {
   tourFrames,
   tourSchema,
 } from '../../src/shared/tour.js';
-import { parseRecordOptions, resampleFrames } from '../../src/cli/commands/record.js';
+import { parseRecordOptions } from '../../src/cli/commands/record.js';
 import { canvasState } from '../../src/server/canvas-state.js';
 import { saveCanvasSnapshotWithReuse } from '../../src/server/canvas-operations.js';
 import { createTestWorkspace, resetCanvasForTests, removeTestWorkspace, getAvailablePort } from './helpers.js';
@@ -142,15 +142,5 @@ describe('board tour', () => {
       'tour.json',
     );
     expect(() => parseRecordOptions({ output: 'a', duration: '1', 'tour-file': 'tour.json' })).toThrow('--tour-file');
-  });
-
-  test('realtime resampling holds the newest painted frame for each output tick', () => {
-    // Paints at 0, 0.05, 0.31 s; 10 fps over 0.5 s samples 0, 0.1, 0.2, 0.3, 0.4.
-    expect(resampleFrames([100, 100.05, 100.31], 100, 5, 10)).toEqual([0, 1, 1, 1, 2]);
-    // A board that never repaints still fills every tick from its only frame.
-    expect(resampleFrames([100], 99.5, 3, 30)).toEqual([0, 0, 0]);
-    // Bursty paints faster than fps are thinned to exactly frameCount outputs.
-    const burst = Array.from({ length: 60 }, (_, i) => 100 + i / 60);
-    expect(resampleFrames(burst, 100, 30, 30)).toEqual(Array.from({ length: 30 }, (_, i) => i * 2));
   });
 });

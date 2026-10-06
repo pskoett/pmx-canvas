@@ -1,4 +1,4 @@
-import { existsSync, linkSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { z } from 'zod';
 import { isCanvasTheme } from '../../shared/themes.js';
@@ -66,17 +66,6 @@ cmd(
   },
 );
 
-/** Output frame i shows the newest screencast frame painted at or before start + i / fps. */
-export function resampleFrames(timestamps: number[], start: number, frameCount: number, fps: number): number[] {
-  const picks: number[] = [];
-  let source = 0;
-  for (let i = 0; i < frameCount; i++) {
-    while (source + 1 < timestamps.length && timestamps[source + 1]! <= start + i / fps) source++;
-    picks.push(source);
-  }
-  return picks;
-}
-
 // Bun.WebView is not in bun-types yet; record needs its CDP channel, which the
 // shared automation session does not expose, so it owns its own Chrome view.
 interface CaptureView extends EventTarget {
@@ -92,6 +81,7 @@ type CaptureViewConstructor = new (options: {
   height: number;
   headless: true;
   backend: 'chrome' | { type: 'chrome'; path: string };
+  dataStore: 'ephemeral';
 }) => CaptureView;
 interface ScreencastFrame {
   data: string;
@@ -149,9 +139,7 @@ cmd(
     };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
-    // Deterministic frames are PNG screenshots; realtime frames are Chrome's JPEG screencast.
-    const ext = tour ? 'png' : 'jpg';
-    const frameName = (i: number) => join(framesPath, `frame-${String(i).padStart(6, '0')}.${ext}`);
+    const frameName = (i: number) => join(framesPath, `frame-${String(i).padStart(6, '0')}.png`);
     let count = 0;
     let duplicated = 0;
     const view = new WebView({
@@ -159,6 +147,7 @@ cmd(
       height: options.height,
       headless: true,
       backend: options.chromePath ? { type: 'chrome', path: options.chromePath } : 'chrome',
+      dataStore: 'ephemeral',
     });
     try {
       await timed(view.navigate(url.href), 'launching Chrome and loading the workbench');
@@ -171,11 +160,10 @@ cmd(
       // applies viewport emulation, giving captures the requested pixels.
       await timed(view.resize(options.width, options.height), 'resizing the capture viewport');
       await timed(
-        view.evaluate(
-          'document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))))',
-        ),
-        'waiting for fonts and paint',
+        view.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))'),
+        'waiting for paint',
       );
+      await timed(view.evaluate('document.fonts.ready.then(() => true)'), 'waiting for fonts');
       mkdirSync(framesPath, { recursive: true });
       if (tour) {
         const area = (await view.evaluate('window.pmxCapture.area()')) as { width: number; height: number };
@@ -205,53 +193,40 @@ cmd(
           await Bun.write(frameName(count++), await timed(view.screenshot({ format: 'png' }), 'capturing a frame'));
         }
       } else {
-        // Chrome pushes a JPEG on every paint and holds the next until the
+        // Chrome pushes a frame on every paint and holds the next until the
         // previous is acked; cdp() allows one call in flight, so acks chain.
-        const rawPath = join(framesPath, 'screencast');
-        mkdirSync(rawPath);
-        const timestamps: number[] = [];
-        const writes: Promise<number>[] = [];
+        // Each tick writes the newest painted frame, so frames land while recording.
+        let latest: Buffer | undefined;
+        let written: Buffer | undefined;
         let cdpQueue: Promise<unknown> = Promise.resolve();
-        let casting = true;
         const send = (method: string, params?: Record<string, unknown>) => {
           cdpQueue = cdpQueue.then(() => view.cdp(method, params));
           return cdpQueue;
         };
         view.addEventListener('Page.screencastFrame', (event) => {
-          if (!casting) return;
           const frame = (event as MessageEvent<ScreencastFrame>).data;
-          writes.push(Bun.write(join(rawPath, `${timestamps.length}.jpg`), Buffer.from(frame.data, 'base64')));
-          timestamps.push(frame.metadata.timestamp);
+          latest = Buffer.from(frame.data, 'base64');
           void send('Page.screencastFrameAck', { sessionId: frame.sessionId });
         });
         await timed(
-          send('Page.startScreencast', {
-            format: 'jpeg',
-            quality: 90,
-            maxWidth: options.width,
-            maxHeight: options.height,
-          }),
+          send('Page.startScreencast', { format: 'png', maxWidth: options.width, maxHeight: options.height }),
           'starting the screencast',
         );
-        const started = Date.now() / 1000;
-        while (!stopping && (!options.duration || Date.now() / 1000 < started + options.duration)) await Bun.sleep(20);
-        const stopped = Date.now() / 1000;
-        casting = false;
-        await timed(send('Page.stopScreencast'), 'stopping the screencast');
-        await Promise.all(writes);
-        if (!timestamps.length) throw new Error('Chrome sent no screencast frames');
-        // CDP timestamps are epoch seconds; a static page paints once, so the
-        // first frame stands in for everything before the next paint.
-        const start = Math.min(started, timestamps[0]!);
-        const frameCount = options.duration
-          ? Math.ceil(options.duration * options.fps)
-          : Math.max(1, Math.floor((stopped - start) * options.fps));
-        const picks = resampleFrames(timestamps, start, frameCount, options.fps);
-        for (const [i, source] of picks.entries()) {
-          if (i > 0 && source === picks[i - 1]) duplicated++;
-          linkSync(join(rawPath, `${source}.jpg`), frameName(count++));
+        const firstDeadline = Date.now() + 10_000;
+        while (!latest) {
+          if (Date.now() > firstDeadline) throw new Error('Chrome sent no screencast frames');
+          await Bun.sleep(10);
         }
-        rmSync(rawPath, { recursive: true });
+        const started = performance.now();
+        const interval = 1000 / options.fps;
+        while (!stopping && (!options.duration || count < Math.ceil(options.duration * options.fps))) {
+          if (latest === written) duplicated++;
+          written = latest;
+          await Bun.write(frameName(count++), latest);
+          const wait = started + count * interval - performance.now();
+          if (wait > 0) await Bun.sleep(wait);
+        }
+        await timed(send('Page.stopScreencast'), 'stopping the screencast');
       }
       await Bun.write(
         join(framesPath, 'recording.json'),
@@ -286,7 +261,7 @@ cmd(
             '-framerate',
             String(options.fps),
             '-i',
-            join(framesPath, `frame-%06d.${ext}`),
+            join(framesPath, 'frame-%06d.png'),
             '-c:v',
             'libx264',
             '-pix_fmt',

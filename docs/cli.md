@@ -108,7 +108,7 @@ for deterministic mode, `--chrome-path PATH`, and required `--output PATH`.
 Global `--port` / `--server-url` work here too. Existing output paths are refused.
 
 An `.mp4` output uses ffmpeg/H.264; any other path is a frame sequence directory
-(`frame-000000.png` in deterministic mode, `frame-000000.jpg` in realtime mode).
+of `frame-000000.png` files.
 Frames and `recording.json` are retained at `<output>.frames` even after video
 encoding. If ffmpeg is missing, the command clearly reports the frame-sequence
 fallback and returns that directory. Encoding failures retain frames and exit nonzero.
@@ -118,9 +118,10 @@ Deterministic mode resolves target geometry once and writes
 the camera, waits for two animation frames, checks the applied camera, then
 captures. Duplicate a target to hold it. This makes **camera timing** deterministic,
 not animated iframe content, fonts loaded later, network assets, or concurrent
-board edits. Realtime mode records Chrome's screencast (a JPEG per paint) and
-resamples it to `--fps` by paint timestamp, so footage keeps wall-clock speed;
-ticks with no new paint repeat the previous frame, counted as `duplicated` in
+board edits. Realtime mode records Chrome's screencast (a frame per paint) and
+writes the newest painted frame on every `--fps` tick while it records, so footage
+keeps wall-clock speed and a stop signal keeps every frame written so far; ticks
+with no new paint repeat the previous frame, counted as `duplicated` in
 `recording.json`. Capture has no audio. Chrome and a Bun runtime with WebView
 support are required; Chrome gets 60 seconds to cold-start.
 Recording is a local CLI/file operation, not a remote HTTP/MCP file-writing API;
