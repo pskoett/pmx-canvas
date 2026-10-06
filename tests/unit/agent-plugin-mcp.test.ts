@@ -25,6 +25,7 @@ const otherWorkspace = join(root, 'other-project');
 let client: Client;
 let transport: StdioClientTransport;
 let occupied: ReturnType<typeof Bun.serve>;
+let stderrBytes = 0;
 
 beforeAll(async () => {
   for (const path of [plugin, workspace, otherWorkspace]) mkdirSync(path);
@@ -60,6 +61,10 @@ export function ensurePmxServer(root, input) { return ensure(root, input, runtim
     cwd: plugin,
     env: { ...env, PMX_CANVAS_PORT: String(occupied.port), PMX_CANVAS_DISABLE_BROWSER_OPEN: '1' },
     stderr: 'pipe',
+  });
+  // Drain stderr: an unread pipe fills (small on Windows) and blocks the connector's next write.
+  transport.stderr?.on('data', (chunk: Buffer) => {
+    stderrBytes += chunk.length;
   });
   await client.connect(transport);
 });
@@ -178,6 +183,7 @@ describe('portable plugin MCP workspace connector', () => {
       env,
       stderr: 'pipe',
     });
+    rootedTransport.stderr?.on('data', () => {});
     try {
       await rooted.connect(rootedTransport);
       let connected = false;
@@ -218,7 +224,7 @@ describe('portable plugin MCP workspace connector', () => {
       port: Number(port),
       fetch: () => Response.json({ ok: true, workspace: otherWorkspace }),
     });
-    console.log('DBG foreign up ms', Date.now() - t0);
+    console.log('DBG foreign up ms', Date.now() - t0, 'stderr bytes so far', stderrBytes);
     try {
       const tCall = Date.now();
       const leak = client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'Must not leak' } }).then((r) => console.log('DBG call resolved', Date.now() - tCall, JSON.stringify(r)), (e) => console.log('DBG call rejected', Date.now() - tCall, String(e)));
