@@ -44,7 +44,7 @@ for the authoritative stop, viewport, persistence, reset, group-order, and captu
 
 ## Runtime prerequisites
 
-PMX Canvas 0.8.0 requires **Bun >=1.4.2**, including when installed through npm.
+PMX Canvas 0.8.1 requires **Bun >=1.4.2**, including when installed through npm.
 Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
 use an absolute executable path if needed. Install/configure only when requested.
 For pinned installation, MCP configuration, managed services, and disposable verification,

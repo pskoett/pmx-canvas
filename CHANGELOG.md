@@ -3,6 +3,17 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.1] - 2026-10-06
+
+### Changed
+
+- Connection dots are smaller while keeping their larger drag targets.
+
+### Fixed
+
+- Context pin and expand buttons stay in place when hover actions appear, so clicks reach the intended control in standalone and hosted workbenches.
+- CLI help lists `board open` instead of incorrectly saying only humans can open boards.
+
 ## [0.8.0] - 2026-10-06
 
 ### Highlights

@@ -2805,8 +2805,8 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
   // markdown DOM, the pressed box is swapped mid-press and no click fires
   // (fast synthetic clicks win that race, which is how it shipped broken).
   const slowTarget = boxes.nth(1);
-  const slowBox = (await slowTarget.boundingBox())!;
-  await page.mouse.move(slowBox.x + slowBox.width / 2, slowBox.y + slowBox.height / 2);
+  // Wait for the preceding save's DOM replacement before starting the press.
+  await slowTarget.hover();
   await page.mouse.down();
   await page.waitForTimeout(120);
   await page.mouse.up();
@@ -3439,6 +3439,50 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
       return node.pinned;
     })
     .toBe(true);
+});
+
+test('header controls stay under the pointer when hover actions appear', async ({ page, request }, info) => {
+  for (const [type, x] of [
+    ['status', 80],
+    ['markdown', 540],
+  ] as const) {
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        data: { type, title: `${type} pin target`, content: 'Keep this card', x, y: 120, width: 360, height: 240 },
+      })
+    ).json();
+    await page.goto('/workbench');
+    await page.mouse.move(10, 10);
+    const card = page.locator(`[data-node-id="${id}"]`);
+    const pin = card.getByRole('button', { name: 'Add to context', exact: true });
+    const more = card.getByRole('button', { name: 'More actions', exact: true });
+    const close = card.getByTitle('Close', { exact: true });
+    await expect(pin).toBeVisible();
+    await expect(more).toBeHidden();
+    await expect(close).toBeHidden();
+    const resting = (await pin.boundingBox())!;
+    await page.screenshot({ path: info.outputPath(`${type}-resting.png`) });
+    // Measure focus separately from pin/unpin changes to the card's state.
+    await pin.focus();
+    await expect(more).toBeVisible();
+    expect((await pin.boundingBox())!.x).toBeCloseTo(resting.x, 1);
+    await page.getByRole('button', { name: 'Choose theme' }).focus();
+    await expect(more).toBeHidden();
+    // Aim at the resting pin, not a locator that could retry at its new position.
+    const target = { x: resting.x + resting.width / 2, y: resting.y + resting.height / 2 };
+    await page.mouse.move(target.x, target.y);
+    await expect(more).toBeVisible();
+    await expect(close).toBeVisible();
+    expect((await pin.boundingBox())!.x).toBeCloseTo(resting.x, 1);
+    await page.mouse.down();
+    await page.mouse.up();
+    const pinned = card.getByRole('button', { name: 'Remove from context', exact: true });
+    await expect(pinned).toHaveAttribute('aria-pressed', 'true');
+    await page.screenshot({ path: info.outputPath(`${type}-pinned.png`) });
+    await pinned.click();
+    await expect(pin).toHaveAttribute('aria-pressed', 'false');
+    expect((await request.get(`/api/canvas/node/${id}`)).ok()).toBe(true);
+  }
 });
 
 test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }, info) => {

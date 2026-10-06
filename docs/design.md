@@ -160,8 +160,10 @@ the same change.
   html) and context pin: an outline pin in a circle when the node is not in context
   (click or `P` to add), the filled blue badge when it is (click to remove), always in
   the same place. The other controls (ask agent, open in new tab, collapse, set as
-  README, close) appear on hover under ⋯ and ×. Section labels are a heading
-  display of the markdown node. Rarely used tools live in one settings menu on the rail.
+  README, close) appear on hover under ⋯ and ×. Their slots stay reserved while
+  hidden, so hover or keyboard focus cannot move the pin onto another action.
+  Section labels are a heading display of the markdown node. Rarely used tools
+  live in one settings menu on the rail.
 - **Relations are the edge layer, not node types.** Design work adds no node type;
   the vision's own `ask` node (move 3) is separate.
 - **Any size, from a side pane to a full window.** The workbench lives in narrow agent-host

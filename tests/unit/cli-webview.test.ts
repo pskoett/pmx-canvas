@@ -246,6 +246,14 @@ describe('agent CLI webview commands', () => {
     expect(evaluateOutput.value).toBe('PMX Canvas from file');
   }, 30000);
 
+  test('umbrella help advertises agent board opening', () => {
+    const result = Bun.spawnSync([process.execPath, cliIndexPath, '--help']);
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    expect(output).toContain('board list|create|open|rename|category');
+    expect(output).not.toContain('the human opens them');
+  });
+
   test('serve subcommand routes to server startup instead of agent CLI help', async () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;

@@ -637,8 +637,8 @@ body,
 }
 .node-port::after {
   content: '';
-  width: calc(6px * var(--node-port-scale, 1));
-  height: calc(6px * var(--node-port-scale, 1));
+  width: calc(4px * var(--node-port-scale, 1));
+  height: calc(4px * var(--node-port-scale, 1));
   border-radius: 50%;
   background: var(--c-accent);
   border: calc(2px * var(--node-port-scale, 1)) solid var(--c-panel);
@@ -776,14 +776,15 @@ body,
 }
 
 /* ⋯ and × appear on hover or keyboard focus; expand and the context pin
-   always show (docs/design/Chrome.dc.html). */
+   always show (docs/design/Chrome.dc.html). Reserve their slots so revealing
+   them cannot move the pin out from under the pointer onto Close. */
 .canvas-node .node-controls .node-hover-control {
-  display: none;
+  visibility: hidden;
 }
 
 .canvas-node:hover .node-controls .node-hover-control,
 .canvas-node:focus-within .node-controls .node-hover-control {
-  display: inline-flex;
+  visibility: visible;
 }
 
 .canvas-node .node-body {
