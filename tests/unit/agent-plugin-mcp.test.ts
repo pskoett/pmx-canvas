@@ -96,6 +96,7 @@ describe('portable plugin MCP workspace connector', () => {
   test('rejects relative roots and the plugin installation directory without creating state', async () => {
     for (const workspaceRoot of ['.', plugin, join(plugin, '..project')]) {
       const result = await client.callTool({ name: 'canvas_connect_workspace', arguments: { workspaceRoot } });
+      console.log('DBG root', workspaceRoot, JSON.stringify(result));
       expect(result.isError).toBe(true);
     }
     expect(existsSync(join(plugin, '.pmx-canvas'))).toBe(false);
@@ -112,6 +113,7 @@ describe('portable plugin MCP workspace connector', () => {
       name: 'canvas_connect_workspace',
       arguments: { workspaceRoot: workspace },
     });
+    console.log('DBG connect', workspace, JSON.stringify(connection));
     expect(connection.isError).not.toBe(true);
     const content = connection.structuredContent;
     if (!content || typeof content !== 'object' || !('serverUrl' in content) || typeof content.serverUrl !== 'string') {
