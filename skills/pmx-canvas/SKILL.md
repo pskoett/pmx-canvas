@@ -305,8 +305,9 @@ reports any node below its floor as an advisory `sizeWarnings` entry — treat a
 as layout work left to do.
 Creation responses may include `sizeAdjustment` (`defaulted`, `clamped-to-minimum`, or
 `fit-to-children`); use its `applied` geometry rather than assuming the request won. Json-render
-validation/creation may also return warnings for form controls whose value is not bound with
-`$bindState`; the panel can render, but edits do not update its runtime state until the binding is fixed.
+validation/creation binds a literal form-control `value` to `state.form` automatically; it still
+warns for `$state` expressions, controls inside a repeat, or a non-object `state.form`, which render
+but do not update runtime state until bound with `$bindState`/`$bindItem`.
 Bound JSON input and dynamic lists are local UI state, not saved canvas data. Focus-mode
 expand/close preserves that state for the same spec in the current tab; an authored spec update,
 board switch or page reload resets it. Persist important edits explicitly through the app's
