@@ -7,7 +7,10 @@
 export interface NearPin {
     pinNodeId: string;
     pinTitle: string;
-    distance: number;
 }
-/** Unpinned node id → the pins it is near, nearest first. */
+/**
+ * Unpinned node id → the pins it is near, nearest first. Every drag frame
+ * moves a node, so the result keeps its identity while no node's set of pins
+ * changes: the chips subscribed to it re-render only when a neighbourhood does.
+ */
 export declare const nearPins: import("@preact/signals-core").ReadonlySignal<Map<string, NearPin[]>>;

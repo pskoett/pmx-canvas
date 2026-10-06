@@ -68,6 +68,8 @@ export interface SpatialContext {
     }[];
     annotations: SpatialAnnotationContext[];
 }
+/** Euclidean distance between two node centers */
+export declare function centerDistance(a: CanvasNodeState, b: CanvasNodeState): number;
 /**
  * Detect proximity clusters using single-linkage clustering.
  * Two nodes are "close" if their edge-to-edge gap is within the threshold.
