@@ -216,7 +216,11 @@ describe('portable plugin MCP workspace connector', () => {
     });
     // Await the rejection itself: on Windows, `expect(promise).rejects` blocks this process's
     // event loop, so `foreign` (served here) never answers the connector's probe and it times out.
-    const refusal = (request: Promise<unknown>) => request.then(() => 'resolved', (error) => String(error));
+    const refusal = (request: Promise<unknown>) =>
+      request.then(
+        () => 'resolved',
+        (error) => String(error),
+      );
     try {
       expect(
         await refusal(
