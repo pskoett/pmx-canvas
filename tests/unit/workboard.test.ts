@@ -70,6 +70,15 @@ describe('buildWorkboardSpec', () => {
     expect(spec.elements['col-cancelled']).toBeUndefined();
   });
 
+  test('item cards wrap unbreakable title tokens inside their column', () => {
+    const spec = buildWorkboardSpec([workItem({ id: 'wi-long', title: 'supercalifragilisticexpialidociousTimeouts' })]);
+    expect(() => normalizeAndValidateJsonRenderSpec(spec)).not.toThrow();
+    expect(elementRecord(spec, 'item-wi-long').props).toEqual({
+      title: 'supercalifragilisticexpialidociousTimeouts',
+      className: 'wrap-anywhere',
+    });
+  });
+
   test('agentId chip and detail text are present only when set', () => {
     const spec = buildWorkboardSpec([
       workItem({ id: 'wi-full', title: 'With chip', agentId: 'researcher', detail: 'Deep dive' }),

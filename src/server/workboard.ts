@@ -77,7 +77,12 @@ export function buildWorkboardSpec(workItems: PmxAxWorkItem[]): JsonRenderSpec {
         };
         cardChildren.push(`${cardId}-detail`);
       }
-      elements[cardId] = { type: 'Card', props: { title: item.title }, children: cardChildren };
+      // wrap-anywhere: an unbreakable token in a title must wrap, not spill into the next column.
+      elements[cardId] = {
+        type: 'Card',
+        props: { title: item.title, className: 'wrap-anywhere' },
+        children: cardChildren,
+      };
       columnChildren.push(cardId);
     }
     elements[columnId] = {
