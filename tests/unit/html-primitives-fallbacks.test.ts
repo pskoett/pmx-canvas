@@ -80,6 +80,43 @@ describe('HTML primitive example fallbacks', () => {
     expect(output).not.toContain('<h2 style="margin-top:18px">Risks</h2>');
   });
 
+  test('plan-timeline omits only the empty flow when siblings carry real data', () => {
+    const output = html('plan-timeline', {
+      milestones: [{ title: 'Ship parser', status: 'done' }],
+      flow: [],
+      risks: [{ risk: 'Schema drift', mitigation: 'Pin the fixture' }],
+    });
+    expect(output).toContain('Ship parser');
+    expect(output).toContain('Schema drift');
+    expect(output).not.toContain('<h2>Data Flow</h2>');
+    expect(output).not.toContain('chooses kind + data');
+    expect(output).not.toContain('Primitive catalog');
+  });
+
+  test.each([
+    ['choice-grid', { items: [] }, 'Option A'],
+    ['plan-timeline', { milestones: [] }, 'Understand current flow'],
+    ['component-gallery', { variants: [] }, 'Primary'],
+    ['flowchart', { steps: [] }, 'Receive request'],
+  ] as const)('%s: empty primary collection renders nothing where absent renders examples', (kind, empty, example) => {
+    expect(html(kind)).toContain(example);
+    expect(html(kind, { ...empty })).not.toContain(example);
+  });
+
+  test('component-gallery keeps its heading when only variants are empty', () => {
+    const output = html('component-gallery', { component: 'Button', variants: [] });
+    expect(output).toContain('<h2>Button</h2>');
+    expect(output).not.toContain('Primary');
+    expect(output).not.toContain('Destructive');
+  });
+
+  test('flowchart keeps failure paths when only steps are empty', () => {
+    const output = html('flowchart', { steps: [], failurePaths: [{ from: 'Parse', label: 'bad input' }] });
+    expect(output).toContain('<h2>Failure Paths</h2>');
+    expect(output).not.toContain('Receive request');
+    expect(output).not.toContain('id="step-title"');
+  });
+
   test.each(['', '  ', null])('component-gallery respects empty component %j and variants', (component) => {
     const output = html('component-gallery', { component, variants: [] });
     expect(output).not.toContain('Variant contact sheet');
