@@ -93,8 +93,11 @@ constants, so they cannot drift); the registry is `src/server/agent-presence.ts`
   Presence cursors render for every live writer regardless.
 - **Phase.** An agent mutation or `tool-start` → `tooling` (detail = op or tool
   name), settling to `idle` after `PRESENCE_TOOLING_SETTLE_MS`; `thinking` only
-  via the explicit set, settling after `PRESENCE_THINKING_SETTLE_MS`; an attached
-  session with a pending approval gate reads as `waiting-approval`.
+  via the explicit set, settling after `PRESENCE_THINKING_SETTLE_MS`. A cursor
+  update that moves the cursor restarts the settle window of a live explicit
+  `tooling`; a stationary cursor or focus heartbeat does not, and neither
+  extends `thinking`. An idle writer that reported a cursor keeps painting it.
+  An attached session with a pending approval gate reads as `waiting-approval`.
 - **Lifetime.** Unattached writers fade `PRESENCE_ACTIVITY_TTL_MS` after their
   last write; attached sessions expire after `PRESENCE_ATTACHED_IDLE_TTL_MS`
   without activity; `session-end` or an explicit `attached: false` removes the

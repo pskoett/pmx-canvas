@@ -115,6 +115,31 @@ describe('worker presence footguns (orchestration review)', () => {
   });
 });
 
+describe('explicit phases under cursor streams', () => {
+  const phaseOf = (now: number) => registry.snapshot(now).presences.find((p) => p.sessionId === 'copilot');
+
+  test('a moving cursor keeps an explicit tooling phase live; it settles once the cursor stops', () => {
+    registry.touch({ source: 'copilot', attached: true, phase: 'tooling', detail: 'refactor' }, T0);
+    let t = T0;
+    for (let i = 1; i <= 100; i += 1) {
+      t = T0 + i * 100;
+      registry.touch({ source: 'copilot', cursor: { x: i, y: i } }, t);
+    }
+    expect(t - T0).toBeGreaterThan(PRESENCE_TOOLING_SETTLE_MS);
+    expect(phaseOf(t + 1)).toMatchObject({ phase: 'tooling', detail: 'refactor', cursor: { x: 100, y: 100 } });
+    // A stationary heartbeat is not activity.
+    registry.touch({ source: 'copilot', cursor: { x: 100, y: 100 } }, t + PRESENCE_TOOLING_SETTLE_MS - 10);
+    expect(phaseOf(t + PRESENCE_TOOLING_SETTLE_MS + 1)).toMatchObject({ phase: 'idle', cursor: { x: 100, y: 100 } });
+  });
+
+  test('a moving cursor cannot revive a tooling phase that already settled', () => {
+    registry.touch({ source: 'copilot', attached: true, phase: 'tooling' }, T0);
+    const late = T0 + PRESENCE_TOOLING_SETTLE_MS + 10;
+    registry.touch({ source: 'copilot', cursor: { x: 1, y: 1 } }, late);
+    expect(phaseOf(late + 1)?.phase).toBe('idle');
+  });
+});
+
 describe('fleet membership', () => {
   test('parentAgentId round-trips through touch and the snapshot', () => {
     registry.touch({ source: 'copilot', attached: true }, T0);

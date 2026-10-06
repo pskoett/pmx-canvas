@@ -215,6 +215,35 @@ describe('fleet roll-up', () => {
     expect(container.querySelectorAll('.agent-chip:not(.agent-chip-more)')).toHaveLength(1);
     expect(container.querySelector('.agent-chip-workers')?.textContent).toBe('+1 worker');
   });
+
+  // 0.6.4 report: workers sharing their orchestrator's source (claude-code under
+  // claude-code) also showed a worker chip carrying the roll-up.
+  const sameSourceWorkers = () =>
+    [1, 2, 3].map((n) =>
+      presence({
+        sessionId: `cc-worker-${n}`,
+        source: 'claude-code',
+        agentId: `cc-worker-${n}`,
+        label: `worker · ${n}`,
+        parentAgentId: 'claude-code',
+        phase: 'tooling',
+      }),
+    );
+
+  test('same-source workers roll up only under the orchestrator chip', () => {
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'claude-code', source: 'claude-code', label: 'Claude Code', phase: 'thinking' }),
+        ...sameSourceWorkers(),
+      ],
+    });
+    const { container } = render(<TopBar />);
+    const chips = container.querySelectorAll('.agent-chip:not(.agent-chip-more)');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]?.textContent).toContain('Claude Code');
+    expect(container.querySelectorAll('.agent-chip-workers')).toHaveLength(1);
+    expect(container.querySelector('.agent-chip-workers')?.textContent).toBe('+3 workers');
+  });
 });
 
 describe('agent presence layer', () => {

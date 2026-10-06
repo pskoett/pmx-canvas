@@ -497,7 +497,24 @@ export class AgentPresenceRegistry {
     }
     if (input.focusNodeId !== undefined) stored.focusNodeId = input.focusNodeId;
     if (input.parentAgentId !== undefined) stored.parentAgentId = input.parentAgentId;
-    if (input.cursor !== undefined) stored.cursor = input.cursor;
+    if (input.cursor !== undefined) {
+      // A MOVING cursor is the agent visibly working: it keeps a live explicit
+      // `tooling` from settling (a host streaming cursor moves after one
+      // `tooling` report read as Idle within seconds). A stationary heartbeat
+      // is not activity, and `thinking` keeps its own longer clock (below).
+      const moved =
+        input.cursor !== null && (stored.cursor?.x !== input.cursor.x || stored.cursor?.y !== input.cursor.y);
+      if (
+        moved &&
+        input.phase === undefined &&
+        stored.phase === 'tooling' &&
+        stored.toolingUntilMs !== null &&
+        stored.toolingUntilMs > now
+      ) {
+        stored.toolingUntilMs = now + PRESENCE_TOOLING_SETTLE_MS;
+      }
+      stored.cursor = input.cursor;
+    }
     if (input.contextUsage !== undefined) stored.contextUsage = input.contextUsage;
     if (input.phase === 'tooling' && input.derivedTooling) {
       // Copilot's finding: an op-derived tooling touch used to CLOBBER the
