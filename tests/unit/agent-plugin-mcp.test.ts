@@ -26,6 +26,7 @@ let client: Client;
 let transport: StdioClientTransport;
 let occupied: ReturnType<typeof Bun.serve>;
 let stderrBytes = 0;
+let stderrText = '';
 
 beforeAll(async () => {
   for (const path of [plugin, workspace, otherWorkspace]) mkdirSync(path);
@@ -65,6 +66,7 @@ export function ensurePmxServer(root, input) { return ensure(root, input, runtim
   // Drain stderr: an unread pipe fills (small on Windows) and blocks the connector's next write.
   transport.stderr?.on('data', (chunk: Buffer) => {
     stderrBytes += chunk.length;
+    stderrText += chunk.toString();
   });
   await client.connect(transport);
 });
@@ -240,6 +242,17 @@ describe('portable plugin MCP workspace connector', () => {
           (e) => console.log('DBG', label, 'rejected', Date.now() - t, String(e).slice(0, 200)),
         );
       }
+      await Bun.sleep(3000);
+      {
+        const t = Date.now();
+        await client
+          .callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'y' } }, undefined, { timeout: 8000 })
+          .then(
+            (r) => console.log('DBG after-wait resolved', Date.now() - t, JSON.stringify(r).slice(0, 200)),
+            (e) => console.log('DBG after-wait rejected', Date.now() - t, String(e).slice(0, 200)),
+          );
+      }
+      console.log('DBG stderr', JSON.stringify(stderrText.slice(-3000)));
       await expect(
         client.callTool({
           name: 'canvas_node',
