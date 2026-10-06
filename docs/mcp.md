@@ -362,6 +362,11 @@ as a writer operation or refreshing agent presence. Viewport translation uses
 screen-space canvas-area coordinates (`screen = world * scale + viewport`). Fit
 dimensions and padding likewise refer to the canvas area after excluding the
 tool rail, top bar, and surrounding page chrome—not the full browser window.
+The canvas area starts right of the 52 px tool rail and below the 44 px top bar
+in the default layout, so world `(wx, wy)` lands at browser window point
+`(52 + wx * scale + x, 44 + wy * scale + y)`. To set the camera directly, use
+HTTP `POST /api/canvas/viewport` with `{x, y, scale}` or with `{center: {x, y},
+scale?}` to centre a world point in the canvas area (see `docs/http-api.md`).
 Use `canvas_ax_state { action: "set-presence", cursor, focusNodeId }` when the
 agent intends to publish its own cursor or attention target.
 

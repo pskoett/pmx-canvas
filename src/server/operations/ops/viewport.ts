@@ -15,7 +15,13 @@
 import { z } from 'zod';
 import { tourSchema, derivedTour } from '../../../shared/tour.js';
 import { canvasState } from '../../canvas-state.js';
-import { arrangeCanvasNodes, clearCanvas, fitCanvasView, setClientViewportSize } from '../../canvas-operations.js';
+import {
+  arrangeCanvasNodes,
+  clearCanvas,
+  fitCanvasView,
+  getClientViewportSize,
+  setClientViewportSize,
+} from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { closeNodeAppSession, isRecord } from './nodes.js';
@@ -230,6 +236,10 @@ const viewportSetShape = {
   x: z.unknown().optional().describe('Viewport x offset'),
   y: z.unknown().optional().describe('Viewport y offset'),
   scale: z.unknown().optional().describe('Viewport zoom scale'),
+  center: z
+    .unknown()
+    .optional()
+    .describe('World point {x, y} to centre in the canvas area (instead of x/y); uses scale or the current zoom'),
   recordHistory: z.unknown().optional().describe('Pass false to skip the undo-history entry'),
   clientWidth: z.unknown().optional().describe("The reporting client's window width in CSS pixels"),
   clientHeight: z.unknown().optional().describe("The reporting client's window height in CSS pixels"),
@@ -255,12 +265,26 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
     setClientViewportSize(body.clientWidth, body.clientHeight);
     // A size-only report is not a camera command. Echoing the stored camera
     // here would cancel an in-flight browser focus with its stale fallback.
-    if (![body.x, body.y, body.scale].some((value) => typeof value === 'number')) return { ok: true };
-    const next = {
+    const center = body.center;
+    if (center === undefined && ![body.x, body.y, body.scale].some((value) => typeof value === 'number'))
+      return { ok: true };
+    const scale = typeof body.scale === 'number' ? body.scale : canvasState.viewport.scale;
+    let next = {
       x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
       y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,
-      scale: typeof body.scale === 'number' ? body.scale : canvasState.viewport.scale,
+      scale,
     };
+    if (center !== undefined) {
+      if (!isRecord(center) || typeof center.x !== 'number' || typeof center.y !== 'number') {
+        throw new OperationError('center must be a world point {x, y}.');
+      }
+      if (body.x !== undefined || body.y !== undefined) throw new OperationError('Pass center or x/y, not both.');
+      // Screen-space translate (architecture rule 9): put the world point at
+      // the middle of the canvas area the browser last reported (fit's default
+      // size when no tab has reported one).
+      const area = getClientViewportSize() ?? { width: 1440, height: 900 };
+      next = { x: area.width / 2 - center.x * scale, y: area.height / 2 - center.y * scale, scale };
+    }
     if (body.recordHistory === false) {
       canvasState.withSuppressedRecording(() => {
         canvasState.setViewport(next);
@@ -269,7 +293,7 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
       canvasState.setViewport(next);
     }
     ctx.emit('canvas-viewport-update', { viewport: canvasState.viewport });
-    return { ok: true };
+    return { ok: true, viewport: canvasState.viewport };
   },
 });
 

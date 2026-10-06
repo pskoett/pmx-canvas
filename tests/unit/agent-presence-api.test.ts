@@ -179,6 +179,28 @@ describe('agent presence over HTTP', () => {
     expect(after.presences[0]).toMatchObject({ sessionId: 'codex', opCount: 0, lastSeenAt });
   });
 
+  test('a labelled camera move never books a writer (0.6.4 report: "claude-code N ops")', async () => {
+    const created = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'Camera target' }, { 'x-pmx-workbench': '1' })
+    ).json()) as { id: string };
+    const labelled = { 'x-pmx-source': 'claude-code' };
+    expect((await postJson('/api/canvas/viewport', { x: 12, y: 34, scale: 0.8 }, labelled)).ok).toBe(true);
+    expect((await postJson('/api/canvas/viewport', { center: { x: 0, y: 0 } }, labelled)).ok).toBe(true);
+    expect((await postJson('/api/canvas/fit', {}, labelled)).ok).toBe(true);
+    expect((await postJson('/api/canvas/focus', { id: created.id }, labelled)).ok).toBe(true);
+    expect((await getPresence()).presences).toEqual([]);
+
+    // The explicit presence path still publishes a cursor and focus.
+    await postJson('/api/canvas/ax/presence', {
+      source: 'claude-code',
+      cursor: { x: 5, y: 6 },
+      focusNodeId: created.id,
+    });
+    const after = await getPresence();
+    expect(after.presences).toHaveLength(1);
+    expect(after.presences[0]).toMatchObject({ opCount: 0, cursor: { x: 5, y: 6 }, focusNodeId: created.id });
+  });
+
   test('a custom writer label attaches under itself, so its own writes fold into the session (live-board finding)', async () => {
     // PMX_CANVAS_AGENT_SOURCE=claude-code: the MCP server labels its writes
     // `claude-code` AND attaches under it. Normalizing the attach through the
