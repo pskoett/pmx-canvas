@@ -1344,7 +1344,8 @@ test('opens an html node as a standalone site with the current theme', async ({ 
   const htmlNode = page.locator('.canvas-node').filter({ hasText: 'Open As Site Target' });
   await expect(htmlNode).toHaveCount(1);
 
-  await htmlNode.hover();
+  // Aim at the header rather than the asynchronously loading iframe.
+  await htmlNode.locator('.node-titlebar').hover();
   await htmlNode.getByRole('button', { name: 'More actions' }).click();
   const openButton = page.locator('.context-menu-item').filter({ hasText: 'Open in new tab' });
   await expect(openButton).toHaveCount(1);
