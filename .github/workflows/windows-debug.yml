@@ -5,16 +5,12 @@ on:
 jobs:
   win:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - name: Path diagnostics
-        run: bun run scripts/debug/win-paths.ts
-      - name: Typecheck
-        run: bun run typecheck
-      - name: Full Windows unit suite
-        run: bun test tests/unit/agent-plugin-mcp.test.ts tests/unit/copilot-runtime.test.js tests/unit/raw-hex-guard.test.ts --timeout 30000
+      - run: bun run typecheck
+      - run: bun test tests/unit --timeout 30000

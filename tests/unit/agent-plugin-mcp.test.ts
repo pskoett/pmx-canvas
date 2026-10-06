@@ -25,8 +25,6 @@ const otherWorkspace = join(root, 'other-project');
 let client: Client;
 let transport: StdioClientTransport;
 let occupied: ReturnType<typeof Bun.serve>;
-let stderrBytes = 0;
-let stderrText = '';
 
 beforeAll(async () => {
   for (const path of [plugin, workspace, otherWorkspace]) mkdirSync(path);
@@ -63,11 +61,6 @@ export function ensurePmxServer(root, input) { return ensure(root, input, runtim
     env: { ...env, PMX_CANVAS_PORT: String(occupied.port), PMX_CANVAS_DISABLE_BROWSER_OPEN: '1' },
     stderr: 'pipe',
   });
-  // Drain stderr: an unread pipe fills (small on Windows) and blocks the connector's next write.
-  transport.stderr?.on('data', (chunk: Buffer) => {
-    stderrBytes += chunk.length;
-    stderrText += chunk.toString();
-  });
   await client.connect(transport);
 });
 
@@ -103,7 +96,6 @@ describe('portable plugin MCP workspace connector', () => {
   test('rejects relative roots and the plugin installation directory without creating state', async () => {
     for (const workspaceRoot of ['.', plugin, join(plugin, '..project')]) {
       const result = await client.callTool({ name: 'canvas_connect_workspace', arguments: { workspaceRoot } });
-      console.log('DBG root', workspaceRoot, JSON.stringify(result));
       expect(result.isError).toBe(true);
     }
     expect(existsSync(join(plugin, '.pmx-canvas'))).toBe(false);
@@ -120,7 +112,6 @@ describe('portable plugin MCP workspace connector', () => {
       name: 'canvas_connect_workspace',
       arguments: { workspaceRoot: workspace },
     });
-    console.log('DBG connect', workspace, JSON.stringify(connection));
     expect(connection.isError).not.toBe(true);
     const content = connection.structuredContent;
     if (!content || typeof content !== 'object' || !('serverUrl' in content) || typeof content.serverUrl !== 'string') {
@@ -185,7 +176,6 @@ describe('portable plugin MCP workspace connector', () => {
       env,
       stderr: 'pipe',
     });
-    rootedTransport.stderr?.on('data', () => {});
     try {
       await rooted.connect(rootedTransport);
       let connected = false;
@@ -213,53 +203,30 @@ describe('portable plugin MCP workspace connector', () => {
       throw new Error('Missing bound server URL.');
     }
     const port = new URL(content.serverUrl).port;
-    const t0 = Date.now();
     execFileSync(process.execPath, ['run', resolve('src/cli/index.ts'), 'serve', 'stop', `--port=${port}`], {
       cwd: workspace,
       env: { ...process.env, PMX_CANVAS_WORKSPACE_ROOT: workspace },
       timeout: 15_000,
       stdio: 'pipe',
     });
-    console.log('DBG stop ms', Date.now() - t0);
     const foreign = Bun.serve({
       hostname: '127.0.0.1',
       port: Number(port),
       fetch: () => Response.json({ ok: true, workspace: otherWorkspace }),
     });
-    console.log('DBG foreign up ms', Date.now() - t0, 'stderr bytes so far', stderrBytes);
+    // Await the rejection itself: on Windows, `expect(promise).rejects` blocks this process's
+    // event loop, so `foreign` (served here) never answers the connector's probe and it times out.
+    const refusal = (request: Promise<unknown>) => request.then(() => 'resolved', (error) => String(error));
     try {
-      const tCall = Date.now();
-      const leak = client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'Must not leak' } }).then((r) => console.log('DBG call resolved', Date.now() - tCall, JSON.stringify(r)), (e) => console.log('DBG call rejected', Date.now() - tCall, String(e)));
-      await leak;
-      for (const [label, run] of [
-        ['call2', () => client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'x' } })],
-        ['read', () => client.readResource({ uri: 'canvas://layout' })],
-        ['list', () => client.listResources()],
-      ] as const) {
-        const t = Date.now();
-        await run().then(
-          (r) => console.log('DBG', label, 'resolved', Date.now() - t, JSON.stringify(r).slice(0, 200)),
-          (e) => console.log('DBG', label, 'rejected', Date.now() - t, String(e).slice(0, 200)),
-        );
-      }
-      await Bun.sleep(3000);
-      {
-        const t = Date.now();
-        await client
-          .callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown', title: 'y' } }, undefined, { timeout: 8000 })
-          .then(
-            (r) => console.log('DBG after-wait resolved', Date.now() - t, JSON.stringify(r).slice(0, 200)),
-            (e) => console.log('DBG after-wait rejected', Date.now() - t, String(e).slice(0, 200)),
-          );
-      }
-      console.log('DBG stderr', JSON.stringify(stderrText.slice(-3000)));
-      await expect(
-        client.callTool({
-          name: 'canvas_node',
-          arguments: { action: 'add', type: 'markdown', title: 'Must not leak' },
-        }),
-      ).rejects.toThrow('another workspace');
-      await expect(client.readResource({ uri: 'canvas://layout' })).rejects.toThrow('another workspace');
+      expect(
+        await refusal(
+          client.callTool({
+            name: 'canvas_node',
+            arguments: { action: 'add', type: 'markdown', title: 'Must not leak' },
+          }),
+        ),
+      ).toContain('another workspace');
+      expect(await refusal(client.readResource({ uri: 'canvas://layout' }))).toContain('another workspace');
     } finally {
       foreign.stop(true);
     }
