@@ -1,8 +1,9 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { toggleContextPin } from '../state/canvas-store';
 import {
   activityLensNodeIds,
   dismissSessionReceipt,
+  RECEIPT_AUTO_DISMISS_MS,
   type ReceiptNode,
   type SessionContextActivity,
   sessionReceipt,
@@ -17,7 +18,9 @@ import { workbenchFetch } from '../state/workbench-transport';
  * at the canvas region's top-right after a session ends — what the session did
  * (items / done / vetoed), the pre-session snapshot (taken at attach, so View
  * diff shows the session's changes and a restore undoes them), and History
- * (the snapshots panel). Client-side state, cleared on dismiss.
+ * (the snapshots panel). Client-side state, cleared on dismiss — or after
+ * RECEIPT_AUTO_DISMISS_MS untouched (see applySessionReceipt for which
+ * endings show at all and how a burst merges into one card).
  */
 
 export interface DiffSummary {
@@ -119,6 +122,22 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
   const receipt = sessionReceipt.value;
   const [diff, setDiff] = useState<DiffSummary | null>(null);
   const [loadingDiff, setLoadingDiff] = useState(false);
+  // Pointer over / focus inside pauses the timer; any click keeps the card.
+  const [paused, setPaused] = useState(false);
+  const [kept, setKept] = useState(false);
+  useEffect(() => {
+    // A new or merged receipt: the old diff no longer describes it.
+    setDiff(null);
+    if (!receipt) {
+      setPaused(false);
+      setKept(false);
+    }
+  }, [receipt]);
+  useEffect(() => {
+    if (!receipt || paused || kept) return;
+    const timer = setTimeout(dismissSessionReceipt, RECEIPT_AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [receipt, paused, kept]);
   if (!receipt) return null;
 
   const viewDiff = async () => {
@@ -143,17 +162,28 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
     : `${String(ended.getHours()).padStart(2, '0')}:${String(ended.getMinutes()).padStart(2, '0')}`;
 
   return (
-    <div class="session-receipt" data-testid="session-receipt" role="status">
+    <div
+      class="session-receipt"
+      data-testid="session-receipt"
+      role="status"
+      onPointerEnter={() => setPaused(true)}
+      onPointerLeave={() => setPaused(false)}
+      onFocusIn={() => setPaused(true)}
+      onFocusOut={() => setPaused(false)}
+      onPointerDown={() => setKept(true)}
+    >
       <div class="session-receipt-head">
         <span class="session-receipt-dot" aria-hidden="true" />
         <span class="session-receipt-title">
-          {receipt.endedBy === 'human'
-            ? 'Session ended by you'
-            : receipt.endedBy === 'idle-timeout'
-              ? 'Session ended — idle timeout'
-              : receipt.endedBy === 'agent'
-                ? 'Session ended by the agent'
-                : 'Session ended'}
+          {receipt.sessions > 1
+            ? `${receipt.sessions} sessions ended`
+            : receipt.endedBy === 'human'
+              ? 'Session ended by you'
+              : receipt.endedBy === 'idle-timeout'
+                ? 'Session ended — idle timeout'
+                : receipt.endedBy === 'agent'
+                  ? 'Session ended by the agent'
+                  : 'Session ended'}
           {endedLabel ? ` · ${endedLabel}` : ''}
         </span>
         <button
@@ -165,6 +195,7 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           <IconClose />
         </button>
       </div>
+      {receipt.sessions > 1 && <div class="session-receipt-who">{receipt.labels.join(', ')}</div>}
       <div class="session-receipt-tiles">
         <div class="session-receipt-tile">
           <span class="session-receipt-tile-label">Items</span>
@@ -195,13 +226,15 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           </div>
         )}
       </div>
-      <ReceiptContext context={receipt.context} label={receipt.label} />
+      <ReceiptContext context={receipt.context} label={receipt.labels.join(', ')} />
       <div class="session-receipt-note">
-        {receipt.snapshot
-          ? 'A snapshot of the board from before this session is saved — restore it to undo the session.'
-          : receipt.unchanged
-            ? 'This session changed nothing on the board — no snapshot kept.'
-            : 'The board was empty when the session started — nothing to restore.'}
+        {receipt.sessions > 1
+          ? 'History has each session’s diff and the snapshot from before it.'
+          : receipt.snapshot
+            ? 'A snapshot of the board from before this session is saved — restore it to undo the session.'
+            : receipt.context.created.length === 0 && receipt.context.edited.length === 0
+              ? 'The board itself did not change — nothing to restore.'
+              : 'The board was empty when the session started — nothing to restore.'}
       </div>
       {diff && (
         <div class="session-receipt-diff" data-testid="session-receipt-diff">

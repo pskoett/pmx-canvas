@@ -125,3 +125,23 @@ test('only changed top-level endings show receipts; workers retain snapshots', a
   await receipt.getByRole('button', { name: 'Dismiss receipt' }).click();
   await expect(receipt).toHaveCount(0);
 });
+
+test('top-level sessions ending together share one receipt that points at History', async ({ page, request }) => {
+  await page.goto('/workbench');
+  const receipt = page.getByTestId('session-receipt');
+  const presence = (agentId: string, attached: boolean) =>
+    post(request, 'ax/presence', { source: 'api', agentId, label: agentId, attached });
+  await post(request, 'node', { type: 'markdown', title: 'Baseline', content: 'Before', x: 100, y: 100 });
+  await presence('alpha', true);
+  await presence('beta', true);
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'true');
+  await post(request, 'node', { type: 'markdown', title: 'Alpha result', content: 'A', x: 400, y: 100 });
+  await post(request, 'node', { type: 'markdown', title: 'Beta result', content: 'B', x: 700, y: 100 });
+  await presence('alpha', false);
+  await presence('beta', false);
+  await expect(receipt.locator('.session-receipt-title')).toContainText('2 sessions ended');
+  await expect(receipt.locator('.session-receipt-who')).toHaveText('alpha, beta');
+  await expect(receipt).toHaveCount(1);
+  await expect(receipt.getByRole('button', { name: 'View diff' })).toHaveCount(0);
+  await expect(receipt).toContainText('History has each session');
+});

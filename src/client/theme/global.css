@@ -2867,6 +2867,11 @@ body,
   background: var(--c-surface-hover);
   color: var(--c-text);
 }
+.session-receipt-who {
+  margin: 2px 0 0 15px;
+  font-size: 11px;
+  color: var(--c-muted);
+}
 .session-receipt-tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

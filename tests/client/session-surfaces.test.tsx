@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { CommandBar } from '../../src/client/canvas/CommandBar.tsx';
 import { SessionPanel } from '../../src/client/canvas/SessionPanel.tsx';
@@ -11,7 +11,12 @@ import {
   replaceContextPinsFromServer,
 } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
-import { applySessionReceipt, resetSessionStore, sessionReceipt } from '../../src/client/state/session-store.ts';
+import {
+  applySessionReceipt,
+  RECEIPT_AUTO_DISMISS_MS,
+  resetSessionStore,
+  sessionReceipt,
+} from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 // rail-chrome-v2 phase 5: the human's steering surface while a session is
@@ -477,5 +482,64 @@ describe('session receipt', () => {
 
     act(() => applySessionReceipt({ counts: { items: 1 } }));
     expect(sessionReceipt.value).toBeNull();
+  });
+
+  test('a read-only session says the board did not change, not that it was empty', () => {
+    act(() => applySessionReceipt({ ...ended, snapshot: null, context: { read: [{ id: 'n1', title: 'Brief' }] } }));
+    const { getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    expect(getByTestId('session-receipt').textContent).toContain('The board itself did not change');
+  });
+
+  test('endings while a receipt is up merge into one card that points at History', () => {
+    act(() => applySessionReceipt({ ...ended, context: { created: [{ id: 'a', title: 'Alpha' }] } }));
+    act(() =>
+      applySessionReceipt({
+        ...ended,
+        label: 'Codex',
+        endedAt: '2026-08-23T14:05:02.000Z',
+        counts: { items: 5, done: 4, cancelled: 0, rejected: 0, held: 0 },
+        snapshot: { id: 'snap-2', name: 'Before session · Codex · 14:01' },
+        context: { created: [{ id: 'b', title: 'Beta' }] },
+      }),
+    );
+    // A worker or unchanged ending neither opens nor extends the card.
+    act(() => applySessionReceipt({ ...ended, label: 'Worker', parentAgentId: 'Codex' }));
+    act(() => applySessionReceipt({ ...ended, label: 'Idle', unchanged: true }));
+    const { getByTestId, queryByText, container } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    const card = getByTestId('session-receipt');
+    expect(card.querySelector('.session-receipt-title')?.textContent).toStartWith('2 sessions ended');
+    expect(card.querySelector('.session-receipt-who')?.textContent).toBe('Copilot, Codex');
+    expect([...card.querySelectorAll('.session-receipt-tile-value')].map((t) => t.textContent)).toEqual(['5', '4']);
+    expect(card.querySelector('[data-row="created"] .session-receipt-context-items')?.textContent).toBe('Alpha, Beta');
+    // No single snapshot undoes two sessions: no View diff, History has each one.
+    expect(queryByText('View diff')).toBeNull();
+    expect(card.textContent).toContain('History has each session');
+    expect(container.querySelectorAll('[data-testid="session-receipt"]')).toHaveLength(1);
+  });
+
+  describe('auto-dismiss', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    test('an untouched receipt goes away on its own', () => {
+      act(() => applySessionReceipt(ended));
+      render(<SessionReceipt onOpenSnapshots={() => {}} />);
+      act(() => jest.advanceTimersByTime(RECEIPT_AUTO_DISMISS_MS - 1));
+      expect(sessionReceipt.value).not.toBeNull();
+      act(() => jest.advanceTimersByTime(1));
+      expect(sessionReceipt.value).toBeNull();
+    });
+
+    test('hover pauses the timer; a click keeps the card until dismissed', () => {
+      act(() => applySessionReceipt(ended));
+      const { getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+      act(() => fireEvent.pointerEnter(getByTestId('session-receipt')));
+      act(() => jest.advanceTimersByTime(RECEIPT_AUTO_DISMISS_MS * 2));
+      expect(sessionReceipt.value).not.toBeNull();
+      act(() => fireEvent.pointerLeave(getByTestId('session-receipt')));
+      act(() => fireEvent.pointerDown(getByTestId('session-receipt')));
+      act(() => jest.advanceTimersByTime(RECEIPT_AUTO_DISMISS_MS * 2));
+      expect(sessionReceipt.value).not.toBeNull();
+    });
   });
 });

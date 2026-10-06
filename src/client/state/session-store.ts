@@ -377,16 +377,19 @@ export async function endSession(session: { source: string; agentId: string | nu
 }
 
 export interface SessionReceipt {
-  label: string;
+  /** Distinct labels of the sessions on this card (one unless merged). */
+  labels: string[];
+  /** Endings folded into this card (see applySessionReceipt). */
+  sessions: number;
   endedAt: string;
   /** Why it ended — the receipt should answer this, not leave the human asking. */
   endedBy?: 'human' | 'agent' | 'idle-timeout';
-  /** The session changed nothing on the board (its pre-session snapshot was dropped). */
-  unchanged?: boolean;
   /** Cancelled (withdrawn items), rejected (human's explicit no on a gate), and
    * held (TTL expired unanswered) are three different outcomes — never one
    * "vetoed" pile. */
   counts: { items: number; done: number; cancelled: number; rejected: number; held: number };
+  /** The pre-session snapshot; null when the board was empty at attach, or on a
+   * merged receipt (each session's snapshot is in History). */
   snapshot: { id: string; name: string } | null;
   /** What the session did with context (docs/design/AgentContext.dc.html receipt). */
   context: SessionContextActivity;
@@ -435,22 +438,63 @@ export function setActivityLens(on: boolean): void {
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
 export const sessionReceipt = signal<SessionReceipt | null>(null);
 
+/**
+ * How long an untouched receipt stays up. Hovering or focusing the card pauses
+ * it; using it (any click) keeps it until dismissed. Safe to let go: History
+ * keeps each changed session's snapshot with View diff and Restore.
+ */
+export const RECEIPT_AUTO_DISMISS_MS = 10_000;
+
+function unionNodes(a: ReceiptNode[], b: ReceiptNode[]): ReceiptNode[] {
+  const seen = new Set(a.map((node) => node.id));
+  return [...a, ...b.filter((node) => !seen.has(node.id))];
+}
+
+/**
+ * Endings that arrive while a receipt is still up fold into it, so a burst of
+ * sessions shows one card. A merged card carries no single snapshot — no one
+ * snapshot undoes overlapping sessions — and points at History instead.
+ */
+function mergeReceipts(open: SessionReceipt, next: SessionReceipt): SessionReceipt {
+  return {
+    labels: [...new Set([...open.labels, ...next.labels])],
+    sessions: open.sessions + 1,
+    endedAt: next.endedAt,
+    endedBy: open.endedBy === next.endedBy ? next.endedBy : undefined,
+    // Board-wide counts: the latest frame is the current board.
+    counts: next.counts,
+    snapshot: null,
+    context: {
+      read: unionNodes(open.context.read, next.context.read),
+      pinned: unionNodes(open.context.pinned, next.context.pinned),
+      created: unionNodes(open.context.created, next.context.created),
+      edited: unionNodes(open.context.edited, next.context.edited),
+      changedSinceRead: unionNodes(open.context.changedSinceRead, next.context.changedSinceRead),
+    },
+  };
+}
+
+/**
+ * The receipt rule: a pop-up only for a top-level session that changed the
+ * board or read/pinned context. `unchanged` endings and worker endings
+ * (`parentAgentId` set — their orchestrator's receipt covers the board since
+ * it attached) stay in the timeline and History only, and never replace or
+ * extend an open receipt. Qualifying endings while one is up merge into it.
+ */
 export function applySessionReceipt(data: Record<string, unknown>): void {
   const counts = data.counts as Partial<SessionReceipt['counts']> | undefined;
   const snapshot = data.snapshot as SessionReceipt['snapshot'] | undefined;
   const context = data.context as Record<string, unknown> | undefined;
   if (typeof data.label !== 'string' || typeof data.endedAt !== 'string') return;
-  // Keep history/timeline intact, but only interrupt for a changed top-level
-  // session. Quiet endings must not replace an existing useful receipt.
   if (data.unchanged === true || typeof data.parentAgentId === 'string') return;
-  sessionReceipt.value = {
-    label: data.label,
+  const next: SessionReceipt = {
+    labels: [data.label],
+    sessions: 1,
     endedAt: data.endedAt,
     endedBy:
       data.endedBy === 'human' || data.endedBy === 'agent' || data.endedBy === 'idle-timeout'
         ? data.endedBy
         : undefined,
-    unchanged: data.unchanged === true,
     counts: {
       items: Number(counts?.items ?? 0) || 0,
       done: Number(counts?.done ?? 0) || 0,
@@ -468,6 +512,9 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
       changedSinceRead: receiptNodes(context?.changedSinceRead),
     },
   };
+  const open = sessionReceipt.value;
+  sessionReceipt.value = open ? mergeReceipts(open, next) : next;
+  if (open && activityLensNodeIds.value) setActivityLens(true);
 }
 
 export function dismissSessionReceipt(): void {
