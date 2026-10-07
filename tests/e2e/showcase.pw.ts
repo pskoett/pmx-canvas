@@ -99,7 +99,7 @@ async function buildArtifact(request: PwRequest, body: Record<string, unknown>):
 
 // ── Test ─────────────────────────────────────────────────────
 
-test('SDLC showcase with all node types', async ({ page, request }) => {
+test('SDLC showcase with all node types', async ({ page, request }, info) => {
   test.setTimeout(120_000);
   await clear(request);
 
@@ -1082,9 +1082,9 @@ body { margin: 0; background: #0f0f1a; }
   // Check edges
   expect(state.edges.length).toBeGreaterThanOrEqual(17);
 
-  // Take the hero screenshot
+  // Capture test evidence without changing the README or plugin preview inputs.
   await page.screenshot({
-    path: 'docs/screenshot.png',
+    path: info.outputPath('screenshot.png'),
     fullPage: false,
   });
 });

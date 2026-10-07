@@ -245,9 +245,11 @@ with `ok: true`, the published tarball is intact end-to-end.
   are workspace-local cache and must not be committed; they're gitignored
   but still appear in `git status`. Use `git restore --staged` if they
   sneak into a `git add -A`.
-- **`docs/screenshot.png`** updates whenever the showcase E2E runs.
-  Don't bake those updates into a release commit unless the screenshot
-  in `Readme.md` actually needs the refresh.
+- **Showcase screenshots** go to Playwright's per-test output directory as
+  `screenshot.png`, leaving tracked images unchanged. To intentionally refresh
+  the README image, copy that capture to `docs/screenshot.png`, run
+  `bun run build:plugin`, and commit both the source image and
+  `plugins/pmx-canvas/assets/preview.png` together.
 - **CHANGELOG dates**: use the actual publish date in the
   `## [version] - YYYY-MM-DD` header, not the day you wrote the entry.
 - **npm publish is asynchronous now**: a successful publish prints "Your
