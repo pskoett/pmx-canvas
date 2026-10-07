@@ -4,6 +4,7 @@ import { type BoardSummary } from '../state/boards-store';
  * same place, at board level. Pinned, the board's README and pinned cards reach
  * the agent's brief whichever board is open.
  */
-export declare function BoardPinButton({ board }: {
+export declare function BoardPinButton({ board, inNodeHeader }: {
     board: BoardSummary;
+    inNodeHeader?: boolean;
 }): import("preact/src").JSX.Element;

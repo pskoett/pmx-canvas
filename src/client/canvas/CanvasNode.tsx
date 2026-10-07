@@ -1,3 +1,5 @@
+import { boardList } from '../state/boards-store';
+import { BoardPinButton } from './BoardPinButton';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
@@ -128,6 +130,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isActive = activeNodeId.value === node.id;
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
+  const portalTarget =
+    node.type === 'board' && typeof node.data.boardId === 'string'
+      ? (boardList.value.find((board) => board.id === node.data.boardId) ?? null)
+      : null;
   const isAttentionPulse = attentionPulseNodeIds.value.has(node.id);
   const isNeighbor = !isActive && activeNeighborNodeIds.value.has(node.id);
   const searchSet = searchHighlightIds.value;
@@ -689,22 +695,28 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   <IconExpand size={14} />
                 </button>
               )}
-              <button
-                type="button"
-                class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleContextPin(node.id);
-                }}
-                title={isContextPinned ? 'Remove from context' : 'Add to context'}
-                aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
-                aria-pressed={isContextPinned}
-              >
-                <span class="ctx-pin-mark">
-                  <IconPin />
-                  {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
-                </span>
-              </button>
+              {node.type === 'board' ? (
+                // A portal's one pin is its board's pin: the linked board joins the
+                // agent's working set (BoardPins.dc.html), not this card.
+                portalTarget && <BoardPinButton board={portalTarget} inNodeHeader />
+              ) : (
+                <button
+                  type="button"
+                  class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleContextPin(node.id);
+                  }}
+                  title={isContextPinned ? 'Remove from context' : 'Add to context'}
+                  aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                  aria-pressed={isContextPinned}
+                >
+                  <span class="ctx-pin-mark">
+                    <IconPin />
+                    {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
                 class="node-hover-control"

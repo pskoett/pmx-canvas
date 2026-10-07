@@ -149,12 +149,6 @@
 
 .board-node, .md-card-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .board-node-content { flex: 1; min-height: 0; overflow: auto; padding: 16px; overflow-wrap: anywhere; }
-.board-node-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
 .board-node-label { color: var(--c-dim); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
 .board-node-title { display: block; font-size: 17px; line-height: 1.35; margin-bottom: 6px; }
 .board-node-meta { color: var(--c-dim); font-size: 11px; line-height: 1.5; }

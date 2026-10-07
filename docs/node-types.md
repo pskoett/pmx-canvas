@@ -1,6 +1,7 @@
 # Node types
 
-`board` is a native text-only link. Set `data.boardId` to the durable target ID.
+`board` is a native text-only link. Set `data.boardId` to the durable target ID. Its header pin pins the
+linked board into the agent's working set (`canvas_board { action: "pin" }`), not the portal card.
 Titles resolve from that ID, so renames and folder moves are safe; deleted
 targets render explicitly as missing. It is not an iframe or a cross-board card
 edge. Static exports lock the card and intentionally do not embed the target

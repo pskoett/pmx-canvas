@@ -6,7 +6,7 @@ import { type BoardSummary, setBoardPinned } from '../state/boards-store';
  * same place, at board level. Pinned, the board's README and pinned cards reach
  * the agent's brief whichever board is open.
  */
-export function BoardPinButton({ board }: { board: BoardSummary }) {
+export function BoardPinButton({ board, inNodeHeader = false }: { board: BoardSummary; inNodeHeader?: boolean }) {
   const pinned = !!board.pin;
   // No board name in the label: rows already name the board, and a name here would
   // make role+name lookups for the board's own open button ambiguous.
@@ -14,7 +14,8 @@ export function BoardPinButton({ board }: { board: BoardSummary }) {
   return (
     <button
       type="button"
-      class={`ctx-pin-btn board-pin-btn${pinned ? ' ctx-pin-active' : ''}`}
+      // In a node header it takes the header's own control sizing, like the card pin it replaces.
+      class={`ctx-pin-btn${inNodeHeader ? '' : ' board-pin-btn'}${pinned ? ' ctx-pin-active' : ''}`}
       onClick={(event) => {
         event.stopPropagation();
         void setBoardPinned(board.id, !pinned);

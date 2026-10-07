@@ -183,6 +183,11 @@ the same change.
   outcome history live in the card's ⋯ → Lifecycle tab, folder settings and Home.
   "Unknown" appears only on Home folders, never on a card. Why: the brief tells the agent
   to doubt a due card, so the human sees that on the card too.
+- **A portal's pin is its board's pin** (decided with the maintainer 2026-10-07). On a
+  portal card the header pin, in the usual place, pins the linked board into the agent's
+  working set (README and pinned cards in full, on every board); there is no separate card
+  pin, which would only send the portal's summary while this board is open. Every other
+  card keeps its card pin.
 - **Relations are the edge layer, not node types.** Design work adds no node type;
   the vision's own `ask` node (move 3) is separate.
 - **Any size, from a side pane to a full window.** The workbench lives in narrow agent-host
