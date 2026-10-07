@@ -29,22 +29,21 @@ no tagging. Nothing here needs a model, accounts or an external service.
 
 ## Prerequisite
 
-**Board folders.** Folders are the decided hierarchy (2026-10-06). Today a board has one flat
-Home grouping, its `category` string (`POST/PATCH /api/canvas/boards` "file under a category on
-Home"), which is a single folder level by another name and collides with this plan's meaning of
-"category". Slice 0 turns it into nested folders: a `folders` table (id, parent, name, order),
-`boards.folder_id` migrated from the existing `category` values, Home grouping per
-`Home.dc.html` (Folders), and `canvas_board` folder actions across PmxCanvas, HTTP, MCP and CLI.
-The board field is renamed to folder in all four layers (no alias), so "category" means only the
-knowledge category from here on.
+**Board folders.** Folders are the decided hierarchy (2026-10-06), and they already exist: a
+board's `category` field is a nested folder path on Home (e.g. `Engineering/Canvas`, up to 8
+levels; `canvas_board update`, `pmx-canvas board category`). Its name collides with this plan's
+knowledge category, so slice 0 renames it to `folder` in all four layers (no alias) and adds a
+place to store per-folder properties (the folder's knowledge category and lifecycle overrides),
+keyed by folder path.
 
 ## Slices
 
 Each slice is its own commit and leaves the suite green. Design ships with its function.
 
-### 0. Board folders (if not already built)
+### 0. Rename board category to folder
 
-As above. Moving a board between folders is an ordinary, undoable write.
+As above. Moving a board between folders stays an ordinary write; the brief's same-folder
+discovery tier keeps working on the renamed field.
 
 ### 1. Data: categories, inheritance, lifecycle, review records (no UI)
 

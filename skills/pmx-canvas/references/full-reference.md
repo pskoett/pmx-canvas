@@ -443,7 +443,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` | Boards, shared-workbench switching, README designation, links/backlinks, and inactive copies |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, shared-workbench switching, README designation, links/backlinks, inactive copies, and board pins |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
 | `canvas_query` | `context` · `search` · `layout` · `validate` | Read the budgeted cross-board brief, find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |

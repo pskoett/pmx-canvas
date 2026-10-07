@@ -258,6 +258,9 @@ export declare class PmxCanvas extends EventEmitter {
         category?: string | null;
     }): Promise<void>;
     setBoardReadme(id: string, readmeNodeId: string | null): Promise<void>;
+    /** Pin a board into the agent's working set (its README and pinned cards reach every brief). */
+    pinBoard(id: string, reason?: string): Promise<void>;
+    unpinBoard(id: string): Promise<void>;
     createBoardFrom(input: {
         sourceBoardId: string;
         name: string;

@@ -336,6 +336,8 @@ pmx-canvas board open --home                   # return the shared workbench to 
 pmx-canvas board rename <board-id> "New name"
 pmx-canvas board create "Q4 planning" --category Planning
 pmx-canvas board category <board-id> "Planning/Quarterly" # nested folders; --clear unfiles it
+pmx-canvas board pin <board-id> --reason "Q4 rests on it" # join the agent's working set
+pmx-canvas board unpin <board-id>
 pmx-canvas board from <source-id> "Follow-up" --preview
 pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structure
 ```
@@ -343,7 +345,8 @@ pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structu
 Commands write to the board open in the workbench. `board open` switches the
 shared visible board, not a private CLI target. Verify its returned
 `activeBoardId` before writing; another participant can switch it later.
-Deletion remains human-only. `board from`
+A pinned board's README and pinned cards reach the agent's brief whichever board is open; it
+is read-only context, never a write target. Deletion remains human-only. `board from`
 excludes `prompt`, `response`, `trace`, and `mcp-app` cards; selected reusable
 cards get fresh IDs. `--structure` includes group frames; edges between copied
 cards are retained automatically. `--readme` carries the designated README. The new board remains inactive and

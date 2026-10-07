@@ -2,7 +2,16 @@ import { summarizeNodeForAgentContext } from '../shared/agent-context.js';
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
 import { findNeighborhoods } from './spatial-analysis.js';
 
-export type ContextBriefReason = 'pinned' | 'near' | 'changed' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+export type ContextBriefReason =
+  | 'pinned'
+  | 'near'
+  | 'changed'
+  | 'pinned-board'
+  | 'human'
+  | 'ask'
+  | 'steer'
+  | 'linked'
+  | 'category';
 
 /** A near entry carries a short summary, never full content: pin the node to send that. */
 export const NEAR_SUMMARY_LENGTH = 280;
@@ -26,6 +35,14 @@ export interface ContextBriefLibraryBoard {
   linkIds: string[];
 }
 
+/** A board in the working set (vision move 0a): its README and pinned cards, in full. */
+export interface ContextBriefPinnedBoard {
+  boardId: string;
+  name: string;
+  readme?: { nodeId: string; title: string; text: string; summary: string };
+  cards: Array<{ nodeId: string; title: string; text: string }>;
+}
+
 export interface ContextBriefInput {
   activeBoard: { boardId: string; name: string; category: string | null };
   nodes: readonly CanvasNodeState[];
@@ -36,6 +53,8 @@ export interface ContextBriefInput {
   /** null means a first read. Other values must be non-negative safe integers. */
   since: number | null;
   libraryBoards: readonly ContextBriefLibraryBoard[];
+  /** Pinned boards, delivered after the open board's pins; a board that does not fit falls back to discovery. */
+  pinnedBoards?: readonly ContextBriefPinnedBoard[];
   entries?: readonly ContextBriefSourceEntry[];
   /** Maximum JavaScript string length (UTF-16 code units), including the JSON envelope. */
   budget: number;
@@ -74,6 +93,8 @@ export interface ContextBriefDocument {
     truncated: boolean;
     omittedEntries: number;
     omittedDeletions: number;
+    /** How each pinned board arrived: in full, as discovery (README summary + pinned titles), or not at all. */
+    pinnedBoards: Array<{ boardId: string; name: string; delivered: 'full' | 'discovery' | 'omitted' }>;
   };
 }
 
@@ -144,6 +165,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   const atomic = reset === 'retention-expired';
   const firstRead = reset === 'first-read';
   let firstReadCursor: number | null = null;
+  const pinnedBoardDelivery: ContextBriefDocument['delivery']['pinnedBoards'] = [];
   const nodes = [...input.nodes].sort((a, b) => a.id.localeCompare(b.id));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const pinIds = [...new Set(input.pinnedNodeIds)].sort();
@@ -213,7 +235,13 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     });
   }
 
-  const library = [...input.libraryBoards].sort((a, b) => a.boardId.localeCompare(b.boardId));
+  const pinnedBoards = [...(input.pinnedBoards ?? [])]
+    .filter((board) => board.boardId !== input.activeBoard.boardId)
+    .sort((a, b) => a.boardId.localeCompare(b.boardId));
+  const pinnedBoardIds = new Set(pinnedBoards.map((board) => board.boardId));
+  const library = [...input.libraryBoards]
+    .filter((board) => !pinnedBoardIds.has(board.boardId))
+    .sort((a, b) => a.boardId.localeCompare(b.boardId));
   const explicit = library.filter((board) => board.linkIds.length > 0);
   const related = library.filter(
     (board) =>
@@ -290,12 +318,18 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     deletions: deleted,
     delivery: {
       truncated:
-        entries.filter((entry) => !entry.truncated).length < candidates.length || deleted.length < tombstones.length,
-      omittedEntries: candidates.length - entries.filter((entry) => !entry.truncated).length,
+        candidateCount(entries) < candidates.length ||
+        deleted.length < tombstones.length ||
+        pinnedBoardDelivery.some((board) => board.delivered !== 'full'),
+      omittedEntries: candidates.length - candidateCount(entries),
       omittedDeletions: tombstones.length - deleted.length,
+      pinnedBoards: pinnedBoardDelivery,
     },
   });
   const fits = (document: ContextBriefDocument): boolean => JSON.stringify(document).length <= budget;
+  function candidateCount(entries: readonly CompiledContextEntry[]): number {
+    return entries.filter((entry) => !entry.truncated && entry.reason !== 'pinned-board').length;
+  }
   const fitPartial = (entry: CompiledContextEntry, base = delivered): CompiledContextEntry | null => {
     let low = 0;
     let high = entry.text.length;
@@ -346,6 +380,41 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       deltaBlocked = true;
     }
   }
+  // Pinned boards follow the open board's pins: each whole in full, else as
+  // discovery (README summary + pinned titles), else omitted, and said so.
+  for (const board of pinnedBoards) {
+    const entry = (nodeId: string, title: string, text: string, titleOnly = false): CompiledContextEntry => ({
+      sourceBoardId: board.boardId,
+      nodeId,
+      reason: 'pinned-board',
+      title,
+      text,
+      ...(titleOnly ? { titleOnly: true as const } : {}),
+    });
+    const full = [
+      ...(board.readme ? [entry(board.readme.nodeId, board.readme.title, board.readme.text)] : []),
+      ...board.cards.map((card) => entry(card.nodeId, card.title, card.text)),
+    ];
+    const discovery = [
+      ...(board.readme ? [entry(board.readme.nodeId, board.readme.title, board.readme.summary)] : []),
+      ...board.cards.map((card) =>
+        entry(card.nodeId, card.title, `Pinned card title on pinned board “${board.name}”: ${card.title}`, true),
+      ),
+    ];
+    const status: { boardId: string; name: string; delivered: 'full' | 'discovery' | 'omitted' } = {
+      boardId: board.boardId,
+      name: board.name,
+      delivered: 'full',
+    };
+    pinnedBoardDelivery.push(status);
+    if (fits(makeDocument([...delivered, ...full]))) delivered.push(...full);
+    else {
+      status.delivered = 'discovery';
+      if (fits(makeDocument([...delivered, ...discovery]))) delivered.push(...discovery);
+      else status.delivered = 'omitted';
+    }
+  }
+
   const revisions = [
     ...new Set([
       ...changed.map((node) => node.contentRevision!).filter(validRevision),

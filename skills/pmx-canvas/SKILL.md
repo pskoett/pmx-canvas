@@ -23,7 +23,9 @@ Use one stable consumer ID per agent/adapter only when durable deltas are wanted
 omit it for a fresh read. Pins are highest priority, then the cards near each pin
 (reason `near`, title + short summary only). On a board larger than the budget the
 first read carries pins, then whole cards oldest first; read on with the returned
-`cursor.next` as `since` (a consumer does this for you). If a source card is clipped or near,
+`cursor.next` as `since` (a consumer does this for you). Boards the human pinned into the
+working set follow (reason `pinned-board`); `delivery.pinnedBoards` says whether each arrived
+in full or as a summary. A pinned board is context only: writes still go to the open board. If a source card is clipped or near,
 pull that card explicitly with `canvas_node { action: "get", board, id, full: true }`.
 
 **Read → check → refresh:** after reading context, inspect `canvas_ax_timeline {
@@ -238,7 +240,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads`, `read-status` |
 | `canvas_ax_delivery` | `claim`, `mark` |
-| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update` |
+| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 

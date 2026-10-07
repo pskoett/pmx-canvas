@@ -64,6 +64,12 @@ export declare function deliveredIds(payloadText: string): Set<string>;
 /** Pinned nodes whose content is in what the reader received (see `deliveredIds`). */
 export declare function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[];
 export declare function contextReadFromPayload(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds'>, payload: unknown): ContextReadInput;
+/**
+ * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
+ * pinned board that arrived in full, so "read / not read yet" works on that
+ * board too. A board that fell back to discovery delivered titles, not content.
+ */
+export declare function pinnedBoardReads(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>, payload: unknown): ContextReadInput[];
 export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS context_reads (\n    seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    id TEXT NOT NULL UNIQUE,\n    at TEXT NOT NULL,\n    channel TEXT NOT NULL,\n    resource TEXT NOT NULL,\n    source TEXT NOT NULL,\n    consumer TEXT,\n    agent_id TEXT,\n    pinned_node_ids TEXT NOT NULL DEFAULT '[]',\n    delivered_node_ids TEXT NOT NULL DEFAULT '[]',\n    bytes INTEGER NOT NULL DEFAULT 0,\n    board_id TEXT,\n    read_nodes TEXT NOT NULL DEFAULT '{}'\n  );\n";
 export declare function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null, readNodes?: Record<string, number>): ContextRead;
 /** Per node on a board, the latest agent read that delivered its content (newest row wins). */

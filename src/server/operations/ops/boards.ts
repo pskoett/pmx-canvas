@@ -1,6 +1,7 @@
 /**
  * Many boards (plan 012): board.list / board.get / board.create /
- * board.update / board.open / board.delete.
+ * board.update / board.open / board.delete, plus board.pin / board.unpin
+ * (vision move 0a: the working set across boards).
  *
  * Agents can explicitly open boards as well as list, read and create them.
  * Deletion requires the human (HUMAN_ONLY_OPS in registry.ts).
@@ -324,6 +325,66 @@ const boardCreateFromOperation = defineOperation<z.infer<typeof fromSchema>, Rec
   },
 });
 
+// ── board.pin / board.unpin ───────────────────────────────────
+// A pinned board joins the agent's working set: its README and pinned cards
+// travel in the brief whichever board is open. Pinning is context, never a
+// write target; writes still go to the open board.
+
+const pinShape = {
+  id: z.unknown().optional().describe('Board id'),
+  reason: z.unknown().optional().describe('Why this board matters; shown to the human on hover'),
+};
+const pinSchema = z.looseObject(pinShape);
+
+const boardPinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, unknown>>({
+  name: 'board.pin',
+  mutates: false,
+  input: pinSchema,
+  inputShape: pinShape,
+  http: { method: 'POST', path: '/api/canvas/boards/:id/pin' },
+  mcp: {
+    toolName: 'canvas_pin_board',
+    description:
+      "Pin a board into the agent's working set: its README and pinned cards reach the brief whichever board is open. Read-only context; writes still go to the open board.",
+    extraShape: {
+      id: z.string().describe('Board id'),
+      reason: z.string().optional().describe('Why this board matters; shown to the human on hover'),
+    },
+    formatResult: jsonResult,
+  },
+  handler: (input, ctx) => {
+    const id = typeof input.id === 'string' ? input.id.trim() : '';
+    const reason =
+      typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim().slice(0, 280) : undefined;
+    if (!canvasState.pinBoard(id, reason)) throw new OperationError(`Board "${id}" not found.`, 404);
+    emitBoardsChanged(ctx);
+    return { ok: true, ...boardsPayload() };
+  },
+});
+
+const unpinShape = { id: z.unknown().optional().describe('Board id') };
+const unpinSchema = z.looseObject(unpinShape);
+
+const boardUnpinOperation = defineOperation<z.infer<typeof unpinSchema>, Record<string, unknown>>({
+  name: 'board.unpin',
+  mutates: false,
+  input: unpinSchema,
+  inputShape: unpinShape,
+  http: { method: 'POST', path: '/api/canvas/boards/:id/unpin' },
+  mcp: {
+    toolName: 'canvas_unpin_board',
+    description: "Remove a board from the agent's working set.",
+    extraShape: { id: z.string().describe('Board id') },
+    formatResult: jsonResult,
+  },
+  handler: (input, ctx) => {
+    const id = typeof input.id === 'string' ? input.id.trim() : '';
+    if (!canvasState.unpinBoard(id)) throw new OperationError(`Board "${id}" not found.`, 404);
+    emitBoardsChanged(ctx);
+    return { ok: true, ...boardsPayload() };
+  },
+});
+
 // ── board.delete (human only) ─────────────────────────────────
 
 const deleteShape = {
@@ -354,5 +415,7 @@ export const boardOperations: Operation[] = [
   boardCreateOperation,
   boardCreateFromOperation,
   boardUpdateOperation,
+  boardPinOperation,
+  boardUnpinOperation,
   boardDeleteOperation,
 ];

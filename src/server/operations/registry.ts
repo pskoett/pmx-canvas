@@ -15,7 +15,7 @@ import { withCurrentActor } from '../attribution.js';
 import { withoutExternalMcp } from '../mcp-app-runtime.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership, describeOpTarget } from '../scope-fence.js';
-import { CONTEXT_READ_OPS, contextReadFromPayload } from '../context-reads.js';
+import { CONTEXT_READ_OPS, contextReadFromPayload, pinnedBoardReads } from '../context-reads.js';
 import { openBoardForWrite } from '../canvas-operations.js';
 import { boardsPayload } from './ops/boards.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
@@ -419,20 +419,20 @@ export async function executeOperation(
         ? withoutExternalMcp(run)
         : run());
       if (recordRead) {
+        const base = {
+          channel: 'operation' as const,
+          resource: name,
+          source: meta.source ?? 'api',
+          consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
+          agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
+        };
         canvasState.recordContextRead(
-          contextReadFromPayload(
-            {
-              channel: 'operation',
-              resource: name,
-              source: meta.source ?? 'api',
-              consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
-              agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
-              pinnedNodeIds: readPins,
-            },
-            result,
-          ),
+          contextReadFromPayload({ ...base, pinnedNodeIds: readPins }, result),
           readBoardId,
         );
+        if (name === 'context.get') {
+          for (const read of pinnedBoardReads(base, result)) canvasState.recordContextRead(read, read.boardId);
+        }
       }
       return result;
     },

@@ -12,7 +12,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getOperation, listOperations } from './registry.js';
 import { agentSourceLabel, type OperationInvoker } from './invoker.js';
 import { OperationError, type Operation, type OperationMcpToolHost } from './types.js';
-import { CONTEXT_READ_OPS, contextReadFromPayload, type ContextReadInput } from '../context-reads.js';
+import { CONTEXT_READ_OPS, contextReadFromPayload, pinnedBoardReads, type ContextReadInput } from '../context-reads.js';
 import { compositeFoldedOpNames, compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';
 
 export interface OperationToolHost extends OperationMcpToolHost {
@@ -64,6 +64,16 @@ async function invokeMcpOperation(
           text,
         ),
       );
+      if (op.name === 'context.get') {
+        const base = {
+          channel: 'operation' as const,
+          resource: op.name,
+          source: agentSourceLabel('mcp'),
+          consumer,
+          agentId: null,
+        };
+        for (const read of pinnedBoardReads(base, text)) await host.recordContextRead(read);
+      }
     } catch (error) {
       console.error('[pmx-canvas mcp] recording a context read failed:', error);
     }

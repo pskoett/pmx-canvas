@@ -7,6 +7,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- Board pins: pin a whole board into the agent's working set with `canvas_board { action: "pin" }`, `POST /api/canvas/boards/<id>/pin`, `pmx-canvas board pin` or `pinBoard()`; its README and pinned cards reach the brief whichever board is open, falling back to a summary when the budget is tight.
 - Agents can drive presentation tours: go to a stop, step next or previous, exit, and ease the camera to a node, area or viewport through `canvas_view`, the HTTP API, the SDK and `pmx-canvas tour go` / `camera move`, with reduced-motion support and no undo entries.
 
 ### Fixed

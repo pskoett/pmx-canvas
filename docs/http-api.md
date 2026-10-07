@@ -110,6 +110,14 @@ curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
 curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
   -H "Content-Type: application/json" -d '{"readmeNodeId":"<markdown-node-id>"}'
 
+# Pin a board into the agent's working set (its README and pinned cards reach every
+# brief, whichever board is open; read-only context, never a write target), or unpin it.
+# A repeat pin keeps its first attribution. Every board carries `pin` ({pinnedBy,
+# pinnedAt, reason} or null).
+curl -X POST http://localhost:4313/api/canvas/boards/<board-id>/pin \
+  -H "Content-Type: application/json" -d '{"reason":"Q4 rests on it"}'
+curl -X POST http://localhost:4313/api/canvas/boards/<board-id>/unpin
+
 # Open a board, or Home with {"id":null} — also available to agents
 curl -X POST http://localhost:4313/api/canvas/boards/open \
   -H "Content-Type: application/json" -d '{"id":"<board-id>"}'

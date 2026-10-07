@@ -121,7 +121,8 @@ function handleRemoteSseFrame(frame: string): void {
   const event = eventLine?.slice('event: '.length).trim() ?? '';
   if (!event || event === 'connected' || event === 'ping') return;
   sendCanvasResourceNotifications(
-    event === 'context-pins-changed'
+    // boards-changed covers board pins and switches, both of which change pinned context.
+    event === 'context-pins-changed' || event === 'boards-changed'
       ? 'pins'
       : event === 'ax-state-changed'
         ? 'ax'
@@ -508,7 +509,9 @@ export async function startMcpServer(): Promise<void> {
       description:
         'Content of all pinned nodes on the canvas. When the human pins nodes, ' +
         'they are telling the agent "this is what matters right now." Read this ' +
-        'resource to get structured context from the canvas.',
+        'resource to get structured context from the canvas. pinnedBoards lists the ' +
+        'boards in the working set (README summary and pinned card titles); their ' +
+        'content arrives through canvas://context.',
       mimeType: 'application/json',
     },
     async () => {
@@ -523,6 +526,15 @@ export async function startMcpServer(): Promise<void> {
 
       // Compute neighborhoods: for each pinned node, find nearby unpinned nodes
       const neighborhoods = findNeighborhoods(layout.nodes, pinnedIds);
+      const library = (await c.invoker().invoke('board.list', {})) as {
+        boards?: Array<{
+          id: string;
+          name: string;
+          pin: { pinnedBy: unknown; pinnedAt: string; reason?: string } | null;
+          summary: string | null;
+          pinnedTitles: Array<{ nodeId: string; title: string }>;
+        }>;
+      };
 
       const context = {
         pinnedCount: pinnedNodes.length,
@@ -545,6 +557,15 @@ export async function startMcpServer(): Promise<void> {
           pinnedNodeTitle: nh.pinnedNodeTitle,
           nearbyNodes: nh.neighbors,
         })),
+        pinnedBoards: (library.boards ?? [])
+          .filter((board) => board.pin)
+          .map((board) => ({
+            boardId: board.id,
+            name: board.name,
+            pin: board.pin,
+            summary: board.summary,
+            pinnedTitles: board.pinnedTitles,
+          })),
       };
 
       const text = JSON.stringify(context, null, 2);

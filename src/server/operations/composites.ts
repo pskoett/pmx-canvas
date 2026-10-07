@@ -151,8 +151,8 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_board',
     description:
-      'Boards in this workspace — the library of the human\'s and your working memory, filed in categories on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action "list" returns every board (with its category), most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it (optional category); "open" explicitly switches the shared workbench to id (null or omitted opens Home), changing the visible board and subsequent write target. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. "update" renames a board, files it under a category (category "" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with "update". Preserve an existing README unless the human asks to change it; humans can override the designation manually. Only the human deletes boards.',
-    actionSummary: 'list | get | create | create-from | open | update',
+      'Boards in this workspace — the library of the human\'s and your working memory, filed in categories on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action "list" returns every board (with its category), most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it (optional category); "open" explicitly switches the shared workbench to id (null or omitted opens Home), changing the visible board and subsequent write target. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. "update" renames a board, files it under a category (category "" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with "update". Preserve an existing README unless the human asks to change it; humans can override the designation manually. "pin" adds a board to the working set (its README and pinned cards reach your brief whichever board is open; optional reason), "unpin" removes it; a pinned board is read-only context, never a write target. Only the human deletes boards.',
+    actionSummary: 'list | get | create | create-from | open | update | pin | unpin',
     actions: {
       list: 'board.list',
       get: 'board.get',
@@ -160,6 +160,8 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
       'create-from': 'board.create-from',
       open: 'board.open',
       update: 'board.update',
+      pin: 'board.pin',
+      unpin: 'board.unpin',
     },
   },
   {

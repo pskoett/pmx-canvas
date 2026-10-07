@@ -120,6 +120,13 @@ const SCHEMA_SQL = `
     PRIMARY KEY (board_id, id)
   );
 
+  -- Board pins (vision move 0a): the workspace's working set across boards. Not part of
+  -- any board's state, so snapshots and restores never touch them.
+  CREATE TABLE IF NOT EXISTS board_pins (
+    board_id TEXT PRIMARY KEY,
+    meta TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS context_pins (
     board_id TEXT NOT NULL,
     node_id TEXT NOT NULL,
@@ -973,6 +980,8 @@ export interface CanvasBoard {
   nodeCount: number;
   /** Markdown node used as this board's introduction. */
   readmeNodeId: string | null;
+  /** Pinned into the agent's working set (vision move 0a); null when not pinned. */
+  pin: ContextPinMeta | null;
 }
 
 interface BoardListRow {
@@ -983,11 +992,12 @@ interface BoardListRow {
   last_opened_at: string | null;
   node_count: number;
   readme_node_id: string | null;
+  pin_meta: string | null;
 }
 
 const BOARD_LIST_SQL = `SELECT b.id, b.name, b.category, b.created_at, b.last_opened_at, b.readme_node_id,
-    (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count
-  FROM boards b`;
+    (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count, p.meta AS pin_meta
+  FROM boards b LEFT JOIN board_pins p ON p.board_id = b.id`;
 
 function rowToBoard(row: BoardListRow): CanvasBoard {
   return {
@@ -998,6 +1008,7 @@ function rowToBoard(row: BoardListRow): CanvasBoard {
     lastOpenedAt: row.last_opened_at,
     nodeCount: row.node_count,
     readmeNodeId: row.readme_node_id,
+    pin: row.pin_meta ? (JSON.parse(row.pin_meta) as ContextPinMeta) : null,
   };
 }
 
@@ -1019,7 +1030,15 @@ export function createBoardInDB(db: Database, name: string, category: string | n
   const id = createBoardId();
   const createdAt = new Date(Date.now()).toISOString();
   db.run('INSERT INTO boards (id, name, category, created_at) VALUES (?, ?, ?, ?)', [id, name, category, createdAt]);
-  return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0, readmeNodeId: null };
+  return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0, readmeNodeId: null, pin: null };
+}
+
+/** Pin a board into the working set, or unpin it with null. False when the board does not exist. */
+export function setBoardPinInDB(db: Database, id: string, meta: ContextPinMeta | null): boolean {
+  if (!db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id)) return false;
+  if (meta) db.run('INSERT OR REPLACE INTO board_pins (board_id, meta) VALUES (?, ?)', [id, JSON.stringify(meta)]);
+  else db.run('DELETE FROM board_pins WHERE board_id = ?', [id]);
+  return true;
 }
 
 /** Rename and/or re-shelve a board; `category: null` removes it from its category. */
@@ -1057,7 +1076,7 @@ export function createBoardWithStateInDB(
 /** Deletes a board with its rows and its snapshots. */
 export function deleteBoardFromDB(db: Database, id: string): boolean {
   const transaction = db.transaction(() => {
-    for (const table of ['nodes', 'edges', 'annotations', 'context_pins', 'ax_state']) {
+    for (const table of ['nodes', 'edges', 'annotations', 'context_pins', 'ax_state', 'board_pins']) {
       db.run(`DELETE FROM ${table} WHERE board_id = ?`, [id]);
     }
     const snapshotIds = db

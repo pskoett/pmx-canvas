@@ -317,7 +317,7 @@ Agent CLI (works against running server):
   diagram add                         Add an Excalidraw diagram node
   html primitive add|schema           Add or inspect HTML communication primitives
   pin <ids...> | --list | --clear     Manage context pins
-  board list|create|open|rename|category
+  board list|create|open|rename|category|pin|unpin
                                       Manage boards and open the target before writing
   backup [status|schedule]            Back up every board, now or on a schedule
   restore <backup-file>               Replace every board with a backup

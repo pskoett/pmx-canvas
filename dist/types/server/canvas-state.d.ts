@@ -311,6 +311,13 @@ declare class CanvasStateManager {
         category?: string | null;
     }): boolean;
     setBoardReadme(id: string, nodeId: string | null): boolean;
+    /**
+     * Pin a board into the agent's working set (vision move 0a). Workspace-level:
+     * survives board switches and restarts. A repeat pin keeps its first
+     * attribution, like card pins. False when the board does not exist.
+     */
+    pinBoard(id: string, reason?: string): boolean;
+    unpinBoard(id: string): boolean;
     /** Bounded inactive-board creation; never replaces the state the human has open. */
     createBoardFromBoard(input: {
         sourceBoardId: string;

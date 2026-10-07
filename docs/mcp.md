@@ -259,7 +259,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` · `read-status` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is the context read log; `read-status` is per node: last read, by whom, at which content revision) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` | Boards, explicit shared-workbench switching, README designation, and transactional inactive copies |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, explicit shared-workbench switching, README designation, transactional inactive copies, and board pins (the working set across boards) |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 Board categories are nested folder paths: `canvas_board { action: "update", id:
@@ -496,7 +496,10 @@ wanted. Omitting both `consumer` and `since` starts from the beginning; explicit
 16,000; maximum 100,000), not model tokens. Pins are prioritized. A first read of a
 board larger than the budget carries the pins, then whole cards oldest first, and
 returns `cursor.next`; a `consumer` continues from it automatically, otherwise pass it
-as `since` to read on. If an entry is
+as `since` to read on. Boards pinned into the working set (`canvas_board { action: "pin" }`)
+follow the open board's pins: each pinned board's README and pinned cards in full (reason
+`pinned-board`), or, when they do not fit, its README summary and pinned titles;
+`delivery.pinnedBoards` says which (`full`, `discovery`, `omitted`). If an entry is
 truncated, follow its source board/card IDs with `canvas_board get` and
 `canvas_node { action: "get", board, id, full: true }` rather than inferring the missing text.
 Full node reads record only that node's delivered content revision; compact metadata

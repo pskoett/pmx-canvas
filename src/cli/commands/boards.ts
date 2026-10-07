@@ -60,6 +60,33 @@ cmd(
   },
 );
 
+cmd(
+  'board pin',
+  "Pin a board into the agent's working set (its README and pinned cards reach every brief)",
+  ['pmx-canvas board pin board-abc123', 'pmx-canvas board pin board-abc123 --reason "Q4 rests on it"'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('board pin');
+    const [id] = positional;
+    if (!id || positional.length > 1) die('Usage: pmx-canvas board pin <board-id> [--reason <why>]');
+    const reason = getStringFlag(flags, 'reason');
+    output(await invokeOperation('board.pin', { id, ...(reason ? { reason } : {}) }));
+  },
+);
+
+cmd(
+  'board unpin',
+  "Remove a board from the agent's working set",
+  ['pmx-canvas board unpin board-abc123'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('board unpin');
+    const [id] = positional;
+    if (!id || positional.length > 1) die('Usage: pmx-canvas board unpin <board-id>');
+    output(await invokeOperation('board.unpin', { id }));
+  },
+);
+
 cmd('board rename', 'Rename a board', ['pmx-canvas board rename board-abc123 "Q4 planning"'], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('board rename');

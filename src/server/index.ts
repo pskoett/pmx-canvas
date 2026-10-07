@@ -847,6 +847,15 @@ export class PmxCanvas extends EventEmitter {
     await executeOperation('board.update', { id, readmeNodeId }, { source: 'sdk' });
   }
 
+  /** Pin a board into the agent's working set (its README and pinned cards reach every brief). */
+  async pinBoard(id: string, reason?: string): Promise<void> {
+    await executeOperation('board.pin', { id, ...(reason ? { reason } : {}) }, { source: 'sdk' });
+  }
+
+  async unpinBoard(id: string): Promise<void> {
+    await executeOperation('board.unpin', { id }, { source: 'sdk' });
+  }
+
   async createBoardFrom(input: {
     sourceBoardId: string;
     name: string;

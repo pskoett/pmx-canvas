@@ -50,6 +50,7 @@ import {
   readMetaFromDB,
   readThemeFromDB,
   updateBoardInDB,
+  setBoardPinInDB,
   writeMetaToDB,
   saveThemeToDB,
   setActiveBoardIdInDB,
@@ -1244,6 +1245,32 @@ class CanvasStateManager {
     if (!read) return false;
     if (nodeId && !read.layout.nodes.some((node) => node.id === nodeId && node.type === 'markdown')) return false;
     return updateBoardInDB(this._db, id, { readmeNodeId: nodeId });
+  }
+
+  /**
+   * Pin a board into the agent's working set (vision move 0a). Workspace-level:
+   * survives board switches and restarts. A repeat pin keeps its first
+   * attribution, like card pins. False when the board does not exist.
+   */
+  pinBoard(id: string, reason?: string): boolean {
+    if (!this._db) return false;
+    const board = this.listBoards().find((entry) => entry.id === id);
+    if (!board) return false;
+    if (board.pin) return true;
+    const pinned = setBoardPinInDB(this._db, id, {
+      pinnedBy: currentActor(),
+      pinnedAt: new Date().toISOString(),
+      ...(reason ? { reason } : {}),
+    });
+    if (pinned) this.notifyChange('pins');
+    return pinned;
+  }
+
+  unpinBoard(id: string): boolean {
+    if (!this._db) return false;
+    const unpinned = setBoardPinInDB(this._db, id, null);
+    if (unpinned) this.notifyChange('pins');
+    return unpinned;
   }
 
   /** Bounded inactive-board creation; never replaces the state the human has open. */

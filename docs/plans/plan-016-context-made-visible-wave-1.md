@@ -1,7 +1,8 @@
 # Plan 016 — Context made visible (wave 1)
 
 **Status:** Slices 1–3 and 4a done (2026-10-05); slice 6's eval is ready to run (2026-10-07,
-[`docs/evals/curation-effect.md`](../evals/curation-effect.md)); 5 (board pins) and 4b next.
+[`docs/evals/curation-effect.md`](../evals/curation-effect.md)); 5a (board pins, server) done
+2026-10-07; 5b (board pin UI) and 4b next.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -122,6 +123,15 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
     attributable to near-a-pin.
 
 ### 5. Board pins
+
+**5a done, 2026-10-07.** `board_pins` table (who, when, why; removed with its board),
+`board.pin` / `board.unpin` across `canvas_board`, HTTP `POST /api/canvas/boards/:id/pin|unpin`,
+`pmx-canvas board pin|unpin` and `pinBoard()` / `unpinBoard()`; every board carries `pin`.
+The brief adds pinned boards after the open board's pins (README and pinned cards in full,
+else a discovery summary, reported in `delivery.pinnedBoards`), and a full delivery records a
+read on that board. `canvas://pinned-context` lists `pinnedBoards`. **5b next:** the pin on
+Home cards, the board switcher, portal cards and the top bar; Home's pinned section; the
+context chip's "N cards · M boards" and its fallback note.
 
 Per vision move 0a and `BoardPins.dc.html`: `board_pins` table (board, who, when); `canvas_board`
 `pin`/`unpin` across PmxCanvas, HTTP, MCP and CLI; the tiered brief (active board's pins, then each

@@ -83,11 +83,15 @@ export interface CanvasBoard {
     nodeCount: number;
     /** Markdown node used as this board's introduction. */
     readmeNodeId: string | null;
+    /** Pinned into the agent's working set (vision move 0a); null when not pinned. */
+    pin: ContextPinMeta | null;
 }
 /** Most recently opened first, then never-opened boards, newest first. */
 export declare function listBoardsFromDB(db: Database): CanvasBoard[];
 export declare function getBoardFromDB(db: Database, id: string): CanvasBoard | null;
 export declare function createBoardInDB(db: Database, name: string, category?: string | null): CanvasBoard;
+/** Pin a board into the working set, or unpin it with null. False when the board does not exist. */
+export declare function setBoardPinInDB(db: Database, id: string, meta: ContextPinMeta | null): boolean;
 /** Rename and/or re-shelve a board; `category: null` removes it from its category. */
 export declare function updateBoardInDB(db: Database, id: string, patch: {
     name?: string;

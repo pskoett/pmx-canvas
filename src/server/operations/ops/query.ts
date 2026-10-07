@@ -26,6 +26,7 @@ import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
 import {
   compileContextBrief,
   type ContextBriefLibraryBoard,
+  type ContextBriefPinnedBoard,
   type ContextBriefSourceEntry,
 } from '../../context-brief.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
@@ -286,6 +287,40 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         linkIds: linkedIds.get(board.id) ?? [],
       });
     }
+    // The working set (vision move 0a): every pinned board's README and pinned
+    // cards in full, read from SQLite without opening the board.
+    const title = (node: { id: string; data: Record<string, unknown> }) =>
+      typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id;
+    const pinnedBoards: ContextBriefPinnedBoard[] = [];
+    for (const board of canvasState.listBoards()) {
+      if (!board.pin || board.id === active.id) continue;
+      const read = canvasState.readBoard(board.id, true);
+      if (!read) continue;
+      const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
+      const pins = new Set(read.state.contextPins);
+      pinnedBoards.push({
+        boardId: board.id,
+        name: board.name,
+        ...(readme
+          ? {
+              readme: {
+                nodeId: readme.id,
+                title: title(readme),
+                text: summarizeNodeForAgentContext(readme, { defaultTextLength: budget, webpageTextLength: budget }),
+                summary: summarizeNodeForAgentContext(readme, { defaultTextLength: 1_000, webpageTextLength: 1_000 }),
+              },
+            }
+          : {}),
+        cards: read.layout.nodes
+          .filter((node) => pins.has(node.id) && node.id !== readme?.id)
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((node) => ({
+            nodeId: node.id,
+            title: title(node),
+            text: summarizeNodeForAgentContext(node, { defaultTextLength: budget, webpageTextLength: budget }),
+          })),
+      });
+    }
     const entries: ContextBriefSourceEntry[] = layout.nodes
       .filter((node) => node.createdBy?.actor === 'human')
       .map((node) => ({
@@ -345,6 +380,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       tombstones: canvasState.readContentDelta(sinceValue ?? 0).deleted,
       since: explicitSince ? (Number.isSafeInteger(sinceValue) ? sinceValue : Number.NaN) : sinceValue,
       libraryBoards,
+      pinnedBoards,
       entries,
       budget,
     });

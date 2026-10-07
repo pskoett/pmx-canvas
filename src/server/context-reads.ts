@@ -147,6 +147,48 @@ export function contextReadFromPayload(
   };
 }
 
+/**
+ * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
+ * pinned board that arrived in full, so "read / not read yet" works on that
+ * board too. A board that fell back to discovery delivered titles, not content.
+ */
+export function pinnedBoardReads(
+  base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>,
+  payload: unknown,
+): ContextReadInput[] {
+  let document: unknown = payload;
+  if (typeof payload === 'string') {
+    try {
+      document = JSON.parse(payload);
+    } catch {
+      return [];
+    }
+  }
+  const brief = document as {
+    entries?: Array<{ sourceBoardId?: string; nodeId?: string; reason?: string; text?: string; titleOnly?: boolean }>;
+    delivery?: { pinnedBoards?: Array<{ boardId?: string; delivered?: string }> };
+  } | null;
+  return (brief?.delivery?.pinnedBoards ?? [])
+    .filter((board) => board.delivered === 'full' && typeof board.boardId === 'string')
+    .map((board) => {
+      const entries = (brief?.entries ?? []).filter(
+        (entry) =>
+          entry.sourceBoardId === board.boardId &&
+          entry.reason === 'pinned-board' &&
+          !entry.titleOnly &&
+          typeof entry.nodeId === 'string',
+      );
+      return {
+        ...base,
+        boardId: board.boardId as string,
+        pinnedNodeIds: [],
+        deliveredNodeIds: [],
+        readNodeIds: entries.map((entry) => entry.nodeId as string),
+        bytes: Buffer.byteLength(JSON.stringify(entries), 'utf-8'),
+      };
+    });
+}
+
 export const CONTEXT_READS_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS context_reads (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
