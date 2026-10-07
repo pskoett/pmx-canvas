@@ -13,18 +13,18 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 600px; height: 1560px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
+<div style="width: 600px; height: 1680px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
 <div>
 <h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 28px">Context chip at 600 px</h1>
-<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">The chip keeps its place in the top bar and shortens to one count — cards and boards in context — plus the meter. Opened, the panel becomes a sheet under the top bar, full width. Boards travel as maps.</p>
+<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">The summary keeps its place at the right of the top bar and shortens to one count — cards and boards in context — plus the meter, with no token text. Clicked, the details open as a sheet under the top bar, full width. Boards travel as maps.</p>
 </div>
 <sc-for list="{{themes}}" as="p" hint-placeholder-count="2">
 <section style="display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">{{p.themeName}}</span>
 <div style="{{p.frame}}">
-<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipRest}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.track}}"><span style="{{p.fillSm}}"></span></span></span></div>
-<span style="{{p.cap}}">At rest. The meter turns amber, with △ and “clipped”, only if the brief went over its budget.</span>
-<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context</span></div>
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.boardNarrow}}">Pricing research ▾</span><span style="{{p.boardPin}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span><span style="flex: 1; min-width: 0"></span><span style="{{p.chipRest}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.track}}"><span style="{{p.fillSm}}"></span></span></span><span style="{{p.avatar}}">C</span><span style="{{p.more}}">⋯</span></div>
+<span style="{{p.cap}}">At rest. Collapse order when the bar runs out of room: session id and counts go; Export, Present, zoom and fit fold into ⋯; the agent chip shrinks to its avatar and Start agent session to its icon; the board name truncates. The dot, the board pin, the summary and ⋯ never collapse. The meter turns amber, with △ and “clipped”, only if the brief went over its budget.</span>
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.boardNarrow}}">Pricing research ▾</span><span style="{{p.boardPin}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span><span style="flex: 1; min-width: 0"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context</span><span style="{{p.avatar}}">C</span><span style="{{p.more}}">⋯</span></div>
 <div style="{{p.sheet}}">
 <div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">≈ 2.5k tokens · 62%</span></div>
 <div style="display: flex; align-items: center; gap: 8px"><span style="{{p.trackBig}}"><span style="{{p.fillBig}}"></span></span></div>
@@ -46,7 +46,7 @@ body{margin:0}
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":1560}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":1680}}'>
 class Component extends DCLogic {
   renderVals() {
     var i = {
@@ -124,6 +124,10 @@ class Component extends DCLogic {
       p.chipRest = 'display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;padding:0 10px;border-radius:999px;border:1px solid ' + hexA(c.pin, 0.35) + ';background:' + hexA(c.pin, 0.08) + ';color:' + c.pin + ';font-size:12px;font-weight:500;';
       p.track = 'display:inline-block;width:28px;height:4px;border-radius:999px;background:' + c.line + ';overflow:hidden;';
       p.fillSm = 'display:block;width:62%;height:4px;background:' + c.pin + ';';
+      p.boardNarrow = 'font-size:13px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      p.boardPin = 'width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:' + c.pin + ';color:' + c.onPin + ';flex-shrink:0;';
+      p.avatar = 'width:24px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:600;color:' + c.agent + ';background:' + hexA(c.agent, 0.16) + ';box-shadow:inset 0 0 0 1px ' + hexA(c.agent, 0.5) + ';';
+      p.more = 'width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;color:' + c.muted + ';';
       p.sheet = 'box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';';
       return p;
     }

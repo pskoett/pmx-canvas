@@ -13,15 +13,15 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1700px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+<div style="width: 1440px; height: 1730px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">One context chip</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">It replaces the floating “✦ N nodes in context” bar and the top-bar Pins meter, and supersedes the chip wording on Context, NearPin and BoardPins. It lives in the top bar, right side, where the meter is today: always in the same place, never over the canvas, and next to the agent it describes.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">What the agent has in context is always visible as a one-line summary in the top-right corner; clicking it opens the details. It replaces the floating “✦ N nodes in context” bar and the top-bar Pins meter, and supersedes the chip wording on Context, NearPin and BoardPins. It never floats over the canvas and sits beside the agent it describes.</p>
 </div>
 
 <section style="display: flex; flex-direction: column; gap: 10px">
-<div style="display: grid; grid-template-columns: 200px 1fr 1fr; gap: 16px; align-items: end"><span style="{{s.label}}">1 · At rest</span><span style="{{s.label}}">Harbor</span><span style="{{s.label}}">Daylight</span></div>
+<div style="display: grid; grid-template-columns: 200px 1fr 1fr; gap: 16px; align-items: end"><span style="{{s.label}}">1 · At rest — the summary, always visible</span><span style="{{s.label}}">Harbor</span><span style="{{s.label}}">Daylight</span></div>
 <sc-for list="{{rest}}" as="r" hint-placeholder-count="8">
 <div style="display: grid; grid-template-columns: 200px 1fr 1fr; gap: 16px; align-items: center">
 <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 600">{{r.name}}</span><span style="font-size: 11px; color: #8ea3bd">{{r.note}}</span></div>
@@ -32,11 +32,11 @@ body{margin:0}
 </sc-for>
 </div>
 </sc-for>
-<span style="font-size: 11px; color: #8ea3bd; padding-left: 216px">Counts read left to right in brief order: cards on this board, near (derived, muted), pinned boards. The small meter is the share of the brief budget used, labelled in tokens; amber only when the brief went over and was clipped.</span>
+<span style="font-size: 11px; color: #8ea3bd; padding-left: 216px">The summary is part of the top bar’s right-hand group and stays right-aligned at every width: when space runs out, the left side and the other controls give way first, never the summary. Counts read in brief order: cards on this board, near (derived, muted), pinned boards. The small meter is the share of the brief budget used, labelled in tokens; amber only when the brief went over and was clipped.</span>
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 10px">
-<span style="{{s.label}}">2 · Opened — everything in the agent’s context, one list</span>
+<span style="{{s.label}}">2 · On click — the details, under the summary</span>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
 <sc-for list="{{panels}}" as="p" hint-placeholder-count="2">
 <div style="{{p.frame}}">
@@ -84,7 +84,7 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1730}}'>
 class Component extends DCLogic {
   renderVals() {
     var i = {
