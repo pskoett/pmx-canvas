@@ -3,7 +3,7 @@ import { activeBoardId } from '../state/boards-store';
 import { BoardSwitcher } from './BoardSwitcher';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import type { ComponentChildren } from 'preact';
-import { presenting } from '../state/presentation';
+import { startPresentation } from '../state/presentation';
 import { useEffect, useState } from 'preact/hooks';
 import { IconFitAll, IconZoomIn, IconZoomOut, IconClose } from '../icons';
 import {
@@ -358,7 +358,7 @@ export function TopBar() {
             type="button"
             class="present-button"
             onClick={() => {
-              presenting.value = true;
+              void startPresentation();
             }}
           >
             Present

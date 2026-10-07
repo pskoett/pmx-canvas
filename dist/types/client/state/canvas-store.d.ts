@@ -119,7 +119,9 @@ export declare function bringToFront(id: string): void;
 export declare function toggleCollapsed(id: string): void;
 export declare function setViewport(v: Partial<ViewportState>): void;
 export declare function replaceViewport(next: ViewportState): void;
-export declare function commitViewport(next: ViewportState): void;
+export declare function commitViewport(next: ViewportState, options?: {
+    recordHistory?: boolean;
+}): void;
 export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'edges'> & {
     viewport?: ViewportState;
     annotations?: CanvasAnnotation[];
@@ -144,6 +146,12 @@ export declare function zoomByFactor(factor: number, duration?: number): void;
 export declare function animateViewport(target: ViewportState, duration?: number, options?: {
     recordHistory?: boolean;
 }): void;
+/**
+ * Drive the camera along `frameAt(t)`, t in [0, 1], over `duration` ms — the
+ * tour/camera-move path. Shares animateViewport's slot, so a pan gesture or a
+ * capture frame (cancelViewportAnimation) interrupts it. Duration 0 jumps.
+ */
+export declare function animateCameraPath(frameAt: (t: number) => ViewportState, duration: number, onDone?: (end: ViewportState) => void): void;
 /** Cancel any in-flight viewport animation (e.g. when user starts dragging). */
 export declare function cancelViewportAnimation(): void;
 export declare function persistLayout(options?: {

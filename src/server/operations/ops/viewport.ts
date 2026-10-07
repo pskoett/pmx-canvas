@@ -13,7 +13,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { tourSchema, derivedTour } from '../../../shared/tour.js';
+import { tourSchema, derivedTour, rectSchema, cameraSchema, tourStopSchema } from '../../../shared/tour.js';
 import { canvasState } from '../../canvas-state.js';
 import {
   arrangeCanvasNodes,
@@ -23,6 +23,7 @@ import {
   setClientViewportSize,
 } from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
+import { exitTour, goToTourStop, moveCamera, tourPosition } from '../../tour-control.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { closeNodeAppSession, isRecord } from './nodes.js';
 
@@ -323,12 +324,97 @@ const tourGetOperation = defineOperation({
   handler: () => ({
     tour: canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes),
     derived: !canvasState.getTour(),
+    position: tourPosition(),
   }),
+});
+
+// ── tour.go / tour.exit / camera.move ────────────────────────
+// Navigation only (mutates: false, PRESENCE_EXEMPT_OPS): no undo entry, no
+// writer activity, no scope-fence check. The browser animates.
+
+const tourGoShape = {
+  stop: z.number().int().nonnegative().optional().describe('Zero-based stop index to go to'),
+  step: z.enum(['next', 'previous']).optional().describe('Step relative to the current stop (clamped at the ends)'),
+  present: z
+    .boolean()
+    .optional()
+    .describe(
+      'Start presenting in viewers that are not presenting yet (default true; false only moves presenting viewers)',
+    ),
+};
+const tourGoOperation = defineOperation({
+  name: 'tour.go',
+  mutates: false,
+  input: z.object(tourGoShape),
+  inputShape: tourGoShape,
+  http: { method: 'POST', path: '/api/canvas/tour/go' },
+  mcp: {
+    toolName: 'canvas_tour_go',
+    description: 'Go to a tour stop (index, next or previous) in presenting viewers.',
+  },
+  handler: (input, ctx) => {
+    if ((input.stop === undefined) === (input.step === undefined)) {
+      throw new OperationError('Give exactly one of stop (index) or step ("next" | "previous").');
+    }
+    const result = goToTourStop(input.stop ?? (input.step as 'next' | 'previous'));
+    ctx.emit('canvas-tour-step', { ...result, present: input.present !== false });
+    return { ok: true, ...result };
+  },
+});
+
+const tourExitOperation = defineOperation({
+  name: 'tour.exit',
+  mutates: false,
+  input: z.object({}),
+  inputShape: {},
+  http: { method: 'POST', path: '/api/canvas/tour/exit' },
+  mcp: { toolName: 'canvas_tour_exit', description: 'Leave presentation in every viewer.' },
+  handler: (_input, ctx) => {
+    exitTour();
+    ctx.emit('canvas-tour-exit', {});
+    return { ok: true };
+  },
+});
+
+const cameraMoveShape = {
+  nodeId: z.string().optional().describe('Node or group id to frame'),
+  rect: rectSchema.optional().describe('World-space box { x, y, width, height } to frame'),
+  viewport: cameraSchema.optional().describe('Exact screen-space camera { x, y, scale }'),
+  duration: tourStopSchema.shape.duration.describe('Move time in seconds (default 1; 0 jumps)'),
+  easing: tourStopSchema.shape.easing.describe('linear | ease-in-out (default) | ease-out'),
+  padding: tourStopSchema.shape.padding.describe('Screen pixels around a node/rect target (default 40)'),
+  pullback: tourStopSchema.shape.pullback.describe('Mid-move log-zoom pull-back, 0–4 (default 0)'),
+};
+const cameraMoveOperation = defineOperation({
+  name: 'camera.move',
+  mutates: false,
+  input: z.object(cameraMoveShape),
+  inputShape: cameraMoveShape,
+  http: { method: 'POST', path: '/api/canvas/camera/move' },
+  mcp: {
+    toolName: 'canvas_camera_move',
+    description: 'Ease the camera to a node, a world rect or an exact viewport over a duration.',
+  },
+  handler: (input, ctx) => {
+    const { nodeId, rect, viewport, ...options } = input;
+    const targets = [
+      ...(nodeId !== undefined ? [{ nodeId }] : []),
+      ...(rect !== undefined ? [{ rect }] : []),
+      ...(viewport !== undefined ? [{ viewport }] : []),
+    ];
+    if (targets.length !== 1) throw new OperationError('Give exactly one of nodeId, rect or viewport.');
+    const result = moveCamera({ target: targets[0], ...options });
+    ctx.emit('canvas-camera-move', result);
+    return { ok: true, ...result };
+  },
 });
 
 export const viewportOperations: Operation[] = [
   tourSetOperation,
   tourGetOperation,
+  tourGoOperation,
+  tourExitOperation,
+  cameraMoveOperation,
   arrangeOperation,
   focusOperation,
   fitOperation,

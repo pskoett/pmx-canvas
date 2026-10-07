@@ -129,7 +129,7 @@ test('presentation right-drag interrupts the tour locally and exposes an exit bu
       },
     },
   });
-  const savedViewport = (await (await request.get('/api/canvas/layout')).json()).viewport;
+  const savedViewport = (await (await request.get('/api/canvas/state')).json()).viewport;
   await page.goto('/workbench?present=1');
   await page.waitForFunction(() => window.pmxCapture?.ready());
   await page.waitForTimeout(300);
@@ -145,7 +145,7 @@ test('presentation right-drag interrupts the tour locally and exposes an exit bu
   // A still-running tour must not pull the camera back after the gesture.
   await page.waitForTimeout(3200);
   expect((await card.boundingBox())!.x).toBeCloseTo(after!.x, 0);
-  expect((await (await request.get('/api/canvas/layout')).json()).viewport).toEqual(savedViewport);
+  expect((await (await request.get('/api/canvas/state')).json()).viewport).toEqual(savedViewport);
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => (await card.boundingBox())!.x).toBe(280);
   await page.mouse.move(320, 225);
@@ -328,4 +328,106 @@ test('unsaved tours derive group order and missing saved targets remain escapabl
   await expect(page.getByRole('alert')).toContainText('Tour target not found');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Present', exact: true })).toBeVisible();
+});
+
+test('an agent drives the tour and eases the camera without undo entries; reduced motion jumps', async ({
+  page,
+  request,
+}) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await request.post('/api/canvas/clear', { headers });
+  const add = async (title: string, x: number, y: number) =>
+    (
+      (await (
+        await request.post('/api/canvas/node', {
+          headers,
+          data: { type: 'markdown', title, content: title, x, y, width: 500, height: 300 },
+        })
+      ).json()) as { id: string }
+    ).id;
+  const a = await add('Agent stop one', -1300, 200);
+  const b = await add('Agent stop two', 1700, -900);
+  await request.post('/api/canvas/tour', {
+    headers,
+    data: {
+      tour: {
+        stops: [
+          { target: { nodeId: a }, duration: 0.2 },
+          { target: { nodeId: b }, duration: 1.2, pullback: 1 },
+        ],
+      },
+    },
+  });
+  await page.goto('/workbench');
+  await page.waitForFunction(() => window.pmxCapture?.ready());
+  await expect(page.locator('.top-bar')).toBeVisible();
+  const world = page.locator('.canvas-world');
+  const scaleNow = () => world.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
+  const inView = async (title: string) => {
+    const box = (await page.locator('.canvas-node').filter({ hasText: title }).boundingBox())!;
+    return box.x >= 0 && box.y >= 0 && box.x + box.width <= 1440 && box.y + box.height <= 900;
+  };
+
+  // Agent call (no workbench marker): the idle workbench starts presenting.
+  await request.post('/api/canvas/tour/go', { data: { stop: 0 } });
+  await expect(page.locator('.app-shell')).toHaveClass(/is-presenting/);
+  await expect.poll(() => inView('Agent stop one')).toBe(true);
+  const startScale = await scaleNow();
+
+  // Sample every painted frame of the eased move: many distinct scales, and
+  // the pull-back dips below both endpoint zooms mid-move.
+  const samples = page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const world = document.querySelector('.canvas-world')!;
+        const out: number[] = [];
+        const end = performance.now() + 1500;
+        const tick = () => {
+          out.push(new DOMMatrix(getComputedStyle(world).transform).a);
+          if (performance.now() < end) requestAnimationFrame(tick);
+          else resolve(out);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  expect((await request.post('/api/canvas/tour/go', { data: { step: 'next' } })).ok()).toBe(true);
+  const scales = await samples;
+  const endScale = await scaleNow();
+  expect(new Set(scales.map((s) => s.toFixed(4))).size).toBeGreaterThan(10);
+  expect(Math.min(...scales)).toBeLessThan(Math.min(startScale, endScale) * 0.8);
+  expect(await inView('Agent stop two')).toBe(true);
+
+  // The human's key moves the SHARED cursor, so the agent's next follows it.
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => inView('Agent stop one')).toBe(true);
+  const next = await (await request.post('/api/canvas/tour/go', { data: { step: 'next', present: false } })).json();
+  expect(next).toMatchObject({ index: 1, total: 2 });
+
+  await request.post('/api/canvas/tour/exit', { data: {} });
+  await expect(page.locator('.top-bar')).toBeVisible();
+
+  // Outside a presentation the move lands as the board viewport, unrecorded.
+  const history = async () => (await (await request.get('/api/canvas/history')).json()).entries;
+  const before = await history();
+  await request.post('/api/canvas/camera/move', { data: { nodeId: a, duration: 0.3 } });
+  await expect.poll(() => inView('Agent stop one')).toBe(true);
+  // Once the move ends, the board viewport the server holds IS the painted camera.
+  await expect
+    .poll(async () => {
+      const saved = (await (await request.get('/api/canvas/state')).json()).viewport;
+      const painted = await world.evaluate((el) => {
+        const m = new DOMMatrix(getComputedStyle(el).transform);
+        return { x: m.e, y: m.f, scale: m.a };
+      });
+      return ['x', 'y', 'scale'].every((k) => Math.abs(saved[k] - painted[k as 'x']) < 0.01);
+    })
+    .toBe(true);
+  expect(await history()).toEqual(before);
+
+  // Reduced motion: a 3 s move lands on the next frame.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await request.post('/api/canvas/camera/move', {
+    data: { rect: { x: 1700, y: -900, width: 500, height: 300 }, duration: 3 },
+  });
+  await expect.poll(() => inView('Agent stop two'), { timeout: 500 }).toBe(true);
 });

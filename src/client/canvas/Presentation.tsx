@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { cameraSchema, interpolateCamera, resolveStop, type Camera, type Tour } from '../../shared/tour.js';
+import { useEffect } from 'preact/hooks';
+import { cameraSchema, type Camera } from '../../shared/tour.js';
 import { canvasArea } from './canvas-area';
-import { cancelViewportAnimation, hasInitialServerLayout, nodes, viewport } from '../state/canvas-store';
-import { presenting, recordingCamera } from '../state/presentation';
-import { requestJson } from '../state/intent-bridge';
+import { cancelViewportAnimation, hasInitialServerLayout, viewport } from '../state/canvas-store';
+import {
+  endPresentation,
+  presentationError,
+  presenting,
+  recordingCamera,
+  startPresentation,
+  stepTour,
+} from '../state/presentation';
 import { usePanZoom } from './use-pan-zoom';
 
 declare global {
@@ -18,14 +24,10 @@ declare global {
 }
 
 export function Presentation() {
-  const [tour, setTour] = useState<Tour>({ stops: [] });
-  const [index, setIndex] = useState(0);
-  const [error, setError] = useState('');
   const active = presenting.value;
   const ready = hasInitialServerLayout.value;
-  const frame = useRef(0);
   const moveCamera = (camera: Camera) => {
-    cancelAnimationFrame(frame.current);
+    cancelViewportAnimation();
     viewport.value = camera;
   };
   // A separate gesture surface keeps cards read-only and camera changes local.
@@ -58,45 +60,10 @@ export function Presentation() {
       recordingCamera.value = false;
     };
   }, []);
+  // `?present=1` joins the tour where it is (an agent may already be driving it).
   useEffect(() => {
-    if (!active || !ready) return;
-    let cancelled = false;
-    void requestJson('read tour', '/api/canvas/tour', { tour: { stops: [] } as Tour }).then((result) => {
-      if (!cancelled) {
-        setTour(result.tour);
-        setIndex(0);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [active, ready]);
-  useEffect(() => {
-    if (!active || recordingCamera.value) return;
-    const stop = tour.stops[index];
-    if (!stop) return;
-    const area = canvasArea();
-    let target: Camera;
-    try {
-      target = resolveStop(stop, [...nodes.value.values()], area.width, area.height);
-      setError('');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    cancelViewportAnimation();
-    const from = { ...viewport.value };
-    const start = performance.now();
-    const duration = (stop.duration ?? 1) * 1000;
-    const tick = (now: number) => {
-      if (recordingCamera.value) return;
-      const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
-      viewport.value = interpolateCamera(from, target, t, area.width, area.height, stop.easing, stop.pullback);
-      if (t < 1) frame.current = requestAnimationFrame(tick);
-    };
-    frame.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame.current);
-  }, [active, index, tour]);
+    if (ready && presenting.value && !recordingCamera.value) void startPresentation(true);
+  }, [ready]);
   useEffect(() => {
     if (!active) return;
     const key = (event: KeyboardEvent) => {
@@ -104,14 +71,13 @@ export function Presentation() {
       if (event.target instanceof HTMLButtonElement && ['Enter', ' '].includes(event.key)) return;
       if (['Escape', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', ' '].includes(event.key))
         event.preventDefault();
-      if (event.key === 'Escape') presenting.value = false;
-      if (['ArrowRight', 'ArrowDown', ' '].includes(event.key))
-        setIndex((i) => Math.max(0, Math.min(tour.stops.length - 1, i + 1)));
-      if (['ArrowLeft', 'ArrowUp'].includes(event.key)) setIndex((i) => Math.max(0, i - 1));
+      if (event.key === 'Escape') endPresentation();
+      if (['ArrowRight', 'ArrowDown', ' '].includes(event.key)) void stepTour({ step: 'next' });
+      if (['ArrowLeft', 'ArrowUp'].includes(event.key)) void stepTour({ step: 'previous' });
     };
     document.addEventListener('keydown', key, true);
     return () => document.removeEventListener('keydown', key, true);
-  }, [active, tour]);
+  }, [active]);
   return active ? (
     <>
       {!recordingCamera.value && (
@@ -119,18 +85,18 @@ export function Presentation() {
           class="presentation-navigation"
           ref={navigationRef}
           onPointerDown={(event) => {
-            if (event.button === 1 || event.button === 2) cancelAnimationFrame(frame.current);
+            if (event.button === 1 || event.button === 2) cancelViewportAnimation();
           }}
           onContextMenu={(event) => event.preventDefault()}
         >
-          <button type="button" class="presentation-exit" onClick={() => (presenting.value = false)}>
+          <button type="button" class="presentation-exit" onClick={endPresentation}>
             Exit presentation
           </button>
         </div>
       )}
-      {error && (
+      {presentationError.value && (
         <div class="presentation-error" role="alert">
-          {error}
+          {presentationError.value}
         </div>
       )}
     </>

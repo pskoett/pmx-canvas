@@ -223,11 +223,15 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_view',
     description:
-      'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas; "remove-annotation" deletes a human-drawn annotation by id.',
-    actionSummary: 'arrange | focus | fit | clear | remove-annotation | get-tour | set-tour',
+      'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas; "remove-annotation" deletes a human-drawn annotation by id; "get-tour"/"set-tour" read or persist the presentation tour; "tour-go" presents a stop (stop index or step next/previous); "tour-exit" leaves presentation; "move" eases the camera to a nodeId, world rect or viewport over a duration. Camera actions never enter undo history.',
+    actionSummary:
+      'arrange | focus | fit | clear | remove-annotation | get-tour | set-tour | tour-go | tour-exit | move',
     actions: {
       'get-tour': 'tour.get',
       'set-tour': 'tour.set',
+      'tour-go': 'tour.go',
+      'tour-exit': 'tour.exit',
+      move: 'camera.move',
       arrange: 'arrange',
       focus: 'node.focus',
       fit: 'view.fit',

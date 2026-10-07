@@ -1,15 +1,8 @@
-import { mkdirSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { z } from 'zod';
 import { isCanvasTheme } from '../../shared/themes.js';
 import { derivedTour, tourSchema, tourFrames, type Camera, type TourNode } from '../../shared/tour.js';
-import {
-  startCanvasAutomationWebView,
-  evaluateCanvasAutomationWebView,
-  screenshotCanvasAutomationWebView,
-  resizeCanvasAutomationWebView,
-  stopCanvasAutomationWebView,
-} from '../../server/server.js';
 import { cmd, getBaseUrl, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
 
 export function parseRecordOptions(flags: Record<string, string | boolean>) {
@@ -72,6 +65,94 @@ cmd(
     output(await invokeOperation('tour.set', { tour }));
   },
 );
+cmd(
+  'tour go',
+  'Present a stop in the workbench: an index, next or previous',
+  ['pmx-canvas tour go 0', 'pmx-canvas tour go next', 'pmx-canvas tour go previous --no-present'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help) return showCommandHelp('tour go');
+    const to = positional[0];
+    if (to === undefined) throw new Error('Missing stop: an index, next or previous');
+    const target = to === 'next' || to === 'previous' ? { step: to } : { stop: Number(to) };
+    output(await invokeOperation('tour.go', { ...target, ...(flags['no-present'] ? { present: false } : {}) }));
+  },
+);
+cmd('tour exit', 'Leave presentation in every viewer', ['pmx-canvas tour exit'], async () => {
+  output(await invokeOperation('tour.exit', {}));
+});
+
+function numberList(flag: string | boolean | undefined, name: string, length: number): number[] | undefined {
+  if (flag === undefined) return undefined;
+  const values = typeof flag === 'string' ? flag.split(',').map(Number) : [];
+  if (values.length !== length || values.some((v) => !Number.isFinite(v))) {
+    throw new Error(`--${name} needs ${length} comma-separated numbers`);
+  }
+  return values;
+}
+
+cmd(
+  'camera move',
+  'Ease the camera to a node, world rect or viewport (not an undo step)',
+  [
+    'pmx-canvas camera move --node <id> --duration 2 --pullback 0.6',
+    'pmx-canvas camera move --rect -400,200,1600,900 --easing ease-out',
+    'pmx-canvas camera move --viewport 80,100,0.5 --duration 0',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help) return showCommandHelp('camera move');
+    const rect = numberList(flags.rect, 'rect', 4);
+    const viewport = numberList(flags.viewport, 'viewport', 3);
+    const optional = (key: string) => (flags[key] === undefined ? {} : { [key]: Number(flags[key]) });
+    output(
+      await invokeOperation('camera.move', {
+        ...(typeof flags.node === 'string' ? { nodeId: flags.node } : {}),
+        ...(rect ? { rect: { x: rect[0], y: rect[1], width: rect[2], height: rect[3] } } : {}),
+        ...(viewport ? { viewport: { x: viewport[0], y: viewport[1], scale: viewport[2] } } : {}),
+        ...(typeof flags.easing === 'string' ? { easing: flags.easing } : {}),
+        ...optional('duration'),
+        ...optional('padding'),
+        ...optional('pullback'),
+      }),
+    );
+  },
+);
+
+// Bun.WebView is not in bun-types yet; record needs its CDP channel, which the
+// shared automation session does not expose, so it owns its own Chrome view.
+interface CaptureView extends EventTarget {
+  navigate(url: string): Promise<void>;
+  evaluate(expression: string): Promise<unknown>;
+  screenshot(options: { format: 'png' }): Promise<Uint8Array | ArrayBuffer | Blob>;
+  resize(width: number, height: number): Promise<void>;
+  cdp(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  close(): void;
+}
+type CaptureViewConstructor = new (options: {
+  width: number;
+  height: number;
+  headless: true;
+  backend: 'chrome' | { type: 'chrome'; path: string };
+  dataStore: 'ephemeral';
+}) => CaptureView;
+interface ScreencastFrame {
+  data: string;
+  sessionId: number;
+  metadata: { timestamp: number };
+}
+
+// A cold Chrome launch on macOS has been measured at 15–30 s.
+const CAPTURE_TIMEOUT_MS = 60_000;
+function timed<T>(task: Promise<T>, action: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    task,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Timed out after 60 s while ${action}`)), CAPTURE_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 cmd(
   'record',
@@ -89,6 +170,8 @@ cmd(
     const video = /\.mp4$/i.test(outputPath);
     const framesPath = video ? `${outputPath}.frames` : outputPath;
     if (existsSync(outputPath) || existsSync(framesPath)) throw new Error('Output already exists; choose a new path');
+    const WebView = (Bun as typeof Bun & { WebView?: CaptureViewConstructor }).WebView;
+    if (!WebView) throw new Error(`Bun.WebView is not available in Bun ${Bun.version}; Bun >=1.3.12 is required`);
     const response = await fetch(`${getBaseUrl()}/api/canvas/state`);
     if (!response.ok) throw new Error(`Cannot read board: HTTP ${response.status}`);
     const board = (await response.json()) as { nodes: TourNode[]; viewport: Camera; tour?: unknown };
@@ -109,61 +192,94 @@ cmd(
     };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
+    const frameName = (i: number) => join(framesPath, `frame-${String(i).padStart(6, '0')}.png`);
     let count = 0;
     let duplicated = 0;
+    const view = new WebView({
+      width: options.width,
+      height: options.height,
+      headless: true,
+      backend: options.chromePath ? { type: 'chrome', path: options.chromePath } : 'chrome',
+      dataStore: 'ephemeral',
+    });
     try {
-      await startCanvasAutomationWebView(url.href, {
-        backend: 'chrome',
-        width: options.width,
-        height: options.height,
-        chromePath: options.chromePath,
-      });
+      await timed(view.navigate(url.href), 'launching Chrome and loading the workbench');
       const deadline = Date.now() + 30_000;
-      while (!(await evaluateCanvasAutomationWebView('!!window.pmxCapture?.ready()'))) {
+      while (!(await timed(view.evaluate('!!window.pmxCapture?.ready()'), 'waiting for the workbench'))) {
         if (Date.now() > deadline) throw new Error('Workbench did not become capture-ready in 30 seconds');
         await Bun.sleep(50);
       }
       // Chrome launch dimensions describe the outer window. WebView.resize
-      // applies viewport emulation, giving screenshots the requested pixels.
-      await resizeCanvasAutomationWebView(options.width, options.height);
-      await evaluateCanvasAutomationWebView(
-        'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))',
+      // applies viewport emulation, giving captures the requested pixels.
+      await timed(view.resize(options.width, options.height), 'resizing the capture viewport');
+      await timed(
+        view.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))'),
+        'waiting for paint',
       );
-      await evaluateCanvasAutomationWebView('document.fonts.ready.then(() => true)');
-      const area = (await evaluateCanvasAutomationWebView('window.pmxCapture.area()')) as {
-        width: number;
-        height: number;
-      };
-      const initial = (await evaluateCanvasAutomationWebView('window.pmxCapture.camera()')) as Camera;
+      await timed(view.evaluate('document.fonts.ready.then(() => true)'), 'waiting for fonts');
       mkdirSync(framesPath, { recursive: true });
-      const write = async (bytes: Uint8Array) => {
-        await Bun.write(join(framesPath, `frame-${String(count++).padStart(6, '0')}.png`), bytes);
-      };
-      const started = performance.now();
       if (tour) {
+        const area = (await view.evaluate('window.pmxCapture.area()')) as { width: number; height: number };
+        const initial = (await view.evaluate('window.pmxCapture.camera()')) as Camera;
         for (const camera of tourFrames(tour, initial, board.nodes, area.width, area.height, options.fps)) {
           if (stopping) break;
-          const applied = (await evaluateCanvasAutomationWebView(
-            `window.pmxCapture.frame(${JSON.stringify(camera)})`,
-          )) as Camera;
-          if (applied.x !== camera.x || applied.y !== camera.y || applied.scale !== camera.scale) {
-            throw new Error('Capture camera was changed before paint');
+          // Wait until the rendered .canvas-world matrix (screen = world * scale + offset)
+          // matches the requested camera, not just the viewport signal. Computed
+          // transforms keep six significant digits, hence the tolerances.
+          const applied = await timed(
+            view.evaluate(`window.pmxCapture.frame(${JSON.stringify(camera)}).then(async (c) => {
+              const world = document.querySelector('.canvas-world');
+              for (let i = 0; i < 30; i++) {
+                const m = new DOMMatrix(getComputedStyle(world).transform);
+                if (Math.abs(m.a / c.scale - 1) < 1e-5 && Math.abs(m.e - c.x) < 0.5 && Math.abs(m.f - c.y) < 0.5) return c;
+                await new Promise((r) => requestAnimationFrame(r));
+              }
+              return getComputedStyle(world).transform;
+            })`),
+            'applying a camera frame',
+          );
+          if (JSON.stringify(applied) !== JSON.stringify(camera)) {
+            throw new Error(
+              `Frame ${count}: the canvas rendered ${JSON.stringify(applied)} instead of camera ${JSON.stringify(camera)}`,
+            );
           }
-          await write(await screenshotCanvasAutomationWebView({ format: 'png' }));
+          await Bun.write(frameName(count++), await timed(view.screenshot({ format: 'png' }), 'capturing a frame'));
         }
       } else {
-        const limit = options.duration ? Math.ceil(options.duration * options.fps) : Infinity;
-        while (!stopping && count < limit) {
-          await Bun.sleep(Math.max(0, started + (count / options.fps) * 1000 - performance.now()));
-          const bytes = await screenshotCanvasAutomationWebView({ format: 'png' });
-          await write(bytes);
-          // Preserve wall-clock speed if capture is slower than requested fps.
-          const elapsedFrames = Math.min(limit, Math.floor(((performance.now() - started) / 1000) * options.fps));
-          while (count < elapsedFrames) {
-            await write(bytes);
-            duplicated++;
-          }
+        // Chrome pushes a frame on every paint and holds the next until the
+        // previous is acked; cdp() allows one call in flight, so acks chain.
+        // Each tick writes the newest painted frame, so frames land while recording.
+        let latest: Buffer | undefined;
+        let written: Buffer | undefined;
+        let cdpQueue: Promise<unknown> = Promise.resolve();
+        const send = (method: string, params?: Record<string, unknown>) => {
+          cdpQueue = cdpQueue.then(() => view.cdp(method, params));
+          return cdpQueue;
+        };
+        view.addEventListener('Page.screencastFrame', (event) => {
+          const frame = (event as MessageEvent<ScreencastFrame>).data;
+          latest = Buffer.from(frame.data, 'base64');
+          void send('Page.screencastFrameAck', { sessionId: frame.sessionId });
+        });
+        await timed(
+          send('Page.startScreencast', { format: 'png', maxWidth: options.width, maxHeight: options.height }),
+          'starting the screencast',
+        );
+        const firstDeadline = Date.now() + 10_000;
+        while (!latest) {
+          if (Date.now() > firstDeadline) throw new Error('Chrome sent no screencast frames');
+          await Bun.sleep(10);
         }
+        const started = performance.now();
+        const interval = 1000 / options.fps;
+        while (!stopping && (!options.duration || count < Math.ceil(options.duration * options.fps))) {
+          if (latest === written) duplicated++;
+          written = latest;
+          await Bun.write(frameName(count++), latest);
+          const wait = started + count * interval - performance.now();
+          if (wait > 0) await Bun.sleep(wait);
+        }
+        await timed(send('Page.stopScreencast'), 'stopping the screencast');
       }
       await Bun.write(
         join(framesPath, 'recording.json'),
@@ -184,12 +300,12 @@ cmd(
     } finally {
       process.off('SIGINT', stop);
       process.off('SIGTERM', stop);
-      await stopCanvasAutomationWebView();
+      view.close();
     }
     let encoded = false;
     if (video && count > 0) {
       const ffmpeg = Bun.which('ffmpeg');
-      if (!ffmpeg) console.error(`ffmpeg not found; PNG sequence retained at ${framesPath}`);
+      if (!ffmpeg) console.error(`ffmpeg not found; frame sequence retained at ${framesPath}`);
       else {
         const process = Bun.spawn(
           [
@@ -210,7 +326,7 @@ cmd(
           { stdout: 'ignore', stderr: 'inherit' },
         );
         encoded = (await process.exited) === 0;
-        if (!encoded) throw new Error(`ffmpeg failed; PNG sequence retained at ${framesPath}`);
+        if (!encoded) throw new Error(`ffmpeg failed; frame sequence retained at ${framesPath}`);
       }
     }
     output({ ok: true, output: encoded ? outputPath : framesPath, frames: count, fps: options.fps, duplicated });

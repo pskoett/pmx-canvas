@@ -3,6 +3,16 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Agents can drive presentation tours: go to a stop, step next or previous, exit, and ease the camera to a node, area or viewport through `canvas_view`, the HTTP API, the SDK and `pmx-canvas tour go` / `camera move`, with reduced-motion support and no undo entries.
+
+### Fixed
+
+- `pmx-canvas record` realtime capture uses Chrome's screencast for smooth full-frame-rate footage, writes frames while it records, and tolerates a slow first Chrome launch.
+
 ## [0.8.2] - 2026-10-06
 
 ### Changed

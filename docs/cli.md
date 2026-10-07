@@ -34,9 +34,11 @@ The same stops and camera interpolation drive interactive presentation and optio
 A visual stop editor and carrying tours into static exports/share links are not implemented here.
 
 Click **Present** in the top bar, or open `/workbench?present=1` for a chrome-free
-embedded/capture view. Right/Down/Space advances, Left/Up goes back, Esc exits.
-The camera is local to the viewer; board content continues updating over SSE.
+embedded/capture view (no rail, top bar, minimap or composer). Right/Down/Space
+advances, Left/Up goes back, Esc exits. The presentation camera is local to the
+viewer and never written to the board; board content continues updating over SSE.
 Stops do not auto-advance. Missing targets show an error and can be skipped.
+With `prefers-reduced-motion: reduce`, every stop and camera move jumps instead of animating.
 
 Save this as `tour.json` (replace the IDs with IDs from `pmx-canvas node list`):
 
@@ -45,6 +47,7 @@ Save this as `tour.json` (replace the IDs with IDs from `pmx-canvas node list`):
   "stops": [
     { "target": { "nodeId": "overview-group" }, "duration": 1.5, "padding": 60 },
     { "target": { "nodeId": "detail-note" }, "duration": 2, "easing": "ease-in-out", "pullback": 0.7 },
+    { "target": { "rect": { "x": -400, "y": 200, "width": 1600, "height": 900 } }, "duration": 2 },
     { "target": { "viewport": { "x": 80, "y": 100, "scale": 0.5 } }, "duration": 1 }
   ]
 }
@@ -55,10 +58,11 @@ pmx-canvas tour set --file tour.json
 pmx-canvas tour get
 ```
 
-A stop targets either a node ID (including a group ID) or an explicit viewport.
+A stop targets exactly one of: a node ID (including a group ID), a world-space
+`rect` (`x`/`y` is its top-left corner), or an explicit viewport.
 Viewport translation is screen-space: `screen = world * scale + offset`.
 `duration` is transition time in seconds (default 1, zero jumps); `padding` is
-screen pixels around a target (default 40). Easing is `linear`, `ease-in-out`
+screen pixels around a node or rect target (default 40). Easing is `linear`, `ease-in-out`
 (default), or `ease-out`. Zoom interpolates logarithmically about the moving
 world-space centre. `pullback` (0–4, default 0) subtracts a sinusoidal log-zoom
 offset mid-move without changing endpoints. Tours allow at most 1000 stops.
@@ -67,6 +71,32 @@ Tours persist with the board and snapshots, participate in undo, and clear with
 the board. A file containing `null` resets the tour: when none is saved, groups
 are sorted by y, then x, then ID. A saved empty `stops` array deliberately has no
 stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`.
+
+### Driving a tour (agents)
+
+The server keeps one tour cursor per board (in memory, not saved). An agent steps
+it and every presenting viewer follows; a human's arrow keys move the same cursor,
+so `next` always continues from where the audience actually is.
+
+```bash
+pmx-canvas tour go 0                 # start presenting at the first stop
+pmx-canvas tour go next              # or: previous (clamped at the ends)
+pmx-canvas tour go 2 --no-present    # only move viewers already presenting
+pmx-canvas tour exit                 # leave presentation everywhere
+
+# Eased camera move, no tour needed (same fields as a stop)
+pmx-canvas camera move --node <id> --duration 2 --pullback 0.6
+pmx-canvas camera move --rect -400,200,1600,900 --easing ease-out
+pmx-canvas camera move --viewport 80,100,0.5 --duration 0
+```
+
+`tour go` starts presenting in idle workbenches unless `--no-present` is given.
+`camera move` animates every open workbench; outside a presentation its end camera
+becomes the board viewport. Camera moves and tour steps are navigation: they never
+enter undo history, never count as agent writes, and are allowed under a scope fence.
+A deterministic capture (`record --mode deterministic`) ignores both.
+SDK: `canvas.goToTourStop(indexOrStep, { present })`, `canvas.exitTour()`,
+`canvas.moveCamera(stop)`.
 
 ### Optional capture of the same tour
 
@@ -83,10 +113,22 @@ pmx-canvas record --mode deterministic --present --fps 30 --resolution 1920x1080
 pmx-canvas record --mode deterministic --tour-file tour.json --present --output frames
 
 # Alternatively, sample the live presentation while agents update the board
-pmx-canvas record --duration 10 --present --theme light --output activity.mp4
+pmx-canvas record --duration 10 --present --theme daylight --output activity.mp4
 
 # Keep recording until SIGINT (Ctrl+C) or SIGTERM, then encode
 pmx-canvas record --stop-on-signal --output live.mp4
+```
+
+A board walkthrough end to end: save the `tour.json` above, preview it with
+**Present**, then render it at video quality and record a live pass while an
+agent works:
+
+```bash
+pmx-canvas tour set --file tour.json
+pmx-canvas record --mode deterministic --present --theme midnight --resolution 1920x1080 --fps 30 --output walkthrough.mp4
+pmx-canvas record --duration 20 --present --resolution 1920x1080 --output agent-pass.mp4 &
+pmx-canvas node add --type markdown --title "Findings" --content "Added while recording"
+wait
 ```
 
 Options: `--mode realtime|deterministic` (default realtime), `--resolution WIDTHxHEIGHT`
@@ -95,19 +137,23 @@ Options: `--mode realtime|deterministic` (default realtime), `--resolution WIDTH
 for deterministic mode, `--chrome-path PATH`, and required `--output PATH`.
 Global `--port` / `--server-url` work here too. Existing output paths are refused.
 
-An `.mp4` output uses ffmpeg/H.264; any other path is a PNG sequence directory.
+An `.mp4` output uses ffmpeg/H.264; any other path is a frame sequence directory
+of `frame-000000.png` files.
 Frames and `recording.json` are retained at `<output>.frames` even after video
-encoding. If ffmpeg is missing, the command clearly reports the PNG fallback
-and returns that directory. Encoding failures retain frames and exit nonzero.
+encoding. If ffmpeg is missing, the command clearly reports the frame-sequence
+fallback and returns that directory. Encoding failures retain frames and exit nonzero.
 
 Deterministic mode resolves target geometry once and writes
 `max(1, ceil(duration × fps))` frames per stop, including each endpoint. It sets
 the camera, waits for two animation frames, checks the applied camera, then
 captures. Duplicate a target to hold it. This makes **camera timing** deterministic,
 not animated iframe content, fonts loaded later, network assets, or concurrent
-board edits. Realtime mode samples the live board; slow captures repeat frames
-to preserve wall-clock speed, with the repeated-frame count in `recording.json`.
-Capture has no audio. Chrome and a Bun runtime with WebView support are required.
+board edits. Realtime mode records Chrome's screencast (a frame per paint) and
+writes the newest painted frame on every `--fps` tick while it records, so footage
+keeps wall-clock speed and a stop signal keeps every frame written so far; ticks
+with no new paint repeat the previous frame, counted as `duplicated` in
+`recording.json`. Capture has no audio. Chrome and a Bun runtime with WebView
+support are required; Chrome gets 60 seconds to cold-start.
 Recording is a local CLI/file operation, not a remote HTTP/MCP file-writing API;
 HTTP/MCP manage tours and retain their existing screenshot/automation surfaces.
 

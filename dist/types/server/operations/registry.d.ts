@@ -4,6 +4,7 @@ export declare function getOperation(name: string): Operation;
 export declare function listOperations(): Operation[];
 type OperationEventEmitter = (event: string, payload: Record<string, unknown>) => void;
 export declare function setOperationEventEmitter(emitter: OperationEventEmitter | null): void;
+export declare function getOperationEventEmitter(): OperationEventEmitter | null;
 /** True while operation SSE emits are being suppressed (inside a meta-op such as
  * canvas.batch). Ops whose effect depends on a live SSE emit firing — e.g.
  * mcpapp.open, whose canvas node is created as a side-effect of `ext-app-open` —

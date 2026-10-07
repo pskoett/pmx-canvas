@@ -1057,7 +1057,7 @@
     },
     {
       "name": "canvas_view",
-      "description": "Canvas viewport and layout control. Action \"arrange\" auto-lays-out nodes (grid/columns/etc.); \"focus\" pans/zooms the viewport to a node; \"fit\" zooms to fit all nodes in view; \"clear\" removes every node and edge from the canvas; \"remove-annotation\" deletes a human-drawn annotation by id.",
+      "description": "Canvas viewport and layout control. Action \"arrange\" auto-lays-out nodes (grid/columns/etc.); \"focus\" pans/zooms the viewport to a node; \"fit\" zooms to fit all nodes in view; \"clear\" removes every node and edge from the canvas; \"remove-annotation\" deletes a human-drawn annotation by id; \"get-tour\"/\"set-tour\" read or persist the presentation tour; \"tour-go\" presents a stop (stop index or step next/previous); \"tour-exit\" leaves presentation; \"move\" eases the camera to a nodeId, world rect or viewport over a duration. Camera actions never enter undo history.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1066,13 +1066,16 @@
             "enum": [
               "get-tour",
               "set-tour",
+              "tour-go",
+              "tour-exit",
+              "move",
               "arrange",
               "focus",
               "fit",
               "clear",
               "remove-annotation"
             ],
-            "description": "Operation to perform: arrange | focus | fit | clear | remove-annotation | get-tour | set-tour."
+            "description": "Operation to perform: arrange | focus | fit | clear | remove-annotation | get-tour | set-tour | tour-go | tour-exit | move."
           },
           "tour": {
             "anyOf": [
@@ -1097,6 +1100,40 @@
                               },
                               "required": [
                                 "nodeId"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "rect": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    },
+                                    "width": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    },
+                                    "height": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "x",
+                                    "y",
+                                    "width",
+                                    "height"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "rect"
                               ],
                               "additionalProperties": false
                             },
@@ -1170,6 +1207,101 @@
             ],
             "description": "Ordered camera stops, or null to derive from groups"
           },
+          "stop": {
+            "description": "Zero-based stop index to go to",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "step": {
+            "description": "Step relative to the current stop (clamped at the ends)",
+            "type": "string",
+            "enum": [
+              "next",
+              "previous"
+            ]
+          },
+          "present": {
+            "description": "Start presenting in viewers that are not presenting yet (default true; false only moves presenting viewers)",
+            "type": "boolean"
+          },
+          "nodeId": {
+            "description": "Node or group id to frame",
+            "type": "string"
+          },
+          "rect": {
+            "description": "World-space box { x, y, width, height } to frame",
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ]
+          },
+          "viewport": {
+            "description": "Exact screen-space camera { x, y, scale }",
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "scale": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "scale"
+            ]
+          },
+          "duration": {
+            "description": "Move time in seconds (default 1; 0 jumps)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "easing": {
+            "description": "linear | ease-in-out (default) | ease-out",
+            "type": "string",
+            "enum": [
+              "linear",
+              "ease-in-out",
+              "ease-out"
+            ]
+          },
+          "padding": {
+            "description": "Screen pixels around a node/rect target (default 40)",
+            "type": "number",
+            "minimum": 0
+          },
+          "pullback": {
+            "description": "Mid-move log-zoom pull-back, 0–4 (default 0)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 4
+          },
           "layout": {
             "description": "Arrangement layout (default: grid)",
             "type": "string",
@@ -1192,10 +1324,6 @@
           },
           "height": {
             "description": "Viewport height used for fit math (default 900)",
-            "type": "number"
-          },
-          "padding": {
-            "description": "World-space padding around fitted nodes (default 60)",
             "type": "number"
           },
           "maxScale": {

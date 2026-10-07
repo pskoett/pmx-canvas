@@ -39,11 +39,25 @@ content auto-height or indirect parent-group reflow after editing a child.
 
 ## Board tours
 
-- `GET /api/canvas/tour` → `{ tour: { stops: [...] }, derived: boolean }`.
+- `GET /api/canvas/tour` → `{ tour: { stops: [...] }, derived: boolean, position: number | null }`
+  (`position` is the stop being presented, or `null`).
 - `POST /api/canvas/tour` with `{ "tour": { "stops": [...] } }` persists the tour;
   `{ "tour": null }` resets to derived group reading order. Returns `{ "ok": true }`.
 - `GET /api/canvas/state` includes optional `tour`. Tour writes broadcast a layout
   update and are included in snapshots/undo. They are board-wide writes under a scope fence.
+- `POST /api/canvas/tour/go` with `{ "stop": 2 }` or `{ "step": "next" | "previous" }`
+  (plus optional `"present": false`) moves the shared tour cursor →
+  `{ ok, index, total, stop }`; 400 when the stop does not exist or the board has no stops.
+  Broadcasts `canvas-tour-step`; idle workbenches start presenting unless `present` is false.
+- `POST /api/canvas/tour/exit` leaves presentation in every viewer (`canvas-tour-exit`).
+- `POST /api/canvas/camera/move` with exactly one of `nodeId`, `rect: { x, y, width, height }`
+  or `viewport: { x, y, scale }`, plus optional `duration`, `easing`, `padding`, `pullback`
+  → `{ ok, stop, viewport }`. Broadcasts `canvas-camera-move`; browsers ease to the target in
+  their real canvas area. `viewport` is the server's estimate from the last reported window
+  size and is stored as the board viewport. 404 for an unknown node.
+
+Tour steps and camera moves are navigation: no undo entry, no agent-presence write, no
+scope-fence check.
 
 The [tour model and recording walkthrough](cli.md#tour-and-presentation) describes
 targets, duration, easing, padding, and pullback. Open `/workbench?present=1` to hide

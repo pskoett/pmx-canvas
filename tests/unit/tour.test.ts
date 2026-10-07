@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +12,21 @@ import {
 } from '../../src/shared/tour.js';
 import { parseRecordOptions } from '../../src/cli/commands/record.js';
 import { canvasState } from '../../src/server/canvas-state.js';
-import { saveCanvasSnapshotWithReuse } from '../../src/server/canvas-operations.js';
-import { createTestWorkspace, resetCanvasForTests, removeTestWorkspace, getAvailablePort } from './helpers.js';
+import { saveCanvasSnapshotWithReuse, setClientViewportSize } from '../../src/server/canvas-operations.js';
+import { agentPresence } from '../../src/server/agent-presence.js';
+import {
+  executeOperation,
+  getOperationEventEmitter,
+  setOperationEventEmitter,
+} from '../../src/server/operations/registry.js';
+import { exitTour } from '../../src/server/tour-control.js';
+import {
+  createTestWorkspace,
+  getAvailablePort,
+  makeNode,
+  removeTestWorkspace,
+  resetCanvasForTests,
+} from './helpers.js';
 
 describe('board tour', () => {
   test('MCP canvas_view persists and reads tours through the registered operations', async () => {
@@ -33,18 +46,39 @@ describe('board tour', () => {
       expect(saved.isError).not.toBe(true);
       const result = await client.callTool({ name: 'canvas_view', arguments: { action: 'get-tour' } });
       const content = result.content as Array<{ type: string; text?: string }>;
-      expect(JSON.parse(content.find((c) => c.type === 'text')!.text!)).toEqual({ tour, derived: false });
+      expect(JSON.parse(content.find((c) => c.type === 'text')!.text!)).toEqual({
+        tour,
+        derived: false,
+        position: null,
+      });
       await client.callTool({ name: 'canvas_history', arguments: { action: 'undo' } });
       const undone = await client.callTool({ name: 'canvas_view', arguments: { action: 'get-tour' } });
       const undoneContent = undone.content as Array<{ type: string; text?: string }>;
       expect(JSON.parse(undoneContent.find((c) => c.type === 'text')!.text!)).toEqual({
         tour: { stops: [] },
         derived: true,
+        position: null,
       });
       await client.callTool({ name: 'canvas_history', arguments: { action: 'redo' } });
       const redone = await client.callTool({ name: 'canvas_view', arguments: { action: 'get-tour' } });
       const redoneContent = redone.content as Array<{ type: string; text?: string }>;
-      expect(JSON.parse(redoneContent.find((c) => c.type === 'text')!.text!)).toEqual({ tour, derived: false });
+      expect(JSON.parse(redoneContent.find((c) => c.type === 'text')!.text!)).toEqual({
+        tour,
+        derived: false,
+        position: null,
+      });
+      const text = (result: Awaited<ReturnType<Client['callTool']>>) =>
+        JSON.parse((result.content as Array<{ type: string; text?: string }>).find((c) => c.type === 'text')!.text!);
+      const went = await client.callTool({ name: 'canvas_view', arguments: { action: 'tour-go', step: 'next' } });
+      expect(text(went)).toMatchObject({ ok: true, index: 0, total: 1 });
+      const moved = await client.callTool({
+        name: 'canvas_view',
+        arguments: { action: 'move', viewport: { x: 5, y: 6, scale: 0.5 }, duration: 0 },
+      });
+      expect(text(moved).viewport).toEqual({ x: 5, y: 6, scale: 0.5 });
+      expect((await client.callTool({ name: 'canvas_view', arguments: { action: 'tour-exit' } })).isError).not.toBe(
+        true,
+      );
     } finally {
       await client.close();
       await transport.close();
@@ -142,5 +176,104 @@ describe('board tour', () => {
       'tour.json',
     );
     expect(() => parseRecordOptions({ output: 'a', duration: '1', 'tour-file': 'tour.json' })).toThrow('--tour-file');
+  });
+});
+
+describe('driving a tour', () => {
+  const emitted: Array<{ event: string; payload: Record<string, unknown> }> = [];
+  let root = '';
+  // The emitter is set once when server.ts loads; restore it so later SSE tests in this process still get events.
+  let serverEmitter: ReturnType<typeof getOperationEventEmitter> = null;
+  beforeEach(() => {
+    serverEmitter = getOperationEventEmitter();
+    root = createTestWorkspace('tour-drive-');
+    resetCanvasForTests(root);
+    exitTour();
+    agentPresence.reset();
+    emitted.length = 0;
+    setOperationEventEmitter((event, payload) => emitted.push({ event, payload }));
+  });
+  afterEach(() => {
+    setOperationEventEmitter(serverEmitter);
+    removeTestWorkspace(root);
+  });
+
+  const addGroups = () => {
+    canvasState.addNode(makeNode({ id: 'late', type: 'group', position: { x: 900, y: 600 } }));
+    canvasState.addNode(makeNode({ id: 'early', type: 'group', position: { x: 0, y: 0 } }));
+  };
+
+  test('frames a world rect with screen-space padding', () => {
+    const camera = resolveStop(
+      { target: { rect: { x: 100, y: -50, width: 400, height: 200 } }, padding: 50 },
+      [],
+      1000,
+      600,
+    );
+    expect(camera.scale).toBe(2.25);
+    expect(100 * camera.scale + camera.x).toBeCloseTo(50);
+    expect((-50 + 100) * camera.scale + camera.y).toBeCloseTo(300);
+    expect(tourSchema.safeParse({ stops: [{ target: { rect: { x: 0, y: 0, width: 0, height: 1 } } }] }).success).toBe(
+      false,
+    );
+  });
+
+  test('next/previous walk the derived tour, clamp at the ends and broadcast each stop', async () => {
+    addGroups();
+    const go = (input: Record<string, unknown>) => executeOperation('tour.go', input) as Promise<{ index: number }>;
+    expect((await go({ step: 'previous' })).index).toBe(0);
+    expect((await go({ step: 'next' })).index).toBe(1);
+    expect((await go({ step: 'next' })).index).toBe(1);
+    expect((await go({ stop: 0, present: false })).index).toBe(0);
+    expect(emitted.filter((e) => e.event === 'canvas-tour-step').map((e) => e.payload)).toEqual([
+      { index: 0, total: 2, stop: { target: { nodeId: 'early' } }, present: true },
+      { index: 1, total: 2, stop: { target: { nodeId: 'late' } }, present: true },
+      { index: 1, total: 2, stop: { target: { nodeId: 'late' } }, present: true },
+      { index: 0, total: 2, stop: { target: { nodeId: 'early' } }, present: false },
+    ]);
+    expect(((await executeOperation('tour.get', {})) as { position: number }).position).toBe(0);
+    await executeOperation('tour.exit', {});
+    expect(emitted.at(-1)?.event).toBe('canvas-tour-exit');
+    expect(((await executeOperation('tour.get', {})) as { position: number | null }).position).toBeNull();
+    await expect(go({ stop: 2 })).rejects.toThrow('does not exist');
+    await expect(go({ stop: 0, step: 'next' })).rejects.toThrow('exactly one');
+    canvasState.setTour({ stops: [] });
+    await expect(go({ step: 'next' })).rejects.toThrow('no tour stops');
+  });
+
+  test('camera moves resolve a fallback viewport and never touch history or writer presence', async () => {
+    addGroups();
+    // No server is booted here, so attach the (single-slot) recorder ourselves:
+    // anything a camera op tried to record would land in `recorded`.
+    const recorded: string[] = [];
+    canvasState.onMutation((info) => recorded.push(info.description));
+    setClientViewportSize(1000, 600);
+    const moved = (await executeOperation(
+      'camera.move',
+      { nodeId: 'late', duration: 2, pullback: 0.5, padding: 20 },
+      { source: 'mcp' },
+    )) as { viewport: { x: number; y: number; scale: number } };
+    expect(moved.viewport.scale).toBeCloseTo(Math.min(960 / 360, 560 / 200));
+    expect(canvasState.viewport).toEqual(moved.viewport);
+    expect(emitted.find((e) => e.event === 'canvas-camera-move')?.payload.stop).toEqual({
+      target: { nodeId: 'late' },
+      duration: 2,
+      pullback: 0.5,
+      padding: 20,
+    });
+    await executeOperation(
+      'camera.move',
+      { rect: { x: 0, y: 0, width: 10, height: 10 }, duration: 0 },
+      { source: 'mcp' },
+    );
+    await executeOperation('tour.go', { step: 'next' }, { source: 'mcp' });
+    await executeOperation('tour.exit', {}, { source: 'mcp' });
+    expect(recorded).toEqual([]);
+    expect(agentPresence.snapshot().presences).toHaveLength(0);
+    expect(emitted.some((e) => e.event === 'canvas-layout-update')).toBe(false);
+    await expect(executeOperation('camera.move', { nodeId: 'missing' })).rejects.toThrow('not found');
+    await expect(
+      executeOperation('camera.move', { nodeId: 'late', viewport: { x: 0, y: 0, scale: 1 } }),
+    ).rejects.toThrow('exactly one');
   });
 });
