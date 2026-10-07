@@ -1,19 +1,22 @@
-# Eval: does curation change the work?
+# Eval: how much does curation change the work?
 
-**Status:** ready to run; no runs scored yet. Written 2026-10-07, before the first run.
+**Status:** ready to run; no runs scored yet. Written 2026-10-07. A benchmark rerun on every
+release, for continuous improvement, not a one-off verdict (decided with the maintainer,
+2026-10-07).
 **Source:** [vision](../product-vision-2026-09.md#part-1-the-foundation) Part 1, item 4 (effect);
 [plan 016](../plans/plan-016-context-made-visible-wave-1.md) slice 6.
 **Fixture:** [`scripts/eval-curation/board.ts`](../../scripts/eval-curation/board.ts), guarded by
 `tests/unit/eval-curation-board.test.ts`.
 
-Everything below (board, task, rubric, decision rule) is fixed. Changing any of it after the
-first scored run voids the comparison; start a new eval instead.
+The board, task and rubric are fixed so scores compare across releases. Changing one voids
+the comparison with earlier results; add a new case beside this one instead of editing it.
 
 ## The question
 
 The same task, with the brief delivered, on a curated and an uncurated copy of the same board.
-Does the curated board produce better work? With one real user this is a test case, not
-statistics; real sessions only confirm or contradict it.
+How much better is the work on the curated board, and does that gap grow release by release?
+With one real user this is a test case, not statistics; real sessions only confirm or
+contradict it.
 
 ## The board
 
@@ -40,8 +43,8 @@ the pinned marking differs.
 | **Primary** | default (16,000) | Do pins decide which facts reach the agent at all? |
 | **Secondary** | full (`budget=100000`) | With everything delivered, does marking what matters still change the work? |
 
-Only the primary condition can change course (decision rule below). The secondary tells us
-whether curation works beyond delivery.
+The primary condition measures curation as delivery; the secondary tells us whether curation
+works beyond delivery.
 
 ## Protocol
 
@@ -76,21 +79,31 @@ whether curation works beyond delivery.
 Penalties: **−2** for presenting the superseded $20 decision as current; **−2** for any number
 stated as fact that is not on the board. The minimum score is 0.
 
-## Decision rule (from the vision, set before any run)
+## How results are used
 
-Only a failure on effect changes course.
+Run the eval on every release that touches the brief, pins, budgets or adapters, and at least
+once per minor version. For each condition, record the **curation gap**: curated mean minus
+uncurated mean, with delivery confirmed in every scored run.
 
-- **Curation wins** if, in the primary condition with delivery confirmed in every scored run,
-  the curated mean is at least **2 points** above the uncurated mean. Then the brief becomes the
-  product's headline and attention ranking moves forward.
-- **Otherwise** the vision records that curation did not beat the uncurated board, stops
-  investing in attention ranking and the brief beyond what already ships, and moves that effort
-  to the human side (the wiki, sharing, tours).
-- The secondary condition is reported alongside but cannot change course on its own.
+- **Track the gap over releases.** It is the number the brief, pins, near-a-pin, board pins and
+  lifecycle work exist to raise. A change to any of them is judged by whether the gap grows.
+- **A release that lowers the gap or breaks delivery is a regression** to fix before it ships,
+  the same as a failing test.
+- **Read the misses.** For each run below 10, note which rubric line it lost and why (not
+  delivered, delivered but ignored, misread). That note is the improvement backlog.
+- **Add cases, keep this one.** New boards (another domain, a larger board, cross-board pins)
+  sit beside this case so the history of this one stays comparable.
 
 ## Results
 
-| Run id | Board | Condition | Host / model | Date | Delivery confirmed | R1 | R2 | R3 | R4 | R5 | Penalty | Total |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
+Per release, one row per condition:
 
-Outcome: not yet run.
+| Version | Condition | Host / model | Date | Curated mean | Uncurated mean | Gap | Delivery confirmed | Notes (lost lines, why) |
+|---|---|---|---|---|---|---|---|---|
+
+Per run (kept for the misses):
+
+| Run id | Version | Board | Condition | R1 | R2 | R3 | R4 | R5 | Penalty | Total | Lost lines, why |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+
+Not yet run.

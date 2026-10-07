@@ -130,7 +130,7 @@ Home's pinned-boards section per `Home.dc.html`. Read status per board from slic
 
 ### 6. The curation evaluation
 
-**Ready, 2026-10-07.** Board, seed script, protocol, rubric and decision rule are in
+**Ready, 2026-10-07.** Board, seed script, protocol, rubric and how results are used are in
 [`docs/evals/curation-effect.md`](../evals/curation-effect.md); the fixture test guards that
 pins change delivery at the default budget. Building it found that a first read larger than
 the budget returned one clipped card forever; fixed so a first read pages (pins first, then
@@ -139,7 +139,7 @@ whole cards oldest first). Runs need the maintainer's agent sessions.
 `docs/evals/curation-effect.md`: one fixed task, run with the brief delivered on a curated and an
 uncurated board, scored on criteria written before the first run (vision Part 1, item 4). It reads
 the same `context_reads` data as slice 1 to confirm delivery before scoring effect. Running it
-needs the maintainer's real agent sessions; the decision rule is the vision's.
+needs the maintainer's real agent sessions; it is a benchmark rerun per release (vision Part 1, item 4).
 
 ## Out of wave 1
 
