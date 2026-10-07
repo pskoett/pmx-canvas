@@ -368,18 +368,14 @@ test('curated structured notes and AX focus reach the host context', async ({ pa
   await expect
     .poll(() => page.evaluate(() => JSON.stringify(window.pmxTestHost.acknowledgedContexts.at(-1))))
     .toContain('Status sentinel cobalt');
-  const pinBar = app.locator('.context-pin-bar');
-  await expect(pinBar).toBeInViewport();
-  expect(
-    await pinBar.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return (
-        rect.bottom <= innerHeight && rect.bottom >= innerHeight - 32 && rect.left >= 0 && rect.left < innerWidth / 3
-      );
-    }),
-  ).toBe(true);
-  await pinBar.getByRole('button', { name: 'Clear all context pins' }).click();
-  await expect(pinBar).toHaveCount(0);
+  // The context chip sits in the top bar, clear of the host's chat composer.
+  const chip = app.getByTestId('context-chip');
+  await expect(chip).toBeInViewport();
+  await expect(chip).toContainText('1 card');
+  await chip.click();
+  await app.getByRole('button', { name: 'Clear all' }).click();
+  await expect(chip).toContainText('Nothing in context');
+  await page.keyboard.press('Escape');
   await app.locator(`[data-node-id="${status.id}"] .ctx-pin-btn`).click();
   await app.locator(`[data-node-id="${focused.id}"]`).getByRole('button', { name: 'Set focus', exact: true }).click();
   await expect

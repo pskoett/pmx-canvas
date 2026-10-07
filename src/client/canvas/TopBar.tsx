@@ -2,10 +2,11 @@ import { exportDialogOpen } from './ExportDialog';
 import { activeBoard, activeBoardId } from '../state/boards-store';
 import { BoardSwitcher } from './BoardSwitcher';
 import { BoardPinButton } from './BoardPinButton';
+import { ContextChip } from './ContextChip';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import type { ComponentChildren } from 'preact';
 import { startPresentation } from '../state/presentation';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { IconFitAll, IconZoomIn, IconZoomOut, IconClose } from '../icons';
 import {
   animateViewport,
@@ -26,7 +27,7 @@ import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
-import { activeSession, agentPresences, attachedSessions, contextBudget, writerColor } from '../state/presence-store';
+import { activeSession, agentPresences, attachedSessions, writerColor } from '../state/presence-store';
 import { endSession, pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
@@ -176,58 +177,6 @@ function GateBadge() {
   );
 }
 
-function budgetTone(ratio: number): 'ok' | 'warn' | 'danger' {
-  if (ratio > 0.9) return 'danger';
-  if (ratio >= 0.7) return 'warn';
-  return 'ok';
-}
-
-function formatTokens(value: number): string {
-  return value >= 1000 ? `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k` : String(value);
-}
-
-/**
- * Context meter (rail-chrome-v2 phase 5). Two honest modes:
- * - the host reported the agent's REAL window (`contextUsage` on its presence)
- *   → "Context": used / window, with the pinned payload as a note;
- * - nothing reported (no adapter does yet) → "Pins": the pinned-context
- *   payload estimate against the configured budget
- *   (PMX_CANVAS_CONTEXT_BUDGET_TOKENS). Never presented as the agent's window.
- * Session-only, like the chip; the estimate moves within a frame of a pin toggle.
- */
-function ContextBudget() {
-  const session = activeSession.value;
-  if (!session) return null;
-  const budget = contextBudget.value;
-  const real = session.contextUsage;
-  const used = real ? real.used : budget.used;
-  const total = real ? real.total : budget.total;
-  const ratio = total > 0 ? Math.min(1, used / total) : 0;
-  const pct = Math.round(ratio * 100);
-  const hint = real
-    ? {
-        label: `Context window — reported by ${session.label}`,
-        body: `${formatTokens(real.used)} of ${formatTokens(real.total)} tokens of the agent's actual context window are used. Your ✦-pinned nodes account for ≈ ${formatTokens(budget.used)} tokens of it.`,
-      }
-    : {
-        label: 'Pins — pinned-context size (estimate)',
-        body: `The nodes you pinned (✦) are what the agent is asked to carry as context: ≈ ${formatTokens(budget.used)} of a ${formatTokens(budget.total)}-token budget. When the agent's host reports its real context window, this meter switches to showing that instead.`,
-      };
-  return (
-    <BarHint label={hint.label} body={hint.body} tapToOpen>
-      <span class={`context-budget tone-${budgetTone(ratio)}`} data-mode={real ? 'window' : 'pins'}>
-        <span class="context-budget-caption hud-collapsible-text">{real ? 'Context' : 'Pins'}</span>
-        <span class="context-budget-track" aria-hidden="true">
-          <span class="context-budget-fill" style={{ width: `${pct}%` }} />
-        </span>
-        <span class="context-budget-label" data-testid="budget-label">
-          {used > 0 && pct === 0 ? '<1' : pct}%
-        </span>
-      </span>
-    </BarHint>
-  );
-}
-
 /**
  * Quiet-board affordance (rail-chrome-v2 phase 5): attach a human-started
  * session. The agent's subsequent MCP/HTTP writes are attributed to it, which
@@ -244,6 +193,7 @@ function StartSessionButton() {
       <button
         type="button"
         class="start-session-btn"
+        aria-label="Start agent session beta"
         disabled={busy}
         onClick={() => {
           setBusy(true);
@@ -251,7 +201,7 @@ function StartSessionButton() {
         }}
       >
         <span class="start-session-dot" aria-hidden="true" />
-        Start agent session
+        <span class="start-session-label">Start agent session</span>
         <span class="beta-tag">beta</span>
       </button>
     </BarHint>
@@ -331,68 +281,155 @@ export function TopBar() {
 
       <span class="top-bar-spacer" />
 
-      <AgentChip />
-      <GateBadge />
-      <ContextBudget />
-      <ExternalWriterIndicator />
-      {!isHostedWorkbench() && <StartSessionButton />}
+      {/* The right-hand group never shrinks, so the context summary stays
+          top-right at every width; the controls collapse by step instead
+          (docs/design/ContextChip600.dc.html). */}
+      <div class="top-bar-right">
+        <AgentChip />
+        <GateBadge />
+        <ContextChip />
+        <ExternalWriterIndicator />
+        {!isHostedWorkbench() && <StartSessionButton />}
 
-      <div class="top-bar-sep" />
+        <div class="top-bar-sep" />
+        <div class="top-bar-actions">
+          {activeBoardId.value && (
+            <BarHint label="Export board" body="One HTML file of this board that anyone can open, no install needed.">
+              <button
+                type="button"
+                class="present-button"
+                onClick={() => {
+                  exportDialogOpen.value = true;
+                }}
+              >
+                Export
+              </button>
+            </BarHint>
+          )}
+          {activeBoardId.value && (
+            <BarHint
+              label="Present board"
+              body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
+            >
+              <button
+                type="button"
+                class="present-button"
+                onClick={() => {
+                  void startPresentation();
+                }}
+              >
+                Present
+              </button>
+            </BarHint>
+          )}
+          <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
+            <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
+              <IconZoomOut />
+            </button>
+          </BarHint>
+          <BarHint label="Reset zoom" shortcut={modChord('0')}>
+            <button
+              type="button"
+              class="top-bar-zoom-label"
+              onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
+              aria-label="Reset view"
+            >
+              {Math.round(v.scale * 100)}%
+            </button>
+          </BarHint>
+          <BarHint label="Zoom in" shortcut={modChord('+')}>
+            <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
+              <IconZoomIn />
+            </button>
+          </BarHint>
+          <BarHint label="Fit all" shortcut="F" align="end">
+            <button type="button" class="top-bar-btn" onClick={handleFit} aria-label="Fit canvas">
+              <IconFitAll />
+            </button>
+          </BarHint>
+        </div>
+        <TopBarMore boardOpen={!!activeBoardId.value} onFit={handleFit} />
+      </div>
+    </div>
+  );
+}
 
-      {activeBoardId.value && (
-        <BarHint label="Export board" body="One HTML file of this board that anyone can open, no install needed.">
+/** Narrow bars fold Export, Present, zoom and fit into one ⋯ menu (Pane600.dc.html). */
+function TopBarMore({ boardOpen, onFit }: { boardOpen: boolean; onFit: () => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    const onDown = (event: PointerEvent) => {
+      if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onDown);
+    };
+  }, [open]);
+  const run = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+  return (
+    <div class="top-bar-more" ref={root}>
+      <button
+        type="button"
+        class="top-bar-btn"
+        aria-label="More: export, present, zoom, fit"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div class="toolbar-menu top-bar-more-menu" role="menu">
+          {boardOpen && (
+            <button
+              type="button"
+              role="menuitem"
+              class="toolbar-menu-item"
+              onClick={run(() => {
+                exportDialogOpen.value = true;
+              })}
+            >
+              Export board
+            </button>
+          )}
+          {boardOpen && (
+            <button
+              type="button"
+              role="menuitem"
+              class="toolbar-menu-item"
+              onClick={run(() => void startPresentation())}
+            >
+              Present board
+            </button>
+          )}
+          <button type="button" role="menuitem" class="toolbar-menu-item" onClick={run(() => zoomByFactor(1.25))}>
+            Zoom in
+          </button>
+          <button type="button" role="menuitem" class="toolbar-menu-item" onClick={run(() => zoomByFactor(1 / 1.25))}>
+            Zoom out
+          </button>
           <button
             type="button"
-            class="present-button"
-            onClick={() => {
-              exportDialogOpen.value = true;
-            }}
+            role="menuitem"
+            class="toolbar-menu-item"
+            onClick={run(() => animateViewport({ x: 0, y: 0, scale: 1 }, 250))}
           >
-            Export
+            Reset zoom
           </button>
-        </BarHint>
-      )}
-      {activeBoardId.value && (
-        <BarHint
-          label="Present board"
-          body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
-        >
-          <button
-            type="button"
-            class="present-button"
-            onClick={() => {
-              void startPresentation();
-            }}
-          >
-            Present
+          <button type="button" role="menuitem" class="toolbar-menu-item" onClick={run(onFit)}>
+            Fit all
           </button>
-        </BarHint>
+        </div>
       )}
-      <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
-        <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
-          <IconZoomOut />
-        </button>
-      </BarHint>
-      <BarHint label="Reset zoom" shortcut={modChord('0')}>
-        <button
-          type="button"
-          class="top-bar-zoom-label"
-          onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
-          aria-label="Reset view"
-        >
-          {Math.round(v.scale * 100)}%
-        </button>
-      </BarHint>
-      <BarHint label="Zoom in" shortcut={modChord('+')}>
-        <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
-          <IconZoomIn />
-        </button>
-      </BarHint>
-      <BarHint label="Fit all" shortcut="F" align="end">
-        <button type="button" class="top-bar-btn" onClick={handleFit} aria-label="Fit canvas">
-          <IconFitAll />
-        </button>
-      </BarHint>
     </div>
   );
 }

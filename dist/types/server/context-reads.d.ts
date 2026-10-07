@@ -74,6 +74,11 @@ export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS 
 export declare function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null, readNodes?: Record<string, number>): ContextRead;
 /** Per node on a board, the latest agent read that delivered its content (newest row wins). */
 export declare function loadNodeReadStatusFromDB(db: Database, boardId: string): NodeReadStatus[];
+/** The latest agent read on a board, of any kind (a brief, a pinned-board map, a pull), or null. */
+export declare function loadBoardLastReadFromDB(db: Database, boardId: string): {
+    lastReadAt: string;
+    lastReadBy: string;
+} | null;
 /** Every node on a board whose content an agent read at or after `since` (ISO). */
 export declare function loadReadNodeIdsSince(db: Database, boardId: string, since: string): string[];
 /** Newest first. The summary covers every retained row, not just the returned page. */

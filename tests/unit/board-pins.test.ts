@@ -73,6 +73,10 @@ describe('board pins', () => {
 
     // The map counts as the board being read; its cards stay unread until pulled in full.
     expect(canvasState.getContextReads().reads.some((read) => read.boardId === research.id)).toBe(true);
+    const status = (await executeOperation('ax.reads.status', { board: research.id })) as {
+      board: { lastReadAt: string } | null;
+    };
+    expect(typeof status.board?.lastReadAt).toBe('string');
     expect(canvasState.getNodeReadStatus(research.id).map((status) => status.nodeId)).not.toContain(
       research.ids.Decision,
     );

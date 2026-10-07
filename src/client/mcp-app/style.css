@@ -1,10 +1,4 @@
 .pmx-host-app { height: 100%; display: flex; flex-direction: column; }
 .pmx-host-app > .app-shell { flex: 1; min-height: 0; height: auto; }
-/* Keep context controls clear of the host's floating chat composer. */
-.pmx-host-app .context-pin-bar {
-  bottom: 16px;
-  left: 16px;
-  transform: none;
-}
 /* Guard refusals must remain readable while the full source editor is open. */
 .pmx-host-app .attention-toast.attention-tone-remove { z-index: 100100; }

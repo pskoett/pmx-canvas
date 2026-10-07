@@ -34,6 +34,7 @@ import {
 } from './canvas-store';
 import { applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
 import { applyContextStatus, refreshContextStatus } from './context-status-store';
+import { refreshContextChip } from './context-chip-store';
 import {
   fetchAgentPresence,
   fetchAxSurfaceState,
@@ -524,6 +525,7 @@ function handleConnected(data: Record<string, unknown>): void {
   // keep it live from here on.
   void fetchAgentPresence().then(applyPresenceSnapshot);
   void refreshContextStatus();
+  refreshContextChip();
   // Human collaborators (phase 8): announce this tab and read who else is here.
   // An `?agent=<key>` tab is an AGENT's view — it must not heartbeat a human
   // guest cursor (its writes already book as the agent).
@@ -1083,10 +1085,12 @@ function handleContextPinsChanged(data: Record<string, unknown>): void {
   replaceContextPinsFromServer(nodeIds);
   syncAttentionFromSse({ event: 'context-pins-changed', data });
   void refreshContextStatus();
+  refreshContextChip();
 }
 
 function handleContextStatusChanged(): void {
   void refreshContextStatus();
+  refreshContextChip();
 }
 
 // AX state changes arrive as per-primitive deltas; rather than reduce them, treat
@@ -1164,7 +1168,10 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ext-app-result': handleExtAppResult,
   'context-pins-changed': handleContextPinsChanged,
   'context-status-changed': handleContextStatusChanged,
-  'boards-changed': applyBoards,
+  'boards-changed': (data) => {
+    applyBoards(data);
+    refreshContextChip();
+  },
   'canvas-layout-update': handleCanvasLayoutUpdate,
   'canvas-focus-node': handleCanvasFocusNode,
   'canvas-viewport-update': handleCanvasViewportUpdate,

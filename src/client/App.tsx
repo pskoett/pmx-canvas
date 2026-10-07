@@ -10,7 +10,6 @@ import { ConnectionBanner } from './canvas/ConnectionBanner';
 import { CommandPalette } from './canvas/CommandPalette';
 import { BoardLinkDialog } from './canvas/BoardLinkDialog';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
-import { ContextPinBar } from './canvas/ContextPinBar';
 import { EmptyState } from './canvas/EmptyState';
 import { HomeView } from './canvas/HomeView';
 import { ExportDialog } from './canvas/ExportDialog';
@@ -377,11 +376,7 @@ export function App() {
             intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}
-          {sessionIsActive && !isHostedWorkbench() ? (
-            <CommandBar />
-          ) : (
-            contextPinnedNodeIds.value.size > 0 && <ContextPinBar />
-          )}
+          {sessionIsActive && !isHostedWorkbench() && <CommandBar />}
           <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
           <TextPrompt />
           <ExportDialog />

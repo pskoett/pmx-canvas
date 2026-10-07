@@ -1,4 +1,4 @@
 import { type Operation } from '../types.js';
-export declare const DEFAULT_CONTEXT_BRIEF_BUDGET = 16000;
-export declare const MAX_CONTEXT_BRIEF_BUDGET = 100000;
+import { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET } from '../../../shared/context-brief-budget.js';
+export { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET };
 export declare const queryOperations: Operation[];

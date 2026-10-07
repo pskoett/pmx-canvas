@@ -83,7 +83,7 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   await expect(nodeTitle('Defects by Stage')).toHaveCount(1);
   await expect(nodeTitle('Operational Load')).toHaveCount(1);
 
-  await expect(page.locator('.context-pin-bar')).toContainText('3 nodes in context');
+  await expect(page.getByTestId('context-chip')).toContainText('3 cards');
   await expect(page.getByText('npm pack', { exact: true })).toBeVisible();
   await expect(page.getByText('canvas.buildWebArtifact', { exact: true })).toBeVisible();
   await expect(page.getByText('playwright', { exact: true })).toBeVisible();

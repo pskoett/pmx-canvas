@@ -567,7 +567,13 @@ const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchem
         : boardId
           ? (canvasState.readBoard(boardId, false)?.state.contextPinMeta ?? {})
           : {};
-    return { ok: true, boardId, nodes: canvasState.getNodeReadStatus(boardId), pins };
+    return {
+      ok: true,
+      boardId,
+      board: canvasState.getBoardLastRead(boardId),
+      nodes: canvasState.getNodeReadStatus(boardId),
+      pins,
+    };
   },
 });
 

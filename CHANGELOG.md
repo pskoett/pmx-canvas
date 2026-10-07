@@ -12,6 +12,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
+- One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with the brief's size, and opens the details (read state, unpin, pin a near card) on click.
+- On narrow windows the top bar folds Export, Present, zoom and fit into a ⋯ More menu so the context summary always stays visible.
 - The agent's context brief is now a map instead of full text: an overview of the board, then every card as its title and a short summary with why it was pinned and how it relates to other cards; the agent pulls whatever it needs in full, and only a full pull counts as read.
 
 ### Fixed

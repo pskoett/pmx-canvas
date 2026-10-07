@@ -296,6 +296,19 @@ export function loadNodeReadStatusFromDB(db: Database, boardId: string): NodeRea
   return [...status.values()];
 }
 
+/** The latest agent read on a board, of any kind (a brief, a pinned-board map, a pull), or null. */
+export function loadBoardLastReadFromDB(
+  db: Database,
+  boardId: string,
+): { lastReadAt: string; lastReadBy: string } | null {
+  const row = db
+    .query<ContextReadRow, [string]>('SELECT * FROM context_reads WHERE board_id = ? ORDER BY seq DESC LIMIT 1')
+    .get(boardId);
+  if (!row) return null;
+  const read = rowToContextRead(row);
+  return { lastReadAt: read.at, lastReadBy: read.consumer ?? read.agentId ?? read.source };
+}
+
 /** Every node on a board whose content an agent read at or after `since` (ISO). */
 export function loadReadNodeIdsSince(db: Database, boardId: string, since: string): string[] {
   const rows = db

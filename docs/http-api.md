@@ -538,6 +538,9 @@ curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 # read that delivered its content: when, who, and the content revision it had.
 # A node whose current contentRevision is newer was changed since it was read.
 # pins maps each pinned node with a known pinner to { pinnedBy, pinnedAt, reason }.
+# board is the latest agent read on that board of any kind ({ lastReadAt, lastReadBy } or
+# null): a pinned board whose map reached an agent reads as read even before any card is pulled.
+# A brief's card summaries mark nothing read; only a full pull of a card does.
 curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
 
 # Context reads — a proxy (an MCP server attached to this daemon, a host adapter)

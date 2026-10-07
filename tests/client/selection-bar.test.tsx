@@ -110,22 +110,4 @@ describe('SelectionBar', () => {
 
   // The quiet board's pin bar shares the bottom-center slot; with pins on the
   // board the bar must sit above it or the pin bar swallows its clicks.
-  test('sits above the pin bar while the quiet board has context pins', () => {
-    act(() => {
-      selectNodes(['n1', 'n2']);
-    });
-    const { container } = render(<SelectionBar />);
-    const bar = () => container.querySelector('.selection-bar')!;
-    expect(bar().classList.contains('is-above-pin-bar')).toBe(false);
-
-    act(() => {
-      contextPinnedNodeIds.value = new Set(['n3']);
-    });
-    expect(bar().classList.contains('is-above-pin-bar')).toBe(true);
-
-    act(() => {
-      contextPinnedNodeIds.value = new Set();
-    });
-    expect(bar().classList.contains('is-above-pin-bar')).toBe(false);
-  });
 });

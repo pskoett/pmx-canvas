@@ -39,8 +39,9 @@ import { boardsPayload, readTargetBoard } from './boards.js';
 
 /** Legacy server.ts handleContextPinsUpdate capped the requested list at 20. */
 const MAX_PINS = 20;
-export const DEFAULT_CONTEXT_BRIEF_BUDGET = 16_000;
-export const MAX_CONTEXT_BRIEF_BUDGET = 100_000;
+import { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET } from '../../../shared/context-brief-budget.js';
+
+export { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET };
 
 const pinShape = {
   nodeIds: z.unknown().optional().describe('Array of node IDs to pin'),

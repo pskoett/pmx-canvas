@@ -816,7 +816,7 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
   await expect(seededNode).toHaveCount(1);
   await seededNode.locator('.ctx-pin-btn').click();
 
-  await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
+  await expect(page.getByTestId('context-chip')).toContainText('1 card');
   await expect
     .poll(async () => {
       const response = await request.get('/api/canvas/pinned-context');
@@ -998,7 +998,7 @@ test('keeps the browser, pinned context, and agent-driven canvas mutations in sy
   await expect(seededNode).toHaveCount(1);
 
   await seededNode.locator('.ctx-pin-btn').click();
-  await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
+  await expect(page.getByTestId('context-chip')).toContainText('1 card');
 
   await expect
     .poll(async () => {
@@ -1107,7 +1107,7 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
   await expect(alphaNode).toHaveCount(1);
   await expect(betaNode).toHaveCount(1);
   await expect(page.getByText('workflow edge')).toBeVisible();
-  await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
+  await expect(page.getByTestId('context-chip')).toContainText('1 card');
 
   const search = await request.get('/api/canvas/search?q=searchable');
   const searchBody = (await search.json()) as { results: Array<{ id: string; title?: string }> };
@@ -1250,7 +1250,6 @@ test('semantic attention layer shows focus and interpretation history', async ({
   await expect(page.locator('.attention-toast')).toContainText('Context updated');
   await page.getByRole('button', { name: /recent updates/i }).click();
   await expect(page.locator('.attention-history')).toContainText('Context updated');
-  await expect(page.locator('.context-pin-bar')).toHaveCount(0);
   await expect(bugReport).toHaveClass(/context-pinned/);
 
   await request.patch(`/api/canvas/node/${authNode.id}`, {
@@ -4986,9 +4985,9 @@ test('addressed steering: the composer lists connected agents, the picked one al
   expect(await claim('claude-code')).toBe(false);
   await expect(page.locator('.session-timeline')).toContainText('→ copilot · own the CI flake, ignore the rest');
 
-  // The meter tooltip opens on CLICK too (surfaces without hover forwarding).
-  await page.locator('.context-budget').click();
-  await expect(page.locator('.toolbar-tooltip', { hasText: 'Pins — pinned-context size' })).toBeVisible();
+  // The context chip opens its details on click (docs/design/ContextChip.dc.html).
+  await page.getByTestId('context-chip').click();
+  await expect(page.getByRole('dialog', { name: "In the agent's context" })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Work items: collapsed by default with a live summary; a pending gate forces it open.
@@ -5114,7 +5113,7 @@ test('human-started session: start from the quiet board, steer from the command 
   await page.goto('/workbench');
   const shell = page.locator('.app-shell');
   await expect(shell).toHaveAttribute('data-session-active', 'false');
-  await expect(page.locator('.context-pin-bar')).toBeVisible();
+  await expect(page.getByTestId('context-chip')).toContainText('1 card');
   await expect(page.locator('.command-bar')).toHaveCount(0);
   const start = page.getByRole('button', { name: 'Start agent session' });
   await expect(start).toBeVisible();
@@ -5126,8 +5125,8 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(page.locator('.session-panel')).toHaveClass(/is-collapsed/);
   await page.getByTitle('Expand session panel').click();
   await expect(page.locator('.agent-chip .agent-chip-who')).toHaveText('Agent session');
-  // The pin bar hands over to the command bar, pins as chips.
-  await expect(page.locator('.context-pin-bar')).toHaveCount(0);
+  // The command bar carries the pins as chips; the context chip stays in the top bar.
+  await expect(page.getByTestId('context-chip')).toContainText('1 card');
   const bar = page.locator('.command-bar');
   await expect(bar).toBeVisible();
   await expect(bar.locator('.command-bar-chip-label')).toHaveText(['Spec']);
@@ -5175,7 +5174,7 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(shell).toHaveAttribute('data-session-active', 'false');
   await expect(page.locator('.session-panel')).toHaveCount(0);
   await expect(page.locator('.command-bar')).toHaveCount(0);
-  await expect(page.locator('.context-pin-bar')).toBeVisible();
+  await expect(page.getByTestId('context-chip')).toContainText('card');
   await expect(page.getByRole('button', { name: 'Start agent session' })).toBeVisible();
   const receipt = page.locator('[data-testid="session-receipt"]');
   await expect(receipt).toBeVisible();
@@ -5690,7 +5689,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   // the frame goes, the children stay, and one Ctrl+Z brings the frame back.
   await made.getByRole('button', { name: 'Group menu' }).click();
   await made.getByRole('menuitem', { name: 'Pin all to context' }).click();
-  await expect(page.locator('.context-pin-bar')).toContainText('2 nodes in context');
+  await expect(page.getByTestId('context-chip')).toContainText('2 cards');
   await page
     .locator('.canvas-node')
     .filter({ hasText: 'Loose note' })

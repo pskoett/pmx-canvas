@@ -1066,6 +1066,51 @@ body,
   min-width: 0;
 }
 
+/* The right-hand group never shrinks: the context summary stays top-right at
+   every width while the left side (board name) ellipsizes. Narrow bars
+   collapse by step instead (ContextChip600.dc.html): meta text, then the
+   actions into ⋯ More, then the agent chip and Start session to icons. */
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.top-bar-actions {
+  display: contents;
+}
+.top-bar-more {
+  position: relative;
+  display: none;
+}
+.top-bar-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  z-index: 60;
+}
+@media (max-width: 980px) {
+  .top-bar-actions {
+    display: none;
+  }
+  .top-bar-more {
+    display: inline-flex;
+  }
+}
+@media (max-width: 760px) {
+  .top-bar-right {
+    gap: 8px;
+  }
+  .agent-chip-label,
+  .agent-chip-workers,
+  .start-session-label,
+  .start-session-btn .beta-tag,
+  .context-chip-meter {
+    display: none;
+  }
+}
+
 .top-bar-sep {
   width: 1px;
   height: 20px;
@@ -2117,53 +2162,6 @@ body,
   cursor: default;
 }
 
-/* Context-budget meter in the top bar (session-only) */
-.context-budget {
-  --tone: var(--c-ok);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.context-budget.tone-warn {
-  --tone: var(--c-warn);
-}
-.context-budget.tone-danger {
-  --tone: var(--c-danger);
-}
-.context-budget-caption {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--c-muted);
-}
-.context-budget-track {
-  display: block;
-  width: 72px;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--c-line);
-  overflow: hidden;
-}
-.context-budget-fill {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: var(--c-accent);
-  transition: width 180ms ease;
-}
-.context-budget.tone-warn .context-budget-fill,
-.context-budget.tone-danger .context-budget-fill {
-  background: var(--tone);
-}
-.context-budget-label {
-  font: 11px var(--font-code);
-  color: var(--c-text-soft);
-  min-width: 30px;
-  text-align: right;
-}
-
 /* ── External Steering (rail-chrome-v2 phase 6) ───────────────
    External writers, no session: a passive top-bar indicator, the activity
    feed popover under it, and the connected-writers sheet. Quiet otherwise. */
@@ -2673,16 +2671,6 @@ body,
 
 .start-session-dot {
     animation: none;
-  }
-  .command-palette,
-  .snapshot-panel,
-  .session-receipt,
-  .canvas-node.group-node,
-  .activity-feed,
-  .writers-sheet,
-  .context-budget-fill {
-    animation: none;
-    transition: none;
   }
 }
 
@@ -4719,13 +4707,9 @@ html.is-node-resizing .ext-app-preview-catcher {
 /* Selection action bar — floating bottom-center of the canvas region
    (rail-chrome-v2 phase 7, item 13). */
 /* In a session the command bar owns the bottom-center slot — lift the
-   selection bar clear of it (composer + chips row); on the quiet board the
-   pin bar does, so lift past that instead. */
+   selection bar clear of it (composer + chips row). */
 [data-session-active='true'] .selection-bar {
   bottom: 124px;
-}
-.selection-bar.is-above-pin-bar {
-  bottom: 70px;
 }
 .selection-bar {
   position: absolute;
@@ -5395,73 +5379,6 @@ html.is-node-resizing .ext-app-preview-catcher {
 .drop-pill-hint {
   font: 9px var(--font-code);
   color: var(--c-dim);
-}
-
-/* ── Context pin bar — persistent floating indicator ─────────── */
-.context-pin-bar {
-  position: absolute;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: var(--c-panel-glass);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--c-pin);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 32px var(--c-shadow), 0 0 0 1px color-mix(in srgb, var(--c-pin) 15%, transparent);
-  z-index: 64;
-  white-space: nowrap;
-}
-
-.context-pin-bar-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--c-pin);
-}
-
-.context-pin-bar-btn {
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--c-pin) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--c-pin) 30%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--c-pin);
-  cursor: pointer;
-  font-family: var(--font-ui);
-}
-
-.context-pin-bar-btn:hover {
-  background: color-mix(in srgb, var(--c-pin) 20%, transparent);
-  border-color: var(--c-pin);
-}
-
-.context-pin-bar-ask {
-  background: var(--c-pin);
-  color: var(--c-on-pin);
-  border-color: var(--c-pin);
-}
-
-.context-pin-bar-ask:hover {
-  background: color-mix(in srgb, var(--c-pin) 85%, var(--c-text));
-  border-color: color-mix(in srgb, var(--c-pin) 85%, var(--c-text));
-}
-
-.context-pin-bar-clear {
-  background: none;
-  border: none;
-  color: var(--c-muted);
-  font-size: 16px;
-  padding: 2px 6px;
-  line-height: 1;
-}
-
-.context-pin-bar-clear:hover {
-  color: var(--c-text);
-  background: var(--c-surface-hover);
 }
 
 /* ── Expanded overlay actions ────────────────────────────────── */
@@ -7522,4 +7439,291 @@ html.is-node-dragging .intent-line-layer {
   .home-board { flex-wrap: wrap; }
   .home-board-open { flex-basis: 100%; }
   .home-board-actions { padding: 0 8px 4px; }
+}
+
+/* ── One context chip (docs/design/ContextChip.dc.html) ───────────────
+   Top bar, right side: what is in the agent's context in brief order, with
+   the brief's share of its budget. Blue in context, violet the agent's,
+   amber only when the brief was clipped or a card changed since read. */
+.context-chip-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, var(--c-pin) 35%, transparent);
+  background: color-mix(in srgb, var(--c-pin) 8%, transparent);
+  color: var(--c-pin);
+  font: 500 12px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.context-chip.is-open {
+  border-color: var(--c-pin);
+  background: color-mix(in srgb, var(--c-pin) 16%, transparent);
+}
+.context-chip.is-empty {
+  border: 1px dashed var(--c-line-30);
+  background: transparent;
+  color: var(--c-muted);
+}
+.context-chip:focus-visible {
+  outline: 2px solid var(--c-pin);
+  outline-offset: 2px;
+}
+.context-chip-pin {
+  position: relative;
+  display: inline-flex;
+}
+.context-chip-agent-dot {
+  position: absolute;
+  right: -3px;
+  top: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-agent);
+  box-shadow: 0 0 0 1.5px var(--c-panel);
+}
+.context-chip-wide .is-near {
+  color: var(--c-muted);
+}
+.context-chip-wide .is-agent {
+  color: var(--c-agent);
+}
+.context-chip-wide .is-warn {
+  color: var(--c-warn);
+  font-weight: 600;
+}
+.context-chip-narrow {
+  display: none;
+}
+.context-chip-track,
+.context-panel-track {
+  display: inline-block;
+  width: 32px;
+  height: 4px;
+  margin-left: 2px;
+  border-radius: var(--r-pill);
+  background: var(--c-line);
+  overflow: hidden;
+}
+.context-chip-track > span,
+.context-panel-track > span {
+  display: block;
+  height: 100%;
+  background: var(--c-pin);
+}
+.context-chip-track.is-over > span,
+.context-panel-track.is-over > span {
+  background: var(--c-warn);
+}
+.context-chip-meter {
+  font: 11px var(--font-code);
+  color: var(--c-muted);
+}
+.context-chip-meter.is-over {
+  color: var(--c-warn);
+}
+
+.context-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: 440px;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--c-line-30);
+  background: var(--c-panel);
+  box-shadow: var(--e-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--c-text);
+  font: 12px var(--font-ui);
+  text-align: left;
+}
+.context-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.context-panel-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.context-panel-mono {
+  font: 11px var(--font-code);
+  color: var(--c-muted);
+}
+.context-panel-track {
+  display: block;
+  width: auto;
+  height: 6px;
+  margin: 0;
+}
+.context-panel-cap,
+.context-panel-cap-inline {
+  margin: 0;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+.context-panel-cap-inline {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.context-panel-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--c-line);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+.context-panel-section > span:first-child {
+  flex: 1;
+}
+.context-panel-link,
+.context-panel-promote {
+  border: 0;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--c-pin);
+  font: 500 11px var(--font-ui);
+  cursor: pointer;
+}
+.context-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.context-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+}
+.context-panel-row.is-near .context-panel-promote {
+  visibility: hidden;
+}
+.context-panel-row.is-near:hover,
+.context-panel-row.is-near:focus-within {
+  background: var(--c-panel-soft);
+}
+.context-panel-row.is-near:hover .context-panel-promote,
+.context-panel-row.is-near:focus-within .context-panel-promote {
+  visibility: visible;
+}
+.context-panel-pin {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--c-pin);
+  color: var(--c-on-pin);
+}
+.context-panel-near-ring {
+  width: 12px;
+  height: 12px;
+  margin: 0 2px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  border: 1.5px dotted var(--c-pin);
+  flex-shrink: 0;
+}
+.context-panel-board {
+  fill: none;
+  stroke: var(--c-pin);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.context-panel-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.context-panel-name.is-soft {
+  font-weight: 400;
+  color: var(--c-text-soft);
+}
+.context-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.context-tag.is-read {
+  color: var(--c-agent);
+  background: color-mix(in srgb, var(--c-agent) 14%, transparent);
+}
+.context-tag.is-not-read {
+  color: var(--c-muted);
+  background: var(--c-panel-soft);
+}
+.context-tag.is-changed {
+  color: var(--c-warn);
+  background: color-mix(in srgb, var(--c-warn) 14%, transparent);
+}
+.context-panel-x {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--c-muted);
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: var(--r-pill);
+}
+.context-panel-x:hover {
+  color: var(--c-text);
+  background: var(--c-surface-hover);
+}
+
+/* 600 px (ContextChip600.dc.html): one count, and the panel becomes a sheet. */
+@media (max-width: 760px) {
+  .context-chip-wide {
+    display: none;
+  }
+  .context-chip-narrow {
+    display: inline;
+  }
+  .context-panel {
+    position: fixed;
+    top: var(--hud-bar-height, 44px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
 }

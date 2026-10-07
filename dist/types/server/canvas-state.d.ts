@@ -625,6 +625,11 @@ declare class CanvasStateManager {
     private readRevisions;
     /** Per node on a board, the latest agent read that delivered its content. */
     getNodeReadStatus(boardId?: string | null): NodeReadStatus[];
+    /** The latest agent read on a board, of any kind, or null. */
+    getBoardLastRead(boardId?: string | null): {
+        lastReadAt: string;
+        lastReadBy: string;
+    } | null;
     /** Nodes on a board whose content an agent read at or after `since` (ISO). */
     getReadNodeIdsSince(boardId: string | null, since: string): string[];
     getContextReads(limit?: number): {
