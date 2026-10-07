@@ -1,6 +1,7 @@
 import type { CanvasNodeState } from '../types';
 import { boardList, openBoard } from '../state/boards-store';
 import { IconExternalLink } from '../icons';
+import { BoardPinButton } from '../canvas/BoardPinButton';
 
 /** Native text-only cross-board link. Target identity is the durable board id. */
 export function BoardNode({ node }: { node: CanvasNodeState }) {
@@ -9,9 +10,16 @@ export function BoardNode({ node }: { node: CanvasNodeState }) {
   return (
     <div class="board-node">
       <div class="board-node-content">
-        <div class="board-node-label">Linked board</div>
+        <div class="board-node-label-row">
+          <div class="board-node-label">Linked board</div>
+          {target && <BoardPinButton board={target} />}
+        </div>
         <strong class="board-node-title">{target?.name ?? 'Missing board'}</strong>
-        <div class="board-node-meta">{target ? `${target.nodeCount} nodes` : boardId || 'No target id'}</div>
+        <div class="board-node-meta">
+          {target
+            ? `${target.nodeCount} nodes${target.pin ? ' · pinned, so it travels with you' : ''}`
+            : boardId || 'No target id'}
+        </div>
         {target?.summary && <p class="board-node-summary">{target.summary}</p>}
         {!!target?.pinnedTitles?.length && (
           <p class="board-node-meta">Pinned: {target.pinnedTitles.map((pin) => pin.title).join(', ')}</p>

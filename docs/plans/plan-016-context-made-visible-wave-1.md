@@ -133,6 +133,12 @@ read on that board. `canvas://pinned-context` lists `pinnedBoards`. **5b next:**
 Home cards, the board switcher, portal cards and the top bar; Home's pinned section; the
 context chip's "N cards · M boards" and its fallback note.
 
+**5b, part 1 done, 2026-10-07.** One `BoardPinButton` (the card pin's mark on a 22 px target)
+on Home rows (blue edge and "in context" when pinned), board switcher rows, portal cards and
+the top bar; human pins carry the workbench marker. Left for part 2: Home's pinned-boards
+panel and preview cards (`Home.dc.html`, a Home redesign), and the context chip shared with
+4b. Open: a portal shows both its card pin (header) and its board pin (body).
+
 Per vision move 0a and `BoardPins.dc.html`: `board_pins` table (board, who, when); `canvas_board`
 `pin`/`unpin` across PmxCanvas, HTTP, MCP and CLI; the tiered brief (active board's pins, then each
 pinned board's README + pinned cards, then discovery); the context chip counts "N cards · M boards";

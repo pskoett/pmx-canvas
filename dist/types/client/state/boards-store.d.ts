@@ -27,6 +27,16 @@ export interface BoardSummary {
         title: string;
         nodeId: string;
     }>;
+    /** In the agent's working set (vision move 0a); null when not pinned. */
+    pin?: {
+        pinnedBy: {
+            actor: string;
+            source: string;
+            agentId?: string;
+        };
+        pinnedAt: string;
+        reason?: string;
+    } | null;
 }
 export declare const boardList: import("@preact/signals-core").Signal<BoardSummary[]>;
 export declare const activeBoardId: import("@preact/signals-core").Signal<string | null>;
@@ -74,6 +84,8 @@ export declare function updateBoard(id: string, patch: {
     name?: string;
     category?: string | null;
 }): Promise<void>;
+/** Pin a board into the agent's working set, or unpin it. */
+export declare function setBoardPinned(id: string, pinned: boolean): Promise<void>;
 export declare function setBoardReadme(id: string, readmeNodeId: string | null): Promise<void>;
 export declare function deleteBoard(id: string): Promise<void>;
 export declare function activeBoard(): BoardSummary | null;

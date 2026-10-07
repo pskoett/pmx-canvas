@@ -18,6 +18,8 @@ export interface BoardSummary {
   pinnedTitles?: Array<{ nodeId: string; title: string }>;
   links?: Array<{ nodeId: string; boardId: string; title: string | null; missing: boolean }>;
   backlinks?: Array<{ boardId: string; title: string; nodeId: string }>;
+  /** In the agent's working set (vision move 0a); null when not pinned. */
+  pin?: { pinnedBy: { actor: string; source: string; agentId?: string }; pinnedAt: string; reason?: string } | null;
 }
 
 interface BoardsPayload {
@@ -148,6 +150,12 @@ export async function updateBoard(id: string, patch: { name?: string; category?:
     ...(patch.category === null ? { category: '' } : {}),
   });
   applyBoards(payload);
+}
+
+/** Pin a board into the agent's working set, or unpin it. */
+export async function setBoardPinned(id: string, pinned: boolean): Promise<void> {
+  const url = `/api/canvas/boards/${encodeURIComponent(id)}/${pinned ? 'pin' : 'unpin'}`;
+  applyBoards(await post(pinned ? 'pinBoard' : 'unpinBoard', url, 'POST', {}));
 }
 
 export async function setBoardReadme(id: string, readmeNodeId: string | null): Promise<void> {

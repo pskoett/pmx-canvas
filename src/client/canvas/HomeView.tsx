@@ -15,6 +15,7 @@ import { BoardFolderDialog } from './BoardFolderDialog';
 import { requestJson } from '../state/intent-bridge';
 import { focusNode, nodes } from '../state/canvas-store';
 import { BoardCopyDialog } from './BoardCopyDialog';
+import { BoardPinButton } from './BoardPinButton';
 
 interface LibraryHit {
   boardId: string;
@@ -163,13 +164,15 @@ export function HomeView() {
         </div>
       </li>
     ) : (
-      <li key={board.id} class="home-board" data-testid="home-board">
+      <li key={board.id} class={`home-board${board.pin ? ' is-pinned' : ''}`} data-testid="home-board">
         <button type="button" class="home-board-open" onClick={() => void openBoard(board.id)}>
           <span class="home-board-name">{board.name}</span>
           <span class="home-board-meta">
+            {board.pin ? 'in context · ' : ''}
             {nodesLabel(board.nodeCount)} · {timeAgo(board.lastOpenedAt)}
           </span>
         </button>
+        <BoardPinButton board={board} />
         <div class="home-board-actions">
           <button type="button" class="home-board-action" aria-haspopup="dialog" onClick={() => setMoving(board.id)}>
             Move

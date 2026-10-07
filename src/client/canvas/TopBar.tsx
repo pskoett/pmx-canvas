@@ -1,6 +1,7 @@
 import { exportDialogOpen } from './ExportDialog';
-import { activeBoardId } from '../state/boards-store';
+import { activeBoard, activeBoardId } from '../state/boards-store';
 import { BoardSwitcher } from './BoardSwitcher';
+import { BoardPinButton } from './BoardPinButton';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import type { ComponentChildren } from 'preact';
 import { startPresentation } from '../state/presentation';
@@ -295,6 +296,7 @@ export function TopBar() {
 
   const degraded = degradedState.value;
   const statusTitle = degraded ?? (status === 'connected' && !hasSynced ? 'syncing' : status);
+  const pinTarget = activeBoard();
   const countsLabel = hasSynced
     ? [
         `${nodeCount} node${nodeCount !== 1 ? 's' : ''}`,
@@ -323,6 +325,7 @@ export function TopBar() {
         <span class={`connection-dot ${degraded ?? status}`} aria-label={`Canvas status: ${statusTitle}`} />
       </BarHint>
       <BoardSwitcher fallbackName={workspaceName || 'PMX Canvas'} />
+      {pinTarget && <BoardPinButton board={pinTarget} />}
       <span class="top-bar-meta hud-collapsible-text">{sessionId.value ? sessionId.value.slice(0, 12) : '…'}</span>
       <span class="top-bar-meta hud-collapsible-text">{countsLabel}</span>
 

@@ -1,3 +1,4 @@
+import { BoardPinButton } from './BoardPinButton';
 import { render, type VNode } from 'preact';
 import { useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { activeBoard, activeBoardId, boardList, boardsLoaded, openBoard } from '../state/boards-store';
@@ -97,26 +98,23 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
             {recent.length > 0 && <div class="board-switcher-heading">Recent boards</div>}
             <div class="board-switcher-recents">
               {recent.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  role="menuitem"
-                  class="toolbar-menu-item"
-                  onClick={() => choose(entry.id)}
-                >
-                  <span class="board-switcher-icon" aria-hidden="true">
-                    <IconLogo size={18} />
-                  </span>
-                  <span class="board-switcher-item-copy">
-                    <span class="board-switcher-item-name">{entry.name}</span>
-                    <span class="board-switcher-item-folder">
-                      {entry.category?.split('/').join(' / ') || 'Unfiled'}
+                <div key={entry.id} class="board-switcher-row">
+                  <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => choose(entry.id)}>
+                    <span class="board-switcher-icon" aria-hidden="true">
+                      <IconLogo size={18} />
                     </span>
-                  </span>
-                  <span class="board-switcher-item-meta">
-                    {entry.nodeCount} {entry.nodeCount === 1 ? 'node' : 'nodes'}
-                  </span>
-                </button>
+                    <span class="board-switcher-item-copy">
+                      <span class="board-switcher-item-name">{entry.name}</span>
+                      <span class="board-switcher-item-folder">
+                        {entry.category?.split('/').join(' / ') || 'Unfiled'}
+                      </span>
+                    </span>
+                    <span class="board-switcher-item-meta">
+                      {entry.nodeCount} {entry.nodeCount === 1 ? 'node' : 'nodes'}
+                    </span>
+                  </button>
+                  <BoardPinButton board={entry} />
+                </div>
               ))}
             </div>
             <div class="board-switcher-actions">

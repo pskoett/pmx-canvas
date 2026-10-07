@@ -149,6 +149,12 @@
 
 .board-node, .md-card-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .board-node-content { flex: 1; min-height: 0; overflow: auto; padding: 16px; overflow-wrap: anywhere; }
+.board-node-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .board-node-label { color: var(--c-dim); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
 .board-node-title { display: block; font-size: 17px; line-height: 1.35; margin-bottom: 6px; }
 .board-node-meta { color: var(--c-dim); font-size: 11px; line-height: 1.5; }
@@ -5800,6 +5806,31 @@ html.is-node-resizing .ext-app-preview-catcher {
   color: var(--c-on-pin);
 }
 
+/* Board pins (docs/design/BoardPins.dc.html): the card pin's mark on a bare
+   22 px hit target, on Home cards, the switcher, portal cards and the top bar. */
+.board-pin-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: var(--r-pill);
+}
+.board-pin-btn:focus-visible {
+  outline: 2px solid var(--c-pin);
+  outline-offset: 1px;
+}
+.board-pin-btn .ctx-pin-mark {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
+
 /* ── Context pin HUD — top-right pill ────────────────────────── */
 .context-pin-hud {
   display: flex;
@@ -7086,6 +7117,8 @@ html.is-node-dragging .intent-line-layer {
   flex-shrink: 0;
 }
 .board-switcher-recents { min-height: 0; overflow-y: auto; }
+.board-switcher-row { display: flex; align-items: center; gap: 4px; padding-right: 8px; }
+.board-switcher-row > .toolbar-menu-item { flex: 1; min-width: 0; }
 .board-switcher-menu .toolbar-menu-item { padding: 10px; gap: 12px; }
 .board-switcher-menu .toolbar-menu-item:hover,
 .board-switcher-menu .toolbar-menu-item:focus-visible {
@@ -7169,6 +7202,10 @@ html.is-node-dragging .intent-line-layer {
   border: 1px solid var(--c-line);
   border-radius: 10px;
   background: var(--c-panel);
+}
+/* In the agent's working set: the pin's blue edge (BoardPins.dc.html). */
+.home-board.is-pinned {
+  border: 1.5px solid var(--c-pin);
 }
 .home-board.is-confirming {
   border-color: var(--c-danger);
