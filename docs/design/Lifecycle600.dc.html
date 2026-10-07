@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Categories and lifecycle at 600 px</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 600px; height: 940px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
+
+<div>
+<h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 28px">At 600 px — categories and lifecycle</h1>
+<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Same marks, stacked. Nothing is hidden behind width: the category word, the due count and both amber signals stay readable.</p>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">Home · library</span>
+<div style="{{s.panel}} padding: 10px 8px; gap: 2px">
+<sc-for list="{{tree}}" as="r" hint-placeholder-count="10">
+<div style="{{r.row}}"><span style="{{r.ind}}"></span><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.folder}}"></path></svg><span style="{{s.name}}">{{r.name}}</span><span style="{{r.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{r.icon}}"></path></svg>{{r.tag}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ true }}"><span style="{{s.reviewChip}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if></div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">On the board</span>
+<div style="position: relative; height: 250px; border-radius: 10px; border: 1px solid #1b2c44; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px; overflow: hidden">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #0f1d31; border-bottom: 1px solid #1b2c44"><span style="font-size: 13px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Pricing strategy 2027</span><span style="{{s.inh}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.strategy}}"></path></svg>↳ Strategy</span><span style="{{s.reviewChip}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>2 to review</span></div>
+<div style="position: absolute; left: 40px; top: 60px; width: 486px; height: 170px; box-sizing: border-box; border-radius: 10px; border: 1.5px solid #4BBCFF; background: #0f1d31; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)">
+<div style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44; background: rgba(75,188,255,0.10)"><span style="{{s.title}}">Churn by month</span><span style="{{s.changedChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.warn}}"></path></svg>changed</span><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></div>
+<div style="display: flex; align-items: flex-end; gap: 6px; height: 90px; padding: 10px 12px 0; box-sizing: border-box"><sc-for list="{{bars}}" as="b" hint-placeholder-count="10"><span style="{{b.st}}"></span></sc-for></div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 32px; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-top: 1px solid #1b2c44"><span style="{{s.lifeSet}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.cycle}}"></path></svg>fast · set on card</span><span style="flex: 1"></span><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span></div>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">Lifecycle tab — expanded card</span>
+<div style="{{s.panel}} padding: 14px; gap: 14px">
+<div style="{{s.kv}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.strategy}}"></path></svg><span style="flex: 1">↳ Strategy · from the board</span><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.lock}}"></path></svg></div>
+<div style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #081524"><span style="{{s.segOff}}">Inherit · slow</span><span style="{{s.segOn}}">Set: reality · fast</span></div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+<sc-for list="{{clocks}}" as="k" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 8px; background: #13243b"><div style="display: flex; align-items: center; gap: 6px"><svg width="12" height="12" viewBox="0 0 24 24" style="{{k.icSt}}"><path d="{{k.icon}}"></path></svg><span style="font-size: 11px; color: #8ea3bd">{{k.name}}</span></div><span style="font-size: 13px; font-weight: 600">{{k.value}}</span></div>
+</sc-for>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Reading never counts as validating.</span>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 8px; border: 1px solid rgba(244,197,66,0.35)">
+<span style="{{s.reviewChip}} align-self: flex-start"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due · source refreshed</span>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px"><sc-for list="{{outcomes}}" as="o" hint-placeholder-count="5"><span style="{{o.st}}">{{o.n}}</span></sc-for></div>
+<div style="display: flex; align-items: center; height: 34px; box-sizing: border-box; padding: 0 10px; border-radius: 6px; border: 1px solid #2a4566; background: #081524; font-size: 12px; color: #6b7d94">Evidence — a link or a note</div>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">In the brief</span>
+<div style="{{s.panel}} padding: 12px; gap: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1.6">
+<sc-for list="{{brief}}" as="b" hint-placeholder-count="6"><span style="{{b.st}}">{{b.t}}</span></sc-for>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+      strategy: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M15.5 8.5l-2 5-5 2 2-5z',
+      decision: 'M6 3v18M6 7h10l3 3-3 3H6',
+      research: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20',
+      metric: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
+      policy: 'M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z',
+      notes: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      unknown: 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 16.8v.4',
+      glass: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+      warn: 'M12 4l9 16H3zM12 10v4M12 17v.5',
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+      cycle: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 7v5l3 2',
+      check: 'M5 12.5l4.5 4.5L19 7',
+      eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      pen: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      target: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'
+    };
+    var W = '#f4c542';
+    var chip = 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icDim: 'fill:none;stroke:#6b7d94;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icPin: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;',
+      name: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;',
+      inh: 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px;color:#8ea3bd;font-size:11px;flex-shrink:0;',
+      changedChip: chip + 'color:' + W + ';background:rgba(244,197,66,0.14);',
+      reviewChip: chip + 'color:' + W + ';border:1px solid rgba(244,197,66,0.6);',
+      pinOn: 'width:18px;height:18px;border-radius:999px;background:#4BBCFF;color:#081524;display:flex;align-items:center;justify-content:center;flex-shrink:0;',
+      title: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;',
+      lifeSet: 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px solid #2a4566;color:#e6eef7;font-size:11px;',
+      kv: 'display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;background:#13243b;font-size:12px;',
+      segOn: 'flex:1;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#1b2c44;color:#e6eef7;font-size:12px;font-weight:600;',
+      segOff: 'flex:1;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:#8ea3bd;font-size:12px;'
+    };
+    var set = 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px solid #2a4566;color:#e6eef7;font-size:11px;flex-shrink:0;';
+    var unk = 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px dashed #3d5170;color:#8ea3bd;font-size:11px;flex-shrink:0;';
+    var cats = { strategy: 'Strategy', decision: 'Decision', research: 'Research', metric: 'Metric', policy: 'Policy', notes: 'Notes' };
+    function row(name, depth, cat, mode, due) {
+      return {
+        name: name, due: due ? due + ' due' : '', hasDue: !!due,
+        row: 'display:flex;align-items:center;gap:6px;height:30px;padding:0 6px;border-radius:6px;',
+        ind: 'width:' + (depth * 14) + 'px;flex-shrink:0;',
+        icon: mode === 'unk' ? i.unknown : i[cat],
+        tag: mode === 'unk' ? 'unknown' : (mode === 'inh' ? '↳ ' : '') + cats[cat],
+        tagSt: mode === 'set' ? set : mode === 'inh' ? s.inh : unk
+      };
+    }
+    var tree = [
+      row('Org', 0, 'strategy', 'set', 0),
+      row('Strategy 2027', 1, 'strategy', 'inh', 0),
+      row('Decisions', 1, 'decision', 'set', 1),
+      row('Platform team', 0, 'research', 'set', 0),
+      row('Metrics', 1, 'metric', 'set', 5),
+      row('Spikes', 1, 'research', 'inh', 1),
+      row('Pepe', 0, 'notes', 'set', 0),
+      row('Pricing drafts', 1, 'notes', 'inh', 0),
+      row('Inbox', 0, '', 'unk', 0)
+    ];
+    var heights = [30, 34, 29, 38, 41, 36, 44, 40, 47, 52];
+    var bars = heights.map(function (h) { return { st: 'flex:1;height:' + h + 'px;border-radius:3px 3px 0 0;background:#2a4566;' }; });
+    var clocks = [
+      { name: 'Read by agent', value: '2 h ago', icon: i.eye, icSt: 'fill:none;stroke:#B388FF;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;' },
+      { name: 'Content changed', value: '40 min ago', icon: i.pen, icSt: s.ic },
+      { name: 'Last validated', value: '41 days ago', icon: i.check, icSt: s.ic },
+      { name: 'Task relevance', value: 'In the brief', icon: i.target, icSt: s.ic }
+    ];
+    var oBase = 'display:flex;align-items:center;justify-content:center;height:32px;box-sizing:border-box;border-radius:6px;border:1px solid #2a4566;font-size:12px;';
+    var outcomes = [
+      { n: 'Retain', st: oBase }, { n: 'Revise', st: oBase }, { n: 'Externalize', st: oBase },
+      { n: 'Retire from context', st: oBase }, { n: 'Unresolved', st: oBase + 'border-style:dashed;color:#b9c6d6;grid-column:span 2;' }
+    ];
+    var m = 'white-space:pre;';
+    var brief = [
+      { t: '- Churn by month', st: m + 'color:#e6eef7;' },
+      { t: '    review due: fast, validated 41 d ago', st: m + 'color:' + W + ';' },
+      { t: '    changed since you read it', st: m + 'color:' + W + ';' },
+      { t: '- Positioning: premium SMB', st: m + 'color:#e6eef7;' },
+      { t: '    slow, validated 12 d ago', st: m + 'color:#8ea3bd;' },
+      { t: '- Interview quotes: lifecycle unknown', st: m + 'color:#8ea3bd;' }
+    ];
+    return { i: i, s: s, tree: tree, bars: bars, clocks: clocks, outcomes: outcomes, brief: brief };
+  }
+}
+</script>
+</body>
+</html>

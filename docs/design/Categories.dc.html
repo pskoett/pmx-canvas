@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Knowledge categories on folders</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 940px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Knowledge categories live on folders</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">One hierarchy: folders. A category says what kind of knowledge a folder holds and brings its lifecycle defaults with it. It inherits down the tree, so a board filed under Decisions is a decision without anyone tagging it.</p>
+</div>
+
+<div style="flex: 1; display: grid; grid-template-columns: 380px 560px minmax(0, 1fr); gap: 24px; min-height: 0">
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">1 · Home library tree</span>
+<div style="{{s.panel}} padding: 14px 10px; gap: 2px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 0 8px 10px">
+<span style="font-size: 13px; font-weight: 600; flex: 1">Acme workspace</span>
+<button style="{{s.ghostBtn}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.list}}"></path></svg>Categories</button>
+</div>
+<sc-for list="{{tree}}" as="r" hint-placeholder-count="16">
+<div style="{{r.row}}"><span style="{{r.ind}}"></span><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{r.fold}}"></path></svg><span style="{{s.name}}">{{r.name}}</span><span style="{{r.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{r.icon}}"></path></svg>{{r.tag}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ true }}"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if></div>
+</sc-for>
+<div style="margin: 10px 8px 0; padding-top: 10px; border-top: 1px solid #1b2c44; font-size: 11px; color: #6b7d94">Started from the Org · team · personal template, then renamed. Any folder can be renamed, moved or deleted.</div>
+</div>
+
+<div style="{{s.panel}} padding: 12px 14px; gap: 8px">
+<span style="font-size: 12px; font-weight: 600">How to read a row</span>
+<sc-for list="{{legend}}" as="l" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 112px 1fr; gap: 10px; align-items: center"><span style="{{l.st}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{l.icon}}"></path></svg>{{l.tag}}</span><span style="font-size: 11px; color: #b9c6d6">{{l.d}}</span></div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">2 · Folder settings — Platform team / Metrics</span>
+<div style="{{s.panel}} padding: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.6)">
+<div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid #1b2c44">
+<svg width="16" height="16" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.folder}}"></path></svg>
+<div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 600; line-height: 20px">Metrics</div><div style="font-size: 11px; color: #6b7d94; line-height: 14px">Acme / Platform team / Metrics · 12 boards</div></div>
+<button aria-label="Close" style="{{s.iconBtn}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.x}}"></path></svg></button>
+</div>
+
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 600">Category</span>
+<label style="{{s.radio}}"><span style="{{s.radioOff}}"></span><span style="flex: 1">Use the parent’s</span><span style="{{s.inh}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.research}}"></path></svg>↳ Research</span><span style="font-size: 11px; color: #6b7d94">from Platform team</span></label>
+<label style="{{s.radioOn}}"><span style="{{s.radioDot}}"></span><span style="flex: 1">Set here</span>
+<span style="{{s.select}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.metric}}"></path></svg><span style="flex: 1">Metric</span><span style="color: #6b7d94">▾</span></span></label>
+<span style="font-size: 11px; color: #8ea3bd; padding-left: 26px">Picks from the workspace’s one list. Subfolders and boards below inherit Metric unless they set their own.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 12px; font-weight: 600; flex: 1">Lifecycle defaults · from Metric</span><span style="font-size: 11px; color: #4BBCFF">Edit Metric in Categories →</span></div>
+<div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; padding: 12px; border-radius: 8px; background: #13243b; font-size: 12px">
+<span style="color: #8ea3bd">Decays when</span><span>Reality changes — the numbers move</span>
+<span style="color: #8ea3bd">Check</span><span>Fast — at use, every time a brief carries it</span>
+<span style="color: #8ea3bd">Also review when</span><span>its source refreshes · a card contradicts it</span>
+<span style="color: #8ea3bd">Revalidate by</span><span>re-reading the source dashboard and comparing</span>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Rates are planning judgements, not odds that a claim is true.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">What inherits it</span>
+<div style="{{s.kv}}"><span style="flex: 1">Boards in this folder</span><span style="color: #b9c6d6">11 inherit Metric · 1 sets its own</span></div>
+<div style="{{s.kv}}"><span style="flex: 1">OKR mirror</span><span style="{{s.set}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.strategy}}"></path></svg>Strategy</span><span style="font-size: 11px; color: #6b7d94">set on the board</span></div>
+<div style="{{s.kv}}"><span style="flex: 1">Cards on these boards</span><span style="color: #b9c6d6">may change their lifecycle, never their category</span></div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; border: 1px dashed #1b2c44; color: #6b7d94; font-size: 12px"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.lock}}"></path></svg><span style="flex: 1">Who can read and write</span><span style="font-size: 11px">later, with the team server · not part of the category</span></div>
+</div>
+
+<div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid #1b2c44">
+<button style="{{s.btn}}">Cancel</button><button style="{{s.btnPrimary}}">Save</button>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">3 · Another workspace — solo research</span>
+<div style="{{s.panel}} padding: 14px 10px; gap: 2px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 0 8px 10px">
+<span style="font-size: 13px; font-weight: 600; flex: 1">Thesis notes</span>
+<button style="{{s.ghostBtn}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.list}}"></path></svg>Categories</button>
+</div>
+<sc-for list="{{solo}}" as="r" hint-placeholder-count="9">
+<div style="{{r.row}}"><span style="{{r.ind}}"></span><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{r.fold}}"></path></svg><span style="{{s.name}}">{{r.name}}</span><span style="{{r.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{r.icon}}"></path></svg>{{r.tag}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ true }}"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if></div>
+</sc-for>
+<div style="margin: 10px 8px 0; padding-top: 10px; border-top: 1px solid #1b2c44; font-size: 11px; color: #6b7d94">No template. One person started empty and defined four categories of their own: Question, Source, Finding, Note. Nothing here says org, team or personal.</div>
+</div>
+
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="4">
+<div style="{{s.panel}} padding: 12px 14px; gap: 2px"><span style="font-size: 12px; font-weight: 600">{{r.t}}</span><span style="font-size: 11px; color: #b9c6d6">{{r.d}}</span></div>
+</sc-for>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+      open: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H7l-4 9zM7 10h15l-3 9H3',
+      strategy: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M15.5 8.5l-2 5-5 2 2-5z',
+      decision: 'M6 3v18M6 7h10l3 3-3 3H6',
+      research: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20',
+      metric: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
+      policy: 'M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z',
+      notes: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      question: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 16.8v.4',
+      source: 'M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zM5 20a2 2 0 0 0 2 1h12v-3',
+      finding: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.4.3.5.7.5 1.1v1h6v-1c0-.4.1-.8.5-1.1A6 6 0 0 0 12 3',
+      unknown: 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 16.8v.4',
+      glass: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+      list: 'M8 6h12M8 12h12M8 18h12M4 6h.5M4 12h.5M4 18h.5',
+      lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+      x: 'M6 6l12 12M18 6L6 18'
+    };
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icDim: 'fill:none;stroke:#6b7d94;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      name: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;',
+      due: 'display:inline-flex;align-items:center;gap:3px;height:18px;padding:0 6px;border-radius:999px;border:1px solid rgba(244,197,66,0.6);color:#f4c542;font-size:11px;flex-shrink:0;',
+      set: 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px solid #2a4566;color:#e6eef7;font-size:11px;flex-shrink:0;',
+      inh: 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px;color:#8ea3bd;font-size:11px;flex-shrink:0;',
+      ghostBtn: 'display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:6px;border:1px solid #1b2c44;background:transparent;color:#b9c6d6;font-family:inherit;font-size:12px;',
+      iconBtn: 'width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#8ea3bd;display:flex;align-items:center;justify-content:center;',
+      radio: 'display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:8px;border:1px solid #1b2c44;font-size:13px;',
+      radioOn: 'display:flex;align-items:center;gap:10px;height:44px;padding:0 6px 0 12px;border-radius:8px;border:1px solid #2a4566;background:#13243b;font-size:13px;',
+      radioOff: 'width:14px;height:14px;box-sizing:border-box;border-radius:999px;border:1.5px solid #6b7d94;flex-shrink:0;',
+      radioDot: 'width:14px;height:14px;box-sizing:border-box;border-radius:999px;border:4px solid #e6eef7;flex-shrink:0;',
+      select: 'display:flex;align-items:center;gap:8px;width:190px;height:32px;box-sizing:border-box;padding:0 10px;border-radius:6px;border:1px solid #2a4566;background:#0f1d31;font-size:13px;',
+      kv: 'display:flex;align-items:center;gap:8px;min-height:30px;padding:0 10px;border-radius:6px;background:#13243b;font-size:12px;',
+      btn: 'height:30px;padding:0 14px;border-radius:6px;border:1px solid #1b2c44;background:transparent;color:#e6eef7;font-family:inherit;font-size:12px;',
+      btnPrimary: 'height:30px;padding:0 14px;border-radius:6px;border:0;background:#4BBCFF;color:#081524;font-family:inherit;font-size:12px;font-weight:600;'
+    };
+    var unk = 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px dashed #3d5170;color:#8ea3bd;font-size:11px;flex-shrink:0;';
+    var cats = { strategy: 'Strategy', decision: 'Decision', research: 'Research', metric: 'Metric', policy: 'Policy', notes: 'Notes', question: 'Question', source: 'Source', finding: 'Finding' };
+    function row(name, depth, cat, mode, due, opts) {
+      opts = opts || {};
+      var tag = mode === 'unk' ? 'unknown' : (mode === 'inh' ? '↳ ' : '') + cats[cat];
+      return {
+        name: name, due: due ? due + ' due' : '', hasDue: !!due,
+        row: 'display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;' + (opts.sel ? 'background:#13243b;box-shadow:inset 2px 0 0 #e6eef7;' : ''),
+        ind: 'width:' + (depth * 16) + 'px;flex-shrink:0;',
+        fold: opts.leaf ? i.folder : i.open,
+        icon: mode === 'unk' ? i.unknown : i[cat], tag: tag,
+        tagSt: mode === 'set' ? s.set : mode === 'inh' ? s.inh : unk
+      };
+    }
+    var tree = [
+      row('Org', 0, 'strategy', 'set', 0),
+      row('Strategy 2027', 1, 'strategy', 'inh', 0, { leaf: true }),
+      row('Principles', 1, 'policy', 'set', 0, { leaf: true }),
+      row('Decisions', 1, 'decision', 'set', 1, { leaf: true }),
+      row('Platform team', 0, 'research', 'set', 0),
+      row('Objectives', 1, 'strategy', 'set', 0, { leaf: true }),
+      row('Decisions', 1, 'decision', 'set', 2, { leaf: true }),
+      row('Metrics', 1, 'metric', 'set', 5, { leaf: true, sel: true }),
+      row('Spikes', 1, 'research', 'inh', 1, { leaf: true }),
+      row('Pepe', 0, 'notes', 'set', 0),
+      row('Reading', 1, 'notes', 'inh', 0, { leaf: true }),
+      row('Pricing drafts', 1, 'notes', 'inh', 0, { leaf: true }),
+      row('Inbox', 0, '', 'unk', 0, { leaf: true })
+    ];
+    var solo = [
+      row('Projects', 0, 'question', 'set', 0),
+      row('Urban heat', 1, 'question', 'inh', 0, { leaf: true }),
+      row('Bike lanes', 1, 'question', 'inh', 0, { leaf: true }),
+      row('Sources', 0, 'source', 'set', 0),
+      row('Papers', 1, 'source', 'inh', 2, { leaf: true }),
+      row('Datasets', 1, 'source', 'inh', 1, { leaf: true }),
+      row('Findings', 0, 'finding', 'set', 0, { leaf: true }),
+      row('Notes', 0, 'notes', 'set', 0, { leaf: true })
+    ];
+    var legend = [
+      { st: s.set, icon: i.decision, tag: 'Decision', d: 'Set here. Glyph and word, no colour: categories are not meanings.' },
+      { st: s.inh, icon: i.research, tag: '↳ Research', d: 'Inherited from the nearest folder above that sets one.' },
+      { st: unk, icon: i.unknown, tag: 'unknown', d: 'Nothing above sets a category. No lifecycle, and never an invented expiry date.' },
+      { st: s.due, icon: i.glass, tag: '5 due', d: 'Boards in the folder waiting for a review. Amber: needs a look.' }
+    ];
+    var rules = [
+      { t: 'One hierarchy', d: 'Category is a property of a folder (or a board), not tags or a second tree. A board still lives in one folder; links stay many-to-many.' },
+      { t: 'The workspace owns the list', d: 'One category list per workspace, edited in Categories. The product ships editable defaults; a template fills them in.' },
+      { t: 'Category never grants access', d: 'Folder names and categories say what knowledge is, not who sees it. Audience is a later, separate property.' }
+    ];
+    return { i: i, s: s, tree: tree, solo: solo, legend: legend, rules: rules };
+  }
+}
+</script>
+</body>
+</html>

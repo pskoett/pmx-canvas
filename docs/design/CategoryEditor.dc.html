@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace category editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 960px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">One category list per workspace</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Home → Categories. The workspace defines and edits the list; folders pick from it. Each category carries lifecycle defaults: how it decays, how often to check, and what triggers a review. The product only ships editable starting points.</p>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="{{s.label}}">Start from a template</span><span style="font-size: 11px; color: #6b7d94">A template is a starter folder tree with categories filled in. Adopt, rename or ignore it; nothing in the product depends on its words.</span></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{templates}}" as="t" hint-placeholder-count="4">
+<div style="{{t.card}}">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; font-weight: 600; flex: 1">{{t.name}}</span><span style="{{t.badgeSt}}">{{t.badge}}</span></div>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #b9c6d6">{{t.tree}}</span>
+<span style="font-size: 11px; color: #8ea3bd">{{t.cats}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<div style="flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 24px; min-height: 0">
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: center; gap: 10px"><span style="{{s.label}} flex: 1">Acme workspace · 6 categories</span><button style="{{s.ghostBtn}}">+ Add category</button></div>
+<div style="{{s.panel}}">
+<div style="{{s.head}}"><span>Category</span><span>Decays when</span><span>Check</span><span>Also review when</span><span style="text-align: right">Used by</span></div>
+<sc-for list="{{cats}}" as="c" hint-placeholder-count="6">
+<div style="{{c.row}}">
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{c.icon}}"></path></svg>{{c.name}}</span>
+<span style="color: #b9c6d6">{{c.decay}}</span>
+<span><span style="{{c.rateSt}}">{{c.rate}}</span></span>
+<span style="color: #b9c6d6">{{c.triggers}}</span>
+<span style="text-align: right; color: #8ea3bd">{{c.used}}</span>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #1b2c44; font-size: 12px; color: #8ea3bd"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.unknown}}"></path></svg><span style="flex: 1">Folders with no category above them stay <b style="font-weight: 600; color: #b9c6d6">unknown</b>: no lifecycle, no expiry date, listed in the brief as unknown.</span><span>Inbox · 7 boards</span></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{rates}}" as="r" hint-placeholder-count="4">
+<div style="{{s.panel}} padding: 10px 12px; gap: 2px"><span style="{{r.st}}">{{r.n}}</span><span style="font-size: 11px; color: #b9c6d6">{{r.d}}</span></div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">Edit · Metric</span>
+<div style="{{s.panel}} padding: 16px; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6)">
+<div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; color: #8ea3bd">Name</span><span style="{{s.input}}">Metric</span></div>
+<div style="display: flex; gap: 4px"><sc-for list="{{glyphs}}" as="g" hint-placeholder-count="8"><span style="{{g.st}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{g.d}}"></path></svg></span></sc-for></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600">Decays when</span>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px"><sc-for list="{{decays}}" as="d" hint-placeholder-count="4"><div style="{{d.st}}"><span style="font-size: 12px; font-weight: 500">{{d.n}}</span><span style="font-size: 11px; color: #8ea3bd">{{d.d}}</span></div></sc-for></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600">Check</span>
+<div style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #081524"><sc-for list="{{seg}}" as="g" hint-placeholder-count="4"><span style="{{g.st}}">{{g.n}}</span></sc-for></div>
+<span style="font-size: 11px; color: #8ea3bd">Fast: checked at use — every time a brief carries a Metric card, it says when it was last validated.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600">Also review when</span>
+<sc-for list="{{triggers}}" as="t" hint-placeholder-count="6"><div style="display: flex; align-items: center; gap: 8px; font-size: 12px"><span style="{{t.box}}">{{t.mark}}</span><span style="{{t.text}}">{{t.n}}</span></div></sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; color: #8ea3bd">Revalidate by</span><span style="{{s.input}}">Re-read the source dashboard and compare</span></div>
+
+<div style="padding: 10px 12px; border-radius: 8px; background: #13243b; font-size: 11px; color: #b9c6d6">Applies to 12 boards that inherit Metric. Cards that set their own lifecycle keep it.</div>
+</div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      strategy: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M15.5 8.5l-2 5-5 2 2-5z',
+      decision: 'M6 3v18M6 7h10l3 3-3 3H6',
+      research: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20',
+      metric: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
+      policy: 'M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z',
+      notes: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      source: 'M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zM5 20a2 2 0 0 0 2 1h12v-3',
+      finding: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.4.3.5.7.5 1.1v1h6v-1c0-.4.1-.8.5-1.1A6 6 0 0 0 12 3',
+      unknown: 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 16.8v.4'
+    };
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      ghostBtn: 'display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:6px;border:1px solid #1b2c44;background:transparent;color:#b9c6d6;font-family:inherit;font-size:12px;',
+      head: 'display:grid;grid-template-columns:150px 200px 150px minmax(0,1fr) 130px;gap:12px;padding:10px 14px;border-bottom:1px solid #1b2c44;font-size:11px;font-weight:500;color:#6b7d94;',
+      input: 'display:flex;align-items:center;height:32px;box-sizing:border-box;padding:0 10px;border-radius:6px;border:1px solid #2a4566;background:#081524;font-size:13px;'
+    };
+    var rowBase = 'display:grid;grid-template-columns:150px 200px 150px minmax(0,1fr) 130px;gap:12px;align-items:center;min-height:44px;padding:6px 14px;border-bottom:1px solid #1b2c44;font-size:12px;';
+    var rate = 'display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:#13243b;color:#e6eef7;font-size:11px;';
+    function c(icon, name, decay, r, triggers, used, sel) {
+      return { icon: i[icon], name: name, decay: decay, rate: r, rateSt: rate, triggers: triggers, used: used, row: rowBase + (sel ? 'background:#13243b;box-shadow:inset 2px 0 0 #e6eef7;' : '') };
+    }
+    var cats = [
+      c('strategy', 'Strategy', 'Relevance — the task changes', 'Slow · on resume', 'a decision supersedes it · quarterly', '3 folders · 9 boards'),
+      c('decision', 'Decision', 'Decision — superseded', 'Durable', 'a newer decision · a dependency changes', '2 folders · 14 boards'),
+      c('research', 'Research', 'Reality — facts change', 'Medium · 90 days', 'its source changes · a contradiction', '2 folders · 11 boards'),
+      c('metric', 'Metric', 'Reality — the numbers move', 'Fast · at use', 'source refreshes · a contradiction', '1 folder · 12 boards', true),
+      c('policy', 'Policy', 'Decision — superseded', 'Slow · yearly', 'its owner changes · a newer policy', '1 folder · 4 boards'),
+      c('notes', 'Notes', 'Relevance — the task changes', 'Slow · on resume', 'none', '1 folder · 23 boards')
+    ];
+    var tplBase = 'display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;';
+    var badge = 'font-size:11px;padding:0 7px;border-radius:999px;background:#13243b;color:#b9c6d6;';
+    var templates = [
+      { name: 'Org · team · personal', badge: 'adopted · renamed', badgeSt: badge, card: tplBase + 'border-color:#2a4566;', tree: 'Org / Team / Personal', cats: 'Strategy, Policy, Decision, Research, Metric, Notes' },
+      { name: 'Solo research', badge: '', badgeSt: 'display:none;', card: tplBase, tree: 'Projects / Sources / Notes', cats: 'Question, Source, Finding, Note' },
+      { name: 'Product team', badge: '', badgeSt: 'display:none;', card: tplBase, tree: 'Discovery / Delivery / Decisions', cats: 'Research, Metric, Decision, Notes' },
+      { name: 'Empty', badge: '', badgeSt: 'display:none;', card: tplBase + 'border-style:dashed;', tree: 'no folders', cats: 'no categories — everything starts unknown' }
+    ];
+    var rates = [
+      { n: 'Fast', st: 'font-size:12px;font-weight:600;', d: 'Check at use. The brief always says when it was last validated.' },
+      { n: 'Medium', st: 'font-size:12px;font-weight:600;', d: 'A cadence that fits the source, plus event triggers.' },
+      { n: 'Slow', st: 'font-size:12px;font-weight:600;', d: 'On resumed work or a maintenance pass.' },
+      { n: 'Durable', st: 'font-size:12px;font-weight:600;', d: 'No passive expiry. Only events — a newer decision — trigger review.' }
+    ];
+    var gBase = 'width:30px;height:30px;box-sizing:border-box;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#b9c6d6;';
+    var glyphs = ['metric', 'strategy', 'decision', 'research', 'policy', 'notes', 'source', 'finding'].map(function (k, n) {
+      return { d: i[k], st: gBase + (n === 0 ? 'border:1px solid #e6eef7;color:#e6eef7;' : 'border:1px solid #1b2c44;') };
+    });
+    var dBase = 'display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;';
+    var decays = [
+      { n: 'Reality', d: 'facts change', st: dBase + 'border:1px solid #e6eef7;background:#13243b;' },
+      { n: 'Decision', d: 'a choice is superseded', st: dBase + 'border:1px solid #1b2c44;' },
+      { n: 'Dependency', d: 'versions, owners, prerequisites', st: dBase + 'border:1px solid #1b2c44;' },
+      { n: 'Relevance', d: 'the task changes', st: dBase + 'border:1px solid #1b2c44;' }
+    ];
+    var segBase = 'flex:1;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:12px;';
+    var seg = ['Fast', 'Medium', 'Slow', 'Durable'].map(function (n, k) {
+      return { n: n, st: segBase + (k === 0 ? 'background:#1b2c44;color:#e6eef7;font-weight:600;' : 'color:#8ea3bd;') };
+    });
+    var on = 'width:14px;height:14px;border-radius:4px;background:#e6eef7;color:#081524;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+    var off = 'width:14px;height:14px;box-sizing:border-box;border-radius:4px;border:1.5px solid #6b7d94;flex-shrink:0;';
+    function t(n, checked) { return { n: n, box: checked ? on : off, mark: checked ? '✓' : '', text: checked ? 'color:#e6eef7;' : 'color:#8ea3bd;' }; }
+    var triggers = [
+      t('Its source refreshes', true), t('A card contradicts it', true), t('A newer decision supersedes it', false),
+      t('A dependency changes (version, owner)', false), t('On a cadence: every 90 days', false)
+    ];
+    return { i: i, s: s, cats: cats, templates: templates, rates: rates, glyphs: glyphs, decays: decays, seg: seg, triggers: triggers };
+  }
+}
+</script>
+</body>
+</html>

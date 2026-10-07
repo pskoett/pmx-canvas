@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card lifecycle and review</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1360px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Lifecycle and review on cards, boards and the brief</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">A card inherits its lifecycle from its board’s category and may override it; it never changes its category. Review is a disposition someone records with evidence, not an age-driven state. Four clocks stay separate: reading never counts as validating.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 600px minmax(0, 1fr); gap: 28px">
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">4 · On the card — at rest</span>
+<div style="position: relative; height: 470px; border-radius: 10px; border: 1px solid #1b2c44; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px; overflow: hidden">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #0f1d31; border-bottom: 1px solid #1b2c44">
+<span style="font-size: 13px; font-weight: 600">Pricing strategy 2027</span>
+<span style="{{s.inh}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.strategy}}"></path></svg>↳ Strategy</span><span style="font-size: 11px; color: #6b7d94">from Org / Strategy 2027</span>
+<span style="flex: 1"></span>
+<span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>2 to review</span>
+</div>
+
+<sc-for list="{{cards}}" as="c" hint-placeholder-count="4">
+<div style="{{c.node}}">
+<div style="{{c.head}}"><span style="{{s.title}}">{{c.title}}</span>
+<sc-if value="{{c.changed}}" hint-placeholder-val="{{ false }}"><span style="{{s.changedChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.warn}}"></path></svg>changed</span></sc-if>
+<sc-if value="{{c.pin}}" hint-placeholder-val="{{ false }}"><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></sc-if>
+</div>
+<div style="{{s.body}}">{{c.body}}</div>
+<sc-if value="{{c.chart}}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: flex-end; gap: 6px; height: 54px; padding: 0 12px"><sc-for list="{{bars}}" as="b" hint-placeholder-count="10"><span style="{{b.st}}"></span></sc-for></div></sc-if>
+<div style="{{s.foot}}"><span style="{{c.lifeSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{c.lifeIcon}}"></path></svg>{{c.life}}</span><span style="font-size: 11px; color: #6b7d94; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.lifeNote}}</span><sc-if value="{{c.due}}" hint-placeholder-val="{{ false }}"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span></sc-if></div>
+</div>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+<div style="{{s.panel}} padding: 12px 14px; gap: 6px">
+<span style="{{s.changedChip}} align-self: flex-start"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.warn}}"></path></svg>changed</span>
+<span style="font-size: 12px; font-weight: 600">The agent’s copy is out of date</span>
+<span style="font-size: 11px; color: #b9c6d6">Changed since the agent read it (wave 1). About delivery, not truth. Clears when the agent reads it again.</span>
+</div>
+<div style="{{s.panel}} padding: 12px 14px; gap: 6px">
+<span style="{{s.reviewChip}} align-self: flex-start"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span>
+<span style="font-size: 12px; font-weight: 600">Is it still valid?</span>
+<span style="font-size: 11px; color: #b9c6d6">About the content. Clears only when a person or agent records an outcome with evidence. Reading or editing never clears it.</span>
+</div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Both are amber because both need a look. They differ in glyph, word and fill: a filled chip is the agent’s copy, an outlined chip is the claim. A card can carry both, as Churn by month does: changed sits in the header with the agent’s read marks, review due on the lifecycle line. That line stays visible only when review is due, the card sets its own lifecycle, or it is unknown; otherwise it shows on hover.</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">4 · Lifecycle panel — Churn by month</span>
+<div style="{{s.panel}} box-shadow: 0 10px 30px rgba(0,0,0,0.6)">
+<div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid #1b2c44">
+<svg width="16" height="16" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.chart}}"></path></svg>
+<span style="font-size: 15px; font-weight: 600; flex: 1">Churn by month</span>
+<span style="{{s.tabOff}}">Content</span><span style="{{s.tabOn}}">Lifecycle</span><span style="{{s.tabOff}}">Source</span>
+</div>
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">Category</span>
+<div style="{{s.kv}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.strategy}}"></path></svg><span style="flex: 1">↳ Strategy</span><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.lock}}"></path></svg></div>
+<span style="font-size: 11px; color: #8ea3bd">From the board ← folder Org / Strategy 2027. A card keeps its board’s category.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">Lifecycle</span>
+<div style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #081524"><span style="{{s.segOff}}">Inherit · slow</span><span style="{{s.segOn}}">Set on this card</span></div>
+<div style="display: flex; gap: 6px"><span style="{{s.select}}">Reality ▾</span><span style="{{s.select}}">Fast · at use ▾</span></div>
+<span style="font-size: 11px; color: #8ea3bd">A metric on a strategy board decays faster than the board. Reset returns to Strategy’s defaults.</span>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 12px; font-weight: 600">Four clocks</span><span style="font-size: 11px; color: #8ea3bd">kept apart on purpose — reading, quoting or editing never renews validation</span></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{clocks}}" as="k" hint-placeholder-count="4">
+<div style="{{k.tile}}">
+<div style="display: flex; align-items: center; gap: 6px"><svg width="13" height="13" viewBox="0 0 24 24" style="{{k.icSt}}"><path d="{{k.icon}}"></path></svg><span style="font-size: 11px; color: #8ea3bd">{{k.name}}</span></div>
+<span style="font-size: 13px; font-weight: 600">{{k.value}}</span>
+<span style="font-size: 11px; color: #b9c6d6">{{k.note}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 8px; border: 1px solid rgba(244,197,66,0.35)">
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span><span style="font-size: 12px; color: #b9c6d6; flex: 1">Fast: checked at use — and its source refreshed yesterday.</span></div>
+<span style="font-size: 12px; font-weight: 600">Record an outcome</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{outcomes}}" as="o" hint-placeholder-count="5"><span style="{{o.st}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{o.icon}}"></path></svg>{{o.n}}</span></sc-for></div>
+<div style="{{s.input}}"><span style="color: #6b7d94">Evidence — a link or a note (needed to retain or revise)</span></div>
+<span style="font-size: 11px; color: #8ea3bd">Unresolved keeps the last validation (41 days ago) and the amber mark. Retire takes it out of the brief; the card and its history stay.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; font-weight: 600">History</span>
+<sc-for list="{{history}}" as="h" hint-placeholder-count="3"><div style="display: grid; grid-template-columns: 90px 86px 110px 1fr; gap: 10px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #1b2c44"><span style="color: #e6eef7">{{h.o}}</span><span style="color: #8ea3bd">{{h.d}}</span><span style="{{h.whoSt}}">{{h.who}}</span><span style="color: #b9c6d6">{{h.e}}</span></div></sc-for>
+</div>
+</div>
+</div>
+</section>
+</div>
+
+<div style="display: grid; grid-template-columns: 600px minmax(0, 1fr); gap: 28px">
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">5 · On the board — the review list</span>
+<div style="{{s.panel}}">
+<div style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-bottom: 1px solid #1b2c44"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>2 to review</span><span style="font-size: 12px; color: #8ea3bd; flex: 1">Pricing strategy 2027</span><span style="font-size: 11px; color: #6b7d94">filters the board to these cards</span></div>
+<sc-for list="{{queue}}" as="q" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1b2c44">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 13px; font-weight: 500">{{q.t}}</span><span style="font-size: 11px; color: #8ea3bd">{{q.why}}</span></div>
+<span style="{{s.btn}}">Retain</span><span style="{{s.btn}}">Revise</span><span style="{{s.btn}}">More ▾</span>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px">
+<span style="font-size: 11px; color: #6b7d94; flex: 1">On Home and the board map, review sits apart from activity:</span>
+<span style="font-size: 11px; color: #8ea3bd">edited 2 h ago</span><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>2 due</span>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">5 · In the brief — what the agent receives</span>
+<div style="{{s.panel}}">
+<div style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border-bottom: 1px solid #1b2c44"><span style="font-size: 12px; font-weight: 600">Brief</span><span style="font-size: 12px; color: #8ea3bd; flex: 1">3 pinned · 1 needs review · 1 unknown</span><span style="font-size: 11px; color: #6b7d94">≈ 2.1k tokens</span></div>
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6">
+<sc-for list="{{brief}}" as="b" hint-placeholder-count="9"><span style="{{b.st}}">{{b.t}}</span></sc-for>
+</div>
+<div style="padding: 0 14px 12px; font-size: 11px; color: #8ea3bd">The brief carries the qualification instead of presenting stale context as validated. “Needs review” never means “false”.</div>
+</div>
+</section>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">All nine themes — no new colour; review due reuses the theme’s own amber, outlined</span>
+<div style="display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="9">
+<div style="{{t.box}}"><span style="{{t.name}}">{{t.n}}</span><span style="{{t.changed}}">△ changed</span><span style="{{t.review}}">⧗ review due</span><span style="{{t.unk}}">? unknown</span></div>
+</sc-for>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      strategy: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M15.5 8.5l-2 5-5 2 2-5z',
+      glass: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+      warn: 'M12 4l9 16H3zM12 10v4M12 17v.5',
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+      chart: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
+      cycle: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 7v5l3 2',
+      check: 'M5 12.5l4.5 4.5L19 7',
+      unknown: 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 16.8v.4',
+      eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      pen: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      target: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8',
+      revise: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8zM13 7l4 4',
+      out: 'M14 4h6v6M20 4l-8 8M18 14v5H5V6h5',
+      retire: 'M4 7h16M6 7v12h12V7M9 4h6',
+      open: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M8 12h8'
+    };
+    var W = '#f4c542';
+    var chip = 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icDim: 'fill:none;stroke:#6b7d94;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icPin: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;',
+      inh: 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px;color:#8ea3bd;font-size:11px;flex-shrink:0;',
+      changedChip: chip + 'color:' + W + ';background:rgba(244,197,66,0.14);',
+      reviewChip: chip + 'color:' + W + ';border:1px solid rgba(244,197,66,0.6);',
+      pinOn: 'width:18px;height:18px;border-radius:999px;background:#4BBCFF;color:#081524;display:flex;align-items:center;justify-content:center;flex-shrink:0;',
+      title: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;',
+      body: 'padding:8px 12px;font-size:12px;color:#b9c6d6;',
+      foot: 'position:absolute;left:0;right:0;bottom:0;height:30px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 10px;border-top:1px solid #1b2c44;',
+      kv: 'display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;background:#13243b;font-size:12px;',
+      segOn: 'flex:1;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#1b2c44;color:#e6eef7;font-size:12px;font-weight:600;',
+      segOff: 'flex:1;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:#8ea3bd;font-size:12px;',
+      select: 'flex:1;display:flex;align-items:center;height:30px;box-sizing:border-box;padding:0 10px;border-radius:6px;border:1px solid #2a4566;font-size:12px;',
+      input: 'display:flex;align-items:center;height:34px;box-sizing:border-box;padding:0 10px;border-radius:6px;border:1px solid #2a4566;background:#081524;font-size:12px;',
+      tabOn: 'height:28px;display:flex;align-items:center;padding:0 10px;border-radius:6px;background:#13243b;font-size:12px;font-weight:600;',
+      tabOff: 'height:28px;display:flex;align-items:center;padding:0 10px;font-size:12px;color:#8ea3bd;',
+      btn: 'height:26px;display:flex;align-items:center;padding:0 10px;border-radius:6px;border:1px solid #1b2c44;font-size:12px;color:#e6eef7;flex-shrink:0;'
+    };
+    var nodeBase = 'position:absolute;box-sizing:border-box;border-radius:10px;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);overflow:hidden;';
+    var headBase = 'display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 12px;border-bottom:1px solid #1b2c44;';
+    var lifeSet = 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px solid #2a4566;color:#e6eef7;font-size:11px;';
+    var lifeInh = 'display:inline-flex;align-items:center;gap:4px;height:20px;color:#8ea3bd;font-size:11px;';
+    function card(o) {
+      return {
+        title: o.title, body: o.body, chart: !!o.chart, changed: !!o.changed, due: !!o.due, pin: !!o.pin,
+        node: nodeBase + 'left:' + o.x + 'px;top:' + o.y + 'px;width:' + o.w + 'px;height:' + o.h + 'px;' + (o.pin ? 'border:1.5px solid #4BBCFF;' : 'border:1px solid #1b2c44;') + (o.dim ? 'opacity:0.5;' : ''),
+        head: headBase + (o.pin ? 'background:rgba(75,188,255,0.10);' : ''),
+        life: o.life, lifeNote: o.note, lifeIcon: o.icon || i.cycle, lifeSt: o.set ? lifeSet : lifeInh
+      };
+    }
+    var cards = [
+      card({ x: 16, y: 64, w: 250, h: 150, pin: true, title: 'Positioning: premium SMB', body: 'Lead with reliability and support; do not compete on price below $20.', life: '↳ slow', note: 'from Strategy · validated 12 d ago' }),
+      card({ x: 282, y: 64, w: 302, h: 196, pin: true, changed: true, due: true, chart: true, title: 'Churn by month', body: 'Pro plan, monthly logo churn, last 12 months', life: 'fast · set on card', note: '', set: true }),
+      card({ x: 16, y: 230, w: 250, h: 130, title: 'Competitor price list', body: 'Six competitors, list prices as of September.', life: 'retained 3 d ago', note: 'by Pepe · price pages', icon: i.check }),
+      card({ x: 282, y: 276, w: 302, h: 110, dim: true, title: 'Old tier names', body: 'Starter / Team / Business naming from 2025.', life: 'retired from active context', note: 'kept in history', icon: i.retire }),
+      card({ x: 16, y: 376, w: 250, h: 78, title: 'Interview quotes (dropped in)', body: '', life: 'unknown', note: 'Inbox board · no category', icon: i.unknown })
+    ];
+    var heights = [30, 34, 29, 38, 41, 36, 44, 40, 47, 52];
+    var bars = heights.map(function (h) { return { st: 'flex:1;height:' + h + 'px;border-radius:3px 3px 0 0;background:#2a4566;' }; });
+    var tile = 'display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:8px;background:#13243b;';
+    var clocks = [
+      { name: 'Read by agent', value: '2 h ago', note: 'Claude · delivery only, says nothing about truth', icon: i.eye, icSt: 'fill:none;stroke:#B388FF;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;', tile: tile },
+      { name: 'Content changed', value: '40 min ago', note: 'you · after that read, so it shows “changed”', icon: i.pen, icSt: s.ic, tile: tile },
+      { name: 'Last validated', value: '41 days ago', note: 'Pepe · evidence: dashboard export', icon: i.check, icSt: s.ic, tile: tile },
+      { name: 'Task relevance', value: 'In the brief', note: 'for the task “Raise Pro to $24?”', icon: i.target, icSt: s.ic, tile: tile }
+    ];
+    var oBase = 'display:inline-flex;align-items:center;gap:6px;height:30px;box-sizing:border-box;padding:0 11px;border-radius:6px;border:1px solid #2a4566;font-size:12px;color:#e6eef7;';
+    var outcomes = [
+      { n: 'Retain', icon: i.check, st: oBase },
+      { n: 'Revise', icon: i.revise, st: oBase },
+      { n: 'Externalize', icon: i.out, st: oBase },
+      { n: 'Retire from active context', icon: i.retire, st: oBase },
+      { n: 'Unresolved', icon: i.open, st: oBase + 'border-style:dashed;color:#b9c6d6;' }
+    ];
+    var who = 'color:#b9c6d6;';
+    var history = [
+      { o: 'Retained', d: '27 Aug 2026', who: 'Pepe', whoSt: who, e: 'Matches the billing dashboard export' },
+      { o: 'Unresolved', d: '14 Jul 2026', who: 'Claude', whoSt: 'color:#B388FF;', e: 'Source unreachable; previous validation kept' },
+      { o: 'Revised', d: '2 Jun 2026', who: 'Claude', whoSt: 'color:#B388FF;', e: 'Source moved to the new dashboard' }
+    ];
+    var queue = [
+      { t: 'Churn by month', why: 'fast · source refreshed yesterday · last validated 41 d ago' },
+      { t: 'Win rate vs. Competitor B', why: 'contradicted by “Q3 loss reasons” · last validated 63 d ago' }
+    ];
+    var m = 'white-space:pre;';
+    var brief = [
+      { t: '## Pinned on Pricing strategy 2027', st: m + 'color:#e6eef7;font-weight:500;' },
+      { t: '- Churn by month', st: m + 'color:#e6eef7;' },
+      { t: '    review due: fast, last validated 41 d ago, source refreshed', st: m + 'color:' + W + ';' },
+      { t: '    changed since you read it (40 min ago)', st: m + 'color:' + W + ';' },
+      { t: '    Check the source before relying on it.', st: m + 'color:#b9c6d6;' },
+      { t: '- Positioning: premium SMB', st: m + 'color:#e6eef7;' },
+      { t: '    slow, validated 12 d ago', st: m + 'color:#8ea3bd;' },
+      { t: '- Interview quotes (dropped in)', st: m + 'color:#e6eef7;' },
+      { t: '    lifecycle unknown: no category, never validated', st: m + 'color:#8ea3bd;' }
+    ];
+    var T = [
+      ['Harbor', '#0f1d31', '#1b2c44', '#e6eef7', '#8ea3bd', '#f4c542'],
+      ['Daylight', '#FFFFFF', '#DDE2E9', '#0B1726', '#55657a', '#94600A'],
+      ['High contrast', '#0a0a0a', '#ffffff', '#ffffff', '#cccccc', '#ffff00'],
+      ['Midnight', '#12172E', '#232B4A', '#E6E9F7', '#8D96BC', '#F5C452'],
+      ['Sepia', '#EBDCC2', '#D3C1A0', '#2E2416', '#77664C', '#8A5A00'],
+      ['Arctic', '#2A2F3C', '#3A4152', '#E9EDF4', '#939DB1', '#E8C476'],
+      ['Ember', '#161618', '#29292C', '#EDEBE6', '#96948D', '#F5B944'],
+      ['Forest', '#14231B', '#26402F', '#E4EFE7', '#8BA695', '#E0B84F'],
+      ['Volt', '#171A17', '#272A27', '#F6FFF5', '#9CA49C', '#E4C465']
+    ];
+    function hexA(h, a) { var n = parseInt(h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; }
+    var tc = 'display:inline-flex;align-items:center;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;align-self:flex-start;';
+    var themes = T.map(function (t) {
+      return {
+        n: t[0],
+        box: 'display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:8px;background:' + t[1] + ';border:1px solid ' + t[2] + ';',
+        name: 'font-size:11px;font-weight:600;color:' + t[3] + ';',
+        changed: tc + 'color:' + t[5] + ';background:' + hexA(t[5], 0.14) + ';',
+        review: tc + 'color:' + t[5] + ';border:1px solid ' + hexA(t[5], 0.6) + ';',
+        unk: tc + 'color:' + t[4] + ';border:1px dashed ' + t[4] + ';'
+      };
+    });
+    return { i: i, s: s, cards: cards, bars: bars, clocks: clocks, outcomes: outcomes, history: history, queue: queue, brief: brief, themes: themes };
+  }
+}
+</script>
+</body>
+</html>

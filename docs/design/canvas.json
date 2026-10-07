@@ -169,6 +169,34 @@
       "w": 1440,
       "h": 2020,
       "title": "Near a pin — neighbours of pinned nodes (wave 1, with the brief change)"
+    },
+    "Categories.dc.html": {
+      "x": 0,
+      "y": 10260,
+      "w": 1440,
+      "h": 940,
+      "title": "Knowledge categories on folders — Home tree, folder settings, a solo workspace (move 13, Part 3)"
+    },
+    "CategoryEditor.dc.html": {
+      "x": 1520,
+      "y": 10260,
+      "w": 1440,
+      "h": 960,
+      "title": "One category list per workspace — lifecycle defaults and templates"
+    },
+    "Lifecycle.dc.html": {
+      "x": 3040,
+      "y": 10260,
+      "w": 1440,
+      "h": 1360,
+      "title": "Card lifecycle, four clocks, review outcomes, board and brief"
+    },
+    "Lifecycle600.dc.html": {
+      "x": 4560,
+      "y": 10260,
+      "w": 600,
+      "h": 940,
+      "title": "Categories and lifecycle at 600 px"
     }
   },
   "createdOnFiles": {
@@ -241,6 +269,14 @@
       "w": 240,
       "x": 0,
       "y": 7800
+    },
+    "t7": {
+      "kind": "title1",
+      "maxW": 5160,
+      "text": "Knowledge categories and context lifecycle (move 13, Part 3 — for review)",
+      "w": 240,
+      "x": 0,
+      "y": 9960
     }
   },
   "order": [
@@ -267,7 +303,11 @@
     "Vision.dc.html",
     "AgentContext.dc.html",
     "Themes.dc.html",
-    "Pane600.dc.html"
+    "Pane600.dc.html",
+    "Categories.dc.html",
+    "CategoryEditor.dc.html",
+    "Lifecycle.dc.html",
+    "Lifecycle600.dc.html"
   ],
   "pages": [],
   "title": "PMX Canvas look-and-feel proposal"
