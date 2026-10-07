@@ -187,13 +187,23 @@ implementation table).
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |
 | **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
-| **Later — share ladder** | Part 3 | Read-only link, comments, second writer; at step 5, workspace and personal libraries with per-user pins | HomeTeam (look ahead): Home with two roots (Workspace, Personal), your pins across both, an explicit move with its effects spelled out, locked cards for boards a viewer cannot read | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal crosses into the workspace without an explicit share or move |
+| **Later — share ladder** | Part 3 | Read-only link, comments, second writer; at step 5, org → team → personal scopes with configurable categories and per-user pins | HomeTeam is the earlier two-root look ahead; updated scope/category drawings are required before building, retaining explicit publication and locked cards for unreadable boards | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal reaches a wider audience without explicit publication |
 
 **Folders and portals (decided 2026-10-06).** Home uses folders as the visible hierarchy (where a
 board lives, one place); portals and links are how boards relate: a many-to-many graph the agent
 navigates through links and backlinks on `canvas://boards`, and that Map and Graph draw. This
 replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
 links disagree, the Map shows it (folders as regions) rather than forcing them to match.
+
+**Context lifecycle (direction added 2026-10-07).** [Vision move 13](product-vision-2026-09.md#13-context-lifecycle-and-recipe-cards-m-then-later-classification)
+extends Wave 3's source-change warning into evidence-backed review: decay type/rate, triggers,
+validation evidence and review outcomes. Amber means needs review, not false. Read receipts,
+content revisions, evidence validation and task relevance remain separate. The lifecycle needs
+its own review-state drawings and implementation slices before building; existing Lineage
+drawings do not specify all those states. This adds no Wave 1 prerequisite and leaves the
+curation evaluation after its remaining features. Local categories and lifecycle data work
+without a model; Jev-style classification is optional longer-term assistance, not a dependency
+of Wave 3 or the org/team/personal structure.
 
 ## Definition of done for any design work
 
