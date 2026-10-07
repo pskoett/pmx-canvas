@@ -17,7 +17,7 @@ body{margin:0}
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Board pins — a working set across boards</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">One gesture at two levels. Pin a card and its content goes to the agent. Pin a board and the whole board joins the agent's working set, wherever it sits in the library.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">One gesture at two levels. Pin a card and its content goes to the agent. Pin a board and the whole board joins the agent's working set, wherever it sits in the library — with its review state: what is due, and what has no lifecycle.</p>
 </div>
 
 <div style="display: grid; grid-template-columns: 600px minmax(0, 1fr); gap: 40px">
@@ -28,8 +28,8 @@ body{margin:0}
 <div style="{{s.card}}">
 <span style="{{s.cap}}">Home — board cards</span>
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
-<div style="border-radius: 10px; border: 1.5px solid #4BBCFF; background: #0f1d31; overflow: hidden"><div style="position: relative; height: 70px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 10px 10px; border-bottom: 1px solid #1b2c44"><span style="{{s.pinOn}} position: absolute; right: 8px; top: 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 8px 10px"><div style="font-size: 12px; font-weight: 600">C4 2026 OKR planning</div><div style="font-size: 11px; color: #8ea3bd">in context · 34 cards</div></div></div>
-<div style="border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; overflow: hidden"><div style="position: relative; height: 70px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 10px 10px; border-bottom: 1px solid #1b2c44"><span style="{{s.pinOff}} position: absolute; right: 8px; top: 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 8px 10px"><div style="font-size: 12px; font-weight: 600">Platform roadmap 2027</div><div style="font-size: 11px; color: #8ea3bd">click the pin to add · 26 cards</div></div></div>
+<div style="border-radius: 10px; border: 1.5px solid #4BBCFF; background: #0f1d31; overflow: hidden"><div style="position: relative; height: 70px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 10px 10px; border-bottom: 1px solid #1b2c44"><span style="{{s.pinOn}} position: absolute; right: 8px; top: 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 8px 10px"><div style="font-size: 12px; font-weight: 600">C4 2026 OKR planning</div><div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8ea3bd"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.icCat}}"><path d="{{i.strategy}}"></path></svg><span style="flex: 1">Strategy · in context · 34 cards</span><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>3 due</span></div></div></div>
+<div style="border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; overflow: hidden"><div style="position: relative; height: 70px; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 10px 10px; border-bottom: 1px solid #1b2c44"><span style="{{s.pinOff}} position: absolute; right: 8px; top: 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div><div style="padding: 8px 10px"><div style="font-size: 12px; font-weight: 600">Platform roadmap 2027</div><div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8ea3bd"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.icCat}}"><path d="{{i.strategy}}"></path></svg>Strategy · click the pin to add · 26 cards</div></div></div>
 </div>
 </div>
 
@@ -37,7 +37,7 @@ body{margin:0}
 <div style="{{s.card}}">
 <span style="{{s.cap}}">Board switcher</span>
 <sc-for list="{{switcher}}" as="b" hint-placeholder-count="4">
-<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; background: {{b.bg}}"><span style="width: 8px; height: 8px; border-radius: 3px; background: {{b.hue}}"></span><span style="flex: 1; font-size: 12px; font-weight: 500">{{b.name}}</span><span style="{{b.pinStyle}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div>
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; background: {{b.bg}}"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icCat}}"><path d="{{b.icon}}"></path></svg><span style="flex: 1; min-width: 0; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{b.name}}</span><sc-if value="{{b.hasDue}}" hint-placeholder-val="{{ false }}"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>{{b.due}}</span></sc-if><span style="{{b.pinStyle}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pin}}"></path></svg></span></div>
 </sc-for>
 </div>
 <div style="{{s.card}}">
@@ -70,10 +70,11 @@ body{margin:0}
 <div style="display: flex; align-items: baseline; gap: 10px"><span style="width: 22px; height: 22px; border-radius: 999px; background: {{t.numBg}}; color: {{t.numC}}; font-size: 12px; font-weight: 600; text-align: center; line-height: 22px; flex-shrink: 0">{{t.n}}</span><span style="font-size: 15px; font-weight: 600; flex: 1">{{t.title}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">{{t.tokens}}</span></div>
 <span style="font-size: 12px; color: #8ea3bd">{{t.what}}</span>
 <sc-for list="{{t.rows}}" as="r" hint-placeholder-count="2">
-<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 6px; background: #13243b; font-size: 12px"><span style="{{r.mark}}">{{r.markText}}</span><span style="flex: 1; font-weight: 500">{{r.name}}</span><span style="font-size: 11px; color: #8ea3bd">{{r.detail}}</span></div>
+<div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 6px; background: #13243b; font-size: 12px"><span style="{{r.mark}}">{{r.markText}}</span><span style="flex: 1; font-weight: 500">{{r.name}}</span><span style="font-size: 11px; color: #8ea3bd">{{r.detail}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ false }}"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if></div>
 </sc-for>
 </div>
 </sc-for>
+<div style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(244,197,66,0.3); font-size: 12px; color: #b9c6d6"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>review due</span><span>Review state travels with a pinned board. Its due cards arrive marked “review due” with when they were last validated, cards with no category as “lifecycle unknown” — the same lines the brief uses on the open board (Lifecycle).</span></div>
 <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #8ea3bd"><span style="width: 200px; height: 6px; border-radius: 999px; background: #1b2c44; overflow: hidden; display: block"><span style="display: block; width: 77%; height: 6px; background: #f4c542"></span></span><span style="font-family: 'IBM Plex Mono', monospace; color: #e6eef7; white-space: nowrap">24.5k / 32k</span><span>Over budget, a pinned board falls back to discovery — said on the chip, never silent.</span></div>
 </section>
 
@@ -86,7 +87,7 @@ body{margin:0}
 <div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 600">In the agent's context</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">24.5k tokens</span></div>
 <span style="{{s.cap}}">Boards · 3</span>
 <sc-for list="{{chipBoards}}" as="r" hint-placeholder-count="3">
-<div style="display: flex; align-items: center; gap: 8px; height: 28px; font-size: 12px"><span style="width: 8px; height: 8px; border-radius: 3px; background: {{r.hue}}"></span><span style="flex: 1">{{r.name}}</span><span style="{{r.readStyle}}">{{r.read}}</span><span style="color: #6b7d94">×</span></div>
+<div style="display: flex; align-items: center; gap: 8px; height: 28px; font-size: 12px"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icCat}}"><path d="{{r.icon}}"></path></svg><span style="flex: 1">{{r.name}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ false }}"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if><span style="{{r.readStyle}}">{{r.read}}</span><span style="color: #6b7d94">×</span></div>
 </sc-for>
 <span style="{{s.cap}}">Cards on this board · 4</span>
 <div style="font-size: 12px; color: #b9c6d6">Raise Pro to $24? · Churn flat after last raise · SMB is price-sensitive · Competitor pricing</div>
@@ -104,7 +105,15 @@ body{margin:0}
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
 class Component extends DCLogic {
   renderVals() {
-    var i = { pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20' };
+    var i = {
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      strategy: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M15.5 8.5l-2 5-5 2 2-5z',
+      decision: 'M6 3v18M6 7h10l3 3-3 3H6',
+      research: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20',
+      notes: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z',
+      unknown: 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 16.8v.4',
+      glass: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+    };
     var pinOn = 'width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#4BBCFF;color:#081524;';
     var pinOff = 'width:18px;height:18px;box-sizing:border-box;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid #6b7d94;color:#b9c6d6;';
     var s = {
@@ -112,31 +121,37 @@ class Component extends DCLogic {
       cap: 'font-size:11px;font-weight:500;color:#8ea3bd;',
       card: 'display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:10px;border:1px solid #1b2c44;background:#0b1828;',
       ic: 'fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;',
+      icCat: 'fill:none;stroke:#8ea3bd;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icChip: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      due: 'display:inline-flex;align-items:center;gap:3px;height:18px;box-sizing:border-box;padding:0 6px;border-radius:999px;border:1px solid rgba(244,197,66,0.6);color:#f4c542;font-size:11px;font-weight:500;flex-shrink:0;',
+      set: 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 6px;border-radius:6px;border:1px solid #2a4566;color:#e6eef7;font-size:11px;flex-shrink:0;',
+      inh: 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px;color:#8ea3bd;font-size:11px;flex-shrink:0;',
+      unk: 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 6px;border-radius:6px;border:1px dashed #3d5170;color:#8ea3bd;font-size:11px;flex-shrink:0;',
       pinOn: pinOn, pinOff: pinOff
     };
     var switcher = [
-      { name: 'Pricing research', hue: '#7C9CFF', pinStyle: pinOn, bg: '#13243b' },
-      { name: 'C4 2026 OKR planning', hue: '#5FCFC0', pinStyle: pinOn, bg: 'transparent' },
-      { name: 'Tech Enabling — overview', hue: '#5FCFC0', pinStyle: pinOn, bg: 'transparent' },
-      { name: 'Platform roadmap 2027', hue: '#5FCFC0', pinStyle: pinOff, bg: 'transparent' }
+      { name: 'Pricing research', icon: i.research, pinStyle: pinOn, bg: '#13243b' },
+      { name: 'C4 2026 OKR planning', icon: i.strategy, hasDue: true, due: '3 due', pinStyle: pinOn, bg: 'transparent' },
+      { name: 'Tech Enabling — overview', icon: i.notes, pinStyle: pinOn, bg: 'transparent' },
+      { name: 'Platform roadmap 2027', icon: i.strategy, pinStyle: pinOff, bg: 'transparent' }
     ];
     var mOn = 'font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;background:rgba(75,188,255,0.14);color:#4BBCFF;';
     var mDisc = 'font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;background:#1b2c44;color:#8ea3bd;';
     var tiers = [
       { n: '1', title: 'This board’s pinned cards', tokens: '9k', what: 'Full content, as today.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
         rows: [{ name: '4 cards on Pricing research', detail: 'full text', mark: mOn, markText: 'cards' }] },
-      { n: '2', title: 'Pinned boards', tokens: '14k', what: 'Each board’s README and its pinned cards, in full. New.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
+      { n: '2', title: 'Pinned boards', tokens: '14k', what: 'Each board’s README and its pinned cards, in full, each with its review state. New.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
         rows: [{ name: 'Tech Enabling — overview', detail: 'README + 2 pinned · 6k', mark: mOn, markText: 'board' },
-               { name: 'C4 2026 OKR planning', detail: 'README + 3 pinned · 8k', mark: mOn, markText: 'board' }] },
+               { name: 'C4 2026 OKR planning', detail: 'README + 3 pinned · 8k', mark: mOn, markText: 'board', hasDue: true, due: '1 due' }] },
       { n: '3', title: 'Discovery', tokens: '1.5k', what: 'Linked and same-folder boards: README summary and pinned titles only — today’s behaviour.', border: '#1b2c44', numBg: '#1b2c44', numC: '#b9c6d6',
         rows: [{ name: 'Churn analysis · SMB interviews · Competitor teardown', detail: 'summaries', mark: mDisc, markText: 'linked' }] }
     ];
     var read = 'font-size:11px;font-weight:500;padding:0 6px;border-radius:999px;background:rgba(179,136,255,0.16);color:#B388FF;';
     var notRead = 'font-size:11px;font-weight:500;padding:0 6px;border-radius:999px;background:#1b2c44;color:#8ea3bd;';
     var chipBoards = [
-      { name: 'Pricing research (this board)', hue: '#7C9CFF', read: 'read 2m ago', readStyle: read },
-      { name: 'Tech Enabling — overview', hue: '#5FCFC0', read: 'read 2m ago', readStyle: read },
-      { name: 'C4 2026 OKR planning', hue: '#5FCFC0', read: 'not read yet', readStyle: notRead }
+      { name: 'Pricing research (this board)', icon: i.research, read: 'read 2m ago', readStyle: read },
+      { name: 'Tech Enabling — overview', icon: i.notes, read: 'read 2m ago', readStyle: read },
+      { name: 'C4 2026 OKR planning', icon: i.strategy, hasDue: true, due: '3 due', read: 'not read yet', readStyle: notRead }
     ];
     var rules = [
       { t: 'Lasts until you unpin', d: 'Board pins belong to the workspace: they survive board switches and restarts. You or the agent can pin; the agent’s pins carry its violet dot.' },
