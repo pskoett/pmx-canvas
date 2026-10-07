@@ -238,6 +238,36 @@ describe('compileContextBrief', () => {
     expect(second.nextCursor!).toBeGreaterThan(first.nextCursor!);
   });
 
+  test('a first-read page never returns a cursor below the retention floor', () => {
+    const body = 'Z'.repeat(300);
+    const nodes = ['a', 'b', 'c', 'd', 'e'].map((id, index) => at(id, index * 2_000, body, index + 1));
+    const page = compileContextBrief(
+      input({ nodes, contentRevision: 905, retentionFloor: 900, since: null, budget: 1_400 }),
+    );
+    expect(page.document!.entries.length).toBeGreaterThan(0);
+    // Below the floor a continuation would be read as expired; the page keeps the first-read cursor.
+    expect(page.nextCursor).toBeNull();
+    const whole = compileContextBrief(input({ nodes, contentRevision: 905, retentionFloor: 900, since: null }));
+    expect(whole.nextCursor).toBe(905);
+  });
+
+  test('a pinned board that cannot fit is reported only while the report fits', () => {
+    const huge = 'P'.repeat(2_000);
+    const pinnedBoards = ['one', 'two', 'three'].map((id) => ({
+      boardId: `board-${id}`,
+      name: `Board ${id}`,
+      readme: { nodeId: `${id}-readme`, title: `${id} intro`, text: huge, summary: huge },
+      cards: [],
+    }));
+    for (const budget of [600, 900, 1_200, 1_600, 2_400]) {
+      const result = compileContextBrief(
+        input({ nodes: [node('pin', huge, 1)], pinnedNodeIds: ['pin'], since: null, pinnedBoards, budget }),
+      );
+      expect(result.serialized.length).toBeGreaterThan(0);
+      expect(result.serialized.length).toBeLessThanOrEqual(budget);
+    }
+  });
+
   test('a first read skips deletions: a first reader holds nothing to delete', () => {
     const result = compileContextBrief(
       input({

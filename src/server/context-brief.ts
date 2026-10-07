@@ -411,7 +411,12 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     else {
       status.delivered = 'discovery';
       if (fits(makeDocument([...delivered, ...discovery]))) delivered.push(...discovery);
-      else status.delivered = 'omitted';
+      else {
+        status.delivered = 'omitted';
+        // Report the omission only while the report itself fits: an unfitted line
+        // would make the whole brief unserializable.
+        if (!fits(makeDocument())) pinnedBoardDelivery.pop();
+      }
     }
   }
 
@@ -460,7 +465,9 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     delivered.push(...entriesAtRevision);
     deletions.push(...deletesAtRevision);
     safeCursor = revision;
-    if (firstRead) firstReadCursor = revision;
+    // A first-read page cursor below the retention floor would read back as
+    // retention-expired, so a page only advances the cursor from the floor up.
+    if (firstRead && revision >= floor) firstReadCursor = revision;
   }
   if (firstRead && !deltaBlocked) {
     safeCursor = current;

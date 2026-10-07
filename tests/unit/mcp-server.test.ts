@@ -965,6 +965,7 @@ describe('MCP parity with CLI', () => {
     await local.client.callTool({ name: 'canvas_pin_nodes', arguments: { nodeIds: [localNode.id], mode: 'set' } });
     await local.client.readResource({ uri: 'canvas://pinned-context' });
     await local.client.readResource({ uri: 'canvas://summary' });
+    await local.client.readResource({ uri: 'canvas://context' });
     const localLayoutResult = (await local.client.callTool({
       name: 'canvas_query',
       arguments: { action: 'layout' },
@@ -978,9 +979,14 @@ describe('MCP parity with CLI', () => {
     );
     const localResourceReads = localLog.reads.filter((read) => read.channel === 'mcp-resource');
     expect(localResourceReads.map((read) => read.resource).sort()).toEqual([
+      'canvas://context',
       'canvas://pinned-context',
       'canvas://summary',
     ]);
+    expect(localResourceReads.find((read) => read.resource === 'canvas://context')).toMatchObject({
+      pinnedNodeIds: [localNode.id],
+      deliveredNodeIds: [localNode.id],
+    });
     expect(localResourceReads.find((read) => read.resource === 'canvas://pinned-context')).toMatchObject({
       consumer: 'pmx-canvas-mcp-test',
       pinnedNodeIds: [localNode.id],

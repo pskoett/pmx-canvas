@@ -10,6 +10,8 @@ const writes = new Set([
   'board.create',
   'board.open',
   'board.update',
+  'board.pin',
+  'board.unpin',
   'board.create-from',
   'board.delete',
   'node.add',

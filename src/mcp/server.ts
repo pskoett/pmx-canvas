@@ -32,7 +32,7 @@ import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
 import { agentSourceLabel } from '../server/operations/invoker.js';
-import { contextReadFromPayload } from '../server/context-reads.js';
+import { contextReadFromPayload, pinnedBoardReads } from '../server/context-reads.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../shared/agent-context.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
@@ -596,13 +596,31 @@ export async function startMcpServer(): Promise<void> {
       if (uri.searchParams.has('consumer')) input.consumer = uri.searchParams.get('consumer');
       if (uri.searchParams.has('budget')) input.budget = uri.searchParams.get('budget');
       if (uri.searchParams.has('since')) input.since = uri.searchParams.get('since');
+      // MCP invokers skip registry recording (proxied reads), so record here like
+      // the other context resources: the open board, then each pinned board
+      // delivered in full.
+      const readTarget = await c.prepareContextRead();
       const document = await c.invoker().invoke('context.get', input);
+      const text = JSON.stringify(document);
+      await recordContextRead(c, 'mcp-resource', 'canvas://context', text, readTarget);
+      try {
+        const base = {
+          channel: 'mcp-resource' as const,
+          resource: 'canvas://context',
+          source: agentSourceLabel('mcp'),
+          consumer: server.server.getClientVersion()?.name ?? null,
+          agentId: null,
+        };
+        for (const read of pinnedBoardReads(base, text)) await c.recordContextRead(read);
+      } catch (error) {
+        console.error('[pmx-canvas mcp] recording a pinned-board read failed:', error);
+      }
       return {
         contents: [
           {
             uri: uri.href,
             mimeType: 'application/json',
-            text: JSON.stringify(document),
+            text,
           },
         ],
       };
