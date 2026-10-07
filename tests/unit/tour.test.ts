@@ -14,7 +14,11 @@ import { parseRecordOptions } from '../../src/cli/commands/record.js';
 import { canvasState } from '../../src/server/canvas-state.js';
 import { saveCanvasSnapshotWithReuse, setClientViewportSize } from '../../src/server/canvas-operations.js';
 import { agentPresence } from '../../src/server/agent-presence.js';
-import { executeOperation, setOperationEventEmitter } from '../../src/server/operations/registry.js';
+import {
+  executeOperation,
+  getOperationEventEmitter,
+  setOperationEventEmitter,
+} from '../../src/server/operations/registry.js';
 import { exitTour } from '../../src/server/tour-control.js';
 import {
   createTestWorkspace,
@@ -178,7 +182,10 @@ describe('board tour', () => {
 describe('driving a tour', () => {
   const emitted: Array<{ event: string; payload: Record<string, unknown> }> = [];
   let root = '';
+  // The emitter is set once when server.ts loads; restore it so later SSE tests in this process still get events.
+  let serverEmitter: ReturnType<typeof getOperationEventEmitter> = null;
   beforeEach(() => {
+    serverEmitter = getOperationEventEmitter();
     root = createTestWorkspace('tour-drive-');
     resetCanvasForTests(root);
     exitTour();
@@ -187,7 +194,7 @@ describe('driving a tour', () => {
     setOperationEventEmitter((event, payload) => emitted.push({ event, payload }));
   });
   afterEach(() => {
-    setOperationEventEmitter(null);
+    setOperationEventEmitter(serverEmitter);
     removeTestWorkspace(root);
   });
 

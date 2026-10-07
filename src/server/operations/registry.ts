@@ -48,6 +48,10 @@ export function setOperationEventEmitter(emitter: OperationEventEmitter | null):
   operationEventEmitter = emitter;
 }
 
+export function getOperationEventEmitter(): OperationEventEmitter | null {
+  return operationEventEmitter;
+}
+
 // Batch suppression belongs to its async call chain, never concurrent human
 // operations (especially board switches while a batch waits on the network).
 const suppressedEmits = new AsyncLocalStorage<boolean>();
