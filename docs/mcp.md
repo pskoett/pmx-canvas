@@ -493,7 +493,10 @@ Read context at the start of work. For the cross-board brief, use a stable,
 unique `consumer` per agent/adapter only when durable incremental delivery is
 wanted. Omitting both `consumer` and `since` starts from the beginning; explicit
 `since` does not update a cursor. The budget is UTF-16 code units (default
-16,000; maximum 100,000), not model tokens. Pins are prioritized. If an entry is
+16,000; maximum 100,000), not model tokens. Pins are prioritized. A first read of a
+board larger than the budget carries the pins, then whole cards oldest first, and
+returns `cursor.next`; a `consumer` continues from it automatically, otherwise pass it
+as `since` to read on. If an entry is
 truncated, follow its source board/card IDs with `canvas_board get` and
 `canvas_node { action: "get", board, id, full: true }` rather than inferring the missing text.
 Full node reads record only that node's delivered content revision; compact metadata

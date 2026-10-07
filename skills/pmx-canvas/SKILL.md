@@ -21,7 +21,9 @@ At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 falling back to broader resources. The budget is UTF-16 code units, not tokens.
 Use one stable consumer ID per agent/adapter only when durable deltas are wanted;
 omit it for a fresh read. Pins are highest priority, then the cards near each pin
-(reason `near`, title + short summary only). If a source card is clipped or near,
+(reason `near`, title + short summary only). On a board larger than the budget the
+first read carries pins, then whole cards oldest first; read on with the returned
+`cursor.next` as `since` (a consumer does this for you). If a source card is clipped or near,
 pull that card explicitly with `canvas_node { action: "get", board, id, full: true }`.
 
 **Read → check → refresh:** after reading context, inspect `canvas_ax_timeline {

@@ -138,6 +138,12 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
         ? 'retention-expired'
         : null;
   const deltaSince = reset ? -1 : (requested ?? -1);
+  // A reader with stale state must replace it whole; a first reader has none to
+  // protect, so it reads as a delta from zero: pins first, then whole revision
+  // groups oldest first, with the cursor advancing past each complete group.
+  const atomic = reset === 'retention-expired';
+  const firstRead = reset === 'first-read';
+  let firstReadCursor: number | null = null;
   const nodes = [...input.nodes].sort((a, b) => a.id.localeCompare(b.id));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const pinIds = [...new Set(input.pinnedNodeIds)].sort();
@@ -267,7 +273,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   const makeDocument = (
     entries = delivered,
     deleted = deletions,
-    next: number | null = reset && !resetComplete ? requested : safeCursor,
+    next: number | null = atomic && !resetComplete ? requested : firstRead ? firstReadCursor : safeCursor,
   ): ContextBriefDocument => ({
     version: 1,
     budgetUnit: 'utf16-code-units',
@@ -309,7 +315,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
 
   // Pins precede revision groups. Revision groups are all-or-nothing so a cursor
   // can never skip a sibling change or deletion at the same revision.
-  for (const candidate of candidates.filter((item) => !reset && item.entry.reason === 'pinned')) {
+  for (const candidate of candidates.filter((item) => !atomic && item.entry.reason === 'pinned')) {
     const proposed = [...delivered, candidate.entry];
     if (fits(makeDocument(proposed))) delivered.push(candidate.entry);
     else {
@@ -318,11 +324,11 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     }
   }
   // Neighbours come right after the pins they sit next to; each is whole or absent.
-  for (const candidate of candidates.filter((item) => !reset && item.entry.reason === 'near')) {
+  for (const candidate of candidates.filter((item) => !atomic && item.entry.reason === 'near')) {
     const proposed = [...delivered, candidate.entry];
     if (fits(makeDocument(proposed))) delivered.push(candidate.entry);
   }
-  if (reset && !deltaBlocked) {
+  if (atomic && !deltaBlocked) {
     const resetEntries = candidates
       .filter((item) => item.replacement && !delivered.includes(item.entry))
       .map((item) => item.entry);
@@ -341,12 +347,15 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     }
   }
   const revisions = [
-    ...new Set([...changed.map((node) => node.contentRevision!), ...tombstones.map((item) => item.revision)]),
+    ...new Set([
+      ...changed.map((node) => node.contentRevision!).filter(validRevision),
+      ...(firstRead ? [] : tombstones.map((item) => item.revision)),
+    ]),
   ]
-    .filter((revision) => revision > safeCursor)
+    .filter((revision) => revision > (firstRead ? -1 : safeCursor))
     .sort((a, b) => a - b);
   for (const revision of revisions) {
-    if (deltaBlocked || reset) break;
+    if (deltaBlocked || atomic) break;
     if (
       delivered.some(
         (entry) =>
@@ -366,7 +375,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       .filter((item) => item.revision === revision && !delivered.includes(item.entry))
       .map((item) => item.entry);
     const deletesAtRevision = tombstones
-      .filter((item) => item.revision === revision)
+      .filter((item) => !firstRead && item.revision === revision)
       .map((item) => ({ sourceBoardId: input.activeBoard.boardId, nodeId: item.nodeId, revision: item.revision }));
     const proposedEntries = [...delivered, ...entriesAtRevision];
     const proposedDeletes = [...deletions, ...deletesAtRevision];
@@ -382,6 +391,11 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     delivered.push(...entriesAtRevision);
     deletions.push(...deletesAtRevision);
     safeCursor = revision;
+    if (firstRead) firstReadCursor = revision;
+  }
+  if (firstRead && !deltaBlocked) {
+    safeCursor = current;
+    firstReadCursor = current;
   }
   for (const candidate of candidates.filter(
     (item) => item.entry.reason !== 'pinned' && item.revision === undefined && !delivered.includes(item.entry),
@@ -391,7 +405,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   }
 
   const document = makeDocument();
-  if (reset && !resetComplete) document.cursor.next = requested;
+  if (atomic && !resetComplete) document.cursor.next = requested;
   const serialized = fits(document) ? JSON.stringify(document) : '';
   const outputDocument = serialized ? document : null;
   return {
@@ -401,7 +415,14 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       ? outputDocument.entries.map((entry) => `${entry.sourceBoardId}:${entry.nodeId}`)
       : [],
     deliveredDeletionIds: outputDocument ? outputDocument.deletions.map((entry) => entry.nodeId) : [],
-    nextCursor: outputDocument && cursorValid ? (reset && !resetComplete ? requested : safeCursor) : null,
+    nextCursor:
+      outputDocument && cursorValid
+        ? atomic && !resetComplete
+          ? requested
+          : firstRead
+            ? firstReadCursor
+            : safeCursor
+        : null,
     reset,
     invalidCursor: !cursorValid,
     truncated: !outputDocument || document.delivery.truncated,

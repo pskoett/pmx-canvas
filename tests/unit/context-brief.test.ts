@@ -212,6 +212,45 @@ describe('compileContextBrief', () => {
     expect(result.reset).toBe('first-read');
   });
 
+  test('a first read larger than the budget sends pins first, then whole oldest revisions, and pages on', () => {
+    const body = 'Y'.repeat(300);
+    // Spread far apart so no card is "near" the pin and every read pages through revisions.
+    const nodes = ['a', 'b', 'c', 'd', 'e'].map((id, index) => at(id, index * 2_000, body, index + 1));
+    const first = compileContextBrief(
+      input({ nodes, pinnedNodeIds: ['e'], contentRevision: 5, since: null, budget: 1_400 }),
+    );
+    const firstIds = first.document!.entries.map((entry) => `${entry.nodeId}:${entry.reason}`);
+    expect(firstIds[0]).toBe('e:pinned');
+    expect(firstIds).toContain('a:changed');
+    expect(first.reset).toBe('first-read');
+    // Whole entries only, except a truncated preview of the group that did not fit, last.
+    const truncatedAt = first.document!.entries.findIndex((entry) => entry.truncated);
+    expect(truncatedAt === -1 || truncatedAt === first.document!.entries.length - 1).toBe(true);
+    expect(first.nextCursor).toBeGreaterThanOrEqual(1);
+    expect(first.nextCursor).toBeLessThan(5);
+
+    const second = compileContextBrief(
+      input({ nodes, pinnedNodeIds: ['e'], contentRevision: 5, since: first.nextCursor, budget: 1_400 }),
+    );
+    const delivered = new Set([...first.document!.entries, ...second.document!.entries].map((entry) => entry.nodeId));
+    expect(second.reset).toBeNull();
+    expect(delivered.has('b')).toBe(true);
+    expect(second.nextCursor!).toBeGreaterThan(first.nextCursor!);
+  });
+
+  test('a first read skips deletions: a first reader holds nothing to delete', () => {
+    const result = compileContextBrief(
+      input({
+        nodes: [node('kept', 'state', 2)],
+        tombstones: [{ nodeId: 'gone', revision: 1, deletedBy: actor }],
+        contentRevision: 2,
+        since: null,
+      }),
+    );
+    expect(result.document!.deletions).toEqual([]);
+    expect(result.nextCursor).toBe(2);
+  });
+
   test('includes legacy undefined-revision nodes in reset and rejects future cursors', () => {
     const legacy = node('legacy', 'old state', 0);
     delete legacy.contentRevision;

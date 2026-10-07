@@ -12,6 +12,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Fixed
 
 - `pmx-canvas record` realtime capture uses Chrome's screencast for smooth full-frame-rate footage, writes frames while it records, and tolerates a slow first Chrome launch.
+- On a board larger than the context budget, an agent's first `canvas://context` read now carries the pinned cards and then whole cards oldest first, and pages on from there, instead of returning a single clipped card every time.
 
 ## [0.8.2] - 2026-10-06
 
