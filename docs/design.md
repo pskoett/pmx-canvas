@@ -128,6 +128,7 @@ the same change.
 | [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library | 2 |
 | [`HomeTeam.dc.html`](design/HomeTeam.dc.html) | Home on a team server: workspace and personal libraries, per-user pins, moving a board into the workspace, locked links, folder categories and due counts in both libraries (look ahead) | Later (Part 3, step 5) |
 | [`Categories.dc.html`](design/Categories.dc.html), [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Knowledge categories as a folder property (glyph + word, no colour; set here vs `↳` inherited; dashed “unknown”), folder settings, the one workspace list with lifecycle defaults and templates (org/team/personal is one option), a solo-research workspace; on cards: lifecycle override (never category), the four clocks, review outcomes with evidence, the board's review list, the brief. Review due is amber **outlined** with ⧗ on the lifecycle line; changed-since-read stays amber **filled** with △ in the header. 600 px | For review (move 13, Part 3) |
+| [`LifecycleVariants.dc.html`](design/LifecycleVariants.dc.html), [`Restore.dc.html`](design/Restore.dc.html) | Where lifecycle shows: variant A (review due on the card while due) vs B (only in the ⋯ menu, a count on the board), with the shared ⋯ → Lifecycle entry; retiring and restoring a card: dimmed in place, Retired filter, search, Restore in the Lifecycle tab, Undo toast, history with who and when | A/B open; restore confirmed |
 | [`Relations.dc.html`](design/Relations.dc.html) | Relations on a research board, today vs proposed; edge anatomy; relation inks | 3 |
 | [`Flows.dc.html`](design/Flows.dc.html) | Data lineage with staleness, what a finding rests on, opening a group | 3, 5 |
 | [`Uses.dc.html`](design/Uses.dc.html) | One relation layer for research, dependencies, decisions and agent flows | 3 |
@@ -166,6 +167,21 @@ the same change.
   hidden, so hover or keyboard focus cannot move the pin onto another action.
   Section labels are a heading display of the markdown node. Rarely used tools
   live in one settings menu on the rail.
+- **Kinds and knowledge categories carry no colour** (categories confirmed with the
+  maintainer 2026-10-07). A node kind and a folder's category are told by glyph and word
+  only; no hue is spent on them, so every colour on the board keeps a meaning. This
+  settles the old Home folder-hue question: folders show their category tag, never a
+  coloured square.
+- **Retire is reversible** (confirmed 2026-10-07). "Retire from active context" only takes
+  a card out of the brief; the card and its history stay. A retired card is dimmed in
+  place, found by the board's Retired filter and by search, and restored from its
+  Lifecycle tab; the restore is recorded with who and when, and is not a validation.
+- **Open: how much lifecycle shows on the board.** Everything (rate, decay type,
+  inherited or set, the four clocks, history) moves into the card's ⋯ → Lifecycle, and
+  "unknown" shows only on Home folders. Undecided is whether "review due" stays on the
+  card while due (variant A) or only in the menu with a count on the board (B) —
+  `LifecycleVariants.dc.html`. Until it is decided, the Lifecycle boards' at-rest card
+  lines are not final.
 - **Relations are the edge layer, not node types.** Design work adds no node type;
   the vision's own `ask` node (move 3) is separate.
 - **Any size, from a side pane to a full window.** The workbench lives in narrow agent-host

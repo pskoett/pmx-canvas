@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Restore a retired card</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 820px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Retired, and back again</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Retiring takes a card out of the brief and nothing else: the card, its content and its history stay on the board. If that was a mistake, anyone who can edit the board restores it, and the history says who and when.</p>
+</div>
+
+<div style="flex: 1; display: grid; grid-template-columns: 440px 500px minmax(0, 1fr); gap: 24px; min-height: 0">
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">1 · Where a retired card is</span>
+<div style="position: relative; height: 300px; border-radius: 10px; border: 1px solid #1b2c44; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px; overflow: hidden">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #0f1d31; border-bottom: 1px solid #1b2c44">
+<span style="font-size: 13px; font-weight: 600; flex: 1">Pricing strategy 2027</span>
+<span style="{{s.filterOff}}">All</span><span style="{{s.filterOff}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>To review 2</span><span style="{{s.filterOn}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.retire}}"></path></svg>Retired 1</span>
+</div>
+<div style="{{s.cardFaded}} left: 16px; top: 64px; width: 200px; height: 96px"><div style="{{s.head}}"><span style="{{s.title}}">Positioning: premium SMB</span></div><div style="{{s.body}}">Lead with reliability…</div></div>
+<div style="{{s.cardRetired}} left: 228px; top: 64px; width: 196px; height: 116px"><div style="{{s.head}}"><span style="{{s.title}}">Old tier names</span><span style="{{s.retiredTag}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.retire}}"></path></svg>retired</span></div><div style="{{s.body}}">Starter / Team / Business naming from 2025.</div></div>
+<div style="{{s.cardFaded}} left: 16px; top: 176px; width: 200px; height: 96px"><div style="{{s.head}}"><span style="{{s.title}}">Competitor price list</span></div><div style="{{s.body}}">Six competitors…</div></div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">On the board a retired card is always drawn dimmed, in place. The <b style="font-weight: 600; color: #b9c6d6">Retired</b> filter fades everything else and adds the word, so it is found without hunting.</span>
+
+<div style="{{s.panel}} padding: 10px; gap: 6px">
+<div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid #2a4566; background: #081524"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.search}}"></path></svg><span style="flex: 1">tier names</span><span style="font-size: 11px; color: #6b7d94">⌘K</span></div>
+<sc-for list="{{results}}" as="r" hint-placeholder-count="3">
+<div style="{{r.row}}"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 500">{{r.t}}</span><span style="font-size: 11px; color: #8ea3bd">{{r.where}}</span></div><span style="{{r.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.retire}}"></path></svg>{{r.tag}}</span></div>
+</sc-for>
+<span style="font-size: 11px; color: #8ea3bd; padding: 0 4px">Search still finds retired cards and says so; agents find them through canvas_query search too, marked retired.</span>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">2 · Lifecycle tab — Old tier names</span>
+<div style="{{s.panel}} box-shadow: 0 10px 30px rgba(0,0,0,0.6)">
+<div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid #1b2c44">
+<span style="font-size: 15px; font-weight: 600; flex: 1">Old tier names</span>
+<span style="{{s.tabOff}}">Content</span><span style="{{s.tabOn}}">Lifecycle</span><span style="{{s.tabOff}}">Source</span>
+</div>
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 8px; border: 1px solid #2a4566; background: #13243b">
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{s.retiredTag}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.retire}}"></path></svg>retired from active context</span></div>
+<span style="font-size: 12px; color: #b9c6d6">Not in the brief since 2 Oct 2026. Retired by <span style="color: #B388FF">Claude</span>: “superseded by New tier names”.</span>
+<button style="{{s.btnPrimary}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.restore}}"></path></svg>Restore to active context</button>
+<div style="{{s.input}}"><span style="color: #6b7d94">Why — optional, e.g. “retired by mistake”</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">What restore does</span>
+<sc-for list="{{effects}}" as="e" hint-placeholder-count="4"><div style="display: flex; gap: 8px; font-size: 12px; color: #b9c6d6"><span style="{{e.gSt}}">{{e.g}}</span><span>{{e.t}}</span></div></sc-for>
+</div>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.5)">
+<svg width="14" height="14" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.retire}}"></path></svg><span style="flex: 1; font-size: 12px">Old tier names retired from active context</span><span style="font-size: 12px; font-weight: 600; color: #4BBCFF">Undo</span>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Right after retiring, the toast offers Undo — the quickest way back. Later, Restore in the Lifecycle tab.</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="{{s.label}}">3 · Recorded in the history</span>
+<div style="{{s.panel}} padding: 14px; gap: 2px">
+<span style="font-size: 12px; font-weight: 600; padding-bottom: 6px">History · Old tier names</span>
+<sc-for list="{{history}}" as="h" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 1px; padding: 8px 0; border-top: 1px solid #1b2c44"><div style="display: flex; align-items: center; gap: 8px; font-size: 12px"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{h.icon}}"></path></svg><span style="font-weight: 600; flex: 1">{{h.o}}</span><span style="color: #8ea3bd">{{h.d}}</span></div><div style="font-size: 12px; padding-left: 20px"><span style="{{h.whoSt}}">{{h.who}}</span><span style="color: #b9c6d6"> · {{h.e}}</span></div></div>
+</sc-for>
+</div>
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="3">
+<div style="{{s.panel}} padding: 12px 14px; gap: 2px"><span style="font-size: 12px; font-weight: 600">{{r.t}}</span><span style="font-size: 11px; color: #b9c6d6">{{r.d}}</span></div>
+</sc-for>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      glass: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+      retire: 'M4 7h16M6 7v12h12V7M9 4h6',
+      restore: 'M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4',
+      search: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20',
+      check: 'M5 12.5l4.5 4.5L19 7',
+      revise: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8zM13 7l4 4'
+    };
+    var nodeBase = 'position:absolute;box-sizing:border-box;border-radius:10px;background:#0f1d31;border:1px solid #1b2c44;overflow:hidden;';
+    var tagBase = 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;';
+    var fBase = 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;font-size:11px;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icDim: 'fill:none;stroke:#6b7d94;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      filterOn: fBase + 'background:#1b2c44;color:#e6eef7;font-weight:600;',
+      filterOff: fBase + 'color:#8ea3bd;',
+      cardFaded: nodeBase + 'opacity:0.35;',
+      cardRetired: nodeBase + 'border:1px solid #2a4566;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);',
+      head: 'display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 12px;border-bottom:1px solid #1b2c44;',
+      title: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;',
+      body: 'padding:8px 12px;font-size:12px;color:#b9c6d6;',
+      retiredTag: tagBase + 'color:#b9c6d6;background:#1b2c44;',
+      tabOn: 'height:28px;display:flex;align-items:center;padding:0 10px;border-radius:6px;background:#13243b;font-size:12px;font-weight:600;',
+      tabOff: 'height:28px;display:flex;align-items:center;padding:0 10px;font-size:12px;color:#8ea3bd;',
+      btnPrimary: 'align-self:flex-start;display:flex;align-items:center;gap:8px;height:34px;padding:0 14px;border:0;border-radius:6px;background:#4BBCFF;color:#081524;font-family:inherit;font-size:13px;font-weight:600;',
+      input: 'display:flex;align-items:center;height:34px;box-sizing:border-box;padding:0 10px;border-radius:6px;border:1px solid #2a4566;background:#081524;font-size:12px;'
+    };
+    var rowBase = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;';
+    var results = [
+      { t: 'Old tier names', where: 'Pricing strategy 2027', tag: 'retired', tagSt: s.retiredTag, row: rowBase + 'background:#13243b;' },
+      { t: 'New tier names', where: 'Pricing strategy 2027', tag: '', tagSt: 'display:none;', row: rowBase },
+      { t: 'Tier naming workshop', where: 'Workshops', tag: '', tagSt: 'display:none;', row: rowBase }
+    ];
+    var g = 'flex-shrink:0;width:12px;color:#8ea3bd;';
+    var effects = [
+      { g: '+', gSt: g, t: 'The card goes back into the brief on its next delivery, with its lifecycle as it was.' },
+      { g: '=', gSt: g, t: 'It is not a validation. The last validated date stays, so it may come back marked review due.' },
+      { g: '=', gSt: g, t: 'Nothing is lost while retired: content, links, pins and history were kept the whole time.' },
+      { g: '+', gSt: g, t: 'The agent sees the restore in its next brief’s changes and in the history.' }
+    ];
+    var who = 'color:#e6eef7;';
+    var agent = 'color:#B388FF;';
+    var history = [
+      { o: 'Restored to active context', d: '7 Oct 2026 · 09:42', who: 'Pepe', whoSt: who, e: 'retired by mistake — still our naming in the EU', icon: i.restore },
+      { o: 'Retired from active context', d: '2 Oct 2026 · 16:10', who: 'Claude', whoSt: agent, e: 'superseded by New tier names', icon: i.retire },
+      { o: 'Retained', d: '3 Aug 2026', who: 'Pepe', whoSt: who, e: 'still on the price page', icon: i.check },
+      { o: 'Revised', d: '12 May 2026', who: 'Mia', whoSt: who, e: 'Business renamed from Pro', icon: i.revise }
+    ];
+    var rules = [
+      { t: 'Who can retire and restore', d: 'Anyone who can edit the board, and agents acting for them. An agent’s retire or restore shows its violet name, like any agent edit.' },
+      { t: 'Retired is not deleted', d: 'Delete stays its own action. Retire only answers “should the agent still be told this?”' }
+    ];
+    return { i: i, s: s, results: results, effects: effects, history: history, rules: rules };
+  }
+}
+</script>
+</body>
+</html>

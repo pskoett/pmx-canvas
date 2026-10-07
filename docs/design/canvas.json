@@ -197,6 +197,20 @@
       "w": 600,
       "h": 940,
       "title": "Categories and lifecycle at 600 px"
+    },
+    "LifecycleVariants.dc.html": {
+      "x": 5240,
+      "y": 10260,
+      "w": 1440,
+      "h": 1100,
+      "title": "Lifecycle on the board or in a menu — variants A and B (open decision)"
+    },
+    "Restore.dc.html": {
+      "x": 6760,
+      "y": 10260,
+      "w": 1440,
+      "h": 820,
+      "title": "Retired, and back again — finding and restoring a retired card"
     }
   },
   "createdOnFiles": {
@@ -272,7 +286,7 @@
     },
     "t7": {
       "kind": "title1",
-      "maxW": 5160,
+      "maxW": 8200,
       "text": "Knowledge categories and context lifecycle (move 13, Part 3 — for review)",
       "w": 240,
       "x": 0,
@@ -307,7 +321,9 @@
     "Categories.dc.html",
     "CategoryEditor.dc.html",
     "Lifecycle.dc.html",
-    "Lifecycle600.dc.html"
+    "Lifecycle600.dc.html",
+    "LifecycleVariants.dc.html",
+    "Restore.dc.html"
   ],
   "pages": [],
   "title": "PMX Canvas look-and-feel proposal"

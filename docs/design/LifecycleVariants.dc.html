@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lifecycle on the board or in a menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">How much lifecycle shows on the board — pick A or B</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Both move everything into the card’s ⋯ → Lifecycle: rate and decay type, inherited or set, the four clocks, outcome history. “Unknown” shows only on Home folders, never on a card. The one question is where “review due” lives.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px">
+<sc-for list="{{variants}}" as="v" hint-placeholder-count="2">
+<section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="{{s.letter}}">{{v.k}}</span><span style="font-size: 15px; font-weight: 600">{{v.name}}</span></div>
+<span style="font-size: 12px; color: #8ea3bd">{{v.sub}}</span>
+<div style="position: relative; height: 420px; border-radius: 10px; border: 1px solid #1b2c44; background-color: #081524; background-image: radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px); background-size: 24px 24px; overflow: hidden">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #0f1d31; border-bottom: 1px solid #1b2c44">
+<span style="font-size: 13px; font-weight: 600; flex: 1">Pricing strategy 2027</span>
+<span style="{{s.ctxChip}}">3 cards in context</span>
+<span style="{{v.countSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>2 to review</span>
+</div>
+<sc-for list="{{v.cards}}" as="c" hint-placeholder-count="4">
+<div style="{{c.node}}">
+<div style="{{c.head}}"><span style="{{s.title}}">{{c.title}}</span>
+<sc-if value="{{c.changed}}" hint-placeholder-val="{{ false }}"><span style="{{s.changedChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.warn}}"></path></svg>changed</span></sc-if>
+<sc-if value="{{c.pin}}" hint-placeholder-val="{{ false }}"><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></sc-if>
+</div>
+<div style="{{s.body}}">{{c.body}}</div>
+<sc-if value="{{c.due}}" hint-placeholder-val="{{ false }}"><div style="{{s.dueLine}}"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span><span style="font-size: 11px; color: #8ea3bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.dueWhy}}</span></div></sc-if>
+</div>
+</sc-for>
+<sc-if value="{{v.popover}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; right: 12px; top: 50px; width: 290px; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 11px; color: #8ea3bd; padding: 0 4px 2px">To review on this board</span>
+<sc-for list="{{queue}}" as="q" hint-placeholder-count="2"><div style="display: flex; flex-direction: column; padding: 6px 8px; border-radius: 6px; background: #0f1d31"><span style="font-size: 12px; font-weight: 500">{{q.t}}</span><span style="font-size: 11px; color: #8ea3bd">{{q.why}}</span></div></sc-for>
+<span style="font-size: 11px; color: #8ea3bd; padding: 2px 4px 0">Click a row to jump to the card</span>
+</div>
+</sc-if>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+<div style="{{s.panel}} padding: 12px 14px; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #e6eef7">Gains</span><sc-for list="{{v.pros}}" as="p" hint-placeholder-count="3"><span style="font-size: 11px; color: #b9c6d6">+ {{p}}</span></sc-for></div>
+<div style="{{s.panel}} padding: 12px 14px; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #e6eef7">Costs</span><sc-for list="{{v.cons}}" as="p" hint-placeholder-count="3"><span style="font-size: 11px; color: #b9c6d6">− {{p}}</span></sc-for></div>
+</div>
+</section>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 32px">
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">Same in A and B — the card’s ⋯ menu</span>
+<div style="position: relative; height: 230px; border-radius: 10px; border: 1px solid #1b2c44; background: #081524">
+<div style="position: absolute; left: 16px; top: 16px; width: 300px; height: 40px; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 12px; border-radius: 10px 10px 0 0; border: 1.5px solid #4BBCFF; border-bottom: 0; background: rgba(75,188,255,0.10)"><span style="{{s.title}}">Churn by month</span><span style="width: 24px; height: 24px; border-radius: 6px; background: #1b2c44; display: flex; align-items: center; justify-content: center">⋯</span></div>
+<div role="menu" style="position: absolute; left: 150px; top: 52px; width: 250px; box-sizing: border-box; padding: 6px; border-radius: 10px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{menu}}" as="m" hint-placeholder-count="6"><div style="{{m.st}}"><span style="flex: 1">{{m.n}}</span><span style="{{m.hintSt}}">{{m.h}}</span></div></sc-for>
+</div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Lifecycle… opens the tab drawn on Lifecycle and Restore. Its row shows a one-word summary so the menu itself answers “anything to do here?”.</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">Design session’s recommendation — A</span>
+<div style="{{s.panel}} padding: 16px 18px; gap: 10px; border-color: #2a4566">
+<span style="font-size: 15px; font-weight: 600">The human should see what the agent is told</span>
+<span style="font-size: 12px; color: #b9c6d6">The brief already carries “review due: check the source before relying on it” on Churn by month. In B that card looks clean on the board while the agent is told to doubt it, so the human and the agent are looking at two different boards. That is the same gap the pin and the “changed” mark were designed to close.</span>
+<span style="font-size: 12px; color: #b9c6d6">A costs one quiet line, on only the cards that are due — 2 of the 4 here, and on a real board usually a small share. Everything else (rates, clocks, history, inheritance, unknown) still goes into the menu, which keeps the maintainer’s “not on the board” for everything that isn’t a call to act.</span>
+<span style="font-size: 12px; color: #b9c6d6">If B is chosen, keep one tie to the card: the count popover lists the cards and jumps to them, and the brief panel names them, so the mismatch is at least one click away.</span>
+<span style="font-size: 11px; color: #8ea3bd">Either way the Lifecycle board’s at-rest card lines are replaced by the chosen variant once decided.</span>
+</div>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      glass: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+      warn: 'M12 4l9 16H3zM12 10v4M12 17v.5',
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20'
+    };
+    var W = '#f4c542';
+    var chip = 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      letter: 'width:26px;height:26px;border-radius:999px;background:#1b2c44;font-size:13px;font-weight:600;text-align:center;line-height:26px;flex-shrink:0;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icPin: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;',
+      ctxChip: 'display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;border:1px solid rgba(75,188,255,0.3);color:#4BBCFF;font-size:11px;font-weight:500;',
+      changedChip: chip + 'color:' + W + ';background:rgba(244,197,66,0.14);',
+      reviewChip: chip + 'color:' + W + ';border:1px solid rgba(244,197,66,0.6);',
+      pinOn: 'width:18px;height:18px;border-radius:999px;background:#4BBCFF;color:#081524;display:flex;align-items:center;justify-content:center;flex-shrink:0;',
+      title: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;',
+      body: 'padding:8px 12px;font-size:12px;color:#b9c6d6;',
+      dueLine: 'position:absolute;left:0;right:0;bottom:0;height:32px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid #1b2c44;'
+    };
+    var countOn = chip + 'height:24px;color:' + W + ';border:1px solid rgba(244,197,66,0.6);';
+    var countOpen = countOn + 'background:rgba(244,197,66,0.14);';
+    var nodeBase = 'position:absolute;box-sizing:border-box;border-radius:10px;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);overflow:hidden;';
+    var headBase = 'display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 12px;border-bottom:1px solid #1b2c44;';
+    function cards(showDue) {
+      function c(o) {
+        return {
+          title: o.title, body: o.body, pin: !!o.pin, changed: !!o.changed, due: showDue && !!o.due, dueWhy: o.dueWhy || '',
+          node: nodeBase + 'left:' + o.x + 'px;top:' + o.y + 'px;width:300px;height:' + o.h + 'px;' + (o.pin ? 'border:1.5px solid #4BBCFF;' : 'border:1px solid #1b2c44;'),
+          head: headBase + (o.pin ? 'background:rgba(75,188,255,0.10);' : '')
+        };
+      }
+      return [
+        c({ x: 16, y: 64, h: 140, pin: true, title: 'Positioning: premium SMB', body: 'Lead with reliability and support; do not compete on price below $20.' }),
+        c({ x: 16, y: 220, h: 180, pin: true, changed: true, due: true, title: 'Churn by month', body: 'Pro plan, monthly logo churn, last 12 months.', dueWhy: 'source refreshed' }),
+        c({ x: 332, y: 64, h: 140, title: 'Competitor price list', body: 'Six competitors, list prices as of September.' }),
+        c({ x: 332, y: 220, h: 180, pin: true, due: true, title: 'Win rate vs. Competitor B', body: 'Q3 win rate by segment, from the CRM export.', dueWhy: 'contradicted by Q3 loss reasons' })
+      ];
+    }
+    var queue = [
+      { t: 'Churn by month', why: 'fast · source refreshed · validated 41 d ago' },
+      { t: 'Win rate vs. Competitor B', why: 'contradicted by “Q3 loss reasons”' }
+    ];
+    var variants = [
+      { k: 'A', name: 'Review due on the card, only while due', sub: 'Recommended by the roadmap session and the design session. The line appears when a review is due and goes away when an outcome is recorded.',
+        countSt: countOn, popover: false, cards: cards(true),
+        pros: ['You see on the card what the agent’s brief says about it', 'No click needed to find which cards are due', 'Quiet: nothing on cards that are fine'],
+        cons: ['One line of chrome on due cards', 'A board with many due cards gets busier', 'Two amber marks can meet on one card'] },
+      { k: 'B', name: 'Review due only in the menu, a count on the board', sub: 'The maintainer’s lean. Cards stay clean apart from “changed”; the count (and the context chip) opens the list.',
+        countSt: countOpen, popover: true, cards: cards(false),
+        pros: ['Cards stay completely clean', 'One place to work the reviews from', 'Scales to boards with many due cards'],
+        cons: ['A due card looks the same as a fine one', 'The agent is told to doubt a card you see as clean', 'Finding a card means opening the count first'] }
+    ];
+    var mBase = 'display:flex;align-items:center;height:28px;padding:0 10px;border-radius:6px;font-size:12px;';
+    var hint = 'font-size:11px;color:#6b7d94;';
+    var menu = [
+      { n: 'Focus', h: '', st: mBase, hintSt: hint },
+      { n: 'Rename…', h: '', st: mBase, hintSt: hint },
+      { n: 'Lifecycle…', h: '⧗ review due', st: mBase + 'background:#1b2c44;', hintSt: 'font-size:11px;color:' + W + ';' },
+      { n: 'Open in new tab', h: '', st: mBase, hintSt: hint },
+      { n: 'Delete', h: '⌫', st: mBase, hintSt: hint }
+    ];
+    return { i: i, s: s, variants: variants, queue: queue, menu: menu };
+  }
+}
+</script>
+</body>
+</html>
