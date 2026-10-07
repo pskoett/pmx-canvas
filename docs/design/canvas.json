@@ -181,21 +181,21 @@
       "x": 1520,
       "y": 10260,
       "w": 1440,
-      "h": 960,
+      "h": 990,
       "title": "One category list per workspace — lifecycle defaults and templates"
     },
     "Lifecycle.dc.html": {
       "x": 3040,
       "y": 10260,
       "w": 1440,
-      "h": 1360,
+      "h": 1420,
       "title": "Card lifecycle, four clocks, review outcomes, board and brief"
     },
     "Lifecycle600.dc.html": {
       "x": 4560,
       "y": 10260,
       "w": 600,
-      "h": 940,
+      "h": 1470,
       "title": "Categories and lifecycle at 600 px"
     },
     "LifecycleVariants.dc.html": {
@@ -223,7 +223,7 @@
       "x": 9120,
       "y": 4060,
       "w": 600,
-      "h": 990,
+      "h": 1560,
       "title": "Context chip at 600 px — Harbor and Daylight"
     }
   },

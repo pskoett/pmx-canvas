@@ -32,7 +32,7 @@ body{margin:0}
 </sc-for>
 </div>
 </sc-for>
-<span style="font-size: 11px; color: #8ea3bd; padding-left: 216px">Counts read left to right in brief order: cards on this board, near (derived, muted), pinned boards. The small meter is the old Pins meter; amber only when something you pinned is not sent in full.</span>
+<span style="font-size: 11px; color: #8ea3bd; padding-left: 216px">Counts read left to right in brief order: cards on this board, near (derived, muted), pinned boards. The small meter is the share of the brief budget used, labelled in tokens; amber only when the brief went over and was clipped.</span>
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 10px">
@@ -40,11 +40,11 @@ body{margin:0}
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
 <sc-for list="{{panels}}" as="p" hint-placeholder-count="2">
 <div style="{{p.frame}}">
-<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>4 cards<span style="{{p.dimSeg}}">· 3 near</span>· 3 boards<span style="{{p.warnSeg}}">· △ 2 not in full</span></span></div>
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>4 cards<span style="{{p.dimSeg}}">· 3 near</span>· 3 boards</span></div>
 <div style="{{p.pop}}">
-<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">31.4k / 32k</span></div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">≈ 2.5k tokens · 62%</span></div>
 <div style="display: flex; align-items: center; gap: 8px"><span style="{{p.trackBig}}"><span style="{{p.fillBig}}"></span></span></div>
-<span style="{{p.cap}}">Pins estimate. When the host reports Claude’s real window this reads “Claude’s window · 61%” and shows the pins as a share of it.</span>
+<span style="{{p.cap}}">Share of the brief budget (16,000 characters), shown as tokens. When the host reports Claude’s real window this reads “Claude’s window · 61%”. Amber: the brief went over and was clipped.</span>
 
 <div style="{{p.secHead}}"><span style="flex: 1">Cards on this board · 4</span><span style="{{p.link}}">Clear all</span></div>
 <sc-for list="{{p.cards}}" as="c" hint-placeholder-count="4">
@@ -56,11 +56,11 @@ body{margin:0}
 <div style="{{n.row}}"><span style="{{p.nearRing}}"></span><span style="{{p.nameSoft}}">{{n.t}}</span><span style="{{p.capInline}}">{{n.of}}</span><span style="{{n.pinSt}}">{{n.pin}}</span></div>
 </sc-for>
 
-<div style="{{p.secHead}}"><span style="flex: 1">Boards · 3</span></div>
+<div style="{{p.secHead}}"><span style="flex: 1">Boards · 3</span><span style="{{p.capInline}}">sent as a map</span></div>
 <sc-for list="{{p.boards}}" as="b" hint-placeholder-count="3">
-<div style="{{p.row}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{p.boardIc}}"><path d="{{i.board}}"></path></svg><span style="{{p.name}}">{{b.t}}</span><span style="{{b.readSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{b.readIc}}"></path></svg>{{b.read}}</span><span style="{{b.fbSt}}">{{b.fb}}</span><span style="{{p.x}}">×</span></div>
+<div style="{{p.row}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{p.boardIc}}"><path d="{{i.board}}"></path></svg><span style="{{p.name}}">{{b.t}}</span><span style="{{b.readSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{b.readIc}}"></path></svg>{{b.read}}</span><span style="{{p.mapWord}}">map</span><span style="{{p.x}}">×</span></div>
 </sc-for>
-<span style="{{p.cap}}">Over budget, pinned boards drop to summary only, then out — shown here and on the chip, never silent. “Open the last brief” shows exactly what the agent received.</span>
+<span style="{{p.cap}}">A pinned board travels as a map: its folder, README summary, each pinned card’s title and summary, and its links and backlinks. The agent pulls a card or the whole board in full when it decides it needs to.</span>
 </div>
 </div>
 </sc-for>
@@ -133,12 +133,12 @@ class Component extends DCLogic {
     }
     function state(name, note, o) { return { name: name, note: note, strips: [strip(H, o), strip(D, o)] }; }
     var rest = [
-      state('Only cards', 'pins on the open board', { segs: [{ t: '4 cards' }], pct: 28, m: '9k' }),
-      state('Cards + near', 'near is derived: muted, no pin of its own', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }], pct: 34, m: '11k' }),
-      state('Cards + boards', 'boards pinned into the working set', { segs: [{ t: '4 cards' }, { t: '2 boards' }], pct: 72, m: '23k' }),
-      state('All three', 'the usual research session', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }, { t: '2 boards' }], pct: 77, m: '24.5k' }),
-      state('Over budget', 'a pinned board is not sent in full — amber, with the word', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }, { t: '3 boards' }, { t: '△ 2 not in full', kind: 'warn' }], pct: 100, m: 'over', over: true }),
-      state('Agent-only pins', 'violet dot: the agent pinned these', { segs: [{ t: '3 cards' }, { t: 'by Claude', kind: 'agent' }], pct: 22, m: '7k', agentDot: true }),
+      state('Only cards', 'pins on the open board', { segs: [{ t: '4 cards' }], pct: 28, m: '≈ 1.1k tokens' }),
+      state('Cards + near', 'near is derived: muted, no pin of its own', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }], pct: 34, m: '≈ 1.4k tokens' }),
+      state('Cards + boards', 'boards travel as maps, so they are cheap', { segs: [{ t: '4 cards' }, { t: '2 boards' }], pct: 45, m: '≈ 1.8k tokens' }),
+      state('All three', 'the usual research session', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }, { t: '2 boards' }], pct: 52, m: '≈ 2.1k tokens' }),
+      state('Over budget', 'the brief went over and was clipped — amber, with the word', { segs: [{ t: '12 cards' }, { t: '5 boards' }, { t: '△ brief clipped', kind: 'warn' }], pct: 100, m: 'over', over: true }),
+      state('Agent-only pins', 'violet dot: the agent pinned these', { segs: [{ t: '3 cards' }, { t: 'by Claude', kind: 'agent' }], pct: 22, m: '≈ 0.9k tokens', agentDot: true }),
       state('Host reports its window', 'the meter shows the agent’s real window', { segs: [{ t: '4 cards' }, { t: '2 boards' }], pct: 61, m: '61% window' }),
       state('Nothing pinned', 'quiet outline; opens a one-line how-to', { empty: true, segs: [{ t: 'Nothing in context' }] })
     ];
@@ -149,9 +149,6 @@ class Component extends DCLogic {
       var readSt = tag + 'color:' + c.agent + ';background:' + hexA(c.agent, 0.14) + ';';
       var notReadSt = tag + 'color:' + c.muted + ';background:' + c.soft + ';';
       var changedSt = tag + 'color:' + c.warn + ';background:' + hexA(c.warn, 0.14) + ';';
-      var full = tag + 'color:' + c.muted + ';';
-      var summary = tag + 'color:' + c.warn + ';border:1px solid ' + hexA(c.warn, 0.6) + ';';
-      var notSent = tag + 'color:' + c.warn + ';background:' + hexA(c.warn, 0.14) + ';';
       return {
         frame: 'display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:' + c.bg + ';border:1px solid ' + c.line + ';',
         bar: 'display:flex;align-items:center;gap:8px;height:44px;box-sizing:border-box;padding:0 10px;border-radius:8px;background:' + c.panel + ';border:1px solid ' + c.line + ';color:' + c.text + ';',
@@ -163,9 +160,10 @@ class Component extends DCLogic {
         warnSeg: 'color:' + c.warn + ';font-weight:600;',
         pop: 'align-self:flex-end;width:440px;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';',
         h: 'font-size:13px;font-weight:600;flex:1;',
-        mono: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.warn + ';',
+        mono: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.muted + ';',
         trackBig: 'display:block;flex:1;height:6px;border-radius:999px;background:' + c.line + ';overflow:hidden;',
-        fillBig: 'display:block;width:98%;height:6px;background:' + c.warn + ';',
+        fillBig: 'display:block;width:62%;height:6px;background:' + c.pin + ';',
+        mapWord: 'font-size:11px;color:' + c.muted + ';flex-shrink:0;',
         cap: 'font-size:11px;color:' + c.muted + ';',
         capInline: 'font-size:11px;color:' + c.muted + ';white-space:nowrap;',
         secHead: 'display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px 2px;border-top:1px solid ' + c.line + ';font-size:11px;font-weight:600;color:' + c.muted + ';',
@@ -190,9 +188,9 @@ class Component extends DCLogic {
           { t: 'Price page copy', of: 'near Competitor pricing', pin: '', pinSt: 'display:none;', row: rowBase }
         ],
         boards: [
-          { t: 'Tech Enabling — overview', read: 'read 2m', readSt: readSt, readIc: i.eye, fb: '● full', fbSt: full },
-          { t: 'C4 2026 OKR planning', read: 'read 1h', readSt: readSt, readIc: i.eye, fb: '◐ summary only', fbSt: summary },
-          { t: 'Platform roadmap 2027', read: 'not read yet', readSt: notReadSt, readIc: i.eyeOff, fb: '○ not sent', fbSt: notSent }
+          { t: 'Tech Enabling — overview', read: 'read 2m', readSt: readSt, readIc: i.eye },
+          { t: 'C4 2026 OKR planning', read: 'read 1h', readSt: readSt, readIc: i.eye },
+          { t: 'Platform roadmap 2027', read: 'not read yet', readSt: notReadSt, readIc: i.eyeOff }
         ]
       };
     }
@@ -204,13 +202,13 @@ class Component extends DCLogic {
       'The per-drawing wording on Context, NearPin and BoardPins: this chip is the one look.'
     ];
     var data = [
-      'Per pinned board, from the planner that builds the next brief: full · summary only · not sent, plus the reason (over budget).',
-      'Live, not last-delivered: the chip changes the moment you pin, so you see the cost before the agent reads. Read state says whether it was delivered.',
+      'Brief size in UTF-16 characters against its budget (16,000 by default), and whether the last brief was clipped. Shown as ≈ tokens.',
+      'Per pinned board: read Xm ago / not read yet (exists). No full / summary state: every pinned board travels as a map.',
       'Per card: read Xm ago / not read yet / changed since read (exists).',
       'Who pinned each card and board (exists): agent pins get the violet dot.'
     ];
     var rules = [
-      'Blue: in context. Violet: the agent did it (read, pinned). Amber: you pinned it and it is not fully there — summary only, not sent, changed since read.',
+      'Blue: in context. Violet: the agent did it (read, pinned). Amber: needs a look — a card changed since the agent read it, or the brief was clipped.',
       'Near has no ×: it follows its pin. “Pin” promotes a near card to a real pin.',
       'Boards keep a slot after the name for review due (plan 017); not drawn until it is built.',
       'Esc or clicking away closes the panel; keyboard: the chip is a button, rows are a list.'

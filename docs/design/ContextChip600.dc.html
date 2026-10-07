@@ -13,20 +13,20 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 600px; height: 990px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
+<div style="width: 600px; height: 1560px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
 <div>
 <h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 28px">Context chip at 600 px</h1>
-<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">The chip keeps its place in the top bar and shortens to one count — cards and boards in context — plus the meter. Opened, the panel becomes a sheet under the top bar, full width.</p>
+<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">The chip keeps its place in the top bar and shortens to one count — cards and boards in context — plus the meter. Opened, the panel becomes a sheet under the top bar, full width. Boards travel as maps.</p>
 </div>
 <sc-for list="{{themes}}" as="p" hint-placeholder-count="2">
 <section style="display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">{{p.themeName}}</span>
 <div style="{{p.frame}}">
-<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipRest}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.warnSeg}}">△</span><span style="{{p.track}}"><span style="{{p.fillSm}}"></span></span></span></div>
-<span style="{{p.cap}}">At rest. △ appears when something pinned is not sent in full; the word is in the sheet and on hover.</span>
-<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.warnSeg}}">△</span></span></div>
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipRest}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.track}}"><span style="{{p.fillSm}}"></span></span></span></div>
+<span style="{{p.cap}}">At rest. The meter turns amber, with △ and “clipped”, only if the brief went over its budget.</span>
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context</span></div>
 <div style="{{p.sheet}}">
-<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">31.4k / 32k</span></div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">≈ 2.5k tokens · 62%</span></div>
 <div style="display: flex; align-items: center; gap: 8px"><span style="{{p.trackBig}}"><span style="{{p.fillBig}}"></span></span></div>
 <div style="{{p.secHead}}"><span style="flex: 1">Cards on this board · 4</span><span style="{{p.link}}">Clear all</span></div>
 <sc-for list="{{p.cards}}" as="c" hint-placeholder-count="4">
@@ -36,9 +36,9 @@ body{margin:0}
 <sc-for list="{{p.near}}" as="n" hint-placeholder-count="3">
 <div style="{{n.row}}"><span style="{{p.nearRing}}"></span><span style="{{p.nameSoft}}">{{n.t}}</span><span style="{{n.pinSt}}">{{n.pin}}</span></div>
 </sc-for>
-<div style="{{p.secHead}}"><span style="flex: 1">Boards · 3</span></div>
+<div style="{{p.secHead}}"><span style="flex: 1">Boards · 3</span><span style="{{p.capInline}}">sent as a map</span></div>
 <sc-for list="{{p.boards}}" as="b" hint-placeholder-count="3">
-<div style="{{p.row}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{p.boardIc}}"><path d="{{i.board}}"></path></svg><span style="{{p.name}}">{{b.t}}</span><span style="{{b.readSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{b.readIc}}"></path></svg>{{b.read}}</span><span style="{{b.fbSt}}">{{b.fb}}</span><span style="{{p.x}}">×</span></div>
+<div style="{{p.row}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{p.boardIc}}"><path d="{{i.board}}"></path></svg><span style="{{p.name}}">{{b.t}}</span><span style="{{b.readSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{b.readIc}}"></path></svg>{{b.read}}</span><span style="{{p.mapWord}}">map</span><span style="{{p.x}}">×</span></div>
 </sc-for>
 </div>
 </div>
@@ -46,7 +46,7 @@ body{margin:0}
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":990}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":1560}}'>
 class Component extends DCLogic {
   renderVals() {
     var i = {
@@ -72,9 +72,6 @@ class Component extends DCLogic {
       var readSt = tag + 'color:' + c.agent + ';background:' + hexA(c.agent, 0.14) + ';';
       var notReadSt = tag + 'color:' + c.muted + ';background:' + c.soft + ';';
       var changedSt = tag + 'color:' + c.warn + ';background:' + hexA(c.warn, 0.14) + ';';
-      var full = tag + 'color:' + c.muted + ';';
-      var summary = tag + 'color:' + c.warn + ';border:1px solid ' + hexA(c.warn, 0.6) + ';';
-      var notSent = tag + 'color:' + c.warn + ';background:' + hexA(c.warn, 0.14) + ';';
       return {
         frame: 'display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:' + c.bg + ';border:1px solid ' + c.line + ';',
         bar: 'display:flex;align-items:center;gap:8px;height:44px;box-sizing:border-box;padding:0 10px;border-radius:8px;background:' + c.panel + ';border:1px solid ' + c.line + ';color:' + c.text + ';',
@@ -86,9 +83,10 @@ class Component extends DCLogic {
         warnSeg: 'color:' + c.warn + ';font-weight:600;',
         pop: 'align-self:flex-end;width:440px;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';',
         h: 'font-size:13px;font-weight:600;flex:1;',
-        mono: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.warn + ';',
+        mono: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.muted + ';',
         trackBig: 'display:block;flex:1;height:6px;border-radius:999px;background:' + c.line + ';overflow:hidden;',
-        fillBig: 'display:block;width:98%;height:6px;background:' + c.warn + ';',
+        fillBig: 'display:block;width:62%;height:6px;background:' + c.pin + ';',
+        mapWord: 'font-size:11px;color:' + c.muted + ';flex-shrink:0;',
         cap: 'font-size:11px;color:' + c.muted + ';',
         capInline: 'font-size:11px;color:' + c.muted + ';white-space:nowrap;',
         secHead: 'display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px 2px;border-top:1px solid ' + c.line + ';font-size:11px;font-weight:600;color:' + c.muted + ';',
@@ -113,9 +111,9 @@ class Component extends DCLogic {
           { t: 'Price page copy', of: 'near Competitor pricing', pin: '', pinSt: 'display:none;', row: rowBase }
         ],
         boards: [
-          { t: 'Tech Enabling — overview', read: 'read 2m', readSt: readSt, readIc: i.eye, fb: '● full', fbSt: full },
-          { t: 'C4 2026 OKR planning', read: 'read 1h', readSt: readSt, readIc: i.eye, fb: '◐ summary only', fbSt: summary },
-          { t: 'Platform roadmap 2027', read: 'not read yet', readSt: notReadSt, readIc: i.eyeOff, fb: '○ not sent', fbSt: notSent }
+          { t: 'Tech Enabling — overview', read: 'read 2m', readSt: readSt, readIc: i.eye },
+          { t: 'C4 2026 OKR planning', read: 'read 1h', readSt: readSt, readIc: i.eye },
+          { t: 'Platform roadmap 2027', read: 'not read yet', readSt: notReadSt, readIc: i.eyeOff }
         ]
       };
     }
@@ -125,7 +123,7 @@ class Component extends DCLogic {
       p.frame = 'display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;background:' + c.bg + ';border:1px solid ' + c.line + ';';
       p.chipRest = 'display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;padding:0 10px;border-radius:999px;border:1px solid ' + hexA(c.pin, 0.35) + ';background:' + hexA(c.pin, 0.08) + ';color:' + c.pin + ';font-size:12px;font-weight:500;';
       p.track = 'display:inline-block;width:28px;height:4px;border-radius:999px;background:' + c.line + ';overflow:hidden;';
-      p.fillSm = 'display:block;width:98%;height:4px;background:' + c.warn + ';';
+      p.fillSm = 'display:block;width:62%;height:4px;background:' + c.pin + ';';
       p.sheet = 'box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';';
       return p;
     }
