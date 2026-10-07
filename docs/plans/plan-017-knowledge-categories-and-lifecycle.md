@@ -29,10 +29,14 @@ no tagging. Nothing here needs a model, accounts or an external service.
 
 ## Prerequisite
 
-**Board folders.** Folders are the decided hierarchy (2026-10-06) but have no data model yet.
-Slice 0 adds them unless an earlier plan already has: a `folders` table (id, parent, name, order),
-`boards.folder_id`, Home grouping per `Home.dc.html` (Folders), and `canvas_board` folder actions
-across PmxCanvas, HTTP, MCP and CLI.
+**Board folders.** Folders are the decided hierarchy (2026-10-06). Today a board has one flat
+Home grouping, its `category` string (`POST/PATCH /api/canvas/boards` "file under a category on
+Home"), which is a single folder level by another name and collides with this plan's meaning of
+"category". Slice 0 turns it into nested folders: a `folders` table (id, parent, name, order),
+`boards.folder_id` migrated from the existing `category` values, Home grouping per
+`Home.dc.html` (Folders), and `canvas_board` folder actions across PmxCanvas, HTTP, MCP and CLI.
+The board field is renamed to folder in all four layers (no alias), so "category" means only the
+knowledge category from here on.
 
 ## Slices
 

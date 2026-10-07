@@ -1,6 +1,7 @@
 # Plan 016 — Context made visible (wave 1)
 
-**Status:** Slices 1–3 and 4a done (2026-10-05); 4b (tethers, drag preview, Updates entry) next.
+**Status:** Slices 1–3 and 4a done (2026-10-05); slice 6's eval is ready to run (2026-10-07,
+[`docs/evals/curation-effect.md`](../evals/curation-effect.md)); 5 (board pins) and 4b next.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -128,6 +129,12 @@ pinned board's README + pinned cards, then discovery); the context chip counts "
 Home's pinned-boards section per `Home.dc.html`. Read status per board from slice 1.
 
 ### 6. The curation evaluation
+
+**Ready, 2026-10-07.** Board, seed script, protocol, rubric and decision rule are in
+[`docs/evals/curation-effect.md`](../evals/curation-effect.md); the fixture test guards that
+pins change delivery at the default budget. Building it found that a first read larger than
+the budget returned one clipped card forever; fixed so a first read pages (pins first, then
+whole cards oldest first). Runs need the maintainer's agent sessions.
 
 `docs/evals/curation-effect.md`: one fixed task, run with the brief delivered on a curated and an
 uncurated board, scored on criteria written before the first run (vision Part 1, item 4). It reads
