@@ -17,7 +17,7 @@ body{margin:0}
 
 <div>
 <h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 28px">At 600 px — categories and lifecycle</h1>
-<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Same marks, stacked. Nothing is hidden behind width: the category word, the due count and both amber signals stay readable.</p>
+<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Same marks, stacked. On Home: the category word, “unknown” and the due count. On a card: only “changed” and, while due, the review line; the rest is in ⋯ → Lifecycle.</p>
 </div>
 
 <section style="display: flex; flex-direction: column; gap: 8px">
@@ -36,7 +36,7 @@ body{margin:0}
 <div style="position: absolute; left: 40px; top: 60px; width: 486px; height: 170px; box-sizing: border-box; border-radius: 10px; border: 1.5px solid #4BBCFF; background: #0f1d31; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24)">
 <div style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44; background: rgba(75,188,255,0.10)"><span style="{{s.title}}">Churn by month</span><span style="{{s.changedChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.warn}}"></path></svg>changed</span><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></div>
 <div style="display: flex; align-items: flex-end; gap: 6px; height: 90px; padding: 10px 12px 0; box-sizing: border-box"><sc-for list="{{bars}}" as="b" hint-placeholder-count="10"><span style="{{b.st}}"></span></sc-for></div>
-<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 32px; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-top: 1px solid #1b2c44"><span style="{{s.lifeSet}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.cycle}}"></path></svg>fast · set on card</span><span style="flex: 1"></span><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span></div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 32px; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-top: 1px solid #1b2c44"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span><span style="font-size: 11px; color: #8ea3bd">source refreshed yesterday</span></div>
 </div>
 </div>
 </section>

@@ -16,7 +16,7 @@ body{margin:0}
 <div style="width: 1440px; height: 1100px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 20px">
 
 <div>
-<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">How much lifecycle shows on the board — pick A or B</h1>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">How much lifecycle shows on the board — A, decided 2026-10-07</h1>
 <p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Both move everything into the card’s ⋯ → Lifecycle: rate and decay type, inherited or set, the four clocks, outcome history. “Unknown” shows only on Home folders, never on a card. The one question is where “review due” lives.</p>
 </div>
 
@@ -131,11 +131,11 @@ class Component extends DCLogic {
       { t: 'Win rate vs. Competitor B', why: 'contradicted by “Q3 loss reasons”' }
     ];
     var variants = [
-      { k: 'A', name: 'Review due on the card, only while due', sub: 'Recommended by the roadmap session and the design session. The line appears when a review is due and goes away when an outcome is recorded.',
+      { k: 'A', name: 'Review due on the card, only while due', sub: 'Chosen by the maintainer, 2026-10-07. Recommended by the roadmap and design sessions. The line appears when a review is due and goes away when an outcome is recorded.',
         countSt: countOn, popover: false, cards: cards(true),
         pros: ['You see on the card what the agent’s brief says about it', 'No click needed to find which cards are due', 'Quiet: nothing on cards that are fine'],
         cons: ['One line of chrome on due cards', 'A board with many due cards gets busier', 'Two amber marks can meet on one card'] },
-      { k: 'B', name: 'Review due only in the menu, a count on the board', sub: 'The maintainer’s lean. Cards stay clean apart from “changed”; the count (and the context chip) opens the list.',
+      { k: 'B', name: 'Review due only in the menu, a count on the board', sub: 'Not chosen. Cards stay clean apart from “changed”; the count (and the context chip) opens the list.',
         countSt: countOpen, popover: true, cards: cards(false),
         pros: ['Cards stay completely clean', 'One place to work the reviews from', 'Scales to boards with many due cards'],
         cons: ['A due card looks the same as a fine one', 'The agent is told to doubt a card you see as clean', 'Finding a card means opening the count first'] }

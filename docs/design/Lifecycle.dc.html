@@ -40,7 +40,7 @@ body{margin:0}
 </div>
 <div style="{{s.body}}">{{c.body}}</div>
 <sc-if value="{{c.chart}}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: flex-end; gap: 6px; height: 54px; padding: 0 12px"><sc-for list="{{bars}}" as="b" hint-placeholder-count="10"><span style="{{b.st}}"></span></sc-for></div></sc-if>
-<div style="{{s.foot}}"><span style="{{c.lifeSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{c.lifeIcon}}"></path></svg>{{c.life}}</span><span style="font-size: 11px; color: #6b7d94; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.lifeNote}}</span><sc-if value="{{c.due}}" hint-placeholder-val="{{ false }}"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span></sc-if></div>
+<sc-if value="{{c.due}}" hint-placeholder-val="{{ false }}"><div style="{{s.foot}}"><span style="{{s.reviewChip}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>review due</span><span style="font-size: 11px; color: #8ea3bd; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.dueWhy}}</span></div></sc-if>
 </div>
 </sc-for>
 </div>
@@ -57,7 +57,7 @@ body{margin:0}
 <span style="font-size: 11px; color: #b9c6d6">About the content. Clears only when a person or agent records an outcome with evidence. Reading or editing never clears it.</span>
 </div>
 </div>
-<span style="font-size: 11px; color: #8ea3bd">Both are amber because both need a look. They differ in glyph, word and fill: a filled chip is the agent’s copy, an outlined chip is the claim. A card can carry both, as Churn by month does: changed sits in the header with the agent’s read marks, review due on the lifecycle line. That line stays visible only when review is due, the card sets its own lifecycle, or it is unknown; otherwise it shows on hover.</span>
+<span style="font-size: 11px; color: #8ea3bd">Both are amber because both need a look. They differ in glyph, word and fill: a filled chip is the agent’s copy, an outlined chip is the claim. A card can carry both, as Churn by month does: changed sits in the header with the agent’s read marks, review due as a bottom line with a short reason. Decided 2026-10-07 (variant A): that line is the only lifecycle mark a card ever shows, and only while a review is due. A healthy card shows none; rate, inheritance, clocks and history live in ⋯ → Lifecycle; “unknown” shows only on Home folders. A retired card is dimmed in place.</span>
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
@@ -202,22 +202,19 @@ class Component extends DCLogic {
     };
     var nodeBase = 'position:absolute;box-sizing:border-box;border-radius:10px;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);overflow:hidden;';
     var headBase = 'display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 12px;border-bottom:1px solid #1b2c44;';
-    var lifeSet = 'display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px solid #2a4566;color:#e6eef7;font-size:11px;';
-    var lifeInh = 'display:inline-flex;align-items:center;gap:4px;height:20px;color:#8ea3bd;font-size:11px;';
     function card(o) {
       return {
         title: o.title, body: o.body, chart: !!o.chart, changed: !!o.changed, due: !!o.due, pin: !!o.pin,
         node: nodeBase + 'left:' + o.x + 'px;top:' + o.y + 'px;width:' + o.w + 'px;height:' + o.h + 'px;' + (o.pin ? 'border:1.5px solid #4BBCFF;' : 'border:1px solid #1b2c44;') + (o.dim ? 'opacity:0.5;' : ''),
         head: headBase + (o.pin ? 'background:rgba(75,188,255,0.10);' : ''),
-        life: o.life, lifeNote: o.note, lifeIcon: o.icon || i.cycle, lifeSt: o.set ? lifeSet : lifeInh
+        dueWhy: o.dueWhy || ''
       };
     }
     var cards = [
-      card({ x: 16, y: 64, w: 250, h: 150, pin: true, title: 'Positioning: premium SMB', body: 'Lead with reliability and support; do not compete on price below $20.', life: '↳ slow', note: 'from Strategy · validated 12 d ago' }),
-      card({ x: 282, y: 64, w: 302, h: 196, pin: true, changed: true, due: true, chart: true, title: 'Churn by month', body: 'Pro plan, monthly logo churn, last 12 months', life: 'fast · set on card', note: '', set: true }),
-      card({ x: 16, y: 230, w: 250, h: 130, title: 'Competitor price list', body: 'Six competitors, list prices as of September.', life: 'retained 3 d ago', note: 'by Pepe · price pages', icon: i.check }),
-      card({ x: 282, y: 276, w: 302, h: 110, dim: true, title: 'Old tier names', body: 'Starter / Team / Business naming from 2025.', life: 'retired from active context', note: 'kept in history', icon: i.retire }),
-      card({ x: 16, y: 376, w: 250, h: 78, title: 'Interview quotes (dropped in)', body: '', life: 'unknown', note: 'Inbox board · no category', icon: i.unknown })
+      card({ x: 16, y: 64, w: 250, h: 150, pin: true, title: 'Positioning: premium SMB', body: 'Lead with reliability and support; do not compete on price below $20.' }),
+      card({ x: 282, y: 64, w: 302, h: 196, pin: true, changed: true, due: true, chart: true, title: 'Churn by month', body: 'Pro plan, monthly logo churn, last 12 months', dueWhy: 'source refreshed yesterday' }),
+      card({ x: 16, y: 230, w: 250, h: 130, title: 'Competitor price list', body: 'Six competitors, list prices as of September.' }),
+      card({ x: 282, y: 276, w: 302, h: 110, dim: true, title: 'Old tier names', body: 'Starter / Team / Business naming from 2025.' })
     ];
     var heights = [30, 34, 29, 38, 41, 36, 44, 40, 47, 52];
     var bars = heights.map(function (h) { return { st: 'flex:1;height:' + h + 'px;border-radius:3px 3px 0 0;background:#2a4566;' }; });
@@ -255,8 +252,9 @@ class Component extends DCLogic {
       { t: '    Check the source before relying on it.', st: m + 'color:#b9c6d6;' },
       { t: '- Positioning: premium SMB', st: m + 'color:#e6eef7;' },
       { t: '    slow, validated 12 d ago', st: m + 'color:#8ea3bd;' },
-      { t: '- Interview quotes (dropped in)', st: m + 'color:#e6eef7;' },
-      { t: '    lifecycle unknown: no category, never validated', st: m + 'color:#8ea3bd;' }
+      { t: '## Pinned board: Inbox (its folder has no category)', st: m + 'color:#e6eef7;font-weight:500;' },
+      { t: '- Interview quotes', st: m + 'color:#e6eef7;' },
+      { t: '    lifecycle unknown: never validated', st: m + 'color:#8ea3bd;' }
     ];
     var T = [
       ['Harbor', '#0f1d31', '#1b2c44', '#e6eef7', '#8ea3bd', '#f4c542'],
