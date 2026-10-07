@@ -18,13 +18,14 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { canvasState } from '../../canvas-state.js';
+import { canvasState, type CanvasNodeState } from '../../canvas-state.js';
 import { setCanvasContextPins, syncCanvasRuntimeBackends } from '../../canvas-operations.js';
 import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
 import {
   compileContextBrief,
+  BRIEF_SUMMARY_LENGTH,
   type ContextBriefLibraryBoard,
   type ContextBriefPinnedBoard,
   type ContextBriefSourceEntry,
@@ -32,7 +33,7 @@ import {
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { defineOperation, OperationError, type Operation, type OperationMcpToolHost } from '../types.js';
 import { buildSummaryFromLayout, isRecord } from './nodes.js';
-import { readTargetBoard } from './boards.js';
+import { boardsPayload, readTargetBoard } from './boards.js';
 
 // ── pin.set ───────────────────────────────────────────────────
 
@@ -287,38 +288,52 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         linkIds: linkedIds.get(board.id) ?? [],
       });
     }
-    // The working set (vision move 0a): every pinned board's README and pinned
-    // cards in full, read from SQLite without opening the board.
+    // The brief is a map (vision move 0a and the maintainer's 2026-10-07 rule):
+    // titles, short summaries and relations; the agent pulls what it wants in full.
     const title = (node: { id: string; data: Record<string, unknown> }) =>
       typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id;
+    const short = (node: CanvasNodeState) =>
+      summarizeNodeForAgentContext(node, {
+        defaultTextLength: BRIEF_SUMMARY_LENGTH,
+        webpageTextLength: BRIEF_SUMMARY_LENGTH,
+      });
+    const library = boardsPayload().boards as Array<{
+      id: string;
+      name: string;
+      category: string | null;
+      summary: string | null;
+      pin: unknown;
+      links: Array<{ title: string | null }>;
+      backlinks: Array<{ title: string }>;
+    }>;
+    const relationsOf = (boardId: string) => {
+      const entry = library.find((board) => board.id === boardId);
+      return {
+        folder: entry?.category ?? null,
+        readmeSummary: entry?.summary ?? null,
+        links: [...new Set((entry?.links ?? []).map((link) => link.title).filter((name): name is string => !!name))],
+        backlinks: [...new Set((entry?.backlinks ?? []).map((link) => link.title))],
+      };
+    };
+    const overview = relationsOf(active.id);
+    const pinReasons: Record<string, string> = {};
+    for (const [nodeId, meta] of Object.entries(canvasState.getContextPinMeta())) {
+      if (meta.reason) pinReasons[nodeId] = meta.reason;
+    }
     const pinnedBoards: ContextBriefPinnedBoard[] = [];
-    for (const board of canvasState.listBoards()) {
+    for (const board of library) {
       if (!board.pin || board.id === active.id) continue;
       const read = canvasState.readBoard(board.id, true);
       if (!read) continue;
-      const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
       const pins = new Set(read.state.contextPins);
       pinnedBoards.push({
         boardId: board.id,
         name: board.name,
-        ...(readme
-          ? {
-              readme: {
-                nodeId: readme.id,
-                title: title(readme),
-                text: summarizeNodeForAgentContext(readme, { defaultTextLength: budget, webpageTextLength: budget }),
-                summary: summarizeNodeForAgentContext(readme, { defaultTextLength: 1_000, webpageTextLength: 1_000 }),
-              },
-            }
-          : {}),
+        ...relationsOf(board.id),
         cards: read.layout.nodes
-          .filter((node) => pins.has(node.id) && node.id !== readme?.id)
+          .filter((node) => pins.has(node.id))
           .sort((a, b) => a.id.localeCompare(b.id))
-          .map((node) => ({
-            nodeId: node.id,
-            title: title(node),
-            text: summarizeNodeForAgentContext(node, { defaultTextLength: budget, webpageTextLength: budget }),
-          })),
+          .map((node) => ({ nodeId: node.id, title: title(node), summary: short(node) })),
       });
     }
     const entries: ContextBriefSourceEntry[] = layout.nodes
@@ -328,7 +343,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         nodeId: node.id,
         reason: 'human' as const,
         title: typeof node.data.title === 'string' ? node.data.title : node.id,
-        text: summarizeNodeForAgentContext(node, { defaultTextLength: budget, webpageTextLength: budget }),
+        text: short(node),
       }));
     entries.push(
       ...canvasState
@@ -379,6 +394,9 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       retentionFloor: revision.retentionFloor,
       tombstones: canvasState.readContentDelta(sinceValue ?? 0).deleted,
       since: explicitSince ? (Number.isSafeInteger(sinceValue) ? sinceValue : Number.NaN) : sinceValue,
+      overview,
+      edges: layout.edges.map((edge) => ({ from: edge.from, to: edge.to, type: edge.type, label: edge.label ?? null })),
+      pinReasons,
       libraryBoards,
       pinnedBoards,
       entries,

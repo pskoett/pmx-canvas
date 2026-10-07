@@ -493,13 +493,16 @@ Read context at the start of work. For the cross-board brief, use a stable,
 unique `consumer` per agent/adapter only when durable incremental delivery is
 wanted. Omitting both `consumer` and `since` starts from the beginning; explicit
 `since` does not update a cursor. The budget is UTF-16 code units (default
-16,000; maximum 100,000), not model tokens. Pins are prioritized. A first read of a
-board larger than the budget carries the pins, then whole cards oldest first, and
-returns `cursor.next`; a `consumer` continues from it automatically, otherwise pass it
-as `since` to read on. Boards pinned into the working set (`canvas_board { action: "pin" }`)
-follow the open board's pins: each pinned board's README and pinned cards in full (reason
-`pinned-board`), or, when they do not fit, its README summary and pinned titles;
-`delivery.pinnedBoards` says which (`full`, `discovery`, `omitted`). If an entry is
+16,000; maximum 100,000), not model tokens. The brief is a map, not a dump: an
+`overview` of the open board (README summary, folder, links and backlinks), then each card as
+its title and a short summary (`summaryOnly`), with why it was pinned and its relations (edges to
+and from other cards); pinned cards lead, then the cards near each pin, then what changed.
+Boards pinned into the working set (`canvas_board { action: "pin" }`) arrive as maps too (reason
+`pinned-board`): the board's summary and relations, and its pinned cards as summaries. Pull
+what you need in full with `canvas_node { action: "get", board, id, full: true }`; a summary
+does not mark a card read, a full pull does. A first read larger than the budget carries the
+overview and pins, then cards oldest first, and returns `cursor.next`; a `consumer` continues
+from it automatically, otherwise pass it as `since` to read on. If an entry is
 truncated, follow its source board/card IDs with `canvas_board get` and
 `canvas_node { action: "get", board, id, full: true }` rather than inferring the missing text.
 Full node reads record only that node's delivered content revision; compact metadata

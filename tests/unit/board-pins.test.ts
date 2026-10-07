@@ -20,8 +20,8 @@ afterEach(() => {
 });
 
 type Brief = {
-  entries: Array<{ sourceBoardId: string; nodeId: string; reason: string; text: string; titleOnly?: boolean }>;
-  delivery: { truncated: boolean; pinnedBoards: Array<{ boardId: string; name: string; delivered: string }> };
+  entries: Array<{ sourceBoardId: string; nodeId: string; reason: string; text: string; summaryOnly?: boolean }>;
+  delivery: { truncated: boolean };
 };
 
 async function boardWith(name: string, cards: Record<string, string>, pinned: string[], readme?: string) {
@@ -43,10 +43,10 @@ const brief = async (budget?: number) =>
   (await executeOperation('context.get', budget === undefined ? {} : { budget })) as Brief;
 
 describe('board pins', () => {
-  test('a pinned board travels in the brief in full, and only while pinned', async () => {
+  test('a pinned board travels in the brief as a map, and only while pinned', async () => {
     const research = await boardWith(
       'Pricing research',
-      { Intro: 'Why this board exists.', Decision: 'Team moves to $24.', Noise: 'Unpinned detail.' },
+      { Intro: 'Why this board exists.', Decision: `Team moves to $24. ${'Evidence. '.repeat(100)}`, Noise: 'Detail.' },
       ['Decision'],
       'Intro',
     );
@@ -59,42 +59,27 @@ describe('board pins', () => {
 
     const pinned = await brief();
     const fromResearch = pinned.entries.filter((entry) => entry.sourceBoardId === research.id);
+    // A map: the board (README summary, relations) and each pinned card as title + short summary.
     expect(fromResearch.map((entry) => [entry.nodeId, entry.reason])).toEqual([
-      [research.ids.Intro, 'pinned-board'],
+      [`board:${research.id}`, 'pinned-board'],
       [research.ids.Decision, 'pinned-board'],
     ]);
-    expect(fromResearch.find((entry) => entry.nodeId === research.ids.Decision)?.text).toContain('Team moves to $24.');
-    expect(pinned.delivery.pinnedBoards).toEqual([
-      { boardId: research.id, name: 'Pricing research', delivered: 'full' },
-    ]);
+    expect(fromResearch[0]?.text).toContain('Why this board exists.');
+    const decision = fromResearch[1]!;
+    expect(decision.text).toContain('Team moves to $24.');
+    expect(decision.text.length).toBeLessThan(400);
     // Read, not write: writes still land on the open board.
     expect(canvasState.activeBoardId).toBe(work.id);
-    // Delivered in full, so its cards count as read on their own board.
-    const readOnResearch = canvasState.getNodeReadStatus(research.id).map((status) => status.nodeId);
-    expect(readOnResearch).toContain(research.ids.Decision);
-    expect(readOnResearch).toContain(research.ids.Intro);
-    expect(readOnResearch).not.toContain(research.ids.Noise);
+
+    // The map counts as the board being read; its cards stay unread until pulled in full.
+    expect(canvasState.getContextReads().reads.some((read) => read.boardId === research.id)).toBe(true);
+    expect(canvasState.getNodeReadStatus(research.id).map((status) => status.nodeId)).not.toContain(
+      research.ids.Decision,
+    );
 
     await executeOperation('board.unpin', { id: research.id });
     const unpinned = await brief();
     expect(unpinned.entries.some((entry) => entry.sourceBoardId === research.id)).toBe(false);
-    expect(unpinned.delivery.pinnedBoards).toEqual([]);
-  });
-
-  test('over budget a pinned board falls back to discovery, and the brief says so', async () => {
-    const long = 'Evidence. '.repeat(400);
-    const research = await boardWith('Research', { Intro: long, Finding: long }, ['Finding'], 'Intro');
-    await boardWith('Work', { Today: 'Notes.' }, []);
-    await executeOperation('board.pin', { id: research.id });
-
-    const tight = await brief(3_000);
-    const status = tight.delivery.pinnedBoards.find((board) => board.boardId === research.id);
-    expect(status?.delivered).toBe('discovery');
-    expect(tight.delivery.truncated).toBe(true);
-    const finding = tight.entries.find((entry) => entry.nodeId === research.ids.Finding);
-    expect(finding?.titleOnly).toBe(true);
-    // Discovery delivered titles, not content: nothing on the pinned board counts as read.
-    expect(canvasState.getNodeReadStatus(research.id)).toEqual([]);
   });
 
   test('pins survive board switches and go with a deleted board; unknown boards are refused', async () => {

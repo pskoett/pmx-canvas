@@ -109,17 +109,19 @@ describe('compileContextBrief', () => {
       ],
       contentRevision: 3,
       since: 0,
-      budget: 1000,
+      budget: 700,
     });
     const plain = compileContextBrief(snapshot);
     const curated = compileContextBrief({ ...snapshot, pinnedNodeIds: ['decision-a', 'decision-b'] });
-    expect(plain.document!.entries.filter((entry) => !entry.truncated)).toHaveLength(0);
+    // Without pins the oldest card's summary fills the brief; with pins the decisions lead.
+    expect(plain.document!.entries.filter((entry) => !entry.truncated).map((entry) => entry.nodeId)).toEqual(['noise']);
     expect(curated.document!.entries.filter((entry) => !entry.truncated)).toEqual([
       expect.objectContaining({
         sourceBoardId: 'active',
         nodeId: 'decision-a',
         reason: 'pinned',
         text: 'Use SQLite WAL; backups must include a checkpoint.',
+        summaryOnly: true,
       }),
       expect.objectContaining({
         sourceBoardId: 'active',
@@ -128,7 +130,7 @@ describe('compileContextBrief', () => {
         text: 'Keep the active board unchanged when copying.',
       }),
     ]);
-    expect(curated.serialized.length).toBeLessThanOrEqual(1000);
+    expect(curated.serialized.length).toBeLessThanOrEqual(700);
     expect(curated.nextCursor).toBe(0);
     expect(curated.document!.delivery.truncated).toBe(true);
   });
@@ -251,21 +253,49 @@ describe('compileContextBrief', () => {
     expect(whole.nextCursor).toBe(905);
   });
 
-  test('a pinned board that cannot fit is reported only while the report fits', () => {
-    const huge = 'P'.repeat(2_000);
-    const pinnedBoards = ['one', 'two', 'three'].map((id) => ({
-      boardId: `board-${id}`,
-      name: `Board ${id}`,
-      readme: { nodeId: `${id}-readme`, title: `${id} intro`, text: huge, summary: huge },
-      cards: [],
-    }));
-    for (const budget of [600, 900, 1_200, 1_600, 2_400]) {
-      const result = compileContextBrief(
-        input({ nodes: [node('pin', huge, 1)], pinnedNodeIds: ['pin'], since: null, pinnedBoards, budget }),
-      );
-      expect(result.serialized.length).toBeGreaterThan(0);
-      expect(result.serialized.length).toBeLessThanOrEqual(budget);
-    }
+  test('the brief is a map: overview, summaries, why pinned, relations and pinned boards', () => {
+    const long = 'Detail. '.repeat(200);
+    const result = compileContextBrief(
+      input({
+        nodes: [node('plan', long, 1), node('risk', 'Vendor lock-in.', 2)],
+        edges: [{ from: 'plan', to: 'risk', type: 'depends-on', label: 'blocked by' }],
+        pinnedNodeIds: ['plan'],
+        pinReasons: { plan: 'the Q4 bet' },
+        overview: { folder: 'Planning', readmeSummary: 'Q4 planning board.', links: ['Research'], backlinks: [] },
+        pinnedBoards: [
+          {
+            boardId: 'research',
+            name: 'Research',
+            folder: 'Research',
+            readmeSummary: 'Pricing research.',
+            cards: [{ nodeId: 'finding', title: 'Finding', summary: 'Churn flat at $20.' }],
+            links: [],
+            backlinks: ['Active'],
+          },
+        ],
+        since: null,
+        budget: 10_000,
+      }),
+    );
+    const entries = result.document!.entries;
+    expect(entries[0]).toMatchObject({ reason: 'overview', nodeId: 'board:active' });
+    expect(entries[0]!.text).toContain('Folder: Planning.');
+    expect(entries[0]!.text).toContain('Links to: Research.');
+    const plan = entries.find((entry) => entry.nodeId === 'plan')!;
+    expect(plan).toMatchObject({ reason: 'pinned', summaryOnly: true });
+    expect(plan.text.length).toBeLessThan(long.length);
+    expect(plan.text).toContain('Pinned because: the Q4 bet');
+    expect(plan.text).toContain('→ depends-on "blocked by": risk (risk)');
+    expect(entries.find((entry) => entry.nodeId === 'risk')!.text).toContain('← depends-on "blocked by": plan (plan)');
+    const map = entries.find((entry) => entry.nodeId === 'board:research')!;
+    expect(map).toMatchObject({ reason: 'pinned-board', sourceBoardId: 'research' });
+    expect(map.text).toContain('Pricing research.');
+    expect(map.text).toContain('Linked from: Active.');
+    expect(entries.find((entry) => entry.nodeId === 'finding')).toMatchObject({
+      reason: 'pinned-board',
+      text: 'Churn flat at $20.',
+      summaryOnly: true,
+    });
   });
 
   test('a first read skips deletions: a first reader holds nothing to delete', () => {

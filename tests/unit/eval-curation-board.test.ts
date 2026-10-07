@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { compileContextBrief, type ContextBriefInput } from '../../src/server/context-brief.ts';
 import type { CanvasNodeState } from '../../src/server/canvas-state.ts';
-import { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET } from '../../src/server/operations/ops/query.ts';
+import { DEFAULT_CONTEXT_BRIEF_BUDGET } from '../../src/server/operations/ops/query.ts';
 import { CARD_SIZE, CARDS, KEY_CARDS, PINNED_KEYS, cardPosition } from '../../scripts/eval-curation/board.ts';
 
 // The curation-effect eval (docs/evals/curation-effect.md) is only informative if,
@@ -45,25 +45,20 @@ describe('curation eval board', () => {
     expect(keys.indexOf(KEY_CARDS.superseded)).toBeLessThan(keys.indexOf(KEY_CARDS.current));
   });
 
-  test('at the default budget, pins decide which key facts arrive in full', () => {
+  test('both briefs carry the whole board as a map; curation marks and orders what matters', () => {
     const curated = firstRead(PINNED_KEYS, DEFAULT_CONTEXT_BRIEF_BUDGET);
     const uncurated = firstRead([], DEFAULT_CONTEXT_BRIEF_BUDGET);
-    for (const key of PINNED_KEYS) expect(curated.get(key)).toBe('pinned');
-    // Without pins the oldest cards fill the brief: the superseded decision arrives, the
-    // current decision and the finance ceiling do not.
-    expect(uncurated.has(KEY_CARDS.superseded)).toBe(true);
-    expect(uncurated.has(KEY_CARDS.current)).toBe(false);
-    expect(uncurated.has(KEY_CARDS.constraint)).toBe(false);
-  });
-
-  test('at full budget both conditions deliver every card; only the pinned marking differs', () => {
-    const curated = firstRead(PINNED_KEYS, MAX_CONTEXT_BRIEF_BUDGET);
-    const uncurated = firstRead([], MAX_CONTEXT_BRIEF_BUDGET);
+    // Every card arrives as a summary in both; the agent pulls what it wants in full.
     for (const card of CARDS) {
       expect(curated.has(card.key)).toBe(true);
       expect(uncurated.has(card.key)).toBe(true);
     }
+    // Curated: the four pins lead, marked pinned. Uncurated: oldest first, so the
+    // superseded decision comes before the current one and nothing is marked.
+    expect([...curated.keys()].slice(0, PINNED_KEYS.length).sort()).toEqual([...PINNED_KEYS].sort());
     expect(PINNED_KEYS.every((key) => curated.get(key) === 'pinned')).toBe(true);
     expect([...uncurated.values()].includes('pinned')).toBe(false);
+    const order = [...uncurated.keys()];
+    expect(order.indexOf(KEY_CARDS.superseded)).toBeLessThan(order.indexOf(KEY_CARDS.current));
   });
 });

@@ -80,7 +80,7 @@ export interface ContextReadConsumerSummary {
  * name, not its content. Non-node ids (edges, intents) are dropped by the
  * caller against the board's nodes.
  */
-export function deliveredIds(payloadText: string): Set<string> {
+export function deliveredIds(payloadText: string, includeSummaries = false): Set<string> {
   const delivered = new Set<string>();
   const objectStarts: number[] = [];
   let inString = false;
@@ -110,6 +110,8 @@ export function deliveredIds(payloadText: string): Set<string> {
           (typeof (value as { id?: unknown }).id === 'string' ||
             (typeof (value as { nodeId?: unknown }).nodeId === 'string' &&
               (value as { titleOnly?: unknown }).titleOnly !== true &&
+              // A summary is "seen", not "read": only a pull in full marks a card read.
+              (includeSummaries || (value as { summaryOnly?: unknown }).summaryOnly !== true) &&
               typeof (value as { text?: unknown }).text === 'string'))
         ) {
           delivered.add(
@@ -139,9 +141,11 @@ export function contextReadFromPayload(
 ): ContextReadInput {
   const text = typeof payload === 'string' ? payload : (JSON.stringify(payload) ?? '');
   const delivered = deliveredIds(text);
+  // Delivery (did the pins reach the agent?) counts summaries; read marks do not.
+  const reached = deliveredIds(text, true);
   return {
     ...base,
-    deliveredNodeIds: base.pinnedNodeIds.filter((id) => delivered.has(id)),
+    deliveredNodeIds: base.pinnedNodeIds.filter((id) => reached.has(id)),
     readNodeIds: [...delivered],
     bytes: Buffer.byteLength(text, 'utf-8'),
   };
@@ -149,8 +153,8 @@ export function contextReadFromPayload(
 
 /**
  * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
- * pinned board that arrived in full, so "read / not read yet" works on that
- * board too. A board that fell back to discovery delivered titles, not content.
+ * pinned board whose map arrived, so the board shows as read. Its cards came as
+ * summaries, which mark nothing read until the agent pulls them.
  */
 export function pinnedBoardReads(
   base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>,
@@ -164,29 +168,24 @@ export function pinnedBoardReads(
       return [];
     }
   }
-  const brief = document as {
-    entries?: Array<{ sourceBoardId?: string; nodeId?: string; reason?: string; text?: string; titleOnly?: boolean }>;
-    delivery?: { pinnedBoards?: Array<{ boardId?: string; delivered?: string }> };
-  } | null;
-  return (brief?.delivery?.pinnedBoards ?? [])
-    .filter((board) => board.delivered === 'full' && typeof board.boardId === 'string')
-    .map((board) => {
-      const entries = (brief?.entries ?? []).filter(
-        (entry) =>
-          entry.sourceBoardId === board.boardId &&
-          entry.reason === 'pinned-board' &&
-          !entry.titleOnly &&
-          typeof entry.nodeId === 'string',
-      );
-      return {
-        ...base,
-        boardId: board.boardId as string,
-        pinnedNodeIds: [],
-        deliveredNodeIds: [],
-        readNodeIds: entries.map((entry) => entry.nodeId as string),
-        bytes: Buffer.byteLength(JSON.stringify(entries), 'utf-8'),
-      };
-    });
+  const entries =
+    (document as { entries?: Array<{ sourceBoardId?: string; nodeId?: string; reason?: string }> } | null)?.entries ??
+    [];
+  return entries
+    .filter(
+      (entry) =>
+        entry.reason === 'pinned-board' &&
+        typeof entry.sourceBoardId === 'string' &&
+        entry.nodeId === `board:${entry.sourceBoardId}`,
+    )
+    .map((entry) => ({
+      ...base,
+      boardId: entry.sourceBoardId as string,
+      pinnedNodeIds: [],
+      deliveredNodeIds: [],
+      readNodeIds: [],
+      bytes: Buffer.byteLength(JSON.stringify(entry), 'utf-8'),
+    }));
 }
 
 export const CONTEXT_READS_SCHEMA_SQL = `

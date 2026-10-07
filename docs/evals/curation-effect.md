@@ -29,22 +29,20 @@ price update (Rival to $29), and realistic distractors (roadmap, hiring, transcr
   update are pinned (`PINNED_KEYS`), with the reason "what this task rests on".
 - **Uncurated:** the same cards, order and layout, no pins.
 
-The cards hold about 14,000 characters of text; with titles and the brief's own wrapping that
-is more than one brief carries at the default budget of 16,000. The
-fixture test checks what that means for delivery: at the default budget the curated brief
-carries all four pinned cards, while the uncurated brief carries the superseded decision but
-not the current decision or the finance ceiling. At full budget both carry every card and only
-the pinned marking differs.
+Since 2026-10-07 the brief is a map, not a dump: every card arrives as its title and a short
+summary (with its relations, and why it was pinned), and the agent pulls whatever it wants in
+full. So both boards deliver all 30 cards. Curation changes what the agent is told matters: the
+four pinned cards lead the curated brief, marked `pinned`, while the uncurated brief runs oldest
+first, with the superseded $20 decision ahead of the current $24 one. The fixture test guards
+exactly that.
 
-## Conditions
+## What it measures
 
-| Condition | Budget | What it tests |
-|---|---|---|
-| **Primary** | default (16,000) | Do pins decide which facts reach the agent at all? |
-| **Secondary** | full (`budget=100000`) | With everything delivered, does marking what matters still change the work? |
-
-The primary condition measures curation as delivery; the secondary tells us whether curation
-works beyond delivery.
+Given the same map, does curation make the agent pull and use the right cards? Score the
+answer (rubric below) and record **which cards it pulled in full** (`canvas_ax_timeline {
+action: "read-status", board }` after the run: a card is read only when pulled). The pulls
+explain the score: a missed current decision that was never pulled is a curation or ranking
+miss; one that was pulled and misread is a model miss.
 
 ## Protocol
 
@@ -52,17 +50,16 @@ works beyond delivery.
    boards: `PMX_CANVAS_DB_PATH=<scratch>/canvas.db pmx-canvas serve --daemon --port=<port>`.
 2. **Seed.** `PMX_CANVAS_URL=http://127.0.0.1:<port> bun run scripts/eval-curation/seed.ts`.
    It prints both board ids and leaves Home open.
-3. **One run** = open the board for the condition (`canvas_board open`), start a **fresh** agent
+3. **One run** = open the run's board (`canvas_board open`), start a **fresh** agent
    session with PMX Canvas connected and no other context, and send `TASK_PROMPT` from
-   `board.ts` verbatim. For the secondary condition append: "Read it with
-   `canvas://context?budget=100000`." Save the final answer as `run-<random id>.md`, and note the
-   id, board and condition in a separate key file.
+   `board.ts` verbatim. Save the final answer as `run-<random id>.md`, and note the id and board
+   in a separate key file, with the cards the agent pulled (step 4).
 4. **Delivery check, every run.** After the run, `canvas_ax_timeline { action: "read-status",
-   board }` must show a brief read during the session. For curated runs the four pinned cards
-   must be in it. A run without a confirmed brief read is a delivery failure: record it, do not
+   board }` and the read log must show a brief read during the session, with the four pins in
+   its delivered pins for curated runs. Record the cards read (pulled in full). A run without a confirmed brief read is a delivery failure: record it, do not
    score it, and fix the adapter rather than doubt the thesis.
-5. **Runs.** Three per board per condition with the same host and model: 12 runs, primary
-   first. Alternate curated and uncurated. Record host, model and date.
+5. **Runs.** Three per board with the same host and model: 6 runs. Alternate curated and
+   uncurated. Record host, model and date.
 6. **Blind scoring.** Score the answer files in shuffled order without the key file, using the
    rubric below, then join scores to the key.
 
@@ -82,8 +79,8 @@ stated as fact that is not on the board. The minimum score is 0.
 ## How results are used
 
 Run the eval on every release that touches the brief, pins, budgets or adapters, and at least
-once per minor version. For each condition, record the **curation gap**: curated mean minus
-uncurated mean, with delivery confirmed in every scored run.
+once per minor version. Record the **curation gap**: curated mean minus uncurated mean, with
+delivery confirmed in every scored run, and the cards each run pulled.
 
 - **Track the gap over releases.** It is the number the brief, pins, near-a-pin, board pins and
   lifecycle work exist to raise. A change to any of them is judged by whether the gap grows.
@@ -96,14 +93,14 @@ uncurated mean, with delivery confirmed in every scored run.
 
 ## Results
 
-Per release, one row per condition:
+Per release:
 
-| Version | Condition | Host / model | Date | Curated mean | Uncurated mean | Gap | Delivery confirmed | Notes (lost lines, why) |
-|---|---|---|---|---|---|---|---|---|
+| Version | Host / model | Date | Curated mean | Uncurated mean | Gap | Delivery confirmed | Notes (lost lines, pulls) |
+|---|---|---|---|---|---|---|---|
 
 Per run (kept for the misses):
 
-| Run id | Version | Board | Condition | R1 | R2 | R3 | R4 | R5 | Penalty | Total | Lost lines, why |
+| Run id | Version | Board | Cards pulled | R1 | R2 | R3 | R4 | R5 | Penalty | Total | Lost lines, why |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 
 Not yet run.

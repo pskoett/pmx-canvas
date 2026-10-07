@@ -20,13 +20,13 @@ At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
 falling back to broader resources. The budget is UTF-16 code units, not tokens.
 Use one stable consumer ID per agent/adapter only when durable deltas are wanted;
-omit it for a fresh read. Pins are highest priority, then the cards near each pin
-(reason `near`, title + short summary only). On a board larger than the budget the
-first read carries pins, then whole cards oldest first; read on with the returned
-`cursor.next` as `since` (a consumer does this for you). Boards the human pinned into the
-working set follow (reason `pinned-board`); `delivery.pinnedBoards` says whether each arrived
-in full or as a summary. A pinned board is context only: writes still go to the open board. If a source card is clipped or near,
-pull that card explicitly with `canvas_node { action: "get", board, id, full: true }`.
+omit it for a fresh read. The brief is a map, not a dump: an overview of the board, then every
+card as title + short summary with why it was pinned and its relations; pinned cards lead, then
+cards near each pin (reason `near`), then what changed. Boards the human pinned into the working
+set arrive as maps (reason `pinned-board`). On a board larger than the budget, read on with the
+returned `cursor.next` as `since` (a consumer does this for you). A pinned board is context only:
+writes still go to the open board. Decide what you need, then
+pull it in full with `canvas_node { action: "get", board, id, full: true }`.
 
 **Read → check → refresh:** after reading context, inspect `canvas_ax_timeline {
 action: "read-status", board }`. No entry means no recorded content delivery;

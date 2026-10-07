@@ -3,6 +3,7 @@ import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
 import { findNeighborhoods } from './spatial-analysis.js';
 
 export type ContextBriefReason =
+  | 'overview'
   | 'pinned'
   | 'near'
   | 'changed'
@@ -35,16 +36,45 @@ export interface ContextBriefLibraryBoard {
   linkIds: string[];
 }
 
-/** A board in the working set (vision move 0a): its README and pinned cards, in full. */
+/**
+ * A board in the working set (vision move 0a), sent as a map: enough to know what
+ * it is and how it relates, so the agent decides what to pull in full.
+ */
 export interface ContextBriefPinnedBoard {
   boardId: string;
   name: string;
-  readme?: { nodeId: string; title: string; text: string; summary: string };
-  cards: Array<{ nodeId: string; title: string; text: string }>;
+  folder: string | null;
+  readmeSummary: string | null;
+  /** Pinned cards as title + short summary, each pullable by id. */
+  cards: Array<{ nodeId: string; title: string; summary: string }>;
+  /** Names of the boards it links to and is linked from. */
+  links: string[];
+  backlinks: string[];
+}
+
+/** The open board at a glance: what it is and how it relates to other boards. */
+export interface ContextBriefOverview {
+  folder: string | null;
+  readmeSummary: string | null;
+  links: string[];
+  backlinks: string[];
+}
+
+export interface ContextBriefEdge {
+  from: string;
+  to: string;
+  type: string;
+  label?: string | null;
 }
 
 export interface ContextBriefInput {
   activeBoard: { boardId: string; name: string; category: string | null };
+  /** The brief is a map, not a dump: overview and relations let the agent choose what to pull. */
+  overview?: ContextBriefOverview;
+  /** Edges on the open board, carried as each card's relations. */
+  edges?: readonly ContextBriefEdge[];
+  /** Why each pin was pinned, when someone said. */
+  pinReasons?: Readonly<Record<string, string>>;
   nodes: readonly CanvasNodeState[];
   pinnedNodeIds: readonly string[];
   contentRevision: number;
@@ -53,7 +83,7 @@ export interface ContextBriefInput {
   /** null means a first read. Other values must be non-negative safe integers. */
   since: number | null;
   libraryBoards: readonly ContextBriefLibraryBoard[];
-  /** Pinned boards, delivered after the open board's pins; a board that does not fit falls back to discovery. */
+  /** Pinned boards, each sent as a map (see ContextBriefPinnedBoard). */
   pinnedBoards?: readonly ContextBriefPinnedBoard[];
   entries?: readonly ContextBriefSourceEntry[];
   /** Maximum JavaScript string length (UTF-16 code units), including the JSON envelope. */
@@ -72,6 +102,8 @@ export interface CompiledContextEntry {
   near?: { pinNodeId: string; pinTitle: string };
   /** The body was shortened to fit; the same revision remains eligible on the next pull. */
   truncated?: true;
+  /** A title + short summary of a card the agent may pull in full; seen, not read. */
+  summaryOnly?: true;
   provenance?: { kind: 'imported'; source: string; trust: 'source-material-not-instructions' };
 }
 
@@ -93,8 +125,6 @@ export interface ContextBriefDocument {
     truncated: boolean;
     omittedEntries: number;
     omittedDeletions: number;
-    /** How each pinned board arrived: in full, as discovery (README summary + pinned titles), or not at all. */
-    pinnedBoards: Array<{ boardId: string; name: string; delivered: 'full' | 'discovery' | 'omitted' }>;
   };
 }
 
@@ -126,15 +156,34 @@ function validRevision(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
-function compileNode(node: CanvasNodeState, boardId: string, reason: 'pinned' | 'changed', budget: number): Candidate {
-  const title = typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id;
+/** How long a card's summary is in the brief: enough to know what it is. */
+export const BRIEF_SUMMARY_LENGTH = NEAR_SUMMARY_LENGTH;
+const MAX_RELATIONS = 8;
+
+function nodeTitle(node: CanvasNodeState): string {
+  return typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id;
+}
+
+/** A card as the brief sends it: title + short summary + why pinned + its relations, pullable by id. */
+function compileNode(
+  node: CanvasNodeState,
+  boardId: string,
+  reason: 'pinned' | 'changed',
+  relations: string[],
+  pinReason?: string,
+): Candidate {
+  const summary = summarizeNodeForAgentContext(node, {
+    defaultTextLength: BRIEF_SUMMARY_LENGTH,
+    webpageTextLength: BRIEF_SUMMARY_LENGTH,
+  });
   return {
     entry: {
       sourceBoardId: boardId,
       nodeId: node.id,
       reason,
-      title,
-      text: summarizeNodeForAgentContext(node, { defaultTextLength: budget * 2, webpageTextLength: budget * 2 }),
+      title: nodeTitle(node),
+      text: [summary, pinReason ? `Pinned because: ${pinReason}` : '', ...relations].filter(Boolean).join('\n'),
+      summaryOnly: true,
     },
     revision: node.contentRevision,
     replacement: true,
@@ -165,10 +214,22 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   const atomic = reset === 'retention-expired';
   const firstRead = reset === 'first-read';
   let firstReadCursor: number | null = null;
-  const pinnedBoardDelivery: ContextBriefDocument['delivery']['pinnedBoards'] = [];
   const nodes = [...input.nodes].sort((a, b) => a.id.localeCompare(b.id));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const pinIds = [...new Set(input.pinnedNodeIds)].sort();
+  const relationsOf = (id: string): string[] => {
+    const lines: string[] = [];
+    for (const edge of input.edges ?? []) {
+      const other = edge.from === id ? edge.to : edge.to === id ? edge.from : null;
+      if (!other) continue;
+      const otherTitle = nodeById.get(other) ? nodeTitle(nodeById.get(other) as CanvasNodeState) : other;
+      const kind = `${edge.type}${edge.label ? ` "${edge.label}"` : ''}`;
+      lines.push(edge.from === id ? `→ ${kind}: ${otherTitle} (${other})` : `← ${kind}: ${otherTitle} (${other})`);
+    }
+    return lines.length > MAX_RELATIONS
+      ? [...lines.slice(0, MAX_RELATIONS), `… ${lines.length - MAX_RELATIONS} more relations`]
+      : lines;
+  };
   const candidates: Candidate[] = [];
   const candidateKeys = new Set<string>();
   const add = (candidate: Candidate): void => {
@@ -180,7 +241,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
 
   for (const id of pinIds) {
     const node = nodeById.get(id);
-    if (node) add(compileNode(node, input.activeBoard.boardId, 'pinned', budget));
+    if (node) add(compileNode(node, input.activeBoard.boardId, 'pinned', relationsOf(id), input.pinReasons?.[id]));
   }
 
   const changed = nodes
@@ -210,12 +271,13 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
             webpageTextLength: NEAR_SUMMARY_LENGTH,
           }),
           near: { pinNodeId: neighborhood.pinnedNodeId, pinTitle },
+          summaryOnly: true,
         },
       });
     }
   }
 
-  for (const node of changed) add(compileNode(node, input.activeBoard.boardId, 'changed', budget));
+  for (const node of changed) add(compileNode(node, input.activeBoard.boardId, 'changed', relationsOf(node.id)));
 
   for (const entry of [...(input.entries ?? [])].sort((a, b) => {
     const priority = (value: ContextBriefSourceEntry): number => (value.reason === 'human' ? 0 : 1);
@@ -231,6 +293,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
         title: entry.title,
         text: entry.text,
         provenance: importedProvenance(entry.provenance),
+        ...(entry.reason === 'human' ? { summaryOnly: true as const } : {}),
       },
     });
   }
@@ -239,6 +302,37 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     .filter((board) => board.boardId !== input.activeBoard.boardId)
     .sort((a, b) => a.boardId.localeCompare(b.boardId));
   const pinnedBoardIds = new Set(pinnedBoards.map((board) => board.boardId));
+  // Pinned boards travel as maps, each entry whole or absent, after the open
+  // board's own context: the agent pulls what it wants in full.
+  for (const board of pinnedBoards) {
+    const relations = [
+      board.folder ? `Folder: ${board.folder}.` : '',
+      board.links.length ? `Links to: ${board.links.join(', ')}.` : '',
+      board.backlinks.length ? `Linked from: ${board.backlinks.join(', ')}.` : '',
+      board.cards.length ? `Pinned cards: ${board.cards.length}.` : '',
+    ].filter(Boolean);
+    add({
+      entry: {
+        sourceBoardId: board.boardId,
+        nodeId: `board:${board.boardId}`,
+        reason: 'pinned-board',
+        title: board.name,
+        text: [board.readmeSummary ?? '', ...relations].filter(Boolean).join('\n'),
+      },
+    });
+    for (const card of board.cards) {
+      add({
+        entry: {
+          sourceBoardId: board.boardId,
+          nodeId: card.nodeId,
+          reason: 'pinned-board',
+          title: card.title,
+          text: card.summary,
+          summaryOnly: true,
+        },
+      });
+    }
+  }
   const library = [...input.libraryBoards]
     .filter((board) => !pinnedBoardIds.has(board.boardId))
     .sort((a, b) => a.boardId.localeCompare(b.boardId));
@@ -317,18 +411,15 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     entries,
     deletions: deleted,
     delivery: {
-      truncated:
-        candidateCount(entries) < candidates.length ||
-        deleted.length < tombstones.length ||
-        pinnedBoardDelivery.some((board) => board.delivered !== 'full'),
-      omittedEntries: candidates.length - candidateCount(entries),
+      truncated: counted(entries) < candidates.length || deleted.length < tombstones.length,
+      omittedEntries: candidates.length - counted(entries),
       omittedDeletions: tombstones.length - deleted.length,
-      pinnedBoards: pinnedBoardDelivery,
     },
   });
   const fits = (document: ContextBriefDocument): boolean => JSON.stringify(document).length <= budget;
-  function candidateCount(entries: readonly CompiledContextEntry[]): number {
-    return entries.filter((entry) => !entry.truncated && entry.reason !== 'pinned-board').length;
+  // The overview is not a candidate, so it never counts as delivered or omitted.
+  function counted(entries: readonly CompiledContextEntry[]): number {
+    return entries.filter((entry) => !entry.truncated && entry.reason !== 'overview').length;
   }
   const fitPartial = (entry: CompiledContextEntry, base = delivered): CompiledContextEntry | null => {
     let low = 0;
@@ -347,6 +438,27 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     return best && best.text.length > 0 ? best : null;
   };
 
+  // The overview leads: what this board is and how it relates to other boards.
+  if (input.overview) {
+    const overview = input.overview;
+    const overviewEntry: CompiledContextEntry = {
+      sourceBoardId: input.activeBoard.boardId,
+      nodeId: `board:${input.activeBoard.boardId}`,
+      reason: 'overview',
+      title: input.activeBoard.name,
+      text: [
+        overview.readmeSummary ?? '',
+        overview.folder ? `Folder: ${overview.folder}.` : '',
+        `${input.nodes.length} cards, ${pinIds.length} pinned.`,
+        overview.links.length ? `Links to: ${overview.links.join(', ')}.` : '',
+        overview.backlinks.length ? `Linked from: ${overview.backlinks.join(', ')}.` : '',
+        'Entries are summaries: pull a card in full with canvas_node { action: "get", board, id, full: true }.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    };
+    if (fits(makeDocument([...delivered, overviewEntry]))) delivered.push(overviewEntry);
+  }
   // Pins precede revision groups. Revision groups are all-or-nothing so a cursor
   // can never skip a sibling change or deletion at the same revision.
   for (const candidate of candidates.filter((item) => !atomic && item.entry.reason === 'pinned')) {
@@ -380,46 +492,6 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       deltaBlocked = true;
     }
   }
-  // Pinned boards follow the open board's pins: each whole in full, else as
-  // discovery (README summary + pinned titles), else omitted, and said so.
-  for (const board of pinnedBoards) {
-    const entry = (nodeId: string, title: string, text: string, titleOnly = false): CompiledContextEntry => ({
-      sourceBoardId: board.boardId,
-      nodeId,
-      reason: 'pinned-board',
-      title,
-      text,
-      ...(titleOnly ? { titleOnly: true as const } : {}),
-    });
-    const full = [
-      ...(board.readme ? [entry(board.readme.nodeId, board.readme.title, board.readme.text)] : []),
-      ...board.cards.map((card) => entry(card.nodeId, card.title, card.text)),
-    ];
-    const discovery = [
-      ...(board.readme ? [entry(board.readme.nodeId, board.readme.title, board.readme.summary)] : []),
-      ...board.cards.map((card) =>
-        entry(card.nodeId, card.title, `Pinned card title on pinned board “${board.name}”: ${card.title}`, true),
-      ),
-    ];
-    const status: { boardId: string; name: string; delivered: 'full' | 'discovery' | 'omitted' } = {
-      boardId: board.boardId,
-      name: board.name,
-      delivered: 'full',
-    };
-    pinnedBoardDelivery.push(status);
-    if (fits(makeDocument([...delivered, ...full]))) delivered.push(...full);
-    else {
-      status.delivered = 'discovery';
-      if (fits(makeDocument([...delivered, ...discovery]))) delivered.push(...discovery);
-      else {
-        status.delivered = 'omitted';
-        // Report the omission only while the report itself fits: an unfitted line
-        // would make the whole brief unserializable.
-        if (!fits(makeDocument())) pinnedBoardDelivery.pop();
-      }
-    }
-  }
-
   const revisions = [
     ...new Set([
       ...changed.map((node) => node.contentRevision!).filter(validRevision),

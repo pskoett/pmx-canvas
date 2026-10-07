@@ -7,13 +7,17 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
-- Board pins: pin a whole board into the agent's working set with `canvas_board { action: "pin" }`, `POST /api/canvas/boards/<id>/pin`, `pmx-canvas board pin` or `pinBoard()`; its README and pinned cards reach the brief whichever board is open, falling back to a summary when the budget is tight.
+- Board pins: pin a whole board into the agent's working set with `canvas_board { action: "pin" }`, `POST /api/canvas/boards/<id>/pin`, `pmx-canvas board pin` or `pinBoard()`; it travels in the brief as a map (summary, links and its pinned cards) whichever board is open.
 - Agents can drive presentation tours: go to a stop, step next or previous, exit, and ease the camera to a node, area or viewport through `canvas_view`, the HTTP API, the SDK and `pmx-canvas tour go` / `camera move`, with reduced-motion support and no undo entries.
+
+### Changed
+
+- The agent's context brief is now a map instead of full text: an overview of the board, then every card as its title and a short summary with why it was pinned and how it relates to other cards; the agent pulls whatever it needs in full, and only a full pull counts as read.
 
 ### Fixed
 
 - `pmx-canvas record` realtime capture uses Chrome's screencast for smooth full-frame-rate footage, writes frames while it records, and tolerates a slow first Chrome launch.
-- On a board larger than the context budget, an agent's first `canvas://context` read now carries the pinned cards and then whole cards oldest first, and pages on from there, instead of returning a single clipped card every time.
+- On a board larger than the context budget, an agent's first `canvas://context` read now carries the pinned cards and then the rest oldest first, and pages on from there, instead of returning a single clipped card every time.
 - Agents reading `canvas://context` as an MCP resource now count as having read those cards, so read marks light up.
 
 ## [0.8.2] - 2026-10-06
