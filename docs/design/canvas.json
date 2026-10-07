@@ -211,6 +211,20 @@
       "w": 1440,
       "h": 820,
       "title": "Retired, and back again — finding and restoring a retired card"
+    },
+    "ContextChip.dc.html": {
+      "x": 7600,
+      "y": 4060,
+      "w": 1440,
+      "h": 1700,
+      "title": "One context chip — cards, near, boards and the budget in the top bar (wave 1, slices 4b/5b)"
+    },
+    "ContextChip600.dc.html": {
+      "x": 9120,
+      "y": 4060,
+      "w": 600,
+      "h": 990,
+      "title": "Context chip at 600 px — Harbor and Daylight"
     }
   },
   "createdOnFiles": {
@@ -262,7 +276,7 @@
     },
     "t4": {
       "kind": "title1",
-      "maxW": 7520,
+      "maxW": 9720,
       "text": "Nodes in context, near a pin, and every node type",
       "w": 240,
       "x": 0,
@@ -323,7 +337,9 @@
     "Lifecycle.dc.html",
     "Lifecycle600.dc.html",
     "LifecycleVariants.dc.html",
-    "Restore.dc.html"
+    "Restore.dc.html",
+    "ContextChip.dc.html",
+    "ContextChip600.dc.html"
   ],
   "pages": [],
   "title": "PMX Canvas look-and-feel proposal"

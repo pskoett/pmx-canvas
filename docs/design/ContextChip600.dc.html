@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Context chip at 600 px</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 600px; height: 990px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
+<div>
+<h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 28px">Context chip at 600 px</h1>
+<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">The chip keeps its place in the top bar and shortens to one count — cards and boards in context — plus the meter. Opened, the panel becomes a sheet under the top bar, full width.</p>
+</div>
+<sc-for list="{{themes}}" as="p" hint-placeholder-count="2">
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">{{p.themeName}}</span>
+<div style="{{p.frame}}">
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipRest}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.warnSeg}}">△</span><span style="{{p.track}}"><span style="{{p.fillSm}}"></span></span></span></div>
+<span style="{{p.cap}}">At rest. △ appears when something pinned is not sent in full; the word is in the sheet and on hover.</span>
+<div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>7 in context<span style="{{p.warnSeg}}">△</span></span></div>
+<div style="{{p.sheet}}">
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">31.4k / 32k</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{p.trackBig}}"><span style="{{p.fillBig}}"></span></span></div>
+<div style="{{p.secHead}}"><span style="flex: 1">Cards on this board · 4</span><span style="{{p.link}}">Clear all</span></div>
+<sc-for list="{{p.cards}}" as="c" hint-placeholder-count="4">
+<div style="{{p.row}}"><span style="position: relative; display: inline-flex"><span style="{{p.pinBadge}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span><sc-if value="{{c.byAgent}}" hint-placeholder-val="{{ false }}"><span style="{{p.agentDot}}"></span></sc-if></span><span style="{{p.name}}">{{c.t}}</span><span style="{{c.stateSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{c.stateIc}}"></path></svg>{{c.state}}</span><span style="{{p.x}}">×</span></div>
+</sc-for>
+<div style="{{p.secHead}}"><span style="flex: 1">Near · 3</span><span style="{{p.capInline}}">derived · title + summary</span></div>
+<sc-for list="{{p.near}}" as="n" hint-placeholder-count="3">
+<div style="{{n.row}}"><span style="{{p.nearRing}}"></span><span style="{{p.nameSoft}}">{{n.t}}</span><span style="{{n.pinSt}}">{{n.pin}}</span></div>
+</sc-for>
+<div style="{{p.secHead}}"><span style="flex: 1">Boards · 3</span></div>
+<sc-for list="{{p.boards}}" as="b" hint-placeholder-count="3">
+<div style="{{p.row}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{p.boardIc}}"><path d="{{i.board}}"></path></svg><span style="{{p.name}}">{{b.t}}</span><span style="{{b.readSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{b.readIc}}"></path></svg>{{b.read}}</span><span style="{{b.fbSt}}">{{b.fb}}</span><span style="{{p.x}}">×</span></div>
+</sc-for>
+</div>
+</div>
+</section>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":990}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      eyeOff: 'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.6 6.6C3.8 8.3 2 12 2 12s3.5 6 10 6a9.6 9.6 0 0 0 4.4-1',
+      warn: 'M12 4l9 16H3zM12 10v4M12 17v.5',
+      board: 'M4 4h16v16H4zM9 9h6v6H9z'
+    };
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icPin: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;'
+    };
+    function hexA(h, a) { var n = parseInt(h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; }
+    var H = { bg: '#081524', panel: '#0f1d31', soft: '#13243b', line: '#1b2c44', line2: '#2a4566', text: '#e6eef7', textSoft: '#b9c6d6', muted: '#8ea3bd', dim: '#6b7d94', pin: '#4BBCFF', onPin: '#081524', agent: '#B388FF', warn: '#f4c542', ok: '#2fd07f', shadow: '0 10px 30px rgba(0,0,0,0.6)' };
+    var D = { bg: '#F6F7F9', panel: '#FFFFFF', soft: '#F2F4F7', line: '#DDE2E9', line2: '#C9D1DC', text: '#0B1726', textSoft: '#3a4a5e', muted: '#55657a', dim: '#7a8899', pin: '#1A7ABF', onPin: '#FFFFFF', agent: '#7C4DDB', warn: '#94600A', ok: '#1E7F51', shadow: '0 10px 30px rgba(8,21,36,0.18)' };
+
+    function panel(c) {
+      var rowBase = 'display:flex;align-items:center;gap:8px;min-height:30px;padding:0 8px;border-radius:6px;font-size:12px;';
+      var tag = 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;white-space:nowrap;';
+      var readSt = tag + 'color:' + c.agent + ';background:' + hexA(c.agent, 0.14) + ';';
+      var notReadSt = tag + 'color:' + c.muted + ';background:' + c.soft + ';';
+      var changedSt = tag + 'color:' + c.warn + ';background:' + hexA(c.warn, 0.14) + ';';
+      var full = tag + 'color:' + c.muted + ';';
+      var summary = tag + 'color:' + c.warn + ';border:1px solid ' + hexA(c.warn, 0.6) + ';';
+      var notSent = tag + 'color:' + c.warn + ';background:' + hexA(c.warn, 0.14) + ';';
+      return {
+        frame: 'display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:' + c.bg + ';border:1px solid ' + c.line + ';',
+        bar: 'display:flex;align-items:center;gap:8px;height:44px;box-sizing:border-box;padding:0 10px;border-radius:8px;background:' + c.panel + ';border:1px solid ' + c.line + ';color:' + c.text + ';',
+        conn: 'width:7px;height:7px;border-radius:999px;background:' + c.ok + ';',
+        board: 'font-size:13px;font-weight:600;',
+        chipOpen: 'display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;padding:0 10px;border-radius:999px;border:1px solid ' + c.pin + ';background:' + hexA(c.pin, 0.16) + ';color:' + c.pin + ';font-size:12px;font-weight:500;',
+        pinIc: 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;',
+        dimSeg: 'color:' + c.muted + ';',
+        warnSeg: 'color:' + c.warn + ';font-weight:600;',
+        pop: 'align-self:flex-end;width:440px;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';',
+        h: 'font-size:13px;font-weight:600;flex:1;',
+        mono: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.warn + ';',
+        trackBig: 'display:block;flex:1;height:6px;border-radius:999px;background:' + c.line + ';overflow:hidden;',
+        fillBig: 'display:block;width:98%;height:6px;background:' + c.warn + ';',
+        cap: 'font-size:11px;color:' + c.muted + ';',
+        capInline: 'font-size:11px;color:' + c.muted + ';white-space:nowrap;',
+        secHead: 'display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px 2px;border-top:1px solid ' + c.line + ';font-size:11px;font-weight:600;color:' + c.muted + ';',
+        link: 'font-size:11px;font-weight:500;color:' + c.pin + ';',
+        row: rowBase,
+        pinBadge: 'width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:' + c.pin + ';color:' + c.onPin + ';flex-shrink:0;',
+        agentDot: 'position:absolute;right:-2px;top:-2px;width:6px;height:6px;border-radius:999px;background:' + c.agent + ';box-shadow:0 0 0 1.5px ' + c.panel + ';',
+        name: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;',
+        nameSoft: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + c.textSoft + ';',
+        nearRing: 'width:12px;height:12px;box-sizing:border-box;border-radius:999px;border:1.5px dotted ' + c.pin + ';flex-shrink:0;margin:0 2px;',
+        boardIc: 'fill:none;stroke:' + c.pin + ';stroke-width:1.8;stroke-linejoin:round;flex-shrink:0;',
+        x: 'width:20px;text-align:center;font-size:14px;color:' + c.muted + ';flex-shrink:0;',
+        cards: [
+          { t: 'Raise Pro to $24?', state: 'read 2m', stateSt: readSt, stateIc: i.eye },
+          { t: 'Churn by month', state: 'changed', stateSt: changedSt, stateIc: i.warn },
+          { t: 'SMB is price-sensitive', state: 'read 2m', stateSt: readSt, stateIc: i.eye, byAgent: true },
+          { t: 'Competitor pricing', state: 'not read yet', stateSt: notReadSt, stateIc: i.eyeOff }
+        ],
+        near: [
+          { t: 'Churn flat after last raise', of: 'near Raise Pro to $24?', pin: 'Pin', pinSt: 'font-size:11px;font-weight:500;color:' + c.pin + ';padding:0 4px;', row: rowBase + 'background:' + c.soft + ';' },
+          { t: 'Q3 loss reasons', of: 'near Churn by month', pin: '', pinSt: 'display:none;', row: rowBase },
+          { t: 'Price page copy', of: 'near Competitor pricing', pin: '', pinSt: 'display:none;', row: rowBase }
+        ],
+        boards: [
+          { t: 'Tech Enabling — overview', read: 'read 2m', readSt: readSt, readIc: i.eye, fb: '● full', fbSt: full },
+          { t: 'C4 2026 OKR planning', read: 'read 1h', readSt: readSt, readIc: i.eye, fb: '◐ summary only', fbSt: summary },
+          { t: 'Platform roadmap 2027', read: 'not read yet', readSt: notReadSt, readIc: i.eyeOff, fb: '○ not sent', fbSt: notSent }
+        ]
+      };
+    }
+    function narrow(c, name) {
+      var p = panel(c);
+      p.themeName = name;
+      p.frame = 'display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;background:' + c.bg + ';border:1px solid ' + c.line + ';';
+      p.chipRest = 'display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;padding:0 10px;border-radius:999px;border:1px solid ' + hexA(c.pin, 0.35) + ';background:' + hexA(c.pin, 0.08) + ';color:' + c.pin + ';font-size:12px;font-weight:500;';
+      p.track = 'display:inline-block;width:28px;height:4px;border-radius:999px;background:' + c.line + ';overflow:hidden;';
+      p.fillSm = 'display:block;width:98%;height:4px;background:' + c.warn + ';';
+      p.sheet = 'box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';';
+      return p;
+    }
+    var themes = [narrow(H, 'Harbor'), narrow(D, 'Daylight')];
+    return { i: i, s: s, themes: themes };
+  }
+}
+</script>
+</body>
+</html>
