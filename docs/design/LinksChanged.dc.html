@@ -13,11 +13,11 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1500px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+<div style="width: 1440px; height: 1580px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">When a card’s links change after the agent read it</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Connecting cards is the work of a research board, so it must not paint the board amber. Proposed: the mark sits on what changed — the edge — not on both cards. A links-only change is not “needs a look”: the next brief resends both cards with their new relations by itself. Amber stays for text the agent may be acting on.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Decided with the maintainer 2026-10-08 (option C). Connecting cards is the work of a research board, so it must not paint the board amber: the mark sits on what changed — the edge — not on both cards. A links-only change is not “needs a look”: the next brief resends both cards with their new relations by itself. Amber stays for text the agent may be acting on.</p>
 </div>
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
@@ -80,14 +80,14 @@ body{margin:0}
 <div style="{{s.panel}} padding: 12px 14px; gap: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6">
 <sc-for list="{{brief}}" as="b" hint-placeholder-count="5"><span style="{{b.st}}">{{b.t}}</span></sc-for>
 </div>
-<span style="{{s.label}} margin-top: 8px">Open for the maintainer</span>
+<span style="{{s.label}} margin-top: 8px">Decided — and how it is built</span>
 <sc-for list="{{open}}" as="o" hint-placeholder-count="3"><span style="font-size: 12px; color: #b9c6d6">{{o}}</span></sc-for>
 </section>
 </div>
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1580}}'>
 class Component extends DCLogic {
   renderVals() {
     var i = {
@@ -116,6 +116,7 @@ class Component extends DCLogic {
       notRead: { tag: 'not read yet', st: chip + 'color:#8ea3bd;background:#13243b;', ic: i.eyeOff }
     };
     var badges = {
+      agentCodex: { t: 'by Codex', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:' + V + ';font-weight:500;', ic: i.spark },
       notSeen: { t: 'not seen by Claude', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:#8ea3bd;font-weight:500;', ic: i.eyeOff },
       agent: { t: 'by Claude', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:' + V + ';font-weight:500;', ic: i.spark }
     };
@@ -143,20 +144,20 @@ class Component extends DCLogic {
     var A = 'Raise Pro to $24?', B = 'SMB is price-sensitive';
     var bodyA = 'Question for Q4 pricing.', bodyB = 'Eight of twelve interviews.';
     var top = [
-      { label: 'As built — both cards turn amber', frame: frameBase + 'height:300px;',
+      { label: 'Before — both cards turned amber', frame: frameBase + 'height:300px;',
         cards: [card(20, 40, 262, A, bodyA, 'changed'), card(358, 164, 262, B, bodyB, 'changed')],
         e: edge(282, 88, 358, 212, 'supports', null),
-        note: 'You drew one link between two cards the agent had read. Both now say “changed”, though neither text changed. Connect five cards and the board is amber everywhere — the warning stops meaning anything.' },
-      { label: 'Proposed — the edge carries the mark', frame: frameBase + 'height:300px;',
+        note: 'You drew one link between two cards the agent had read. Both said “changed”, though neither text changed. Connect five cards and the board is amber everywhere — the warning stops meaning anything.' },
+      { label: 'Decided — the edge carries the mark', frame: frameBase + 'height:300px;',
         cards: [card(20, 40, 262, A, bodyA, 'read'), card(358, 164, 262, B, bodyB, 'read')],
         e: edge(282, 88, 358, 212, 'supports', 'notSeen'),
-        note: 'The cards keep their read mark. The new link’s pill says “not seen by Claude” (muted, eye-off) until the agent’s next brief carries it, then the extra word goes. Nothing to act on: the next brief resends it by itself.' }
+        note: 'The cards keep their read mark. The new link’s pill says “not seen by Claude” (muted, eye-off) — the attached agent’s name — until a brief that carries either end delivers it, then the extra word goes. Nothing to act on: the next brief resends it by itself.' }
     ];
     var cases = [
       { label: 'The agent drew it', frame: frameBase + 'height:290px;',
         cards: [card(12, 16, 236, A, bodyA, 'read'), card(184, 178, 236, B, bodyB, 'read')],
-        e: edge(130, 112, 302, 178, 'supports', 'agent', false, true),
-        note: 'Agent did it: violet “by Claude” on the pill, like a card’s byline, until you edit or relabel the link. An agent’s own link is never “not seen”.' },
+        e: edge(130, 112, 302, 178, 'supports', 'agentCodex', false, true),
+        note: 'Agent did it: violet “by Codex” — any agent, named as attached (Claude, Codex, Copilot…) — like a card’s byline, until you edit or relabel the link. An agent’s own link is never “not seen”.' },
       { label: 'Text and links changed', frame: frameBase + 'height:290px;',
         cards: [card(12, 16, 236, A, bodyA, 'read'), card(184, 178, 236, B, bodyB, 'changed')],
         e: edge(130, 112, 302, 178, 'supports', 'notSeen', false, true),
@@ -175,8 +176,8 @@ class Component extends DCLogic {
     var markBase = chip + 'justify-self:start;';
     var marks = [
       { t: 'changed', st: markBase + 'color:' + W + ';background:rgba(244,197,66,0.14);', ic: i.warn, d: 'Card text changed since the agent read it. Amber: it may be acting on old words. Unchanged.' },
-      { t: 'not seen by Claude', st: markBase + 'color:#8ea3bd;border:1px solid #2a4566;', ic: i.eyeOff, d: 'On a link’s pill: drawn by a person since the agent last read either end. Neutral, not amber: the next brief delivers it without anyone acting.' },
-      { t: 'by Claude', st: markBase + 'color:' + V + ';background:rgba(179,136,255,0.16);', ic: i.spark, d: 'On a link’s pill: the agent drew it. Violet, like every agent byline.' },
+      { t: 'not seen by <agent>', st: markBase + 'color:#8ea3bd;border:1px solid #2a4566;', ic: i.eyeOff, d: 'On a link’s pill: changed since the last read that carried either end. Names the attached agent (Claude, Codex, Copilot…); “not seen by the agent” when none is attached. Neutral: the next brief delivers it by itself.' },
+      { t: 'by <agent>', st: markBase + 'color:' + V + ';background:rgba(179,136,255,0.16);', ic: i.spark, d: 'On a link’s pill: an agent drew it, named as attached. Violet, like every agent byline.' },
       { t: 'links changed', st: markBase + 'color:#8ea3bd;background:#13243b;', ic: i.link, d: 'Only in the context panel and on hover: this card’s links changed since the agent read it (added, relabelled or removed).' },
       { t: 'supports', st: markBase + 'color:' + INK + ';border:1px solid rgba(95,207,192,0.5);', ic: i.link, d: 'The relation ink itself never changes colour for any of this; inks keep their meaning.' }
     ];
@@ -189,9 +190,10 @@ class Component extends DCLogic {
       { t: '    + supports: Raise Pro to $24? (new, by Pepe)', st: m + 'color:#b9c6d6;' }
     ];
     var open = [
-      '1 · Links-only changes are neutral and live on the edge (proposed), not amber on both cards (as built).',
-      '2 · Two states per card from the server: text changed / links changed since read — needed to tell them apart.',
-      '3 · Human-drawn links carry no author mark; only “not seen” while undelivered. Agent links carry “by Claude”.'
+      'Option C, decided with the maintainer 2026-10-08. The agent can be any agent: the pill names whichever is attached.',
+      'A link is marked only if it changed since the last read that carried either end. A board no agent has read yet stays quiet.',
+      'Generated code-graph and board-map edges never carry a mark.',
+      'A removed link shows only as “links changed” (neutral, link glyph) in the context panel; a text change stays amber “changed” and wins.'
     ];
     return { i: i, s: s, top: top, cases: cases, narrow: narrow, rows: rows, marks: marks, brief: brief, open: open };
   }

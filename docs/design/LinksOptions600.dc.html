@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Connections changed — at 600 px</title>
+<title>Connections changed — at 600 px, C decided</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -15,7 +15,7 @@ body{margin:0}
 </helmet>
 <div style="width: 600px; height: 2240px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 24px">
 <div>
-<h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em">Connections changed — at 600 px</h1>
+<h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em">Connections changed — at 600 px, C decided</h1>
 <p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">The same board drawn three ways. In each: you rewrote one card’s text (SMB is price-sensitive), you drew one link (supports), and the agent drew one link (informs). Marks follow AgentContext (“changed”, read) and Relations (edge pill, relation inks); inks never change colour.</p>
 </div>
 <sc-for list="{{options}}" as="o" hint-placeholder-count="3">
@@ -33,7 +33,7 @@ body{margin:0}
 </section>
 </sc-for>
 <section style="display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 10px; border: 1px solid #2a4566; background: #0f1d31">
-<span style="font-size: 13px; font-weight: 600">Decisions for the maintainer</span>
+<span style="font-size: 13px; font-weight: 600">Decided with the maintainer, 2026-10-08</span>
 <sc-for list="{{decisions}}" as="d" hint-placeholder-count="4"><span style="font-size: 12px; color: #b9c6d6">{{d}}</span></sc-for>
 </section>
 </div>
@@ -69,8 +69,8 @@ class Component extends DCLogic {
       read: { t: 'read 2m', st: chip + 'color:' + V + ';background:rgba(179,136,255,0.16);', ic: i.eye }
     };
     var B = {
-      notSeen: { t: 'not seen by Claude', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:#8ea3bd;font-weight:500;', ic: i.eyeOff },
-      agent: { t: 'by Claude', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:' + V + ';font-weight:500;', ic: i.spark }
+      notSeen: { t: 'not seen by Codex', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:#8ea3bd;font-weight:500;', ic: i.eyeOff },
+      agent: { t: 'by Codex', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:' + V + ';font-weight:500;', ic: i.spark }
     };
     var titles = ['Raise Pro to $24?', 'SMB is price-sensitive', 'Churn flat after last raise', 'Competitor pricing'];
     var bodies = ['Question for Q4 pricing.', 'You rewrote the summary · text change', 'Last raise: churn 2.2% vs 2.1%.', 'Six competitors, September list prices.'];
@@ -106,24 +106,24 @@ class Component extends DCLogic {
     }
     var vBase = 'display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:600;';
     var options = [
-      option('A', 'As built: every change is “changed”', 'Today', vBase + 'background:#1b2c44;color:#b9c6d6;',
+      option('A', 'Every change is “changed”', 'Not chosen', vBase + 'background:#1b2c44;color:#8ea3bd;',
         ['changed', 'changed', 'changed', 'changed'], null, null,
         ['changed', 'changed', 'changed', 'changed'],
         'One text edit and two links light all four cards. The two you connected and the two the agent connected look exactly like the card whose words changed. Assumes the agent’s own edge advances both ends too, as the fix does.'),
-      option('B', 'A connections mark on the cards', 'Alternative', vBase + 'background:#1b2c44;color:#b9c6d6;',
+      option('B', 'A connections mark on the cards', 'Not chosen', vBase + 'background:#1b2c44;color:#8ea3bd;',
         ['linksAmber', 'changed', 'linksAmber', 'read'], null, 'agent',
         ['linksAmber', 'changed', 'linksAmber', 'read'],
-        'Text and links are told apart by glyph and word, both amber. Your link marks both its ends; the agent’s own link marks nothing (it made it) and carries “by Claude”. The board still turns amber wherever you connect cards.'),
-      option('C', 'The mark on the connection', 'Recommended', vBase + 'background:rgba(75,188,255,0.14);color:#4BBCFF;',
+        'Text and links are told apart by glyph and word, both amber. Your link marks both its ends; the agent’s own link marks nothing (it made it) and carries “by Codex”. The board still turns amber wherever you connect cards.'),
+      option('C', 'The mark on the connection', 'Decided 2026-10-08', vBase + 'background:rgba(75,188,255,0.14);color:#4BBCFF;',
         ['read', 'changed', 'read', 'read'], 'notSeen', 'agent',
         ['linksNeutral', 'changed', 'linksNeutral', 'read'],
-        'Only the text change is amber. Your new link says “not seen by Claude” on its pill until the next brief carries it; the agent’s says “by Claude”. Cards keep their read marks; the panel lists “links changed” in neutral.')
+        'Only the text change is amber. Your new link says “not seen by Codex” on its pill until a brief carrying either end delivers it; the agent’s says “by Codex”. The name is whichever agent is attached — Claude, Codex, Copilot… Cards keep their read marks; the panel lists “links changed” in neutral.')
     ];
     var decisions = [
-      '1 · Where a connection change shows: on both cards (A, B) or on the connection itself (C). Recommended: C.',
-      '2 · Is a connection change “needs a look” (amber, A and B) or information the next brief delivers by itself (neutral, C)? Recommended: neutral.',
-      '3 · Should the agent’s own links carry “by Claude” (violet)? Recommended: yes, like the agent’s byline on cards it creates. Independent of 1 and 2.',
-      '4 · Data: track text and links separately per card (needed for B and C), and per link who drew it and whether a brief has carried it (needed for C).'
+      'C, decided 2026-10-08: the mark sits on the connection, neutral; only text changes are amber on the card.',
+      'Any agent: pills read “not seen by <agent>” / “by <agent>” with the attached agent’s name (here Codex); “not seen by the agent” when none is attached.',
+      'Marked only if changed since the last read that carried either end; a board no agent has read stays quiet; generated code-graph and board-map edges never carry a mark.',
+      'A removed link shows only as “links changed” (neutral) in the context panel; a text change stays amber “changed” and wins.'
     ];
     return { i: i, s: s, options: options, decisions: decisions };
   }

@@ -17,7 +17,7 @@ body{margin:0}
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Board pins — a working set across boards</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">One gesture at two levels. Pin a card and its content goes to the agent. Pin a board and the whole board joins the agent's working set, wherever it sits in the library — with its review state: what is due, and what has no lifecycle.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">One gesture at two levels. Pin a card and it goes first in the agent's map — title, summary and relations; the agent pulls its full text when it needs it. Pin a board and the board joins the agent's working set as a map, wherever it sits in the library — with its review state: what is due, and what has no lifecycle.</p>
 </div>
 
 <div style="display: grid; grid-template-columns: 600px minmax(0, 1fr); gap: 40px">
@@ -75,7 +75,7 @@ body{margin:0}
 </div>
 </sc-for>
 <div style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(244,197,66,0.3); font-size: 12px; color: #b9c6d6"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>review due</span><span>Review state travels with a pinned board. Its due cards arrive marked “review due” with when they were last validated, cards with no category as “lifecycle unknown” — the same lines the brief uses on the open board (Lifecycle).</span></div>
-<div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #8ea3bd"><span style="width: 200px; height: 6px; border-radius: 999px; background: #1b2c44; overflow: hidden; display: block"><span style="display: block; width: 77%; height: 6px; background: #f4c542"></span></span><span style="font-family: 'IBM Plex Mono', monospace; color: #e6eef7; white-space: nowrap">24.5k / 32k</span><span>Over budget, a pinned board falls back to discovery — said on the chip, never silent.</span></div>
+<div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #8ea3bd"><span style="width: 200px; height: 6px; border-radius: 999px; background: #1b2c44; overflow: hidden; display: block"><span style="display: block; width: 52%; height: 6px; background: #4BBCFF"></span></span><span style="font-family: 'IBM Plex Mono', monospace; color: #e6eef7; white-space: nowrap">≈ 2.1k tokens · 52%</span><span>Share of the brief budget (16,000 characters). Over it the brief is clipped — amber on the chip, never silent.</span></div>
 </section>
 
 </div>
@@ -84,7 +84,7 @@ body{margin:0}
 <span style="{{s.label}}">On any board — the context chip, opened</span>
 <div style="display: flex; gap: 24px; align-items: flex-start">
 <div style="width: 420px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 8px">
-<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 600">In the agent's context</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">24.5k tokens</span></div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 600">In the agent's context</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8ea3bd">≈ 2.1k tokens</span></div>
 <span style="{{s.cap}}">Boards · 3</span>
 <sc-for list="{{chipBoards}}" as="r" hint-placeholder-count="3">
 <div style="display: flex; align-items: center; gap: 8px; height: 28px; font-size: 12px"><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icCat}}"><path d="{{r.icon}}"></path></svg><span style="flex: 1">{{r.name}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ false }}"><span style="{{s.due}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icChip}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if><span style="{{r.readStyle}}">{{r.read}}</span><span style="color: #6b7d94">×</span></div>
@@ -138,12 +138,12 @@ class Component extends DCLogic {
     var mOn = 'font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;background:rgba(75,188,255,0.14);color:#4BBCFF;';
     var mDisc = 'font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;background:#1b2c44;color:#8ea3bd;';
     var tiers = [
-      { n: '1', title: 'This board’s pinned cards', tokens: '9k', what: 'Full content, as today.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
-        rows: [{ name: '4 cards on Pricing research', detail: 'full text', mark: mOn, markText: 'cards' }] },
-      { n: '2', title: 'Pinned boards', tokens: '14k', what: 'Each board’s README and its pinned cards, in full, each with its review state. New.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
-        rows: [{ name: 'Tech Enabling — overview', detail: 'README + 2 pinned · 6k', mark: mOn, markText: 'board' },
-               { name: 'C4 2026 OKR planning', detail: 'README + 3 pinned · 8k', mark: mOn, markText: 'board', hasDue: true, due: '1 due' }] },
-      { n: '3', title: 'Discovery', tokens: '1.5k', what: 'Linked and same-folder boards: README summary and pinned titles only — today’s behaviour.', border: '#1b2c44', numBg: '#1b2c44', numC: '#b9c6d6',
+      { n: '1', title: 'This board’s pinned cards', tokens: '1.2k', what: 'First in the map: title, summary and relations. The agent pulls full text itself.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
+        rows: [{ name: '4 cards on Pricing research', detail: 'title + summary', mark: mOn, markText: 'cards' }] },
+      { n: '2', title: 'Pinned boards', tokens: '0.6k', what: 'Each board as a map: folder, README summary, pinned cards’ titles and summaries, links and backlinks, each with its review state. New.', border: 'rgba(75,188,255,0.35)', numBg: '#4BBCFF', numC: '#081524',
+        rows: [{ name: 'Tech Enabling — overview', detail: 'map · 0.3k', mark: mOn, markText: 'board' },
+               { name: 'C4 2026 OKR planning', detail: 'map · 0.3k', mark: mOn, markText: 'board', hasDue: true, due: '1 due' }] },
+      { n: '3', title: 'Discovery', tokens: '0.3k', what: 'Linked and same-folder boards: README summary and pinned titles only — today’s behaviour.', border: '#1b2c44', numBg: '#1b2c44', numC: '#b9c6d6',
         rows: [{ name: 'Churn analysis · SMB interviews · Competitor teardown', detail: 'summaries', mark: mDisc, markText: 'linked' }] }
     ];
     var read = 'font-size:11px;font-weight:500;padding:0 6px;border-radius:999px;background:rgba(179,136,255,0.16);color:#B388FF;';
