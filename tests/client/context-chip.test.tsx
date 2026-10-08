@@ -185,7 +185,9 @@ describe('ContextChip', () => {
     const { getByTestId, getByRole } = render(<ContextChip />);
     expect(getByTestId('token-cost').textContent).toBe('≈ 1.1k tokens');
     fireEvent.click(getByTestId('context-chip'));
-    expect(getByRole('dialog').textContent).toContain('Copilot’s whole context holds 42.8k tokens.');
+    expect(getByRole('dialog').textContent).toContain(
+      'What the canvas sends the agent costs ≈ 1.1k tokens. Copilot’s whole context holds 42.8k tokens.',
+    );
     expect(getByRole('dialog').textContent).not.toContain('%');
   });
 

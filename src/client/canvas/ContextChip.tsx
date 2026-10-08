@@ -130,7 +130,7 @@ export function ContextChip() {
           ) : (
             <>
               <p class="context-panel-cap">
-                What the canvas sends the agent costs {cost || 'a few'} tokens.
+                What the canvas sends the agent costs {cost || 'a few tokens'}.
                 {host?.contextUsage
                   ? ` ${host.label}’s whole context holds ${formatTokens(host.contextUsage.used)} tokens.`
                   : ''}
