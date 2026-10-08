@@ -246,6 +246,13 @@
       "w": 1440,
       "x": 0,
       "y": 2740
+    },
+    "HeaderMarks.dc.html": {
+      "x": 13520,
+      "y": 4060,
+      "w": 1440,
+      "h": 1380,
+      "title": "Node header with several marks — title first, authorship on the icon, fold order (260/340/480, Harbor and Daylight)"
     }
   },
   "createdOnFiles": {
@@ -363,7 +370,8 @@
     "ContextChip600.dc.html",
     "LinksChanged.dc.html",
     "LinksOptions.dc.html",
-    "LinksOptions600.dc.html"
+    "LinksOptions600.dc.html",
+    "HeaderMarks.dc.html"
   ],
   "pages": [],
   "title": "PMX Canvas look-and-feel proposal"

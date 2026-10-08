@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Node header with several marks</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1380px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">A node header with more than one mark</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">The title is what a person reads first, so it keeps its room. “By the agent” is authorship, not state: it leaves the row of chips for good and becomes a violet sparkle on the type icon, at every width. The remaining marks keep their word while they fit, then fold to their glyph in a fixed order — never the amber one.</p>
+</div>
+
+<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+<sc-for list="{{intro}}" as="x" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">{{x.label}}</span>
+<div style="{{x.card.node}}"><div style="{{x.card.head}}">
+<span style="position: relative; display: inline-flex; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" style="{{x.card.iconSt}}"><path d="{{i.doc}}"></path></svg><sc-if value="{{x.card.spark}}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{x.card.sparkSt}}"><path d="{{i.spark}}"></path></svg></sc-if></span>
+<span style="{{x.card.title}}">{{x.card.t}}</span>
+<sc-for list="{{x.card.marks}}" as="m" hint-placeholder-count="2"><span style="{{m.st}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{m.ic}}"></path></svg>{{m.word}}</span></sc-for>
+<span style="{{x.card.btn}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.expand}}"></path></svg></span>
+<span style="{{x.card.pin}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span>
+</div><div style="{{x.card.body}}">Working notes on what the brief sends the agent.</div></div>
+<span style="font-size: 12px; color: #b9c6d6">{{x.note}}</span>
+</div>
+</sc-for>
+</section>
+
+<sc-for list="{{themes}}" as="th" hint-placeholder-count="2">
+<section style="{{th.section}}">
+<div style="display: grid; grid-template-columns: 150px 260px 340px 480px; gap: 16px; align-items: end"><span style="{{th.label}}">{{th.name}}</span><span style="{{th.label}}">260 px card</span><span style="{{th.label}}">340 px — default markdown</span><span style="{{th.label}}">480 px</span></div>
+<sc-for list="{{th.rows}}" as="r" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 150px 260px 340px 480px; gap: 16px; align-items: center">
+<div style="display: flex; flex-direction: column"><span style="{{th.caseName}}">{{r.name}}</span><span style="{{th.caseNote}}">{{r.note}}</span></div>
+<sc-for list="{{r.cells}}" as="c" hint-placeholder-count="3">
+<div style="{{c.node}}"><div style="{{c.head}}">
+<span style="position: relative; display: inline-flex; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" style="{{c.iconSt}}"><path d="{{i.doc}}"></path></svg><sc-if value="{{c.spark}}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{c.sparkSt}}"><path d="{{i.spark}}"></path></svg></sc-if></span>
+<span style="{{c.title}}">{{c.t}}</span>
+<sc-for list="{{c.marks}}" as="m" hint-placeholder-count="2"><span style="{{m.st}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{m.ic}}"></path></svg>{{m.word}}</span></sc-for>
+<span style="{{c.btn}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.expand}}"></path></svg></span>
+<span style="{{c.pin}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span>
+</div></div>
+</sc-for>
+</div>
+</sc-for>
+</section>
+</sc-for>
+
+<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+<div style="{{s.panel}} padding: 16px 18px; gap: 8px">
+<span style="font-size: 13px; font-weight: 600">The rule</span>
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="5"><span style="font-size: 12px; color: #b9c6d6">{{r}}</span></sc-for>
+</div>
+<div style="{{s.panel}} padding: 16px 18px; gap: 10px">
+<span style="font-size: 13px; font-weight: 600">Where the folded words go</span>
+<div style="display: flex; align-items: flex-start; gap: 16px">
+<div style="position: relative; width: 340px; height: 92px; flex-shrink: 0">
+<div style="position: absolute; left: 0; top: 0; width: 250px; height: 34px; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 12px; border-radius: 10px 10px 0 0; border: 1px solid #1b2c44; background: #0f1d31"><span style="position: relative; display: inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" style="fill: none; stroke: #8ea3bd; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.doc}}"></path></svg><svg width="10" height="10" viewBox="0 0 24 24" style="position: absolute; right: -5px; top: -5px; fill: #B388FF; stroke: #0f1d31; stroke-width: 3; paint-order: stroke"><path d="{{i.spark}}"></path></svg></span><span style="font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">The brief as a map</span></div>
+<div style="position: absolute; left: 4px; top: 40px; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #2a4566; background: #13243b; box-shadow: 0 10px 30px rgba(0,0,0,0.6); font-size: 11px; color: #e6eef7; white-space: nowrap">✦ Written by Claude · 14:06 · <span style="color: #8ea3bd">near Release runbook</span></div>
+</div>
+<span style="font-size: 12px; color: #b9c6d6">Hovering or focusing the type icon opens one hint with every folded word, so nothing is lost; the expanded card and the context panel always show them in full. The agent’s name is whichever agent is attached.</span>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1380}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      doc: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5',
+      spark: 'M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z',
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      expand: 'M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7',
+      eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      warn: 'M12 4l9 16H3zM12 10v4M12 17v.5',
+      near: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16M12 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3'
+    };
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      ic2: 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;',
+      icPin: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;'
+    };
+    function hexA(h, a) { var n = parseInt(h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; }
+    var H = { name: 'Harbor', bg: '#081524', panel: '#0f1d31', soft: '#13243b', line: '#1b2c44', line2: '#2a4566', text: '#e6eef7', muted: '#8ea3bd', dim: '#6b7d94', pin: '#4BBCFF', onPin: '#081524', agent: '#B388FF', warn: '#f4c542', shadow: '0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24)' };
+    var D = { name: 'Daylight', bg: '#F6F7F9', panel: '#FFFFFF', soft: '#F2F4F7', line: '#DDE2E9', line2: '#C9D1DC', text: '#0B1726', muted: '#55657a', dim: '#7a8899', pin: '#1A7ABF', onPin: '#FFFFFF', agent: '#7C4DDB', warn: '#94600A', shadow: '0 1px 2px rgba(8,21,36,0.1),0 6px 20px rgba(8,21,36,0.08)' };
+
+    // Estimated widths (IBM Plex Sans): title 12px/600 ≈ 6.7 px a character; a chip word 11px/500 ≈ 6 px.
+    var CHAR_T = 6.7, CHAR_W = 6.0, GAP = 6;
+    function chipW(word) { return Math.round(word.length * CHAR_W + 11 + 4 + 14); }
+    var GLYPH = 22;
+    // Fold order: read first, then near. Amber (changed) never folds. By-agent never sits in the row.
+    var FOLD = ['read', 'near'];
+    var WORDS = { near: 'near', read: 'read', changed: 'changed', agent: 'by Claude' };
+    function layout(width, title, kinds, today) {
+      var inner = width - 3 - 12 - 8;
+      var fixed = 16 + 22 + 18 + GAP * 3;
+      var marks = kinds.filter(function (k) { return today || k !== 'agent'; }).map(function (k) { return { k: k, word: true }; });
+      var natural = Math.round(title.length * CHAR_T);
+      var hasAmber = kinds.indexOf('changed') >= 0;
+      function used() { return marks.reduce(function (a, m) { return a + (m.word ? chipW(WORDS[m.k]) : GLYPH) + GAP; }, 0); }
+      function room() { return inner - fixed - used(); }
+      if (!today) {
+        var target = Math.min(natural, 140);
+        // 1. fold words to glyphs, read first, then near, while the title is below its minimum
+        FOLD.forEach(function (k) { var m = marks.filter(function (x) { return x.k === k; })[0]; if (m && room() < target) m.word = false; });
+        // 2. amber may push the title down to 80 px; otherwise a folded glyph moves into the icon hint
+        var floor = hasAmber ? Math.min(natural, 80) : target;
+        FOLD.forEach(function (k) { if (room() < floor) marks = marks.filter(function (x) { return x.k !== k; }); });
+      }
+      return marks;
+    }
+    function cell(c, width, title, kinds, pinned, today) {
+      var marks = layout(width, title, kinds, today).map(function (m) {
+        var col = m.k === 'changed' ? c.warn : m.k === 'read' || m.k === 'agent' ? c.agent : c.pin;
+        var base = 'display:inline-flex;align-items:center;justify-content:center;gap:4px;height:20px;box-sizing:border-box;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;white-space:nowrap;color:' + col + ';';
+        var skin = m.k === 'near' ? 'border:1px dotted ' + hexA(c.pin, 0.7) + ';background:' + hexA(c.pin, 0.06) + ';' : 'background:' + hexA(col, 0.14) + ';';
+        var ic = m.k === 'changed' ? i.warn : m.k === 'read' ? i.eye : m.k === 'agent' ? i.spark : i.near;
+        return { word: m.word ? WORDS[m.k] : '', ic: ic, st: base + skin + (m.word ? 'padding:0 7px;' : 'width:' + GLYPH + 'px;padding:0;') };
+      });
+      var spark = !today && kinds.indexOf('agent') >= 0;
+      return {
+        t: title, marks: marks, spark: spark,
+        node: 'width:' + width + 'px;box-sizing:border-box;border-radius:10px;overflow:hidden;background:' + c.panel + ';box-shadow:' + c.shadow + ';' + (pinned ? 'border:1.5px solid ' + c.pin + ';' : 'border:1px solid ' + c.line + ';'),
+        head: 'display:flex;align-items:center;gap:' + GAP + 'px;height:34px;padding:0 8px 0 12px;' + (pinned ? 'background:' + hexA(c.pin, 0.1) + ';' : ''),
+        body: 'padding:8px 12px;font-size:12px;color:' + c.muted + ';border-top:1px solid ' + c.line + ';',
+        iconSt: 'fill:none;stroke:' + c.muted + ';stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;',
+        sparkSt: 'position:absolute;right:-5px;top:-5px;fill:' + c.agent + ';stroke:' + c.panel + ';stroke-width:3;paint-order:stroke;',
+        title: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;color:' + c.text + ';',
+        btn: 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:' + c.muted + ';',
+        pin: pinned ? 'width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:' + c.pin + ';color:' + c.onPin + ';' : 'width:18px;height:18px;box-sizing:border-box;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ' + c.dim + ';color:' + c.muted + ';'
+      };
+    }
+    var cases = [
+      { name: 'Agent wrote it, near a pin', note: 'the common case on an agent-written board', title: 'The brief as a map — wave 1', kinds: ['near', 'agent'], pinned: false },
+      { name: 'Near a pin, read by the agent', note: 'read folds before near', title: 'Competitor pricing teardown', kinds: ['near', 'read'], pinned: false },
+      { name: 'Changed since read, near a pin', note: 'amber keeps its word; at 260 px near moves into the hint', title: 'SMB interview notes', kinds: ['changed', 'near'], pinned: false },
+      { name: 'Pinned, read, agent wrote it', note: 'the pin badge already says in context', title: 'Churn flat after last raise', kinds: ['read', 'agent'], pinned: true }
+    ];
+    var themes = [H, D].map(function (c) {
+      return {
+        name: c.name,
+        section: 'display:flex;flex-direction:column;gap:14px;padding:18px 20px;border-radius:12px;background:' + c.bg + ';border:1px solid ' + c.line + ';',
+        label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:' + c.dim + ';',
+        caseName: 'font-size:12px;font-weight:600;color:' + c.text + ';',
+        caseNote: 'font-size:11px;color:' + c.muted + ';',
+        rows: cases.map(function (k) {
+          return { name: k.name, note: k.note, cells: [260, 340, 480].map(function (w) { return cell(c, w, k.title, k.kinds, k.pinned, false); }) };
+        })
+      };
+    });
+    var intro = [
+      { label: 'Today, 340 px — near and by-agent side by side', card: cell(H, 340, 'The brief as a map — wave 1', ['near', 'agent'], false, true),
+        note: 'Two chips, expand and the pin leave the title about 50 px: “The bri…”. On an agent-written board nearly every card looks like this.' },
+      { label: 'Proposed, 340 px — authorship on the icon', card: cell(H, 340, 'The brief as a map — wave 1', ['near', 'agent'], false, false),
+        note: 'The violet sparkle on the type icon says the agent wrote it; “near” keeps its word; the title reads in full.' }
+    ];
+    var rules = [
+      '1 · The title keeps at least 140 px (all of it when shorter). Only an amber mark may push it down, to 80 px.',
+      '2 · “By <agent>” never takes a chip in the header. A violet sparkle on the type icon carries it at every width; its word is in the icon’s hint. The violet dot on the pin badge keeps meaning “pinned by the agent”.',
+      '3 · When the title would drop below its minimum, marks fold to their glyph in this order: read first, then near. If a glyph still leaves the title too little, it moves into the icon’s hint. Amber “changed” never folds — amber always carries its word.',
+      '4 · At most one amber chip and one other worded chip in a header; everything else is a glyph. Expand and the context pin never fold (Chrome).',
+      '5 · Folded words live in one hint on the type icon (BarHint, not a title attribute), and in full in the expanded card and the context panel.'
+    ];
+    return { i: i, s: s, intro: intro, themes: themes, rules: rules };
+  }
+}
+</script>
+</body>
+</html>
