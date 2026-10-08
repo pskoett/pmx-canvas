@@ -232,6 +232,20 @@
       "w": 1440,
       "h": 1500,
       "title": "When a card’s links change after the agent read it (proposed, for the maintainer)"
+    },
+    "LinksOptions.dc.html": {
+      "x": 11320,
+      "y": 4060,
+      "w": 1440,
+      "h": 1320,
+      "title": "Connections changed after a read — options A, B, C (for the maintainer)"
+    },
+    "LinksOptions600.dc.html": {
+      "x": 12840,
+      "y": 4060,
+      "w": 600,
+      "h": 2240,
+      "title": "Connections changed — options at 600 px"
     }
   },
   "createdOnFiles": {
@@ -283,7 +297,7 @@
     },
     "t4": {
       "kind": "title1",
-      "maxW": 11240,
+      "maxW": 13440,
       "text": "Nodes in context, near a pin, and every node type",
       "w": 240,
       "x": 0,
@@ -347,7 +361,9 @@
     "Restore.dc.html",
     "ContextChip.dc.html",
     "ContextChip600.dc.html",
-    "LinksChanged.dc.html"
+    "LinksChanged.dc.html",
+    "LinksOptions.dc.html",
+    "LinksOptions600.dc.html"
   ],
   "pages": [],
   "title": "PMX Canvas look-and-feel proposal"
