@@ -13,7 +13,7 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1730px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+<div style="width: 1440px; height: 1580px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">One context chip</h1>
@@ -27,12 +27,12 @@ body{margin:0}
 <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 600">{{r.name}}</span><span style="font-size: 11px; color: #8ea3bd">{{r.note}}</span></div>
 <sc-for list="{{r.strips}}" as="x" hint-placeholder-count="2">
 <div style="{{x.bar}}"><span style="{{x.conn}}"></span><span style="{{x.board}}">Pricing research ▾</span><span style="{{x.boardPin}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span><span style="flex: 1"></span>
-<span style="{{x.chip}}"><span style="position: relative; display: inline-flex"><svg width="13" height="13" viewBox="0 0 24 24" style="{{x.pinIc}}"><path d="{{i.pin}}"></path></svg><sc-if value="{{x.dot}}" hint-placeholder-val="{{ false }}"><span style="{{x.dotSt}}"></span></sc-if></span><sc-for list="{{x.segs}}" as="g" hint-placeholder-count="4"><span style="{{g.st}}">{{g.t}}</span></sc-for><sc-if value="{{x.meter}}" hint-placeholder-val="{{ true }}"><span style="{{x.track}}"><span style="{{x.fill}}"></span></span><span style="{{x.mSt}}">{{x.mText}}</span></sc-if></span>
+<span style="{{x.chip}}"><span style="position: relative; display: inline-flex"><svg width="13" height="13" viewBox="0 0 24 24" style="{{x.pinIc}}"><path d="{{i.pin}}"></path></svg><sc-if value="{{x.dot}}" hint-placeholder-val="{{ false }}"><span style="{{x.dotSt}}"></span></sc-if></span><sc-for list="{{x.segs}}" as="g" hint-placeholder-count="4"><span style="{{g.st}}">{{g.t}}</span></sc-for><sc-if value="{{x.meter}}" hint-placeholder-val="{{ true }}"><span style="{{x.mSt}}">{{x.mText}}</span></sc-if></span>
 </div>
 </sc-for>
 </div>
 </sc-for>
-<span style="font-size: 11px; color: #8ea3bd; padding-left: 216px">The summary is part of the top bar’s right-hand group and stays right-aligned at every width: when space runs out, the left side and the other controls give way first, never the summary. Counts read in brief order: cards on this board, near (derived, muted), pinned boards. The small meter is the share of the brief budget used, labelled in tokens; amber only when the brief went over and was clipped.</span>
+<span style="font-size: 11px; color: #8ea3bd; padding-left: 216px">The summary is part of the top bar’s right-hand group and stays right-aligned at every width: when space runs out, the left side and the other controls give way first, never the summary. Counts read in brief order: cards on this board, near (derived, muted), pinned boards. After the counts, the cost: what the canvas sends the agent, in tokens, muted. A cost, not a budget — no meter, no percentage, no over-budget state (decided 2026-10-08).</span>
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 10px">
@@ -42,9 +42,8 @@ body{margin:0}
 <div style="{{p.frame}}">
 <div style="{{p.bar}}"><span style="{{p.conn}}"></span><span style="{{p.board}}">Pricing research ▾</span><span style="flex: 1"></span><span style="{{p.chipOpen}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{p.pinIc}}"><path d="{{i.pin}}"></path></svg>4 cards<span style="{{p.dimSeg}}">· 3 near</span>· 3 boards</span></div>
 <div style="{{p.pop}}">
-<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">≈ 2.5k tokens · 62%</span></div>
-<div style="display: flex; align-items: center; gap: 8px"><span style="{{p.trackBig}}"><span style="{{p.fillBig}}"></span></span></div>
-<span style="{{p.cap}}">Share of the brief budget (16,000 characters), shown as tokens. When the host reports Claude’s real window this reads “Claude’s window · 61%”. Amber: the brief went over and was clipped.</span>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="{{p.h}}">In the agent’s context</span><span style="{{p.mono}}">≈ 2.5k tokens</span></div>
+<span style="{{p.cap}}">What the canvas sends the agent costs ≈ 2.5k tokens. Copilot’s whole context holds 42.8k tokens.</span>
 
 <div style="{{p.secHead}}"><span style="flex: 1">Cards on this board · 4</span><span style="{{p.link}}">Clear all</span></div>
 <sc-for list="{{p.cards}}" as="c" hint-placeholder-count="4">
@@ -84,7 +83,7 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1730}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1580}}'>
 class Component extends DCLogic {
   renderVals() {
     var i = {
@@ -125,10 +124,8 @@ class Component extends DCLogic {
         dotSt: 'position:absolute;right:-3px;top:-2px;width:6px;height:6px;border-radius:999px;background:' + c.agent + ';box-shadow:0 0 0 1.5px ' + c.panel + ';',
         segs: segs,
         meter: !quiet,
-        track: 'display:inline-block;width:32px;height:4px;border-radius:999px;background:' + c.line + ';overflow:hidden;margin-left:2px;',
-        fill: 'display:block;height:4px;width:' + pct + '%;background:' + (over ? c.warn : c.pin) + ';',
         mText: o.m || '',
-        mSt: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + (over ? c.warn : c.muted) + ';'
+        mSt: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.muted + ';margin-left:4px;'
       };
     }
     function state(name, note, o) { return { name: name, note: note, strips: [strip(H, o), strip(D, o)] }; }
@@ -137,9 +134,7 @@ class Component extends DCLogic {
       state('Cards + near', 'near is derived: muted, no pin of its own', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }], pct: 34, m: '≈ 1.4k tokens' }),
       state('Cards + boards', 'boards travel as maps, so they are cheap', { segs: [{ t: '4 cards' }, { t: '2 boards' }], pct: 45, m: '≈ 1.8k tokens' }),
       state('All three', 'the usual research session', { segs: [{ t: '4 cards' }, { t: '3 near', kind: 'near' }, { t: '2 boards' }], pct: 52, m: '≈ 2.1k tokens' }),
-      state('Over budget', 'the brief went over and was clipped — amber, with the word', { segs: [{ t: '12 cards' }, { t: '5 boards' }, { t: '△ brief clipped', kind: 'warn' }], pct: 100, m: 'over', over: true }),
       state('Agent-only pins', 'violet dot: the agent pinned these', { segs: [{ t: '3 cards' }, { t: 'by Claude', kind: 'agent' }], pct: 22, m: '≈ 0.9k tokens', agentDot: true }),
-      state('Host reports its window', 'the meter shows the agent’s real window', { segs: [{ t: '4 cards' }, { t: '2 boards' }], pct: 61, m: '61% window' }),
       state('Nothing pinned', 'quiet outline; opens a one-line how-to', { empty: true, segs: [{ t: 'Nothing in context' }] })
     ];
 
@@ -161,8 +156,6 @@ class Component extends DCLogic {
         pop: 'align-self:flex-end;width:440px;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';',
         h: 'font-size:13px;font-weight:600;flex:1;',
         mono: 'font-family:"IBM Plex Mono",monospace;font-size:11px;color:' + c.muted + ';',
-        trackBig: 'display:block;flex:1;height:6px;border-radius:999px;background:' + c.line + ';overflow:hidden;',
-        fillBig: 'display:block;width:62%;height:6px;background:' + c.pin + ';',
         mapWord: 'font-size:11px;color:' + c.muted + ';flex-shrink:0;',
         cap: 'font-size:11px;color:' + c.muted + ';',
         capInline: 'font-size:11px;color:' + c.muted + ';white-space:nowrap;',
@@ -197,18 +190,18 @@ class Component extends DCLogic {
     var panels = [panel(H), panel(D)];
     var goes = [
       'The floating ContextPinBar at the bottom of the canvas. Its “clear all” moves into the panel’s Cards header.',
-      'The top-bar ContextBudget meter. Both of its modes (pins estimate, the host’s real window) move into the chip and the panel header.',
+      'The top-bar ContextBudget meter and the idea of a budget. The chip shows a cost: what the canvas sends, in tokens.',
       'The ✦ glyph for “in context”. The chip uses the pin, the same mark as on cards and boards.',
       'The per-drawing wording on Context, NearPin and BoardPins: this chip is the one look.'
     ];
     var data = [
-      'Brief size in UTF-16 characters against its budget (16,000 by default), and whether the last brief was clipped. Shown as ≈ tokens.',
+      'The cost of what the canvas sends the agent, shown as ≈ tokens. When the host reports it, the attached agent’s whole-context count — a plain number, no window total or %.',
       'Per pinned board: read Xm ago / not read yet (exists). No full / summary state: every pinned board travels as a map.',
       'Per card: read Xm ago / not read yet / changed since read (exists).',
       'Who pinned each card and board (exists): agent pins get the violet dot.'
     ];
     var rules = [
-      'Blue: in context. Violet: the agent did it (read, pinned). Amber: needs a look — a card changed since the agent read it, or the brief was clipped.',
+      'Blue: in context. Violet: the agent did it (read, pinned). Amber: needs a look — a card changed since the agent read it.',
       'Near has no ×: it follows its pin. “Pin” promotes a near card to a real pin.',
       'Boards keep a slot after the name for review due (plan 017); not drawn until it is built.',
       'Esc or clicking away closes the panel; keyboard: the chip is a button, rows are a list.'
