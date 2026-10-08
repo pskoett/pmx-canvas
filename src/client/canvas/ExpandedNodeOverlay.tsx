@@ -1,4 +1,5 @@
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
+import { BarHint } from './BarHint';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { DiffNode } from '../nodes/DiffNode';
@@ -293,46 +294,46 @@ export function ExpandedNodeOverlay() {
           </span>
           <span class="expanded-title">{title}</span>
           <span class="expanded-kind-pill">{TYPE_LABELS[node.type]}</span>
-          <button
-            type="button"
-            class={`expanded-pin${isCtxPinned ? ' is-on' : ''}`}
-            onClick={handleToggleCtxPin}
-            title={isCtxPinned ? 'In agent context — click to unpin' : 'Pin as agent context'}
-            aria-pressed={isCtxPinned}
-          >
-            ✦
-          </button>
+          <BarHint label={isCtxPinned ? 'In agent context — click to unpin' : 'Pin as agent context'}>
+            <button
+              type="button"
+              class={`expanded-pin${isCtxPinned ? ' is-on' : ''}`}
+              onClick={handleToggleCtxPin}
+              aria-label={isCtxPinned ? 'In agent context — click to unpin' : 'Pin as agent context'}
+              aria-pressed={isCtxPinned}
+            >
+              ✦
+            </button>
+          </BarHint>
           <span class="expanded-spacer" />
           <div class="expanded-actions">
             {hasText && (
-              <button type="button" class="expanded-action-btn" onClick={handleCopy} title="Copy content to clipboard">
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
+              <BarHint label="Copy content to clipboard">
+                <button type="button" class="expanded-action-btn" onClick={handleCopy}>
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </BarHint>
             )}
             {canOpenAsSite(node) && (
-              <button
-                type="button"
-                class="expanded-action-btn"
-                onClick={() => void openNodeAsSite(node)}
-                title="Open as a full-page site in the system browser"
-              >
-                Open in tab <IconExternalLink size={14} />
-              </button>
+              <BarHint label="Open as a full-page site in the system browser">
+                <button type="button" class="expanded-action-btn" onClick={() => void openNodeAsSite(node)}>
+                  Open in tab <IconExternalLink size={14} />
+                </button>
+              </BarHint>
             )}
             {canPresent && (
-              <button
-                type="button"
-                class="expanded-action-btn expanded-action-primary"
-                onClick={handlePresent}
-                title="Present this HTML node fullscreen"
-              >
-                Present
-              </button>
+              <BarHint label="Present this HTML node fullscreen">
+                <button type="button" class="expanded-action-btn expanded-action-primary" onClick={handlePresent}>
+                  Present
+                </button>
+              </BarHint>
             )}
           </div>
-          <button type="button" class="expanded-close" onClick={handleClose} title="Close (Esc)" aria-label="Close">
-            <IconClose />
-          </button>
+          <BarHint label="Close" shortcut="Esc" align="end">
+            <button type="button" class="expanded-close" onClick={handleClose} aria-label="Close">
+              <IconClose />
+            </button>
+          </BarHint>
         </div>
 
         {/* Body: the surface at full size */}
@@ -380,7 +381,6 @@ export function ExpandedNodeOverlay() {
               type="button"
               class="html-presentation-exit"
               onClick={handleExitPresentation}
-              title="Exit presentation (Esc)"
               aria-label="Exit presentation"
             >
               Exit presentation

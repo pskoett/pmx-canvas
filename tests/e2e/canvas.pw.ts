@@ -1312,14 +1312,14 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   await expect(htmlNode.locator('iframe')).not.toHaveAttribute('sandbox', /allow-same-origin/);
   await expect(htmlNode.frameLocator('iframe').getByText('HTML render sentinel')).toBeVisible();
 
-  await htmlNode.getByTitle('Expand (focus mode)').click();
+  await htmlNode.getByLabel('Expand (focus mode)').click();
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
   await expect(overlay.getByRole('button', { name: 'Present' })).toHaveCount(0);
   await expect(overlay.getByRole('button', { name: 'Open in tab', exact: true })).toHaveCount(1);
   await expect(overlay.getByRole('button', { name: 'Open in system browser' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('expanded-control-icons.png') });
-  await page.getByTitle('Close (Esc)').click();
+  await page.locator('.expanded-close').click();
 });
 
 test('opens an html node as a standalone site with the current theme', async ({ page, context, request }) => {
@@ -1348,7 +1348,7 @@ test('opens an html node as a standalone site with the current theme', async ({ 
   await htmlNode.getByRole('button', { name: 'More actions' }).click();
   const openButton = page.locator('.context-menu-item').filter({ hasText: 'Open in new tab' });
   await expect(openButton).toHaveCount(1);
-  await expect(htmlNode.getByTitle('Open in system browser')).toHaveCount(0);
+  await expect(htmlNode.getByLabel('Open in system browser')).toHaveCount(0);
 
   // Contract (0.4.2 semantics): "Open as site" FIRST asks the server to open
   // the user's system browser via /api/canvas/open-external. This suite runs
@@ -1598,7 +1598,7 @@ test('#64: status nodes expose the standard remove (×) control', async ({ page,
   await expect(node).toHaveCount(1);
 
   await node.hover();
-  const closeBtn = node.locator('.node-titlebar').getByTitle('Close');
+  const closeBtn = node.locator('.node-titlebar').getByLabel('Close', { exact: true });
   await expect(closeBtn).toBeVisible();
   await closeBtn.click();
   await expect(node).toHaveCount(0);
@@ -2347,7 +2347,7 @@ test('file node evidence control records AX evidence', async ({ page, request })
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'evidence-file.ts' });
   await expect(node).toHaveCount(1);
-  await node.getByTitle('Mark this file as AX evidence').click();
+  await node.getByLabel('Mark this file as AX evidence').click();
 
   await expect
     .poll(async () => {
@@ -2432,7 +2432,7 @@ test('presentation mode focuses iframe keyboard navigation and hides review hint
   await page.goto('/workbench');
   const deckNode = page.locator('.canvas-node').filter({ hasText: 'Keyboard Deck' });
   await expect(deckNode).toHaveCount(1);
-  await deckNode.getByTitle('Expand (focus mode)').click();
+  await deckNode.getByLabel('Expand (focus mode)').click();
 
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay.frameLocator('iframe').getByText('Arrow keys, Space, Page Up/Down')).toBeVisible();
@@ -2580,7 +2580,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
 
   // Collapse back to inline before the reload so the post-reload assertion
   // exercises the inline iframe (count persisted via appModelContext).
-  await expandedPanel.getByTitle('Close (Esc)').click();
+  await expandedPanel.locator('.expanded-close').click();
   await expect(expandedPanel).toHaveCount(0);
   const inlineFill = await appNode.evaluate((node) => {
     const iframe = node.querySelector('iframe');
@@ -2758,7 +2758,7 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (attempt > 1) {
         await panel
-          .getByTitle('Close (Esc)')
+          .locator('.expanded-close')
           .click({ timeout: 2_000 })
           .catch(() => {});
       }
@@ -2812,7 +2812,7 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
     )
     .toBe('Saved manual edit');
 
-  await panel.getByTitle('Close (Esc)').click();
+  await panel.locator('.expanded-close').click();
   // The same handshake race can hit the reopened iframe, so use the retry
   // helper here too.
   await openFullscreenEditor();
@@ -2892,7 +2892,7 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
   // EXPANDED view: ticking works there too (the property must reach the
   // serialized attribute), and Esc-closing the focused editor must NOT wipe
   // the document via a detached-blur save.
-  await card.getByTitle('Expand (focus mode)').click();
+  await card.getByLabel('Expand (focus mode)').click();
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
   const expandedBox = overlay.locator('.md-reader-content input[type="checkbox"]').nth(1);
@@ -3231,9 +3231,9 @@ test('graph nodes content-fit to a stable size across expand and close', async (
   await expect.poll(async () => (await graphNode.boundingBox())?.width).toBeCloseTo(480, 0);
   await expect.poll(async () => (await graphNode.boundingBox())?.height).toBeCloseTo(fit.height, 0);
 
-  await graphNode.getByTitle('Expand (focus mode)').click();
+  await graphNode.getByLabel('Expand (focus mode)').click();
   await expect(page.locator('.expanded-overlay-panel')).toBeVisible();
-  await page.getByTitle('Close (Esc)').click();
+  await page.locator('.expanded-close').click();
   await expect(page.locator('.expanded-overlay-panel')).toHaveCount(0);
 
   // Returns to the same content-fit size — stable, no drift on re-fit (grow-only +
@@ -3277,7 +3277,7 @@ test('expanded graph nodes stretch chart content to the overlay frame', async ({
 
   const graphNode = page.locator('.canvas-node').filter({ hasText: 'Expanded graph fill guard' });
   await expect(graphNode).toHaveCount(1);
-  await graphNode.getByTitle('Expand (focus mode)').click();
+  await graphNode.getByLabel('Expand (focus mode)').click();
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
 
@@ -3528,7 +3528,7 @@ test('header controls stay under the pointer when hover actions appear', async (
     const card = page.locator(`[data-node-id="${id}"]`);
     const pin = card.getByRole('button', { name: 'Add to context', exact: true });
     const more = card.getByRole('button', { name: 'More actions', exact: true });
-    const close = card.getByTitle('Close', { exact: true });
+    const close = card.getByLabel('Close', { exact: true });
     await expect(pin).toBeVisible();
     await expect(more).toBeHidden();
     await expect(close).toBeHidden();
@@ -3582,7 +3582,7 @@ test('zoomed-out node chrome keeps usable action hit targets', async ({ page, re
     return buttons.map((button) => {
       const rect = button.getBoundingClientRect();
       return {
-        title: button.getAttribute('title'),
+        title: button.getAttribute('aria-label'),
         width: rect.width,
         height: rect.height,
       };
@@ -3960,7 +3960,7 @@ test('server-side focus updates the browser viewport', async ({ page, request })
   await expect(page.locator('.canvas-node').filter({ hasText: 'Focus me' })).toHaveCount(1);
   await request.post('/api/canvas/ax/presence', { data: { source: 'focus-test', attached: true } });
   await expect(page.locator('.session-panel')).toBeVisible();
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await expect(page.locator('.minimap')).toBeVisible();
   await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
 
@@ -4733,7 +4733,7 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
     .toBe(true);
 
   await expect(panel).toHaveClass(/is-collapsed/);
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   // Below 1180px the panel becomes a fixed drawer and the canvas reclaims its width.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect.poll(async () => panel.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
@@ -4774,7 +4774,7 @@ test('unattended approval: countdown, auto-hold with a policy entry, reopen from
   // A held gate no longer forces the list open (it pinned the panel
   // un-collapsible) — open it to reach the held row and its Reopen.
   await expect(page.locator('.gate-badge')).toHaveCount(0, { timeout: 8000 });
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await page.locator('[data-testid="work-items-toggle"]').click();
   await expect(panel.locator('.session-gate-held').filter({ hasText: 'Delete old branches' })).toHaveCount(1, {
     timeout: 8000,
@@ -4815,7 +4815,7 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
 
   await page.goto('/workbench');
   const panel = page.locator('.session-panel');
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await expect(panel.locator('[data-testid="session-scope"]')).toContainText('Unscoped');
   await expect(page.locator('.scope-fence')).toHaveCount(0);
 
@@ -4944,7 +4944,7 @@ test('addressed steering: the composer lists connected agents, the picked one al
   await request.get('/api/canvas/ax/delivery/pending?consumer=codex');
 
   await page.goto('/workbench');
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await page.getByRole('button', { name: 'Steer which agent' }).click();
   const picker = page.getByRole('menu', { name: 'Steer which agent' });
   await expect(picker).toBeVisible();
@@ -5123,7 +5123,7 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(start).toHaveCount(0);
   await expect(page.locator('.session-panel')).toBeVisible();
   await expect(page.locator('.session-panel')).toHaveClass(/is-collapsed/);
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await expect(page.locator('.agent-chip .agent-chip-who')).toHaveText('Agent session');
   // The command bar carries the pins as chips; the context chip stays in the top bar.
   await expect(page.getByTestId('context-chip')).toContainText('1 card');
@@ -5223,7 +5223,7 @@ test('shared undo: the panel undoes the agent’s latest edit and tells it; Ctrl
   await expect(page.locator('.session-panel')).toBeVisible();
 
   // The agent writes: the timeline shows it as an Update with the undo affordance.
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Agent draft', content: 'draft', x: 520, y: 120, width: 300, height: 160 },
   });
@@ -5653,7 +5653,10 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
     .filter({ hasText: 'Second note' })
     .click({ position: { x: 80, y: 80 }, modifiers: ['Shift'] });
   await page.keyboard.press('g');
-  const made = page.locator('.canvas-node.group-node').filter({ hasText: 'Group' }).first();
+  const made = page
+    .locator('.canvas-node.group-node')
+    .filter({ has: page.locator('.group-name', { hasText: /^Group$/ }) })
+    .first();
   await expect(made.locator('.group-count')).toHaveText('2');
   expect(second.id).toBeTruthy();
 

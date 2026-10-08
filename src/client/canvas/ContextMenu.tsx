@@ -285,7 +285,6 @@ function renderGroupColorSection(node: CanvasNodeState, onClose: () => void): Co
               type="button"
               class={`context-menu-color-swatch${active ? ' active' : ''}`}
               aria-label={`Set group color to ${preset.label}`}
-              title={preset.label}
               style={{ '--swatch-color': preset.value }}
               onClick={() => {
                 applyGroupColor(node, preset.value);

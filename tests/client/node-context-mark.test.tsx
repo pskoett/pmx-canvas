@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
-import { NearPinMark, NodeContextMark, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
+import { NearPinMark, NodeContextMark, NodeTypeIcon, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
 import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
 import { nearPins } from '../../src/client/state/near-pin-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
@@ -78,19 +78,67 @@ describe('pinned nodes: read, not read, changed since read', () => {
   });
 });
 
-describe('unpinned nodes: the agent byline until a person edits', () => {
-  test('created by an agent reads "by <agent>"; a person edit ends it', () => {
-    expect(markOf({ node: node({ createdBy: agent, lastEditedBy: agent }), pinned: false })).toBe('by claude');
+// docs/design/HeaderMarks.dc.html: authorship is not state. The byline never
+// takes a chip; it is a violet sparkle on the type icon, its words in the hint.
+function iconOf(target: CanvasNodeState, fold: 'word' | 'glyph' | 'hidden' = 'word', pinned = false) {
+  const { container } = render(
+    <NodeTypeIcon node={target} pinned={pinned} title="Release plan" fold={fold}>
+      <svg />
+    </NodeTypeIcon>,
+  );
+  const result = {
+    spark: !!container.querySelector('.node-type-spark'),
+    hint: container.querySelector('.toolbar-tooltip')?.textContent ?? '',
+  };
+  cleanup();
+  return result;
+}
+
+describe('the agent byline: a sparkle on the type icon until a person edits', () => {
+  test('written by an agent: sparkle, "Written by <agent>" in the icon hint, and never a chip', () => {
+    const written = node({ createdBy: agent, lastEditedBy: agent });
+    expect(iconOf(written)).toEqual({ spark: true, hint: 'Release plan✦ Written by claude · MD' });
+    expect(markOf({ node: written, pinned: false })).toBeNull();
+    expect(iconOf(node({ createdBy: agent, lastEditedBy: human })).spark).toBe(false);
+  });
+
+  test('a person-made node an agent edited says "Edited by <agent>"; person-only has no sparkle', () => {
+    expect(iconOf(node({ createdBy: human, lastEditedBy: agent })).hint).toContain('✦ Edited by claude');
+    expect(iconOf(node({ createdBy: human, lastEditedBy: human })).spark).toBe(false);
+  });
+
+  test('pinned and written by an agent: the sparkle stays beside the read chip', () => {
+    applyContextStatus({ pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } } });
+    expect(iconOf(node({ createdBy: agent, lastEditedBy: agent }), 'word', true).spark).toBe(true);
+  });
+});
+
+describe('folding a chip so the title keeps its room', () => {
+  test('glyph keeps only the icon; hidden moves the words into the type icon hint', () => {
+    applyContextStatus({ pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } } });
+    const { container } = render(<NodeContextMark node={node()} pinned fold="glyph" />);
+    const chip = container.querySelector('.node-context-mark') as HTMLElement;
+    expect(chip.className).toContain('is-glyph');
+    expect(chip.getAttribute('aria-label')).toBe('not read');
+    expect(chip.textContent).toBe('');
+    expect(chip.querySelector('svg')).toBeTruthy();
     cleanup();
-    expect(markOf({ node: node({ createdBy: agent, lastEditedBy: human }), pinned: false })).toBeNull();
+    expect(markOf({ node: node(), pinned: true })).toBe('not read');
+    const hidden = render(<NodeContextMark node={node()} pinned fold="hidden" />);
+    expect(hidden.container.querySelector('.node-context-mark')).toBeNull();
+    cleanup();
+    expect(iconOf(node(), 'hidden', true).hint).toContain('Not read yet');
   });
 
-  test('a person-made node an agent edited reads "edited"', () => {
-    expect(markOf({ node: node({ createdBy: human, lastEditedBy: agent }), pinned: false })).toBe('edited');
-  });
-
-  test('a person-made, person-edited node has no mark', () => {
-    expect(markOf({ node: node({ createdBy: human, lastEditedBy: human }), pinned: false })).toBeNull();
+  test('amber "changed since read" never folds', () => {
+    applyContextStatus({
+      nodes: [
+        { nodeId: 'n1', lastReadAt: '2026-10-05T10:05:00.000Z', lastReadBy: 'claude', readRevision: 5, readCount: 1 },
+      ],
+      pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } },
+    });
+    const { container } = render(<NodeContextMark node={node({ contentRevision: 6 })} pinned fold="hidden" />);
+    expect(container.querySelector('.node-context-mark')?.textContent).toBe('changed since read');
   });
 });
 

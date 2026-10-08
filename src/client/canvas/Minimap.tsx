@@ -175,7 +175,7 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
       ref={mapRef}
       class="minimap"
       data-testid="minimap"
-      title="Click to jump · drag the frame to pan"
+      aria-label="Minimap — click to jump, drag the frame to pan"
       onPointerDown={handlePointerDown}
     >
       {Array.from(nodeMap.values()).map((node) => {

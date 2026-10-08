@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { BarHint } from '../canvas/BarHint';
 import { IconPlusCircle, IconRefresh } from '../icons';
 import { delimiterForPath, parseDelimitedText } from '../../shared/delimited-text';
 import { updateNodeData } from '../state/canvas-store';
@@ -243,7 +244,6 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
             whiteSpace: 'nowrap',
             flex: 1,
           }}
-          title={filePath}
         >
           {filePath}
         </span>
@@ -255,47 +255,51 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
             {new Date(updatedAt).toLocaleTimeString()}
           </span>
         )}
-        <button
-          type="button"
-          class="ax-node-action"
-          title="Mark this file as AX evidence"
-          onClick={(e) => {
-            e.stopPropagation();
-            void runNodeAxInteraction(
-              node,
-              'ax.evidence.add',
-              { kind: 'file', title: filePath.split('/').pop() || filePath, ref: filePath },
-              'Marked as evidence',
-            );
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--c-muted)',
-            cursor: 'pointer',
-            padding: '2px 4px',
-            fontSize: '12px',
-            flexShrink: 0,
-          }}
-        >
-          <IconPlusCircle size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={handleReload}
-          title="Reload file"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--c-muted)',
-            cursor: 'pointer',
-            padding: '2px 4px',
-            fontSize: '12px',
-            flexShrink: 0,
-          }}
-        >
-          <IconRefresh size={14} />
-        </button>
+        <BarHint label="Mark this file as AX evidence" align="end" fitWithin=".node-content">
+          <button
+            type="button"
+            class="ax-node-action"
+            aria-label="Mark this file as AX evidence"
+            onClick={(e) => {
+              e.stopPropagation();
+              void runNodeAxInteraction(
+                node,
+                'ax.evidence.add',
+                { kind: 'file', title: filePath.split('/').pop() || filePath, ref: filePath },
+                'Marked as evidence',
+              );
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--c-muted)',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              fontSize: '12px',
+              flexShrink: 0,
+            }}
+          >
+            <IconPlusCircle size={14} />
+          </button>
+        </BarHint>
+        <BarHint label="Reload file" align="end" fitWithin=".node-content">
+          <button
+            type="button"
+            onClick={handleReload}
+            aria-label="Reload file"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--c-muted)',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              fontSize: '12px',
+              flexShrink: 0,
+            }}
+          >
+            <IconRefresh size={14} />
+          </button>
+        </BarHint>
       </div>
 
       {/* Content area */}

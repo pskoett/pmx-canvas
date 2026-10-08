@@ -125,16 +125,16 @@ describe('session panel disclosure', () => {
         ],
       };
     });
-    const { container, getByTitle, getByRole } = render(<SessionPanel />);
-    fireEvent.click(getByTitle('Expand session panel'));
+    const { container, getByLabelText, getByRole } = render(<SessionPanel />);
+    fireEvent.click(getByLabelText('Expand session panel'));
     fireEvent.click(getByRole('button', { name: /Work items/i }));
     expect(container.querySelector('[data-gate-id="gate-1"]')?.textContent).toContain('Self-approved by reviewer');
     expect(container.textContent).not.toContain('No work items yet');
   });
 
   test('preserves a panel the user opened after gates settle', () => {
-    const { container, getByTitle } = render(<SessionPanel />);
-    fireEvent.click(getByTitle('Expand session panel'));
+    const { container, getByLabelText } = render(<SessionPanel />);
+    fireEvent.click(getByLabelText('Expand session panel'));
     expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(false);
 
     act(() => {
@@ -145,7 +145,7 @@ describe('session panel disclosure', () => {
     });
     expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(false);
 
-    fireEvent.click(getByTitle('Collapse session panel'));
+    fireEvent.click(getByLabelText('Collapse session panel'));
     expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(true);
   });
 });

@@ -120,7 +120,6 @@ function AgentChip() {
                   type="button"
                   class="agent-chip-end"
                   aria-label={`End ${session.label} session`}
-                  title={`End ${session.label}'s session`}
                   onClick={(e) => {
                     // The chip sits inside a tap-to-open hint — ending a session
                     // must not also open it.

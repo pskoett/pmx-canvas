@@ -107,7 +107,7 @@ test('board switching refreshes approval labels and discards stale approval read
   }
   await page.goto('/workbench');
   await page.getByRole('button', { name: 'Start agent session', exact: true }).click();
-  await page.getByTitle('Expand session panel').click();
+  await page.getByLabel('Expand session panel').click();
   await page.getByRole('button', { name: /Work items/i }).click();
   const list = page.getByRole('list', { name: 'Work items and gates' });
   await expect(list).toContainText('Approvals B');

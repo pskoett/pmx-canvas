@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { BarHint } from './BarHint';
 import { IconSteer, IconClose } from '../icons';
 import { contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
 import { steerableAgents } from '../state/presence-store';
@@ -62,18 +63,17 @@ export function CommandBar() {
                 <span class="command-bar-chip-glyph" aria-hidden="true">
                   ✦
                 </span>
-                <span class="command-bar-chip-label" title={title}>
-                  {title}
-                </span>
-                <button
-                  type="button"
-                  class="command-bar-chip-unpin"
-                  aria-label={`Unpin ${title}`}
-                  title="Remove from context"
-                  onClick={() => toggleContextPin(id)}
-                >
-                  <IconClose size={14} />
-                </button>
+                <span class="command-bar-chip-label">{title}</span>
+                <BarHint label="Remove from context" side="up">
+                  <button
+                    type="button"
+                    class="command-bar-chip-unpin"
+                    aria-label={`Unpin ${title}`}
+                    onClick={() => toggleContextPin(id)}
+                  >
+                    <IconClose size={14} />
+                  </button>
+                </BarHint>
               </span>
             );
           })}

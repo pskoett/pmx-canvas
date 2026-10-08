@@ -1,4 +1,5 @@
 import { useEffect } from 'preact/hooks';
+import { BarHint } from './BarHint';
 import { nodes } from '../state/canvas-store';
 import { hoveredIntentId, intents, removeIntent, type ClientIntent } from '../state/intent-store';
 import { vetoGhostIntent } from '../state/intent-bridge';
@@ -92,18 +93,19 @@ function GhostInfo({ intent }: { intent: ClientIntent }) {
         <span class="intent-chip-label">{label}</span>
         {confidencePct && <span class="intent-confidence">{confidencePct}</span>}
         {intent.phase === 'forming' && !intent.auto && (
-          <button
-            type="button"
-            class="intent-veto"
-            title="Veto this move (Esc)"
-            aria-label="Veto this move"
-            onClick={(e) => {
-              e.stopPropagation();
-              void vetoGhostIntent(intent);
-            }}
-          >
-            <IconClose size={14} />
-          </button>
+          <BarHint label="Veto this move" shortcut="Esc">
+            <button
+              type="button"
+              class="intent-veto"
+              aria-label="Veto this move"
+              onClick={(e) => {
+                e.stopPropagation();
+                void vetoGhostIntent(intent);
+              }}
+            >
+              <IconClose size={14} />
+            </button>
+          </BarHint>
         )}
       </div>
       {intent.reason && <div class="intent-reason">{intent.reason}</div>}

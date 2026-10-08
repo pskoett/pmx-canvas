@@ -1,4 +1,5 @@
 import type { RefObject } from 'preact';
+import { BarHint } from '../canvas/BarHint';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { modChord } from '../utils/platform';
 import { promptAndInsertLink, wrapSelectionInCode } from './inline-editor-commands';
@@ -136,15 +137,11 @@ export function InlineFormatBar({ hostRef, onChange }: { hostRef: RefObject<HTML
     >
       {ACTIONS.flatMap((a, i) => {
         const btn = (
-          <button
-            key={`btn-${i}`}
-            type="button"
-            class="md-inline-format-btn"
-            title={a.title}
-            onClick={() => handleClick(a)}
-          >
-            {a.icon}
-          </button>
+          <BarHint key={`btn-${i}`} label={a.title}>
+            <button type="button" class="md-inline-format-btn" aria-label={a.title} onClick={() => handleClick(a)}>
+              {a.icon}
+            </button>
+          </BarHint>
         );
         return a.dividerBefore ? [<span key={`div-${i}`} class="md-inline-format-divider" />, btn] : [btn];
       })}

@@ -142,7 +142,7 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
           <span class="image-node-meta">
             {sizeLabel && <span>{sizeLabel}</span>}
             {zoom !== 1 && (
-              <button type="button" class="image-node-zoom-reset" onClick={resetView} title="Reset zoom">
+              <button type="button" class="image-node-zoom-reset" onClick={resetView} aria-label="Reset zoom">
                 {zoomPct}% <IconRefresh size={14} />
               </button>
             )}

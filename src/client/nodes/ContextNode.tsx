@@ -1,4 +1,5 @@
 import { openWorkbenchFile } from '../state/intent-bridge';
+import { BarHint } from '../canvas/BarHint';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { axNodeActionButtonStyle, runNodeAxInteraction } from './ax-node-actions';
 
@@ -172,18 +173,24 @@ export function ContextNode({
     >
       {/* AX: focus the agent on this context node */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          type="button"
-          class="ax-node-action"
-          title="Point the agent at this node — sets it as the agent's current AX focus so the agent pulls it into context to work on next (a one-click alternative to manually pinning)."
-          style={axNodeActionButtonStyle}
-          onClick={(e) => {
-            e.stopPropagation();
-            void runNodeAxInteraction(node, 'ax.focus.set', undefined, 'Focus set');
-          }}
+        <BarHint
+          label="Point the agent at this node"
+          body="Sets it as the agent's current AX focus, so the agent pulls it into context to work on next — a one-click alternative to pinning."
+          align="end"
+          fitWithin=".node-content"
         >
-          Set focus
-        </button>
+          <button
+            type="button"
+            class="ax-node-action"
+            style={axNodeActionButtonStyle}
+            onClick={(e) => {
+              e.stopPropagation();
+              void runNodeAxInteraction(node, 'ax.focus.set', undefined, 'Focus set');
+            }}
+          >
+            Set focus
+          </button>
+        </BarHint>
       </div>
 
       {tokenLimit !== null && tokenLimit > 0 && (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { BarHint } from './BarHint';
 import { IconChevronRight, IconUndo } from '../icons';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
@@ -18,7 +19,6 @@ import {
   setScopeFence,
   sessionWorkItems,
   type TimelineEntry,
-  timelineCategory,
   type TimelineEntryKind,
   type TimelineFilter,
   timelineEntries,
@@ -101,13 +101,7 @@ function WorkItemRow({ item }: { item: WorkItemView }) {
     <li class={`session-item status-${glyph}`} data-work-item-id={item.id}>
       <span class="session-glyph" aria-hidden="true" />
       <div class="session-item-main">
-        <button
-          type="button"
-          class="session-item-title"
-          title={nodeId ? 'Focus the linked node' : undefined}
-          disabled={!nodeId}
-          onClick={() => nodeId && focusNode(nodeId)}
-        >
+        <button type="button" class="session-item-title" disabled={!nodeId} onClick={() => nodeId && focusNode(nodeId)}>
           {item.title}
         </button>
         {item.detail && <div class="session-item-detail">{item.detail}</div>}
@@ -131,13 +125,7 @@ function GateRow({ gate, now }: { gate: ApprovalGateView; now: number }) {
     <li class="session-item status-awaiting session-gate" data-gate-id={gate.id}>
       <span class="session-glyph" aria-hidden="true" />
       <div class="session-item-main">
-        <button
-          type="button"
-          class="session-item-title"
-          title={nodeId ? 'Focus the linked node' : undefined}
-          disabled={!nodeId}
-          onClick={() => nodeId && focusNode(nodeId)}
-        >
+        <button type="button" class="session-item-title" disabled={!nodeId} onClick={() => nodeId && focusNode(nodeId)}>
           {gate.title}
         </button>
         {gate.detail && <div class="session-item-detail">{gate.detail}</div>}
@@ -248,15 +236,19 @@ function ScopeRow() {
       ) : (
         <>
           <span class="session-scope-text">Unscoped — the agent may write anywhere</span>
-          <button
-            type="button"
-            class="session-scope-action"
-            disabled={busy || selected === 0}
-            title={selected === 0 ? 'Select nodes on the canvas first' : 'Fence the agent to the selected nodes'}
-            onClick={() => apply([...selectedNodeIds.value])}
+          <BarHint
+            label={selected === 0 ? 'Select nodes on the canvas first' : 'Fence the agent to the selected nodes'}
+            align="end"
           >
-            Fence to selection{selected > 0 ? ` (${selected})` : ''}
-          </button>
+            <button
+              type="button"
+              class="session-scope-action"
+              disabled={busy || selected === 0}
+              onClick={() => apply([...selectedNodeIds.value])}
+            >
+              Fence to selection{selected > 0 ? ` (${selected})` : ''}
+            </button>
+          </BarHint>
         </>
       )}
     </div>
@@ -277,9 +269,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
       <span class="session-timeline-dot" aria-hidden="true" />
       <div class="session-timeline-main">
         <div class="session-timeline-head">
-          <span class="session-timeline-label" title={TIMELINE_FILTER_HINTS[timelineCategory(entry.kind)]}>
-            {entry.label}
-          </span>
+          <span class="session-timeline-label">{entry.label}</span>
           {/* With several assistants on one board, "Assistant · 23:11" answers
               nothing — every row names its writer. */}
           {entry.who && (
@@ -340,14 +330,13 @@ export function SessionPanel() {
           type="button"
           class="session-collapse"
           onClick={() => setManuallyOpened(true)}
-          title="Expand session panel"
+          aria-label="Expand session panel"
         >
           ‹
         </button>
         {session && (
           <span
             class={`session-collapsed-live phase-${session.phase}`}
-            title={agentPhaseLabel(session)}
             aria-label={`Session live: ${agentPhaseLabel(session)}`}
           >
             <span class="session-live-dot" aria-hidden="true" />
@@ -364,27 +353,25 @@ export function SessionPanel() {
       <header class="session-panel-header">
         <span class="session-panel-title">Session</span>
         {session && (
-          <span class={`session-live phase-${session.phase}`} title={agentPhaseLabel(session)}>
-            <span class="session-live-dot" aria-hidden="true" />
-            live
-          </span>
+          <BarHint label={agentPhaseLabel(session)} tapToOpen>
+            <span class={`session-live phase-${session.phase}`}>
+              <span class="session-live-dot" aria-hidden="true" />
+              live
+            </span>
+          </BarHint>
         )}
         <span class="top-bar-spacer" />
         {session && (
-          <button
-            type="button"
-            class="session-end"
-            title="End this session — a receipt and a snapshot of the board follow"
-            onClick={() => void endSession(session)}
-          >
-            End
-          </button>
+          <BarHint label="End this session" body="A receipt and a snapshot of the board follow." align="end">
+            <button type="button" class="session-end" onClick={() => void endSession(session)}>
+              End
+            </button>
+          </BarHint>
         )}
         <button
           type="button"
           class="session-collapse"
           onClick={() => setManuallyOpened(false)}
-          title="Collapse session panel"
           aria-label="Collapse session panel"
         >
           <IconChevronRight />
@@ -401,9 +388,7 @@ export function SessionPanel() {
         if (!undoable) return null;
         return (
           <div class="session-undo-row" data-testid="session-undo-row">
-            <span class="session-undo-text" title={undoable.body}>
-              Agent edit on top: {undoable.body}
-            </span>
+            <span class="session-undo-text">Agent edit on top: {undoable.body}</span>
             <button type="button" class="session-undo-btn" onClick={() => void undoAgentEdit(undoable)}>
               <IconUndo size={14} /> Undo
             </button>
@@ -490,7 +475,6 @@ export function SessionPanel() {
                 type="button"
                 class={`activity-filter${timelineFilter.value === chip.id ? ' is-active' : ''}`}
                 aria-pressed={timelineFilter.value === chip.id}
-                title={chip.hint}
                 onMouseEnter={() => setHoveredFilter(chip.id)}
                 onMouseLeave={() => setHoveredFilter((current) => (current === chip.id ? null : current))}
                 onFocus={() => setHoveredFilter(chip.id)}

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'preact/hooks';
+import { BarHint } from './BarHint';
 import { IconClose, IconExternalLink } from '../icons';
 import type { AgentPresence } from '../../shared/agent-presence.js';
 import { vetoGhostIntent } from '../state/intent-bridge';
@@ -51,27 +52,32 @@ export function ExternalWriterIndicator() {
   const label = writers.length === 1 ? writers[0]!.label : `${writers.length} writers`;
   const open = activityFeedOpen.value;
   return (
-    <button
-      type="button"
-      class="external-indicator"
-      data-testid="external-indicator"
-      aria-expanded={open}
-      title={`${writers.length} external writer${writers.length === 1 ? '' : 's'} on this board — click for activity`}
-      onClick={() => {
-        activityFeedOpen.value = !open;
-      }}
+    <BarHint
+      label={`${writers.length} external writer${writers.length === 1 ? '' : 's'} on this board`}
+      body="Click for their activity."
+      align="end"
     >
-      <span class="external-indicator-avatars">
-        {writers.slice(0, 3).map((writer) => (
-          <Avatar key={writer.sessionId} presence={writer} />
-        ))}
-      </span>
-      <span class="external-indicator-label">{label}</span>
-      <span class="external-indicator-ops hud-collapsible-text">
-        {ops} op{ops === 1 ? '' : 's'}
-      </span>
-      <span class="external-indicator-dot" aria-hidden="true" />
-    </button>
+      <button
+        type="button"
+        class="external-indicator"
+        data-testid="external-indicator"
+        aria-expanded={open}
+        onClick={() => {
+          activityFeedOpen.value = !open;
+        }}
+      >
+        <span class="external-indicator-avatars">
+          {writers.slice(0, 3).map((writer) => (
+            <Avatar key={writer.sessionId} presence={writer} />
+          ))}
+        </span>
+        <span class="external-indicator-label">{label}</span>
+        <span class="external-indicator-ops hud-collapsible-text">
+          {ops} op{ops === 1 ? '' : 's'}
+        </span>
+        <span class="external-indicator-dot" aria-hidden="true" />
+      </button>
+    </BarHint>
   );
 }
 

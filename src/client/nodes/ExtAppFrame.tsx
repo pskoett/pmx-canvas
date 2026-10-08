@@ -1576,7 +1576,6 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
               expandNode(nodeId);
             }}
             class="ext-app-preview-catcher"
-            title="Click to open"
             style={{
               position: 'absolute',
               top: 0,

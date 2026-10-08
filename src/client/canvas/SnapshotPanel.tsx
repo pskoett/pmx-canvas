@@ -1,4 +1,5 @@
 import { timeAgo } from '../utils/time-ago';
+import { BarHint } from './BarHint';
 import { isHostedWorkbench } from '../state/workbench-transport';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
@@ -141,7 +142,6 @@ export function SnapshotPanel({
           type="button"
           class={`snapshot-action-btn ${confirming.action === 'delete' ? 'snapshot-action-confirm' : 'snapshot-action-restore'}`}
           onClick={() => (confirming.action === 'delete' ? handleDelete(snap.id) : handleRestore(snap.id))}
-          title={confirming.action === 'delete' ? 'Confirm delete' : 'Confirm restore'}
           disabled={restoringId !== null}
         >
           {confirming.action === 'delete' ? 'Delete' : restoringId === snap.id ? 'Restoring…' : 'Confirm'}
@@ -150,7 +150,6 @@ export function SnapshotPanel({
           type="button"
           class="snapshot-action-btn"
           onClick={() => setConfirming(null)}
-          title="Cancel"
           disabled={restoringId !== null}
         >
           Cancel
@@ -158,29 +157,31 @@ export function SnapshotPanel({
       </>
     ) : (
       <>
-        <button
-          type="button"
-          class="snapshot-action-btn snapshot-action-restore"
-          onClick={() => setConfirming({ id: snap.id, action: 'restore' })}
-          title={
-            isHostedWorkbench()
-              ? 'Restore this snapshot — replaces the current canvas'
-              : 'Restore this snapshot — replaces the current canvas (undoable)'
-          }
-          disabled={restoringId !== null}
+        <BarHint
+          label="Restore this snapshot"
+          body={isHostedWorkbench() ? 'Replaces the current canvas.' : 'Replaces the current canvas (undoable).'}
+          align="end"
         >
-          {restoringId === snap.id ? 'Restoring…' : restoreLabel}
-        </button>
-        <button
-          type="button"
-          class="snapshot-action-btn snapshot-action-delete"
-          onClick={() => setConfirming({ id: snap.id, action: 'delete' })}
-          title="Delete this snapshot"
-          aria-label="Delete snapshot"
-          disabled={restoringId !== null}
-        >
-          <IconClose size={14} />
-        </button>
+          <button
+            type="button"
+            class="snapshot-action-btn snapshot-action-restore"
+            onClick={() => setConfirming({ id: snap.id, action: 'restore' })}
+            disabled={restoringId !== null}
+          >
+            {restoringId === snap.id ? 'Restoring…' : restoreLabel}
+          </button>
+        </BarHint>
+        <BarHint label="Delete this snapshot" align="end">
+          <button
+            type="button"
+            class="snapshot-action-btn snapshot-action-delete"
+            onClick={() => setConfirming({ id: snap.id, action: 'delete' })}
+            aria-label="Delete snapshot"
+            disabled={restoringId !== null}
+          >
+            <IconClose size={14} />
+          </button>
+        </BarHint>
       </>
     );
 
@@ -190,7 +191,7 @@ export function SnapshotPanel({
         <span class="snapshot-panel-title">History</span>
         <span class="snapshot-panel-sub">snapshots + sessions</span>
         <span class="snapshot-panel-spacer" />
-        <button type="button" class="snapshot-panel-close" onClick={onClose} title="Close" aria-label="Close history">
+        <button type="button" class="snapshot-panel-close" onClick={onClose} aria-label="Close history">
           <IconClose />
         </button>
       </div>

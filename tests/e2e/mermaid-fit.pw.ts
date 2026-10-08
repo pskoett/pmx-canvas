@@ -122,7 +122,7 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   const resized = await geometry(svg);
   expect(resized.height).toBeGreaterThan(small.height);
   expect(resized.bottom).toBeLessThanOrEqual(resized.viewportHeight + 1);
-  await card.getByTitle('Expand (focus mode)').click();
+  await card.getByLabel('Expand (focus mode)').click();
   const expanded = page.locator('.expanded-overlay-panel iframe').contentFrame().locator('.mermaid-diagram > svg');
   await expect(expanded).toBeVisible();
   const larger = await geometry(expanded);

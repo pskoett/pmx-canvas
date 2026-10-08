@@ -31,7 +31,6 @@ export function AttentionHistory() {
         class="attention-history-tab"
         onClick={handleOpenUpdates}
         aria-label={unread > 0 ? `Recent updates — ${unread} new` : 'Recent updates'}
-        title={unread > 0 ? `${unread} new updates since last viewed` : 'Recent updates'}
       >
         <svg
           width="14"
@@ -72,7 +71,6 @@ export function AttentionHistory() {
           class="attention-history-close"
           onClick={closeAttentionHistory}
           aria-label="Collapse changes panel"
-          title="Collapse"
         >
           <IconClose />
         </button>

@@ -691,6 +691,7 @@ body,
 }
 
 .canvas-node .node-type-icon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -698,6 +699,20 @@ body,
   height: calc(14px * var(--node-chrome-scale, 1));
   color: var(--c-muted);
   flex-shrink: 0;
+}
+/* Written by an agent (docs/design/HeaderMarks.dc.html): authorship, not state —
+   a violet sparkle on the type icon, ringed in the panel colour, never a chip. */
+.canvas-node .node-type-spark {
+  position: absolute;
+  top: calc(-5px * var(--node-chrome-scale, 1));
+  right: calc(-5px * var(--node-chrome-scale, 1));
+  width: calc(10px * var(--node-chrome-scale, 1));
+  height: calc(10px * var(--node-chrome-scale, 1));
+  fill: var(--c-agent);
+  stroke: var(--c-panel);
+  stroke-width: 3;
+  paint-order: stroke;
+  overflow: visible;
 }
 
 .canvas-node .node-type-badge {
@@ -5659,6 +5674,17 @@ html.is-node-resizing .ext-app-preview-catcher {
 .node-context-mark.is-warn {
   color: var(--c-warn);
   background: color-mix(in srgb, var(--c-warn) 14%, transparent);
+}
+
+/* Folded to its glyph when the title needs the room (HeaderMarks.dc.html): a
+   22 px round chip, the word in its hint. */
+.node-context-mark.is-glyph,
+.node-near-mark.is-glyph {
+  justify-content: center;
+  width: calc(22px * var(--node-chrome-scale, 1));
+  height: calc(22px * var(--node-chrome-scale, 1));
+  padding: 0;
+  box-sizing: border-box;
 }
 
 /* Near a pin (docs/design/NearPin.dc.html): dotted, weaker than in context. */

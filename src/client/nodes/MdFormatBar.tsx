@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { BarHint } from '../canvas/BarHint';
 import { modChord } from '../utils/platform';
 import { type FormatAction, FORMAT_ACTIONS, getSelectionRect } from './md-format';
 
@@ -83,27 +84,29 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
       onMouseDown={(e) => e.preventDefault()}
     >
       {PRIMARY_ACTIONS.map((a) => (
-        <button
-          key={a.key}
-          type="button"
-          class={`md-format-btn md-format-btn-${a.key}`}
-          title={`${a.label} (${modChord(a.shortcut!.toUpperCase())})`}
-          onClick={() => runAction(a)}
-        >
-          {a.icon}
-        </button>
+        <BarHint key={a.key} label={a.label} shortcut={modChord(a.shortcut!.toUpperCase())}>
+          <button
+            type="button"
+            class={`md-format-btn md-format-btn-${a.key}`}
+            aria-label={a.label}
+            onClick={() => runAction(a)}
+          >
+            {a.icon}
+          </button>
+        </BarHint>
       ))}
       <div class="md-format-divider" />
       {SECONDARY_ACTIONS.map((a) => (
-        <button
-          key={a.key}
-          type="button"
-          class={`md-format-btn md-format-btn-${a.key}`}
-          title={a.label}
-          onClick={() => runAction(a)}
-        >
-          {a.icon}
-        </button>
+        <BarHint key={a.key} label={a.label}>
+          <button
+            type="button"
+            class={`md-format-btn md-format-btn-${a.key}`}
+            aria-label={a.label}
+            onClick={() => runAction(a)}
+          >
+            {a.icon}
+          </button>
+        </BarHint>
       ))}
     </div>
   );

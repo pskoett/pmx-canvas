@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { BarHint } from '../canvas/BarHint';
 import { readAxFlow, readAxStep, type AxFlowStamp } from '../../shared/ax-flow.js';
 import { nodes, updateNodeData } from '../state/canvas-store';
 import { updateNodeFromClient } from '../state/intent-bridge';
@@ -121,31 +122,43 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
         {running ? `Loop running · run ${run + 1}/${maxRuns}` : `Loop idle · ${run}/${maxRuns} runs`}
       </span>
       {running ? (
-        <button
-          type="button"
-          class="ax-node-action"
-          style={activeButtonStyle}
-          title="Stop the loop now. The stop is persisted on this node, so it survives a refresh and no further step is opened."
-          onClick={(e) => {
-            e.stopPropagation();
-            void persistLoop(node, flow, { ...flow.loop, running: false });
-          }}
+        <BarHint
+          label="Stop the loop now"
+          body="The stop is persisted on this node, so it survives a refresh and no further step is opened."
+          side="up"
+          fitWithin=".node-content"
         >
-          Stop
-        </button>
+          <button
+            type="button"
+            class="ax-node-action"
+            style={activeButtonStyle}
+            onClick={(e) => {
+              e.stopPropagation();
+              void persistLoop(node, flow, { ...flow.loop, running: false });
+            }}
+          >
+            Stop
+          </button>
+        </BarHint>
       ) : (
-        <button
-          type="button"
-          class="ax-node-action"
-          style={axNodeActionButtonStyle}
-          title="Run this flow as a loop: each completed step opens the next one, and the last step starts the next run — until the run cap is reached or you press Stop."
-          onClick={(e) => {
-            e.stopPropagation();
-            void handleRun();
-          }}
+        <BarHint
+          label="Run this flow as a loop"
+          body="Each completed step opens the next one, and the last step starts the next run — until the run cap is reached or you press Stop."
+          side="up"
+          fitWithin=".node-content"
         >
-          Run loop
-        </button>
+          <button
+            type="button"
+            class="ax-node-action"
+            style={axNodeActionButtonStyle}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleRun();
+            }}
+          >
+            Run loop
+          </button>
+        </BarHint>
       )}
       <input
         class="ax-flow-steer-input"
@@ -170,18 +183,24 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
           color: 'var(--c-text)',
         }}
       />
-      <button
-        type="button"
-        class="ax-node-action"
-        style={axNodeActionButtonStyle}
-        title="Send a steering message to the agent working this flow."
-        onClick={(e) => {
-          e.stopPropagation();
-          void handleSteer();
-        }}
+      <BarHint
+        label="Send a steering message to the agent working this flow"
+        side="up"
+        align="end"
+        fitWithin=".node-content"
       >
-        Steer
-      </button>
+        <button
+          type="button"
+          class="ax-node-action"
+          style={axNodeActionButtonStyle}
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleSteer();
+          }}
+        >
+          Steer
+        </button>
+      </BarHint>
     </div>
   );
 }
@@ -199,25 +218,30 @@ export function AxStepControls({ node }: { node: CanvasNodeState }) {
           Step {step.index}/{step.total}
         </span>
         {STEP_ACTIONS.map((action) => (
-          <button
+          <BarHint
             key={action.status}
-            type="button"
-            class="ax-node-action"
-            aria-pressed={status === action.status}
-            style={status === action.status ? activeButtonStyle : axNodeActionButtonStyle}
-            title={`Set this step's work item to "${action.status}".`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void runNodeAxInteraction(
-                node,
-                'ax.work.update',
-                { id: step.workItemId, status: action.status },
-                action.toast,
-              );
-            }}
+            label={`Set this step's work item to "${action.status}"`}
+            side="up"
+            fitWithin=".node-content"
           >
-            {action.label}
-          </button>
+            <button
+              type="button"
+              class="ax-node-action"
+              aria-pressed={status === action.status}
+              style={status === action.status ? activeButtonStyle : axNodeActionButtonStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                void runNodeAxInteraction(
+                  node,
+                  'ax.work.update',
+                  { id: step.workItemId, status: action.status },
+                  action.toast,
+                );
+              }}
+            >
+              {action.label}
+            </button>
+          </BarHint>
         ))}
       </div>
       {flow && <FlowLoopControls node={node} flow={flow} />}

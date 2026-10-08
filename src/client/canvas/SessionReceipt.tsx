@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { BarHint } from './BarHint';
 import { toggleContextPin } from '../state/canvas-store';
 import {
   activityLensNodeIds,
@@ -225,14 +226,11 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
             {loadingDiff ? 'Comparing…' : 'View diff'}
           </button>
         )}
-        <button
-          type="button"
-          class="session-receipt-secondary"
-          title="Open the History drawer — saved boards and past sessions"
-          onClick={onOpenSnapshots}
-        >
-          History
-        </button>
+        <BarHint label="Open the History drawer" body="Saved boards and past sessions." side="up">
+          <button type="button" class="session-receipt-secondary" onClick={onOpenSnapshots}>
+            History
+          </button>
+        </BarHint>
       </div>
     </div>
   );

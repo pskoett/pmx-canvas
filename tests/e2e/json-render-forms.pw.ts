@@ -168,7 +168,7 @@ for (const mode of ['src', 'srcdoc']) {
       await expect(inline.getByText(/^Loaded item \d+$/)).toHaveCount(16);
       await expect.poll(async () => (await readNode()).size.height).toBeGreaterThan(340);
       await inline.getByLabel('Draft', { exact: true }).fill('DRAFT-MUST-SURVIVE');
-      await node.getByTitle('Expand (focus mode)').click();
+      await node.getByLabel('Expand (focus mode)').click();
       const overlay = page.locator('.expanded-overlay-panel');
       const expanded = overlay.frameLocator('iframe');
       await expect(expanded.getByLabel('Draft', { exact: true })).toHaveValue('DRAFT-MUST-SURVIVE');
@@ -191,7 +191,7 @@ for (const mode of ['src', 'srcdoc']) {
       expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: updatedSpec } })).ok()).toBe(true);
       await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('Authored replacement');
       await expect(inline.getByText('Replacement item', { exact: true })).toBeVisible();
-      await node.getByTitle('Expand (focus mode)').click();
+      await node.getByLabel('Expand (focus mode)').click();
       await expect(expanded.getByLabel('Draft', { exact: true })).toHaveValue('Authored replacement');
     } finally {
       await request.delete(`/api/canvas/node/${id}`);

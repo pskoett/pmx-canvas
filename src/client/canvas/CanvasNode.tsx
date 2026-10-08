@@ -1,9 +1,10 @@
 import { boardList } from '../state/boards-store';
+import { BarHint } from './BarHint';
 import { BoardPinButton } from './BoardPinButton';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
-import { isAgentPin, NearPinMark, NodeContextMark } from './NodeContextMark';
+import { type ChipFold, headerChip, isAgentPin, NearPinMark, NodeContextMark, NodeTypeIcon } from './NodeContextMark';
 import { activityLensNodeIds } from '../state/session-store';
 import {
   activeNodeId,
@@ -120,6 +121,41 @@ export function nodeChromeScale(viewportScale: number, nodeHeight: number, nodeW
   return Math.max(1, bounded);
 }
 
+/** A header title keeps at least this much room, or all of it when shorter (HeaderMarks.dc.html). */
+const TITLE_MIN_WIDTH = 140;
+
+/**
+ * Whether the header's one state chip shows its word, only its glyph, or folds
+ * into the type icon's hint, so the title keeps TITLE_MIN_WIDTH (scaled with
+ * the chrome). Measured after each render, one step at a time; a different
+ * title, chip, width or zoom starts from the word again. Amber never folds.
+ */
+function useHeaderFold(
+  titleRef: { current: HTMLSpanElement | null },
+  chip: { amber: boolean; folded: string } | null,
+  title: string,
+  width: number,
+  scale: number,
+): ChipFold {
+  const [fold, setFold] = useState<ChipFold>('word');
+  const key = `${title}\0${chip ? (chip.amber ? 'amber' : chip.folded) : ''}\0${width}\0${scale.toFixed(3)}`;
+  const keyRef = useRef(key);
+  useLayoutEffect(() => {
+    if (keyRef.current !== key) {
+      keyRef.current = key;
+      if (fold !== 'word') {
+        setFold('word');
+        return;
+      }
+    }
+    const el = titleRef.current;
+    if (!el || !chip || chip.amber || fold === 'hidden') return;
+    const room = Math.min(el.scrollWidth, TITLE_MIN_WIDTH * scale);
+    if (el.clientWidth + 0.5 < room) setFold(fold === 'word' ? 'glyph' : 'hidden');
+  });
+  return chip ? fold : 'word';
+}
+
 interface CanvasNodeProps {
   node: CanvasNodeState;
   children: preact.ComponentChildren;
@@ -130,6 +166,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isActive = activeNodeId.value === node.id;
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
+  const titleRef = useRef<HTMLSpanElement>(null);
   const portalTarget =
     node.type === 'board' && typeof node.data.boardId === 'string'
       ? (boardList.value.find((board) => board.id === node.data.boardId) ?? null)
@@ -400,6 +437,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isStrictSize = node.data.strictSize === true;
   const viewportScale = Math.max(viewport.value.scale, 0.01);
   const chromeScale = nodeChromeScale(viewportScale, node.collapsed ? 0 : node.size.height, node.size.width);
+  const chipFold = useHeaderFold(titleRef, headerChip(node, isContextPinned), title, node.size.width, chromeScale);
 
   const groupColor = isGroup && node.data.color ? (node.data.color as string) : undefined;
   const nodeStyle: Record<string, string | number> = {
@@ -463,7 +501,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         style={{ ...nodeStyle, width: 'auto', height: 'auto' }}
         onPointerDown={handlePointerDown}
         onDblClick={handleDblClick}
-        title="Expand group"
         data-testid="group-chip"
       >
         <div class="node-titlebar group-chip-inner" onPointerDown={handleTitlePointerDown}>
@@ -527,68 +564,67 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span class="group-name" title={title}>
-                  {title}
-                </span>
+                <span class="group-name">{title}</span>
               )}
               <span class="group-count">{groupChildren.length}</span>
             </span>
             <span class="group-edge-spacer" />
             <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
-              <button
-                type="button"
-                class="group-action"
-                title="Auto-arrange children"
-                aria-label="Auto-arrange children"
-                disabled={groupChildren.length === 0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void addToGroupFromClient(node.id, groupChildren, 'grid');
-                }}
-              >
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  aria-hidden="true"
+              <BarHint label="Auto-arrange children" align="end">
+                <button
+                  type="button"
+                  class="group-action"
+                  aria-label="Auto-arrange children"
+                  disabled={groupChildren.length === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void addToGroupFromClient(node.id, groupChildren, 'grid');
+                  }}
                 >
-                  <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-                  <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-                  <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-                  <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="group-action"
-                title="Collapse group"
-                aria-label="Collapse group"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleCollapsed(node.id);
-                }}
-              >
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    aria-hidden="true"
+                  >
+                    <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+                    <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+                  </svg>
+                </button>
+              </BarHint>
+              <BarHint label="Collapse group" align="end">
+                <button
+                  type="button"
+                  class="group-action"
+                  aria-label="Collapse group"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleCollapsed(node.id);
+                  }}
                 >
-                  <path d="M3 10 L8 5 L13 10" />
-                </svg>
-              </button>
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 10 L8 5 L13 10" />
+                  </svg>
+                </button>
+              </BarHint>
               <button
                 type="button"
                 class="group-action"
-                title="Rename · Ungroup · Pin all to context"
                 aria-label="Group menu"
                 aria-expanded={groupMenuOpen}
                 onClick={(e) => {
@@ -644,12 +680,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         )}
         {!isGroup && (
           <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
-            <span class="node-type-icon" aria-hidden="true">
+            <NodeTypeIcon node={node} pinned={isContextPinned} title={title} fold={chipFold}>
               {(() => {
                 const NodeIcon = getNodeIcon(node.type);
                 return <NodeIcon size={Math.round(14 * chromeScale)} />;
               })()}
-            </span>
+            </NodeTypeIcon>
             {/* The kind-colored icon says what type this is (rail-chrome-v2 card
             shell: icon · title · controls, no type badge). Only the AX status
             chip joins it, and only when there is a status to show. */}
@@ -669,53 +705,60 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span class="node-title" title={title}>
+              <span ref={titleRef} class="node-title">
                 {title}
               </span>
             )}
-            <NearPinMark node={node} pinned={isContextPinned} />
-            <NodeContextMark node={node} pinned={isContextPinned} />
+            <NearPinMark node={node} pinned={isContextPinned} fold={chipFold} />
+            <NodeContextMark node={node} pinned={isContextPinned} fold={chipFold} />
             <div class="node-controls">
               {isPinned && (
-                <span class="pin-indicator" title="Pinned">
-                  ⊙
-                </span>
+                <BarHint label="Pinned in place" align="end" fitWithin=".node-content" tapToOpen>
+                  <span class="pin-indicator">⊙</span>
+                </BarHint>
               )}
               {/* Expand and the context pin always show; the rest sit behind ⋯ and ×
               on hover (docs/design/Chrome.dc.html). */}
               {EXPANDABLE_TYPES.has(node.type) && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    expandNode(node.id);
-                  }}
-                  title="Expand (focus mode)"
-                >
-                  <IconExpand size={14} />
-                </button>
+                <BarHint label="Expand (focus mode)" align="end" fitWithin=".node-content">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      expandNode(node.id);
+                    }}
+                    aria-label="Expand (focus mode)"
+                  >
+                    <IconExpand size={14} />
+                  </button>
+                </BarHint>
               )}
               {node.type === 'board' ? (
                 // A portal's one pin is its board's pin: the linked board joins the
                 // agent's working set (BoardPins.dc.html), not this card.
                 portalTarget && <BoardPinButton board={portalTarget} inNodeHeader />
               ) : (
-                <button
-                  type="button"
-                  class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleContextPin(node.id);
-                  }}
-                  title={isContextPinned ? 'Remove from context' : 'Add to context'}
-                  aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
-                  aria-pressed={isContextPinned}
+                <BarHint
+                  label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                  align="end"
+                  fitWithin=".node-content"
                 >
-                  <span class="ctx-pin-mark">
-                    <IconPin />
-                    {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleContextPin(node.id);
+                    }}
+                    aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                    aria-pressed={isContextPinned}
+                  >
+                    <span class="ctx-pin-mark">
+                      <IconPin />
+                      {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
+                    </span>
+                  </button>
+                </BarHint>
               )}
               <button
                 type="button"
@@ -724,7 +767,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   e.stopPropagation();
                   onContextMenu?.(e, node.id);
                 }}
-                title="More actions"
                 aria-label="More actions"
               >
                 <IconMore size={14} />
@@ -738,7 +780,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   e.stopPropagation();
                   void removeNodeFromClient(node.id);
                 }}
-                title="Close"
+                aria-label="Close"
               >
                 <IconClose size={14} />
               </button>

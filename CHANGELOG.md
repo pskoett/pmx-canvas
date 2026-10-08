@@ -15,6 +15,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with what they cost in tokens, and opens the details (read state, unpin, pin a near card) on click. There is no budget to fill; when a host reports its agent's token usage, the details name that count too.
 - A new or changed link now shows on the link itself: "not seen by" the attached agent until the agent reads either card, or "by" the agent that drew it. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
+- Card titles keep their room: a card an agent wrote shows a small violet sparkle on its type icon instead of a "by <agent>" chip, and a near or read chip shrinks to its icon, then moves into the icon's hint, before a title gets cut short. Hover the type icon for the full title and everything folded into it.
+- Every hint in the workbench now uses the styled tooltip, so hints also show in the embedded panes of Claude, Copilot and Codex, where browser tooltips never appeared.
 - On narrow windows the top bar folds Export, Present, zoom and fit into a ⋯ More menu so the context summary always stays visible.
 - The agent's context brief is now a map instead of full text: an overview of the board, then every card as its title and a short summary with why it was pinned and how it relates to other cards; the agent pulls whatever it needs in full, and only a full pull counts as read.
 
