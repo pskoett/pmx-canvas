@@ -8,6 +8,7 @@ import {
   visibleNodeFor,
 } from '../state/canvas-store';
 import { linkMark } from '../state/context-status-store';
+import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
@@ -22,6 +23,12 @@ const EDGE_COLORS: Record<CanvasEdge['type'], string> = {
 };
 
 const DIRECTED_TYPES = new Set<CanvasEdge['type']>(['depends-on', 'flow']);
+
+/** The attached agent's name; a session you started that no agent has joined yet names no one. */
+function agentName(): string {
+  const label = activeSession.value?.label;
+  return label && label !== HUMAN_STARTED_SESSION_LABEL ? label : 'the agent';
+}
 
 // Connection-change glyphs (docs/design/LinksOptions.dc.html, option C), 24-unit paths.
 const LINK_MARK_EYE_OFF =
@@ -165,11 +172,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
   // entirely once the board is slivers (chrome scale > 3.4 ≈ zoom < 30%).
   const labelScale = Math.min(scale, 2.2);
   const mark = linkMark(edge);
-  const markText = mark
-    ? mark.kind === 'agent'
-      ? `by ${mark.by}`
-      : `not seen by ${activeSession.value?.label ?? 'the agent'}`
-    : '';
+  const markText = mark ? (mark.kind === 'agent' ? `by ${mark.by}` : `not seen by ${agentName()}`) : '';
   const mid =
     (edge.label || mark) && scale <= 3.4
       ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y)

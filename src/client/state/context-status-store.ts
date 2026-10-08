@@ -1,5 +1,6 @@
 import { signal } from '@preact/signals';
 import { activeBoardId } from './boards-store';
+import { edges } from './canvas-store';
 import { requestJson } from './intent-bridge';
 
 /**
@@ -85,10 +86,20 @@ export function linkMark(edge: {
   return edge.changedBy?.actor === 'agent' ? { kind: 'agent', by: writerName(edge.changedBy) } : { kind: 'not-seen' };
 }
 
-/** A card whose links changed after the last read that carried them (shown neutral, never amber). */
+/**
+ * A card whose links changed after the last read that carried them (shown
+ * neutral, never amber). A link an agent drew does not count — that agent
+ * made it, and the link itself says "by <agent>". A removed link has no
+ * author left to check, so it counts.
+ */
 export function linksChanged(nodeId: string, linksRevision: number): boolean {
   const seen = seenLinks.value[nodeId];
-  return seen !== undefined && linksRevision > seen;
+  if (seen === undefined || linksRevision <= seen) return false;
+  const unseen = [...edges.value.values()].filter(
+    (edge) => (edge.from === nodeId || edge.to === nodeId) && (edge.revision ?? 0) > seen,
+  );
+  if (unseen.some((edge) => edge.changedBy?.actor !== 'agent')) return true;
+  return !unseen.some((edge) => edge.revision === linksRevision);
 }
 
 /** Display name for an attributed writer: its agent id, else its transport label. */

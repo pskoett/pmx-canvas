@@ -13,6 +13,15 @@ import { useIframeDocument } from '../../src/client/nodes/iframe-document-url.ts
 import { useSurfaceFrame } from '../../src/client/nodes/use-surface-frame.ts';
 import { workbenchConnectionEpoch } from '../../src/client/state/canvas-store.ts';
 
+// Other client files leave debounced store refreshes (the context chip's brief
+// fetch) that can land during a test; only a document fetch counts here.
+function documentFetches(spy: { mock: { calls: unknown[][] } }): number {
+  return spy.mock.calls.filter((call) => {
+    const url = String(call[0]);
+    return url.startsWith('/api/canvas/frame-documents') || !url.startsWith('/api/');
+  }).length;
+}
+
 // Amp orb portals embed the canvas page in a nested iframe where Chrome blocks
 // child iframes from loading ANY src URL (same-origin included) while srcdoc
 // still renders. These tests pin the boot probe, the ?iframe-mode override, and
@@ -219,7 +228,7 @@ describe('useSurfaceFrame', () => {
     render(<SurfaceProbe url="https://example.com/hosted-app" />);
     await flush();
 
-    expect(fetchSpy.mock.calls.length).toBe(0);
+    expect(documentFetches(fetchSpy)).toBe(0);
     expect(surfaceIframe().getAttribute('src')).toBe('https://example.com/hosted-app');
   });
 
@@ -259,7 +268,7 @@ describe('useIframeDocument (srcdoc mode)', () => {
 
     const el = document.querySelector<HTMLIFrameElement>('iframe[data-document-probe]');
     if (!el) throw new Error('document iframe not rendered');
-    expect(fetchSpy.mock.calls.length).toBe(0);
+    expect(documentFetches(fetchSpy)).toBe(0);
     expect(el.getAttribute('srcdoc')).toBe('<h1>ext app</h1>');
     expect(el.getAttribute('data-ready')).toBe('1');
     expect(el.getAttribute('data-frame-key')).toStartWith('srcdoc-');

@@ -71,7 +71,12 @@ export declare function linkMark(edge: {
         agentId?: string;
     };
 }): LinkMark;
-/** A card whose links changed after the last read that carried them (shown neutral, never amber). */
+/**
+ * A card whose links changed after the last read that carried them (shown
+ * neutral, never amber). A link an agent drew does not count — that agent
+ * made it, and the link itself says "by <agent>". A removed link has no
+ * author left to check, so it counts.
+ */
 export declare function linksChanged(nodeId: string, linksRevision: number): boolean;
 /** Display name for an attributed writer: its agent id, else its transport label. */
 export declare function writerName(actor: {
