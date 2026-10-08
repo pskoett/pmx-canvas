@@ -13,7 +13,7 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 820px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
 
 <section style="display: flex; flex-direction: column; gap: 14px">
 <div><h2 style="margin: 0; font-size: 15px; font-weight: 600">7 · Tool rail in a 690px-tall window</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">20 buttons need 850px. Settings-type tools move into one menu.</p></div>
@@ -37,7 +37,7 @@ body{margin:0}
 <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Proposed</span>
 <div style="position: relative; height: 600px; border: 1px solid #1b2c44; border-radius: 10px; overflow: hidden; background: #081524">
 <div style="width: 52px; height: 600px; box-sizing: border-box; padding: 8px 0; background: #0f1d31; border-right: 1px solid #1b2c44; display: flex; flex-direction: column; align-items: center; gap: 4px">
-<sc-for list="{{railNew}}" as="i" hint-placeholder-count="12">
+<sc-for list="{{railNew}}" as="i" hint-placeholder-count="13">
 <sc-if value="{{i.sep}}" hint-placeholder-val="{{ false }}"><div style="width: 24px; height: 1px; margin: 6px 0; background: #1b2c44; flex-shrink: 0"></div></sc-if>
 <sc-if value="{{i.grow}}" hint-placeholder-val="{{ false }}"><div style="flex: 1"></div></sc-if>
 <sc-if value="{{i.btn}}" hint-placeholder-val="{{ true }}"><button aria-label="{{i.label}}" style="{{i.style}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.d}}"></path></svg></button></sc-if>
@@ -50,7 +50,7 @@ body{margin:0}
 </sc-for>
 </div>
 </div>
-<span style="font-size: 11px; color: #8ea3bd">12 tools, then Settings: theme, snapshots, minimap, shortcuts, trace, feedback.</span>
+<span style="font-size: 11px; color: #8ea3bd">13 tools, then Settings: theme, snapshots, minimap, shortcuts, trace, feedback. The Eraser stays beside Text note: it is the only way to remove an annotation. Theme and Trace open their choices in place, with a “‹ Settings” back row — no side flyout, which would clip in a 600 px pane.</span>
 </div>
 
 </div>
@@ -145,7 +145,7 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":820}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
 class Component extends DCLogic {
   renderVals() {
     var P = {
@@ -192,7 +192,7 @@ class Component extends DCLogic {
     var railNew = [
       b('Home', P.home), sep,
       b('Select', P.select), b('Pan', P.pan), b('Connect', P.connect), sep,
-      b('Markdown note', P.note), b('Attach files', P.attach), b('Webpage', P.web), b('Group', P.group), b('Draw', P.draw), b('Text note', P.text), sep,
+      b('Markdown note', P.note), b('Attach files', P.attach), b('Webpage', P.web), b('Group', P.group), b('Draw', P.draw), b('Text note', P.text), b('Eraser', P.eraser), sep,
       b('Search and commands', P.search), b('Arrange', P.arrange), grow, b('Settings', P.settings)
     ].map(function (i) {
       if (!i.btn) return i;
@@ -200,7 +200,7 @@ class Component extends DCLogic {
     });
     function m(label, hint, active) { return { btn: true, sep: false, label: label, hint: hint, bg: active ? '#1b2c44' : 'transparent' }; }
     var msep = { btn: false, sep: true };
-    var settings = [m('Theme', 'Dark ›', true), m('Snapshots', ''), m('Minimap', 'On'), m('Keyboard shortcuts', '?'), msep, m('Trace', 'Off ›'), m('Send feedback', '')];
+    var settings = [m('Theme', 'Harbor ›', true), m('Snapshots', ''), m('Minimap', 'On'), m('Keyboard shortcuts', '?'), msep, m('Trace', 'Off ›'), m('Send feedback', '')];
     var nodeMenu = [m('Focus', ''), m('Rename…', ''), m('Collapse', ''), m('Open in new tab', '', true), msep, m('Delete', '⌫')];
     var oldIcons = [{ d: P.ctx }, { d: P.ask }, { d: P.open }, { d: P.expand }, { d: P.chevron }, { d: P.close }];
     return { railToday: railToday, railNew: railNew, settings: settings, nodeMenu: nodeMenu, oldIcons: oldIcons };
