@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { useState } from 'preact/hooks';
 
 /**
  * Styled hover/focus tooltip for bar controls — the replacement for native
@@ -11,6 +12,7 @@ export function BarHint({
   align = 'center',
   side = 'down',
   tapToOpen = false,
+  fitWithin,
   children,
 }: {
   label: string;
@@ -27,12 +29,34 @@ export function BarHint({
    * after the click, not linger on focus.
    */
   tapToOpen?: boolean;
+  /**
+   * The clipping box to stay inside (a CSS selector for an ancestor). As the
+   * tooltip opens it takes whichever of end/start alignment fits — a node
+   * header chip sits anywhere along a card that clips its contents.
+   */
+  fitWithin?: string;
   children: ComponentChildren;
 }) {
+  const [fitted, setFitted] = useState<'start' | 'end' | null>(null);
+  const fit = (event: Event) => {
+    if (!fitWithin) return;
+    const anchor = event.currentTarget as HTMLElement;
+    const box = anchor.closest(fitWithin)?.getBoundingClientRect();
+    const tip = anchor.querySelector('.toolbar-tooltip')?.getBoundingClientRect();
+    if (!box || !tip) return;
+    const self = anchor.getBoundingClientRect();
+    // Opening from the anchor's right edge leftwards (end) or its left edge rightwards (start).
+    const endFits = self.right - tip.width >= box.left;
+    const startFits = self.left + tip.width <= box.right;
+    setFitted(endFits || !startFits ? 'end' : 'start');
+  };
+  const placed = fitted ?? align;
   return (
     <span
-      class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${align}${side === 'up' ? ' toolbar-tooltip-anchor-up' : ''}${tapToOpen ? ' toolbar-tooltip-anchor-tap' : ''}`}
+      class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${placed}${side === 'up' ? ' toolbar-tooltip-anchor-up' : ''}${tapToOpen ? ' toolbar-tooltip-anchor-tap' : ''}`}
       tabIndex={tapToOpen ? -1 : undefined}
+      onPointerEnter={fitWithin ? fit : undefined}
+      onFocusIn={fitWithin ? fit : undefined}
     >
       {children}
       <span class="toolbar-tooltip" role="tooltip">

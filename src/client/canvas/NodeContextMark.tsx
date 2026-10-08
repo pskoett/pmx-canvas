@@ -93,7 +93,7 @@ export function NodeContextMark({ node, pinned }: { node: CanvasNodeState; pinne
   const mark = markFor(node, pinned);
   if (!mark) return null;
   return (
-    <BarHint label={mark.label} body={mark.body} align="end" tapToOpen>
+    <BarHint label={mark.label} body={mark.body} align="end" fitWithin=".node-content" tapToOpen>
       <span class={`node-context-mark is-${mark.tone}`} data-mark={mark.word}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d={GLYPHS[mark.glyph]} />
@@ -135,6 +135,7 @@ export function NearPinMark({ node, pinned }: { node: CanvasNodeState; pinned: b
       label={open ? `Near ${where}` : 'Near a pin'}
       body="The agent gets its title and a short summary because a pin is nearby. Pin it to put it first."
       align="end"
+      fitWithin=".node-content"
       tapToOpen
     >
       <span
