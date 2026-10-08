@@ -1,3 +1,4 @@
+import { age } from '../utils/time-ago';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { IconPin } from '../icons';
 import { activeBoardId, boardList, setBoardPinned } from '../state/boards-store';
@@ -13,14 +14,6 @@ import { activeSession } from '../state/presence-store';
  * pinned boards (sent as maps) — with the brief's share of its budget. Opened,
  * one list with read state and unpin.
  */
-
-function ago(iso: string): string {
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
-}
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -270,6 +263,6 @@ export function ContextChip() {
 
 function ReadTag({ state, at }: { state: 'read' | 'not-read' | 'changed'; at: string | null }) {
   if (state === 'changed') return <span class="context-tag is-changed">△ changed</span>;
-  if (state === 'read' && at) return <span class="context-tag is-read">read {ago(at)}</span>;
+  if (state === 'read' && at) return <span class="context-tag is-read">read {age(at)}</span>;
   return <span class="context-tag is-not-read">not read yet</span>;
 }

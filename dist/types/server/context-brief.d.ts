@@ -1,7 +1,7 @@
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
 export type ContextBriefReason = 'overview' | 'pinned' | 'near' | 'changed' | 'pinned-board' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
-/** A near entry carries a short summary, never full content: pin the node to send that. */
-export declare const NEAR_SUMMARY_LENGTH = 280;
+/** How long a card's summary is in the brief: enough to know what it is. */
+export declare const BRIEF_SUMMARY_LENGTH = 280;
 export interface ContextBriefSourceEntry {
     sourceBoardId: string;
     nodeId: string;
@@ -153,8 +153,6 @@ export interface ContextBriefResult {
     invalidCursor: boolean;
     truncated: boolean;
 }
-/** How long a card's summary is in the brief: enough to know what it is. */
-export declare const BRIEF_SUMMARY_LENGTH = 280;
 /**
  * Pure, deterministic compiler. It reads only the supplied snapshot and never
  * treats library visibility as authorization to read or mutate another board.

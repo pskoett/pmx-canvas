@@ -108,6 +108,3 @@ constants, so they cannot drift); the registry is `src/server/agent-presence.ts`
   one-line summary. `GET /api/canvas/ax/presence` for the connect-time read;
   `POST /api/canvas/ax/presence` (`canvas_ax_state { action: "set-presence" }`)
   for explicit updates.
-- **Budget.** `used` = estimated tokens of the `pinned-context.get` payload;
-  `total` = `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default
-  `CONTEXT_BUDGET_DEFAULT_TOKENS`).

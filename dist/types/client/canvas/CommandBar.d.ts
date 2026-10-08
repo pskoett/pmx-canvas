@@ -3,8 +3,7 @@
  * session is attached — the design's floating composer, centered at the
  * bottom of the canvas region. Above it, the pinned context as gold ✦ chips
  * (× unpins — the same pin the node's own control toggles); the composer row
- * posts an AX steering message to the session. The context-budget meter lives
- * in the top bar (`ContextBudget`), where the mockup puts it. Replaces the
- * quiet board's pin bar only while attached.
+ * posts an AX steering message to the session. What is in the agent's
+ * context is summarised in the top bar's context chip (`ContextChip`).
  */
 export declare function CommandBar(): import("preact/src").JSX.Element;

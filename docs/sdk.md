@@ -148,6 +148,7 @@ canvas.sendSteering('focus on the failing test first', { source: 'sdk' });
 console.log(canvas.getAxTimeline({ limit: 50 }));
 console.log(canvas.getContextReads(50)); // context read log + per-consumer delivery summary
 console.log(canvas.getNodeReadStatus()); // per node: last agent read, by whom, at which content revision
+console.log(canvas.getBoardLastRead(boardId)); // a board's last agent read (a pinned board's map counts), or null
 
 // Canvas-bound (rides snapshots + restore, cleared by canvas.clear())
 const work = canvas.addWorkItem({ title: 'Wire up auth', status: 'in-progress', nodeIds: [n1] }, { source: 'sdk' });

@@ -78,10 +78,12 @@ export interface ContextReadConsumerSummary {
  * `nodeId` with its text) in what the reader received. A bare id list, a
  * title, or a clipped-off node does not count — the agent got the node's
  * name, not its content. Non-node ids (edges, intents) are dropped by the
- * caller against the board's nodes.
+ * caller against the board's nodes. A summary is "seen", not "read": `read`
+ * holds only nodes pulled in full, `reached` adds the summaries.
  */
-export function deliveredIds(payloadText: string, includeSummaries = false): Set<string> {
-  const delivered = new Set<string>();
+export function deliveredIds(payloadText: string): { read: Set<string>; reached: Set<string> } {
+  const read = new Set<string>();
+  const reached = new Set<string>();
   const objectStarts: number[] = [];
   let inString = false;
   let escaped = false;
@@ -103,22 +105,21 @@ export function deliveredIds(payloadText: string, includeSummaries = false): Set
       if (start === undefined) continue;
       try {
         const value = JSON.parse(payloadText.slice(start, index + 1)) as unknown;
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          !Array.isArray(value) &&
-          (typeof (value as { id?: unknown }).id === 'string' ||
-            (typeof (value as { nodeId?: unknown }).nodeId === 'string' &&
-              (value as { titleOnly?: unknown }).titleOnly !== true &&
-              // A summary is "seen", not "read": only a pull in full marks a card read.
-              (includeSummaries || (value as { summaryOnly?: unknown }).summaryOnly !== true) &&
-              typeof (value as { text?: unknown }).text === 'string'))
-        ) {
-          delivered.add(
-            typeof (value as { id?: unknown }).id === 'string'
-              ? (value as { id: string }).id
-              : (value as { nodeId: string }).nodeId,
-          );
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          const item = value as {
+            id?: unknown;
+            nodeId?: unknown;
+            titleOnly?: unknown;
+            summaryOnly?: unknown;
+            text?: unknown;
+          };
+          if (typeof item.id === 'string') {
+            read.add(item.id);
+            reached.add(item.id);
+          } else if (typeof item.nodeId === 'string' && item.titleOnly !== true && typeof item.text === 'string') {
+            reached.add(item.nodeId);
+            if (item.summaryOnly !== true) read.add(item.nodeId);
+          }
         }
       } catch {
         // An inner object may be complete even when its containing object was clipped.
@@ -126,13 +127,7 @@ export function deliveredIds(payloadText: string, includeSummaries = false): Set
     }
   }
 
-  return delivered;
-}
-
-/** Pinned nodes whose content is in what the reader received (see `deliveredIds`). */
-export function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[] {
-  const delivered = deliveredIds(payloadText);
-  return pinnedNodeIds.filter((id) => delivered.has(id));
+  return { read, reached };
 }
 
 export function contextReadFromPayload(
@@ -140,13 +135,12 @@ export function contextReadFromPayload(
   payload: unknown,
 ): ContextReadInput {
   const text = typeof payload === 'string' ? payload : (JSON.stringify(payload) ?? '');
-  const delivered = deliveredIds(text);
   // Delivery (did the pins reach the agent?) counts summaries; read marks do not.
-  const reached = deliveredIds(text, true);
+  const { read, reached } = deliveredIds(text);
   return {
     ...base,
     deliveredNodeIds: base.pinnedNodeIds.filter((id) => reached.has(id)),
-    readNodeIds: [...delivered],
+    readNodeIds: [...read],
     bytes: Buffer.byteLength(text, 'utf-8'),
   };
 }

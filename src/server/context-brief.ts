@@ -14,8 +14,8 @@ export type ContextBriefReason =
   | 'linked'
   | 'category';
 
-/** A near entry carries a short summary, never full content: pin the node to send that. */
-export const NEAR_SUMMARY_LENGTH = 280;
+/** How long a card's summary is in the brief: enough to know what it is. */
+export const BRIEF_SUMMARY_LENGTH = 280;
 
 export interface ContextBriefSourceEntry {
   sourceBoardId: string;
@@ -156,8 +156,6 @@ function validRevision(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
-/** How long a card's summary is in the brief: enough to know what it is. */
-export const BRIEF_SUMMARY_LENGTH = NEAR_SUMMARY_LENGTH;
 const MAX_RELATIONS = 8;
 
 function nodeTitle(node: CanvasNodeState): string {
@@ -267,8 +265,8 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
           reason: 'near',
           title: typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id,
           text: summarizeNodeForAgentContext(node, {
-            defaultTextLength: NEAR_SUMMARY_LENGTH,
-            webpageTextLength: NEAR_SUMMARY_LENGTH,
+            defaultTextLength: BRIEF_SUMMARY_LENGTH,
+            webpageTextLength: BRIEF_SUMMARY_LENGTH,
           }),
           near: { pinNodeId: neighborhood.pinnedNodeId, pinTitle },
           summaryOnly: true,

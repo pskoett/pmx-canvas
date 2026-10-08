@@ -398,6 +398,18 @@ cmd(
 );
 
 cmd(
+  'ax reads status',
+  'Read status for a board: its last agent read, per-node reads and revisions, and pin metadata',
+  ['pmx-canvas ax reads status', 'pmx-canvas ax reads status --board <board-id>'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax reads status');
+
+    output(await invokeOperation('ax.reads.status', typeof flags.board === 'string' ? { board: flags.board } : {}));
+  },
+);
+
+cmd(
   'ax work add',
   'Add a canvas-bound AX work item',
   [

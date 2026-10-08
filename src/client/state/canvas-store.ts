@@ -618,10 +618,6 @@ export function replaceViewport(next: ViewportState): void {
 }
 
 export function commitViewport(next: ViewportState, options: { recordHistory?: boolean } = {}): void {
-  commitViewportWithOptions(next, options);
-}
-
-function commitViewportWithOptions(next: ViewportState, options: { recordHistory?: boolean } = {}): void {
   viewport.value = next;
   persistLayout(options);
   void updateViewportFromClient(next, options);
@@ -728,7 +724,7 @@ export function animateViewport(
       animationId = requestAnimationFrame(tick);
     } else {
       animationId = null;
-      commitViewportWithOptions(target, options);
+      commitViewport(target, options);
     }
   }
 

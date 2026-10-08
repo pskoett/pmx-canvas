@@ -943,6 +943,11 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getNodeReadStatus(board ?? canvasState.activeBoardId);
   }
 
+  /** A board's latest agent read of any kind (a pinned board's map counts), or null. */
+  getBoardLastRead(board?: string): ReturnType<typeof canvasState.getBoardLastRead> {
+    return canvasState.getBoardLastRead(board ?? canvasState.activeBoardId);
+  }
+
   listWorkItems(): PmxAxWorkItem[] {
     return canvasState.getWorkItems();
   }

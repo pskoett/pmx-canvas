@@ -13,7 +13,7 @@
  * richer hooks may `set` a phase, cursor, or focus explicitly.
  */
 import { z } from 'zod';
-import { type AgentPhase, type AgentPresence, type AgentPresenceSnapshot, type ContextBudget } from '../shared/agent-presence.js';
+import { type AgentPhase, type AgentPresence, type AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import type { PmxAxActivityKind } from './ax-state.js';
 type PresenceEmitter = (event: string, payload: Record<string, unknown>) => void;
 /** A legal writer label: short, alphanumeric/dash, letter-first (header and env values). */
@@ -94,8 +94,6 @@ export declare const PRESENCE_SET_SHAPE: {
         total: z.ZodNumber;
     }, z.core.$strip>>>;
 };
-/** Token estimate of the pinned-context payload — the same serialization the MCP resource ships. */
-export declare function estimateContextBudget(): ContextBudget;
 /** Returns the id of the pre-session snapshot the server took, if any. */
 type SessionStartListener = (presence: AgentPresence) => string | null;
 export type SessionEndReason = 'human' | 'agent' | 'idle-timeout';

@@ -461,14 +461,16 @@ curl 'http://localhost:4313/api/canvas/context?consumer=codex&budget=16000'
 
 `consumer` is optional. Supply a stable unique value only for a durable,
 board-scoped cursor; without `consumer` or `since`, each request starts from the
-beginning. An explicit `since` never advances a cursor. The brief prioritizes
-pins, then each pin's neighbours (reason `near`: up to five unpinned cards within
-600 px, nearest first, as title + a short summary with `near: { pinNodeId,
-pinTitle }`; pin a card to send its full content), then relevant current-board
-changes and asks, then compact linked or
-same-folder board context. Every item carries source board/card IDs. If card text
-is clipped, use those IDs with the board/node read route rather than guessing
-from the excerpt. Reading inactive boards does not open them.
+beginning. An explicit `since` never advances a cursor. The brief is a map,
+not a dump: an `overview` entry for the open board first, then pins, then each
+pin's neighbours (reason `near`: up to five unpinned cards within 600 px, nearest
+first, with `near: { pinNodeId, pinTitle }`), then relevant current-board changes
+and asks, then pinned boards (reason `pinned-board`: the board and its pinned
+cards), then compact linked or same-folder board context. Cards arrive as title,
+a short summary (`summaryOnly: true`) and their relations; a pin puts a card
+first, it does not send its full text. Every item carries source board/card IDs:
+use them with the board/node read route to pull a card in full when you need it,
+rather than guessing from the summary. Reading inactive boards does not open them.
 
 ## AX context and focus
 
@@ -617,7 +619,7 @@ without a `session-end`.
 curl http://localhost:4313/api/canvas/ax/presence
 # → { ok, presences: [{ sessionId, source, agentId, label, phase, detail,
 #      focusNodeId, cursor, attached, opCount, contextUsage, lastSeenAt }],
-#     budget: { used, total }, sessionActive,
+#     sessionActive,
 #     activity: [{ id, at, sessionId, label, op, summary, nodeId }] }  # newest first, last 50
 
 # Attach a session and report a phase (idle | thinking | tooling | waiting-approval)
@@ -644,13 +646,12 @@ a transport writer folds into it), bounded to the last 50 and kept after a
 writer fades. Detaching (`attached: false`, `session-end`) removes the
 presence outright — an ended session never lingers as an external writer.
 
-**The context meter is an estimate unless the host says otherwise.** `budget`
-is a token estimate (chars ÷ 4) of the `pinned-context` payload against
-`PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default 32000) — what the human's pins
-would cost the agent, not the agent's live window; the top bar labels it
-**Pins**. A host that knows the agent's real usage reports it on the presence
-(`contextUsage: { used, total }` on `POST /api/canvas/ax/presence` /
-`set-presence`); the top bar then shows **Context** with those numbers. The
+**The context summary measures the brief unless the host says otherwise.** The
+top bar's context summary shows the brief's size against its budget (16,000
+UTF-16 characters by default), labelled ≈ tokens. A host that knows the agent's
+real usage reports it on the presence (`contextUsage: { used, total }` on
+`POST /api/canvas/ax/presence` / `set-presence`); the summary then shows that
+window instead. The
 bundled Copilot extension reports it from the SDK's `session.usage_info`
 event (root agent, coalesced to one report per 500 ms); the legacy
 `context-usage` workbench event feeds the single attached session the same

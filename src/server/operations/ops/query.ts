@@ -250,6 +250,13 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     // Capture the active target and revision synchronously. Library boards are
     // read from SQLite and are never opened or made writable by this operation.
     const layout = canvasState.getLayout();
+    // One read per board per brief: linked/same-folder tiers, README summaries and
+    // pinned boards all share it (the link scan below reads without blobs).
+    const fullReads = new Map<string, ReturnType<typeof canvasState.readBoard>>();
+    const readFull = (boardId: string) => {
+      if (!fullReads.has(boardId)) fullReads.set(boardId, canvasState.readBoard(boardId, true));
+      return fullReads.get(boardId) ?? null;
+    };
     const revision = canvasState.getContentRevision();
     const pinnedNodeIds = [...canvasState.contextPinnedNodeIds];
     const linkedIds = new Map<string, string[]>();
@@ -263,7 +270,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     for (const board of canvasState.listBoards()) {
       if (board.id === active.id) continue;
       if (!linkedIds.has(board.id) && (!active.category || active.category !== board.category)) continue;
-      const read = canvasState.readBoard(board.id, true);
+      const read = readFull(board.id);
       if (!read) continue;
       const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
       const pins = new Set(read.state.contextPins);
@@ -316,7 +323,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     const readmeSummary = (boardId: string): string | null => {
       const board = library.find((entry) => entry.id === boardId);
       if (!board?.readmeNodeId) return null;
-      const nodes = boardId === active.id ? layout.nodes : (canvasState.readBoard(boardId, true)?.layout.nodes ?? []);
+      const nodes = boardId === active.id ? layout.nodes : (readFull(boardId)?.layout.nodes ?? []);
       const readme = nodes.find((node) => node.id === board.readmeNodeId && node.type === 'markdown');
       return readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1_000 }) : null;
     };
@@ -338,7 +345,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     const pinnedBoards: ContextBriefPinnedBoard[] = [];
     for (const board of library) {
       if (!board.pin || board.id === active.id) continue;
-      const read = canvasState.readBoard(board.id, true);
+      const read = readFull(board.id);
       if (!read) continue;
       const pins = new Set(read.state.contextPins);
       pinnedBoards.push({

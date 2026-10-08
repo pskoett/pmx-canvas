@@ -19,9 +19,6 @@ import {
   type AgentPhase,
   type AgentPresence,
   type AgentPresenceSnapshot,
-  CONTEXT_BUDGET_DEFAULT_TOKENS,
-  type ContextBudget,
-  estimateTokens,
   HUMAN_STARTED_SESSION_LABEL,
   isSessionActive,
   MAX_ACTIVITY_ENTRIES,
@@ -32,9 +29,8 @@ import {
   PRESENCE_TOOLING_SETTLE_MS,
   TRANSPORT_SOURCES,
 } from '../shared/agent-presence.js';
-import { serializeNodeForAgentContext } from '../shared/agent-context.js';
 import type { PmxAxActivityKind } from './ax-state.js';
-import { type CanvasNodeState, canvasState } from './canvas-state.js';
+import { canvasState } from './canvas-state.js';
 import { OperationError } from './operations/types.js';
 
 type PresenceEmitter = (event: string, payload: Record<string, unknown>) => void;
@@ -211,22 +207,6 @@ interface StoredPresence extends AgentPresence {
 
 function presenceKey(source: string, agentId: string | null | undefined): string {
   return agentId && agentId.trim() ? agentId.trim() : source;
-}
-
-function contextBudgetTotal(): number {
-  const raw = Number(process.env.PMX_CANVAS_CONTEXT_BUDGET_TOKENS ?? '');
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : CONTEXT_BUDGET_DEFAULT_TOKENS;
-}
-
-/** Token estimate of the pinned-context payload — the same serialization the MCP resource ships. */
-export function estimateContextBudget(): ContextBudget {
-  const nodes = Array.from(canvasState.contextPinnedNodeIds)
-    .map((id) => canvasState.getNode(id))
-    .filter((node): node is CanvasNodeState => node !== undefined);
-  const payload = nodes.map((node) =>
-    serializeNodeForAgentContext(node, { defaultTextLength: 700, webpageTextLength: 1600, includePosition: true }),
-  );
-  return { used: nodes.length === 0 ? 0 : estimateTokens(JSON.stringify(payload)), total: contextBudgetTotal() };
 }
 
 /** Returns the id of the pre-session snapshot the server took, if any. */
@@ -631,7 +611,6 @@ export class AgentPresenceRegistry {
     const presences = [...this.presences.values()].map((stored) => this.publicView(stored, now));
     return {
       presences,
-      budget: estimateContextBudget(),
       sessionActive: isSessionActive(presences),
       activity: this.activity.map((entry) => ({ ...entry })),
     };

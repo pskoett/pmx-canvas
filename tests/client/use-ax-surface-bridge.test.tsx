@@ -39,6 +39,12 @@ function dispatchEmit(source: unknown, data: Record<string, unknown>): void {
   window.dispatchEvent(new MessageEvent('message', { data, source: source as MessageEventSource | null | undefined }));
 }
 
+// Other client files leave debounced store refreshes (the context chip's brief
+// fetch) that can land during a test; only an AX interaction post counts here.
+function interactionPosts(spy: { mock: { calls: unknown[][] } }): number {
+  return spy.mock.calls.filter((call) => call[0] === '/api/canvas/ax/interaction').length;
+}
+
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
@@ -154,7 +160,7 @@ describe('useAxSurfaceBridge (plan-009 M2)', () => {
     });
     await flush();
 
-    expect(fetchSpy.mock.calls.length).toBe(0);
+    expect(interactionPosts(fetchSpy)).toBe(0);
     expect(win.postMessage.mock.calls.length).toBe(0);
   });
 
@@ -173,6 +179,6 @@ describe('useAxSurfaceBridge (plan-009 M2)', () => {
     });
     await flush();
 
-    expect(fetchSpy.mock.calls.length).toBe(0);
+    expect(interactionPosts(fetchSpy)).toBe(0);
   });
 });

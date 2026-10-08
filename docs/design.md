@@ -149,8 +149,9 @@ the same change.
   three. Each theme keeps its own surfaces and accent; the meaning colours keep
   their hue and are tuned only for lightness. A token test keeps them apart in all
   nine themes.
-- **Context pins at two levels, one look.** A card pin sends that card's content; a board
-  pin brings the whole board into the agent's working set, from anywhere in the library
+- **Context pins at two levels, one look.** A card pin puts that card first in the agent's
+  map (title, summary, relations; the agent pulls the full text when it decides to); a board
+  pin brings the whole board into the agent's working set as a map, from anywhere in the library
   ([vision move 0a](product-vision-2026-09.md#0a-board-pins-a-working-set-across-boards-sm)).
   Both use the outline pin (not in context) and the filled blue badge (in context), and the
   context chip counts both: "4 cards · 3 boards in context".

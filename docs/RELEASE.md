@@ -10,6 +10,8 @@ single source of truth for the release dance — see also
 ## TL;DR
 
 1. Land all the changes you want in the release on `main` with green CI.
+   Run the tech-debt sweep (below) on everything since the last tag and fix what it finds
+   before bumping the version.
 2. Bump `package.json` `version`.
    Run `bun run build:plugin` to update the Agent Plugins manifest, canonical adapter runtime
    pin, and generated plugin copies. Publish that exact npm runtime version before advertising
@@ -62,6 +64,20 @@ following it copy-pasted a broken setup.
 ```bash
 grep -rn "pmx-canvas@0\." Readme.md docs/    # every hit must be the version you are about to ship
 ```
+
+**Sweep for tech debt before every release.** Read `git diff <last-tag>..HEAD` for what
+this release leaves behind, not just whether it works, and fix it before tagging rather
+than listing it for later:
+
+- **Orphans.** A surface removed but its data path kept: server work, env vars, protocol
+  fields, store signals, CSS, tests and docs that only served it.
+- **Duplicates.** A second helper, constant or type doing what an existing one does;
+  parallel code paths for the same job.
+- **Redundant work.** The same board, file or query read more than once per request; work
+  that runs on every event but whose result nobody uses.
+- **Stand-ins.** A field or revision reused for a meaning it was not built for, where the
+  design is still open: record it in the plan with the decision it waits on.
+- **Docs that describe what no longer exists**: `docs/`, skills, CLI help, Readme.
 
 **If this release touches CI or the release workflows, review that as
 release content.** A changed gate gets its first real run *on this

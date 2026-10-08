@@ -74,8 +74,9 @@ stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`.
 
 ### Driving a tour (agents)
 
-The server keeps one tour cursor per board (in memory, not saved). An agent steps
-it and every presenting viewer follows; a human's arrow keys move the same cursor,
+The server keeps one tour cursor (in memory, not saved), tied to the board it was
+started on; starting a tour on another board replaces it. An agent steps it and
+every presenting viewer follows; a human's arrow keys move the same cursor,
 so `next` always continues from where the audience actually is.
 
 ```bash
@@ -432,6 +433,7 @@ pmx-canvas ax steer "focus on the failing test first"
 pmx-canvas ax evidence add --kind test-output --title "unit pass"
 pmx-canvas ax timeline --limit 50
 pmx-canvas ax reads --limit 50   # context read log: which context each agent read, pinned delivery
+pmx-canvas ax reads status --board <id>  # a board's last agent read, per-node reads, pin metadata
 
 # Work items (canvas-bound)
 pmx-canvas ax work add --title "Wire up auth" --status in-progress node-1

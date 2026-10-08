@@ -55,11 +55,6 @@ export interface AgentPresence {
     } | null;
     lastSeenAt: string;
 }
-export interface ContextBudget {
-    /** Estimated tokens of the pinned-context payload. */
-    used: number;
-    total: number;
-}
 /**
  * One agent write, as the External Steering activity feed lists it. Derived
  * from the same presence touch every agent-originated operation already
@@ -79,7 +74,6 @@ export interface AgentActivityEntry {
 }
 export interface AgentPresenceSnapshot {
     presences: AgentPresence[];
-    budget: ContextBudget;
     /** True when any presence is attached — the master gate for agent chrome. */
     sessionActive: boolean;
     /** Most recent agent writes, newest first (bounded by MAX_ACTIVITY_ENTRIES). */
@@ -98,8 +92,6 @@ export declare const PRESENCE_TOOLING_SETTLE_MS = 4000;
  * "Thinking" chips on a silent board. */
 export declare const PRESENCE_THINKING_SETTLE_MS: number;
 export declare const MAX_PRESENCES = 16;
-/** Default `budget.total` when `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` is unset. */
-export declare const CONTEXT_BUDGET_DEFAULT_TOKENS = 32000;
 /**
  * Source labels that name a TRANSPORT, not an agent. A write arriving under
  * one of these while exactly one session is attached is the attached agent's
@@ -117,7 +109,5 @@ export declare const HUMAN_STARTED_SESSION_LABEL = "Agent session";
 export declare function isSessionActive(presences: readonly AgentPresence[]): boolean;
 /** Writers that are live but not attached — the External Steering mode. */
 export declare function externalWriters(presences: readonly AgentPresence[]): AgentPresence[];
-/** Rough token estimate for a JSON payload (chars / 4) — good enough for a meter. */
-export declare function estimateTokens(text: string): number;
 /** Chip label per phase — shared by the top-bar chip and the on-canvas cursor chip. */
 export declare function agentPhaseLabel(presence: Pick<AgentPresence, 'phase' | 'detail'>): string;

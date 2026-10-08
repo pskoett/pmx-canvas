@@ -16,7 +16,7 @@ export declare function isAgentPin(nodeId: string): boolean;
 /**
  * Near a pin (docs/design/NearPin.dc.html): a dotted pin-blue chip on an
  * unpinned node the brief carries as title + short summary. Weaker than "in
- * context" on purpose: the agent never gets this node's full content.
+ * context" on purpose: the agent sees it only because a pin is nearby.
  */
 export declare function NearPinMark({ node, pinned }: {
     node: CanvasNodeState;

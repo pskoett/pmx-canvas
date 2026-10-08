@@ -430,9 +430,8 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 2. Create a renderer component in `src/client/nodes/YourNode.tsx`, to its artboard in `docs/design/`
    (draw one first if none exists — see [Design](#design))
 3. Add the case to the render switches in `src/client/canvas/CanvasViewport.tsx` AND
-   `ExpandedNodeOverlay.tsx`, plus the exhaustive records in `state/node-factory.ts` and
-   `canvas/kind-colors.ts` (the minimap + group chips read it), `types.ts` (union, `TYPE_LABELS`,
-   `EXPANDABLE_TYPES`), `icons.tsx`
+   `ExpandedNodeOverlay.tsx`, plus the exhaustive records in `state/node-factory.ts`, `types.ts`
+   (union, `TYPE_LABELS`, `EXPANDABLE_TYPES`), `icons.tsx`
 4. **Add the type to `isCanvasNodeType` in `src/client/state/sse-bridge.ts`** — this runtime
    guard silently DROPS unknown types during layout apply, so a missed entry renders nothing
    in the live workbench even though every unit/client test passes

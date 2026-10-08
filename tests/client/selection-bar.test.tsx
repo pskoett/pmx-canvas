@@ -107,7 +107,4 @@ describe('SelectionBar', () => {
     expect(selectedNodeIds.value.size).toBe(0);
     expect(container.innerHTML).toBe('');
   });
-
-  // The quiet board's pin bar shares the bottom-center slot; with pins on the
-  // board the bar must sit above it or the pin bar swallows its clicks.
 });

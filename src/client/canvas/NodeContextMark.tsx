@@ -112,7 +112,7 @@ export function isAgentPin(nodeId: string): boolean {
 /**
  * Near a pin (docs/design/NearPin.dc.html): a dotted pin-blue chip on an
  * unpinned node the brief carries as title + short summary. Weaker than "in
- * context" on purpose: the agent never gets this node's full content.
+ * context" on purpose: the agent sees it only because a pin is nearby.
  */
 export function NearPinMark({ node, pinned }: { node: CanvasNodeState; pinned: boolean }) {
   // The pins' titles join this node's DOM only while the chip is hovered or
@@ -133,7 +133,7 @@ export function NearPinMark({ node, pinned }: { node: CanvasNodeState; pinned: b
   return (
     <BarHint
       label={open ? `Near ${where}` : 'Near a pin'}
-      body="The agent gets its title and a short summary, not its full content. Pin it to send its content."
+      body="The agent gets its title and a short summary because a pin is nearby. Pin it to put it first."
       align="end"
       tapToOpen
     >

@@ -1,6 +1,5 @@
 import { useCallback } from 'preact/hooks';
 import { IconArrange, IconClose } from '../icons';
-import { attentionHistoryOpen } from '../state/attention-store';
 import {
   addContextPins,
   alignSelection,

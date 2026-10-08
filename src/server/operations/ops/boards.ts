@@ -83,8 +83,10 @@ export function readTargetBoard(
   };
 }
 
-function emitBoardsChanged(ctx: OperationContext): void {
-  ctx.emit('boards-changed', boardsPayload());
+function emitBoardsChanged(ctx: OperationContext): Record<string, unknown> {
+  const payload = boardsPayload();
+  ctx.emit('boards-changed', payload);
+  return payload;
 }
 
 const jsonResult = (result: unknown) => ({
@@ -210,8 +212,7 @@ const boardOpenOperation = defineOperation<z.infer<typeof openSchema>, Record<st
   handler: (input, ctx) => {
     const id = typeof input.id === 'string' && input.id.trim() ? input.id.trim() : null;
     if (!openCanvasBoard(id).ok) throw new OperationError(`Board "${id}" not found.`, 404);
-    emitBoardsChanged(ctx);
-    return { ok: true, ...boardsPayload() };
+    return { ok: true, ...emitBoardsChanged(ctx) };
   },
 });
 
@@ -268,8 +269,7 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
         throw new OperationError('README must identify a markdown node on this board.');
       }
     }
-    emitBoardsChanged(ctx);
-    return { ok: true, ...boardsPayload() };
+    return { ok: true, ...emitBoardsChanged(ctx) };
   },
 });
 
@@ -357,8 +357,7 @@ const boardPinOperation = defineOperation<z.infer<typeof pinSchema>, Record<stri
     const reason =
       typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim().slice(0, 280) : undefined;
     if (!canvasState.pinBoard(id, reason)) throw new OperationError(`Board "${id}" not found.`, 404);
-    emitBoardsChanged(ctx);
-    return { ok: true, ...boardsPayload() };
+    return { ok: true, ...emitBoardsChanged(ctx) };
   },
 });
 
@@ -380,8 +379,7 @@ const boardUnpinOperation = defineOperation<z.infer<typeof unpinSchema>, Record<
   handler: (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id.trim() : '';
     if (!canvasState.unpinBoard(id)) throw new OperationError(`Board "${id}" not found.`, 404);
-    emitBoardsChanged(ctx);
-    return { ok: true, ...boardsPayload() };
+    return { ok: true, ...emitBoardsChanged(ctx) };
   },
 });
 
@@ -403,8 +401,7 @@ const boardDeleteOperation = defineOperation<z.infer<typeof deleteSchema>, Recor
     // Deleting the open board returns to Home through the same path as opening it.
     if (id === canvasState.activeBoardId) openCanvasBoard(null);
     if (!canvasState.deleteBoard(id)) throw new OperationError(`Board "${id}" not found.`, 404);
-    emitBoardsChanged(ctx);
-    return { ok: true, ...boardsPayload() };
+    return { ok: true, ...emitBoardsChanged(ctx) };
   },
 });
 

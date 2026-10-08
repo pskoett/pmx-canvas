@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { AgentPresenceRegistry, describeWrite, estimateContextBudget } from '../../src/server/agent-presence.ts';
+import { AgentPresenceRegistry, describeWrite } from '../../src/server/agent-presence.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import {
-  CONTEXT_BUDGET_DEFAULT_TOKENS,
   HUMAN_STARTED_SESSION_LABEL,
   MAX_ACTIVITY_ENTRIES,
   MAX_PRESENCES,
@@ -688,26 +687,5 @@ describe('transport', () => {
   test('set() validates: an unknown phase is rejected, a missing focus node is 404', () => {
     expect(() => registry.set({ phase: 'dancing' }, 'api')).toThrow(/Invalid presence/);
     expect(() => registry.set({ focusNodeId: 'nope' }, 'api')).toThrow(/does not exist/);
-  });
-});
-
-describe('context budget', () => {
-  test('is zero with nothing pinned and grows with pinned content', () => {
-    expect(estimateContextBudget()).toEqual({ used: 0, total: CONTEXT_BUDGET_DEFAULT_TOKENS });
-    canvasState.addNode({
-      id: 'pinned-a',
-      type: 'markdown',
-      position: { x: 0, y: 0 },
-      size: { width: 300, height: 200 },
-      zIndex: 1,
-      collapsed: false,
-      pinned: false,
-      data: { title: 'Pinned', content: 'word '.repeat(400) },
-    });
-    canvasState.setContextPins(['pinned-a']);
-    const budget = estimateContextBudget();
-    expect(budget.used).toBeGreaterThan(100);
-    expect(budget.total).toBe(CONTEXT_BUDGET_DEFAULT_TOKENS);
-    expect(registry.snapshot().budget).toEqual(budget);
   });
 });

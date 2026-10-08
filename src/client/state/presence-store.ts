@@ -6,8 +6,6 @@ import {
   type AgentActivityEntry,
   type AgentPresence,
   type AgentPresenceSnapshot,
-  CONTEXT_BUDGET_DEFAULT_TOKENS,
-  type ContextBudget,
   externalWriters,
   isSessionActive,
 } from '../../shared/agent-presence.js';
@@ -21,7 +19,6 @@ import {
  * panel, command bar, presence layer, and top-bar chip all mount on it.
  */
 export const agentPresences = signal<AgentPresence[]>([]);
-export const contextBudget = signal<ContextBudget>({ used: 0, total: CONTEXT_BUDGET_DEFAULT_TOKENS });
 /** Recent agent writes, newest first — the External Steering activity feed. */
 export const agentActivity = signal<AgentActivityEntry[]>([]);
 
@@ -147,15 +144,11 @@ export function presenceWorldPosition(
 export function applyPresenceSnapshot(snapshot: Partial<AgentPresenceSnapshot> | null | undefined): void {
   if (!snapshot) return;
   if (Array.isArray(snapshot.presences)) agentPresences.value = snapshot.presences;
-  if (snapshot.budget && Number.isFinite(snapshot.budget.used) && Number.isFinite(snapshot.budget.total)) {
-    contextBudget.value = { used: snapshot.budget.used, total: snapshot.budget.total };
-  }
   if (Array.isArray(snapshot.activity)) agentActivity.value = snapshot.activity;
 }
 
 export function resetPresence(): void {
   agentPresences.value = [];
-  contextBudget.value = { used: 0, total: CONTEXT_BUDGET_DEFAULT_TOKENS };
   agentActivity.value = [];
   activityFeedOpen.value = false;
   writersSheetOpen.value = false;

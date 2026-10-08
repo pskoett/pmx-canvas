@@ -2938,12 +2938,13 @@ class CanvasStateManager {
 
   /** The delivered ids that are nodes on the read board, each with its content revision now. */
   private readRevisions(input: ContextReadInput, boardId: string | null): Record<string, number> {
-    if (!boardId) return {};
+    const ids = input.readNodeIds ?? input.deliveredNodeIds;
+    if (!boardId || ids.length === 0) return {};
     const nodes =
       boardId === this._activeBoardId ? [...this.nodes.values()] : (this.readBoard(boardId, false)?.state.nodes ?? []);
     const byId = new Map(nodes.map((node) => [node.id, node.contentRevision ?? 0]));
     const revisions: Record<string, number> = {};
-    for (const id of input.readNodeIds ?? input.deliveredNodeIds) {
+    for (const id of ids) {
       const revision = byId.get(id);
       if (revision !== undefined) revisions[id] = revision;
     }

@@ -1,3 +1,4 @@
+import { timeAgo } from '../utils/time-ago';
 import { isHostedWorkbench } from '../state/workbench-transport';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
@@ -27,17 +28,6 @@ function timeLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
 }
 
 /** "Before session · Copilot · 14:00" → "Copilot". */

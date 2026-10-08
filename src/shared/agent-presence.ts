@@ -53,12 +53,6 @@ export interface AgentPresence {
   lastSeenAt: string;
 }
 
-export interface ContextBudget {
-  /** Estimated tokens of the pinned-context payload. */
-  used: number;
-  total: number;
-}
-
 /**
  * One agent write, as the External Steering activity feed lists it. Derived
  * from the same presence touch every agent-originated operation already
@@ -79,7 +73,6 @@ export interface AgentActivityEntry {
 
 export interface AgentPresenceSnapshot {
   presences: AgentPresence[];
-  budget: ContextBudget;
   /** True when any presence is attached — the master gate for agent chrome. */
   sessionActive: boolean;
   /** Most recent agent writes, newest first (bounded by MAX_ACTIVITY_ENTRIES). */
@@ -102,8 +95,6 @@ export const PRESENCE_TOOLING_SETTLE_MS = 4_000;
  * "Thinking" chips on a silent board. */
 export const PRESENCE_THINKING_SETTLE_MS = 3 * 60_000;
 export const MAX_PRESENCES = 16;
-/** Default `budget.total` when `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` is unset. */
-export const CONTEXT_BUDGET_DEFAULT_TOKENS = 32_000;
 
 /**
  * Source labels that name a TRANSPORT, not an agent. A write arriving under
@@ -128,11 +119,6 @@ export function isSessionActive(presences: readonly AgentPresence[]): boolean {
 /** Writers that are live but not attached — the External Steering mode. */
 export function externalWriters(presences: readonly AgentPresence[]): AgentPresence[] {
   return presences.filter((presence) => !presence.attached);
-}
-
-/** Rough token estimate for a JSON payload (chars / 4) — good enough for a meter. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
 }
 
 /** Chip label per phase — shared by the top-bar chip and the on-canvas cursor chip. */

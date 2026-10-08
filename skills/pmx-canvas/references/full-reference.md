@@ -869,7 +869,7 @@ Useful workbench selectors:
   the eraser in the rail's Annotate popover; agents can remove a known annotation ID with
   `canvas_view { action: "remove-annotation" }`.
 - Canvas chrome (rail-chrome-v2): `.tool-rail`, `.top-bar` (`.connection-dot`, `.agent-chip`,
-  `.gate-badge`, `.context-budget`, `.external-indicator`, `.start-session-btn`),
+  `.gate-badge`, `.context-chip`, `.external-indicator`, `.start-session-btn`),
   `.connection-banner`, `.canvas-region`, `.session-panel`, `.command-bar`, `.selection-bar`,
   `.activity-feed`, `.writers-sheet`, `.session-receipt`, `.snapshot-panel` (the History
   drawer), `.minimap`, `.empty-state`, `.command-palette`, `.expanded-overlay-panel`.

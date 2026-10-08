@@ -86,13 +86,11 @@ beforeEach(async () => {
 });
 
 describe('agent presence over HTTP', () => {
-  test('starts empty: no writers, no session, zero budget used', async () => {
+  test('starts empty: no writers, no session', async () => {
     const snapshot = await getPresence();
     expect(snapshot.ok).toBe(true);
     expect(snapshot.presences).toEqual([]);
     expect(snapshot.sessionActive).toBe(false);
-    expect(snapshot.budget.used).toBe(0);
-    expect(snapshot.budget.total).toBeGreaterThan(0);
   });
 
   test('an agent mutation registers the caller as a tooling writer; a workbench mutation does not', async () => {
@@ -391,7 +389,6 @@ describe('agent presence over SSE', () => {
     const payload = (await frame) as unknown as AgentPresenceSnapshot;
     expect(payload.sessionActive).toBe(true);
     expect(payload.presences[0]).toMatchObject({ sessionId: 'copilot', phase: 'thinking', attached: true });
-    expect(payload.budget).toMatchObject({ used: 0 });
   });
 
   test('a session attaches over a non-empty board → pre-session snapshot; ending it → a receipt with counts + that snapshot', async () => {

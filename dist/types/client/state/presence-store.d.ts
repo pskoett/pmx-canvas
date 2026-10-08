@@ -1,5 +1,5 @@
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
-import { type AgentActivityEntry, type AgentPresence, type AgentPresenceSnapshot, type ContextBudget } from '../../shared/agent-presence.js';
+import { type AgentActivityEntry, type AgentPresence, type AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 /**
  * Agent presence (rail-chrome-v2 phase 2). Fed by the server's `agent-presence`
  * SSE snapshot (every change, including TTL expiry) and the connect-time read,
@@ -9,7 +9,6 @@ import { type AgentActivityEntry, type AgentPresence, type AgentPresenceSnapshot
  * panel, command bar, presence layer, and top-bar chip all mount on it.
  */
 export declare const agentPresences: import("@preact/signals-core").Signal<AgentPresence[]>;
-export declare const contextBudget: import("@preact/signals-core").Signal<ContextBudget>;
 /** Recent agent writes, newest first — the External Steering activity feed. */
 export declare const agentActivity: import("@preact/signals-core").Signal<AgentActivityEntry[]>;
 /** External Steering chrome (phase 6): the feed popover and the writers sheet. */

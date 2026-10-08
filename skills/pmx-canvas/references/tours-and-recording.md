@@ -42,7 +42,7 @@ setting or reading it.
 
 ## Drive a tour
 
-The server holds one in-memory tour cursor per board. `canvas_view { action: "tour-go", stop: 0 }`
+The server holds one in-memory tour cursor, tied to the board it was started on (a tour on another board replaces it). `canvas_view { action: "tour-go", stop: 0 }`
 starts presenting in open workbenches; `step: "next" | "previous"` moves relative to wherever the
 audience is (a human's arrow keys move the same cursor) and clamps at the ends. Pass
 `present: false` to move only viewers already presenting. `canvas_view { action: "tour-exit" }`

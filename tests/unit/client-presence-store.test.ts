@@ -3,7 +3,6 @@ import {
   activeSession,
   agentPresences,
   applyPresenceSnapshot,
-  contextBudget,
   externalWriterPresences,
   resetPresence,
   sessionActive,
@@ -50,20 +49,16 @@ describe('presence store', () => {
   });
 
   test('a snapshot with no presences clears everything (the server broadcasts expiry)', () => {
-    applyPresenceSnapshot({ presences: [presence({ attached: true })], budget: { used: 900, total: 32000 } });
+    applyPresenceSnapshot({ presences: [presence({ attached: true })] });
     expect(sessionActive.value).toBe(true);
-    applyPresenceSnapshot({ presences: [], budget: { used: 0, total: 32000 } });
+    applyPresenceSnapshot({ presences: [] });
     expect(sessionActive.value).toBe(false);
     expect(agentPresences.value).toEqual([]);
-    expect(contextBudget.value).toEqual({ used: 0, total: 32000 });
   });
 
   test('a partial or malformed frame never corrupts the store', () => {
-    applyPresenceSnapshot({ presences: [presence({ attached: true })], budget: { used: 10, total: 100 } });
-    applyPresenceSnapshot({ budget: { used: Number.NaN, total: 100 } });
-    expect(contextBudget.value).toEqual({ used: 10, total: 100 });
-    applyPresenceSnapshot({ budget: { used: 5, total: 'x' as unknown as number } });
-    expect(contextBudget.value).toEqual({ used: 10, total: 100 });
+    applyPresenceSnapshot({ presences: [presence({ attached: true })] });
+    applyPresenceSnapshot({ presences: 'x' as unknown as [] });
     applyPresenceSnapshot(null);
     applyPresenceSnapshot(undefined);
     expect(sessionActive.value).toBe(true);

@@ -58,11 +58,13 @@ export interface ContextReadConsumerSummary {
  * `nodeId` with its text) in what the reader received. A bare id list, a
  * title, or a clipped-off node does not count — the agent got the node's
  * name, not its content. Non-node ids (edges, intents) are dropped by the
- * caller against the board's nodes.
+ * caller against the board's nodes. A summary is "seen", not "read": `read`
+ * holds only nodes pulled in full, `reached` adds the summaries.
  */
-export declare function deliveredIds(payloadText: string, includeSummaries?: boolean): Set<string>;
-/** Pinned nodes whose content is in what the reader received (see `deliveredIds`). */
-export declare function deliveredPinnedIds(pinnedNodeIds: string[], payloadText: string): string[];
+export declare function deliveredIds(payloadText: string): {
+    read: Set<string>;
+    reached: Set<string>;
+};
 export declare function contextReadFromPayload(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds'>, payload: unknown): ContextReadInput;
 /**
  * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
