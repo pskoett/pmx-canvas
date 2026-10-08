@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>When links change after a read</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1500px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">When a card’s links change after the agent read it</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">Connecting cards is the work of a research board, so it must not paint the board amber. Proposed: the mark sits on what changed — the edge — not on both cards. A links-only change is not “needs a look”: the next brief resends both cards with their new relations by itself. Amber stays for text the agent may be acting on.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+<sc-for list="{{top}}" as="sc" hint-placeholder-count="2">
+<section style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<span style="{{s.label}}">{{sc.label}}</span>
+<div style="{{sc.frame}}">
+<svg width="640" height="300" viewBox="0 0 640 300" style="position: absolute; left: 0; top: 0; overflow: visible; fill: none; stroke-linecap: round"><path d="{{sc.e.d}}" style="{{sc.e.line}}"></path><path d="{{sc.e.head}}" style="{{sc.e.headSt}}"></path></svg>
+<span style="{{sc.e.pill}}">{{sc.e.label}}<sc-if value="{{sc.e.hasBadge}}" hint-placeholder-val="{{ true }}"><span style="{{sc.e.badgeSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{sc.e.badgeIc}}"></path></svg>{{sc.e.badge}}</span></sc-if></span>
+<sc-for list="{{sc.cards}}" as="c" hint-placeholder-count="2">
+<div style="{{c.node}}"><div style="{{c.head}}"><span style="{{s.title}}">{{c.title}}</span><sc-if value="{{c.hasTag}}" hint-placeholder-val="{{ true }}"><span style="{{c.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{c.tagIc}}"></path></svg>{{c.tag}}</span></sc-if><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></div><div style="{{s.body}}">{{c.body}}</div></div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #b9c6d6">{{sc.note}}</span>
+</section>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+<sc-for list="{{cases}}" as="sc" hint-placeholder-count="3">
+<section style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<span style="{{s.label}}">{{sc.label}}</span>
+<div style="{{sc.frame}}">
+<svg width="434" height="290" viewBox="0 0 434 290" style="position: absolute; left: 0; top: 0; overflow: visible; fill: none; stroke-linecap: round"><path d="{{sc.e.d}}" style="{{sc.e.line}}"></path><path d="{{sc.e.head}}" style="{{sc.e.headSt}}"></path></svg>
+<span style="{{sc.e.pill}}">{{sc.e.label}}<sc-if value="{{sc.e.hasBadge}}" hint-placeholder-val="{{ true }}"><span style="{{sc.e.badgeSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{sc.e.badgeIc}}"></path></svg>{{sc.e.badge}}</span></sc-if></span>
+<sc-for list="{{sc.cards}}" as="c" hint-placeholder-count="2">
+<div style="{{c.node}}"><div style="{{c.head}}"><span style="{{s.title}}">{{c.title}}</span><sc-if value="{{c.hasTag}}" hint-placeholder-val="{{ true }}"><span style="{{c.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{c.tagIc}}"></path></svg>{{c.tag}}</span></sc-if><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></div><div style="{{s.body}}">{{c.body}}</div></div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #b9c6d6">{{sc.note}}</span>
+</section>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: 600px minmax(0, 1fr); gap: 28px">
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">At 600 px — the same marks, and the context panel’s rows</span>
+<div style="{{narrow.frame}}">
+<svg width="568" height="250" viewBox="0 0 568 250" style="position: absolute; left: 0; top: 0; overflow: visible; fill: none; stroke-linecap: round"><path d="{{narrow.e.d}}" style="{{narrow.e.line}}"></path><path d="{{narrow.e.head}}" style="{{narrow.e.headSt}}"></path></svg>
+<span style="{{narrow.e.pill}}">{{narrow.e.label}}<span style="{{narrow.e.badgeSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{narrow.e.badgeIc}}"></path></svg>{{narrow.e.badge}}</span></span>
+<sc-for list="{{narrow.cards}}" as="c" hint-placeholder-count="2">
+<div style="{{c.node}}"><div style="{{c.head}}"><span style="{{s.title}}">{{c.title}}</span><span style="{{s.pinOn}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span></div><div style="{{s.body}}">{{c.body}}</div></div>
+</sc-for>
+</div>
+<div style="{{s.panel}} padding: 10px 12px; gap: 2px">
+<div style="display: flex; align-items: center; padding: 2px 8px 6px; font-size: 11px; font-weight: 600; color: #8ea3bd"><span style="flex: 1">Cards on this board · 3</span><span style="color: #4BBCFF; font-weight: 500">Clear all</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; font-size: 12px"><span style="{{s.pinOn}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.icPin}}"><path d="{{i.pin}}"></path></svg></span><span style="{{s.title}}">{{r.t}}</span><span style="{{r.st}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{r.ic}}"></path></svg>{{r.tag}}</span><span style="width: 20px; text-align: center; color: #8ea3bd">×</span></div>
+</sc-for>
+<span style="font-size: 11px; color: #8ea3bd; padding: 4px 8px 0">The panel is the one place a links-only change shows per card, neutral: “links changed” clears when the agent next reads either end.</span>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<span style="{{s.label}}">The marks</span>
+<sc-for list="{{marks}}" as="m" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: center"><span style="{{m.st}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{m.ic}}"></path></svg>{{m.t}}</span><span style="font-size: 12px; color: #b9c6d6">{{m.d}}</span></div>
+</sc-for>
+<span style="{{s.label}} margin-top: 8px">In the brief — what the agent receives next</span>
+<div style="{{s.panel}} padding: 12px 14px; gap: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6">
+<sc-for list="{{brief}}" as="b" hint-placeholder-count="5"><span style="{{b.st}}">{{b.t}}</span></sc-for>
+</div>
+<span style="{{s.label}} margin-top: 8px">Open for the maintainer</span>
+<sc-for list="{{open}}" as="o" hint-placeholder-count="3"><span style="font-size: 12px; color: #b9c6d6">{{o}}</span></sc-for>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      pin: 'M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20',
+      eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      eyeOff: 'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.6 6.6C3.8 8.3 2 12 2 12s3.5 6 10 6a9.6 9.6 0 0 0 4.4-1',
+      warn: 'M12 4l9 16H3zM12 10v4M12 17v.5',
+      spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
+      link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'
+    };
+    var INK = '#5FCFC0', V = '#B388FF', W = '#f4c542';
+    var chip = 'display:inline-flex;align-items:center;gap:4px;height:20px;box-sizing:border-box;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;flex-shrink:0;white-space:nowrap;';
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;',
+      icPin: 'fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;',
+      pinOn: 'width:18px;height:18px;border-radius:999px;background:#4BBCFF;color:#081524;display:flex;align-items:center;justify-content:center;flex-shrink:0;',
+      title: 'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;',
+      body: 'padding:8px 12px;font-size:12px;color:#b9c6d6;'
+    };
+    var tags = {
+      changed: { tag: 'changed', st: chip + 'color:' + W + ';background:rgba(244,197,66,0.14);', ic: i.warn },
+      read: { tag: 'read 2m', st: chip + 'color:' + V + ';background:rgba(179,136,255,0.16);', ic: i.eye },
+      links: { tag: 'links changed', st: chip + 'color:#8ea3bd;background:#13243b;', ic: i.link },
+      notRead: { tag: 'not read yet', st: chip + 'color:#8ea3bd;background:#13243b;', ic: i.eyeOff }
+    };
+    var badges = {
+      notSeen: { t: 'not seen by Claude', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:#8ea3bd;font-weight:500;', ic: i.eyeOff },
+      agent: { t: 'by Claude', st: 'display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding-left:6px;border-left:1px solid #2a4566;color:' + V + ';font-weight:500;', ic: i.spark }
+    };
+    function card(x, y, w, title, body, tag) {
+      var t = tag ? tags[tag] : null;
+      return {
+        title: title, body: body, hasTag: !!t, tag: t ? t.tag : '', tagSt: t ? t.st : '', tagIc: t ? t.ic : '',
+        node: 'position:absolute;left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:96px;box-sizing:border-box;border-radius:10px;border:1.5px solid #4BBCFF;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);overflow:hidden;',
+        head: 'display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 12px;border-bottom:1px solid #1b2c44;background:rgba(75,188,255,0.10);'
+      };
+    }
+    function edge(x1, y1, x2, y2, label, badge, removed, vertical) {
+      var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      var b = badge ? badges[badge] : null;
+      return {
+        d: vertical ? 'M' + x1 + ' ' + y1 + ' C ' + x1 + ' ' + my + ', ' + x2 + ' ' + my + ', ' + x2 + ' ' + y2 : 'M' + x1 + ' ' + y1 + ' C ' + mx + ' ' + y1 + ', ' + mx + ' ' + y2 + ', ' + x2 + ' ' + y2,
+        head: removed ? '' : vertical ? 'M' + x2 + ' ' + y2 + ' l-4.5 -9 h9 z' : 'M' + x2 + ' ' + y2 + ' l-9 -4.5 v9 z',
+        line: 'stroke:' + INK + ';stroke-width:1.5;' + (removed ? 'opacity:0;' : ''),
+        headSt: 'fill:' + INK + ';stroke:none;',
+        label: label, hasBadge: !!b, badge: b ? b.t : '', badgeSt: b ? b.st : '', badgeIc: b ? b.ic : '',
+        pill: 'position:absolute;left:' + mx + 'px;top:' + ((y1 + y2) / 2) + 'px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;height:22px;box-sizing:border-box;padding:0 9px;border-radius:999px;border:1px solid rgba(95,207,192,0.5);background:#0f1d31;color:' + INK + ';font-size:11px;font-weight:600;white-space:nowrap;' + (removed ? 'display:none;' : '')
+      };
+    }
+    var frameBase = 'position:relative;border-radius:10px;border:1px solid #1b2c44;background-color:#081524;background-image:radial-gradient(rgba(142,163,189,0.14) 1px, transparent 1.2px);background-size:24px 24px;overflow:hidden;';
+    var A = 'Raise Pro to $24?', B = 'SMB is price-sensitive';
+    var bodyA = 'Question for Q4 pricing.', bodyB = 'Eight of twelve interviews.';
+    var top = [
+      { label: 'As built — both cards turn amber', frame: frameBase + 'height:300px;',
+        cards: [card(20, 40, 262, A, bodyA, 'changed'), card(358, 164, 262, B, bodyB, 'changed')],
+        e: edge(282, 88, 358, 212, 'supports', null),
+        note: 'You drew one link between two cards the agent had read. Both now say “changed”, though neither text changed. Connect five cards and the board is amber everywhere — the warning stops meaning anything.' },
+      { label: 'Proposed — the edge carries the mark', frame: frameBase + 'height:300px;',
+        cards: [card(20, 40, 262, A, bodyA, 'read'), card(358, 164, 262, B, bodyB, 'read')],
+        e: edge(282, 88, 358, 212, 'supports', 'notSeen'),
+        note: 'The cards keep their read mark. The new link’s pill says “not seen by Claude” (muted, eye-off) until the agent’s next brief carries it, then the extra word goes. Nothing to act on: the next brief resends it by itself.' }
+    ];
+    var cases = [
+      { label: 'The agent drew it', frame: frameBase + 'height:290px;',
+        cards: [card(12, 16, 236, A, bodyA, 'read'), card(184, 178, 236, B, bodyB, 'read')],
+        e: edge(130, 112, 302, 178, 'supports', 'agent', false, true),
+        note: 'Agent did it: violet “by Claude” on the pill, like a card’s byline, until you edit or relabel the link. An agent’s own link is never “not seen”.' },
+      { label: 'Text and links changed', frame: frameBase + 'height:290px;',
+        cards: [card(12, 16, 236, A, bodyA, 'read'), card(184, 178, 236, B, bodyB, 'changed')],
+        e: edge(130, 112, 302, 178, 'supports', 'notSeen', false, true),
+        note: 'Text wins on the card: amber “changed”, because the agent may be acting on old words. The link keeps its own muted mark. Hover on “changed” says “text changed · 1 new link”.' },
+      { label: 'A link was removed', frame: frameBase + 'height:290px;',
+        cards: [card(12, 16, 236, A, bodyA, 'read'), card(184, 178, 236, B, bodyB, 'read')],
+        e: edge(130, 112, 302, 178, 'supports', null, true, true),
+        note: 'A removed link has no line left to mark. The board stays quiet; the context panel lists both cards as “links changed” until the next brief, and Updates records the removal.' }
+    ];
+    var narrow = { frame: frameBase + 'height:250px;', cards: [card(16, 30, 220, A, bodyA), card(332, 130, 220, B, bodyB)], e: edge(236, 78, 332, 178, 'supports', 'notSeen') };
+    var rows = [
+      { t: A, tag: 'links changed', st: tags.links.st, ic: i.link },
+      { t: B, tag: 'changed', st: tags.changed.st, ic: i.warn },
+      { t: 'Competitor pricing', tag: 'read 2m', st: tags.read.st, ic: i.eye }
+    ];
+    var markBase = chip + 'justify-self:start;';
+    var marks = [
+      { t: 'changed', st: markBase + 'color:' + W + ';background:rgba(244,197,66,0.14);', ic: i.warn, d: 'Card text changed since the agent read it. Amber: it may be acting on old words. Unchanged.' },
+      { t: 'not seen by Claude', st: markBase + 'color:#8ea3bd;border:1px solid #2a4566;', ic: i.eyeOff, d: 'On a link’s pill: drawn by a person since the agent last read either end. Neutral, not amber: the next brief delivers it without anyone acting.' },
+      { t: 'by Claude', st: markBase + 'color:' + V + ';background:rgba(179,136,255,0.16);', ic: i.spark, d: 'On a link’s pill: the agent drew it. Violet, like every agent byline.' },
+      { t: 'links changed', st: markBase + 'color:#8ea3bd;background:#13243b;', ic: i.link, d: 'Only in the context panel and on hover: this card’s links changed since the agent read it (added, relabelled or removed).' },
+      { t: 'supports', st: markBase + 'color:' + INK + ';border:1px solid rgba(95,207,192,0.5);', ic: i.link, d: 'The relation ink itself never changes colour for any of this; inks keep their meaning.' }
+    ];
+    var m = 'white-space:pre;';
+    var brief = [
+      { t: '## Changed since your last read', st: m + 'color:#e6eef7;font-weight:500;' },
+      { t: '- Raise Pro to $24?   links changed', st: m + 'color:#e6eef7;' },
+      { t: '    + supported by: SMB is price-sensitive (new, by Pepe)', st: m + 'color:#b9c6d6;' },
+      { t: '- SMB is price-sensitive   text changed, links changed', st: m + 'color:#e6eef7;' },
+      { t: '    + supports: Raise Pro to $24? (new, by Pepe)', st: m + 'color:#b9c6d6;' }
+    ];
+    var open = [
+      '1 · Links-only changes are neutral and live on the edge (proposed), not amber on both cards (as built).',
+      '2 · Two states per card from the server: text changed / links changed since read — needed to tell them apart.',
+      '3 · Human-drawn links carry no author mark; only “not seen” while undelivered. Agent links carry “by Claude”.'
+    ];
+    return { i: i, s: s, top: top, cases: cases, narrow: narrow, rows: rows, marks: marks, brief: brief, open: open };
+  }
+}
+</script>
+</body>
+</html>
