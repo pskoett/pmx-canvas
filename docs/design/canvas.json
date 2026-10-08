@@ -251,8 +251,15 @@
       "x": 13520,
       "y": 4060,
       "w": 1440,
-      "h": 1380,
+      "h": 1440,
       "title": "Node header with several marks — title first, authorship on the icon, fold order (260/340/480, Harbor and Daylight)"
+    },
+    "LinkAuthorship.dc.html": {
+      "x": 15040,
+      "y": 4060,
+      "w": 1440,
+      "h": 1550,
+      "title": "Who drew a link — ✦ for an agent, an initial for another person, “not seen by <agent>” beside it (decided 2026-10-08)"
     }
   },
   "createdOnFiles": {
@@ -371,7 +378,8 @@
     "LinksChanged.dc.html",
     "LinksOptions.dc.html",
     "LinksOptions600.dc.html",
-    "HeaderMarks.dc.html"
+    "HeaderMarks.dc.html",
+    "LinkAuthorship.dc.html"
   ],
   "pages": [],
   "title": "PMX Canvas look-and-feel proposal"

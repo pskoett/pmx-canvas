@@ -13,7 +13,7 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1380px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
+<div style="width: 1440px; height: 1440px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 22px">
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">A node header with more than one mark</h1>
@@ -75,7 +75,7 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1380}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1440}}'>
 class Component extends DCLogic {
   renderVals() {
     var i = {
@@ -146,8 +146,8 @@ class Component extends DCLogic {
     }
     var cases = [
       { name: 'Agent wrote it, near a pin', note: 'the common case on an agent-written board', title: 'The brief as a map — wave 1', kinds: ['near', 'agent'], pinned: false },
-      { name: 'Near a pin, read by the agent', note: 'read folds before near', title: 'Competitor pricing teardown', kinds: ['near', 'read'], pinned: false },
-      { name: 'Changed since read, near a pin', note: 'amber keeps its word; at 260 px near moves into the hint', title: 'SMB interview notes', kinds: ['changed', 'near'], pinned: false },
+      { name: 'Pinned, changed since read, agent wrote it', note: 'amber keeps its word; the title gives way to 80 px first', title: 'SMB interview notes and quotes', kinds: ['changed', 'agent'], pinned: true },
+      { name: 'Near a pin, agent wrote it, long title', note: 'near folds to its glyph before the title drops below 140 px', title: 'Competitor pricing teardown — September list', kinds: ['near', 'agent'], pinned: false },
       { name: 'Pinned, read, agent wrote it', note: 'the pin badge already says in context', title: 'Churn flat after last raise', kinds: ['read', 'agent'], pinned: true }
     ];
     var themes = [H, D].map(function (c) {
@@ -171,7 +171,7 @@ class Component extends DCLogic {
     var rules = [
       '1 · The title keeps at least 140 px (all of it when shorter). Only an amber mark may push it down, to 80 px.',
       '2 · “By <agent>” never takes a chip in the header. A violet sparkle on the type icon carries it at every width; its word is in the icon’s hint. The violet dot on the pin badge keeps meaning “pinned by the agent”.',
-      '3 · When the title would drop below its minimum, marks fold to their glyph in this order: read first, then near. If a glyph still leaves the title too little, it moves into the icon’s hint. Amber “changed” never folds — amber always carries its word.',
+      '3 · Read marks (read, changed) sit on pinned cards only and near on unpinned cards only (2026-10-08), so they never meet in one header. When the title would drop below its minimum, a mark folds to its glyph — read or near. If a glyph still leaves the title too little, it moves into the icon’s hint. Amber “changed” never folds — amber always carries its word.',
       '4 · At most one amber chip and one other worded chip in a header; everything else is a glyph. Expand and the context pin never fold (Chrome).',
       '5 · Folded words live in one hint on the type icon (BarHint, not a title attribute), and in full in the expanded card and the context panel.'
     ];
