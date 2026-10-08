@@ -2272,6 +2272,21 @@ class CanvasStateManager {
 
   // ── Edge CRUD ──────────────────────────────────────────────
 
+  /**
+   * Relations are part of each card's entry in the brief (a map, not a dump),
+   * so a relation change advances both endpoints' content revisions: the next
+   * incremental brief resends them with their new relations. Generated
+   * auto-edges (code graph, board map) do not count. The card's text did not
+   * change, so its last editor stays.
+   */
+  private touchRelations(edge: Pick<CanvasEdge, 'id' | 'from' | 'to'>): void {
+    if (edge.id.startsWith('codegraph-') || edge.id.startsWith('boardmap-')) return;
+    for (const id of [edge.from, edge.to]) {
+      const node = this.nodes.get(id);
+      if (node) this.nodes.set(id, { ...node, contentRevision: this.nextContentRevision() });
+    }
+  }
+
   addEdge(edge: CanvasEdge): boolean {
     if (edge.from === edge.to) return false;
     for (const existing of this.edges.values()) {
@@ -2281,6 +2296,7 @@ class CanvasStateManager {
     }
     const cloned = structuredClone(edge);
     this.edges.set(edge.id, edge);
+    this.touchRelations(edge);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
@@ -2313,6 +2329,8 @@ class CanvasStateManager {
     }
     const after = structuredClone(updated);
     this.edges.set(id, updated);
+    const relationChanged = updated.type !== before.type || updated.label !== before.label;
+    if (relationChanged) this.touchRelations(updated);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
@@ -2320,11 +2338,13 @@ class CanvasStateManager {
       description: `Updated ${updated.type} edge ${updated.from} → ${updated.to}`,
       forward: this.suppressed(() => {
         this.edges.set(id, structuredClone(after));
+        if (relationChanged) this.touchRelations(after);
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
       inverse: this.suppressed(() => {
         this.edges.set(id, structuredClone(before));
+        if (relationChanged) this.touchRelations(before);
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
@@ -2337,6 +2357,7 @@ class CanvasStateManager {
     const cloned = existing ? structuredClone(existing) : null;
     const removed = this.edges.delete(id);
     if (removed && cloned) {
+      this.touchRelations(cloned);
       this.scheduleSave();
       this.notifyChange('nodes');
       this.recordMutation({

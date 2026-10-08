@@ -990,6 +990,8 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
   );
 
   syncAttentionFromSse({ event: 'canvas-layout-update', data });
+  // Content changes move the brief's size and can clip it (debounced, so a burst fetches once).
+  refreshContextChip(1_000);
 }
 
 function reconnectDelayMs(attempt: number): number {

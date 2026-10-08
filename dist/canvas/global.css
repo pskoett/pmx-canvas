@@ -7619,8 +7619,9 @@ html.is-node-dragging .intent-line-layer {
   padding: 0 8px;
   border-radius: 6px;
 }
+/* Revealed on hover or focus; opacity (not visibility) keeps Pin focusable. */
 .context-panel-row.is-near .context-panel-promote {
-  visibility: hidden;
+  opacity: 0;
 }
 .context-panel-row.is-near:hover,
 .context-panel-row.is-near:focus-within {
@@ -7628,7 +7629,7 @@ html.is-node-dragging .intent-line-layer {
 }
 .context-panel-row.is-near:hover .context-panel-promote,
 .context-panel-row.is-near:focus-within .context-panel-promote {
-  visibility: visible;
+  opacity: 1;
 }
 .context-panel-pin {
   position: relative;

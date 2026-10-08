@@ -170,6 +170,13 @@ export function App() {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      // Menus and dialogs own their arrow keys (and Tab order); board navigation must not also move a node.
+      if (
+        (e.key === 'Tab' || e.key.startsWith('Arrow')) &&
+        target?.closest('.top-bar, [role="menu"], [role="dialog"]')
+      ) {
+        return;
+      }
 
       // Held Space = temporary pan tool (released on keyup below).
       if (e.key === ' ' && !e.repeat && !mod) {

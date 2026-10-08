@@ -397,6 +397,14 @@ declare class CanvasStateManager {
     removeNode(id: string): void;
     getNode(id: string): CanvasNodeState | undefined;
     getNodeForPersistence(id: string): CanvasNodeState | undefined;
+    /**
+     * Relations are part of each card's entry in the brief (a map, not a dump),
+     * so a relation change advances both endpoints' content revisions: the next
+     * incremental brief resends them with their new relations. Generated
+     * auto-edges (code graph, board map) do not count. The card's text did not
+     * change, so its last editor stays.
+     */
+    private touchRelations;
     addEdge(edge: CanvasEdge): boolean;
     updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
     removeEdge(id: string): boolean;

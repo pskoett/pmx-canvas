@@ -1,13 +1,15 @@
 import { signal } from '@preact/signals';
 import { DEFAULT_CONTEXT_BRIEF_BUDGET } from '../../shared/context-brief-budget.js';
-import { boardList } from './boards-store';
+import { activeBoardId, boardList } from './boards-store';
 import { requestJson } from './intent-bridge';
 
 /**
  * The context chip (docs/design/ContextChip.dc.html): how big the agent's brief
  * is against its budget, whether it was clipped, and when each pinned board was
- * last read. The workbench's own brief fetch carries the workbench marker, so it
- * is never booked as an agent read.
+ * last read. The brief fetch is a measurement, not a delivery: it says so with
+ * `x-pmx-proxied-read`, so it is never booked as an agent read — not even from
+ * an `?agent=` tab, whose requests carry no workbench marker. Otherwise the
+ * recorded read would announce itself and refetch the chip in a loop.
  */
 
 export interface BriefSize {
@@ -31,21 +33,27 @@ export function approxTokens(chars: number): string {
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null;
+let generation = 0;
 
-/** Debounced: pins, reads and board changes arrive in bursts. */
-export function refreshContextChip(): void {
+/** Debounced: pins, reads and board changes arrive in bursts; content edits wait longer. */
+export function refreshContextChip(delayMs = 250): void {
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {
     timer = null;
     void load();
-  }, 250);
+  }, delayMs);
 }
 
 async function load(): Promise<void> {
+  const request = ++generation;
+  const boardId = activeBoardId.value;
+  // A late answer for a board you have since left, or an older request, must not paint the chip.
+  const current = () => request === generation && boardId === activeBoardId.value;
   const brief = await requestJson<{
     delivery?: { truncated?: boolean };
     entries?: unknown[];
-  } | null>('fetchBriefSize', '/api/canvas/context', null);
+  } | null>('fetchBriefSize', '/api/canvas/context', null, { headers: { 'x-pmx-proxied-read': '1' } });
+  if (!current()) return;
   if (brief?.entries) {
     briefSize.value = {
       chars: JSON.stringify(brief).length,
@@ -65,5 +73,5 @@ async function load(): Promise<void> {
       reads.set(board.id, status?.board ?? null);
     }),
   );
-  pinnedBoardReads.value = reads;
+  if (current()) pinnedBoardReads.value = reads;
 }

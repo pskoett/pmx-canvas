@@ -358,9 +358,23 @@ export function TopBar() {
 function TopBarMore({ boardOpen, onFit }: { boardOpen: boolean; onFit: () => void }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    items()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        trigger.current?.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const list = items();
+        const at = list.indexOf(document.activeElement as HTMLElement);
+        const next = event.key === 'ArrowDown' ? at + 1 : at - 1;
+        list[(next + list.length) % list.length]?.focus();
+      }
+    };
     const onDown = (event: PointerEvent) => {
       if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
     };
@@ -378,6 +392,7 @@ function TopBarMore({ boardOpen, onFit }: { boardOpen: boolean; onFit: () => voi
   return (
     <div class="top-bar-more" ref={root}>
       <button
+        ref={trigger}
         type="button"
         class="top-bar-btn"
         aria-label="More: export, present, zoom, fit"

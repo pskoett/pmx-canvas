@@ -34,12 +34,17 @@ function nodeTitle(id: string): string {
 export function ContextChip() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const chip = useRef<HTMLButtonElement>(null);
   const boardId = activeBoardId.value;
 
   useEffect(() => {
     if (!open) return;
     refreshContextChip();
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      chip.current?.focus();
+    };
     const onDown = (event: PointerEvent) => {
       if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
     };
@@ -89,6 +94,7 @@ export function ContextChip() {
   return (
     <div class="context-chip-wrap" ref={root}>
       <button
+        ref={chip}
         type="button"
         class={`context-chip${empty ? ' is-empty' : ''}${open ? ' is-open' : ''}`}
         aria-expanded={open}

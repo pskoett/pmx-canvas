@@ -33,7 +33,7 @@ import {
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { defineOperation, OperationError, type Operation, type OperationMcpToolHost } from '../types.js';
 import { buildSummaryFromLayout, isRecord } from './nodes.js';
-import { boardsPayload, readTargetBoard } from './boards.js';
+import { readTargetBoard } from './boards.js';
 
 // ── pin.set ───────────────────────────────────────────────────
 
@@ -298,24 +298,38 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         defaultTextLength: BRIEF_SUMMARY_LENGTH,
         webpageTextLength: BRIEF_SUMMARY_LENGTH,
       });
-    const library = boardsPayload().boards as Array<{
-      id: string;
-      name: string;
-      category: string | null;
-      summary: string | null;
-      pin: unknown;
-      links: Array<{ title: string | null }>;
-      backlinks: Array<{ title: string }>;
-    }>;
-    const relationsOf = (boardId: string) => {
-      const entry = library.find((board) => board.id === boardId);
-      return {
-        folder: entry?.category ?? null,
-        readmeSummary: entry?.summary ?? null,
-        links: [...new Set((entry?.links ?? []).map((link) => link.title).filter((name): name is string => !!name))],
-        backlinks: [...new Set((entry?.backlinks ?? []).map((link) => link.title))],
-      };
+    // Links need every board's portal cards (no blobs); README summaries are read
+    // only for the open board and pinned boards, so a large library stays cheap.
+    const library = canvasState.listBoards();
+    const names = new Map(library.map((board) => [board.id, board.name]));
+    const linksFrom = new Map<string, string[]>();
+    for (const board of library) {
+      const nodes =
+        board.id === active.id ? layout.nodes : (canvasState.readBoard(board.id, false)?.layout.nodes ?? []);
+      linksFrom.set(
+        board.id,
+        nodes
+          .filter((node) => node.type === 'board' && typeof node.data.boardId === 'string')
+          .map((node) => node.data.boardId as string),
+      );
+    }
+    const readmeSummary = (boardId: string): string | null => {
+      const board = library.find((entry) => entry.id === boardId);
+      if (!board?.readmeNodeId) return null;
+      const nodes = boardId === active.id ? layout.nodes : (canvasState.readBoard(boardId, true)?.layout.nodes ?? []);
+      const readme = nodes.find((node) => node.id === board.readmeNodeId && node.type === 'markdown');
+      return readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1_000 }) : null;
     };
+    const relationsOf = (boardId: string) => ({
+      folder: library.find((board) => board.id === boardId)?.category ?? null,
+      readmeSummary: readmeSummary(boardId),
+      links: [...new Set((linksFrom.get(boardId) ?? []).flatMap((id) => names.get(id) ?? []))],
+      backlinks: [
+        ...new Set(
+          [...linksFrom].filter(([, targets]) => targets.includes(boardId)).flatMap(([id]) => names.get(id) ?? []),
+        ),
+      ],
+    });
     const overview = relationsOf(active.id);
     const pinReasons: Record<string, string> = {};
     for (const [nodeId, meta] of Object.entries(canvasState.getContextPinMeta())) {
