@@ -24,15 +24,19 @@ export interface ContextRead {
     deliveredNodeIds: string[];
     /** Every node on the read board whose content was delivered, with its content revision at read time. */
     readNodes: Record<string, number>;
+    /** Every node on the read board that arrived with its relations (summaries count), with its links revision then. */
+    seenLinks: Record<string, number>;
     bytes: number;
     /** The board open when the read happened (null on Home). */
     boardId: string | null;
 }
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId' | 'readNodes'> & {
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId' | 'readNodes' | 'seenLinks'> & {
     /** Explicit read target, captured before asynchronous formatting/proxy work. */
     boardId?: string | null;
     /** Ids of every serialized node in what the reader received; the server keeps those on the board. */
     readNodeIds?: string[];
+    /** Ids of every node that arrived, summaries included; defaults to readNodeIds. */
+    seenNodeIds?: string[];
 };
 /** One node's read state on a board: the latest agent read that delivered its content. */
 export interface NodeReadStatus {
@@ -59,21 +63,25 @@ export interface ContextReadConsumerSummary {
  * title, or a clipped-off node does not count — the agent got the node's
  * name, not its content. Non-node ids (edges, intents) are dropped by the
  * caller against the board's nodes. A summary is "seen", not "read": `read`
- * holds only nodes pulled in full, `reached` adds the summaries.
+ * holds only nodes pulled in full, `reached` adds the summaries, and `linked`
+ * is `reached` minus entries the budget clipped — a brief entry's relations
+ * are its tail, so a clipped one may not have carried them.
  */
 export declare function deliveredIds(payloadText: string): {
     read: Set<string>;
     reached: Set<string>;
+    linked: Set<string>;
 };
 export declare function contextReadFromPayload(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds'>, payload: unknown): ContextReadInput;
 /**
  * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
  * pinned board whose map arrived, so the board shows as read. Its cards came as
- * summaries, which mark nothing read until the agent pulls them.
+ * summaries, which mark nothing read until the agent pulls them; unclipped ones
+ * carried their relations, so their links count as seen on that board.
  */
 export declare function pinnedBoardReads(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>, payload: unknown): ContextReadInput[];
-export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS context_reads (\n    seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    id TEXT NOT NULL UNIQUE,\n    at TEXT NOT NULL,\n    channel TEXT NOT NULL,\n    resource TEXT NOT NULL,\n    source TEXT NOT NULL,\n    consumer TEXT,\n    agent_id TEXT,\n    pinned_node_ids TEXT NOT NULL DEFAULT '[]',\n    delivered_node_ids TEXT NOT NULL DEFAULT '[]',\n    bytes INTEGER NOT NULL DEFAULT 0,\n    board_id TEXT,\n    read_nodes TEXT NOT NULL DEFAULT '{}'\n  );\n";
-export declare function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null, readNodes?: Record<string, number>): ContextRead;
+export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS context_reads (\n    seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    id TEXT NOT NULL UNIQUE,\n    at TEXT NOT NULL,\n    channel TEXT NOT NULL,\n    resource TEXT NOT NULL,\n    source TEXT NOT NULL,\n    consumer TEXT,\n    agent_id TEXT,\n    pinned_node_ids TEXT NOT NULL DEFAULT '[]',\n    delivered_node_ids TEXT NOT NULL DEFAULT '[]',\n    bytes INTEGER NOT NULL DEFAULT 0,\n    board_id TEXT,\n    read_nodes TEXT NOT NULL DEFAULT '{}',\n    seen_links TEXT NOT NULL DEFAULT '{}'\n  );\n";
+export declare function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null, readNodes?: Record<string, number>, seenLinks?: Record<string, number>): ContextRead;
 /** Per node on a board, the latest agent read that delivered its content (newest row wins). */
 export declare function loadNodeReadStatusFromDB(db: Database, boardId: string): NodeReadStatus[];
 /** The latest agent read on a board, of any kind (a brief, a pinned-board map, a pull), or null. */
@@ -81,6 +89,8 @@ export declare function loadBoardLastReadFromDB(db: Database, boardId: string): 
     lastReadAt: string;
     lastReadBy: string;
 } | null;
+/** Per node on a board, the newest links revision any agent read has carried (connection marks). */
+export declare function loadSeenLinksFromDB(db: Database, boardId: string): Record<string, number>;
 /** Every node on a board whose content an agent read at or after `since` (ISO). */
 export declare function loadReadNodeIdsSince(db: Database, boardId: string, since: string): string[];
 /** Newest first. The summary covers every retained row, not just the returned page. */

@@ -76,14 +76,16 @@ describe('useAxSurfaceBridge (plan-009 M2)', () => {
       />,
     );
     await flush();
-    expect(fetchSpy.mock.calls).toHaveLength(1);
+    expect(interactionPosts(fetchSpy)).toBe(1);
     expect(win.postMessage.mock.calls).toHaveLength(1);
   });
 
   test('submits a valid emit through the capability-gated endpoint and acks back', async () => {
     const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      calls.push({ url: String(url), body: JSON.parse(String(init?.body ?? '{}')) });
+      if (String(url) === '/api/canvas/ax/interaction') {
+        calls.push({ url: String(url), body: JSON.parse(String(init?.body ?? '{}')) });
+      }
       return new Response(JSON.stringify({ ok: true, type: 'ax.work.create' }), {
         headers: { 'Content-Type': 'application/json' },
       });

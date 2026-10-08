@@ -45,9 +45,8 @@ export interface AgentPresence {
   opCount: number;
   /**
    * The agent's REAL context window, when its host reports it (tokens used /
-   * window size). Null when no adapter reports — the top-bar meter then shows
-   * the pinned-context estimate against the configured budget instead, and
-   * says so.
+   * window size). Null when no adapter reports — the context chip then shows
+   * the brief's size against its budget instead.
    */
   contextUsage: { used: number; total: number } | null;
   lastSeenAt: string;

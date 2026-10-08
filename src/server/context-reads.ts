@@ -40,16 +40,20 @@ export interface ContextRead {
   deliveredNodeIds: string[];
   /** Every node on the read board whose content was delivered, with its content revision at read time. */
   readNodes: Record<string, number>;
+  /** Every node on the read board that arrived with its relations (summaries count), with its links revision then. */
+  seenLinks: Record<string, number>;
   bytes: number;
   /** The board open when the read happened (null on Home). */
   boardId: string | null;
 }
 
-export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId' | 'readNodes'> & {
+export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId' | 'readNodes' | 'seenLinks'> & {
   /** Explicit read target, captured before asynchronous formatting/proxy work. */
   boardId?: string | null;
   /** Ids of every serialized node in what the reader received; the server keeps those on the board. */
   readNodeIds?: string[];
+  /** Ids of every node that arrived, summaries included; defaults to readNodeIds. */
+  seenNodeIds?: string[];
 };
 
 /** One node's read state on a board: the latest agent read that delivered its content. */
@@ -79,11 +83,14 @@ export interface ContextReadConsumerSummary {
  * title, or a clipped-off node does not count — the agent got the node's
  * name, not its content. Non-node ids (edges, intents) are dropped by the
  * caller against the board's nodes. A summary is "seen", not "read": `read`
- * holds only nodes pulled in full, `reached` adds the summaries.
+ * holds only nodes pulled in full, `reached` adds the summaries, and `linked`
+ * is `reached` minus entries the budget clipped — a brief entry's relations
+ * are its tail, so a clipped one may not have carried them.
  */
-export function deliveredIds(payloadText: string): { read: Set<string>; reached: Set<string> } {
+export function deliveredIds(payloadText: string): { read: Set<string>; reached: Set<string>; linked: Set<string> } {
   const read = new Set<string>();
   const reached = new Set<string>();
+  const linked = new Set<string>();
   const objectStarts: number[] = [];
   let inString = false;
   let escaped = false;
@@ -111,14 +118,17 @@ export function deliveredIds(payloadText: string): { read: Set<string>; reached:
             nodeId?: unknown;
             titleOnly?: unknown;
             summaryOnly?: unknown;
+            truncated?: unknown;
             text?: unknown;
           };
           if (typeof item.id === 'string') {
             read.add(item.id);
             reached.add(item.id);
+            linked.add(item.id);
           } else if (typeof item.nodeId === 'string' && item.titleOnly !== true && typeof item.text === 'string') {
             reached.add(item.nodeId);
             if (item.summaryOnly !== true) read.add(item.nodeId);
+            if (item.truncated !== true) linked.add(item.nodeId);
           }
         }
       } catch {
@@ -127,7 +137,7 @@ export function deliveredIds(payloadText: string): { read: Set<string>; reached:
     }
   }
 
-  return { read, reached };
+  return { read, reached, linked };
 }
 
 export function contextReadFromPayload(
@@ -136,11 +146,12 @@ export function contextReadFromPayload(
 ): ContextReadInput {
   const text = typeof payload === 'string' ? payload : (JSON.stringify(payload) ?? '');
   // Delivery (did the pins reach the agent?) counts summaries; read marks do not.
-  const { read, reached } = deliveredIds(text);
+  const { read, reached, linked } = deliveredIds(text);
   return {
     ...base,
     deliveredNodeIds: base.pinnedNodeIds.filter((id) => reached.has(id)),
     readNodeIds: [...read],
+    seenNodeIds: [...linked],
     bytes: Buffer.byteLength(text, 'utf-8'),
   };
 }
@@ -148,7 +159,8 @@ export function contextReadFromPayload(
 /**
  * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
  * pinned board whose map arrived, so the board shows as read. Its cards came as
- * summaries, which mark nothing read until the agent pulls them.
+ * summaries, which mark nothing read until the agent pulls them; unclipped ones
+ * carried their relations, so their links count as seen on that board.
  */
 export function pinnedBoardReads(
   base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>,
@@ -162,9 +174,18 @@ export function pinnedBoardReads(
       return [];
     }
   }
-  const entries =
-    (document as { entries?: Array<{ sourceBoardId?: string; nodeId?: string; reason?: string }> } | null)?.entries ??
-    [];
+  type Entry = { sourceBoardId?: string; nodeId?: string; reason?: string; text?: unknown; truncated?: unknown };
+  const entries = (document as { entries?: Entry[] } | null)?.entries ?? [];
+  const linkedOn = (boardId: string) =>
+    entries.flatMap((entry) =>
+      entry.sourceBoardId === boardId &&
+      typeof entry.nodeId === 'string' &&
+      !entry.nodeId.startsWith('board:') &&
+      typeof entry.text === 'string' &&
+      entry.truncated !== true
+        ? [entry.nodeId]
+        : [],
+    );
   return entries
     .filter(
       (entry) =>
@@ -178,6 +199,7 @@ export function pinnedBoardReads(
       pinnedNodeIds: [],
       deliveredNodeIds: [],
       readNodeIds: [],
+      seenNodeIds: linkedOn(entry.sourceBoardId as string),
       bytes: Buffer.byteLength(JSON.stringify(entry), 'utf-8'),
     }));
 }
@@ -196,7 +218,8 @@ export const CONTEXT_READS_SCHEMA_SQL = `
     delivered_node_ids TEXT NOT NULL DEFAULT '[]',
     bytes INTEGER NOT NULL DEFAULT 0,
     board_id TEXT,
-    read_nodes TEXT NOT NULL DEFAULT '{}'
+    read_nodes TEXT NOT NULL DEFAULT '{}',
+    seen_links TEXT NOT NULL DEFAULT '{}'
   );
 `;
 
@@ -205,11 +228,12 @@ export function appendContextReadToDB(
   input: ContextReadInput,
   boardId: string | null,
   readNodes: Record<string, number> = {},
+  seenLinks: Record<string, number> = {},
 ): ContextRead {
   const id = `read-${randomUUID()}`;
   const at = new Date().toISOString();
   db.run(
-    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id, read_nodes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id, read_nodes, seen_links) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       id,
       at,
@@ -223,12 +247,13 @@ export function appendContextReadToDB(
       input.bytes,
       boardId,
       JSON.stringify(readNodes),
+      JSON.stringify(seenLinks),
     ],
   );
   const seq = Number(db.query<{ seq: number }, []>('SELECT last_insert_rowid() AS seq').get()?.seq ?? 0);
   db.run('DELETE FROM context_reads WHERE seq <= ?', [seq - CONTEXT_READ_RETENTION]);
-  const { readNodeIds: _readNodeIds, ...record } = input;
-  return { ...record, seq, id, at, boardId, readNodes };
+  const { readNodeIds: _readNodeIds, seenNodeIds: _seenNodeIds, ...record } = input;
+  return { ...record, seq, id, at, boardId, readNodes, seenLinks };
 }
 
 interface ContextReadRow {
@@ -245,6 +270,7 @@ interface ContextReadRow {
   bytes: number;
   board_id: string | null;
   read_nodes: string;
+  seen_links: string;
 }
 
 function rowToContextRead(row: ContextReadRow): ContextRead {
@@ -260,6 +286,7 @@ function rowToContextRead(row: ContextReadRow): ContextRead {
     pinnedNodeIds: JSON.parse(row.pinned_node_ids) as string[],
     deliveredNodeIds: JSON.parse(row.delivered_node_ids) as string[],
     readNodes: JSON.parse(row.read_nodes) as Record<string, number>,
+    seenLinks: JSON.parse(row.seen_links) as Record<string, number>,
     bytes: row.bytes,
     boardId: row.board_id,
   };
@@ -301,6 +328,20 @@ export function loadBoardLastReadFromDB(
   if (!row) return null;
   const read = rowToContextRead(row);
   return { lastReadAt: read.at, lastReadBy: read.consumer ?? read.agentId ?? read.source };
+}
+
+/** Per node on a board, the newest links revision any agent read has carried (connection marks). */
+export function loadSeenLinksFromDB(db: Database, boardId: string): Record<string, number> {
+  const rows = db
+    .query<{ seen_links: string }, [string]>('SELECT seen_links FROM context_reads WHERE board_id = ?')
+    .all(boardId);
+  const seen: Record<string, number> = {};
+  for (const row of rows) {
+    for (const [nodeId, revision] of Object.entries(JSON.parse(row.seen_links) as Record<string, number>)) {
+      if (revision > (seen[nodeId] ?? -1)) seen[nodeId] = revision;
+    }
+  }
+  return seen;
 }
 
 /** Every node on a board whose content an agent read at or after `since` (ISO). */

@@ -28,14 +28,18 @@ interface ContextStatusResponse {
   ok?: boolean;
   boardId?: string | null;
   nodes?: NodeReadStatus[];
+  /** Per node, the newest links revision an agent read carried. */
+  links?: Record<string, number>;
   pins?: Record<string, ContextPinMeta>;
 }
 
 export const nodeReadStatus = signal<Map<string, NodeReadStatus>>(new Map());
 export const contextPinMeta = signal<Record<string, ContextPinMeta>>({});
+export const seenLinks = signal<Record<string, number>>({});
 
 export function applyContextStatus(response: ContextStatusResponse): void {
   nodeReadStatus.value = new Map((response.nodes ?? []).map((entry) => [entry.nodeId, entry]));
+  seenLinks.value = response.links ?? {};
   contextPinMeta.value = response.pins ?? {};
 }
 
@@ -58,6 +62,33 @@ export function pinnedReadState(nodeId: string, currentRevision: number): Pinned
   if (!read || (pinnedAt && read.lastReadAt < pinnedAt)) return { kind: 'not-read' };
   if (currentRevision > read.readRevision) return { kind: 'changed', by: read.lastReadBy, at: read.lastReadAt };
   return { kind: 'read', by: read.lastReadBy, at: read.lastReadAt, count: read.readCount };
+}
+
+/**
+ * Connection changes (option C, docs/design/LinksOptions.dc.html): the mark a
+ * link carries until a read brings either end with its relations. A person's
+ * change is "not seen" by the agent; an agent's change says which agent made
+ * it. Quiet until an agent has read this board at all, so a board no agent
+ * reads never fills with marks.
+ */
+export type LinkMark = { kind: 'not-seen' } | { kind: 'agent'; by: string } | null;
+
+export function linkMark(edge: {
+  from: string;
+  to: string;
+  revision?: number;
+  changedBy?: { actor: string; source: string; agentId?: string };
+}): LinkMark {
+  const seen = seenLinks.value;
+  if (!edge.revision || Object.keys(seen).length === 0) return null;
+  if (edge.revision <= Math.max(seen[edge.from] ?? -1, seen[edge.to] ?? -1)) return null;
+  return edge.changedBy?.actor === 'agent' ? { kind: 'agent', by: writerName(edge.changedBy) } : { kind: 'not-seen' };
+}
+
+/** A card whose links changed after the last read that carried them (shown neutral, never amber). */
+export function linksChanged(nodeId: string, linksRevision: number): boolean {
+  const seen = seenLinks.value[nodeId];
+  return seen !== undefined && linksRevision > seen;
 }
 
 /** Display name for an attributed writer: its agent id, else its transport label. */

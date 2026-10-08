@@ -4,7 +4,7 @@ import { IconPin } from '../icons';
 import { activeBoardId, boardList, setBoardPinned } from '../state/boards-store';
 import { clearContextPins, contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
 import { approxTokens, briefSize, pinnedBoardReads, refreshContextChip } from '../state/context-chip-store';
-import { contextPinMeta, pinnedReadState, writerName } from '../state/context-status-store';
+import { contextPinMeta, linksChanged, pinnedReadState, writerName } from '../state/context-status-store';
 import { nearPins } from '../state/near-pin-store';
 import { activeSession } from '../state/presence-store';
 
@@ -163,7 +163,9 @@ export function ContextChip() {
               </div>
               <ul class="context-panel-list">
                 {cardIds.map((id) => {
-                  const state = pinnedReadState(id, nodes.value.get(id)?.contentRevision ?? 0);
+                  const node = nodes.value.get(id);
+                  const state = pinnedReadState(id, node?.contentRevision ?? 0);
+                  const links = state.kind === 'read' && linksChanged(id, node?.linksRevision ?? 0);
                   const byAgent = contextPinMeta.value[id]?.pinnedBy.actor === 'agent';
                   return (
                     <li key={id} class="context-panel-row">
@@ -172,7 +174,16 @@ export function ContextChip() {
                         {byAgent && <span class="context-chip-agent-dot" aria-hidden="true" />}
                       </span>
                       <span class="context-panel-name">{nodeTitle(id)}</span>
-                      <ReadTag state={state.kind} at={state.kind === 'not-read' ? null : state.at} />
+                      {links ? (
+                        <span class="context-tag is-links">
+                          <svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
+                            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+                          </svg>
+                          links changed
+                        </span>
+                      ) : (
+                        <ReadTag state={state.kind} at={state.kind === 'not-read' ? null : state.at} />
+                      )}
                       <button
                         type="button"
                         class="context-panel-x"

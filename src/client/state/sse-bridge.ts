@@ -372,6 +372,7 @@ function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
     collapsed: raw.collapsed === true,
     pinned: raw.pinned === true,
     contentRevision: typeof raw.contentRevision === 'number' ? raw.contentRevision : 0,
+    linksRevision: typeof raw.linksRevision === 'number' ? raw.linksRevision : 0,
     ...(isActor(raw.createdBy) ? { createdBy: raw.createdBy } : {}),
     ...(isActor(raw.lastEditedBy) ? { lastEditedBy: raw.lastEditedBy } : {}),
     data,
@@ -398,6 +399,8 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
     ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
     ...(raw.style === 'solid' || raw.style === 'dashed' || raw.style === 'dotted' ? { style: raw.style } : {}),
     ...(raw.animated === true ? { animated: true } : {}),
+    ...(typeof raw.revision === 'number' ? { revision: raw.revision } : {}),
+    ...(isActor(raw.changedBy) ? { changedBy: raw.changedBy } : {}),
   };
 }
 

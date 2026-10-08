@@ -543,6 +543,9 @@ curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 # board is the latest agent read on that board of any kind ({ lastReadAt, lastReadBy } or
 # null): a pinned board whose map reached an agent reads as read even before any card is pulled.
 # A brief's card summaries mark nothing read; only a full pull of a card does.
+# links maps each node to the newest linksRevision any read carried (summaries count, since a
+# brief summary carries the card's relations). An edge whose revision is newer than both
+# ends' links value has not been seen by an agent; the workbench marks it on the link's pill.
 curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
 
 # Context reads — a proxy (an MCP server attached to this daemon, a host adapter)
@@ -552,7 +555,8 @@ curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
 # currently open board. MCP bytes measure the final formatted text response.
 # readNodeIds lists every serialized node in what the agent received (pinned or
 # not); the server keeps those on the board and stamps their revisions. Omitted,
-# it defaults to deliveredNodeIds.
+# it defaults to deliveredNodeIds. seenNodeIds adds the nodes that arrived only as
+# summaries, which marks their links seen; omitted, it defaults to readNodeIds.
 curl -X POST http://localhost:4313/api/canvas/ax/context-reads \
   -H "Content-Type: application/json" \
   -d '{"channel":"adapter","resource":"copilot:prompt-context","consumer":"copilot","pinnedNodeIds":["node-1"],"deliveredNodeIds":["node-1"],"bytes":2048}'

@@ -33,6 +33,7 @@
         "source": "api"
       },
       "contentRevision": 1,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "① Start here",
       "content": "What the agent is doing, what context it holds, what it decided, and the tool calls behind it.",
@@ -69,6 +70,7 @@
         "source": "api"
       },
       "contentRevision": 2,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "PMX Canvas — guided tour",
       "content": "# PMX Canvas\n\nAn infinite spatial canvas that agents drive over **MCP**, **HTTP** or the **Bun SDK** — and that humans steer by pinning nodes.\n\nThis board is a live catalogue. Bands ① to ④ and ⑧ run down the left, ⑤ to ⑦ down the right.\n\n| Band | Shows |\n| --- | --- |\n| ① Start here | status · context · ledger · trace |\n| ② Files & review | file · CSV table · diff · image · webpage |\n| ③ Diagrams & surfaces | mermaid · raw HTML · MCP app |\n| ④ Charts | all 12 graph types |\n| ⑤ Structured UI | json-render specs |\n| ⑥ Grouping | one group frame |\n| ⑦ HTML primitives | all 21 generated surfaces |\n| ⑧ Agent at work | a live AX flow, mid-task |\n\n> Pin a node in the browser and the agent reads it back from `canvas://pinned-context`. That is the whole collaboration loop.",
@@ -105,6 +107,7 @@
         "source": "api"
       },
       "contentRevision": 3,
+      "linksRevision": 0,
       "kind": "board",
       "title": "Related research",
       "content": null,
@@ -149,6 +152,7 @@
         "source": "api"
       },
       "contentRevision": 4,
+      "linksRevision": 92,
       "kind": "status",
       "title": "Agent",
       "content": null,
@@ -189,6 +193,7 @@
         "source": "api"
       },
       "contentRevision": 5,
+      "linksRevision": 93,
       "kind": "trace",
       "title": "canvas_query",
       "content": null,
@@ -229,6 +234,7 @@
         "source": "api"
       },
       "contentRevision": 6,
+      "linksRevision": 93,
       "kind": "trace",
       "title": "edit_file",
       "content": null,
@@ -298,6 +304,7 @@
         "source": "api"
       },
       "contentRevision": 7,
+      "linksRevision": 94,
       "kind": "context",
       "title": "Working context",
       "content": null,
@@ -338,6 +345,7 @@
         "source": "api"
       },
       "contentRevision": 8,
+      "linksRevision": 94,
       "kind": "ledger",
       "title": "Decision ledger",
       "content": "09:12  Ship 0.4.7 behind the existing smoke gate\n09:26  Keep demo board offline-only — no live sessions\n10:03  strictSize on every demo node so layout is stable\n10:41  Drop the OKR board; catalogue every node type instead\n11:15  Charts band shows all 12 graph types, Tufte row last\n11:48  Pin the intro, the context card and the diff under review\n13:20  Bands get section labels; only one group frame survives",
@@ -374,6 +382,7 @@
         "source": "api"
       },
       "contentRevision": 9,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "② Files & review",
       "content": "Inline file text, delimited data as a table, unified diffs, images, and cached webpage snapshots.",
@@ -412,6 +421,7 @@
         "source": "api"
       },
       "contentRevision": 10,
+      "linksRevision": 95,
       "kind": "file",
       "title": "node-sizes.ts",
       "content": "import { canvasState } from './canvas-state.js';\nimport { nodeMinSize } from '../shared/node-sizes.js';\n\n/** Clamp an agent-supplied frame up to the per-type readability floor. */\nexport function clampNodeFrame(type: string, width: number, height: number) {\n  const min = nodeMinSize(type);\n  if (!min) return { width, height };\n  return {\n    width: Math.max(width, min.width),\n    height: Math.max(height, min.height),\n  };\n}\n\nexport function nodeCountByType(): Record<string, number> {\n  const counts: Record<string, number> = {};\n  for (const node of canvasState.getLayout().nodes) {\n    counts[node.type] = (counts[node.type] ?? 0) + 1;\n  }\n  return counts;\n}",
@@ -448,6 +458,7 @@
         "source": "api"
       },
       "contentRevision": 11,
+      "linksRevision": 95,
       "kind": "diff",
       "title": "Readability floor — 2 files",
       "content": "diff --git a/src/shared/node-sizes.ts b/src/shared/node-sizes.ts\n--- a/src/shared/node-sizes.ts\n+++ b/src/shared/node-sizes.ts\n@@ -20,6 +20,8 @@ export const NODE_MIN_SIZES: Record<string, { width: number; height: number }> =\n   markdown: { width: 360, height: 180 },\n   context: { width: 360, height: 180 },\n   file: { width: 360, height: 200 },\n+  diff: { width: 420, height: 240 },\n+  mermaid: { width: 360, height: 240 },\n   status: { width: 280, height: 120 },\n\ndiff --git a/src/client/canvas/auto-fit.ts b/src/client/canvas/auto-fit.ts\n--- a/src/client/canvas/auto-fit.ts\n+++ b/src/client/canvas/auto-fit.ts\n@@ -63,7 +63,8 @@ export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: numbe\n   const fitted = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT, AUTO_FIT_MAX_HEIGHT);\n-  return fitted;\n+  const min = nodeMinSize(node.type);\n+  return min ? Math.max(fitted, min.height) : fitted;\n }",
@@ -499,6 +510,7 @@
         "source": "api"
       },
       "contentRevision": 12,
+      "linksRevision": 0,
       "kind": "file",
       "title": "weekly-throughput.csv",
       "content": "week,merged_prs,review_hours,p95_ci_minutes,flaky_reruns\n2026-W23,41,18.5,11.2,6\n2026-W24,38,21.0,12.8,9\n2026-W25,52,16.4,10.1,4\n2026-W26,47,15.2,9.6,3\n2026-W27,55,14.8,9.1,2\n2026-W28,61,13.9,8.4,2",
@@ -546,6 +558,7 @@
         "source": "api"
       },
       "contentRevision": 13,
+      "linksRevision": 0,
       "kind": "image",
       "title": "Canvas data flow",
       "content": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%20480%20300'%20width%3D'480'%20height%3D'300'%3E%3Crect%20width%3D'480'%20height%3D'300'%20rx%3D'16'%20fill%3D'%230f1420'%2F%3E%3Ctext%20x%3D'24'%20y%3D'40'%20fill%3D'%23e6ecff'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'17'%20font-weight%3D'600'%3ECanvas%20data%20flow%3C%2Ftext%3E%3Crect%20x%3D'24'%20y%3D'70'%20width%3D'128'%20height%3D'62'%20rx%3D'10'%20fill%3D'%2316203a'%20stroke%3D'%234a9eff'%2F%3E%3Ctext%20x%3D'88'%20y%3D'106'%20fill%3D'%239ec5ff'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'13'%20text-anchor%3D'middle'%3EAgent%20(MCP)%3C%2Ftext%3E%3Crect%20x%3D'176'%20y%3D'70'%20width%3D'128'%20height%3D'62'%20rx%3D'10'%20fill%3D'%2316203a'%20stroke%3D'%237c5cff'%2F%3E%3Ctext%20x%3D'240'%20y%3D'100'%20fill%3D'%23c3b4ff'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'13'%20text-anchor%3D'middle'%3ECanvas%20state%3C%2Ftext%3E%3Ctext%20x%3D'240'%20y%3D'118'%20fill%3D'%237b86a8'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'11'%20text-anchor%3D'middle'%3Esingle%20source%20of%20truth%3C%2Ftext%3E%3Crect%20x%3D'328'%20y%3D'70'%20width%3D'128'%20height%3D'62'%20rx%3D'10'%20fill%3D'%2316203a'%20stroke%3D'%2322c55e'%2F%3E%3Ctext%20x%3D'392'%20y%3D'106'%20fill%3D'%238ee5ad'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'13'%20text-anchor%3D'middle'%3EBrowser%3C%2Ftext%3E%3Cpath%20d%3D'M152%20101%20L172%20101'%20stroke%3D'%234a9eff'%20stroke-width%3D'2'%2F%3E%3Cpath%20d%3D'M304%20101%20L324%20101'%20stroke%3D'%2322c55e'%20stroke-width%3D'2'%2F%3E%3Cpath%20d%3D'M392%20140%20L392%20196%20L88%20196%20L88%20140'%20fill%3D'none'%20stroke%3D'%23eab308'%20stroke-width%3D'2'%20stroke-dasharray%3D'5%205'%2F%3E%3Ctext%20x%3D'240'%20y%3D'188'%20fill%3D'%23eab308'%20font-family%3D'ui-sans-serif%2Csystem-ui'%20font-size%3D'12'%20text-anchor%3D'middle'%3Ehuman%20pins%20nodes%20-%26gt%3B%20canvas%3A%2F%2Fpinned-context%3C%2Ftext%3E%3Crect%20x%3D'24'%20y%3D'222'%20width%3D'432'%20height%3D'52'%20rx%3D'10'%20fill%3D'%23111827'%20stroke%3D'%23243049'%2F%3E%3Ctext%20x%3D'240'%20y%3D'253'%20fill%3D'%237b86a8'%20font-family%3D'ui-monospace%2Cmonospace'%20font-size%3D'12'%20text-anchor%3D'middle'%3Estate%20survives%20refresh%20%C2%B7%20SQLite%20at%20.pmx-canvas%2Fcanvas.db%3C%2Ftext%3E%3C%2Fsvg%3E",
@@ -606,6 +619,7 @@
         "source": "api"
       },
       "contentRevision": 16,
+      "linksRevision": 0,
       "kind": "webpage",
       "title": "Model Context Protocol — Resources",
       "content": "https://modelcontextprotocol.io/docs/concepts/resources",
@@ -653,6 +667,7 @@
         "source": "api"
       },
       "contentRevision": 17,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "③ Diagrams & surfaces",
       "content": "Mermaid renders from plain text; HTML and MCP App nodes are sandboxed iframes the agent authors.",
@@ -689,6 +704,7 @@
         "source": "api"
       },
       "contentRevision": 18,
+      "linksRevision": 0,
       "kind": "mermaid",
       "title": "Flowchart — request path",
       "content": "flowchart LR\n  A[Agent] -->|MCP tool call| B(Canvas server)\n  B --> C{{SSE stream}}\n  C --> D[Browser canvas]\n  D -->|human pins a node| B\n  B --> E[(canvas.db)]",
@@ -725,6 +741,7 @@
         "source": "api"
       },
       "contentRevision": 19,
+      "linksRevision": 96,
       "kind": "mermaid",
       "title": "Sequence — the pin loop",
       "content": "sequenceDiagram\n  participant H as Human\n  participant C as Canvas\n  participant A as Agent\n  H->>C: pin 3 nodes\n  C-->>A: resources/updated\n  A->>C: read canvas://pinned-context\n  A->>C: canvas_node add (summary)\n  C-->>H: SSE layout update",
@@ -761,6 +778,7 @@
         "source": "api"
       },
       "contentRevision": 20,
+      "linksRevision": 96,
       "kind": "mermaid",
       "title": "State — approval gate",
       "content": "stateDiagram-v2\n  [*] --> pending\n  pending --> approved: human approves\n  pending --> rejected: human rejects\n  pending --> expired: timeout\n  approved --> [*]\n  rejected --> [*]\n  expired --> [*]",
@@ -800,6 +818,7 @@
         "source": "api"
       },
       "contentRevision": 21,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Release gates",
       "content": "Five release gates with pass/running/warning status for 0.4.7.\nRelease gates — 0.4.7 Raw HTML in a sandboxed iframe. No scripts, no network, no build step. typecheck passing unit tests 612 passed web-canvas e2e running bundle size +4.1% vs 0.4.6 pack dry-run clean",
@@ -850,6 +869,7 @@
         "source": "api"
       },
       "contentRevision": 22,
+      "linksRevision": 0,
       "kind": "external-app",
       "title": "Board inspector",
       "content": null,
@@ -896,6 +916,7 @@
         "source": "api"
       },
       "contentRevision": 23,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "④ Charts",
       "content": "Every canonical graph type, then the Tufte primitives in the compact bottom row.",
@@ -1024,6 +1045,7 @@
         "source": "api"
       },
       "contentRevision": 24,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "line — p95 latency",
       "content": null,
@@ -1156,6 +1178,7 @@
         "source": "api"
       },
       "contentRevision": 25,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "bar — merged PRs per week",
       "content": null,
@@ -1276,6 +1299,7 @@
         "source": "api"
       },
       "contentRevision": 26,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "area — canvas nodes created",
       "content": null,
@@ -1390,6 +1414,7 @@
         "source": "api"
       },
       "contentRevision": 27,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "pie — node types on real boards",
       "content": null,
@@ -1527,6 +1552,7 @@
         "source": "api"
       },
       "contentRevision": 28,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "stacked-bar — CI minutes by stage",
       "content": null,
@@ -1650,6 +1676,7 @@
         "source": "api"
       },
       "contentRevision": 29,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "composed — throughput vs review load",
       "content": null,
@@ -1792,6 +1819,7 @@
         "source": "api"
       },
       "contentRevision": 30,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "scatter — PR size vs review time",
       "content": null,
@@ -1929,6 +1957,7 @@
         "source": "api"
       },
       "contentRevision": 31,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "radar — surface coverage",
       "content": null,
@@ -2079,6 +2108,7 @@
         "source": "api"
       },
       "contentRevision": 32,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "sparkline — build time",
       "content": null,
@@ -2193,6 +2223,7 @@
         "source": "api"
       },
       "contentRevision": 33,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "dot-plot — test time by suite",
       "content": null,
@@ -2337,6 +2368,7 @@
         "source": "api"
       },
       "contentRevision": 34,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "bullet — release KPIs vs target",
       "content": null,
@@ -2465,6 +2497,7 @@
         "source": "api"
       },
       "contentRevision": 35,
+      "linksRevision": 0,
       "kind": "graph",
       "title": "slopegraph — coverage 0.4.6 → 0.4.7",
       "content": null,
@@ -2501,6 +2534,7 @@
         "source": "api"
       },
       "contentRevision": 36,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "⑤ Structured UI",
       "content": "json-render nodes: an agent posts a validated component spec and the canvas renders real UI.",
@@ -2709,6 +2743,7 @@
         "source": "api"
       },
       "contentRevision": 37,
+      "linksRevision": 0,
       "kind": "json-render",
       "title": "Release dashboard",
       "content": null,
@@ -2735,6 +2770,11 @@
         "title": "Blocker intake form",
         "spec": {
           "root": "form",
+          "state": {
+            "form": {
+              "severity": "major"
+            }
+          },
           "elements": {
             "form": {
               "type": "Card",
@@ -2805,7 +2845,9 @@
                   "major",
                   "minor"
                 ],
-                "value": "major"
+                "value": {
+                  "$bindState": "/form/severity"
+                }
               },
               "children": [],
               "visible": true,
@@ -2894,6 +2936,7 @@
         "source": "api"
       },
       "contentRevision": 38,
+      "linksRevision": 0,
       "kind": "json-render",
       "title": "Blocker intake form",
       "content": null,
@@ -3062,6 +3105,7 @@
         "source": "api"
       },
       "contentRevision": 39,
+      "linksRevision": 0,
       "kind": "json-render",
       "title": "Usage panel",
       "content": null,
@@ -3098,6 +3142,7 @@
         "source": "api"
       },
       "contentRevision": 40,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "⑥ Grouping",
       "content": "A group says \"these belong together\". One frame is enough — bands carry a board’s structure.",
@@ -3135,6 +3180,7 @@
         "source": "api"
       },
       "contentRevision": 46,
+      "linksRevision": 97,
       "kind": "markdown",
       "title": "Sprint 41 — canvas polish",
       "content": "Three nodes, one frame. Moving the frame moves the children; ungrouping leaves them exactly where they are.\n\n- Group children keep their own positions by default\n- `childLayout` opts into auto-packing\n- The frame is stored as `data.children` on the group",
@@ -3175,6 +3221,7 @@
         "source": "api"
       },
       "contentRevision": 47,
+      "linksRevision": 97,
       "kind": "status",
       "title": "Sprint state",
       "content": null,
@@ -3216,6 +3263,7 @@
         "source": "api"
       },
       "contentRevision": 48,
+      "linksRevision": 0,
       "kind": "trace",
       "title": "canvas_group",
       "content": null,
@@ -3257,6 +3305,7 @@
         "source": "api"
       },
       "contentRevision": 45,
+      "linksRevision": 0,
       "kind": "group",
       "title": "Sprint 41",
       "content": null,
@@ -3293,6 +3342,7 @@
         "source": "api"
       },
       "contentRevision": 49,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "⑦ HTML primitives",
       "content": "All 21 generated communication surfaces — self-contained sandboxed documents, no build step.",
@@ -3378,6 +3428,7 @@
         "source": "api"
       },
       "contentRevision": 50,
+      "linksRevision": 0,
       "kind": "html",
       "title": "How should the demo board be generated?",
       "content": "Side-by-side options with tradeoffs, pros, cons, and code or evidence snippets.",
@@ -3488,6 +3539,7 @@
         "source": "api"
       },
       "contentRevision": 51,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Demo board rebuild",
       "content": "Implementation plan with milestones, data flow, code checkpoints, and risks.",
@@ -3567,6 +3619,7 @@
         "source": "api"
       },
       "contentRevision": 52,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Review — auto-fit floor",
       "content": "Annotated PR/code review sheet with severity-colored findings and diff excerpts.",
@@ -3655,6 +3708,7 @@
         "source": "api"
       },
       "contentRevision": 53,
+      "linksRevision": 0,
       "kind": "html",
       "title": "PR — replace the demo board",
       "content": "Reviewer-ready PR narrative with motivation, before/after, file tour, test plan, and rollout notes.",
@@ -3767,6 +3821,7 @@
         "source": "api"
       },
       "contentRevision": 54,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Canvas server map",
       "content": "Module or architecture map with boxes, relationships, entry points, and hot paths.",
@@ -3896,6 +3951,7 @@
         "source": "api"
       },
       "contentRevision": 55,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Walkthrough — creating a node",
       "content": "Guided code-path map with modules, ordered file steps, snippets, key files, and gotchas.",
@@ -3999,6 +4055,7 @@
         "source": "api"
       },
       "contentRevision": 56,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Board typography directions",
       "content": "Visual design directions, tokens, swatches, type samples, and rationale.",
@@ -4082,6 +4139,7 @@
         "source": "api"
       },
       "contentRevision": 57,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Node titlebar states",
       "content": "Contact sheet for component variants, states, sizes, and accessibility notes.",
@@ -4180,6 +4238,7 @@
         "source": "api"
       },
       "contentRevision": 58,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Node expand transition",
       "content": "Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config.",
@@ -4266,6 +4325,7 @@
         "source": "api"
       },
       "contentRevision": 59,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Release pipeline",
       "content": "Clickable flowchart for pipelines, user journeys, process diagrams, and failure paths.",
@@ -4361,6 +4421,7 @@
         "source": "api"
       },
       "contentRevision": 60,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Why a spatial canvas",
       "content": "Arrow-key HTML deck with sections, speaker notes, and copyable JSON payload. Slides: Chat is a queue, work is a graph, The canvas is the agent’s working memory, Pinning is the steering wheel.",
@@ -4479,6 +4540,7 @@
         "source": "api"
       },
       "contentRevision": 61,
+      "linksRevision": 0,
       "kind": "html",
       "title": "PMX Canvas 0.4.7 briefing",
       "content": "PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata. Slides: Where we are, What changed in 0.4.7, Next.",
@@ -4644,6 +4706,7 @@
         "source": "api"
       },
       "contentRevision": 62,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Figures — the collaboration loop",
       "content": "Inline SVG figure sheet with captions and per-figure SVG copy/export controls.",
@@ -4750,6 +4813,7 @@
         "source": "api"
       },
       "contentRevision": 63,
+      "linksRevision": 0,
       "kind": "html",
       "title": "How context pins work",
       "content": "Readable explainer with TLDR, collapsible steps, annotated snippets, FAQ, and glossary.",
@@ -4871,6 +4935,7 @@
         "source": "api"
       },
       "contentRevision": 64,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Blank ext-app tiles on WebKit",
       "content": "Post-incident report with impact metrics, minute-by-minute timeline, root cause, log excerpts, and action checklist.",
@@ -4957,6 +5022,7 @@
         "source": "api"
       },
       "contentRevision": 65,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Weekly canvas status",
       "content": "Skimmable report with metrics, shipped/slipped lists, blockers, and next actions.",
@@ -5043,6 +5109,7 @@
         "source": "api"
       },
       "contentRevision": 66,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Post-0.4.7 triage",
       "content": "Draggable Now/Next/Later/Cut board with copy-as-markdown export.",
@@ -5135,6 +5202,7 @@
         "source": "api"
       },
       "contentRevision": 67,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Canvas feature flags",
       "content": "Form-like editor for flags or structured config with dependency warnings and copy-diff export.",
@@ -5204,6 +5272,7 @@
         "source": "api"
       },
       "contentRevision": 68,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Board summary prompt",
       "content": "Side-by-side prompt/template editor with live variable previews and copy export.",
@@ -5257,6 +5326,7 @@
         "source": "api"
       },
       "contentRevision": 69,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Agent board",
       "content": "Live agent work board: hand the agent tasks, watch status, steer, and run bounded task loops.",
@@ -5337,7 +5407,8 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 85,
+      "contentRevision": 88,
+      "linksRevision": 0,
       "kind": "html",
       "title": "Release flow",
       "content": "HTML primitive: ax-flow\nLive task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board.\nRelease flow PMX HTML primitive / ax-flow Release flow Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board. Copy JSON Copy prompt AX bridge unavailable This flow is not running as an AX-enabled canvas node, so its controls are inert. Release flow Each step is a canvas AX work item. Materialize drops the same flow onto the board as real nodes. loops back to step 1 · max 3 runs Run the flow Queue every step A step is queued once — after that its status control advances it (todo → in-progress → done). or run the whole flow as a bounded loop: max runs Start loop Steer Queue steering message Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent. Loop run 0 of 0 Each run is its own work item. When you mark the current run done , the surface opens the next run...",
@@ -5374,6 +5445,7 @@
         "source": "api"
       },
       "contentRevision": 71,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "⑧ Agent at work",
       "content": "A task caught mid-flight: one work item per step, status chips on the nodes, controls that steer the agent.",
@@ -5454,7 +5526,8 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 86,
+      "contentRevision": 89,
+      "linksRevision": 84,
       "kind": "markdown",
       "title": "1. Reproduce",
       "content": "Ran the publish gate 20× in a loop. Fails 3 in 20, always on the registry probe.",
@@ -5500,7 +5573,8 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 87,
+      "contentRevision": 90,
+      "linksRevision": 85,
       "kind": "markdown",
       "title": "2. Fix",
       "content": "Retry the probe with backoff instead of failing the gate on the first timeout.",
@@ -5547,6 +5621,7 @@
         "source": "api"
       },
       "contentRevision": 80,
+      "linksRevision": 86,
       "kind": "markdown",
       "title": "3. Verify",
       "content": "Re-run the same 20× loop and require 20 green.",
@@ -5593,6 +5668,7 @@
         "source": "api"
       },
       "contentRevision": 83,
+      "linksRevision": 86,
       "kind": "markdown",
       "title": "4. Ship",
       "content": "Land the patch, then watch the next three releases.",
@@ -5628,7 +5704,8 @@
         "actor": "agent",
         "source": "api"
       },
-      "contentRevision": 88,
+      "contentRevision": 91,
+      "linksRevision": 0,
       "kind": "markdown",
       "title": "How to read this band",
       "content": "Each step is a real **AX work item**, so the chip on a step node is the\nagent’s live status — it moves as the agent works.\n\nThe buttons in each step footer steer it: **Start**, **Done** and\n**Blocked** write that step’s work item, which the agent reads back from\n`canvas://ax-work`.\n\nStep 2 is pinned, so `canvas://pinned-context` hands the agent the\nstep it is actually on.",
@@ -5644,21 +5721,36 @@
       "from": "axflow-primitive-ax-flow-step-1",
       "to": "axflow-primitive-ax-flow-step-2",
       "type": "flow",
-      "style": "solid"
+      "style": "solid",
+      "revision": 84,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "axflow-primitive-ax-flow-edge-2",
       "from": "axflow-primitive-ax-flow-step-2",
       "to": "axflow-primitive-ax-flow-step-3",
       "type": "flow",
-      "style": "solid"
+      "style": "solid",
+      "revision": 85,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "axflow-primitive-ax-flow-edge-3",
       "from": "axflow-primitive-ax-flow-step-3",
       "to": "axflow-primitive-ax-flow-step-4",
       "type": "flow",
-      "style": "solid"
+      "style": "solid",
+      "revision": 86,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "edge-runs",
@@ -5666,7 +5758,12 @@
       "to": "trace-plan",
       "type": "flow",
       "label": "runs",
-      "animated": true
+      "animated": true,
+      "revision": 92,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "edge-then",
@@ -5674,21 +5771,36 @@
       "to": "trace-apply",
       "type": "flow",
       "label": "then",
-      "style": "dotted"
+      "style": "dotted",
+      "revision": 93,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "edge-decisions",
       "from": "context",
       "to": "ledger",
       "type": "relation",
-      "label": "decisions"
+      "label": "decisions",
+      "revision": 94,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "edge-changed-in",
       "from": "file-ts",
       "to": "diff",
       "type": "depends-on",
-      "label": "changed in"
+      "label": "changed in",
+      "revision": 95,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "edge-gate",
@@ -5696,14 +5808,24 @@
       "to": "mermaid-state",
       "type": "references",
       "label": "approval gate",
-      "style": "dashed"
+      "style": "dashed",
+      "revision": 96,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     },
     {
       "id": "edge-sprint",
       "from": "group-note",
       "to": "group-status",
       "type": "relation",
-      "style": "dashed"
+      "style": "dashed",
+      "revision": 97,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      }
     }
   ],
   "annotations": [

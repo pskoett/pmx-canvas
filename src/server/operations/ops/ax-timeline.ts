@@ -506,6 +506,10 @@ const axReadsRecordShape = {
     .array(z.string())
     .optional()
     .describe('Ids of every serialized node in what the agent received; defaults to deliveredNodeIds.'),
+  seenNodeIds: z
+    .array(z.string())
+    .optional()
+    .describe('Ids of every node that arrived with its relations, summaries included; defaults to readNodeIds.'),
   bytes: z.number().int().nonnegative().describe('Size of what the agent received.'),
   boardId: z.string().nullable().optional().describe('Board that was read, captured before delivery.'),
 };
@@ -532,6 +536,7 @@ const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchem
         pinnedNodeIds: input.pinnedNodeIds ?? [...canvasState.contextPinnedNodeIds],
         deliveredNodeIds: input.deliveredNodeIds,
         ...(input.readNodeIds ? { readNodeIds: input.readNodeIds } : {}),
+        ...(input.seenNodeIds ? { seenNodeIds: input.seenNodeIds } : {}),
         bytes: input.bytes,
       },
       input.boardId === undefined ? canvasState.activeBoardId : input.boardId,
@@ -547,7 +552,8 @@ const axReadsStatusSchema = z.looseObject(axReadsStatusShape);
 
 /**
  * Per node: when an agent last read its content, who, and at which revision
- * (vs the node's revision now); and per pin: who pinned it, when and why.
+ * (vs the node's revision now); per node, the newest links revision a read
+ * carried (connection marks); and per pin: who pinned it, when and why.
  */
 const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchema>, Record<string, unknown>>({
   name: 'ax.reads.status',
@@ -572,6 +578,7 @@ const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchem
       boardId,
       board: canvasState.getBoardLastRead(boardId),
       nodes: canvasState.getNodeReadStatus(boardId),
+      links: canvasState.getSeenLinks(boardId),
       pins,
     };
   },

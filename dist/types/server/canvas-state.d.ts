@@ -75,6 +75,8 @@ export interface CanvasNodeState {
     lastEditedBy?: ActorAttribution;
     /** Board-monotonic revision of this node's latest semantic content. */
     contentRevision?: number;
+    /** Board-monotonic revision of this node's latest link change, kept apart from its text. */
+    linksRevision?: number;
 }
 export interface NodeDeletionTombstone {
     nodeId: string;
@@ -105,6 +107,10 @@ export interface CanvasEdge {
     label?: string;
     style?: 'solid' | 'dashed' | 'dotted';
     animated?: boolean;
+    /** Board revision of this link's latest add, retype or relabel (0 = never stamped). */
+    revision?: number;
+    /** Who made that change. */
+    changedBy?: ActorAttribution;
 }
 export interface CanvasAnnotationPoint {
     x: number;
@@ -398,15 +404,21 @@ declare class CanvasStateManager {
     getNode(id: string): CanvasNodeState | undefined;
     getNodeForPersistence(id: string): CanvasNodeState | undefined;
     /**
-     * Relations are part of each card's entry in the brief (a map, not a dump),
-     * so a relation change advances both endpoints' content revisions: the next
-     * incremental brief resends them with their new relations. Generated
-     * auto-edges (code graph, board map) do not count. The card's text did not
-     * change, so its last editor stays.
+     * Links are tracked apart from text (connection changes, option C of
+     * docs/design/LinksOptions.dc.html): a link change advances both endpoints'
+     * links revision, never their content revision, so cards keep their read
+     * marks while the next incremental brief resends them with their new
+     * relations. Generated auto-edges (code graph, board map) do not count.
+     * Returns the stamp for the changed link.
      */
     private touchRelations;
     addEdge(edge: CanvasEdge): boolean;
     updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
+    /**
+     * An edge as undo/redo puts it back: a relation change is a fresh link change;
+     * a style-only one keeps the current stamp, so it never hides a later relabel.
+     */
+    private replayEdge;
     removeEdge(id: string): boolean;
     getEdges(): CanvasEdge[];
     getEdgesForNode(nodeId: string): CanvasEdge[];
@@ -629,8 +641,14 @@ declare class CanvasStateManager {
     getAxTimelineSummary(): PmxAxTimelineSummary;
     /** Records one agent context read (diagnostics; never notifies, so a read cannot trigger reads). */
     recordContextRead(input: ContextReadInput, boardId?: string | null): ContextRead | null;
-    /** The delivered ids that are nodes on the read board, each with its content revision now. */
+    /**
+     * The delivered ids that are nodes on the read board: those read in full with
+     * their content revision now, and every one that arrived (summaries included)
+     * with its links revision now.
+     */
     private readRevisions;
+    /** Per node on a board, the newest links revision an agent read carried. */
+    getSeenLinks(boardId?: string | null): Record<string, number>;
     /** Per node on a board, the latest agent read that delivered its content. */
     getNodeReadStatus(boardId?: string | null): NodeReadStatus[];
     /** The latest agent read on a board, of any kind, or null. */

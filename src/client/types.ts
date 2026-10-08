@@ -33,6 +33,8 @@ export interface CanvasNodeState {
   collapsed: boolean;
   pinned: boolean;
   contentRevision?: number;
+  /** Revision of this node's latest link change, kept apart from its text. */
+  linksRevision?: number;
   /** Who created / last edited the node's content (server attribution). */
   createdBy?: NodeActor;
   lastEditedBy?: NodeActor;
@@ -53,6 +55,9 @@ export interface CanvasEdge {
   label?: string;
   style?: 'solid' | 'dashed' | 'dotted';
   animated?: boolean;
+  /** Board revision of this link's latest add, retype or relabel. */
+  revision?: number;
+  changedBy?: NodeActor;
 }
 
 export interface CanvasAnnotationPoint {

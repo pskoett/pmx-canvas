@@ -8,11 +8,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Added
 
 - Board pins: pin a whole board into the agent's working set with `canvas_board { action: "pin" }`, `POST /api/canvas/boards/<id>/pin`, `pmx-canvas board pin` or `pinBoard()`; it travels in the brief as a map (summary, links and its pinned cards) whichever board is open.
+- The SDK (`getBoardLastRead`) and CLI (`pmx-canvas ax reads status`) can now report when a board was last read, matching the HTTP API.
 - Agents can drive presentation tours: go to a stop, step next or previous, exit, and ease the camera to a node, area or viewport through `canvas_view`, the HTTP API, the SDK and `pmx-canvas tour go` / `camera move`, with reduced-motion support and no undo entries.
 
 ### Changed
 
 - One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with the brief's size, and opens the details (read state, unpin, pin a near card) on click.
+- A new or changed link now shows on the link itself: "not seen by" the attached agent until the agent reads either card, or "by" the agent that drew it. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
 - On narrow windows the top bar folds Export, Present, zoom and fit into a ⋯ More menu so the context summary always stays visible.
 - The agent's context brief is now a map instead of full text: an overview of the board, then every card as its title and a short summary with why it was pinned and how it relates to other cards; the agent pulls whatever it needs in full, and only a full pull counts as read.
 

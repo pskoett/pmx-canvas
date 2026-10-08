@@ -118,6 +118,7 @@ import {
   appendContextReadToDB,
   loadContextReadsFromDB,
   loadNodeReadStatusFromDB,
+  loadSeenLinksFromDB,
   loadBoardLastReadFromDB,
   loadReadNodeIdsSince,
   type ContextRead,
@@ -245,6 +246,8 @@ export interface CanvasNodeState {
   lastEditedBy?: ActorAttribution;
   /** Board-monotonic revision of this node's latest semantic content. */
   contentRevision?: number;
+  /** Board-monotonic revision of this node's latest link change, kept apart from its text. */
+  linksRevision?: number;
 }
 
 export interface NodeDeletionTombstone {
@@ -280,6 +283,10 @@ export interface CanvasEdge {
   label?: string;
   style?: 'solid' | 'dashed' | 'dotted';
   animated?: boolean;
+  /** Board revision of this link's latest add, retype or relabel (0 = never stamped). */
+  revision?: number;
+  /** Who made that change. */
+  changedBy?: ActorAttribution;
 }
 
 export interface CanvasAnnotationPoint {
@@ -608,6 +615,7 @@ class CanvasStateManager {
       createdBy: node.createdBy ?? unknownActor(),
       lastEditedBy: node.lastEditedBy ?? unknownActor(),
       contentRevision: Number.isSafeInteger(node.contentRevision) ? node.contentRevision : 0,
+      linksRevision: Number.isSafeInteger(node.linksRevision) ? node.linksRevision : 0,
     };
   }
 
@@ -638,7 +646,7 @@ class CanvasStateManager {
       retentionFloor: this._revisionFloor,
       reset,
       nodes: Array.from(this.nodes.values())
-        .filter((node) => reset || (node.contentRevision ?? 0) > cursor)
+        .filter((node) => reset || Math.max(node.contentRevision ?? 0, node.linksRevision ?? 0) > cursor)
         .map((node) => structuredClone(this.nodeForRead(node))),
       deleted: reset
         ? []
@@ -1342,6 +1350,8 @@ class CanvasStateManager {
         createdBy: actor,
         lastEditedBy: actor,
         contentRevision: index + 1,
+        // The copy starts its own revision history; no read on it has carried links yet.
+        linksRevision: 0,
       };
     });
     nodes.push({
@@ -1359,7 +1369,12 @@ class CanvasStateManager {
     });
     const edges = source.layout.edges
       .filter((edge) => ids.has(edge.from) && ids.has(edge.to))
-      .map((edge) => ({ ...edge, id: randomUUID(), from: ids.get(edge.from)!, to: ids.get(edge.to)! }));
+      .map(({ revision: _revision, changedBy: _changedBy, ...edge }) => ({
+        ...edge,
+        id: randomUUID(),
+        from: ids.get(edge.from)!,
+        to: ids.get(edge.to)!,
+      }));
     const state: PersistedCanvasState = {
       version: 1,
       theme: source.state.theme,
@@ -1849,7 +1864,7 @@ class CanvasStateManager {
     try {
       const revisionBeforeRestore = this._contentRevision;
       this.applyPersistedState({ ...nextState, revisionState: this.revisionState() });
-      this.restampRestoredContent(previousState.nodes, revisionBeforeRestore);
+      this.restampRestoredContent(previousState.nodes, previousState.edges, revisionBeforeRestore);
       this.scheduleSave();
       this.notifyChange('nodes');
       this.notifyChange('pins');
@@ -1859,9 +1874,10 @@ class CanvasStateManager {
         description: `Restored snapshot "${resolved.snapshot.name}"`,
         forward: this.suppressed(() => {
           const before = Array.from(this.nodes.values(), (node) => structuredClone(node));
+          const edgesBefore = this.getEdges();
           const revisionBeforeReplay = this._contentRevision;
           this.applyPersistedState({ ...nextState, revisionState: this.revisionState() });
-          this.restampRestoredContent(before, revisionBeforeReplay);
+          this.restampRestoredContent(before, edgesBefore, revisionBeforeReplay);
           this.scheduleSave();
           this.notifyChange('nodes');
           this.notifyChange('pins');
@@ -1869,9 +1885,10 @@ class CanvasStateManager {
         }),
         inverse: this.suppressed(() => {
           const before = Array.from(this.nodes.values(), (node) => structuredClone(node));
+          const edgesBefore = this.getEdges();
           const revisionBeforeReplay = this._contentRevision;
           this.applyPersistedState({ ...previousState, revisionState: this.revisionState() });
-          this.restampRestoredContent(before, revisionBeforeReplay);
+          this.restampRestoredContent(before, edgesBefore, revisionBeforeReplay);
           this.scheduleSave();
           this.notifyChange('nodes');
           this.notifyChange('pins');
@@ -1978,21 +1995,46 @@ class CanvasStateManager {
 
   // ── Node CRUD ──────────────────────────────────────────────
 
-  private restampRestoredContent(beforeNodes: CanvasNodeState[], minimumRevision: number): void {
+  private restampRestoredContent(
+    beforeNodes: CanvasNodeState[],
+    beforeEdges: CanvasEdge[],
+    minimumRevision: number,
+  ): void {
     this._contentRevision = Math.max(this._contentRevision, minimumRevision);
     const before = new Map(beforeNodes.map((node) => [node.id, node]));
     const restoredIds = new Set(this.nodes.keys());
     for (const [id, node] of this.nodes) {
       const old = before.get(id);
+      const linksRevision = old ? old.linksRevision : node.linksRevision;
       if (old && !this.nodeContentChanged(old, node)) {
-        this.nodes.set(id, { ...node, contentRevision: old.contentRevision, lastEditedBy: old.lastEditedBy });
+        this.nodes.set(id, {
+          ...node,
+          contentRevision: old.contentRevision,
+          linksRevision,
+          lastEditedBy: old.lastEditedBy,
+        });
         continue;
       }
       const revision = this.nextContentRevision();
-      this.nodes.set(id, { ...node, lastEditedBy: currentActor(), contentRevision: revision });
+      this.nodes.set(id, { ...node, lastEditedBy: currentActor(), contentRevision: revision, linksRevision });
     }
     for (const old of beforeNodes) {
       if (!restoredIds.has(old.id)) this.recordDeletion(old.id);
+    }
+    // A link the restore added, retyped, relabelled or removed is a link change on both ends.
+    const relation = (edge: CanvasEdge) => `${edge.from}\0${edge.to}\0${edge.type}\0${edge.label ?? ''}`;
+    const edgesBefore = new Map(beforeEdges.map((edge) => [edge.id, edge]));
+    for (const [id, edge] of this.edges) {
+      const old = edgesBefore.get(id);
+      this.edges.set(
+        id,
+        old && relation(old) === relation(edge)
+          ? { ...edge, revision: old.revision, changedBy: old.changedBy }
+          : { ...edge, ...this.touchRelations(edge) },
+      );
+    }
+    for (const old of beforeEdges) {
+      if (!this.edges.has(old.id)) this.touchRelations(old);
     }
   }
 
@@ -2133,6 +2175,8 @@ class CanvasStateManager {
           restored.contentRevision = current.contentRevision;
           restored.lastEditedBy = current.lastEditedBy;
         }
+        // Links are tracked apart: undoing a node change never rolls its links revision back.
+        if (current) restored.linksRevision = current.linksRevision;
         this.nodes.set(id, restored);
         this.scheduleSave();
         this.notifyChange('nodes');
@@ -2273,18 +2317,21 @@ class CanvasStateManager {
   // ── Edge CRUD ──────────────────────────────────────────────
 
   /**
-   * Relations are part of each card's entry in the brief (a map, not a dump),
-   * so a relation change advances both endpoints' content revisions: the next
-   * incremental brief resends them with their new relations. Generated
-   * auto-edges (code graph, board map) do not count. The card's text did not
-   * change, so its last editor stays.
+   * Links are tracked apart from text (connection changes, option C of
+   * docs/design/LinksOptions.dc.html): a link change advances both endpoints'
+   * links revision, never their content revision, so cards keep their read
+   * marks while the next incremental brief resends them with their new
+   * relations. Generated auto-edges (code graph, board map) do not count.
+   * Returns the stamp for the changed link.
    */
-  private touchRelations(edge: Pick<CanvasEdge, 'id' | 'from' | 'to'>): void {
-    if (edge.id.startsWith('codegraph-') || edge.id.startsWith('boardmap-')) return;
+  private touchRelations(edge: Pick<CanvasEdge, 'id' | 'from' | 'to'>): Pick<CanvasEdge, 'revision' | 'changedBy'> {
+    if (edge.id.startsWith('codegraph-') || edge.id.startsWith('boardmap-')) return {};
+    const revision = this.nextContentRevision();
     for (const id of [edge.from, edge.to]) {
       const node = this.nodes.get(id);
-      if (node) this.nodes.set(id, { ...node, contentRevision: this.nextContentRevision() });
+      if (node) this.nodes.set(id, { ...node, linksRevision: revision });
     }
+    return { revision, changedBy: currentActor() };
   }
 
   addEdge(edge: CanvasEdge): boolean {
@@ -2295,8 +2342,7 @@ class CanvasStateManager {
       }
     }
     const cloned = structuredClone(edge);
-    this.edges.set(edge.id, edge);
-    this.touchRelations(edge);
+    this.edges.set(edge.id, { ...edge, ...this.touchRelations(edge) });
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
@@ -2327,29 +2373,42 @@ class CanvasStateManager {
     for (const key of ['label', 'style', 'animated'] as const) {
       if (key in patch && patch[key] === undefined) delete updated[key];
     }
+    const relationChanged = updated.type !== before.type || updated.label !== before.label;
+    if (relationChanged) Object.assign(updated, this.touchRelations(updated));
     const after = structuredClone(updated);
     this.edges.set(id, updated);
-    const relationChanged = updated.type !== before.type || updated.label !== before.label;
-    if (relationChanged) this.touchRelations(updated);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
       operationType: 'updateEdge',
       description: `Updated ${updated.type} edge ${updated.from} → ${updated.to}`,
       forward: this.suppressed(() => {
-        this.edges.set(id, structuredClone(after));
-        if (relationChanged) this.touchRelations(after);
+        this.edges.set(id, this.replayEdge(after, relationChanged));
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
       inverse: this.suppressed(() => {
-        this.edges.set(id, structuredClone(before));
-        if (relationChanged) this.touchRelations(before);
+        this.edges.set(id, this.replayEdge(before, relationChanged));
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
     });
     return structuredClone(updated);
+  }
+
+  /**
+   * An edge as undo/redo puts it back: a relation change is a fresh link change;
+   * a style-only one keeps the current stamp, so it never hides a later relabel.
+   */
+  private replayEdge(snapshot: CanvasEdge, relationChanged: boolean): CanvasEdge {
+    const { revision: _revision, changedBy: _changedBy, ...edge } = structuredClone(snapshot);
+    if (relationChanged) return { ...edge, ...this.touchRelations(edge) };
+    const current = this.edges.get(snapshot.id);
+    return {
+      ...edge,
+      ...(current?.revision !== undefined ? { revision: current.revision } : {}),
+      ...(current?.changedBy ? { changedBy: current.changedBy } : {}),
+    };
   }
 
   removeEdge(id: string): boolean {
@@ -2418,6 +2477,8 @@ class CanvasStateManager {
     for (const [id, edge] of this.edges) {
       if (edge.from === nodeId || edge.to === nodeId) {
         this.edges.delete(id);
+        // The card on the other end lost a link.
+        this.touchRelations(edge);
       }
     }
   }
@@ -2539,7 +2600,8 @@ class CanvasStateManager {
         }),
         inverse: this.suppressed(() => {
           for (const snapshot of inverseSnapshots) {
-            this.nodes.set(snapshot.id, structuredClone(snapshot.node));
+            const linksRevision = this.nodes.get(snapshot.id)?.linksRevision ?? snapshot.node.linksRevision;
+            this.nodes.set(snapshot.id, { ...structuredClone(snapshot.node), linksRevision });
           }
           this.reflowAllGroups();
           this.scheduleSave();
@@ -2927,7 +2989,8 @@ class CanvasStateManager {
   recordContextRead(input: ContextReadInput, boardId: string | null = this._activeBoardId): ContextRead | null {
     if (!this._db) return null;
     try {
-      const read = appendContextReadToDB(this._db, input, boardId, this.readRevisions(input, boardId));
+      const { readNodes, seenLinks } = this.readRevisions(input, boardId);
+      const read = appendContextReadToDB(this._db, input, boardId, readNodes, seenLinks);
       this._contextReadListener?.(boardId);
       return read;
     } catch (error) {
@@ -2936,19 +2999,38 @@ class CanvasStateManager {
     }
   }
 
-  /** The delivered ids that are nodes on the read board, each with its content revision now. */
-  private readRevisions(input: ContextReadInput, boardId: string | null): Record<string, number> {
-    const ids = input.readNodeIds ?? input.deliveredNodeIds;
-    if (!boardId || ids.length === 0) return {};
+  /**
+   * The delivered ids that are nodes on the read board: those read in full with
+   * their content revision now, and every one that arrived (summaries included)
+   * with its links revision now.
+   */
+  private readRevisions(
+    input: ContextReadInput,
+    boardId: string | null,
+  ): { readNodes: Record<string, number>; seenLinks: Record<string, number> } {
+    const readIds = input.readNodeIds ?? input.deliveredNodeIds;
+    const seenIds = input.seenNodeIds ?? readIds;
+    if (!boardId || (readIds.length === 0 && seenIds.length === 0)) return { readNodes: {}, seenLinks: {} };
     const nodes =
       boardId === this._activeBoardId ? [...this.nodes.values()] : (this.readBoard(boardId, false)?.state.nodes ?? []);
-    const byId = new Map(nodes.map((node) => [node.id, node.contentRevision ?? 0]));
-    const revisions: Record<string, number> = {};
-    for (const id of ids) {
-      const revision = byId.get(id);
-      if (revision !== undefined) revisions[id] = revision;
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const readNodes: Record<string, number> = {};
+    for (const id of readIds) {
+      const node = byId.get(id);
+      if (node) readNodes[id] = node.contentRevision ?? 0;
     }
-    return revisions;
+    const seenLinks: Record<string, number> = {};
+    for (const id of seenIds) {
+      const node = byId.get(id);
+      if (node) seenLinks[id] = node.linksRevision ?? 0;
+    }
+    return { readNodes, seenLinks };
+  }
+
+  /** Per node on a board, the newest links revision an agent read carried. */
+  getSeenLinks(boardId: string | null = this._activeBoardId): Record<string, number> {
+    if (!this._db || !boardId) return {};
+    return loadSeenLinksFromDB(this._db, boardId);
   }
 
   /** Per node on a board, the latest agent read that delivered its content. */

@@ -7,6 +7,8 @@ import {
   viewport,
   visibleNodeFor,
 } from '../state/canvas-store';
+import { linkMark } from '../state/context-status-store';
+import { activeSession } from '../state/presence-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -20,6 +22,11 @@ const EDGE_COLORS: Record<CanvasEdge['type'], string> = {
 };
 
 const DIRECTED_TYPES = new Set<CanvasEdge['type']>(['depends-on', 'flow']);
+
+// Connection-change glyphs (docs/design/LinksOptions.dc.html, option C), 24-unit paths.
+const LINK_MARK_EYE_OFF =
+  'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.6 6.6C3.8 8.3 2 12 2 12s3.5 6 10 6a9.6 9.6 0 0 0 4.4-1';
+const LINK_MARK_SPARK = 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z';
 
 /**
  * Edges are drawn in world space, so a 1.5px stroke renders as 0.4 screen px at
@@ -157,8 +164,22 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
   // overview zoom — cap label chrome like node chrome (2.2), and drop labels
   // entirely once the board is slivers (chrome scale > 3.4 ≈ zoom < 30%).
   const labelScale = Math.min(scale, 2.2);
+  const mark = linkMark(edge);
+  const markText = mark
+    ? mark.kind === 'agent'
+      ? `by ${mark.by}`
+      : `not seen by ${activeSession.value?.label ?? 'the agent'}`
+    : '';
   const mid =
-    edge.label && scale <= 3.4 ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
+    (edge.label || mark) && scale <= 3.4
+      ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y)
+      : null;
+  // Pill layout in label units (× labelScale): label, a hairline, then glyph + word.
+  const labelWidth = edge.label ? edge.label.length * 7 : 0;
+  const markGap = edge.label && mark ? 13 : 0;
+  const markWidth = mark ? markText.length * 6.2 + 14 : 0;
+  const pillWidth = labelWidth + markGap + markWidth + 16;
+  const markX = -pillWidth / 2 + 8 + labelWidth + markGap;
 
   const pathId = `edge-path-${edge.id}`;
 
@@ -219,20 +240,60 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
         </circle>
       )}
 
-      {/* Label at midpoint */}
-      {mid && edge.label && (
+      {/* Label at midpoint, with the connection-change mark (option C) */}
+      {mid && (
         <g transform={`translate(${mid.x}, ${mid.y})`}>
           <rect
             class="edge-label-bg"
-            x={-(edge.label.length * 3.5 + 8) * labelScale}
+            x={(-pillWidth / 2) * labelScale}
             y={-10 * labelScale}
-            width={(edge.label.length * 7 + 16) * labelScale}
+            width={pillWidth * labelScale}
             height={20 * labelScale}
             rx={4 * labelScale}
           />
-          <text class="edge-label" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)">
-            {edge.label}
-          </text>
+          {edge.label && (
+            <text
+              class="edge-label"
+              x={(-pillWidth / 2 + 8 + labelWidth / 2) * labelScale}
+              text-anchor="middle"
+              dominant-baseline="central"
+              fill="var(--c-text)"
+            >
+              {edge.label}
+            </text>
+          )}
+          {mark && (
+            <g class={`edge-link-mark is-${mark.kind}`} data-testid="edge-link-mark">
+              {edge.label && (
+                <line
+                  x1={(markX - 6) * labelScale}
+                  x2={(markX - 6) * labelScale}
+                  y1={-6 * labelScale}
+                  y2={6 * labelScale}
+                  stroke="var(--c-line)"
+                  stroke-width={labelScale}
+                />
+              )}
+              <path
+                transform={`translate(${markX * labelScale}, ${-5 * labelScale}) scale(${(10 / 24) * labelScale})`}
+                d={mark.kind === 'agent' ? LINK_MARK_SPARK : LINK_MARK_EYE_OFF}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <text
+                class="edge-label"
+                x={(markX + 14) * labelScale}
+                text-anchor="start"
+                dominant-baseline="central"
+                fill="currentColor"
+              >
+                {markText}
+              </text>
+            </g>
+          )}
         </g>
       )}
     </g>

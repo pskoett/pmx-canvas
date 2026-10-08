@@ -183,9 +183,18 @@ function compileNode(
       text: [summary, pinReason ? `Pinned because: ${pinReason}` : '', ...relations].filter(Boolean).join('\n'),
       summaryOnly: true,
     },
-    revision: node.contentRevision,
+    revision: briefRevision(node),
     replacement: true,
   };
+}
+
+/**
+ * A card's place in the delta: its newest text or links change (links are
+ * tracked apart, option C). Undefined for a legacy card with neither.
+ */
+function briefRevision(node: CanvasNodeState): number | undefined {
+  if (node.contentRevision === undefined && node.linksRevision === undefined) return undefined;
+  return Math.max(node.contentRevision ?? -1, node.linksRevision ?? -1);
 }
 
 /**
@@ -243,11 +252,8 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   }
 
   const changed = nodes
-    .filter(
-      (node) =>
-        reset !== null || (validRevision(node.contentRevision ?? -1) && (node.contentRevision ?? -1) > deltaSince),
-    )
-    .sort((a, b) => (a.contentRevision ?? 0) - (b.contentRevision ?? 0) || a.id.localeCompare(b.id));
+    .filter((node) => reset !== null || (briefRevision(node) ?? -1) > Math.max(deltaSince, -1))
+    .sort((a, b) => (briefRevision(a) ?? 0) - (briefRevision(b) ?? 0) || a.id.localeCompare(b.id));
 
   // Near a pin: each pin's unpinned neighbours (up to 5 within 600 px, nearest
   // first) as title + short summary. A neighbour that changed arrives in full
@@ -492,7 +498,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   }
   const revisions = [
     ...new Set([
-      ...changed.map((node) => node.contentRevision!).filter(validRevision),
+      ...changed.map((node) => briefRevision(node) ?? -1).filter(validRevision),
       ...(firstRead ? [] : tombstones.map((item) => item.revision)),
     ]),
   ]

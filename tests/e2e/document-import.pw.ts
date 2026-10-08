@@ -193,7 +193,12 @@ for (const width of [1440, 600]) {
     await expect(page.getByText('Markdown added', { exact: true })).toBeVisible();
     const search = await (await request.get('/api/canvas/search?q=Quarterly&scope=library')).json();
     expect(JSON.stringify(search)).toContain(derived.id);
-    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    // At 980 px and below the top bar folds Export into its ⋯ More menu.
+    if (width > 980) await page.getByRole('button', { name: 'Export', exact: true }).click();
+    else {
+      await page.getByRole('button', { name: 'More: export, present, zoom, fit' }).click();
+      await page.getByRole('menuitem', { name: 'Export board' }).click();
+    }
     const dialog = page.getByRole('dialog', { name: 'Export board', exact: true });
     await expect(dialog).toContainText('Original attachments are excluded');
     await expect(dialog.getByRole('checkbox', { name: /Include imported document text/ })).not.toBeChecked();

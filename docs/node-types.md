@@ -51,8 +51,12 @@ conversation rendering and are not created through public APIs.
 Full node reads expose server-owned `createdBy`, `lastEditedBy`, and
 `contentRevision`. Authors distinguish human, agent, system, and unknown;
 legacy nodes remain unknown. The revision advances on semantic content changes,
-including group membership and undo, but not moves or resizes. These fields
-describe provenance, not permission, and caller-supplied author fields are ignored.
+including group membership and undo, but not moves or resizes. Links are tracked
+apart: `linksRevision` advances on both ends when a link is added, retyped,
+relabelled or removed, and never advances `contentRevision`. Each edge carries
+the `revision` and `changedBy` of its latest such change (generated code-graph and
+board-map edges carry none). These fields describe provenance, not permission, and
+caller-supplied author fields are ignored.
 
 ## Choosing the right visual tier
 

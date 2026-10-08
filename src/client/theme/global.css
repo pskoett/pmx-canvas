@@ -4181,6 +4181,21 @@ html.is-node-resizing .ext-app-preview-catcher {
   stroke-width: calc(0.5 * var(--edge-label-scale, 1));
 }
 
+/* Connection-change mark on a link's pill (docs/design/LinksOptions.dc.html, option C):
+   neutral "not seen by <agent>" for a person's change, violet "by <agent>" for an agent's. */
+.edge-link-mark {
+  pointer-events: none;
+  font-weight: 500;
+}
+
+.edge-link-mark.is-not-seen {
+  color: var(--c-muted);
+}
+
+.edge-link-mark.is-agent {
+  color: var(--c-agent);
+}
+
 /* Trace nodes — compact pills for agent tool/subagent visualization */
 .canvas-node.trace-node {
   border-radius: 28px;
@@ -7694,6 +7709,19 @@ html.is-node-dragging .intent-line-layer {
 .context-tag.is-changed {
   color: var(--c-warn);
   background: color-mix(in srgb, var(--c-warn) 14%, transparent);
+}
+/* Links changed after the last read: information, never "needs a look" (option C). */
+.context-tag.is-links {
+  gap: 4px;
+  color: var(--c-muted);
+  background: var(--c-panel-soft);
+}
+.context-tag.is-links svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .context-panel-x {
   width: 22px;

@@ -138,6 +138,22 @@ describe('ContextChip', () => {
     for (const call of writes) expect(new Headers(call.init?.headers).get('x-pmx-workbench')).toBe('1');
   });
 
+  test('a pinned card whose links changed after the read lists "links changed" in neutral, not amber', () => {
+    nodes.value = new Map([['a', { ...card('a', 0, 'Raise Team to $24?'), linksRevision: 9 }]]);
+    contextPinnedNodeIds.value = new Set(['a']);
+    applyContextStatus({
+      nodes: [
+        { nodeId: 'a', lastReadAt: '2026-10-08T00:00:00.000Z', lastReadBy: 'codex', readRevision: 1, readCount: 1 },
+      ],
+      links: { a: 4 },
+      pins: { a: { pinnedBy: human, pinnedAt: '2026-10-07T00:00:00.000Z' } },
+    });
+    const { getByTestId, container } = render(<ContextChip />);
+    fireEvent.click(getByTestId('context-chip'));
+    expect(container.querySelector('.context-tag.is-links')?.textContent).toContain('links changed');
+    expect(container.querySelector('.context-tag.is-changed')).toBeNull();
+  });
+
   test('Escape closes the panel', () => {
     const { getByTestId, queryByRole } = render(<ContextChip />);
     fireEvent.click(getByTestId('context-chip'));
