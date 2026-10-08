@@ -5,10 +5,11 @@ import { activeBoardId, type BoardSummary, boardList } from '../../src/client/st
 import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
 import { briefSize, pinnedBoardReads } from '../../src/client/state/context-chip-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
+import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 // docs/design/ContextChip.dc.html: the one chip in the top bar, in brief order
-// (cards · near · boards) with the brief's share of its budget; details on click.
+// (cards · near · boards) with what the brief costs in tokens; details on click.
 
 const realFetch = globalThis.fetch;
 const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -59,7 +60,10 @@ beforeEach(() => {
   pinnedBoardReads.value = new Map();
   applyContextStatus({});
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  resetPresence();
+});
 
 describe('ContextChip', () => {
   test('nothing pinned: a quiet chip that opens a one-line how-to', () => {
@@ -70,7 +74,7 @@ describe('ContextChip', () => {
     expect(getByText(/Nothing is pinned/)).toBeTruthy();
   });
 
-  test('counts cards, near and boards in brief order, with the brief share as tokens', () => {
+  test('counts cards, near and boards in brief order, with the token cost', () => {
     nodes.value = new Map([
       ['a', card('a', 0, 'Raise Team to $24?')],
       ['b', card('b', 300, 'Churn flat after last raise')],
@@ -81,22 +85,24 @@ describe('ContextChip', () => {
       board('open', 'Pricing research'),
       board('tech', 'Tech Enabling — overview', { pinnedBy: human, pinnedAt: '2026-10-07T00:00:00.000Z' }),
     ];
-    briefSize.value = { chars: 4_400, budget: 16_000, clipped: false };
+    briefSize.value = { chars: 4_400 };
     const { getByTestId } = render(<ContextChip />);
     const chip = getByTestId('context-chip').querySelector('.context-chip-wide')!;
     expect(chip.textContent).toBe('1 card · 1 near · 1 board');
     expect(chip.querySelector('.is-near')?.textContent).toContain('1 near');
-    expect(getByTestId('budget-label').textContent).toBe('≈ 1.1k tokens');
+    expect(getByTestId('token-cost').textContent).toBe('≈ 1.1k tokens');
   });
 
-  test('a clipped brief turns amber with its word; agent-only pins carry the violet dot', () => {
+  test('a cost, never a budget: no share, meter or clipped state; agent-only pins carry the violet dot', () => {
     nodes.value = new Map([['a', card('a', 0)]]);
     contextPinnedNodeIds.value = new Set(['a']);
     applyContextStatus({ pins: { a: { pinnedBy: agent, pinnedAt: '2026-10-07T00:00:00.000Z' } } });
-    briefSize.value = { chars: 16_000, budget: 16_000, clipped: true };
-    const { getByTestId, container } = render(<ContextChip />);
-    expect(getByTestId('context-chip').textContent).toContain('△ brief clipped');
-    expect(getByTestId('budget-label').textContent).toBe('over');
+    briefSize.value = { chars: 64_000 };
+    const { getByTestId, getByRole, container } = render(<ContextChip />);
+    expect(getByTestId('token-cost').textContent).toBe('≈ 16.0k tokens');
+    expect(getByTestId('context-chip').textContent).not.toMatch(/%|over|clipped|budget/);
+    fireEvent.click(getByTestId('context-chip'));
+    expect(getByRole('dialog').textContent).not.toMatch(/%|clipped|budget/);
     expect(container.querySelector('.context-chip .context-chip-agent-dot')).toBeTruthy();
     expect(getByTestId('context-chip').textContent).toContain('by claude');
   });
@@ -152,6 +158,35 @@ describe('ContextChip', () => {
     fireEvent.click(getByTestId('context-chip'));
     expect(container.querySelector('.context-tag.is-links')?.textContent).toContain('links changed');
     expect(container.querySelector('.context-tag.is-changed')).toBeNull();
+  });
+
+  test("a host that reports its agent's tokens is named with that count, as a plain number", () => {
+    nodes.value = new Map([['a', card('a', 0)]]);
+    contextPinnedNodeIds.value = new Set(['a']);
+    briefSize.value = { chars: 4_400 };
+    applyPresenceSnapshot({
+      presences: [
+        {
+          sessionId: 'copilot',
+          source: 'copilot',
+          agentId: null,
+          label: 'Copilot',
+          phase: 'idle',
+          detail: null,
+          focusNodeId: null,
+          cursor: null,
+          attached: true,
+          opCount: 0,
+          contextUsage: { used: 42_800, total: 128_000 },
+          lastSeenAt: '2026-10-08T00:00:00.000Z',
+        },
+      ],
+    });
+    const { getByTestId, getByRole } = render(<ContextChip />);
+    expect(getByTestId('token-cost').textContent).toBe('≈ 1.1k tokens');
+    fireEvent.click(getByTestId('context-chip'));
+    expect(getByRole('dialog').textContent).toContain('Copilot’s whole context holds 42.8k tokens.');
+    expect(getByRole('dialog').textContent).not.toContain('%');
   });
 
   test('Escape closes the panel', () => {

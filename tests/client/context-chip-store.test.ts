@@ -31,7 +31,7 @@ describe('context chip store', () => {
     await flush();
     const brief = seen.find((call) => call.url === '/api/canvas/context');
     expect(brief?.headers.get('x-pmx-proxied-read')).toBe('1');
-    expect(briefSize.value?.clipped).toBe(false);
+    expect(briefSize.value?.chars).toBeGreaterThan(0);
   });
 
   test('an answer for a board you have since left does not paint the chip', async () => {

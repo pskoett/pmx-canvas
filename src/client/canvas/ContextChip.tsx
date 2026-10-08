@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { IconPin } from '../icons';
 import { activeBoardId, boardList, setBoardPinned } from '../state/boards-store';
 import { clearContextPins, contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
-import { approxTokens, briefSize, pinnedBoardReads, refreshContextChip } from '../state/context-chip-store';
+import {
+  approxTokens,
+  briefSize,
+  formatTokens,
+  pinnedBoardReads,
+  refreshContextChip,
+} from '../state/context-chip-store';
 import { contextPinMeta, linksChanged, pinnedReadState, writerName } from '../state/context-status-store';
 import { nearPins } from '../state/near-pin-store';
 import { activeSession } from '../state/presence-store';
@@ -11,7 +17,7 @@ import { activeSession } from '../state/presence-store';
 /**
  * One context chip (docs/design/ContextChip.dc.html): everything in the agent's
  * context, in brief order — cards pinned on this board, near (derived, muted),
- * pinned boards (sent as maps) — with the brief's share of its budget. Opened,
+ * pinned boards (sent as maps) — with what the brief costs in tokens. Opened,
  * one list with read state and unpin.
  */
 
@@ -61,20 +67,11 @@ export function ContextChip() {
   ];
   const agentOnly = !empty && pinners.every((by) => by?.actor === 'agent');
 
-  const hostWindow = activeSession.value?.contextUsage;
   const size = briefSize.value;
-  const clipped = !hostWindow && !!size?.clipped;
-  const ratio = hostWindow ? hostWindow.used / Math.max(1, hostWindow.total) : size ? size.chars / size.budget : 0;
-  const pct = Math.min(100, Math.round(ratio * 100));
-  const meterText = hostWindow
-    ? `${pct}% window`
-    : clipped
-      ? 'over'
-      : size
-        ? `≈ ${approxTokens(size.chars)} tokens`
-        : '';
+  const cost = size ? `≈ ${approxTokens(size.chars)} tokens` : '';
+  const host = activeSession.value;
 
-  const segments: Array<{ text: string; kind?: 'near' | 'warn' | 'agent' }> = [];
+  const segments: Array<{ text: string; kind?: 'near' | 'agent' }> = [];
   if (cardIds.length) segments.push({ text: plural(cardIds.length, 'card') });
   if (near.length) segments.push({ text: `${near.length} near`, kind: 'near' });
   if (boards.length) segments.push({ text: plural(boards.length, 'board') });
@@ -82,7 +79,6 @@ export function ContextChip() {
     const by = pinners.find((pinner) => pinner?.actor === 'agent');
     segments.push({ text: `by ${by ? writerName(by) : 'agent'}`, kind: 'agent' });
   }
-  if (clipped) segments.push({ text: '△ brief clipped', kind: 'warn' });
 
   return (
     <div class="context-chip-wrap" ref={root}>
@@ -111,18 +107,11 @@ export function ContextChip() {
                 </span>
               ))}
             </span>
-            <span class="context-chip-narrow">
-              {cardIds.length + boards.length} in context{clipped ? ' · △' : ''}
-            </span>
-            {meterText && (
-              <>
-                <span class={`context-chip-track${clipped ? ' is-over' : ''}`} aria-hidden="true">
-                  <span style={{ width: `${pct}%` }} />
-                </span>
-                <span class={`context-chip-meter${clipped ? ' is-over' : ''}`} data-testid="budget-label">
-                  {meterText}
-                </span>
-              </>
+            <span class="context-chip-narrow">{cardIds.length + boards.length} in context</span>
+            {cost && (
+              <span class="context-chip-cost" data-testid="token-cost">
+                {cost}
+              </span>
             )}
           </>
         )}
@@ -131,11 +120,7 @@ export function ContextChip() {
         <div class="context-panel" role="dialog" aria-label="In the agent's context">
           <div class="context-panel-head">
             <span class="context-panel-title">In the agent’s context</span>
-            {meterText && (
-              <span class="context-panel-mono">
-                {hostWindow ? `${session()}’s window · ${pct}%` : `${meterText} · ${pct}%`}
-              </span>
-            )}
+            {cost && <span class="context-panel-mono">{cost}</span>}
           </div>
           {empty ? (
             <p class="context-panel-cap">
@@ -144,13 +129,11 @@ export function ContextChip() {
             </p>
           ) : (
             <>
-              <span class={`context-panel-track${clipped ? ' is-over' : ''}`} aria-hidden="true">
-                <span style={{ width: `${pct}%` }} />
-              </span>
               <p class="context-panel-cap">
-                Share of the brief budget ({size?.budget.toLocaleString('en-US') ?? '16,000'} characters), shown as
-                tokens. When the host reports the agent’s real window this shows that instead. Amber: the brief went
-                over and was clipped.
+                What the canvas sends the agent costs {cost || 'a few'} tokens.
+                {host?.contextUsage
+                  ? ` ${host.label}’s whole context holds ${formatTokens(host.contextUsage.used)} tokens.`
+                  : ''}
               </p>
 
               <div class="context-panel-section">
@@ -266,10 +249,6 @@ export function ContextChip() {
       )}
     </div>
   );
-
-  function session(): string {
-    return activeSession.value?.label ?? 'Agent';
-  }
 }
 
 function ReadTag({ state, at }: { state: 'read' | 'not-read' | 'changed'; at: string | null }) {

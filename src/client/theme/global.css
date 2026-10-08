@@ -1106,7 +1106,7 @@ body,
   .agent-chip-workers,
   .start-session-label,
   .start-session-btn .beta-tag,
-  .context-chip-meter {
+  .context-chip-cost {
     display: none;
   }
 }
@@ -7512,39 +7512,12 @@ html.is-node-dragging .intent-line-layer {
 .context-chip-wide .is-agent {
   color: var(--c-agent);
 }
-.context-chip-wide .is-warn {
-  color: var(--c-warn);
-  font-weight: 600;
-}
 .context-chip-narrow {
   display: none;
 }
-.context-chip-track,
-.context-panel-track {
-  display: inline-block;
-  width: 32px;
-  height: 4px;
-  margin-left: 2px;
-  border-radius: var(--r-pill);
-  background: var(--c-line);
-  overflow: hidden;
-}
-.context-chip-track > span,
-.context-panel-track > span {
-  display: block;
-  height: 100%;
-  background: var(--c-pin);
-}
-.context-chip-track.is-over > span,
-.context-panel-track.is-over > span {
-  background: var(--c-warn);
-}
-.context-chip-meter {
+.context-chip-cost {
   font: 11px var(--font-code);
   color: var(--c-muted);
-}
-.context-chip-meter.is-over {
-  color: var(--c-warn);
 }
 
 .context-panel {
@@ -7581,12 +7554,6 @@ html.is-node-dragging .intent-line-layer {
 .context-panel-mono {
   font: 11px var(--font-code);
   color: var(--c-muted);
-}
-.context-panel-track {
-  display: block;
-  width: auto;
-  height: 6px;
-  margin: 0;
 }
 .context-panel-cap,
 .context-panel-cap-inline {

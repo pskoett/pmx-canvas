@@ -297,7 +297,7 @@ describe('command bar', () => {
     const { container } = render(<CommandBar />);
     expect(container.querySelector('.command-bar-chip-glyph')?.textContent).toBe('✦');
     expect(container.querySelector('.command-bar-chips-note')?.textContent).toBe('in agent context');
-    expect(container.querySelector('[data-testid="budget-label"]')).toBeNull();
+    expect(container.querySelector('[data-testid="token-cost"]')).toBeNull();
   });
 });
 

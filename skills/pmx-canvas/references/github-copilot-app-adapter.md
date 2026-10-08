@@ -47,8 +47,8 @@ panel.
 
 The extension also reports Copilot's real context window: the SDK's `session.usage_info`
 event (`currentTokens` / `tokenLimit`, root agent only) is posted to the presence as
-`contextUsage`, so the board's context summary shows Copilot's real window rather than the
-brief's share of its budget.
+`contextUsage`, so the board's context panel names how many tokens Copilot's whole context holds,
+next to what the brief costs.
 
 The extension attaches a Copilot session to the canvas when it joins the host session, flips the
 phase to `thinking` on every submitted prompt, and detaches on exit. While attached the workbench

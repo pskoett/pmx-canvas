@@ -369,10 +369,9 @@ The board has three modes, all gated on one fact — whether a session is attach
   the session panel (work items, approval gates, timeline of your tool runs, board writes,
   evidence and steering), a command bar that posts steering you read on your next turn (with a target
   picker when several agents are connected), a timeline filterable by kind (Updates / Steer /
-  Events / Evidence), and a context meter. That meter is the pinned-context payload estimated against a configured budget
-  ("Pins") unless your host reports your real token usage on the presence
-  (`set-presence { contextUsage: { used, total } }`) — then it shows your actual window
-  ("Context"). The Copilot extension reports it automatically; other hosts report it themselves. Report `phase: "thinking"` before a long reasoning stretch if your host
+  Events / Evidence). The top bar's context summary shows what your brief costs in tokens; if your host
+  reports your real token usage on the presence (`set-presence { contextUsage: { used, total } }`), the
+  context panel also names that count. The Copilot extension reports it automatically; other hosts report it themselves. Report `phase: "thinking"` before a long reasoning stretch if your host
   gives you a hook; `tooling` is derived from your writes. Hosts with adapters (the Copilot
   extension) attach for you; the human can also start a session from the board's *Start agent
   session* button — your writes (transport or `PMX_CANVAS_AGENT_SOURCE` label alike) are
@@ -470,9 +469,10 @@ Use the visible workbench when the human is actively curating layout:
   and utilities: search & commands (Cmd+K — actions with shortcuts, then jump-to-node), arrange,
   trace, minimap, history, the theme picker (nine themes: harbor, daylight, high-contrast, midnight,
   sepia, arctic, ember, forest, volt), and shortcuts (?). The top bar holds the connection dot,
-  workspace title, the session chip / gate badge / context meter while a session is attached
-  (or the external-writers indicator and *Start agent session* otherwise), and the zoom cluster
-  (zoom out, % label = reset, zoom in, fit F). Hovering a rail button shows a tooltip with its
+  workspace title, the board pin, the session chip / gate badge while a session is attached
+  (or the external-writers indicator and *Start agent session* otherwise), the context summary
+  (what is in your context and its token cost; details on click), and the zoom cluster
+  (zoom out, % label = reset, zoom in, fit F; folded into ⋯ on narrow windows). Hovering a rail button shows a tooltip with its
   shortcut or supported file types. Attach files shares the drop workflow: images, Markdown,
   text/code and PDF/Office originals; PDF/Office extraction still requires the import request
   and human review. Workspace file paths (Shift+F) and image URLs (I) remain in the canvas

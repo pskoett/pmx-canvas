@@ -1708,7 +1708,7 @@
     },
     {
       "name": "canvas_ax_state",
-      "description": "Read or set host-agnostic PMX AX state. Action \"get\" reads the AX state + agent-ready context (pinned/focused context, focus field); \"set-focus\" places node IDs in the AX focus field (nodeIds); \"set-policy\" patches the tool/prompt policy (tools.allowed|excluded|approvalRequired, prompt.systemAppend|mode — merges with existing); \"report-capability\" records a host/session capability for diagnostics; \"presence\" reads agent presence (who is writing, phase, attached session, context budget); \"set-presence\" updates this caller's presence (phase idle|thinking|tooling|waiting-approval, detail, focusNodeId, cursor, attached — attached:true starts a session, false ends it; contextUsage {used,total} reports the agent's real token window so the board's meter shows it instead of the pinned-context estimate). Adapters may pass a source label (e.g. codex).",
+      "description": "Read or set host-agnostic PMX AX state. Action \"get\" reads the AX state + agent-ready context (pinned/focused context, focus field); \"set-focus\" places node IDs in the AX focus field (nodeIds); \"set-policy\" patches the tool/prompt policy (tools.allowed|excluded|approvalRequired, prompt.systemAppend|mode — merges with existing); \"report-capability\" records a host/session capability for diagnostics; \"presence\" reads agent presence (who is writing, phase, attached session); \"set-presence\" updates this caller's presence (phase idle|thinking|tooling|waiting-approval, detail, focusNodeId, cursor, attached — attached:true starts a session, false ends it; contextUsage {used,total} reports the agent's real token usage, which the board's context panel names). Adapters may pass a source label (e.g. codex).",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1897,7 +1897,7 @@
             "type": "boolean"
           },
           "contextUsage": {
-            "description": "The agent's real token window as {used,total} — shown on the board's context meter instead of the pinned-context estimate (null clears it)",
+            "description": "The agent's real token usage as {used,total} — the board's context panel names how many tokens its whole context holds (null clears it)",
             "anyOf": [
               {
                 "type": "object",

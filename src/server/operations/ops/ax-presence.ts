@@ -39,7 +39,7 @@ const presenceSetShape = {
     'true attaches a session; false detaches it. Read presence first and reuse your host adapter session instead of attaching another. Only detach sessions you own.',
   ),
   contextUsage: PRESENCE_SET_SHAPE.contextUsage.describe(
-    "The agent's real token window as {used,total} — shown on the board's context meter instead of the pinned-context estimate (null clears it)",
+    "The agent's real token usage as {used,total} — the board's context panel names how many tokens its whole context holds (null clears it)",
   ),
 };
 const presenceSetSchema = z.looseObject(presenceSetShape);

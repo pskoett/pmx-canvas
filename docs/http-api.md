@@ -650,12 +650,13 @@ a transport writer folds into it), bounded to the last 50 and kept after a
 writer fades. Detaching (`attached: false`, `session-end`) removes the
 presence outright — an ended session never lingers as an external writer.
 
-**The context summary measures the brief unless the host says otherwise.** The
-top bar's context summary shows the brief's size against its budget (16,000
-UTF-16 characters by default), labelled ≈ tokens. A host that knows the agent's
-real usage reports it on the presence (`contextUsage: { used, total }` on
-`POST /api/canvas/ax/presence` / `set-presence`); the summary then shows that
-window instead. The
+**The context summary shows a cost, not a budget.** The top bar's context
+summary shows what the brief costs, as ≈ tokens (about four characters per
+token). There is no share, meter or clipped state: a brief longer than one page
+continues on the next read. A host that knows how many tokens its agent holds
+reports it on the presence (`contextUsage: { used, total }` on
+`POST /api/canvas/ax/presence` / `set-presence`); the context panel then also
+names that count ("Copilot’s whole context holds 42.8k tokens"). The
 bundled Copilot extension reports it from the SDK's `session.usage_info`
 event (root agent, coalesced to one report per 500 ms); the legacy
 `context-usage` workbench event feeds the single attached session the same

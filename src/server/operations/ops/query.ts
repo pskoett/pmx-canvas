@@ -39,9 +39,13 @@ import { readTargetBoard } from './boards.js';
 
 /** Legacy server.ts handleContextPinsUpdate capped the requested list at 20. */
 const MAX_PINS = 20;
-import { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET } from '../../../shared/context-brief-budget.js';
 
-export { DEFAULT_CONTEXT_BRIEF_BUDGET, MAX_CONTEXT_BRIEF_BUDGET };
+/**
+ * The brief's page size in UTF-16 characters (canvas://context?budget=N). It is
+ * not shown to the human: a brief longer than one page continues on the next read.
+ */
+export const DEFAULT_CONTEXT_BRIEF_BUDGET = 16_000;
+export const MAX_CONTEXT_BRIEF_BUDGET = 100_000;
 
 const pinShape = {
   nodeIds: z.unknown().optional().describe('Array of node IDs to pin'),
