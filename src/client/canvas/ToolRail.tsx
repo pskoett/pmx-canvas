@@ -2,23 +2,16 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import {
   IconArrange,
-  IconClearTrace,
   IconCursorTool,
   IconEraser,
   IconHandTool,
   IconLogo,
-  IconMinimap,
-  IconMoon,
   IconNodeGroup,
   IconNodeMarkdown,
   IconNodeWebpage,
   IconPen,
   IconSearch,
-  IconShortcuts,
-  IconSnapshot,
-  IconSun,
   IconTextAnnotation,
-  IconTrace,
   IconUpload,
 } from '../icons';
 import {
@@ -46,7 +39,6 @@ import {
   CANVAS_THEMES,
   CANVAS_THEME_META,
   type CanvasThemeName,
-  canvasThemeScheme,
   normalizeCanvasThemeName,
 } from '../../shared/themes.js';
 
@@ -175,24 +167,31 @@ export function ToolRail({
   const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
   const edgeCount = edges.value.size;
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [openMenu, setOpenMenu] = useState<null | 'theme'>(null);
+  // The Settings menu (docs/design/Chrome.dc.html §7) and the view it shows.
+  const [openMenu, setOpenMenu] = useState<null | 'settings' | 'theme' | 'trace'>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ bottom: number; right: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const toggleMenu = (menu: 'theme') => (e: MouseEvent) => {
-    if (openMenu === menu) {
+  const toggleSettings = (e: MouseEvent) => {
+    if (openMenu) {
       setOpenMenu(null);
       return;
     }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setMenuAnchor({ bottom: rect.bottom, right: rect.right });
-    setOpenMenu(menu);
+    setOpenMenu('settings');
+  };
+  /** Run a Settings action and close the menu; focus returns to the Settings button. */
+  const choose = (action: () => void) => () => {
+    setOpenMenu(null);
+    snapshotBtnRef.current?.focus();
+    action();
   };
 
   // The rail scrolls (overflow-y:auto), so an absolutely-positioned popover
   // would be clipped by it. Fixed positioning from the trigger's rect escapes
-  // the scroll container; the theme menu bottom-aligns so it grows upward.
+  // the scroll container; the menu bottom-aligns so it grows upward.
   const sideMenuStyle = menuAnchor
     ? {
         position: 'fixed' as const,
@@ -251,30 +250,6 @@ export function ToolRail({
           <span class="rail-brand">
             <IconLogo size={22} />
           </span>
-        </RailButton>
-
-        <RailButton
-          label="Bug and feedback"
-          menuOpen={feedbackOpen}
-          onClick={() => {
-            setOpenMenu(null);
-            setFeedbackOpen(true);
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="4.5" y="5" width="7" height="9" rx="3.5" />
-            <path d="M6 5V4a2 2 0 0 1 4 0v1M8 8v6M2 4l2.5 2M14 4l-2.5 2M1.5 9h3M11.5 9h3M2 14l2.5-2M14 14l-2.5-2" />
-          </svg>
         </RailButton>
 
         <div class="rail-divider" />
@@ -387,7 +362,7 @@ export function ToolRail({
           <IconEraser />
         </RailButton>
 
-        <div class="rail-spacer" />
+        <div class="rail-divider" />
 
         <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
           <IconSearch />
@@ -399,43 +374,76 @@ export function ToolRail({
         >
           <IconArrange />
         </RailButton>
-        {!isHostedWorkbench() && (
-          <RailButton
-            label={isTraceOn ? 'Disable trace' : 'Enable trace'}
-            active={isTraceOn}
-            onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
-          >
-            <IconTrace />
-          </RailButton>
-        )}
-        {!isHostedWorkbench() && (isTraceOn || traceNodeCount > 0) && (
-          <RailButton label="Clear trace" onClick={() => sendIntent('trace-clear')}>
-            <IconClearTrace />
-          </RailButton>
-        )}
-        <RailButton
-          label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
-          active={minimapVisible}
-          onClick={onToggleMinimap}
-        >
-          <IconMinimap />
-        </RailButton>
-        <RailButton label="Snapshots" active={snapshotOpen} onClick={onToggleSnapshot} btnRef={snapshotBtnRef}>
-          <IconSnapshot />
-        </RailButton>
+        <div class="rail-spacer" />
         <span class="toolbar-menu-anchor">
           <RailButton
-            label="Theme"
-            detail={CANVAS_THEME_META[activeTheme].label}
-            menuOpen={openMenu === 'theme'}
-            ariaLabel="Choose theme"
-            active={openMenu === 'theme'}
-            onClick={toggleMenu('theme')}
+            label="Settings"
+            detail="Theme, snapshots, minimap, shortcuts, trace, feedback"
+            ariaLabel="Settings"
+            menuOpen={openMenu !== null}
+            active={openMenu !== null || snapshotOpen}
+            onClick={toggleSettings}
+            btnRef={snapshotBtnRef}
           >
-            {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 7h9M17 7h3M4 17h3M11 17h9M13 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M7 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+            </svg>
           </RailButton>
+          {openMenu === 'settings' && (
+            <div class="toolbar-menu rail-settings-menu" style={sideMenuStyle} role="menu" aria-label="Settings">
+              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('theme')}>
+                <span>Theme</span>
+                <span class="toolbar-menu-hint">{CANVAS_THEME_META[activeTheme].label} ›</span>
+              </button>
+              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onToggleSnapshot)}>
+                <span>Snapshots</span>
+              </button>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={minimapVisible}
+                class="toolbar-menu-item"
+                onClick={choose(onToggleMinimap)}
+              >
+                <span>Minimap</span>
+                <span class="toolbar-menu-hint">{minimapVisible ? 'On' : 'Off'}</span>
+              </button>
+              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onOpenShortcuts)}>
+                <span>Keyboard shortcuts</span>
+                <kbd class="toolbar-menu-hint">?</kbd>
+              </button>
+              <div class="toolbar-menu-divider" role="separator" />
+              {!isHostedWorkbench() && (
+                <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('trace')}>
+                  <span>Trace</span>
+                  <span class="toolbar-menu-hint">{isTraceOn ? 'On' : 'Off'} ›</span>
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                class="toolbar-menu-item"
+                onClick={choose(() => setFeedbackOpen(true))}
+              >
+                <span>Send feedback</span>
+              </button>
+            </div>
+          )}
           {openMenu === 'theme' && (
             <div class="toolbar-menu" style={sideMenuStyle} role="menu" aria-label="Theme">
+              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('settings')}>
+                <span>‹ Settings</span>
+              </button>
               {CANVAS_THEMES.map((name) => (
                 <button
                   key={name}
@@ -458,10 +466,32 @@ export function ToolRail({
               ))}
             </div>
           )}
+          {openMenu === 'trace' && (
+            <div class="toolbar-menu" style={sideMenuStyle} role="menu" aria-label="Trace">
+              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('settings')}>
+                <span>‹ Settings</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                class="toolbar-menu-item"
+                onClick={choose(() => sendIntent('trace-toggle', { enabled: !isTraceOn }))}
+              >
+                <span>{isTraceOn ? 'Disable trace' : 'Enable trace'}</span>
+              </button>
+              {(isTraceOn || traceNodeCount > 0) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="toolbar-menu-item"
+                  onClick={choose(() => sendIntent('trace-clear'))}
+                >
+                  <span>Clear trace</span>
+                </button>
+              )}
+            </div>
+          )}
         </span>
-        <RailButton label="Shortcuts" shortcut="?" onClick={onOpenShortcuts}>
-          <IconShortcuts />
-        </RailButton>
       </div>
       {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
     </>

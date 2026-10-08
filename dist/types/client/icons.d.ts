@@ -27,8 +27,6 @@ export declare function IconZoomOut(p: IconProps): JSX.Element;
 export declare function IconArrange(p: IconProps): JSX.Element;
 /** Frame with focused inner corner — minimap */
 export declare function IconMinimap(p: IconProps): JSX.Element;
-/** Sun with rays */
-export declare function IconSun(p: IconProps): JSX.Element;
 /** Crescent moon */
 export declare function IconMoon(p: IconProps): JSX.Element;
 /** Pen stroke — canvas annotation mode */
@@ -37,16 +35,8 @@ export declare function IconPen(p: IconProps): JSX.Element;
 export declare function IconEraser(p: IconProps): JSX.Element;
 /** Text cursor — canvas text annotation mode */
 export declare function IconTextAnnotation(p: IconProps): JSX.Element;
-/** Camera — snapshots */
-export declare function IconSnapshot(p: IconProps): JSX.Element;
-/** Bullseye — trace toggle */
-export declare function IconTrace(p: IconProps): JSX.Element;
-/** X in circle — clear trace */
-export declare function IconClearTrace(p: IconProps): JSX.Element;
 /** Magnifying glass — search */
 export declare function IconSearch(p: IconProps): JSX.Element;
-/** Keyboard — shortcuts */
-export declare function IconShortcuts(p: IconProps): JSX.Element;
 /** Speech bubble — steer the agent (command bar composer). */
 export declare function IconSteer(p: IconProps): JSX.Element;
 /** Push pin — context pinning (docs/design/Chrome.dc.html). */

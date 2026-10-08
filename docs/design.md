@@ -171,7 +171,10 @@ the same change.
   README, close) appear on hover under ⋯ and ×. Their slots stay reserved while
   hidden, so hover or keyboard focus cannot move the pin onto another action.
   Section labels are a heading display of the markdown node. Rarely used tools
-  live in one settings menu on the rail.
+  live in one settings menu on the rail (built 2026-10-08: theme, snapshots, minimap,
+  shortcuts, trace, feedback; Theme and Trace open in place with a "‹ Settings" row). The
+  Eraser stays beside Text note — it is the only way to remove an annotation — so the rail
+  has 13 tools (Chrome.dc.html §7, updated to match).
 - **Kinds and knowledge categories carry no colour** (categories confirmed with the
   maintainer 2026-10-07). A node kind and a folder's category are told by glyph and word
   only; no hue is spent on them, so every colour on the board keeps a meaning. This

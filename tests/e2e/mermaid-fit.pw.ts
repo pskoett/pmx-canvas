@@ -57,7 +57,8 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   await expect(svg).toBeVisible();
 
   for (const theme of ['harbor', 'daylight']) {
-    await page.getByRole('button', { name: 'Choose theme' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('menu', { name: 'Settings' }).getByRole('menuitem').filter({ hasText: 'Theme' }).click();
     await page
       .locator('.toolbar-menu')
       .getByRole('menuitemradio', { name: new RegExp(`^${theme}$`, 'i') })

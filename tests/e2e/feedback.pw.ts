@@ -7,11 +7,13 @@ test('feedback rail button opens a private draft and hands only entered fields t
   // Intercept the handoff: never create an issue or send test content to GitHub.
   await context.route('https://github.com/**', (route) => route.fulfill({ body: 'GitHub draft handoff' }));
   await page.goto('/workbench');
-  const button = page.getByRole('button', { name: 'Bug and feedback', exact: true });
+  // Send feedback lives in the rail's Settings menu (Chrome.dc.html §7).
+  const button = page.getByRole('button', { name: 'Settings', exact: true });
+  const sendFeedback = () =>
+    page.getByRole('menu', { name: 'Settings' }).getByRole('menuitem').filter({ hasText: 'Send feedback' });
   await expect(button).toBeInViewport();
-  await button.hover();
-  await expect(page.getByTestId('rail-tooltip')).toHaveText('Bug and feedback');
   await button.click();
+  await sendFeedback().click();
   const dialog = page.getByRole('dialog', { name: 'Bug and feedback' });
   await expect(dialog).toBeVisible();
   const next = dialog.getByRole('button', { name: 'Continue on GitHub' });
@@ -26,6 +28,7 @@ test('feedback rail button opens a private draft and hands only entered fields t
   await page.setViewportSize({ width: 390, height: 600 });
   await expect(button).toBeInViewport();
   await button.click();
+  await sendFeedback().click();
   const type = dialog.getByRole('button', { name: 'Feedback type' });
   await type.click();
   const menu = dialog.getByRole('menu', { name: 'Feedback type' });
@@ -93,7 +96,12 @@ for (const [theme, width] of [
       await agents.getByRole('menuitemradio', { name: /menu-reviewer/ }).click();
       await expect(page.getByLabel('Steer the agent')).toHaveAttribute('placeholder', /menu-reviewer/);
 
-      await page.getByRole('button', { name: 'Bug and feedback', exact: true }).click();
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await page
+        .getByRole('menu', { name: 'Settings' })
+        .getByRole('menuitem')
+        .filter({ hasText: 'Send feedback' })
+        .click();
       const dialog = page.getByRole('dialog', { name: 'Bug and feedback' });
       await dialog.getByRole('button', { name: 'Feedback type' }).click();
       const kinds = dialog.getByRole('menu', { name: 'Feedback type' });

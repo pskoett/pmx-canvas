@@ -192,23 +192,6 @@ export function IconMinimap(p: IconProps): JSX.Element {
   );
 }
 
-/** Sun with rays */
-export function IconSun(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <circle cx="8" cy="8" r="3" />
-      <line x1="8" y1="1" x2="8" y2="3" />
-      <line x1="8" y1="13" x2="8" y2="15" />
-      <line x1="1" y1="8" x2="3" y2="8" />
-      <line x1="13" y1="8" x2="15" y2="8" />
-      <line x1="3.05" y1="3.05" x2="4.46" y2="4.46" />
-      <line x1="11.54" y1="11.54" x2="12.95" y2="12.95" />
-      <line x1="3.05" y1="12.95" x2="4.46" y2="11.54" />
-      <line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
-    </Icon>
-  );
-}
-
 /** Crescent moon */
 export function IconMoon(p: IconProps): JSX.Element {
   return (
@@ -253,58 +236,12 @@ export function IconTextAnnotation(p: IconProps): JSX.Element {
   );
 }
 
-/** Camera — snapshots */
-export function IconSnapshot(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <rect x="1" y="4" width="14" height="10" rx="1.5" />
-      <path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4" />
-      <circle cx="8" cy="9" r="2.3" />
-    </Icon>
-  );
-}
-
-/** Bullseye — trace toggle */
-export function IconTrace(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <circle cx="8" cy="8" r="6" />
-      <circle cx="8" cy="8" r="3" />
-      <circle cx="8" cy="8" r="0.8" fill="currentColor" stroke="none" />
-    </Icon>
-  );
-}
-
-/** X in circle — clear trace */
-export function IconClearTrace(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <circle cx="8" cy="8" r="6" />
-      <line x1="5.5" y1="5.5" x2="10.5" y2="10.5" />
-      <line x1="10.5" y1="5.5" x2="5.5" y2="10.5" />
-    </Icon>
-  );
-}
-
 /** Magnifying glass — search */
 export function IconSearch(p: IconProps): JSX.Element {
   return (
     <Icon {...p}>
       <circle cx="7" cy="7" r="4.5" />
       <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" />
-    </Icon>
-  );
-}
-
-/** Keyboard — shortcuts */
-export function IconShortcuts(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <rect x="1" y="3" width="14" height="10" rx="1.5" />
-      <line x1="4" y1="6" x2="5" y2="6" />
-      <line x1="7.5" y1="6" x2="8.5" y2="6" />
-      <line x1="11" y1="6" x2="12" y2="6" />
-      <line x1="4" y1="10" x2="12" y2="10" />
     </Icon>
   );
 }

@@ -3459,6 +3459,21 @@ body,
   color: var(--c-accent);
 }
 
+/* Rail Settings menu (docs/design/Chrome.dc.html §7): a muted value or key on the right. */
+.toolbar-menu-hint {
+  margin-left: auto;
+  color: var(--c-muted);
+  font: 12px var(--font-ui);
+}
+kbd.toolbar-menu-hint {
+  font-family: var(--font-code);
+}
+.toolbar-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--c-line);
+}
+
 .toolbar-menu-separator {
   height: 1px;
   margin: 4px 8px;

@@ -29,8 +29,14 @@ async function clearSnapshots(request: APIRequestContext): Promise<void> {
 }
 
 /** Pick a theme through the real toolbar control (the 0.4.x theme picker menu). */
+/** Theme, snapshots, minimap and shortcuts live in the rail's Settings menu (Chrome.dc.html §7). */
+async function openSettingsItem(page: Page, name: string | RegExp): Promise<void> {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('menu', { name: 'Settings' }).locator('[role^=menuitem]').filter({ hasText: name }).click();
+}
+
 async function selectTheme(page: Page, themeLabel: string): Promise<void> {
-  await page.getByRole('button', { name: 'Choose theme' }).click();
+  await openSettingsItem(page, 'Theme');
   await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: themeLabel }).click();
 }
 
@@ -2628,7 +2634,7 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   // The minimap floats at the region's bottom-right, where the app-open fit
   // can land this node's corner — hide it so elementFromPoint probes the
   // node's own stacking (what this test is about), not an unrelated overlay.
-  await page.getByRole('button', { name: 'Hide minimap' }).click();
+  await openSettingsItem(page, 'Minimap');
   const handle = appNode.locator('.node-resize-handle');
 
   const hitTarget = await handle.evaluate((element) => {
@@ -2993,7 +2999,7 @@ test('saves snapshots from the toolbar', async ({ page, request }) => {
   await page.goto('/workbench');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Snapshot target' })).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Snapshots' }).click();
+  await openSettingsItem(page, 'Snapshots');
   await expect(page.locator('.snapshot-panel')).toBeVisible();
   await page.locator('.snapshot-name-input').fill('Toolbar snapshot');
   await page.locator('.snapshot-save-btn').click();
@@ -3031,7 +3037,7 @@ test('restores snapshots from the toolbar only after confirmation', async ({ pag
 
   await page.goto('/workbench');
 
-  await page.getByRole('button', { name: 'Snapshots' }).click();
+  await openSettingsItem(page, 'Snapshots');
   await expect(page.locator('.snapshot-panel')).toBeVisible();
   await expect(page.locator('.snapshot-restore-note')).toContainText('Restoring replaces the current canvas');
 
@@ -3538,7 +3544,7 @@ test('header controls stay under the pointer when hover actions appear', async (
     await pin.focus();
     await expect(more).toBeVisible();
     expect((await pin.boundingBox())!.x).toBeCloseTo(resting.x, 1);
-    await page.getByRole('button', { name: 'Choose theme' }).focus();
+    await page.getByRole('button', { name: 'Settings', exact: true }).focus();
     await expect(more).toBeHidden();
     // Aim at the resting pin, not a locator that could retry at its new position.
     const target = { x: resting.x + resting.width / 2, y: resting.y + resting.height / 2 };
@@ -4295,12 +4301,12 @@ test('rail tooltips: hover shows the label and shortcut beside the rail, hidden 
   await page.mouse.move(700, 500);
   await expect(tip).toHaveCount(0);
 
-  // The theme button's tooltip yields to its own menu.
-  const theme = page.getByRole('button', { name: 'Choose theme' });
-  await theme.hover();
-  await expect(tip.locator('.toolbar-tooltip-label')).toHaveText('Theme');
-  await theme.click();
-  await expect(page.getByRole('menu', { name: 'Theme' })).toBeVisible();
+  // The Settings button's tooltip yields to its own menu.
+  const settings = page.getByRole('button', { name: 'Settings', exact: true });
+  await settings.hover();
+  await expect(tip.locator('.toolbar-tooltip-label')).toHaveText('Settings');
+  await settings.click();
+  await expect(page.getByRole('menu', { name: 'Settings' })).toBeVisible();
   await expect(tip).toHaveCount(0);
 });
 
@@ -4319,8 +4325,8 @@ test('narrow screens keep the rail chrome fully usable with meta collapsed', asy
   if (!bar) throw new Error('missing top bar box');
   expect(bar.height).toBeLessThanOrEqual(44);
 
-  // The theme picker applies a named theme directly from the rail.
-  await page.getByRole('button', { name: 'Choose theme' }).click();
+  // The theme picker applies a named theme from the rail's Settings menu.
+  await openSettingsItem(page, 'Theme');
   await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: 'Ember' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'ember');
   await expect(page.locator('.toolbar-menu')).toHaveCount(0);
@@ -4328,7 +4334,7 @@ test('narrow screens keep the rail chrome fully usable with meta collapsed', asy
 
 test('desktop theme picker lists every registered theme and applies one', async ({ page }) => {
   await page.goto('/workbench');
-  await page.getByRole('button', { name: 'Choose theme' }).click();
+  await openSettingsItem(page, 'Theme');
   const menu = page.locator('.toolbar-menu');
   await expect(menu.getByRole('menuitemradio')).toHaveCount(9);
   await menu.getByRole('menuitemradio', { name: 'Midnight' }).click();
@@ -4361,9 +4367,9 @@ test('?theme=auto follows the host color scheme live', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'harbor');
 });
 
-test('theme menu opens anchored to the theme button, not the toolbar edge (Finding T)', async ({ page }) => {
+test('the Settings menu opens anchored to its button, not the toolbar edge (Finding T)', async ({ page }) => {
   await page.goto('/workbench');
-  const button = page.getByRole('button', { name: 'Choose theme' });
+  const button = page.getByRole('button', { name: 'Settings', exact: true });
   await button.click();
   const menu = page.locator('.toolbar-menu');
   await expect(menu).toBeVisible();
@@ -5943,7 +5949,7 @@ test('external steering: indicator + activity feed + writers sheet for session-l
 test('rail popovers anchor beside their trigger on narrow screens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/workbench');
-  const button = page.getByRole('button', { name: 'Choose theme' });
+  const button = page.getByRole('button', { name: 'Settings', exact: true });
   await button.click();
   const menu = page.locator('.toolbar-menu');
   await expect(menu).toBeVisible();

@@ -82,18 +82,65 @@ describe('tool rail tooltips', () => {
 
   test('opening a button’s own menu hides its tooltip instead of stacking on the menu', () => {
     const { getByRole, queryByTestId } = renderRail();
-    const theme = getByRole('button', { name: 'Choose theme' });
-    fireEvent.pointerEnter(theme);
-    expect(queryByTestId('rail-tooltip')?.textContent).toContain('Theme');
-    fireEvent.click(theme);
-    expect(getByRole('menu', { name: 'Theme' })).toBeTruthy();
-    fireEvent.pointerEnter(theme);
+    const settings = getByRole('button', { name: 'Settings', exact: true });
+    fireEvent.pointerEnter(settings);
+    expect(queryByTestId('rail-tooltip')?.textContent).toContain('Settings');
+    fireEvent.click(settings);
+    expect(getByRole('menu', { name: 'Settings' })).toBeTruthy();
+    fireEvent.pointerEnter(settings);
     expect(queryByTestId('rail-tooltip')).toBeNull();
+  });
+
+  // docs/design/Chrome.dc.html §7: twelve tools (plus the eraser), then one
+  // Settings menu, so a 690 px window never cuts the rail off.
+  test('rarely used tools live in one Settings menu', () => {
+    const toggles = { minimap: mock(() => {}), snapshot: mock(() => {}), shortcuts: mock(() => {}) };
+    const { getByRole, queryByRole, getByText } = render(
+      <ToolRail
+        minimapVisible={false}
+        onToggleMinimap={toggles.minimap}
+        snapshotOpen={false}
+        onToggleSnapshot={toggles.snapshot}
+        snapshotBtnRef={{ current: null }}
+        onOpenPalette={() => {}}
+        onOpenShortcuts={toggles.shortcuts}
+        annotationTool={null}
+        onSetAnnotationTool={() => {}}
+      />,
+    );
+    for (const gone of ['Bug and feedback', 'Snapshots', 'Choose theme', 'Shortcuts (?)', 'Show minimap']) {
+      expect(queryByRole('button', { name: gone, exact: true })).toBeNull();
+    }
+    const settings = getByRole('button', { name: 'Settings', exact: true });
+    fireEvent.click(settings);
+    const menu = getByRole('menu', { name: 'Settings' });
+    expect([...menu.querySelectorAll('[role^=menuitem]')].map((item) => item.firstElementChild?.textContent)).toEqual([
+      'Theme',
+      'Snapshots',
+      'Minimap',
+      'Keyboard shortcuts',
+      'Trace',
+      'Send feedback',
+    ]);
+    expect(getByRole('menuitemcheckbox', { name: /Minimap/ }).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(getByRole('menuitemcheckbox', { name: /Minimap/ }));
+    expect(toggles.minimap).toHaveBeenCalledTimes(1);
+    expect(queryByRole('menu')).toBeNull();
+
+    fireEvent.click(settings);
+    fireEvent.click(getByText('Theme'));
+    expect(getByRole('menu', { name: 'Theme' }).querySelectorAll('[role=menuitemradio]').length).toBe(9);
+    fireEvent.click(getByText('‹ Settings'));
+    fireEvent.click(getByText('Snapshots'));
+    expect(toggles.snapshot).toHaveBeenCalledTimes(1);
+    fireEvent.click(settings);
+    fireEvent.click(getByText('Keyboard shortcuts'));
+    expect(toggles.shortcuts).toHaveBeenCalledTimes(1);
   });
 
   test('accessible names keep the "Label (Shortcut)" form', () => {
     const { getByRole } = renderRail();
-    for (const name of ['Select (V)', 'Pan (Space)', 'Markdown note (M)', 'Webpage (W)', 'Shortcuts (?)']) {
+    for (const name of ['Select (V)', 'Pan (Space)', 'Markdown note (M)', 'Webpage (W)', 'Arrange (grid)']) {
       expect(getByRole('button', { name })).toBeTruthy();
     }
   });
