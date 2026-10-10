@@ -620,6 +620,50 @@ runtime, not just uploading the browser bundle.
 - **Assets and builds:** prebuild the canvas and viewers; serve protected documents and uploaded objects by durable IDs. Local file watching, desktop open/reveal, subprocess MCP servers, Bun.WebView screenshots and runtime package builds do not transfer unchanged. A local bridge or external builder would be a separate integration.
 - **MCP and the plugin UI:** Sites' documented tool endpoint is the starting contract. Verify PMX's resources, resource templates, notifications and MCP Apps UI embedding separately; a successful tool call does not prove that `canvas://pinned-context`, the embedded workbench or nested app frames work. Existing `isHostedWorkbench()` means an MCP App host transport is installed, not that Sites deployment is supported ([transport source](../src/client/state/workbench-transport.ts)).
 
+### Hosted pilot operating requirements
+
+Use **D1 for boards and metadata, and R2 for attachments and generated assets**
+as the pilot storage architecture. Load individual boards as needed; do not
+keep every user's boards in server memory or rely on memory for durability.
+
+Set PMX's own upload-size and storage allowances and analytics retention before
+opening the pilot. Enforce those allowances and explain them to users; platform
+capacity is not an unlimited product allowance. Keep analytics retention bounded
+so usage metadata does not grow indefinitely alongside board data.
+
+**Live-state proof during hosted implementation.** Run this once a working
+hosted board and MCP path exist; it is not a prerequisite for agreeing on the
+vision or continuing local development. Have a browser and an agent edit the
+same board concurrently, then disconnect and reconnect both. Verify that
+accepted edits remain durable, conflicting edits are resolved or explicitly
+rejected without silent loss, and both clients converge on the authoritative
+board. Working storage alone does not establish this behavior.
+
+**Acceptance before expanding access:** after that proof passes, load-test
+concurrent editing, MCP traffic and live updates together against the deployed hosted runtime. Verify
+durable writes, user isolation, event delivery and reconnect behavior under
+load, and record latency, failures and resource usage. Use measured results and
+the account's actual Sites quotas to set the initial operating envelope and
+decide when access can expand.
+
+**Pilot recovery.** Ship board export/import and demonstrate restoring a board
+and its selected attachments from an export before users depend on hosted
+boards. Explain that recovery covers only the data included at export time;
+later changes require another export. Recheck Sites' recovery capabilities
+during implementation rather than assuming platform-managed storage provides
+a user-accessible backup.
+
+**Documentation checked 2026-10-10:** Sites documents saved deployment versions
+tied to source code, not a guarantee that restoring a version restores D1 records
+or R2 objects. Its public documentation provides no recovery guarantee or
+workflow for database backups, point-in-time recovery, attachment recovery or
+backup retention; this does not establish that internal backups are absent.
+Deleting a Site is explicitly permanent. Sources:
+[Site versions](https://learn.chatgpt.com/docs/sites#understand-projects-versions-and-deployments)
+and [Site deletion](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites).
+The pilot needs a tested export-based recovery path and clear limitations;
+the full service's automated backup system belongs to Part 5.
+
 ### Node compatibility for the first hosted version
 
 **Source audit, 2026-10-10; no deployed node certification.** The
@@ -702,9 +746,10 @@ own passing evidence before the complete hosted promise is met.
 version works and people use it, pursue a full standalone PMX Canvas service
 hosted directly on **Cloudflare**, with its own web experience and hosted MCP
 endpoint. PMX would manage the deployment, accounts, workspace access, storage
-and live collaboration as a product. The ChatGPT plugin remains a distribution
-channel and client of that service; other agents connect through supported,
-authenticated MCP access.
+and live collaboration as a product. The ChatGPT Sites edition and its plugin
+remain independently supported; plugin access to the standalone service can be
+an additional distribution channel. Agents connect to each edition through its
+supported, authenticated MCP access.
 
 This is a later product investment, even though Sites already uses Cloudflare
 infrastructure underneath. The first stage validates usefulness and distribution
@@ -722,6 +767,13 @@ does not, improve the first version before expanding the hosting scope. There
 is no automatic launch date or adoption threshold invented in this vision.
 Local and self-hosted PMX remain part of the product.
 
+**Full hosted backup and recovery.** Before users depend on the standalone
+Cloudflare service, establish automated backups of board data and attachments,
+define retention and recovery targets, and demonstrate restoring an accidentally
+deleted or damaged board with its assets. Keep user exports as an additional
+safeguard. Durable storage alone is not a backup, and a deployment rollback is
+not proof of data recovery.
+
 ### Likely repository structure: shared product, separate runtimes
 
 **Architectural direction, 2026-10-10:** a monorepo is the likely fit for
@@ -736,11 +788,37 @@ repository before the ChatGPT validation needs it.
 - **ChatGPT version / Sites runtime:** adapt the shared product to Sites' identity, storage and MCP contracts for the first validation and plugin distribution. Keep this experience working as the product grows; it is a supported delivery surface, not a disposable prototype.
 - **Cloudflare runtime:** later compose the same product into the full hosted service, with deployment, identity, storage and live-state integrations under PMX's control. Reuse suitable Sites work without making the standalone service depend on Sites.
 
+**Continuity for early local users.** Existing users keep their local canvas,
+boards, SQLite storage and local workflows as hosted versions arrive. Shared
+product improvements continue to reach the local version wherever the runtime
+supports them. Hosting is an additional way to use PMX, not a required migration,
+cloud account or upload of existing boards. Moving data to a hosted version is
+the user's explicit choice.
+
+**Board portability and independent editions.** Local PMX, ChatGPT Sites and
+the future Cloudflare service each own their boards and storage independently.
+Sharing core code does not imply shared live state or automatic synchronization;
+each edition remains useful on its own.
+
+Provide one shared, editable board export/import format across all three
+editions. Users deliberately transfer a board by exporting it from one edition
+and importing a copy into another; later edits remain independent. Preserve
+node content, layout, edges, groups, annotations, context pins, provenance and
+the attachments/assets the user chooses to include. This portable archive is
+additional to today's read-only HTML export. Import creates a new board by
+default and applies destination ownership and permissions; credentials and
+source access grants never travel with it. Local file references and live
+integrations may need reconnecting, with unavailable capabilities made explicit.
+
+**Portability acceptance:** round-trip a representative board between the
+local and ChatGPT editions for the pilot, and add Cloudflare to the same checks
+when that edition exists. Verify retained content and relationships, selected
+attachments, explicit integration limitations and independent edits after import.
+
 Keep the local product as a maintained distribution, not a frozen predecessor
 or a thin client that requires the cloud. Keep the ChatGPT plugin and its user
-experience supported when the full hosted version arrives; whether its backend
-continues on Sites or moves to the standalone service is a later implementation
-decision. Runtime adapters should represent
+experience supported as its own edition when the full hosted version arrives.
+Runtime adapters should represent
 real platform differences, with explicit capability limits for features such
 as local file watching and subprocess MCP servers. Avoid separate copies of
 product logic or a broad abstraction framework built before it is needed.
