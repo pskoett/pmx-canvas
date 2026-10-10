@@ -401,6 +401,9 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
     ...(raw.animated === true ? { animated: true } : {}),
     ...(typeof raw.revision === 'number' ? { revision: raw.revision } : {}),
     ...(isActor(raw.changedBy) ? { changedBy: raw.changedBy } : {}),
+    ...(typeof raw.changedAt === 'string' ? { changedAt: raw.changedAt } : {}),
+    ...(isActor(raw.createdBy) ? { createdBy: raw.createdBy } : {}),
+    ...(typeof raw.createdAt === 'string' ? { createdAt: raw.createdAt } : {}),
   };
 }
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { withCurrentActor } from '../../src/server/attribution.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { contextReadFromPayload, pinnedBoardReads } from '../../src/server/context-reads.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
@@ -171,5 +172,67 @@ describe('connection changes are tracked apart from text', () => {
     expect(read.seenNodeIds).toContain('whole');
     expect(read.seenNodeIds).not.toContain('cut');
     expect(pinnedBoardReads(base, brief).map((item) => [item.boardId, item.seenNodeIds])).toEqual([['b', ['b-card']]]);
+  });
+
+  test('a link keeps its author until a person changes it; undo restores it as it was (LinkAuthorship.dc.html)', async () => {
+    await twoCards();
+    canvasState.onMutation((info) => mutationHistory.record(info));
+    canvasState.addEdge({ id: 'e1', from: 'plan', to: 'risk', type: 'relation', label: 'supports' });
+    const drawn = edge('e1');
+    expect(drawn?.changedBy?.actor).toBe('agent');
+    expect(drawn?.createdBy).toEqual(drawn?.changedBy);
+    expect(typeof drawn?.changedAt).toBe('string');
+    expect(drawn?.createdAt).toBe(drawn?.changedAt);
+
+    // Deleting and undoing restores the agent's link, not a new one by whoever pressed undo.
+    withCurrentActor({ actor: 'human', source: 'browser' }, () => canvasState.removeEdge('e1'));
+    withCurrentActor({ actor: 'human', source: 'browser' }, () => mutationHistory.undo());
+    expect(edge('e1')?.changedBy).toEqual(drawn?.changedBy);
+    expect(edge('e1')?.createdAt).toBe(drawn?.createdAt);
+
+    // A person's relabel takes it over; who first drew it stays. Undoing the
+    // relabel hands the link back to the agent, under a new revision.
+    withCurrentActor({ actor: 'human', source: 'browser' }, () => canvasState.updateEdge('e1', { label: 'informs' }));
+    expect(edge('e1')?.changedBy?.actor).toBe('human');
+    expect(edge('e1')?.createdBy).toEqual(drawn?.createdBy);
+    const relabelled = edge('e1')?.revision ?? 0;
+    withCurrentActor({ actor: 'human', source: 'browser' }, () => mutationHistory.undo());
+    expect(edge('e1')?.label).toBe('supports');
+    expect(edge('e1')?.changedBy).toEqual(drawn?.changedBy);
+    expect(edge('e1')?.revision ?? 0).toBeGreaterThan(relabelled);
+    withCurrentActor({ actor: 'human', source: 'browser' }, () => mutationHistory.redo());
+    expect(edge('e1')?.changedBy?.actor).toBe('human');
+
+    // Authorship survives a reload.
+    const before = edge('e1');
+    canvasState.flushToDisk();
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    const after = edge('e1');
+    expect([after?.changedBy, after?.changedAt, after?.createdBy, after?.createdAt]).toEqual([
+      before?.changedBy,
+      before?.changedAt,
+      before?.createdBy,
+      before?.createdAt,
+    ]);
+  });
+
+  test('undoing a snapshot restore brings a link back with its author, not as the undoer’s', async () => {
+    await twoCards();
+    canvasState.onMutation((info) => mutationHistory.record(info));
+    await executeOperation('snapshot.save', { name: 'before the link' });
+    canvasState.addEdge({ id: 'e1', from: 'plan', to: 'risk', type: 'relation', label: 'supports' });
+    const drawn = edge('e1');
+    expect(drawn?.changedBy?.actor).toBe('agent');
+
+    await withCurrentActor({ actor: 'human', source: 'browser' }, () =>
+      executeOperation('snapshot.restore', { id: 'before the link' }),
+    );
+    expect(edge('e1')).toBeUndefined();
+    withCurrentActor({ actor: 'human', source: 'browser' }, () => mutationHistory.undo());
+    expect(edge('e1')?.changedBy).toEqual(drawn?.changedBy);
+    expect(edge('e1')?.createdAt).toBe(drawn?.createdAt);
+    expect(edge('e1')?.revision ?? 0).toBeGreaterThan(drawn?.revision ?? 0);
   });
 });

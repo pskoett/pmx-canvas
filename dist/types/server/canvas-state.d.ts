@@ -109,8 +109,12 @@ export interface CanvasEdge {
     animated?: boolean;
     /** Board revision of this link's latest add, retype or relabel (0 = never stamped). */
     revision?: number;
-    /** Who made that change. */
+    /** Who made that change, and when: the link's author until a person changes it again. */
     changedBy?: ActorAttribution;
+    changedAt?: string;
+    /** Who first drew the link, and when (docs/design/LinkAuthorship.dc.html). */
+    createdBy?: ActorAttribution;
+    createdAt?: string;
 }
 export interface CanvasAnnotationPoint {
     x: number;
@@ -415,8 +419,9 @@ declare class CanvasStateManager {
     addEdge(edge: CanvasEdge): boolean;
     updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
     /**
-     * An edge as undo/redo puts it back: a relation change is a fresh link change;
-     * a style-only one keeps the current stamp, so it never hides a later relabel.
+     * An edge as undo/redo puts it back. A relation change restores the link as it
+     * was, author included, under a new revision so the next brief carries it; a
+     * style-only change keeps the current stamp, so it never hides a later relabel.
      */
     private replayEdge;
     removeEdge(id: string): boolean;

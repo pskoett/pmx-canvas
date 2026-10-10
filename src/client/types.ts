@@ -58,6 +58,10 @@ export interface CanvasEdge {
   /** Board revision of this link's latest add, retype or relabel. */
   revision?: number;
   changedBy?: NodeActor;
+  changedAt?: string;
+  /** Who first drew the link, and when (LinkAuthorship.dc.html). */
+  createdBy?: NodeActor;
+  createdAt?: string;
 }
 
 export interface CanvasAnnotationPoint {

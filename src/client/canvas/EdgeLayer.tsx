@@ -1,13 +1,14 @@
-import type { Signal } from '@preact/signals';
+import { type Signal, signal } from '@preact/signals';
 import {
   activeNodeId,
   draggingEdge,
+  edges,
   searchHighlightIds,
   selectedEdgeId,
   viewport,
   visibleNodeFor,
 } from '../state/canvas-store';
-import { linkMark } from '../state/context-status-store';
+import { linkMarks, writerName } from '../state/context-status-store';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
@@ -30,10 +31,60 @@ function agentName(): string {
   return label && label !== HUMAN_STARTED_SESSION_LABEL ? label : 'the agent';
 }
 
+/** The hovered link pill's hint, drawn at screen level by `EdgeHint` (the edge layer is SVG in world space). */
+const edgeHint = signal<{ x: number; y: number; text: string; edgeId: string; view: unknown } | null>(null);
+
+function clock(iso: string | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? ''
+    : ` · ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function who(actor: NonNullable<CanvasEdge['changedBy']>): string {
+  return actor.actor === 'agent' ? writerName(actor) : 'you';
+}
+
+/**
+ * Who drew the link and when (docs/design/LinkAuthorship.dc.html): "✦ Drawn by
+ * Codex · 14:06", or, once someone else changed it, "You relabelled it · 14:20
+ * (drawn by Codex · 14:06)". A folded "not seen" state joins it.
+ */
+function linkHint(edge: CanvasEdge, notSeen: boolean): string | null {
+  // A link from before authorship was recorded names no one: "you" could be false.
+  if (edge.changedBy?.actor !== 'agent' && edge.changedBy?.actor !== 'human') return null;
+  const by = who(edge.changedBy);
+  const agent = edge.changedBy.actor === 'agent';
+  const takenOver = !!edge.createdBy && who(edge.createdBy) !== by;
+  const lead = takenOver
+    ? `${agent ? '✦ ' : ''}${by === 'you' ? 'You' : by} relabelled it${clock(edge.changedAt)} (drawn by ${edge.createdBy ? who(edge.createdBy) : ''}${clock(edge.createdAt)})`
+    : `${agent ? '✦ ' : ''}${by === 'you' ? 'You drew it' : `Drawn by ${by}`}${clock(edge.createdAt ?? edge.changedAt)}`;
+  return notSeen ? `${lead} · not seen by ${agentName()} yet` : lead;
+}
+
+/** The link pill's hint, outside the zoomed canvas so it keeps screen size and is never clipped. */
+export function EdgeHint() {
+  const hint = edgeHint.value;
+  // The pill can vanish or move under a resting pointer (the link removed, the
+  // view panned or zoomed) without a pointerleave: the hint goes with it.
+  if (!hint || hint.view !== viewport.value || !edges.value.has(hint.edgeId)) return null;
+  return (
+    <span
+      class="toolbar-tooltip edge-hint"
+      role="tooltip"
+      data-testid="edge-hint"
+      style={{ left: `${hint.x}px`, top: `${hint.y}px` }}
+    >
+      <span class="toolbar-tooltip-label">{hint.text}</span>
+    </span>
+  );
+}
+
 // Connection-change glyphs (docs/design/LinksOptions.dc.html, option C), 24-unit paths.
 const LINK_MARK_EYE_OFF =
   'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.6 6.6C3.8 8.3 2 12 2 12s3.5 6 10 6a9.6 9.6 0 0 0 4.4-1';
-const LINK_MARK_SPARK = 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z';
+const LINK_MARK_SPARK = 'M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z';
 
 /**
  * Edges are drawn in world space, so a 1.5px stroke renders as 0.4 screen px at
@@ -147,9 +198,17 @@ interface EdgePathProps {
   selected: boolean; // click-selected — Delete removes it
   scale: number; // inverse-viewport compensation, see edgeChromeScale()
   onContextMenu?: (e: MouseEvent, edgeId: string) => void;
+  part: EdgeLayerPart;
 }
 
-function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, onContextMenu }: EdgePathProps) {
+/**
+ * Lines draw below group frames, so a link never covers a group's header; pills
+ * draw in their own layer above the frames, so a link inside a group keeps a
+ * hoverable, clickable label (LinkAuthorship.dc.html).
+ */
+export type EdgeLayerPart = 'lines' | 'pills';
+
+function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, onContextMenu, part }: EdgePathProps) {
   const start = computeAnchor(fromNode, toNode);
   const end = computeAnchor(toNode, fromNode);
 
@@ -166,25 +225,136 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
   const directed = DIRECTED_TYPES.has(edge.type);
   const dash = dashArray(edge, scale);
 
-  // Labels keep a constant screen size only while nodes are still readable.
-  // The uncapped chrome compensation made "brief" dwarf its own nodes at
-  // overview zoom — cap label chrome like node chrome (2.2), and drop labels
-  // entirely once the board is slivers (chrome scale > 3.4 ≈ zoom < 30%).
+  // Labels keep a constant screen size only while nodes are still readable —
+  // label chrome caps like node chrome (2.2). Below 35% zoom the label goes and
+  // only the link's marks stay (LinkAuthorship.dc.html).
   const labelScale = Math.min(scale, 2.2);
-  const mark = linkMark(edge);
-  const markText = mark ? (mark.kind === 'agent' ? `by ${mark.by}` : `not seen by ${agentName()}`) : '';
-  const mid =
-    (edge.label || mark) && scale <= 3.4
-      ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y)
-      : null;
-  // Pill layout in label units (× labelScale): label, a hairline, then glyph + word.
-  const labelWidth = edge.label ? edge.label.length * 7 : 0;
-  const markGap = edge.label && mark ? 13 : 0;
-  const markWidth = mark ? markText.length * 6.2 + 14 : 0;
-  const pillWidth = labelWidth + markGap + markWidth + 16;
-  const markX = -pillWidth / 2 + 8 + labelWidth + markGap;
+  const zoom = viewport.value.scale;
+  const marks = linkMarks(edge);
+  const showLabel = !!edge.label && zoom >= 0.35;
+  // Pill layout in label units (× labelScale): ✦, the label, then a hairline and
+  // "not seen by …", which keeps only its glyph on a short line or below 60% zoom.
+  const pad = showLabel ? 9 : 5;
+  const sparkWidth = marks.agent ? 12 : 0;
+  const labelWidth = showLabel ? (edge.label?.length ?? 0) * 7 : 0;
+  const notSeenText = `not seen by ${agentName()}`;
+  const wordedNotSeenWidth = 12 + notSeenText.length * 6.2 + 4;
+  const fullWidth =
+    pad * 2 +
+    sparkWidth +
+    (sparkWidth && labelWidth ? 5 : 0) +
+    labelWidth +
+    (marks.notSeen ? (sparkWidth || labelWidth ? 12 : 0) + wordedNotSeenWidth : 0);
+  // A short line: the full pill plus some line on either side would not fit.
+  const notSeenWords = marks.notSeen && zoom >= 0.6 && dist >= (fullWidth + 60) * labelScale;
+  const notSeenWidth = marks.notSeen
+    ? (sparkWidth || labelWidth ? 12 : 0) + (notSeenWords ? wordedNotSeenWidth : 12)
+    : 0;
+  const pillWidth = pad * 2 + sparkWidth + (sparkWidth && labelWidth ? 5 : 0) + labelWidth + notSeenWidth;
+  const left = -pillWidth / 2 + pad;
+  const labelX = left + sparkWidth + (sparkWidth && labelWidth ? 5 : 0);
+  const notSeenX = labelX + labelWidth + (sparkWidth || labelWidth ? 12 : 0);
+  const hasPill = showLabel || !!marks.agent || marks.notSeen;
+  const mid = hasPill ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
 
   const pathId = `edge-path-${edge.id}`;
+  const select = (e: MouseEvent) => {
+    // The viewport's background click clears the selection — a click
+    // that LANDED on an edge must not immediately undo itself.
+    e.stopPropagation();
+    selectedEdgeId.value = edge.id;
+  };
+
+  if (part === 'pills') {
+    if (!mid) return null;
+    return (
+      <g
+        transform={`translate(${mid.x}, ${mid.y})`}
+        class="edge-pill"
+        data-testid="edge-pill"
+        opacity={dimmed && !selected ? 0.35 : 1}
+        onClick={select}
+        onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
+        onPointerEnter={(e) => {
+          const text = linkHint(edge, marks.notSeen);
+          if (!text) return;
+          const rect = (e.currentTarget as SVGGElement).getBoundingClientRect();
+          edgeHint.value = {
+            x: rect.left + rect.width / 2,
+            y: rect.bottom + 8,
+            text,
+            edgeId: edge.id,
+            view: viewport.value,
+          };
+        }}
+        onPointerLeave={() => {
+          edgeHint.value = null;
+        }}
+      >
+        <rect
+          class="edge-label-bg"
+          x={(-pillWidth / 2) * labelScale}
+          y={-10 * labelScale}
+          width={pillWidth * labelScale}
+          height={20 * labelScale}
+          rx={10 * labelScale}
+        />
+        {marks.agent && (
+          <path
+            class="edge-link-spark"
+            data-testid="edge-link-agent"
+            transform={`translate(${left * labelScale}, ${-6 * labelScale}) scale(${(12 / 24) * labelScale})`}
+            d={LINK_MARK_SPARK}
+          />
+        )}
+        {showLabel && (
+          <text
+            class="edge-label"
+            x={(labelX + labelWidth / 2) * labelScale}
+            text-anchor="middle"
+            dominant-baseline="central"
+            fill="var(--c-text)"
+          >
+            {edge.label}
+          </text>
+        )}
+        {marks.notSeen && (
+          <g class="edge-link-mark is-not-seen" data-testid="edge-link-mark">
+            {(sparkWidth > 0 || labelWidth > 0) && (
+              <line
+                x1={(notSeenX - 6) * labelScale}
+                x2={(notSeenX - 6) * labelScale}
+                y1={-6 * labelScale}
+                y2={6 * labelScale}
+                stroke="var(--c-line)"
+                stroke-width={labelScale}
+              />
+            )}
+            <path
+              transform={`translate(${notSeenX * labelScale}, ${-5 * labelScale}) scale(${(10 / 24) * labelScale})`}
+              d={LINK_MARK_EYE_OFF}
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            {notSeenWords && (
+              <text
+                class="edge-label"
+                x={(notSeenX + 14) * labelScale}
+                text-anchor="start"
+                dominant-baseline="central"
+                fill="currentColor"
+              >
+                {notSeenText}
+              </text>
+            )}
+          </g>
+        )}
+      </g>
+    );
+  }
 
   return (
     <g>
@@ -197,12 +367,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
         stroke="transparent"
         stroke-width={12 * scale}
         style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-        onClick={(e) => {
-          // The viewport's background click clears the selection — a click
-          // that LANDED on an edge must not immediately undo itself.
-          e.stopPropagation();
-          selectedEdgeId.value = edge.id;
-        }}
+        onClick={select}
         onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
       />
 
@@ -242,63 +407,6 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
           </animateMotion>
         </circle>
       )}
-
-      {/* Label at midpoint, with the connection-change mark (option C) */}
-      {mid && (
-        <g transform={`translate(${mid.x}, ${mid.y})`}>
-          <rect
-            class="edge-label-bg"
-            x={(-pillWidth / 2) * labelScale}
-            y={-10 * labelScale}
-            width={pillWidth * labelScale}
-            height={20 * labelScale}
-            rx={4 * labelScale}
-          />
-          {edge.label && (
-            <text
-              class="edge-label"
-              x={(-pillWidth / 2 + 8 + labelWidth / 2) * labelScale}
-              text-anchor="middle"
-              dominant-baseline="central"
-              fill="var(--c-text)"
-            >
-              {edge.label}
-            </text>
-          )}
-          {mark && (
-            <g class={`edge-link-mark is-${mark.kind}`} data-testid="edge-link-mark">
-              {edge.label && (
-                <line
-                  x1={(markX - 6) * labelScale}
-                  x2={(markX - 6) * labelScale}
-                  y1={-6 * labelScale}
-                  y2={6 * labelScale}
-                  stroke="var(--c-line)"
-                  stroke-width={labelScale}
-                />
-              )}
-              <path
-                transform={`translate(${markX * labelScale}, ${-5 * labelScale}) scale(${(10 / 24) * labelScale})`}
-                d={mark.kind === 'agent' ? LINK_MARK_SPARK : LINK_MARK_EYE_OFF}
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <text
-                class="edge-label"
-                x={(markX + 14) * labelScale}
-                text-anchor="start"
-                dominant-baseline="central"
-                fill="currentColor"
-              >
-                {markText}
-              </text>
-            </g>
-          )}
-        </g>
-      )}
     </g>
   );
 }
@@ -308,9 +416,10 @@ interface EdgeLayerProps {
   nodes: Signal<Map<string, CanvasNodeState>>;
   edges: Signal<Map<string, CanvasEdge>>;
   onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
+  part: EdgeLayerPart;
 }
 
-export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
+export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerProps) {
   const nodeMap = nodes.value;
   const edgeList = Array.from(edges.value.values());
   const focusId = activeNodeId.value;
@@ -320,7 +429,7 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
   const scale = edgeChromeScale(viewport.value.scale);
 
   // A drag-to-connect preview must draw on a board with no edges yet.
-  if (edgeList.length === 0 && !draggingEdge.value) return null;
+  if (edgeList.length === 0 && (part === 'pills' || !draggingEdge.value)) return null;
 
   const PAD = 96;
   const worldNodes = Array.from(nodeMap.values());
@@ -334,8 +443,9 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
 
   return (
     <svg
-      aria-label="Canvas connections"
-      role="img"
+      aria-label={part === 'lines' ? 'Canvas connections' : undefined}
+      aria-hidden={part === 'pills' ? 'true' : undefined}
+      role={part === 'lines' ? 'img' : undefined}
       viewBox={`${minX} ${minY} ${width} ${height}`}
       width={width}
       height={height}
@@ -343,13 +453,17 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
         position: 'absolute',
         top: `${minY}px`,
         left: `${minX}px`,
+        // Pills sit above group frames (z 0) and below cards (z 1, later in the
+        // DOM); lines stay under the frames. Neither layer takes the pointer
+        // itself; only hit paths and pills do.
+        ...(part === 'pills' ? { zIndex: 1 } : {}),
         pointerEvents: 'none',
         overflow: 'visible',
         '--edge-chrome-scale': scale.toFixed(3),
         '--edge-label-scale': Math.min(scale, 2.2).toFixed(3),
       }}
     >
-      <title>Canvas connections</title>
+      {part === 'lines' && <title>Canvas connections</title>}
       <defs>
         {/* userSpaceOnUse decouples the arrowhead from the UNCAPPED stroke
             compensation: the line stays a visible hairline at any zoom, but
@@ -386,11 +500,13 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
             selected={selectedEdgeId.value === edge.id}
             scale={scale}
             onContextMenu={onEdgeContextMenu}
+            part={part}
           />
         );
       })}
       {/* Live preview edge while drag-connecting */}
-      {draggingEdge.value &&
+      {part === 'lines' &&
+        draggingEdge.value &&
         (() => {
           const de = draggingEdge.value;
           // Route the preview EXACTLY like the committed edge will route

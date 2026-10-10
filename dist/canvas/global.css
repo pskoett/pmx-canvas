@@ -4211,8 +4211,17 @@ html.is-node-resizing .ext-app-preview-catcher {
   stroke-width: calc(0.5 * var(--edge-label-scale, 1));
 }
 
-/* Connection-change mark on a link's pill (docs/design/LinksOptions.dc.html, option C):
-   neutral "not seen by <agent>" for a person's change, violet "by <agent>" for an agent's. */
+/* A link's pill (docs/design/LinkAuthorship.dc.html): a violet ✦ when an agent
+   drew it (stays until a person changes the link), and a muted "not seen by
+   <agent>" on a person's new link until the agent's next read. */
+.edge-pill {
+  pointer-events: visiblePainted;
+}
+
+.edge-link-spark {
+  fill: var(--c-agent);
+}
+
 .edge-link-mark {
   pointer-events: none;
   font-weight: 500;
@@ -4222,8 +4231,15 @@ html.is-node-resizing .ext-app-preview-catcher {
   color: var(--c-muted);
 }
 
-.edge-link-mark.is-agent {
-  color: var(--c-agent);
+/* The pill's hint, drawn at screen level below the pill. */
+.toolbar-tooltip.edge-hint {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  min-width: 0;
+  opacity: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* Trace nodes — compact pills for agent tool/subagent visualization */

@@ -54,8 +54,10 @@ legacy nodes remain unknown. The revision advances on semantic content changes,
 including group membership and undo, but not moves or resizes. Links are tracked
 apart: `linksRevision` advances on both ends when a link is added, retyped,
 relabelled or removed, and never advances `contentRevision`. Each edge carries
-the `revision` and `changedBy` of its latest such change (generated code-graph and
-board-map edges carry none). These fields describe provenance, not permission, and
+the `revision`, `changedBy` and `changedAt` of its latest such change — its author
+until someone changes it again — and the `createdBy` and `createdAt` of whoever first
+drew it (generated code-graph and board-map edges carry none). Undoing a deletion
+restores the link with its original author. These fields describe provenance, not permission, and
 caller-supplied author fields are ignored.
 
 ## Choosing the right visual tier

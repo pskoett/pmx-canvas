@@ -285,8 +285,28 @@ export interface CanvasEdge {
   animated?: boolean;
   /** Board revision of this link's latest add, retype or relabel (0 = never stamped). */
   revision?: number;
-  /** Who made that change. */
+  /** Who made that change, and when: the link's author until a person changes it again. */
   changedBy?: ActorAttribution;
+  changedAt?: string;
+  /** Who first drew the link, and when (docs/design/LinkAuthorship.dc.html). */
+  createdBy?: ActorAttribution;
+  createdAt?: string;
+}
+
+type EdgeStamp = Pick<CanvasEdge, 'revision' | 'changedBy' | 'changedAt' | 'createdBy' | 'createdAt'>;
+
+/** A link's authorship and revision fields, without the relation itself. */
+function edgeStamp(edge: CanvasEdge): EdgeStamp {
+  const { revision, changedBy, changedAt, createdBy, createdAt } = edge;
+  return Object.fromEntries(
+    Object.entries({ revision, changedBy, changedAt, createdBy, createdAt }).filter(([, value]) => value !== undefined),
+  ) as EdgeStamp;
+}
+
+/** The relation itself, without its authorship and revision fields. */
+function edgeWithoutStamp(edge: CanvasEdge): CanvasEdge {
+  const { revision: _r, changedBy: _cb, changedAt: _ca, createdBy: _crb, createdAt: _cra, ...rest } = edge;
+  return rest;
 }
 
 export interface CanvasAnnotationPoint {
@@ -1369,7 +1389,8 @@ class CanvasStateManager {
     });
     const edges = source.layout.edges
       .filter((edge) => ids.has(edge.from) && ids.has(edge.to))
-      .map(({ revision: _revision, changedBy: _changedBy, ...edge }) => ({
+      .map((source) => edgeWithoutStamp(source))
+      .map((edge) => ({
         ...edge,
         id: randomUUID(),
         from: ids.get(edge.from)!,
@@ -2022,15 +2043,21 @@ class CanvasStateManager {
       if (!restoredIds.has(old.id)) this.recordDeletion(old.id);
     }
     // A link the restore added, retyped, relabelled or removed is a link change on both ends.
+    // It comes back as it was saved, author included, under a new revision.
     const relation = (edge: CanvasEdge) => `${edge.from}\0${edge.to}\0${edge.type}\0${edge.label ?? ''}`;
     const edgesBefore = new Map(beforeEdges.map((edge) => [edge.id, edge]));
     for (const [id, edge] of this.edges) {
       const old = edgesBefore.get(id);
+      if (old && relation(old) === relation(edge)) {
+        this.edges.set(id, { ...edgeWithoutStamp(edge), ...edgeStamp(old) });
+        continue;
+      }
+      const stamp = this.touchRelations(edge);
       this.edges.set(
         id,
-        old && relation(old) === relation(edge)
-          ? { ...edge, revision: old.revision, changedBy: old.changedBy }
-          : { ...edge, ...this.touchRelations(edge) },
+        edge.changedBy
+          ? { ...edge, ...(stamp.revision !== undefined ? { revision: stamp.revision } : {}) }
+          : { ...edge, ...stamp },
       );
     }
     for (const old of beforeEdges) {
@@ -2324,14 +2351,16 @@ class CanvasStateManager {
    * relations. Generated auto-edges (code graph, board map) do not count.
    * Returns the stamp for the changed link.
    */
-  private touchRelations(edge: Pick<CanvasEdge, 'id' | 'from' | 'to'>): Pick<CanvasEdge, 'revision' | 'changedBy'> {
+  private touchRelations(
+    edge: Pick<CanvasEdge, 'id' | 'from' | 'to'>,
+  ): Pick<CanvasEdge, 'revision' | 'changedBy' | 'changedAt'> {
     if (edge.id.startsWith('codegraph-') || edge.id.startsWith('boardmap-')) return {};
     const revision = this.nextContentRevision();
     for (const id of [edge.from, edge.to]) {
       const node = this.nodes.get(id);
       if (node) this.nodes.set(id, { ...node, linksRevision: revision });
     }
-    return { revision, changedBy: currentActor() };
+    return { revision, changedBy: currentActor(), changedAt: new Date().toISOString() };
   }
 
   addEdge(edge: CanvasEdge): boolean {
@@ -2341,8 +2370,22 @@ class CanvasStateManager {
         return false;
       }
     }
-    const cloned = structuredClone(edge);
-    this.edges.set(edge.id, { ...edge, ...this.touchRelations(edge) });
+    const stamp = this.touchRelations(edge);
+    // A link that arrives with an author is being restored (undo of a removal, a
+    // demo seed): it keeps its authorship and only takes a new revision. The API
+    // builds new links from scratch, so a new link is always the caller's.
+    this.edges.set(
+      edge.id,
+      edge.changedBy
+        ? { ...edge, ...(stamp.revision !== undefined ? { revision: stamp.revision } : {}) }
+        : {
+            ...edge,
+            ...stamp,
+            ...(stamp.changedBy ? { createdBy: stamp.changedBy, createdAt: stamp.changedAt } : {}),
+          },
+    );
+    // Redo replays the link as stored, with its author.
+    const cloned = structuredClone(this.edges.get(edge.id) as CanvasEdge);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
@@ -2397,18 +2440,18 @@ class CanvasStateManager {
   }
 
   /**
-   * An edge as undo/redo puts it back: a relation change is a fresh link change;
-   * a style-only one keeps the current stamp, so it never hides a later relabel.
+   * An edge as undo/redo puts it back. A relation change restores the link as it
+   * was, author included, under a new revision so the next brief carries it; a
+   * style-only change keeps the current stamp, so it never hides a later relabel.
    */
   private replayEdge(snapshot: CanvasEdge, relationChanged: boolean): CanvasEdge {
-    const { revision: _revision, changedBy: _changedBy, ...edge } = structuredClone(snapshot);
-    if (relationChanged) return { ...edge, ...this.touchRelations(edge) };
+    const edge = structuredClone(snapshot);
+    if (relationChanged) {
+      const { revision } = this.touchRelations(edge);
+      return revision === undefined ? edge : { ...edge, revision };
+    }
     const current = this.edges.get(snapshot.id);
-    return {
-      ...edge,
-      ...(current?.revision !== undefined ? { revision: current.revision } : {}),
-      ...(current?.changedBy ? { changedBy: current.changedBy } : {}),
-    };
+    return { ...edgeWithoutStamp(edge), ...(current ? edgeStamp(current) : {}) };
   }
 
   removeEdge(id: string): boolean {

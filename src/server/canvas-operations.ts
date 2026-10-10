@@ -1560,7 +1560,8 @@ export function addCanvasEdge(input: {
   if (!added) {
     throw new Error('Duplicate or self-edge.');
   }
-  return edge;
+  // The stored link, stamped with its author and revision — the browser replaces its copy with this.
+  return canvasState.getEdges().find((stored) => stored.id === edge.id) ?? edge;
 }
 
 export function updateCanvasEdge(

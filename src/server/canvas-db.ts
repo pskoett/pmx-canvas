@@ -298,6 +298,14 @@ const SCHEMA_SQL = `
   );
 `;
 
+type EdgeAttribution = Pick<CanvasEdge, 'changedBy' | 'changedAt' | 'createdBy' | 'createdAt'>;
+
+/** A link's authorship (LinkAuthorship.dc.html) as one JSON column, like a node's attribution. */
+function edgeAttribution(edge: CanvasEdge): string {
+  const { changedBy, changedAt, createdBy, createdAt } = edge;
+  return JSON.stringify({ changedBy, changedAt, createdBy, createdAt });
+}
+
 /** Idempotently add a column to an existing table (no prior-migrations system in this repo). */
 function ensureColumn(db: Database, table: string, column: string, ddl: string): void {
   interface ColumnInfoRow {
@@ -442,9 +450,9 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'nodes', 'links_revision', 'links_revision INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'snapshot_nodes', 'links_revision', 'links_revision INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'edges', 'revision', 'revision INTEGER NOT NULL DEFAULT 0');
-  ensureColumn(db, 'edges', 'changed_by', 'changed_by TEXT');
+  ensureColumn(db, 'edges', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, 'snapshot_edges', 'revision', 'revision INTEGER NOT NULL DEFAULT 0');
-  ensureColumn(db, 'snapshot_edges', 'changed_by', 'changed_by TEXT');
+  ensureColumn(db, 'snapshot_edges', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, 'document_imports', 'committed_node_ids', 'committed_node_ids TEXT');
 
   // Set schema version if not present
@@ -765,16 +773,16 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
 
     // Save edges
     const upsertEdge = db.prepare(
-      `INSERT INTO edges (board_id, id, from_node, to_node, type, label, style, animated, revision, changed_by)
+      `INSERT INTO edges (board_id, id, from_node, to_node, type, label, style, animated, revision, attribution)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(board_id, id) DO UPDATE SET
          from_node = excluded.from_node, to_node = excluded.to_node, type = excluded.type,
          label = excluded.label, style = excluded.style, animated = excluded.animated,
-         revision = excluded.revision, changed_by = excluded.changed_by
+         revision = excluded.revision, attribution = excluded.attribution
        WHERE from_node IS NOT excluded.from_node OR to_node IS NOT excluded.to_node
           OR type IS NOT excluded.type OR label IS NOT excluded.label
           OR style IS NOT excluded.style OR animated IS NOT excluded.animated
-          OR revision IS NOT excluded.revision OR changed_by IS NOT excluded.changed_by`,
+          OR revision IS NOT excluded.revision OR attribution IS NOT excluded.attribution`,
     );
     for (const edge of state.edges) {
       upsertEdge.run(
@@ -787,7 +795,7 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
         edge.style ?? null,
         edge.animated ? 1 : 0,
         edge.revision ?? 0,
-        edge.changedBy ? JSON.stringify(edge.changedBy) : null,
+        edgeAttribution(edge),
       );
     }
     deleteMissingRows(db, 'edges', 'id', boardId, new Set(state.edges.map((edge) => edge.id)));
@@ -917,7 +925,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     style: string | null;
     animated: number;
     revision: number;
-    changed_by: string | null;
+    attribution: string;
   }
   const edgeRows = db.query<EdgeRow, [string]>('SELECT * FROM edges WHERE board_id = ?').all(id);
   const edges: CanvasEdge[] = edgeRows.map((row) => ({
@@ -929,7 +937,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     ...(row.style ? { style: row.style as CanvasEdge['style'] } : {}),
     ...(row.animated ? { animated: true } : {}),
     ...(row.revision ? { revision: row.revision } : {}),
-    ...(row.changed_by ? { changedBy: JSON.parse(row.changed_by) as ActorAttribution } : {}),
+    ...(JSON.parse(row.attribution || '{}') as EdgeAttribution),
   }));
 
   // Load annotations
@@ -1225,7 +1233,7 @@ export function saveSnapshotToDB(
 
     // Insert snapshot edges
     const insertEdge = db.prepare(
-      `INSERT INTO snapshot_edges (snapshot_id, id, from_node, to_node, type, label, style, animated, revision, changed_by)
+      `INSERT INTO snapshot_edges (snapshot_id, id, from_node, to_node, type, label, style, animated, revision, attribution)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const edge of state.edges) {
@@ -1239,7 +1247,7 @@ export function saveSnapshotToDB(
         edge.style ?? null,
         edge.animated ? 1 : 0,
         edge.revision ?? 0,
-        edge.changedBy ? JSON.stringify(edge.changedBy) : null,
+        edgeAttribution(edge),
       );
     }
 
@@ -1380,7 +1388,7 @@ export function loadSnapshotFromDB(
     style: string | null;
     animated: number;
     revision: number;
-    changed_by: string | null;
+    attribution: string;
   }
   const edgeRows = db
     .query<EdgeRow, [string]>('SELECT * FROM snapshot_edges WHERE snapshot_id = ?')
@@ -1394,7 +1402,7 @@ export function loadSnapshotFromDB(
     ...(row.style ? { style: row.style as CanvasEdge['style'] } : {}),
     ...(row.animated ? { animated: true } : {}),
     ...(row.revision ? { revision: row.revision } : {}),
-    ...(row.changed_by ? { changedBy: JSON.parse(row.changed_by) as ActorAttribution } : {}),
+    ...(JSON.parse(row.attribution || '{}') as EdgeAttribution),
   }));
 
   // Load snapshot annotations

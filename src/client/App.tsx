@@ -25,6 +25,7 @@ import { SessionReceipt } from './canvas/SessionReceipt';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import { promptedCreate, ToolRail } from './canvas/ToolRail';
+import { EdgeHint } from './canvas/EdgeLayer';
 import { TextPrompt } from './canvas/TextPrompt';
 import { TopBar } from './canvas/TopBar';
 import {
@@ -349,6 +350,7 @@ export function App() {
       data-session-active={sessionIsActive ? 'true' : 'false'}
     >
       <Presentation />
+      <EdgeHint />
       <ToolRail
         minimapVisible={minimapVisible}
         onToggleMinimap={handleToggleMinimap}

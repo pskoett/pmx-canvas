@@ -1976,7 +1976,14 @@ async function exportFixture(outputPath: string, workspace: string): Promise<{ n
     return { ...raw, data: normalizeNodeData(raw.data) };
   });
   // Auto-detected import edges are recomputed at runtime; never freeze them.
-  const edges = layout.edges.filter((raw) => !raw.id.startsWith('codegraph-'));
+  // A link's authorship carries wall-clock times; pin them like annotations.
+  const edges = layout.edges
+    .filter((raw) => !raw.id.startsWith('codegraph-'))
+    .map((raw) => ({
+      ...raw,
+      ...(raw.changedAt ? { changedAt: FIXTURE_TIMESTAMP } : {}),
+      ...(raw.createdAt ? { createdAt: FIXTURE_TIMESTAMP } : {}),
+    }));
   for (const raw of edges) {
     if (!known.has(raw.id)) throw new Error(`Edge "${raw.id}" was not created by this script.`);
   }

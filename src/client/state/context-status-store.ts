@@ -66,24 +66,33 @@ export function pinnedReadState(nodeId: string, currentRevision: number): Pinned
 }
 
 /**
- * Connection changes (option C, docs/design/LinksOptions.dc.html): the mark a
- * link carries until a read brings either end with its relations. A person's
- * change is "not seen" by the agent; an agent's change says which agent made
- * it. Quiet until an agent has read this board at all, so a board no agent
- * reads never fills with marks.
+ * The marks a link's pill carries (docs/design/LinkAuthorship.dc.html):
+ * - `agent`: the agent that drew or last relabelled it — a ✦ that stays until
+ *   a person edits, retypes or relabels the link. A read never clears it.
+ * - `notSeen`: a person's new or edited link that no read has carried yet —
+ *   temporary, cleared by the agent's next read of either end. Quiet until an
+ *   agent has read this board at all. An agent's link is never "not seen".
+ * The board's only person draws without a mark (another person's initial is
+ * Part 3, shared boards).
  */
-export type LinkMark = { kind: 'not-seen' } | { kind: 'agent'; by: string } | null;
+export interface LinkMarks {
+  agent: string | null;
+  notSeen: boolean;
+}
 
-export function linkMark(edge: {
+export function linkMarks(edge: {
   from: string;
   to: string;
   revision?: number;
   changedBy?: { actor: string; source: string; agentId?: string };
-}): LinkMark {
+}): LinkMarks {
+  if (edge.changedBy?.actor === 'agent') return { agent: writerName(edge.changedBy), notSeen: false };
   const seen = seenLinks.value;
-  if (!edge.revision || Object.keys(seen).length === 0) return null;
-  if (edge.revision <= Math.max(seen[edge.from] ?? -1, seen[edge.to] ?? -1)) return null;
-  return edge.changedBy?.actor === 'agent' ? { kind: 'agent', by: writerName(edge.changedBy) } : { kind: 'not-seen' };
+  const notSeen =
+    !!edge.revision &&
+    Object.keys(seen).length > 0 &&
+    edge.revision > Math.max(seen[edge.from] ?? -1, seen[edge.to] ?? -1);
+  return { agent: null, notSeen };
 }
 
 /**

@@ -858,7 +858,8 @@ export function CanvasViewport({
         <IntentLayer />
         <AgentPresenceLayer />
         <HumanPresenceLayer />
-        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={onEdgeContextMenu} />
+        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={onEdgeContextMenu} part="lines" />
+        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={onEdgeContextMenu} part="pills" />
         {draggingEdge.value && (
           <div
             class="edge-hint-pill"

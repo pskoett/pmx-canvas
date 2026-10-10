@@ -5726,7 +5726,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "axflow-primitive-ax-flow-edge-2",
@@ -5738,7 +5744,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "axflow-primitive-ax-flow-edge-3",
@@ -5750,7 +5762,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "edge-runs",
@@ -5763,7 +5781,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "edge-then",
@@ -5776,7 +5800,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "edge-decisions",
@@ -5788,7 +5818,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "edge-changed-in",
@@ -5800,7 +5836,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "edge-gate",
@@ -5813,7 +5855,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
       "id": "edge-sprint",
@@ -5825,7 +5873,13 @@
       "changedBy": {
         "actor": "agent",
         "source": "api"
-      }
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
     }
   ],
   "annotations": [
