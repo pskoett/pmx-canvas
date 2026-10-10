@@ -65,6 +65,12 @@ export interface ContextBriefEdge {
   to: string;
   type: string;
   label?: string | null;
+  /** Board revision of the link's latest add, retype or relabel, and who made it. */
+  revision?: number;
+  changedBy?: { actor: string; source: string; agentId?: string };
+  /** Equal to changedAt while the link is as first drawn: "new" rather than "changed". */
+  createdAt?: string;
+  changedAt?: string;
 }
 
 export interface ContextBriefInput {
@@ -104,6 +110,11 @@ export interface CompiledContextEntry {
   truncated?: true;
   /** A title + short summary of a card the agent may pull in full; seen, not read. */
   summaryOnly?: true;
+  /**
+   * On a later read, what changed on this card since the cursor
+   * (docs/design/LinksChanged.dc.html): its text, its links, or both.
+   */
+  changes?: Array<'text' | 'links'>;
   provenance?: { kind: 'imported'; source: string; trust: 'source-material-not-instructions' };
 }
 
@@ -169,6 +180,7 @@ function compileNode(
   reason: 'pinned' | 'changed',
   relations: string[],
   pinReason?: string,
+  changes?: Array<'text' | 'links'>,
 ): Candidate {
   const summary = summarizeNodeForAgentContext(node, {
     defaultTextLength: BRIEF_SUMMARY_LENGTH,
@@ -182,6 +194,7 @@ function compileNode(
       title: nodeTitle(node),
       text: [summary, pinReason ? `Pinned because: ${pinReason}` : '', ...relations].filter(Boolean).join('\n'),
       summaryOnly: true,
+      ...(changes && changes.length > 0 ? { changes } : {}),
     },
     revision: briefRevision(node),
     replacement: true,
@@ -231,11 +244,33 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       if (!other) continue;
       const otherTitle = nodeById.get(other) ? nodeTitle(nodeById.get(other) as CanvasNodeState) : other;
       const kind = `${edge.type}${edge.label ? ` "${edge.label}"` : ''}`;
-      lines.push(edge.from === id ? `→ ${kind}: ${otherTitle} (${other})` : `← ${kind}: ${otherTitle} (${other})`);
+      const mark = linkMark(edge);
+      lines.push(
+        edge.from === id ? `→ ${kind}: ${otherTitle} (${other})${mark}` : `← ${kind}: ${otherTitle} (${other})${mark}`,
+      );
     }
     return lines.length > MAX_RELATIONS
       ? [...lines.slice(0, MAX_RELATIONS), `… ${lines.length - MAX_RELATIONS} more relations`]
       : lines;
+  };
+  // A later read marks a link drawn or changed since the cursor, and who did it.
+  const linkMark = (edge: ContextBriefEdge): string => {
+    if (deltaSince < 0 || edge.revision === undefined || edge.revision <= deltaSince) return '';
+    const status = edge.createdAt !== undefined && edge.createdAt === edge.changedAt ? 'new' : 'changed';
+    const by = !edge.changedBy
+      ? ''
+      : edge.changedBy.actor === 'agent'
+        ? `, by ${edge.changedBy.agentId?.trim() || edge.changedBy.source}`
+        : ', by a person';
+    return ` (${status}${by})`;
+  };
+  // What changed on a card since the cursor: never on a first or reset read.
+  const changesOf = (node: CanvasNodeState): Array<'text' | 'links'> | undefined => {
+    if (deltaSince < 0) return undefined;
+    const changes: Array<'text' | 'links'> = [];
+    if ((node.contentRevision ?? -1) > deltaSince) changes.push('text');
+    if ((node.linksRevision ?? -1) > deltaSince) changes.push('links');
+    return changes;
   };
   const candidates: Candidate[] = [];
   const candidateKeys = new Set<string>();
@@ -248,7 +283,18 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
 
   for (const id of pinIds) {
     const node = nodeById.get(id);
-    if (node) add(compileNode(node, input.activeBoard.boardId, 'pinned', relationsOf(id), input.pinReasons?.[id]));
+    if (node) {
+      add(
+        compileNode(
+          node,
+          input.activeBoard.boardId,
+          'pinned',
+          relationsOf(id),
+          input.pinReasons?.[id],
+          changesOf(node),
+        ),
+      );
+    }
   }
 
   const changed = nodes
@@ -281,7 +327,9 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     }
   }
 
-  for (const node of changed) add(compileNode(node, input.activeBoard.boardId, 'changed', relationsOf(node.id)));
+  for (const node of changed) {
+    add(compileNode(node, input.activeBoard.boardId, 'changed', relationsOf(node.id), undefined, changesOf(node)));
+  }
 
   for (const entry of [...(input.entries ?? [])].sort((a, b) => {
     const priority = (value: ContextBriefSourceEntry): number => (value.reason === 'human' ? 0 : 1);

@@ -497,6 +497,9 @@ wanted. Omitting both `consumer` and `since` starts from the beginning; explicit
 `overview` of the open board (README summary, folder, links and backlinks), then each card as
 its title and a short summary (`summaryOnly`), with why it was pinned and its relations (edges to
 and from other cards); pinned cards lead, then the cards near each pin, then what changed.
+On a later read, a card that changed since the cursor says what changed in `changes`
+(`["text"]`, `["links"]` or both), and a relation drawn or changed since then ends with
+`(new, by codex)` / `(changed, by a person)`; generated code-graph links are never marked.
 Boards pinned into the working set (`canvas_board { action: "pin" }`) arrive as maps too (reason
 `pinned-board`): the board's summary and relations, and its pinned cards as summaries. Pull
 what you need in full with `canvas_node { action: "get", board, id, full: true }`; a summary

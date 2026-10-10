@@ -468,7 +468,9 @@ first, with `near: { pinNodeId, pinTitle }`), then relevant current-board change
 and asks, then pinned boards (reason `pinned-board`: the board and its pinned
 cards), then compact linked or same-folder board context. Cards arrive as title,
 a short summary (`summaryOnly: true`) and their relations; a pin puts a card
-first, it does not send its full text. Every item carries source board/card IDs:
+first, it does not send its full text. On a later read a changed card lists what changed in
+`changes` (`text`, `links` or both) and marks relations drawn or changed since the cursor,
+e.g. `(new, by a person)`. Every item carries source board/card IDs:
 use them with the board/node read route to pull a card in full when you need it,
 rather than guessing from the summary. Reading inactive boards does not open them.
 

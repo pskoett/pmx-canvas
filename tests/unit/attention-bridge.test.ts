@@ -113,6 +113,26 @@ describe('attention bridge', () => {
     expect(attentionHistory.value[0]?.detail).toBe('“auth.ts” left “Bug report” — it is out of the agent’s brief.');
   });
 
+  test('a removed link names both cards in Updates (LinksChanged.dc.html)', () => {
+    const cards = [
+      { id: 'a', type: 'markdown', data: { title: 'Raise Pro to $24?' }, position: { x: 0, y: 0 } },
+      { id: 'b', type: 'markdown', data: { title: 'SMB is price-sensitive' }, position: { x: 0, y: 400 } },
+    ] as const;
+    syncAttentionFromSse({
+      event: 'canvas-layout-update',
+      data: {
+        layout: makeLayout([...cards], [{ id: 'e1', from: 'b', to: 'a', type: 'relation' }]),
+        timestamp: '2026-04-18T10:02:00.000Z',
+      },
+    });
+    syncAttentionFromSse({
+      event: 'canvas-layout-update',
+      data: { layout: makeLayout([...cards]), timestamp: '2026-04-18T10:02:01.000Z' },
+    });
+    expect(attentionHistory.value[0]?.title).toBe('Link removed');
+    expect(attentionHistory.value[0]?.detail).toBe('“SMB is price-sensitive” – “Raise Pro to $24?” (relation)');
+  });
+
   test('a burst of changes shows the newest toasts, not a minute-long replay of stale ones', async () => {
     syncAttentionFromSse({
       event: 'canvas-layout-update',

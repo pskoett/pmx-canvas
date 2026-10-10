@@ -64,6 +64,16 @@ export interface ContextBriefEdge {
     to: string;
     type: string;
     label?: string | null;
+    /** Board revision of the link's latest add, retype or relabel, and who made it. */
+    revision?: number;
+    changedBy?: {
+        actor: string;
+        source: string;
+        agentId?: string;
+    };
+    /** Equal to changedAt while the link is as first drawn: "new" rather than "changed". */
+    createdAt?: string;
+    changedAt?: string;
 }
 export interface ContextBriefInput {
     activeBoard: {
@@ -108,6 +118,11 @@ export interface CompiledContextEntry {
     truncated?: true;
     /** A title + short summary of a card the agent may pull in full; seen, not read. */
     summaryOnly?: true;
+    /**
+     * On a later read, what changed on this card since the cursor
+     * (docs/design/LinksChanged.dc.html): its text, its links, or both.
+     */
+    changes?: Array<'text' | 'links'>;
     provenance?: {
         kind: 'imported';
         source: string;

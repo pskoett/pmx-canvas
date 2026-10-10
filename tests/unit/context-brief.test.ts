@@ -99,6 +99,56 @@ describe('near a pin (docs/design/NearPin.dc.html)', () => {
   });
 });
 
+describe('links changed after a read (docs/design/LinksChanged.dc.html)', () => {
+  const human = { actor: 'human', source: 'browser' };
+  const codex = { actor: 'agent', source: 'mcp', agentId: 'codex' };
+  const raise = { ...node('raise', 'Question for Q4 pricing.', 1), linksRevision: 4 };
+  const smb = { ...node('smb', 'Eight of twelve churned on price.', 5), linksRevision: 4 };
+  const links = [
+    {
+      from: 'smb',
+      to: 'raise',
+      type: 'relation',
+      label: 'supports',
+      revision: 4,
+      changedBy: human,
+      createdAt: 't4',
+      changedAt: 't4',
+    },
+    { from: 'raise', to: 'smb', type: 'flow', revision: 2, changedBy: codex, createdAt: 't1', changedAt: 't2' },
+  ];
+
+  test('a later read says what changed on each card and marks links drawn since, with who drew them', () => {
+    const brief = compileContextBrief(input({ nodes: [raise, smb], edges: links, contentRevision: 5, since: 3 }));
+    const byId = new Map(brief.document?.entries.map((entry) => [entry.nodeId, entry]));
+    expect(byId.get('raise')?.changes).toEqual(['links']);
+    expect(byId.get('smb')?.changes).toEqual(['text', 'links']);
+    expect(byId.get('raise')?.text).toContain('← relation "supports": smb (smb) (new, by a person)');
+    // Changed before the cursor: no mark.
+    expect(byId.get('raise')?.text.split('\n')).toContain('→ flow: smb (smb)');
+  });
+
+  test('a link relabelled since the read says "changed", by the agent that did it', () => {
+    const brief = compileContextBrief(input({ nodes: [raise, smb], edges: links, contentRevision: 5, since: 1 }));
+    const raiseText = brief.document?.entries.find((entry) => entry.nodeId === 'raise')?.text ?? '';
+    expect(raiseText).toContain('→ flow: smb (smb) (changed, by codex)');
+  });
+
+  test('a pinned card stays "pinned" and carries its changes; a first read marks nothing', () => {
+    const later = compileContextBrief(
+      input({ nodes: [raise, smb], edges: links, pinnedNodeIds: ['smb'], contentRevision: 5, since: 3 }),
+    );
+    const pinned = later.document?.entries.find((entry) => entry.nodeId === 'smb');
+    expect([pinned?.reason, pinned?.changes]).toEqual(['pinned', ['text', 'links']]);
+
+    const first = compileContextBrief(input({ nodes: [raise, smb], edges: links, contentRevision: 5, since: null }));
+    for (const entry of first.document?.entries ?? []) {
+      expect(entry.changes).toBeUndefined();
+      expect(entry.text).not.toContain('(new');
+    }
+  });
+});
+
 describe('compileContextBrief', () => {
   test('curation delivers both selected decisions under the same noisy-board budget', () => {
     const snapshot = input({
@@ -109,7 +159,8 @@ describe('compileContextBrief', () => {
       ],
       contentRevision: 3,
       since: 0,
-      budget: 700,
+      // Each change carries its `changes` marks, so the noisy card needs a little more room.
+      budget: 720,
     });
     const plain = compileContextBrief(snapshot);
     const curated = compileContextBrief({ ...snapshot, pinnedNodeIds: ['decision-a', 'decision-b'] });
@@ -130,7 +181,7 @@ describe('compileContextBrief', () => {
         text: 'Keep the active board unchanged when copying.',
       }),
     ]);
-    expect(curated.serialized.length).toBeLessThanOrEqual(700);
+    expect(curated.serialized.length).toBeLessThanOrEqual(720);
     expect(curated.nextCursor).toBe(0);
     expect(curated.document!.delivery.truncated).toBe(true);
   });

@@ -161,6 +161,20 @@ function entryFromConnect(event: ConnectWatchEvent): AttentionEntry | null {
 
 function entryFromRemove(event: RemoveWatchEvent): AttentionEntry | null {
   if (event.nodes.length === 0 && event.edges.length === 0) return null;
+  // LinksChanged.dc.html: a removed link leaves no line to mark, so Updates names it.
+  if (event.nodes.length === 0) {
+    const links = event.edges.map(
+      (edge) =>
+        `“${quoteLabel(edge.fromTitle, edge.fromId)}” – “${quoteLabel(edge.toTitle, edge.toId)}” (${edge.edgeType})`,
+    );
+    return makeEntry(
+      'remove',
+      links.length === 1 ? 'Link removed' : 'Links removed',
+      summarizeNames(links),
+      event.edges.flatMap((edge) => [edge.fromId, edge.toId]),
+      event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
+    );
+  }
   const nodeNames = event.nodes.map((node) => quoteLabel(node.title, node.id));
   const parts: string[] = [];
   if (nodeNames.length > 0) parts.push(summarizeNames(nodeNames));

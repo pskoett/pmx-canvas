@@ -132,6 +132,15 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   - **Check.** A headed drag on a 300-node board with 20 pins records no long task (> 50 ms)
     attributable to near-a-pin.
 
+### 4c. Links changed in the brief (LinksChanged.dc.html, gap 15)
+
+- **Done (2026-10-10).** On a later read, `changed` and `pinned` entries carry `changes`
+  (`["text"]`, `["links"]` or both; a pinned card stays `pinned`), and each relation drawn or
+  changed since the cursor ends "(new, by codex)" / "(changed, by a person)". First and reset
+  reads mark nothing; generated code-graph and board-map links are never stamped, so never
+  marked. A removed link writes one Updates entry naming both cards. Deviation: a person is
+  "by a person", not by name — edges record no human name until shared boards (vision Part 3).
+
 ### 5. Board pins
 
 **5a done, 2026-10-07.** `board_pins` table (who, when, why; removed with its board),
