@@ -50,9 +50,11 @@ does not change local PMX Canvas's existing distribution.
 
 **Hosted direction, 2026-10-10:** after the team features in Part 3, the first
 hosted version targets ChatGPT Sites with OpenAI login and the MCP server hosted
-there too. This is the foundation for the full ChatGPT plugin and for other
-agents connecting to the same remote MCP server through OAuth using their
-user's OpenAI login. Sites login and its ChatGPT/Codex MCP plugin are documented;
+there too. This is the first product validation, with the ChatGPT plugin as its
+distribution channel. If it works and people adopt it for recurring work, the
+next ambition is a full PMX Canvas service hosted directly on Cloudflare
+(Part 5). Access by other agents through OAuth using their user's OpenAI login
+remains a target. Sites login and its ChatGPT/Codex MCP plugin are documented;
 arbitrary external-client OAuth remains a separate validation gate. See Part 4
 for the live probe's discovery/registration blockers, node compatibility
 assessment and acceptance targets.
@@ -404,7 +406,7 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 
 **The constraints that hold.** Local and self-hosted PMX need no required externals: history and sync are the journal, not a third-party service. Everything in move 7 is mandatory before step 2 opens a port, and MCP-app hosting of third-party apps needs a per-board allowlist once viewers are not all the owner. Org/team/personal scopes do not themselves require multi-tenant hosting or an enterprise governance engine. The first hosted offering follows these team features in Part 4.
 
-## Part 4: First hosted version — ChatGPT Sites
+## Part 4: First hosted validation — ChatGPT Sites and plugin distribution
 
 **Direction decided with the maintainer, 2026-10-10.** After the team features
 in Part 3, aim to deliver the first hosted version of PMX Canvas in **ChatGPT
@@ -413,16 +415,26 @@ users can reach their boards and context without running a local PMX process
 or a private tunnel.
 
 This hosted foundation enables full development and release of the **ChatGPT
-plugin**. Other agents should be able to connect directly to the same hosted
+plugin**, the first distribution channel for reaching users and testing whether
+PMX becomes part of their work. Validate the ChatGPT experience and adoption
+before investing in the full standalone hosted service in Part 5.
+
+Other agents should eventually be able to connect directly to the same hosted
 MCP endpoint through **OAuth using the user's OpenAI login**. Both paths act
 as that user and respect the same board roles, knowledge scopes and personal
-privacy established by the team features.
+privacy established by the team features. External-client OAuth is a separate
+compatibility goal; its current blocker does not prevent validating the
+ChatGPT version and plugin distribution first.
 
-**Done when:** a user signs in with OpenAI, creates a durable hosted board,
-and uses it through the ChatGPT plugin; an agent outside ChatGPT connects over
-MCP through OAuth with that user's OpenAI login and reads and updates the same
-authorised board. Installation, account connection, rendering, context
-synchronisation and reconnect behavior are verified across both paths.
+**Technical validation:** a user signs in with OpenAI, creates a durable hosted
+board, and uses it through the ChatGPT plugin. Installation, account connection,
+rendering, context synchronisation and reconnect behavior work for the declared
+supported surfaces. Record node and integration limitations explicitly.
+
+**Product validation:** people beyond the maintainer install the plugin, use
+boards for real tasks and return to them across sessions. Gather evidence of
+which workflows they keep using and where the ChatGPT/Sites experience limits
+them. A successful deployment or a one-off demo alone does not justify Part 5.
 
 The milestone follows the team features and retains local and self-hosted
 distribution. The assessment below separates documented platform capabilities,
@@ -599,6 +611,60 @@ and credentials differ. Check the 600/1024/1920 px surfaces and nine themes from
 the design gate. Record unsupported integrations explicitly. External-client
 OAuth, full MCP resource/UI support and third-party app hosting each need their
 own passing evidence before the complete hosted promise is met.
+
+## Part 5: Further out — full PMX Canvas hosted on Cloudflare
+
+**Direction decided with the maintainer, 2026-10-10.** If the ChatGPT Sites
+version works and people use it, pursue a full standalone PMX Canvas service
+hosted directly on **Cloudflare**, with its own web experience and hosted MCP
+endpoint. PMX would manage the deployment, accounts, workspace access, storage
+and live collaboration as a product. The ChatGPT plugin remains a distribution
+channel and client of that service; other agents connect through supported,
+authenticated MCP access.
+
+This is a later product investment, even though Sites already uses Cloudflare
+infrastructure underneath. The first stage validates usefulness and distribution
+within ChatGPT; the later stage gives PMX control over the complete hosted
+experience. Carry forward the board model, permissions, renderers and lessons
+from Part 4. Choose Cloudflare services, authentication providers and operational
+architecture when planning that stage; OpenAI login for arbitrary external
+clients remains subject to the validation above.
+
+**Gate to start:** review evidence of recurring use by people beyond the
+maintainer, successful plugin distribution and concrete needs that justify a
+standalone service. Proceed when that evidence supports the investment; if it
+does not, improve the first version before expanding the hosting scope. There
+is no automatic launch date or adoption threshold invented in this vision.
+Local and self-hosted PMX remain part of the product.
+
+### Likely repository structure: shared product, separate runtimes
+
+**Architectural direction, 2026-10-10:** a monorepo is the likely fit for
+supporting three delivery surfaces: the working local PMX Canvas, the ChatGPT
+version validated and distributed through its plugin, and later the full
+standalone hosted version. Confirm the package
+boundaries during implementation; this is not a request to reorganise the
+repository before the ChatGPT validation needs it.
+
+- **Shared product:** the board model, mutation rules, context compilation, node renderers and canvas UI should be reused across distributions. Keep runtime dependencies out of this shared code.
+- **Local runtime:** retain the Bun server, local SQLite store, filesystem access/watchers, local MCP entry point and existing CLI/SDK workflows. Local PMX must remain usable without a cloud account, hosted service or network connection for its local features.
+- **ChatGPT version / Sites runtime:** adapt the shared product to Sites' identity, storage and MCP contracts for the first validation and plugin distribution. Keep this experience working as the product grows; it is a supported delivery surface, not a disposable prototype.
+- **Cloudflare runtime:** later compose the same product into the full hosted service, with deployment, identity, storage and live-state integrations under PMX's control. Reuse suitable Sites work without making the standalone service depend on Sites.
+
+Keep the local product as a maintained distribution, not a frozen predecessor
+or a thin client that requires the cloud. Keep the ChatGPT plugin and its user
+experience supported when the full hosted version arrives; whether its backend
+continues on Sites or moves to the standalone service is a later implementation
+decision. Runtime adapters should represent
+real platform differences, with explicit capability limits for features such
+as local file watching and subprocess MCP servers. Avoid separate copies of
+product logic or a broad abstraction framework built before it is needed.
+
+**Acceptance:** changes to shared code pass the local verification ladder as
+well as the relevant hosted checks. A clean installed local package can still
+start, create and persist boards, render nodes and serve its local MCP tools
+without hosted credentials. Test supported common behavior across runtimes and
+document the differences; hosted progress must not silently break local PMX.
 
 ## Architecture diagnosis at the original review
 
