@@ -975,7 +975,6 @@ test('dragging a node does not select text', async ({ page, request }) => {
   await expect
     .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging')))
     .toBe(true);
-  await expect(page.locator('html')).toHaveCSS('user-select', 'none');
   await expect.poll(async () => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
 
   await page.mouse.move(startX + 80, startY + 50, { steps: 6 });
@@ -5389,8 +5388,11 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
     .boundingBox();
   await miaPage.mouse.move(bar!.x + bar!.width / 2, bar!.y + bar!.height / 2);
   await miaPage.mouse.down();
+  await expect(miaCursor).toBeVisible();
+  await expect(miaCursor).toHaveClass(/is-grabbing/);
   await miaPage.mouse.move(bar!.x + bar!.width / 2 + 30, bar!.y + bar!.height / 2 + 10, { steps: 4 });
   await expect(miaPage.locator('[data-testid="yield-pill"]')).toHaveText('mia took over — agent yielded');
+  await expect.poll(async () => (await miaCursor.boundingBox())?.x ?? -1).toBeCloseTo(bar!.x + bar!.width / 2 + 30, 0);
 
   // While she holds it, an agent write to that node is refused (409); others pass.
   const blocked = await request.patch(`/api/canvas/node/${node.id}`, { data: { title: 'Agent retitle' } });

@@ -22,13 +22,20 @@ import {
 } from '../state/canvas-store';
 import { modChord } from '../utils/platform';
 import { canvasArea } from './canvas-area';
-import { BarHint } from './BarHint';
+import { BarHint, BarPortal } from './BarHint';
 import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
 import { type AgentPresence, agentPhaseLabel } from '../../shared/agent-presence.js';
 import { activeSession, agentPresences, attachedSessions, writerColor, writerInitial } from '../state/presence-store';
-import { activityLens, endSession, pendingGates, setActivityLens, startSession } from '../state/session-store';
+import {
+  activityLens,
+  endSession,
+  pendingGates,
+  sessionPanelOpened,
+  setActivityLens,
+  startSession,
+} from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
 /**
@@ -41,6 +48,30 @@ const AGENT_CHIP_LIMIT = 3;
 const AGENT_PHASE_RANK: Record<string, number> = { 'waiting-approval': 0, thinking: 1, tooling: 2, idle: 3 };
 
 function AgentChip() {
+  const [opened, setOpened] = useState<{ id: string; button: HTMLButtonElement } | null>(null);
+  const popover = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!opened) return;
+    const close = (event: PointerEvent) => {
+      if (!popover.current?.contains(event.target as Node) && !opened.button.contains(event.target as Node))
+        setOpened(null);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpened(null);
+        opened.button.focus();
+      }
+    };
+    const onResize = () => setOpened(null);
+    document.addEventListener('pointerdown', close, true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    return () => {
+      document.removeEventListener('pointerdown', close, true);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [opened]);
   // Every attached session gets its chip — with several agents on the board,
   // showing only the first hid the rest from the top bar entirely. But one
   // chip PER agent floods the bar on a many-agent board (user feedback,
@@ -49,6 +80,9 @@ function AgentChip() {
   // active few wear their own chips and the rest fold into a census chip
   // that always names the total.
   const allSessions = attachedSessions.value;
+  useEffect(() => {
+    if (opened && !opened.button.isConnected) setOpened(null);
+  }, [allSessions, opened]);
   if (allSessions.length === 0) return null;
   // Attached workers are represented by their orchestrator's roll-up, not a
   // second top-level chip of their own. Orphans remain visible.
@@ -108,9 +142,22 @@ function AgentChip() {
                 data-phase={session.phase}
                 style={{ '--identity-color': writerColor(session.sessionId) }}
               >
-                <span class="agent-chip-initial" aria-hidden="true">
+                <button
+                  type="button"
+                  class="agent-chip-initial"
+                  aria-label={`${session.label} session details`}
+                  aria-expanded={opened?.id === session.sessionId}
+                  aria-haspopup="dialog"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpened(
+                      opened?.id === session.sessionId ? null : { id: session.sessionId, button: event.currentTarget },
+                    );
+                  }}
+                >
                   {writerInitial(session.label)}
-                </span>
+                  <span class="agent-chip-dot" aria-hidden="true" />
+                </button>
                 <span class="agent-chip-dot" aria-hidden="true" />
                 <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
                 <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
@@ -149,6 +196,41 @@ function AgentChip() {
           </span>
         </BarHint>
       )}
+      {opened &&
+        visible
+          .filter((session) => session.sessionId === opened.id)
+          .map((session) => (
+            <BarPortal key={session.sessionId}>
+              <div
+                ref={popover}
+                class={`agent-session-popover phase-${session.phase}`}
+                role="dialog"
+                aria-label={`${session.label} session details`}
+                style={{
+                  right: `${Math.max(12, window.innerWidth - opened.button.getBoundingClientRect().right)}px`,
+                  top: `${opened.button.getBoundingClientRect().bottom + 8}px`,
+                }}
+              >
+                <div class="agent-session-popover-head">
+                  <span class="agent-chip-dot" aria-hidden="true" />
+                  <strong>
+                    {session.label} · {agentPhaseLabel(session)}
+                  </strong>
+                </div>
+                <SessionTouches session={session} popover />
+                <button
+                  type="button"
+                  class="session-receipt-link"
+                  onClick={() => {
+                    sessionPanelOpened.value = true;
+                    setOpened(null);
+                  }}
+                >
+                  Open session panel
+                </button>
+              </div>
+            </BarPortal>
+          ))}
     </>
   );
 }
@@ -158,7 +240,7 @@ function AgentChip() {
  * "Claude · 4 read · 1 edited"): the counts, and a press dims every card it
  * has not touched. Hidden until it has touched something.
  */
-function SessionTouches({ session }: { session: AgentPresence }) {
+function SessionTouches({ session, popover = false }: { session: AgentPresence; popover?: boolean }) {
   const touches = session.session;
   const parts = touches
     ? (
@@ -173,7 +255,26 @@ function SessionTouches({ session }: { session: AgentPresence }) {
   const lens = activityLens.value;
   const on = lens?.kind === 'live' && lens.sessionId === session.sessionId;
   // While its lens is on the button stays, even at zero, so it can be turned off.
-  if (parts.length === 0 && !on) return null;
+  if (parts.length === 0 && !on && !popover) return null;
+  const counts = parts.map(([word, count]) => `${count} ${word}`).join(' · ') || 'nothing yet';
+  if (popover)
+    return (
+      <>
+        <span class="agent-session-counts">{counts}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          class={`session-receipt-lens${on ? ' is-on' : ''}`}
+          onClick={() => setActivityLens(!on, { sessionId: session.sessionId })}
+        >
+          <span class="session-receipt-lens-track" aria-hidden="true">
+            <span class="session-receipt-lens-knob" />
+          </span>
+          Dim untouched nodes
+        </button>
+      </>
+    );
   return (
     <button
       type="button"
@@ -186,7 +287,7 @@ function SessionTouches({ session }: { session: AgentPresence }) {
         setActivityLens(!on, { sessionId: session.sessionId });
       }}
     >
-      {parts.map(([word, count]) => `${count} ${word}`).join(' · ') || 'nothing yet'}
+      {counts}
     </button>
   );
 }

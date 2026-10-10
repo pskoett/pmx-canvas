@@ -1,4 +1,8 @@
-import type { ComponentChildren } from 'preact';
+import { type ComponentChildren, type VNode } from 'preact';
+/** Escape a bar's filter/clip without installing React-compat event hooks. */
+export declare function BarPortal({ children }: {
+    children: VNode;
+}): null;
 /**
  * Styled hover/focus tooltip for bar controls — the replacement for native
  * `title` hints, which are delay-gated and never render in embedded panes.

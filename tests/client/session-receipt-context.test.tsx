@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { SessionReceipt } from '../../src/client/canvas/SessionReceipt.tsx';
 import {
@@ -9,6 +9,8 @@ import {
 
 // docs/design/AgentContext.dc.html: after a session, the receipt says what the
 // agent did with context, and the lens dims every node it did not touch.
+
+beforeEach(dismissSessionReceipt);
 
 afterEach(() => {
   cleanup();

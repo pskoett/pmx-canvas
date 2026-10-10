@@ -700,21 +700,25 @@ the stream carries one `agent-session-ended` frame:
 ```json
 { "label": "Copilot", "writer": "copilot", "parentAgentId": null, "startedAt": "…", "endedAt": "…", "endedBy": "agent",
   "unchanged": false, "counts": { "items": 4, "done": 3, "cancelled": 1, "rejected": 0, "held": 0 },
-  "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00" },
-  "context": { "read": [{ "id": "…", "title": "Brief" }], "pinned": [{ "id": "…", "title": "Chart", "reason": "…" }],
-               "created": [], "edited": [{ "id": "…", "title": "SMB", "change": "rewrote the second paragraph", "before": "…" }],
-               "changedSinceRead": [{ "id": "…", "title": "Brief" }] } }
+  "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00", "boardId": "…" },
+  "context": { "read": [{ "id": "…", "boardId": "…", "title": "Brief" }], "pinned": [{ "id": "…", "boardId": "…", "title": "Chart", "reason": "…" }],
+               "created": [], "edited": [{ "id": "…", "boardId": "…", "title": "SMB", "change": "rewrote the second paragraph", "before": "…", "after": "…" }],
+               "changedSinceRead": [{ "id": "…", "boardId": "…", "title": "Brief" }] } }
 ```
 
 `context` is what the session did with the board's context: nodes whose content an
 agent read since the session attached, pins the agent made (with their reason), nodes
 it created and edited (against the pre-session snapshot; each edit says what it did in
-`change` and keeps the start of the old text in `before`), and pinned nodes changed
+`change` and keeps bounded `before`/`after` excerpts around the first difference), and pinned nodes changed
 after their latest read. A session that only read or pinned is not `unchanged`.
+Every touch carries its `boardId` (null with no active board); receipt identities are
+board + node ID, so equal IDs on different boards are not merged.
 
 `items`/`done` count the work items on the board; cancelled items, rejected
 gates, and held gates have separate counts. `snapshot` is null when the board was
 empty at attach or unchanged at end (the redundant snapshot is removed).
+Its `boardId` identifies the owning board: a retained receipt offers to reopen it before
+comparing, including sessions that only added or removed cards. Snapshot access remains board-scoped.
 The browser shows a receipt only for a changed top-level session: `unchanged: true`
 and worker endings (`parentAgentId` set) never open, replace, or extend a popup —
 the orchestrator's receipt covers the board since it attached. An empty
@@ -724,7 +728,12 @@ There is at most one receipt. Qualifying endings that arrive while it is up merg
 into it ("3 sessions ended", their labels, the union of their context); a merged
 receipt has no *View diff* and points to History, which keeps each session's
 snapshot. The receipt is kept until dismissed so restore/diff actions do not
-disappear on a timer. A single session's *View diff* is `GET /api/canvas/snapshots/<id>/diff` against that
+disappear on a timer. It also stays across direct board switches, with a button to
+reopen an edited card's board; Home dismisses it. Undo and Unpin are unavailable
+on another board, and the lens and edit marks only apply to the active board's touches.
+The browser shows one stacked Before/After at a time, marking removed and added words;
+its Undo restores the whole card, not just the excerpt, and leaves cards whose latest edit is human alone.
+A single session's *View diff* is `GET /api/canvas/snapshots/<id>/diff` against that
 snapshot, and restoring the snapshot undoes the session. *Undo* on one edited card is
 `POST /api/canvas/snapshots/<id>/restore-node` with `{ "nodeId": "…" }`: that card's content goes
 back to the snapshot's, as one undoable edit; position, group, links and pins stay (file cards

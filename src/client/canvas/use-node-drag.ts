@@ -47,6 +47,7 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd, onClick }: No
       const onPointerMove = (ev: PointerEvent) => {
         if (!isDragging.current) return;
         if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
+        if (!moved) document.documentElement.classList.add('is-node-moving');
         moved = true;
         pendingPointer = { x: ev.clientX, y: ev.clientY };
         if (frameId !== null) return;
@@ -59,7 +60,7 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd, onClick }: No
           flushMove();
         }
         isDragging.current = false;
-        document.documentElement.classList.remove('is-node-dragging');
+        document.documentElement.classList.remove('is-node-dragging', 'is-node-moving');
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', finishDrag);
         document.removeEventListener('pointercancel', finishDrag);

@@ -6,6 +6,10 @@ import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence.js';
 import { axSurfaceState, nodes } from './canvas-store';
 import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
 import { agentActivity, agentPresences } from './presence-store';
+import { activeBoardId } from './boards-store';
+
+/** Explicit panel expansion, shared by the panel handle and the agent popover. */
+export const sessionPanelOpened = signal(false);
 
 // Structural views of the AX wire shapes (the client never imports server
 // modules; the status/kind unions come from shared/). Only the fields the
@@ -392,7 +396,7 @@ export interface SessionReceipt {
   counts: { items: number; done: number; cancelled: number; rejected: number; held: number };
   /** The pre-session snapshot; null when the board was empty at attach, or on a
    * merged receipt (each session's snapshot is in History). */
-  snapshot: { id: string; name: string } | null;
+  snapshot: { id: string; name: string; boardId: string | null } | null;
   /** What the session did with context (docs/design/AgentContext.dc.html receipt). */
   context: SessionContextActivity;
 }
@@ -400,6 +404,8 @@ export interface SessionReceipt {
 export interface ReceiptNode {
   id: string;
   title: string;
+  /** The board where this touch was recorded, for reopening a change's card. */
+  boardId?: string;
   reason?: string;
   /** Edited cards: what the edit did ("rewrote the second paragraph"). */
   change?: string;
@@ -407,6 +413,9 @@ export interface ReceiptNode {
   before?: string;
   after?: string;
 }
+
+/** Card ids are local to a board; receipts can remain open across board switches. */
+export const receiptNodeKey = (node: ReceiptNode): string => JSON.stringify([node.boardId, node.id]);
 
 export interface SessionContextActivity {
   read: ReceiptNode[];
@@ -426,6 +435,7 @@ function receiptNodes(value: unknown): ReceiptNode[] {
       {
         id: record.id,
         title: record.title,
+        ...(typeof record.boardId === 'string' ? { boardId: record.boardId } : {}),
         ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
         ...(typeof record.change === 'string' ? { change: record.change } : {}),
         ...(typeof record.before === 'string' ? { before: record.before } : {}),
@@ -459,7 +469,13 @@ export const activityLensNodeIds = computed<Set<string> | null>(() => {
     return touches ? touchedIds([touches.read, touches.pinned, touches.created, touches.edited]) : null;
   }
   const context = lens?.kind === 'receipt' ? sessionReceipt.value?.context : undefined;
-  return context ? touchedIds([context.read, context.pinned, context.created, context.edited]) : null;
+  return context
+    ? touchedIds(
+        [context.read, context.pinned, context.created, context.edited].map((list) =>
+          list.filter((node) => !node.boardId || node.boardId === activeBoardId.value),
+        ),
+      )
+    : null;
 });
 
 /** Cards an agent edited in a live session or in the receipt's session: they carry the violet bar. */
@@ -467,7 +483,9 @@ export const sessionEditedIds = computed<Set<string>>(
   () =>
     new Set([
       ...agentPresences.value.flatMap((presence) => (presence.attached ? (presence.session?.edited ?? []) : [])),
-      ...(sessionReceipt.value?.context.edited.map((node) => node.id) ?? []),
+      ...(sessionReceipt.value?.context.edited
+        .filter((node) => !node.boardId || node.boardId === activeBoardId.value)
+        .map((node) => node.id) ?? []),
     ]),
 );
 
@@ -481,11 +499,11 @@ export const sessionReceipt = signal<SessionReceipt | null>(null);
 
 /** A card both sessions edited: the first Before, the last After, both changes. */
 function mergeEdits(open: ReceiptNode[], next: ReceiptNode[]): ReceiptNode[] {
-  const later = new Map(next.map((node) => [node.id, node]));
+  const later = new Map(next.map((node) => [receiptNodeKey(node), node]));
   const merged = open.map((node) => {
-    const again = later.get(node.id);
+    const again = later.get(receiptNodeKey(node));
     if (!again) return node;
-    later.delete(node.id);
+    later.delete(receiptNodeKey(node));
     return {
       ...again,
       change: [node.change, again.change].filter(Boolean).join('; then '),
@@ -496,8 +514,8 @@ function mergeEdits(open: ReceiptNode[], next: ReceiptNode[]): ReceiptNode[] {
 }
 
 function unionNodes(a: ReceiptNode[], b: ReceiptNode[]): ReceiptNode[] {
-  const seen = new Set(a.map((node) => node.id));
-  return [...a, ...b.filter((node) => !seen.has(node.id))];
+  const seen = new Set(a.map(receiptNodeKey));
+  return [...a, ...b.filter((node) => !seen.has(receiptNodeKey(node)))];
 }
 
 /**
@@ -561,7 +579,13 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
       held: Number(counts?.held ?? 0) || 0,
     },
     snapshot:
-      snapshot && typeof snapshot.id === 'string' ? { id: snapshot.id, name: String(snapshot.name ?? '') } : null,
+      snapshot && typeof snapshot.id === 'string'
+        ? {
+            id: snapshot.id,
+            name: String(snapshot.name ?? ''),
+            boardId: typeof snapshot.boardId === 'string' ? snapshot.boardId : null,
+          }
+        : null,
     context: {
       read: receiptNodes(context?.read),
       pinned: receiptNodes(context?.pinned),
@@ -582,13 +606,16 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
  */
 export async function undoSessionEdits(
   snapshotId: string,
-  nodeIds: string[],
-): Promise<{ ok: boolean; restored: number }> {
+  edits: ReceiptNode[],
+): Promise<{ ok: boolean; restored: string[] }> {
   let ok = true;
-  let restored = 0;
-  for (const nodeId of nodeIds) {
+  const restored: string[] = [];
+  for (const edit of edits) {
+    if (edit.boardId && edit.boardId !== activeBoardId.value) continue;
+    const nodeId = edit.id;
     // A card you edited after the session keeps your edit.
-    if (nodes.value.get(nodeId)?.lastEditedBy?.actor === 'human') continue;
+    const node = nodes.value.get(nodeId);
+    if (!node || node.lastEditedBy?.actor === 'human') continue;
     const result = await requestOk(
       'undoSessionEdit',
       `/api/canvas/snapshots/${encodeURIComponent(snapshotId)}/restore-node`,
@@ -599,7 +626,7 @@ export async function undoSessionEdits(
       },
     );
     ok = ok && result.ok;
-    if (result.ok) restored += 1;
+    if (result.ok) restored.push(nodeId);
   }
   return { ok, restored };
 }
@@ -612,6 +639,7 @@ export function dismissSessionReceipt(): void {
 export function resetSessionStore(): void {
   historyTop.value = null;
   undoneActivityIds.value = new Set();
+  sessionPanelOpened.value = false;
   sessionReceipt.value = null;
   axTimeline.value = { events: [], evidence: [], steering: [] };
   timelineFilter.value = 'all';

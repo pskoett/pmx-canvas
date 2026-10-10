@@ -5,4 +5,4 @@
  */
 export declare function BoardSwitcher({ fallbackName }: {
     fallbackName: string;
-}): import("preact").JSX.Element;
+}): import("preact/src").JSX.Element;

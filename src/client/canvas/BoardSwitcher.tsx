@@ -1,25 +1,11 @@
 import { BoardPinButton } from './BoardPinButton';
-import { render, type VNode } from 'preact';
-import { useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { BarPortal } from './BarHint';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { activeBoard, activeBoardId, boardList, boardsLoaded, openBoard } from '../state/boards-store';
 import { IconLogo, IconArrange, IconChevronDown, IconPlus } from '../icons';
 import { promptNewBoard } from './HomeView';
 
 const RECENT_LIMIT = 8;
-
-/** Escape the top bar's filter/clip without installing React-compat event hooks. */
-function BoardMenuPortal({ children }: { children: VNode }) {
-  const host = useMemo(() => document.createElement('div'), []);
-  useLayoutEffect(() => {
-    document.body.appendChild(host);
-    return () => {
-      render(null, host);
-      host.remove();
-    };
-  }, [host]);
-  useLayoutEffect(() => render(children, host), [children, host]);
-  return null;
-}
 
 /**
  * The top bar's board identity (plan 012): the open board's name, or "Home".
@@ -81,7 +67,7 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
         </span>
       </button>
       {open && anchor && (
-        <BoardMenuPortal>
+        <BarPortal>
           <div
             ref={menuRef}
             class="toolbar-menu board-switcher-menu"
@@ -140,7 +126,7 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
               </button>
             </div>
           </div>
-        </BoardMenuPortal>
+        </BarPortal>
       )}
     </span>
   );

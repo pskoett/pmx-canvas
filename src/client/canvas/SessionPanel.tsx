@@ -17,6 +17,7 @@ import {
   resolveGate,
   scopeFence,
   setScopeFence,
+  sessionPanelOpened,
   sessionWorkItems,
   type TimelineEntry,
   type TimelineEntryKind,
@@ -302,7 +303,12 @@ export function SessionPanel() {
   // A gate may temporarily expand the panel without turning that expansion
   // into a user preference. Once the last gate settles, only an explicitly
   // opened panel remains open.
-  const [manuallyOpened, setManuallyOpened] = useState(false);
+  useEffect(
+    () => () => {
+      sessionPanelOpened.value = false;
+    },
+    [],
+  );
   const session = activeSession.value;
   const items = sessionWorkItems.value;
   const gates = pendingGates.value;
@@ -322,14 +328,16 @@ export function SessionPanel() {
     void refreshTimeline();
   }, []);
 
-  const expanded = manuallyOpened || gates.length > 0;
+  const expanded = sessionPanelOpened.value || gates.length > 0;
   if (!expanded) {
     return (
       <aside class="session-panel is-collapsed" aria-label="Session (collapsed)">
         <button
           type="button"
           class="session-collapse"
-          onClick={() => setManuallyOpened(true)}
+          onClick={() => {
+            sessionPanelOpened.value = true;
+          }}
           aria-label="Expand session panel"
         >
           ‹
@@ -371,7 +379,9 @@ export function SessionPanel() {
         <button
           type="button"
           class="session-collapse"
-          onClick={() => setManuallyOpened(false)}
+          onClick={() => {
+            sessionPanelOpened.value = false;
+          }}
           aria-label="Collapse session panel"
         >
           <IconChevronRight />

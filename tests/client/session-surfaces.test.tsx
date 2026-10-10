@@ -11,6 +11,7 @@ import {
   replaceContextPinsFromServer,
 } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
+import { activeBoardId, boardList } from '../../src/client/state/boards-store.ts';
 import {
   activityLens,
   activityLensNodeIds,
@@ -58,6 +59,8 @@ beforeEach(() => {
   respond = () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
   resetPresence();
   resetSessionStore();
+  activeBoardId.value = null;
+  boardList.value = [];
   contextPinnedNodeIds.value = new Set();
   nodes.value = new Map([
     ['n1', makeNode('n1', 'Spec')],
@@ -314,7 +317,7 @@ describe('session receipt', () => {
     label: 'Copilot',
     endedAt: '2026-08-23T14:05:00.000Z',
     counts: { items: 4, done: 3, cancelled: 1, rejected: 1, held: 0 },
-    snapshot: { id: 'snap-1', name: 'Before session · Copilot · 14:00' },
+    snapshot: { id: 'snap-1', name: 'Before session · Copilot · 14:00', boardId: null },
   };
 
   test('renders nothing until a session ends, then the counts and the restore hint', () => {
@@ -430,7 +433,8 @@ describe('session receipt', () => {
       lastEditedBy: { actor: 'human', source: 'browser' },
     });
     fireEvent.click(getByText('Undo'));
-    await waitFor(() => expect(getByText('Undone')).toBeTruthy());
+    await waitFor(() => expect(getByText('Kept your edits')).toBeTruthy());
+    expect(getByText('cards you edited since were left alone')).toBeTruthy();
     const restores = calls.filter((call) => call.url.endsWith('/restore-node'));
     expect(restores.map((call) => [call.url, JSON.parse(String(call.init?.body)).nodeId])).toEqual([
       ['/api/canvas/snapshots/snap-1/restore-node', 'n1'],
@@ -458,7 +462,7 @@ describe('session receipt', () => {
         },
       }),
     );
-    const { getByText, getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    const { getByText, getByTestId, getAllByRole } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
     expect(getByTestId('session-receipt').textContent).toContain('SMB — rewrote the second paragraph');
     fireEvent.click(getByText('See change'));
     const pair = getByTestId('session-receipt').querySelector('.session-receipt-diff-pair') as HTMLElement;
@@ -466,14 +470,25 @@ describe('session receipt', () => {
       'Eight of twelve churned.',
       'Six would downgrade.',
     ]);
+    expect(pair.querySelector('del')?.textContent).toContain('Eight');
+    expect(pair.querySelector('ins')?.textContent).toContain('Six');
+    expect(getByText('puts back the text from before')).toBeTruthy();
     fireEvent.click(getByText('Undo this card'));
-    await waitFor(() => expect(getByText('Undone')).toBeTruthy());
+    await waitFor(() => expect(getByText('every card restored')).toBeTruthy());
+    const restored = getAllByRole('button', { name: '✓ Undone' }) as HTMLButtonElement[];
+    expect(restored).toHaveLength(2);
+    expect(restored.every((button) => button.disabled)).toBe(true);
+    expect(getByText('the card shows Before again')).toBeTruthy();
     expect(calls.filter((call) => call.url.endsWith('/restore-node'))).toHaveLength(1);
     // The receipt's edited cards carry the violet bar.
     expect(sessionEditedIds.value.has('n1')).toBe(true);
   });
 
   test('Undo keeps cards you edited since, and says so; See change says when a card is not on the open board', async () => {
+    activeBoardId.value = 'current';
+    boardList.value = [
+      { id: 'other', name: 'Churn analysis', category: null, createdAt: '', lastOpenedAt: null, nodeCount: 1 },
+    ];
     nodes.value = new Map(nodes.value).set('n1', {
       ...makeNode('n1', 'SMB'),
       lastEditedBy: { actor: 'human', source: 'browser' },
@@ -484,24 +499,41 @@ describe('session receipt', () => {
         context: {
           edited: [
             { id: 'n1', title: 'SMB', change: 'rewrote it', before: 'old', after: 'new' },
-            { id: 'gone', title: 'Elsewhere', change: 'rewrote it', before: 'old', after: 'new' },
+            { id: 'gone', boardId: 'other', title: 'Elsewhere', change: 'rewrote it', before: 'old', after: 'new' },
           ],
         },
       }),
     );
-    const { getAllByText, getByText } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    const { getAllByText, getByText, queryByText } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
     fireEvent.click(getAllByText('See change')[0]);
     expect(getByText('You edited it since')).toBeTruthy();
+    expect(getByText('undo would lose your edit')).toBeTruthy();
     fireEvent.click(getAllByText('See change')[0]);
-    expect(getByText('Open its board to undo')).toBeTruthy();
-    fireEvent.click(getByText('Undo'));
-    // n1 is yours and stays; "gone" is not on the open board, so only the server can judge it.
-    await waitFor(() => expect(getByText('Undone')).toBeTruthy());
+    expect(getAllByText('Hide change')).toHaveLength(1);
+    expect(queryByText('You edited it since')).toBeNull();
+    fireEvent.click(getByText('Open Churn analysis to undo'));
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith('/boards/open'))).toBe(true));
+    expect((getByText('Undo') as HTMLButtonElement).disabled).toBe(true);
     expect(
       calls
         .filter((call) => call.url.endsWith('/restore-node'))
         .map((call) => JSON.parse(String(call.init?.body)).nodeId),
-    ).toEqual(['gone']);
+    ).toEqual([]);
+    activeBoardId.value = null;
+    boardList.value = [];
+  });
+
+  test('word marks leave shared words, punctuation, Unicode and whitespace untouched', () => {
+    const before = 'Café coûte €24. 😀\n\nSame word, same old word.';
+    const after = 'Café coûte €29. 😀\n\nSame word, same new word.';
+    act(() => applySessionReceipt({ ...ended, context: { edited: [{ id: 'n1', title: 'Price', before, after }] } }));
+    const { getByText, container } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    fireEvent.click(getByText('See change'));
+    const sides = container.querySelectorAll('.session-receipt-diff-text');
+    expect(sides[0].textContent).toBe(before);
+    expect(sides[1].textContent).toBe(after);
+    expect([...sides[0].querySelectorAll('del')].map((word) => word.textContent)).toEqual(['24', 'old']);
+    expect([...sides[1].querySelectorAll('ins')].map((word) => word.textContent)).toEqual(['29', 'new']);
   });
 
   test('the agent chip counts this session live; its lens hands over to the receipt when the session ends', () => {
@@ -574,6 +606,18 @@ describe('session receipt', () => {
       applySessionReceipt({ ...ended, label: 'Codex', context: { edited: [edit('B', 'C', 'added 1 paragraph')] } }),
     );
     expect(sessionReceipt.value?.context.edited).toEqual([edit('A', 'C', 'rewrote it; then added 1 paragraph')]);
+  });
+
+  test('receipts keep same-id cards on different boards separate', () => {
+    const first = { id: 'shared', boardId: 'board-a', title: 'First', before: 'A', after: 'B' };
+    const second = { id: 'shared', boardId: 'board-b', title: 'Second', before: 'X', after: 'Y' };
+    act(() => applySessionReceipt({ ...ended, context: { read: [first], edited: [first] } }));
+    act(() => applySessionReceipt({ ...ended, context: { read: [second], edited: [second] } }));
+    expect(sessionReceipt.value?.context.read).toEqual([first, second]);
+    expect(sessionReceipt.value?.context.edited).toEqual([first, second]);
+    const { getAllByRole } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    fireEvent.click(getAllByRole('button', { name: 'See change' })[1] as HTMLElement);
+    expect(getAllByRole('button', { name: 'Hide change' })).toHaveLength(1);
   });
 
   test('dismiss clears the receipt; a malformed frame is ignored', () => {

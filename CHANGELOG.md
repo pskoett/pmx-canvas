@@ -13,6 +13,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
+- Session receipts show stacked Before/After with changed words marked, one change open at a time, and per-card Undo that keeps your later edits.
+- In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.
 - One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with what they cost in tokens, and opens the details (read state, unpin, pin a near card) on click. There is no budget to fill; when a host reports its agent's token usage, the details name that count too.
 - A new or changed link now shows on the link itself: a link you draw says "not seen by" the attached agent until the agent reads either card, and a link an agent drew carries a small violet ✦ until you edit or relabel it. Hover a link's label to see who drew it and when. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
 - Card titles keep their room: a card an agent wrote shows a small violet sparkle on its type icon instead of a "by <agent>" chip, and a near or read chip shrinks to its icon, then moves into the icon's hint, before a title gets cut short. Hover the type icon for the full title and everything folded into it.
@@ -23,6 +25,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Receipts stay available across board switches so you can reopen a change's board to undo it; going Home still dismisses them.
+- Picking up and dropping a card no longer changes cursor styles on every element of a large board.
 - `pmx-canvas record` realtime capture uses Chrome's screencast for smooth full-frame-rate footage, writes frames while it records, and tolerates a slow first Chrome launch.
 - On a board larger than the context budget, an agent's first `canvas://context` read now carries the pinned cards and then the rest oldest first, and pages on from there, instead of returning a single clipped card every time.
 - Agents reading `canvas://context` as an MCP resource now count as having read those cards, so read marks light up.

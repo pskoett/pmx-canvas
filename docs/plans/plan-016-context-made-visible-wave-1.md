@@ -26,6 +26,53 @@ receipt extras, edit descriptions and the live session lens (slice 3) and Home (
   Pane600).
 - **Not run this session:** the curation evaluation (maintainer, later); a full browser suite on
   a quiet machine (the presentation-record tests failed under load at 261e7c0f and its parent).
+
+**Resumed (2026-10-10; not released).**
+- **See change built:** stacked Before/After with Unicode word marks, one change open, the
+  drawing's Undo captions and shared per-card/bulk restored state. Long scroll boxes start at
+  the first marked word. The receipt is opaque so underlying violet marks do not bleed through.
+  The ≤ 760 px avatar has its ring, phase dot, counts, dim switch and Open session panel.
+- **Board safety:** receipt touches carry their board ID, and merge/row identities use board +
+  card. Direct board switches retain the receipt, with a working Open <board> to undo button;
+  Home still dismisses it. Undo/Unpin cannot affect another board, and receipt marks/lens only
+  apply to the active board. Later human edits are retained on per-card and bulk Undo.
+- **Pickup/drop profiled and one cost removed:** headed Chromium, 1440×960 at 100%, 306 Markdown
+  cards (230×150, 260×190 pitch), 90 moves per drag, three runs with 20 pins and three without.
+  Hit-tested titlebars and visible card displacement verify actual drags. An initial 25% probe
+  hit a port instead and was discarded. The named pickup/drop helpers were not the dominant
+  sampled cost; a timeline trace found page-wide style recalculation from the universal drag
+  cursor/selection selector. A single transparent drag curtain preserves pointer delivery across
+  frames without changing every descendant. It belongs to the canvas so collaborator cursors
+  still follow the pointer, and intercepts only after the 4 px threshold so double-click menus
+  keep working. In the no-pin trace, UpdateLayoutTree totals fell from 120/75 ms at pickup/drop
+  to 12/5 ms with the final built source. These are individual measured runs,
+  not a device-independent latency guarantee. Layerization/GC still produce occasional long
+  tasks (the final pickup had a 157 ms task including GC); do not claim all drag pauses are fixed.
+- **Design checks:** all nine themes at 600/1024/1920; inspected Harbor, narrow Daylight,
+  avatar popover, long change, human-protected change, other-board and restored/bulk-kept states.
+- **Still deferred:** the maintainer's curation evaluation. Relation-label spacing feedback is
+  separate guidance work; this change does not alter auto-arrange or validation.
+- **Baseline gates:** the four presentation/tour cases also fail on a fresh unmodified
+  [26dc70a](https://github.com/pskoett/pmx-canvas/commit/26dc70ac46490d567750aa46b3449263b520613d)
+  build (1 passed / 4 failed in `presentation-record.pw.ts`). Repo-wide lint also failed there
+  with two formatting errors (`context-chip-store.ts`, `ax-timeline.ts`); the maintainer then
+  requested those fixes. Biome formatted only those two lines, and `bun run lint` now exits 0
+  (62 warnings, 12 infos). The presentation failures remain acknowledged, not described as green.
+- **Review completed:** the requested review found short-window clipping, a retained receipt's
+  foreign-board comparison action, and row Undo still enabled after every individual restore.
+  Each was reproduced and fixed; the follow-up review found no remaining findings in that scope.
+  Final visual inspection also caught History's invisible tooltip widening the receipt; aligning
+  it to the end removed horizontal overflow, with a regression assertion shown red then green.
+- **Final verification:** full build and typecheck pass; 1,379 unit tests and 247 client tests
+  pass. The final headed browser rerun has 232 passed and the same four baseline presentation
+  failures. The first run's three double-click regressions were fixed by gating the drag curtain
+  at the movement threshold; targeted interactions and the final full rerun pass those cases.
+  All five receipt browser cases pass, including short-window scrolling and created-only
+  cross-board comparison. Final DOM checks cover all nine themes at 600/1024/1920, with no
+  horizontal overflow. One interim client rerun caught a leaked debounced brief request in the
+  iframe test's fetch spy; that test passed alone and the full unchanged rerun passed 247/247.
+  First-failure evidence, rerun results and the unchanged-baseline reproduction are retained.
+
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),

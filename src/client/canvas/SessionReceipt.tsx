@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { BarHint } from './BarHint';
 import { nodes, toggleContextPin } from '../state/canvas-store';
+import { activeBoardId, boardList, openBoard } from '../state/boards-store';
 import {
   activityLens,
   dismissSessionReceipt,
   type ReceiptNode,
+  receiptNodeKey,
   type SessionContextActivity,
   sendSteering,
   sessionReceipt,
@@ -68,7 +70,35 @@ function ReceiptContext({
   snapshotId: string | null;
 }) {
   const [told, setTold] = useState(false);
-  const [undone, setUndone] = useState<'undone' | 'kept' | null>(null);
+  const [restoredIds, setRestoredIds] = useState<string[]>([]);
+  const [keptEdits, setKeptEdits] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const rowUndo =
+    context.edited.length > 0 && context.edited.every((node) => restoredIds.includes(node.id))
+      ? 'undone'
+      : keptEdits
+        ? 'kept'
+        : null;
+  useEffect(() => {
+    setRestoredIds([]);
+    setKeptEdits(false);
+    setOpenId(null);
+  }, [context]);
+  const undo = async (edits: ReceiptNode[]) => {
+    if (!snapshotId || undoing) return;
+    setUndoing(true);
+    try {
+      const result = await undoSessionEdits(
+        snapshotId,
+        edits.filter((node) => !restoredIds.includes(node.id)),
+      );
+      setRestoredIds((previous) => [...previous, ...result.restored]);
+      return result;
+    } finally {
+      setUndoing(false);
+    }
+  };
   const rows: Array<{ key: keyof SessionContextActivity; name: string; glyph: keyof typeof GLYPHS | 'pin' }> = [
     { key: 'read', name: 'Read', glyph: 'eye' },
     { key: 'pinned', name: 'Pinned', glyph: 'pin' },
@@ -120,6 +150,7 @@ function ReceiptContext({
               <button
                 type="button"
                 class="session-receipt-mini"
+                disabled={context.pinned.some((node) => node.boardId && node.boardId !== activeBoardId.value)}
                 onClick={() => {
                   for (const node of context.pinned) toggleContextPin(node.id);
                 }}
@@ -131,24 +162,39 @@ function ReceiptContext({
               <button
                 type="button"
                 class="session-receipt-mini"
-                disabled={undone !== null}
+                disabled={
+                  rowUndo !== null ||
+                  undoing ||
+                  context.edited.some((node) => node.boardId && node.boardId !== activeBoardId.value)
+                }
                 onClick={() => {
-                  void undoSessionEdits(
-                    snapshotId,
-                    context.edited.map((node) => node.id),
-                  ).then(({ ok, restored }) => {
-                    if (ok) setUndone(restored > 0 ? 'undone' : 'kept');
+                  void undo(context.edited).then((result) => {
+                    if (result?.ok) setKeptEdits(true);
                   });
                 }}
               >
-                {undone === 'undone' ? 'Undone' : undone === 'kept' ? 'Kept your edits' : 'Undo'}
+                {rowUndo === 'undone' ? '✓ Undone' : rowUndo === 'kept' ? 'Kept your edits' : 'Undo'}
               </button>
             )}
           </div>
+          {row.key === 'edited' && rowUndo && (
+            <div class="session-receipt-context-items">
+              {rowUndo === 'undone' ? 'every card restored' : 'cards you edited since were left alone'}
+            </div>
+          )}
           {row.key === 'edited' ? (
             <ul class="session-receipt-edits">
               {context.edited.map((node) => (
-                <EditLine key={node.id} node={node} snapshotId={snapshotId} />
+                <EditLine
+                  key={receiptNodeKey(node)}
+                  node={node}
+                  canUndo={snapshotId !== null}
+                  undoing={undoing}
+                  open={openId === receiptNodeKey(node)}
+                  onToggle={() => setOpenId(openId === receiptNodeKey(node) ? null : receiptNodeKey(node))}
+                  undone={restoredIds.includes(node.id)}
+                  onUndo={() => void undo([node])}
+                />
               ))}
             </ul>
           ) : (
@@ -178,16 +224,68 @@ function ReceiptContext({
   );
 }
 
-/**
- * One edited card (AgentContext.dc.html): its title and what the edit did;
- * "See change" shows the text before the session beside the text it left,
- * both cut around the first difference, with Undo for this card alone. No
- * drawing covers the open view yet (design.md).
- */
-function EditLine({ node, snapshotId }: { node: ReceiptNode; snapshotId: string | null }) {
-  const [open, setOpen] = useState(false);
-  const [undone, setUndone] = useState(false);
-  const current = nodes.value.get(node.id);
+/** Align the bounded excerpts by word, preserving punctuation and whitespace verbatim. */
+function changedWords(before: string, after: string) {
+  const tokens = (text: string) => text.match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu) ?? [];
+  const a = tokens(before);
+  const b = tokens(after);
+  const lengths = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lengths[i][j] = a[i] === b[j] ? lengths[i + 1][j + 1] + 1 : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+    }
+  }
+  const was: Array<{ text: string; changed: boolean }> = [];
+  const now: Array<{ text: string; changed: boolean }> = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      was.push({ text: a[i++], changed: false });
+      now.push({ text: b[j++], changed: false });
+    } else if (i < a.length && (j === b.length || lengths[i + 1][j] >= lengths[i][j + 1])) {
+      was.push({ text: a[i++], changed: true });
+    } else {
+      now.push({ text: b[j++], changed: true });
+    }
+  }
+  return [was, now];
+}
+
+/** SeeChange.dc.html: one stacked, word-marked change, with Undo for the whole card. */
+function EditLine({
+  node,
+  canUndo,
+  undoing,
+  open,
+  onToggle,
+  undone,
+  onUndo,
+}: {
+  node: ReceiptNode;
+  canUndo: boolean;
+  undoing: boolean;
+  open: boolean;
+  onToggle: () => void;
+  undone: boolean;
+  onUndo: () => void;
+}) {
+  const onBoard = !node.boardId || node.boardId === activeBoardId.value;
+  const current = onBoard ? nodes.value.get(node.id) : undefined;
+  const board = boardList.value.find((entry) => entry.id === node.boardId);
+  const sides = useMemo(
+    () => (open ? changedWords(node.before ?? '', node.after ?? '') : []),
+    [open, node.before, node.after],
+  );
+  const pair = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    // Long excerpts retain context above the edit; start each scroll box at
+    // the first changed word rather than a screenful of identical preamble.
+    for (const text of pair.current?.querySelectorAll<HTMLElement>('.session-receipt-diff-text') ?? []) {
+      const change = text.querySelector('del, ins');
+      if (change) text.scrollTop = change.getBoundingClientRect().top - text.getBoundingClientRect().top - 24;
+    }
+  }, [sides]);
   // Your own later edit wins: Undo would leave it, so it is not offered.
   const yours = current?.lastEditedBy?.actor === 'human';
   return (
@@ -198,36 +296,70 @@ function EditLine({ node, snapshotId }: { node: ReceiptNode; snapshotId: string 
           {node.change ? <span class="session-receipt-edit-change"> — {node.change}</span> : null}
         </span>
         {node.before !== undefined && (
-          <button type="button" class="session-receipt-link" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <button type="button" class="session-receipt-link" aria-expanded={open} onClick={onToggle}>
             {open ? 'Hide change' : 'See change'}
           </button>
         )}
       </span>
       {open && (
-        <span class="session-receipt-diff-pair">
-          <span class="session-receipt-diff-side">
-            <span class="session-receipt-diff-label">Before</span>
-            <span class="session-receipt-diff-text">{node.before || 'Empty'}</span>
-          </span>
-          <span class="session-receipt-diff-side">
-            <span class="session-receipt-diff-label">After</span>
-            <span class="session-receipt-diff-text">{node.after || 'Empty'}</span>
-          </span>
-          {snapshotId &&
-            (current ? (
-              <button
-                type="button"
-                class="session-receipt-mini"
-                disabled={undone || yours}
-                onClick={() =>
-                  void undoSessionEdits(snapshotId, [node.id]).then(({ restored }) => setUndone(restored > 0))
-                }
-              >
-                {yours ? 'You edited it since' : undone ? 'Undone' : 'Undo this card'}
-              </button>
-            ) : (
-              <span class="session-receipt-edit-change">Open its board to undo</span>
-            ))}
+        <span ref={pair} class="session-receipt-diff-pair">
+          {sides.map((words, side) => (
+            <span class="session-receipt-diff-side" key={side}>
+              <span class="session-receipt-diff-label">{side === 0 ? 'Before' : 'After'}</span>
+              <span class="session-receipt-diff-text">
+                {words.length
+                  ? words.map(({ text, changed }, index) =>
+                      text === '…' && (index === 0 || index === words.length - 1) ? (
+                        <span key={index} class="session-receipt-diff-cut">
+                          {text}
+                        </span>
+                      ) : changed ? (
+                        side === 0 ? (
+                          <del key={index}>{text}</del>
+                        ) : (
+                          <ins key={index}>{text}</ins>
+                        )
+                      ) : (
+                        text
+                      ),
+                    )
+                  : 'Empty'}
+              </span>
+            </span>
+          ))}
+          {canUndo && (
+            <span class="session-receipt-undo">
+              {current ? (
+                <button
+                  type="button"
+                  class="session-receipt-mini"
+                  disabled={undone || yours || undoing}
+                  onClick={onUndo}
+                >
+                  {undone ? '✓ Undone' : yours ? 'You edited it since' : 'Undo this card'}
+                </button>
+              ) : board && !onBoard ? (
+                <button type="button" class="session-receipt-mini" onClick={() => void openBoard(board.id)}>
+                  Open {board.name} to undo
+                </button>
+              ) : (
+                <span class="session-receipt-edit-change">Card no longer on this board</span>
+              )}
+              <span class="session-receipt-edit-change">
+                {current
+                  ? undone
+                    ? 'the card shows Before again'
+                    : yours
+                      ? 'undo would lose your edit'
+                      : node.before?.includes('…') || node.after?.includes('…')
+                        ? 'undoes the whole card'
+                        : 'puts back the text from before'
+                  : board && !onBoard
+                    ? `it is on ${board.name}`
+                    : ''}
+              </span>
+            </span>
+          )}
         </span>
       )}
     </li>
@@ -242,8 +374,10 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
   useEffect(() => setDiff(null), [receipt]);
   if (!receipt) return null;
 
+  const onSnapshotBoard = receipt.snapshot?.boardId === activeBoardId.value;
+  const snapshotBoard = boardList.value.find((board) => board.id === receipt.snapshot?.boardId);
   const viewDiff = async () => {
-    if (!receipt.snapshot) return;
+    if (!receipt.snapshot || !onSnapshotBoard) return;
     setLoadingDiff(true);
     try {
       const response = await workbenchFetch(`/api/canvas/snapshots/${encodeURIComponent(receipt.snapshot.id)}/diff`, {
@@ -354,11 +488,20 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
         {/* No snapshot → no diff will ever exist for this receipt; a forever-
             disabled button is noise (the note above says why). */}
         {receipt.snapshot && (
-          <button type="button" class="session-receipt-primary" disabled={loadingDiff} onClick={() => void viewDiff()}>
-            {loadingDiff ? 'Comparing…' : 'View diff'}
+          <button
+            type="button"
+            class="session-receipt-primary"
+            disabled={loadingDiff || (!onSnapshotBoard && !snapshotBoard)}
+            onClick={() => (onSnapshotBoard ? void viewDiff() : snapshotBoard && void openBoard(snapshotBoard.id))}
+          >
+            {!onSnapshotBoard && snapshotBoard
+              ? `Open ${snapshotBoard.name} to compare`
+              : loadingDiff
+                ? 'Comparing…'
+                : 'View diff'}
           </button>
         )}
-        <BarHint label="Open the History drawer" body="Saved boards and past sessions." side="up">
+        <BarHint label="Open the History drawer" body="Saved boards and past sessions." side="up" align="end">
           <button type="button" class="session-receipt-secondary" onClick={onOpenSnapshots}>
             History
           </button>

@@ -65,5 +65,6 @@ async function load(): Promise<void> {
     `/api/canvas/ax/context-status?boards=${pinned.map((board) => encodeURIComponent(board.id)).join(',')}`,
     null,
   );
-  if (current()) pinnedBoardReads.value = new Map(pinned.map((board) => [board.id, status?.boards?.[board.id] ?? null]));
+  if (current())
+    pinnedBoardReads.value = new Map(pinned.map((board) => [board.id, status?.boards?.[board.id] ?? null]));
 }

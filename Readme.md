@@ -119,6 +119,13 @@ and turns amber with "changed since read" when you edit it after the agent's
 last read. Nodes an agent created or edited carry its name until you edit them,
 and a pin an agent made carries a violet dot with its reason on hover.
 
+After a session, its receipt lists the cards it read, pinned, created and edited.
+**See change** opens one card's stacked Before/After with changed words marked;
+**Undo this card** restores its whole pre-session content without moving it or its links.
+Cards you edited since are left alone. The receipt stays available when you visit another
+board, with a button to reopen the change's board; going Home dismisses it. In a narrow
+window, click the agent's initial for live counts, **Dim untouched nodes**, and the session panel.
+
 On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
 canvas into a shared workspace between you and the agent:
 

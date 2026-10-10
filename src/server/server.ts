@@ -216,7 +216,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
     endedBy,
     counts,
     unchanged,
-    snapshot: snapshot ? { id: snapshot.id, name: snapshot.name } : null,
+    snapshot: snapshot ? { id: snapshot.id, name: snapshot.name, boardId: canvasState.activeBoardId } : null,
     context,
   });
 });
@@ -224,6 +224,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
 interface ReceiptNode {
   id: string;
   title: string;
+  boardId: string | null;
   reason?: string;
   /** Edited cards: what the edit did ("rewrote the second paragraph"). */
   change?: string;
@@ -251,11 +252,12 @@ function sessionContextActivity(
   changedSinceRead: ReceiptNode[];
 } {
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  const boardId = canvasState.activeBoardId;
   const entry = (node: CanvasNodeState): ReceiptNode => ({
     id: node.id,
+    boardId,
     title: typeof node.data.title === 'string' && node.data.title.trim() ? node.data.title : node.id,
   });
-  const boardId = canvasState.activeBoardId;
   const read = startedAt
     ? canvasState.getReadNodeIdsSince(boardId, startedAt).flatMap((id) => {
         const node = byId.get(id);

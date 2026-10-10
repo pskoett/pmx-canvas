@@ -32,7 +32,7 @@ import {
   reconnectDelay,
   resetCanvasInteractionState,
 } from './canvas-store';
-import { applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
+import { activeBoardId, applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
 import { applyContextStatus, refreshContextStatus } from './context-status-store';
 import { refreshContextChip } from './context-chip-store';
 import {
@@ -46,7 +46,7 @@ import {
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
 import { applyHumanSnapshot, startHumanPresence } from './human-store';
 import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
-import { applySessionReceipt, dismissSessionReceipt, refreshTimeline } from './session-store';
+import { activityLens, applySessionReceipt, dismissSessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
@@ -501,7 +501,10 @@ function resyncForBoardSwitch(): void {
   resetIntents();
   resetCanvasInteractionState();
   resetAttentionBridge();
-  dismissSessionReceipt();
+  // Keep the change available when visiting another board, so its Open board
+  // action can bring the person back to Undo. Home still clears board chrome.
+  if (activeBoardId.value === null) dismissSessionReceipt();
+  if (activityLens.value?.kind === 'receipt') activityLens.value = null;
   applyContextStatus({});
   axSurfaceState.value = null;
   void refreshAxSurface();

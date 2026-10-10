@@ -490,6 +490,9 @@ describe('agent presence over SSE', () => {
     const chart = (await (
       await postJson('/api/canvas/node', { type: 'markdown', title: 'Chart', content: 'x', x: 400, y: 0 }, human)
     ).json()) as { id: string };
+    const { activeBoardId: boardId } = (await (await fetch(`${baseUrl}/api/canvas/boards`)).json()) as {
+      activeBoardId: string;
+    };
     await postJson('/api/canvas/context-pins', { nodeIds: [brief.id] }, human);
 
     await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: true });
@@ -513,11 +516,15 @@ describe('agent presence over SSE', () => {
     await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: false });
     const payload = (await receipt) as {
       unchanged: boolean;
-      context: Record<string, Array<{ id: string; title: string; reason?: string }>>;
+      snapshot: { boardId: string };
+      context: Record<string, Array<{ id: string; boardId: string; title: string; reason?: string }>>;
     };
     expect(payload.unchanged).toBe(false);
+    expect(payload.snapshot.boardId).toBe(boardId);
     expect(payload.context.read.map((node) => node.title)).toContain('Brief');
-    expect(payload.context.pinned).toEqual([{ id: chart.id, title: 'Chart', reason: 'the finding rests on it' }]);
+    expect(payload.context.pinned).toEqual([
+      { id: chart.id, boardId, title: 'Chart', reason: 'the finding rests on it' },
+    ]);
     expect(payload.context.created.map((node) => node.title)).toEqual(['Agent finding']);
     expect(payload.context.changedSinceRead.map((node) => node.title)).toEqual(['Brief']);
   });

@@ -1113,14 +1113,19 @@ body,
 }
 .agent-chip-initial {
   display: none;
+  position: relative;
   width: 24px;
   height: 24px;
+  padding: 0;
+  border: none;
   border-radius: 999px;
   align-items: center;
   justify-content: center;
-  background: var(--c-agent);
-  color: var(--c-contrast-fg);
+  background: color-mix(in srgb, var(--c-agent) 16%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--c-agent);
+  color: var(--c-agent);
   font: 600 11px var(--font-ui);
+  cursor: pointer;
 }
 @media (max-width: 760px) {
   .top-bar-right {
@@ -1415,6 +1420,65 @@ body,
 }
 .agent-chip {
   border-left: 3px solid var(--identity-color, transparent);
+}
+/* SeeChange.dc.html: the narrow avatar keeps its ring and phase dot;
+   live counts and the lens live in a popover outside the chip's clip. */
+@media (max-width: 760px) {
+  .agent-chip {
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  .agent-chips {
+    overflow: visible;
+  }
+  .agent-chips .toolbar-tooltip {
+    display: none;
+  }
+  .agent-chip-initial .agent-chip-dot {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 2px var(--c-panel);
+  }
+}
+.agent-session-popover {
+  --presence-color: var(--c-agent);
+  position: fixed;
+  z-index: 10020;
+  width: 240px;
+  padding: var(--space-3);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-overlay);
+  background: var(--c-panel);
+  box-shadow: var(--e-2);
+  color: var(--c-text);
+  font-size: var(--fs-ui);
+}
+.agent-session-popover.phase-idle {
+  --presence-color: var(--c-dim);
+}
+.agent-session-popover.phase-waiting-approval {
+  --presence-color: var(--c-warn);
+}
+.agent-session-popover-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.agent-session-counts {
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--c-agent) 14%, transparent);
+  color: var(--c-agent);
+  font-weight: 500;
 }
 .minimap-presence {
   background: var(--identity-color, var(--presence-color));
@@ -2881,12 +2945,14 @@ body,
   top: 14px;
   right: 14px;
   width: 290px;
+  max-height: calc(100% - 28px);
+  overflow-y: auto;
   z-index: 9998;
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--c-line);
-  background: color-mix(in srgb, var(--c-panel) 96%, transparent);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  background: var(--c-panel);
+  box-shadow: var(--e-2);
   animation: session-panel-in 180ms ease;
 }
 .session-receipt-head {
@@ -3047,14 +3113,16 @@ body,
   text-decoration: underline;
 }
 .session-receipt-diff-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-top: 4px;
 }
-.session-receipt-diff-pair > .session-receipt-mini {
-  grid-column: 1 / -1;
-  justify-self: start;
+.session-receipt-undo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
 }
 .session-receipt-diff-side {
   display: flex;
@@ -3077,6 +3145,20 @@ body,
   overflow-wrap: anywhere;
   color: var(--c-text);
 }
+.session-receipt-diff-text del {
+  color: var(--c-muted);
+  background: var(--c-panel-soft);
+  border-radius: 3px;
+}
+.session-receipt-diff-text ins {
+  text-decoration: none;
+  background: color-mix(in srgb, var(--c-agent) 16%, transparent);
+  box-shadow: inset 0 -1.5px 0 var(--c-agent);
+  border-radius: 3px;
+}
+.session-receipt-diff-cut {
+  color: var(--c-dim);
+}
 .session-receipt-mini {
   padding: 2px var(--space-2);
   border: 1px solid var(--c-line);
@@ -3085,6 +3167,10 @@ body,
   color: var(--c-text);
   font-size: var(--fs-meta);
   cursor: pointer;
+}
+.session-receipt-mini:disabled {
+  color: var(--c-dim);
+  cursor: default;
 }
 .session-receipt-lens {
   display: flex;
@@ -4110,8 +4196,23 @@ html.is-node-resizing .canvas-node {
   transition: box-shadow 0.15s ease !important;
 }
 
-html.is-node-dragging,
-html.is-node-dragging *,
+/* One drag curtain keeps the cursor and pointer events over embedded frames
+   without restyling every descendant at pickup and drop on a large board. */
+html.is-node-dragging .canvas-viewport::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* A click must release on its original target so double-click menus still work. */
+html.is-node-moving .canvas-viewport::after {
+  pointer-events: auto;
+}
+
 html.is-canvas-panning,
 html.is-canvas-panning * {
   cursor: grabbing !important;

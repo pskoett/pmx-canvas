@@ -550,7 +550,7 @@ const axReadsStatusShape = {
   boards: z
     .string()
     .optional()
-    .describe('Comma-separated board ids: also return each one\'s latest agent read (pinned boards, in one request).'),
+    .describe("Comma-separated board ids: also return each one's latest agent read (pinned boards, in one request)."),
 };
 const axReadsStatusSchema = z.looseObject(axReadsStatusShape);
 

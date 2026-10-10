@@ -1,4 +1,6 @@
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
+/** Explicit panel expansion, shared by the panel handle and the agent popover. */
+export declare const sessionPanelOpened: import("@preact/signals-core").Signal<boolean>;
 export type WorkItemStatus = AxWorkItemStatus;
 export interface WorkItemView {
     id: string;
@@ -179,6 +181,7 @@ export interface SessionReceipt {
     snapshot: {
         id: string;
         name: string;
+        boardId: string | null;
     } | null;
     /** What the session did with context (docs/design/AgentContext.dc.html receipt). */
     context: SessionContextActivity;
@@ -186,6 +189,8 @@ export interface SessionReceipt {
 export interface ReceiptNode {
     id: string;
     title: string;
+    /** The board where this touch was recorded, for reopening a change's card. */
+    boardId?: string;
     reason?: string;
     /** Edited cards: what the edit did ("rewrote the second paragraph"). */
     change?: string;
@@ -193,6 +198,8 @@ export interface ReceiptNode {
     before?: string;
     after?: string;
 }
+/** Card ids are local to a board; receipts can remain open across board switches. */
+export declare const receiptNodeKey: (node: ReceiptNode) => string;
 export interface SessionContextActivity {
     read: ReceiptNode[];
     pinned: ReceiptNode[];
@@ -237,9 +244,9 @@ export declare function applySessionReceipt(data: Record<string, unknown>): void
  * Undo on the receipt's Edited row (AgentContext.dc.html): each card back to
  * its content in the pre-session snapshot — the rest of the board stays.
  */
-export declare function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<{
+export declare function undoSessionEdits(snapshotId: string, edits: ReceiptNode[]): Promise<{
     ok: boolean;
-    restored: number;
+    restored: string[];
 }>;
 export declare function dismissSessionReceipt(): void;
 export declare function resetSessionStore(): void;

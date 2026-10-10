@@ -1,5 +1,19 @@
-import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
+import { render, type ComponentChildren, type VNode } from 'preact';
+import { useLayoutEffect, useMemo, useState } from 'preact/hooks';
+
+/** Escape a bar's filter/clip without installing React-compat event hooks. */
+export function BarPortal({ children }: { children: VNode }) {
+  const host = useMemo(() => document.createElement('div'), []);
+  useLayoutEffect(() => {
+    document.body.appendChild(host);
+    return () => {
+      render(null, host);
+      host.remove();
+    };
+  }, [host]);
+  useLayoutEffect(() => render(children, host), [children, host]);
+  return null;
+}
 
 /**
  * Styled hover/focus tooltip for bar controls — the replacement for native
