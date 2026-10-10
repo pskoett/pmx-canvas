@@ -16,6 +16,7 @@ import {
   type AttentionEntry,
   type AttentionTone,
 } from './attention-store';
+import { nearPins } from './near-pin-store';
 
 let reducer = new SemanticWatchReducer();
 let toastQueue: AttentionEntry[] = [];
@@ -77,11 +78,37 @@ function formatReason(reason: string): string {
   if (reason === 'left cluster') return 'moved away from its cluster';
   if (reason === 'cluster changed') return 'shifted into a different cluster';
   if (reason === 'pinned neighborhood changed') return 'changed the local focus field';
-  const enteredMatch = /^entered pinned neighborhood of "(.+)"$/.exec(reason);
-  if (enteredMatch) return `moved into focus around ${enteredMatch[1]}`;
-  const leftMatch = /^left pinned neighborhood of "(.+)"$/.exec(reason);
-  if (leftMatch) return `moved out of focus around ${leftMatch[1]}`;
   return reason;
+}
+
+function pinTitlesFrom(reasons: string[], verb: 'entered' | 'left'): string[] {
+  const pattern = new RegExp(`^${verb} pinned neighborhood of "(.+)"$`);
+  return reasons.flatMap((reason) => pattern.exec(reason)?.[1] ?? []);
+}
+
+/**
+ * NearPin.dc.html §3: one entry naming the node and the pin, saying what the
+ * agent gets. "Out of the brief" only once the node is near no pin at all.
+ */
+function nearPinEntry(name: string, nodeId: string, reasons: string[]): { title: string; body: string } | null {
+  const quoted = (titles: string[]) => titles.map((title) => `“${title}”`).join(' and ');
+  const entered = pinTitlesFrom(reasons, 'entered');
+  if (entered.length > 0) {
+    return {
+      title: 'Near a pin',
+      body: `“${name}” is now near ${quoted(entered)} — the agent gets its title and summary.`,
+    };
+  }
+  const left = pinTitlesFrom(reasons, 'left');
+  if (left.length === 0) return null;
+  const still = nearPins.value.get(nodeId) ?? [];
+  return {
+    title: 'Left a pin',
+    body:
+      still.length > 0
+        ? `“${name}” left ${quoted(left)} — still near ${quoted(still.map((pin) => pin.pinTitle))}.`
+        : `“${name}” left ${quoted(left)} — it is out of the agent’s brief.`,
+  };
 }
 
 function entryFromContextPin(event: ContextPinWatchEvent): AttentionEntry | null {
@@ -184,14 +211,9 @@ function entryFromMoveEnd(event: MoveEndWatchEvent): AttentionEntry | null {
   const createdAt = event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now();
 
   if (reasons.some((reason) => reason.includes('pinned neighborhood'))) {
-    if (event.nodes.length === 1) {
-      return makeEntry(
-        'neighborhood',
-        'Neighborhood changed',
-        `${names[0]} ${formatReason(event.nodes[0].reasons[0])}`,
-        event.nodes.map((node) => node.id),
-        createdAt,
-      );
+    const near = event.nodes.length === 1 ? nearPinEntry(names[0], event.nodes[0].id, event.nodes[0].reasons) : null;
+    if (near) {
+      return makeEntry('neighborhood', near.title, near.body, [event.nodes[0].id], createdAt);
     }
     return makeEntry(
       'neighborhood',

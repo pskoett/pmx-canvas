@@ -292,10 +292,11 @@ describe('command bar', () => {
     expect(two.querySelector('.command-bar-target')).toBeNull();
   });
 
-  test('shows the chips as gold ✦ pins with the "in agent context" note and no meter of its own', () => {
+  test('shows the chips as plain blue pins with the "in agent context" note and no meter of its own', () => {
     act(() => replaceContextPinsFromServer(['n1']));
     const { container } = render(<CommandBar />);
-    expect(container.querySelector('.command-bar-chip-glyph')?.textContent).toBe('✦');
+    // ✦ means "an agent wrote this" (HeaderMarks); a pinned chip is title + × only (Context.dc.html).
+    expect(container.querySelector('.command-bar-chip')?.textContent).not.toContain('✦');
     expect(container.querySelector('.command-bar-chips-note')?.textContent).toBe('in agent context');
     expect(container.querySelector('[data-testid="token-cost"]')).toBeNull();
   });

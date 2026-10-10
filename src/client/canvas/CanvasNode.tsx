@@ -40,6 +40,7 @@ import {
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { reportHumanGrab, takeOverNode, yieldedNodes } from '../state/human-store';
+import { hoveredNodeId, noteNearAtGrab, settleNearAfterDrop } from '../state/near-pin-store';
 import { AxStepControls } from '../nodes/AxStepControls';
 import { getNodeIcon, IconChevronRight, IconClose, IconMore, IconExpand, IconPin } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
@@ -203,6 +204,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     clearSnapCache();
     activeGuides.value = null;
     reportHumanGrab(null);
+    settleNearAfterDrop(node.id);
     if (escListener.current) {
       document.removeEventListener('keydown', escListener.current);
       escListener.current = null;
@@ -301,6 +303,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       bringToFront(node.id);
       // User wins (phase 8): hold the node for the drag; an agent mid-edit yields.
       reportHumanGrab(node.id);
+      noteNearAtGrab(node.id);
       takeOverNode(node.id, typeof node.data.title === 'string' && node.data.title ? node.data.title : node.type);
       buildSnapCache(node.id, nodes.value.values());
       if (node.type !== 'group') {
@@ -546,6 +549,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         if (e.shiftKey) e.preventDefault();
       }}
       onDblClick={handleDblClick}
+      onPointerEnter={() => {
+        hoveredNodeId.value = node.id;
+      }}
+      onPointerLeave={() => {
+        if (hoveredNodeId.value === node.id) hoveredNodeId.value = null;
+      }}
     >
       <div class="node-content">
         {isGroup && (

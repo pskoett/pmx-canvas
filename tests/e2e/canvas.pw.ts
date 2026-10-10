@@ -1264,7 +1264,7 @@ test('semantic attention layer shows focus and interpretation history', async ({
     },
   });
 
-  await expect(page.locator('.attention-history')).toContainText('Neighborhood changed');
+  await expect(page.locator('.attention-history')).toContainText('“auth.ts” is now near “Bug report”');
 });
 
 test('renders webpage node preview content from cached server fetch data', async ({ page, request }) => {
@@ -3752,7 +3752,7 @@ test('a pinned node shows whether the agent read it and whether its copy is curr
     headers: { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token ?? '' },
     data: { content: 'second' },
   });
-  await expect(mark).toHaveAttribute('data-mark', 'changed since read');
+  await expect(mark).toHaveAttribute('data-mark', 'changed');
   await expect(mark).toHaveCSS(
     'color',
     await page.evaluate(() => {

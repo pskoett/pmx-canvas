@@ -107,7 +107,17 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   that changed since the cursor arrives in full as `changed` instead; a first read delivers every
   node in full, so it has no near entries. The client computes the same `findNeighborhoods` and
   shows the dotted "near" / "near N" chip on unpinned nodes, with the pins and distances on hover.
-- **4b, next.** Tethers and the 600 px radius when hovering a pin, the drag preview, the single
+- **4b, done (2026-10-10).** Hovering, selecting or dragging a pin, or "Show pins" in a near
+  chip's card, draws numbered tethers (nearest first) and the 600 px radius in one screen-space
+  layer; dragging an unpinned card rings its nearest pin and previews its chip; a drop inside
+  pulses the chip once, a drop outside fades it; one Updates entry names the card and the pin
+  ("out of the agent's brief" only when it is near no pin). The near chip's card lists the pins
+  with distances and offers "Pin to put it first" (the drawing's wording, replacing "Pin to send
+  content") and "Show pins"; it draws over the canvas because a card paints contained. Perf
+  check (2026-10-10, 306 nodes / 20 pins, in-app pane): drag frames showed long tasks with and
+  without pins (8 vs 13), so none are attributable to near-a-pin; the drag itself is slow at
+  that size.
+- **4b, as planned.** Tethers and the 600 px radius when hovering a pin, the drag preview, the single
   Updates entry that replaces "Neighborhood changed", the context chip's "N cards · M near" count,
   and "Pin to send content" in the chip's hover. The maintainer agreed the design (2026-10-06) on
   the condition that performance stays good:

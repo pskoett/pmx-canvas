@@ -93,8 +93,24 @@ describe('attention bridge', () => {
       },
     });
 
-    expect(attentionHistory.value[0]?.title).toBe('Neighborhood changed');
-    expect(attentionHistory.value[0]?.detail).toContain('auth.ts');
+    // NearPin.dc.html §3: names the node and the pin and says what the agent gets.
+    expect(attentionHistory.value[0]?.title).toBe('Near a pin');
+    expect(attentionHistory.value[0]?.detail).toBe(
+      '“auth.ts” is now near “Bug report” — the agent gets its title and summary.',
+    );
+
+    syncAttentionFromSse({
+      event: 'canvas-layout-update',
+      data: {
+        layout: makeLayout([
+          { id: 'a', type: 'markdown', data: { title: 'Bug report' }, position: { x: 0, y: 0 } },
+          { id: 'b', type: 'file', data: { title: 'auth.ts' }, position: { x: 1100, y: 10 } },
+        ]),
+        timestamp: '2026-04-18T10:01:03.000Z',
+      },
+    });
+    expect(attentionHistory.value[0]?.title).toBe('Left a pin');
+    expect(attentionHistory.value[0]?.detail).toBe('“auth.ts” left “Bug report” — it is out of the agent’s brief.');
   });
 
   test('a burst of changes shows the newest toasts, not a minute-long replay of stale ones', async () => {

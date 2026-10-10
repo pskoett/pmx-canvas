@@ -1,9 +1,15 @@
 import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
-import { contextPinMeta, pinnedReadState, writerName } from '../state/context-status-store';
-import { centerDistance } from '../../server/spatial-analysis.js';
-import { nodes } from '../state/canvas-store';
-import { nearPins } from '../state/near-pin-store';
+import { contextPinMeta, linksChanged, pinnedReadState, writerName } from '../state/context-status-store';
+import { viewport } from '../state/canvas-store';
+import { grabbingNodeId } from '../state/human-store';
+import {
+  clearNearChange,
+  closeNearCardSoon,
+  nearCard,
+  nearChange,
+  nearPins,
+  openNearCard,
+} from '../state/near-pin-store';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { BarHint } from './BarHint';
 
@@ -51,9 +57,11 @@ function markFor(node: CanvasNodeState, pinned: boolean): Mark | null {
     return {
       tone: 'warn',
       glyph: 'warn',
-      word: 'changed since read',
+      word: 'changed',
       label: "The agent's copy is out of date",
-      body: `Changed after ${state.by} read it at ${clock(state.at)}.${pinnedBy}`,
+      body: `Text changed after ${state.by} read it at ${clock(state.at)}${
+        linksChanged(node.id, node.linksRevision ?? 0) ? ' · links changed too' : ''
+      }.${pinnedBy}`,
     };
   }
   return {
@@ -168,7 +176,9 @@ export function isAgentPin(nodeId: string): boolean {
 /**
  * Near a pin (docs/design/NearPin.dc.html): a dotted pin-blue chip on an
  * unpinned node the brief carries as title + short summary. Weaker than "in
- * context" on purpose: the agent sees it only because a pin is nearby.
+ * context" on purpose: the agent sees it only because a pin is nearby. Hover,
+ * focus or tap opens its card (`NearPinCard`, §2); it previews while dragged,
+ * pulses once on a drop inside and fades on a drop outside (§3).
  */
 export function NearPinMark({
   node,
@@ -179,44 +189,48 @@ export function NearPinMark({
   pinned: boolean;
   fold?: ChipFold;
 }) {
-  // The pins' titles join this node's DOM only while the chip is hovered or
-  // focused: at rest the node must not contain other nodes' titles.
-  const [open, setOpen] = useState(false);
-  const near = pinned ? undefined : nearPins.value.get(node.id);
+  const live = pinned ? undefined : nearPins.value.get(node.id);
+  const change = nearChange.value?.nodeId === node.id ? nearChange.value : null;
+  const fading = !live && !pinned && change?.kind === 'out';
+  const near = live ?? (fading ? change.pins : undefined);
   if (!near || near.length === 0 || fold === 'hidden') return null;
   const word = near.length > 1 ? `near ${near.length}` : 'near';
-  // Distances change every drag frame; read them only while the hint is open.
-  const where = open
-    ? near
-        .map((pin) => {
-          const pinNode = nodes.value.get(pin.pinNodeId);
-          return pinNode ? `“${pin.pinTitle}” (${Math.round(centerDistance(node, pinNode))} px)` : `“${pin.pinTitle}”`;
-        })
-        .join(', ')
-    : '';
+  const moment = fading
+    ? ' is-fading'
+    : change?.kind === 'in'
+      ? ' is-pulse'
+      : grabbingNodeId.value === node.id
+        ? ' is-preview'
+        : '';
+  const open = (event: Event) => {
+    if (!fading) openNearCard(node.id, event.currentTarget as Element, viewKey());
+  };
   return (
-    <BarHint
-      label={open ? `Near ${where}` : 'Near a pin'}
-      body="The agent gets its title and a short summary because a pin is nearby. Pin it to put it first."
-      align="end"
-      fitWithin=".node-content"
-      tapToOpen
+    <button
+      type="button"
+      class={`node-near-mark${fold === 'glyph' ? ' is-glyph' : ''}${moment}`}
+      aria-label={fold === 'glyph' ? word : undefined}
+      aria-expanded={nearCard.value?.nodeId === node.id}
+      data-near={near.map((pin) => pin.pinNodeId).join(' ')}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerEnter={open}
+      onPointerLeave={closeNearCardSoon}
+      onFocus={open}
+      onBlur={closeNearCardSoon}
+      onClick={open}
+      onAnimationEnd={() => clearNearChange(node.id)}
     >
-      <span
-        class={`node-near-mark${fold === 'glyph' ? ' is-glyph' : ''}`}
-        aria-label={fold === 'glyph' ? word : undefined}
-        data-near={near.map((pin) => pin.pinNodeId).join(' ')}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocusIn={() => setOpen(true)}
-        onFocusOut={() => setOpen(false)}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="8" class="node-near-ring" />
-          <circle cx="12" cy="12" r="2.2" class="node-near-dot" />
-        </svg>
-        {fold === 'word' && word}
-      </span>
-    </BarHint>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" class="node-near-ring" />
+        <circle cx="12" cy="12" r="2.2" class="node-near-dot" />
+      </svg>
+      {fold === 'word' && word}
+    </button>
   );
+}
+
+/** The viewport as a key: the card closes when it changes. */
+export function viewKey(): string {
+  const v = viewport.value;
+  return `${v.x},${v.y},${v.scale}`;
 }

@@ -1,8 +1,19 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { NearPinMark, NodeContextMark, NodeTypeIcon, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
-import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
-import { nearPins } from '../../src/client/state/near-pin-store.ts';
+import { NearPinCard, NearPinLayer } from '../../src/client/canvas/NearPinLayer.tsx';
+import { contextPinnedNodeIds, nodes, selectedNodeIds } from '../../src/client/state/canvas-store.ts';
+import { grabbingNodeId } from '../../src/client/state/human-store.ts';
+import {
+  hoveredNodeId,
+  nearCard,
+  nearChange,
+  nearPins,
+  noteNearAtGrab,
+  settleNearAfterDrop,
+  shownPinsFor,
+  tetherFocus,
+} from '../../src/client/state/near-pin-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
 import type { CanvasNodeState, NodeActor } from '../../src/client/types.ts';
 
@@ -53,7 +64,7 @@ describe('pinned nodes: read, not read, changed since read', () => {
     });
     expect(markOf({ node: node({ contentRevision: 5 }), pinned: true })).toBe('read');
     cleanup();
-    expect(markOf({ node: node({ contentRevision: 6 }), pinned: true })).toBe('changed since read');
+    expect(markOf({ node: node({ contentRevision: 6 }), pinned: true })).toBe('changed');
   });
 
   test('a read from before the pin does not count: the agent has not loaded it since you pinned it', () => {
@@ -138,7 +149,7 @@ describe('folding a chip so the title keeps its room', () => {
       pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } },
     });
     const { container } = render(<NodeContextMark node={node({ contentRevision: 6 })} pinned fold="hidden" />);
-    expect(container.querySelector('.node-context-mark')?.textContent).toBe('changed since read');
+    expect(container.querySelector('.node-context-mark')?.textContent).toBe('changed');
   });
 });
 
@@ -157,16 +168,114 @@ describe('near a pin', () => {
       return text;
     };
     expect(nearOf(close)).toBe('near 2');
-    // At rest the node must not contain the pins' titles; hovering the chip names them.
+    // At rest the node must not contain the pins' titles; the chip's card (over the canvas) names them.
     const { container } = render(<NearPinMark node={close} pinned={false} />);
     expect(container.textContent).not.toContain('Release runbook');
-    fireEvent.mouseEnter(container.querySelector('.node-near-mark') as Element);
-    expect(container.textContent).toContain('Release runbook');
     cleanup();
+    nearCard.value = null;
     expect(nearOf(far)).toBeNull();
     expect(nearOf(pinA, true)).toBeNull();
     nodes.value = new Map();
     contextPinnedNodeIds.value = new Set();
+  });
+});
+
+function nearScene() {
+  const pinA = node({ id: 'pin-a', data: { title: 'Release runbook' } });
+  const pinB = node({ id: 'pin-b', position: { x: 300, y: 0 }, data: { title: 'Rollout' } });
+  const close = node({ id: 'close', position: { x: 150, y: 0 }, data: { title: 'Price page copy' } });
+  const farther = node({ id: 'farther', position: { x: 0, y: 400 }, data: { title: 'Pricing notes' } });
+  nodes.value = new Map([pinA, pinB, close, farther].map((entry) => [entry.id, entry]));
+  contextPinnedNodeIds.value = new Set(['pin-a', 'pin-b']);
+  return { close };
+}
+
+function resetNear() {
+  nodes.value = new Map();
+  contextPinnedNodeIds.value = new Set();
+  selectedNodeIds.value = new Set();
+  hoveredNodeId.value = null;
+  shownPinsFor.value = null;
+  nearCard.value = null;
+  nearChange.value = null;
+  grabbingNodeId.value = null;
+}
+
+describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.html §2–3)', () => {
+  afterEach(resetNear);
+
+  test('hovering the chip opens a card with each pin and its distance, then Pin / Show pins', () => {
+    const { close } = nearScene();
+    const { container } = render(
+      <>
+        <NearPinMark node={close} pinned={false} />
+        <NearPinCard />
+      </>,
+    );
+    fireEvent.pointerEnter(container.querySelector('.node-near-mark') as Element);
+    const card = container.querySelector('.near-hint') as HTMLElement;
+    expect(card.querySelector('.near-hint-label')?.textContent).toBe('Near 2 pins');
+    const rows = [...card.querySelectorAll('.near-hint-row')].map((row) => row.textContent);
+    expect(rows).toEqual(['Release runbook150 px', 'Rollout150 px']);
+    fireEvent.click(card.querySelector('.near-hint-show') as Element);
+    expect(shownPinsFor.value).toBe('close');
+    expect(tetherFocus.value.pinIds.sort()).toEqual(['pin-a', 'pin-b']);
+    fireEvent.click(card.querySelector('.near-hint-pin') as Element);
+    expect(contextPinnedNodeIds.value.has('close')).toBe(true);
+    expect(nearCard.value).toBeNull();
+  });
+
+  test('a hovered pin draws numbered tethers to its neighbours, nearest first, and its 600 px radius', () => {
+    nearScene();
+    hoveredNodeId.value = 'pin-a';
+    const { container } = render(<NearPinLayer />);
+    expect(container.querySelector('[data-pin-id="pin-a"] .near-pin-radius')?.getAttribute('r')).toBe('600');
+    const tethers = [...container.querySelectorAll('.near-pin-tether')].map((tether) => [
+      (tether as HTMLElement).dataset.nearNode,
+      tether.querySelector('.near-pin-number-label')?.textContent,
+    ]);
+    expect(tethers).toEqual([
+      ['close', '1'],
+      ['farther', '2'],
+    ]);
+  });
+
+  test('nothing is drawn while no pin is hovered, selected, dragged or shown', () => {
+    nearScene();
+    const { container } = render(<NearPinLayer />);
+    expect(container.querySelector('.near-pin-layer')).toBeNull();
+  });
+
+  test('dragging an unpinned node rings only the nearest pin and previews its chip', () => {
+    const { close } = nearScene();
+    nodes.value = new Map(nodes.value).set('close', { ...close, position: { x: 260, y: 0 } });
+    grabbingNodeId.value = 'close';
+    expect(tetherFocus.value).toEqual({ pinIds: ['pin-b'], ringOnly: true });
+    const { container } = render(<NearPinMark node={nodes.value.get('close') as CanvasNodeState} pinned={false} />);
+    expect(container.querySelector('.node-near-mark')?.classList.contains('is-preview')).toBe(true);
+  });
+
+  test('a drop inside pulses the chip once; a drop outside keeps it to fade out', () => {
+    const { close } = nearScene();
+    const far = { ...close, position: { x: 3000, y: 0 } };
+    nodes.value = new Map(nodes.value).set('close', far);
+    noteNearAtGrab('close');
+    nodes.value = new Map(nodes.value).set('close', close);
+    settleNearAfterDrop('close');
+    expect(nearChange.value?.kind).toBe('in');
+    const first = render(<NearPinMark node={close} pinned={false} />);
+    const chip = first.container.querySelector('.node-near-mark') as Element;
+    expect(chip.classList.contains('is-pulse')).toBe(true);
+    fireEvent.animationEnd(chip);
+    expect(nearChange.value).toBeNull();
+    cleanup();
+
+    noteNearAtGrab('close');
+    nodes.value = new Map(nodes.value).set('close', far);
+    settleNearAfterDrop('close');
+    expect(nearChange.value?.kind).toBe('out');
+    const { container } = render(<NearPinMark node={far} pinned={false} />);
+    expect(container.querySelector('.node-near-mark')?.classList.contains('is-fading')).toBe(true);
   });
 });
 

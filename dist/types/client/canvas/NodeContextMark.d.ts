@@ -46,10 +46,14 @@ export declare function isAgentPin(nodeId: string): boolean;
 /**
  * Near a pin (docs/design/NearPin.dc.html): a dotted pin-blue chip on an
  * unpinned node the brief carries as title + short summary. Weaker than "in
- * context" on purpose: the agent sees it only because a pin is nearby.
+ * context" on purpose: the agent sees it only because a pin is nearby. Hover,
+ * focus or tap opens its card (`NearPinCard`, §2); it previews while dragged,
+ * pulses once on a drop inside and fades on a drop outside (§3).
  */
 export declare function NearPinMark({ node, pinned, fold, }: {
     node: CanvasNodeState;
     pinned: boolean;
     fold?: ChipFold;
 }): import("preact").JSX.Element | null;
+/** The viewport as a key: the card closes when it changes. */
+export declare function viewKey(): string;

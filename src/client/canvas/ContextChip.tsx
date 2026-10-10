@@ -13,6 +13,7 @@ import {
 import { contextPinMeta, linksChanged, pinnedReadState, writerName } from '../state/context-status-store';
 import { nearPins } from '../state/near-pin-store';
 import { activeSession } from '../state/presence-store';
+import { GLYPHS } from './NodeContextMark';
 
 /**
  * One context chip (docs/design/ContextChip.dc.html): everything in the agent's
@@ -184,7 +185,9 @@ export function ContextChip() {
                 <>
                   <div class="context-panel-section">
                     <span>Near · {near.length}</span>
-                    <span class="context-panel-cap-inline">derived · sent as title + summary</span>
+                    <span class="context-panel-cap-inline">
+                      derived · <span class="context-panel-wide">sent as </span>title + summary
+                    </span>
                   </div>
                   <ul class="context-panel-list">
                     {near.map(([id, pins]) => (
@@ -251,8 +254,20 @@ export function ContextChip() {
   );
 }
 
+/** A read-state tag with its glyph (ContextChip.dc.html): eye read, eye-off not read, warn changed. */
 function ReadTag({ state, at }: { state: 'read' | 'not-read' | 'changed'; at: string | null }) {
-  if (state === 'changed') return <span class="context-tag is-changed">△ changed</span>;
-  if (state === 'read' && at) return <span class="context-tag is-read">read {age(at)}</span>;
-  return <span class="context-tag is-not-read">not read yet</span>;
+  const [tone, glyph, word] =
+    state === 'changed'
+      ? (['is-changed', GLYPHS.warn, 'changed'] as const)
+      : state === 'read' && at
+        ? (['is-read', GLYPHS.eye, `read ${age(at)}`] as const)
+        : (['is-not-read', GLYPHS.eyeOff, 'not read yet'] as const);
+  return (
+    <span class={`context-tag ${tone}`}>
+      <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
+        <path d={glyph} />
+      </svg>
+      {word}
+    </span>
+  );
 }

@@ -10,7 +10,7 @@ import { ChoiceMenu } from './ChoiceMenu';
 /**
  * Command bar (rail-chrome-v2 phase 5): the human's steering surface while a
  * session is attached — the design's floating composer, centered at the
- * bottom of the canvas region. Above it, the pinned context as gold ✦ chips
+ * bottom of the canvas region. Above it, the pinned context as blue chips
  * (× unpins — the same pin the node's own control toggles); the composer row
  * posts an AX steering message to the session. What is in the agent's
  * context is summarised in the top bar's context chip (`ContextChip`).
@@ -60,9 +60,6 @@ export function CommandBar() {
               typeof node?.data.title === 'string' && node.data.title.trim() ? node.data.title : (node?.type ?? id);
             return (
               <span key={id} class="command-bar-chip" data-node-id={id}>
-                <span class="command-bar-chip-glyph" aria-hidden="true">
-                  ✦
-                </span>
                 <span class="command-bar-chip-label">{title}</span>
                 <BarHint label="Remove from context" side="up">
                   <button

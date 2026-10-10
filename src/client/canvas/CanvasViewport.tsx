@@ -42,6 +42,7 @@ import { importFiles } from './import-files';
 import { IntentLayer } from './IntentLayer';
 import { AgentPresenceLayer } from './AgentPresenceLayer';
 import { HumanPresenceLayer } from './HumanPresenceLayer';
+import { NearPinCard, NearPinLayer } from './NearPinLayer';
 import { reportHumanCursor } from '../state/human-store';
 import { ScopeFenceLayer } from './ScopeFenceLayer';
 import { CanvasNode } from './CanvasNode';
@@ -953,6 +954,8 @@ export function CanvasViewport({
           }}
         />
       )}
+      <NearPinLayer />
+      <NearPinCard />
       {lassoStyle && <div class="lasso-rect" style={lassoStyle} />}
       {dropActive && (
         <div class="drop-zone-overlay">

@@ -69,7 +69,8 @@ function logAppError(action: string, error: unknown): void {
 }
 
 export function App() {
-  const [minimapVisible, setMinimapVisible] = useState(true);
+  // Off by default in a narrow pane (Pane600.dc.html); the Settings menu turns it on.
+  const [minimapVisible, setMinimapVisible] = useState(() => window.innerWidth >= 700);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [boardLinkOpen, setBoardLinkOpen] = useState(false);

@@ -27,7 +27,7 @@ import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
-import { activeSession, agentPresences, attachedSessions, writerColor } from '../state/presence-store';
+import { activeSession, agentPresences, attachedSessions, writerColor, writerInitial } from '../state/presence-store';
 import { endSession, pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
@@ -108,6 +108,9 @@ function AgentChip() {
                 data-phase={session.phase}
                 style={{ '--identity-color': writerColor(session.sessionId) }}
               >
+                <span class="agent-chip-initial" aria-hidden="true">
+                  {writerInitial(session.label)}
+                </span>
                 <span class="agent-chip-dot" aria-hidden="true" />
                 <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
                 <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
