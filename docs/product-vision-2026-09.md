@@ -436,6 +436,90 @@ boards for real tasks and return to them across sessions. Gather evidence of
 which workflows they keep using and where the ChatGPT/Sites experience limits
 them. A successful deployment or a one-off demo alone does not justify Part 5.
 
+### Hosted product metrics
+
+**Decided with the maintainer, 2026-10-10:** the first hosted version needs
+product usage metadata and an owner/admin dashboard from the pilot onward.
+The maintainer must be able to see user numbers, overall usage, feature
+adoption and evidence of where PMX provides value. The metadata must also
+support continuous improvement of the whole project: product decisions, UX,
+reliability, performance, node capabilities and agent-context quality across
+local, ChatGPT and full hosted distributions. Carry the same metric
+definitions into the later full hosted version so results remain comparable.
+
+| Question | Product metrics |
+|---|---|
+| How many people use PMX? | Total registered users (first authenticated PMX use), new users, daily/weekly/monthly active users and active workspaces. Show selected periods and trends. |
+| Do new users reach useful work? | Activation funnel: first authenticated use → first board created or opened → first meaningful human action or successful agent operation → return to that board in a later session. Show conversion and time between steps. |
+| Do people keep using it? | Weekly retention by first-use cohort, returning users, boards revisited across sessions and retained active workspaces. Show cohort sizes and only evaluate return windows that have elapsed. |
+| What do people use? | Boards created and actively used; node creation/use by type; imports, edits, pins, links, searches and shares; MCP tool calls and context reads. Separate human activity from agent activity and break down by known client/surface. |
+| Does curation reach the agent? | Sessions with human curation followed by an agent context read; fraction of eligible read sessions that receive curated items; older-board context retrieved in later sessions. Keep delivery evidence separate from task outcomes. |
+| Where is the value? | Repeat use of curated boards, reuse of earlier knowledge and optional task-level helpfulness/outcome feedback. Pair these signals with Part 1's controlled curation-effect evaluation; activity or correlation alone does not prove improved work. |
+| What prevents useful work? | Failed operations, failed imports, reconnect failures and operation latency, grouped by feature and surface. Include stored bytes and uploaded bytes to understand usage and serving cost drivers. |
+
+**Count people and activity honestly.** Define an active user as an authenticated
+person with a meaningful product action in the period, such as an edit, pin,
+search or context retrieval. Track agent-only activity attributed to a user
+separately so autonomous loops do not appear as human engagement. Exclude
+heartbeats, background polling and retries from engagement counts; report
+anonymous visits separately. Distinguish the requesting person from the agent
+session executing a tool. Installation counts belong in the funnel only if the
+distribution platform supplies them; otherwise show first observed plugin use
+and label unavailable acquisition data explicitly.
+
+**Metadata contract.** Use a small versioned event vocabulary with an event ID,
+server timestamp, pseudonymous user/workspace IDs, session and board IDs,
+actor kind, known client/surface, operation or feature, node type where relevant,
+success/failure and duration. Include product/build version, runtime and
+structured error codes where relevant so regressions can be traced to releases
+and environments; do not collect raw error payloads that may contain user
+content. Link curation and context-read events through
+scoped IDs and revisions without copying their contents. Use server-confirmed
+events for completed operations and client events for visible interactions;
+deduplicate retries and keep the two event sources distinguishable. Mark
+maintainer, demo, test and automation traffic so it can be excluded. Unknown
+clients and unobserved outcomes stay unknown rather than being inferred.
+
+**Turn evidence into project improvements.** Make aggregated metadata available
+through an authorized query/export interface as well as the dashboard, so the
+maintainer and explicitly authorized development agents can investigate it.
+Use a repeatable loop: identify a pattern, form a hypothesis, reproduce it with
+synthetic or explicitly provided examples, make a targeted change, and compare
+the relevant measures after release. Record the evidence, expected improvement
+and verification in the issue or evaluation that drives the work.
+
+Examples include simplifying an onboarding step where users stop, fixing a node
+renderer with repeated failures, reducing latency on large boards, improving a
+context adapter that misses pinned material, and turning recurring defects into
+regression tests. Compare releases and cohorts with their sample sizes and
+instrumentation coverage; validate causal claims with controlled evaluations
+or experiments. Low use alone does not justify removing a node type, and hosted
+usage does not represent every local workflow. Improvements to shared code
+should benefit all distributions while keeping the local verification gates.
+Analytics informs prioritization and evaluation; it does not automatically
+change users' boards, rewrite the roadmap or grant agents access to raw content.
+
+**Dashboard and data boundaries.** Provide date ranges, cohort views and
+breakdowns by surface, feature and node type, with clear metric definitions,
+denominators and collection coverage. Restrict product-wide analytics to the
+service owner or explicitly authorized product admins; workspace admins see
+only their own scope. Collect behavioral metadata, not board text, prompts,
+file contents, titles, email addresses or credentials as analytics payloads.
+Document collection, access, retention and deletion behavior before the pilot.
+Local PMX keeps local SQLite and does not silently send usage to the hosted
+service; any future local telemetry is a separate explicit opt-in decision.
+
+**Acceptance:** known test journeys produce the expected user counts, funnel
+steps and retention cohorts without double-counting retries or agent loops.
+An authorized product admin can inspect real pilot usage and trace a metric to
+its definition and contributing metadata. Verify access isolation and absence
+of content/secrets in events. Report missing instrumentation as a coverage gap,
+not as zero use. Product analytics ships with the ChatGPT pilot and supplies
+the adoption evidence for the Part 5 decision. Demonstrate the improvement loop
+with a reproducible test journey: query a known friction or failure pattern,
+link it to a proposed fix and regression check, and compare versioned results.
+Use the same loop on real usage as evidence accumulates.
+
 The milestone follows the team features and retains local and self-hosted
 distribution. The assessment below separates documented platform capabilities,
 source-level portability and deployed verification; none is interchangeable.
@@ -632,7 +716,8 @@ clients remains subject to the validation above.
 
 **Gate to start:** review evidence of recurring use by people beyond the
 maintainer, successful plugin distribution and concrete needs that justify a
-standalone service. Proceed when that evidence supports the investment; if it
+standalone service, using Part 4's product metrics alongside user feedback.
+Proceed when that evidence supports the investment; if it
 does not, improve the first version before expanding the hosting scope. There
 is no automatic launch date or adoption threshold invented in this vision.
 Local and self-hosted PMX remain part of the product.
