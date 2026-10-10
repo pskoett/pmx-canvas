@@ -14,6 +14,8 @@ export interface NearPin {
  * changes: the chips subscribed to it re-render only when a neighbourhood does.
  */
 export declare const nearPins: import("@preact/signals-core").ReadonlySignal<Map<string, NearPin[]>>;
+/** Pin id → its neighbours' ids: the tether layer looks a pin up, never scans the near map. */
+export declare const neighboursByPin: import("@preact/signals-core").ReadonlySignal<Map<string, string[]>>;
 /** The node under the pointer: a hovered pin draws its neighbours (NearPin.dc.html §2). */
 export declare const hoveredNodeId: import("@preact/signals-core").Signal<string | null>;
 /** A near node whose pins the human asked to see from its chip ("Show pins"). */
@@ -46,6 +48,7 @@ export declare const nearCard: import("@preact/signals-core").Signal<{
     at: {
         left: number;
         right: number;
+        top: number;
         bottom: number;
     };
     view: string;

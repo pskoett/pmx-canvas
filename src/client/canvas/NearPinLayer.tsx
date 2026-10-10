@@ -5,6 +5,7 @@ import {
   keepNearCard,
   nearCard,
   nearPins,
+  neighboursByPin,
   shownPinsFor,
   tetherFocus,
 } from '../state/near-pin-store';
@@ -47,7 +48,7 @@ export function NearPinLayer() {
   if (focus.pinIds.length === 0) return null;
   const v = viewport.value;
   const all = nodes.value;
-  const near = nearPins.value;
+  const byPin = neighboursByPin.value;
   const toScreen = (x: number, y: number): Point => ({ x: x * v.scale + v.x, y: y * v.scale + v.y });
 
   return (
@@ -66,9 +67,8 @@ export function NearPinLayer() {
         const r = NEAR_RADIUS * v.scale;
         const neighbours = focus.ringOnly
           ? []
-          : [...near]
-              .filter(([, pins]) => pins.some((entry) => entry.pinNodeId === pinId))
-              .map(([id]) => all.get(id))
+          : (byPin.get(pinId) ?? [])
+              .map((id) => all.get(id))
               .filter((node): node is CanvasNodeState => node !== undefined)
               .sort((a, b) => centerDistance(a, pin) - centerDistance(b, pin));
         return (
@@ -117,17 +117,30 @@ export function NearPinCard() {
   if (!node || !near) return null;
   const showing = shownPinsFor.value === node.id;
   const left = Math.max(8, Math.min(card.at.right - 240, window.innerWidth - 248));
+  // Opens below the chip, or above it when the chip sits in the lower half; scrolls if still too tall.
+  const below = card.at.bottom < window.innerHeight / 2;
+  const room = below ? window.innerHeight - card.at.bottom - 16 : card.at.top - 16;
   return (
     <div
       class="near-hint"
       role="dialog"
       aria-label={near.length > 1 ? `Near ${near.length} pins` : 'Near a pin'}
-      style={{ left: `${left}px`, top: `${card.at.bottom + 8}px` }}
+      style={{
+        left: `${left}px`,
+        maxHeight: `${Math.max(120, room)}px`,
+        ...(below ? { top: `${card.at.bottom + 8}px` } : { bottom: `${window.innerHeight - card.at.top + 8}px` }),
+      }}
       onPointerEnter={keepNearCard}
       onPointerLeave={closeNearCardSoon}
       onFocusIn={keepNearCard}
       onFocusOut={closeNearCardSoon}
       onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.stopPropagation();
+        nearCard.value = null;
+        document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(node.id)}"] .node-near-mark`)?.focus();
+      }}
     >
       <span class="near-hint-label">{near.length > 1 ? `Near ${near.length} pins` : 'Near a pin'}</span>
       {near.map((pin) => {

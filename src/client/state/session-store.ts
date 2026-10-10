@@ -3,7 +3,7 @@ import { showToast } from './attention-bridge';
 import { computed, signal } from '@preact/signals';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence.js';
-import { axSurfaceState } from './canvas-store';
+import { axSurfaceState, nodes } from './canvas-store';
 import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
 import { agentActivity } from './presence-store';
 
@@ -521,6 +521,8 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
 export async function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<boolean> {
   let ok = true;
   for (const nodeId of nodeIds) {
+    // A card you edited after the session keeps your edit.
+    if (nodes.value.get(nodeId)?.lastEditedBy?.actor === 'human') continue;
     const result = await requestOk(
       'undoSessionEdit',
       `/api/canvas/snapshots/${encodeURIComponent(snapshotId)}/restore-node`,

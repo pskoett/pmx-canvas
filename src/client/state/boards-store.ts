@@ -18,6 +18,10 @@ export interface BoardSummary {
   pinnedTitles?: Array<{ nodeId: string; title: string }>;
   links?: Array<{ nodeId: string; boardId: string; title: string | null; missing: boolean }>;
   backlinks?: Array<{ boardId: string; title: string; nodeId: string }>;
+  /** Home thumbnail (docs/design/Home.dc.html): cards as 0–1 rectangles of the board's extent. */
+  preview?: Array<{ x: number; y: number; w: number; h: number; pinned?: true }>;
+  /** Roughly what this board's map costs in the brief when pinned (README + pinned card summaries). */
+  mapChars?: number;
   /** In the agent's working set (vision move 0a); null when not pinned. */
   pin?: { pinnedBy: { actor: string; source: string; agentId?: string }; pinnedAt: string; reason?: string } | null;
 }
@@ -89,12 +93,13 @@ export async function openBoard(id: string | null): Promise<void> {
   if (sequence === openRequestSequence) applyBoards(payload);
 }
 
-export async function createAndOpenBoard(name: string): Promise<void> {
+/** Create a board (filed in `category` when given) and open it. */
+export async function createAndOpenBoard(name: string, category?: string | null): Promise<void> {
   const sequence = ++openRequestSequence;
   const created = await requestJson<{ board?: BoardSummary } | null>('createBoard', '/api/canvas/boards', null, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, ...(category ? { category } : {}) }),
   });
   if (created?.board && sequence === openRequestSequence) await openBoard(created.board.id);
 }

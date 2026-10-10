@@ -53,6 +53,19 @@ export const nearPins = computed<Map<string, NearPin[]>>(() => {
   return near;
 });
 
+/** Pin id → its neighbours' ids: the tether layer looks a pin up, never scans the near map. */
+export const neighboursByPin = computed<Map<string, string[]>>(() => {
+  const byPin = new Map<string, string[]>();
+  for (const [nodeId, pins] of nearPins.value) {
+    for (const pin of pins) {
+      const list = byPin.get(pin.pinNodeId) ?? [];
+      list.push(nodeId);
+      byPin.set(pin.pinNodeId, list);
+    }
+  }
+  return byPin;
+});
+
 /** The node under the pointer: a hovered pin draws its neighbours (NearPin.dc.html §2). */
 export const hoveredNodeId = signal<string | null>(null);
 /** A near node whose pins the human asked to see from its chip ("Show pins"). */
@@ -120,7 +133,7 @@ export function clearNearChange(nodeId: string): void {
  */
 export const nearCard = signal<{
   nodeId: string;
-  at: { left: number; right: number; bottom: number };
+  at: { left: number; right: number; top: number; bottom: number };
   view: string;
 } | null>(null);
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -129,7 +142,7 @@ export function openNearCard(nodeId: string, chip: Element, view: string): void 
   if (closeTimer) clearTimeout(closeTimer);
   closeTimer = null;
   const rect = chip.getBoundingClientRect();
-  nearCard.value = { nodeId, at: { left: rect.left, right: rect.right, bottom: rect.bottom }, view };
+  nearCard.value = { nodeId, at: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }, view };
 }
 
 /** Leaving the chip for the card must not close it: close after a short grace. */

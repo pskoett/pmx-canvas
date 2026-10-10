@@ -480,7 +480,7 @@ template; those dynamic package entries are not part of the core count.
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent-events, evidence, and steering messages |
 | `canvas://ax-pending-steering` | Undelivered steering an adapterless MCP client can claim, act on, and mark delivered |
 | `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
-| `canvas://boards` | Boards with README summaries, resolved links/backlinks, target titles, and the open board id |
+| `canvas://boards` | Boards with README summaries, resolved links/backlinks, target titles, a layout `preview` (cards as 0–1 rectangles), `mapChars` (the rough size of a pinned board's map), and the open board id |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |

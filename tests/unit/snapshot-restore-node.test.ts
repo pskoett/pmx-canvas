@@ -51,6 +51,19 @@ describe('snapshot.restore-node', () => {
     expect(card('smb').data.content).toBe('Rewritten by the agent.');
   });
 
+  test('keeps the group the card is in today, and refuses a card whose type changed', async () => {
+    const snapshotId = await editedSinceSnapshot();
+    canvasState.updateNode('smb', { data: { ...card('smb').data, parentGroup: 'g1' } });
+    await executeOperation('snapshot.restore-node', { id: snapshotId, nodeId: 'smb' }, human);
+    expect(card('smb').data.content).toBe('Eight of twelve.');
+    expect(card('smb').data.parentGroup).toBe('g1');
+
+    canvasState.updateNode('other', { type: 'status' });
+    await expect(
+      executeOperation('snapshot.restore-node', { id: snapshotId, nodeId: 'other' }, human),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
   test('refuses a missing snapshot or card (404) and a file card (400)', async () => {
     const snapshotId = await editedSinceSnapshot();
     await expect(executeOperation('snapshot.restore-node', { id: 'nope', nodeId: 'smb' }, human)).rejects.toMatchObject(

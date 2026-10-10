@@ -27,6 +27,16 @@ export interface BoardSummary {
         title: string;
         nodeId: string;
     }>;
+    /** Home thumbnail (docs/design/Home.dc.html): cards as 0–1 rectangles of the board's extent. */
+    preview?: Array<{
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        pinned?: true;
+    }>;
+    /** Roughly what this board's map costs in the brief when pinned (README + pinned card summaries). */
+    mapChars?: number;
     /** In the agent's working set (vision move 0a); null when not pinned. */
     pin?: {
         pinnedBy: {
@@ -52,7 +62,8 @@ export declare function applyBoards(data: {
 export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */
 export declare function openBoard(id: string | null): Promise<void>;
-export declare function createAndOpenBoard(name: string): Promise<void>;
+/** Create a board (filed in `category` when given) and open it. */
+export declare function createAndOpenBoard(name: string, category?: string | null): Promise<void>;
 export interface BoardCopyCard {
     id: string;
     type: string;

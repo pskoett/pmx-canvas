@@ -218,6 +218,13 @@ export function NearPinMark({
       onFocus={open}
       onBlur={closeNearCardSoon}
       onClick={open}
+      onKeyDown={(event) => {
+        // The card draws over the canvas, outside the tab order: Enter or ↓ moves focus into it.
+        if (event.key !== 'Enter' && event.key !== 'ArrowDown') return;
+        event.preventDefault();
+        open(event);
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('.near-hint button')?.focus());
+      }}
       onAnimationEnd={() => clearNearChange(node.id)}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">

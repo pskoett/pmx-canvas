@@ -44,60 +44,102 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('Home', () => {
-  test('lists boards and opens one as the human', async () => {
-    const { getByText } = render(<HomeView />);
+describe('Home (docs/design/Home.dc.html)', () => {
+  test('a card selects the board into details; Open board opens it as the human', async () => {
+    const { getByRole, getByTestId, getByText } = render(<HomeView />);
     expect(getByText('C4 OKR planning')).toBeTruthy();
-    expect(getByText(/17 nodes/)).toBeTruthy();
+    expect(getByText('17 cards')).toBeTruthy();
 
+    fireEvent.click(getByRole('button', { name: 'Discovery' }));
+    expect(getByTestId('home-details').textContent).toContain('Discovery');
     await act(async () => {
-      fireEvent.click(getByText('Discovery'));
+      fireEvent.click(getByRole('button', { name: 'Open board' }));
     });
     const open = calls.find((call) => call.url === '/api/canvas/boards/open');
     expect(JSON.parse(String(open?.init?.body))).toEqual({ id: 'b-disc' });
     expect(new Headers(open?.init?.headers).get('X-PMX-Workbench')).toBe('1');
   });
 
-  test('delete asks in place, naming the board and what it holds, before deleting', async () => {
-    const { getAllByText, getByText, queryByText } = render(<HomeView />);
+  test('the ⋯ menu focuses its first item, moves with the arrows, and Escape returns to the button', () => {
+    const { getByRole } = render(<HomeView />);
+    fireEvent.click(getByRole('button', { name: 'Discovery' }));
+    const more = getByRole('button', { name: /More: move, rename/ });
+    fireEvent.click(more);
+    expect(document.activeElement?.textContent).toBe('Move…');
+    fireEvent.keyDown(getByRole('menu'), { key: 'ArrowUp' });
+    expect(document.activeElement?.textContent).toBe('Delete…');
+    fireEvent.keyDown(getByRole('menu'), { key: 'Escape' });
+    expect(document.activeElement).toBe(more);
+  });
+
+  test('delete asks in place from the ⋯ menu, naming the board and what it holds', async () => {
+    const { getByRole, getByText, queryByText } = render(<HomeView />);
     const writes = () => calls.filter((call) => call.init?.method);
-    fireEvent.click(getAllByText('Delete')[0]);
-    expect(getByText(/and its 26 nodes and snapshots/)).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'C4 OKR planning' }));
+    fireEvent.click(getByRole('button', { name: /More: move, rename/ }));
+    fireEvent.click(getByRole('menuitem', { name: 'Delete…' }));
+    expect(getByText(/and its 26 cards and snapshots/)).toBeTruthy();
     expect(writes()).toHaveLength(0);
 
     fireEvent.click(getByText('Cancel'));
-    expect(queryByText(/and its 26 nodes/)).toBeNull();
+    expect(queryByText(/and its 26 cards/)).toBeNull();
 
-    fireEvent.click(getAllByText('Delete')[0]);
+    fireEvent.click(getByRole('button', { name: /More: move, rename/ }));
+    fireEvent.click(getByRole('menuitem', { name: 'Delete…' }));
     await act(async () => {
       fireEvent.click(getByText('Delete board'));
     });
     expect(writes().map((call) => [call.init?.method, call.url])).toEqual([['DELETE', '/api/canvas/boards/b-okr']]);
   });
+
+  test('the in-context switch pins the board; pinned boards are listed with their cost', async () => {
+    boardList.value = [
+      {
+        ...board('b-okr', 'C4 OKR planning', 26),
+        pin: { pinnedBy: { actor: 'human', source: 'browser' }, pinnedAt: 'x' },
+        mapChars: 4000,
+      },
+      board('b-disc', 'Discovery', 17),
+    ];
+    const { getByRole, getByLabelText } = render(<HomeView />);
+    expect(getByLabelText('Pinned boards').textContent).toContain('C4 OKR planning');
+    expect(getByRole('complementary', { name: 'Library' }).textContent).toContain('≈ 1.0k tokens · 1 board');
+    fireEvent.click(getByRole('button', { name: 'Discovery' }));
+    await act(async () => {
+      fireEvent.click(getByRole('switch', { name: "In the agent's context" }));
+    });
+    expect(calls.some((call) => call.url === '/api/canvas/boards/b-disc/pin')).toBe(true);
+  });
 });
 
-describe('Home categories', () => {
-  test('boards are grouped by category, migrated snapshots start folded, and a board can be moved', async () => {
+describe('Home folders', () => {
+  test('the tree lists folders, migrated snapshots start folded, a folder shows its boards, and a board can be moved', async () => {
     localStorage.removeItem('pmx-canvas-home-collapsed');
     boardList.value = [
       board('b-okr', 'C4 OKR planning', 26, 'Planning/Quarterly'),
-      board('b-loose', 'Scratch', 2),
-      board('b-old', 'Before session · Copilot · 14:00', 9, 'From old snapshots'),
+      { ...board('b-loose', 'Scratch', 2), lastOpenedAt: '2026-09-21T00:00:00.000Z' },
+      board('b-old', 'Before session · Copilot · 14:00', 9, 'From old snapshots/Copilot'),
     ];
-    const { getAllByTestId, getByRole, getByText, queryByText } = render(<HomeView />);
-    expect(
-      getAllByTestId('home-section').map((section) => section.querySelector('.home-section-name')?.textContent),
-    ).toEqual(['From old snapshots', 'Planning', 'Quarterly']);
-    expect(getByRole('region', { name: 'Unfiled boards' }).textContent).toContain('Scratch');
+    const { getByLabelText, getByRole, queryByText } = render(<HomeView />);
+    const tree = getByLabelText('Folders');
+    const rows = () => [...tree.querySelectorAll('.home-tree-name')].map((row) => row.textContent);
+    // The migrated shelf is folded until opened; Planning is open.
+    expect(rows()).toEqual(['From old snapshots', 'Planning', 'Quarterly', 'Unfiled']);
+    fireEvent.click(getByRole('button', { name: 'Unfold From old snapshots' }));
+    expect(rows()).toEqual(['From old snapshots', 'Copilot', 'Planning', 'Quarterly', 'Unfiled']);
     expect(queryByText('Back up now')).toBeNull();
-    // The migrated shelf is folded until opened.
-    expect(queryByText('Before session · Copilot · 14:00')).toBeNull();
-    fireEvent.click(getByRole('button', { name: /From old snapshots/ }));
-    expect(getByText('Before session · Copilot · 14:00')).toBeTruthy();
 
-    // Create a child under an implicit parent folder; it need not hold a board itself.
-    const scratchRow = getByText('Scratch').closest('li') as HTMLElement;
-    fireEvent.click(scratchRow.querySelector('.home-board-action') as HTMLElement);
+    // Unfiled is the starting folder here (the most recently opened board is unfiled).
+    expect(getByRole('list', { name: 'Unfiled boards' }).textContent).toContain('Scratch');
+    fireEvent.click(getByRole('button', { name: 'Planning' }));
+    expect(getByRole('heading', { level: 1 }).textContent).toBe('Planning');
+    expect(document.querySelector('[data-testid="home-section"][data-folder="Planning/Quarterly"]')).toBeTruthy();
+
+    // Move Scratch into a new child under an implicit parent folder.
+    fireEvent.click(getByRole('button', { name: 'Unfiled' }));
+    fireEvent.click(getByRole('button', { name: 'Scratch' }));
+    fireEvent.click(getByRole('button', { name: /More: move, rename/ }));
+    fireEvent.click(getByRole('menuitem', { name: 'Move…' }));
     fireEvent.click(getByRole('radio', { name: 'Planning', exact: true }));
     fireEvent.input(getByRole('textbox', { name: 'New folder name' }), { target: { value: '../Bad' } });
     await act(async () => {
@@ -113,9 +155,7 @@ describe('Home categories', () => {
     expect(patch?.url).toBe('/api/canvas/boards/b-loose');
     expect(JSON.parse(String(patch?.init?.body))).toEqual({ category: 'Planning/Monthly' });
     expect(new Headers(patch?.init?.headers).get('X-PMX-Workbench')).toBe('1');
-    await waitFor(() => {
-      expect(getByRole('region', { name: 'Planning/Monthly', exact: true }).textContent).toContain('Scratch');
-    });
+    await waitFor(() => expect(rows()).toContain('Monthly'));
   });
 });
 

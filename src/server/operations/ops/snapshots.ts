@@ -368,7 +368,19 @@ const snapshotRestoreNodeOperation = defineOperation<
       throw new OperationError(`Node "${nodeId}" is not in both the board and the snapshot.`, 404);
     // A file card mirrors its file on disk; old text would only be overwritten by the watcher.
     if (current.type === 'file') throw new OperationError('A file card follows its file; restore the file instead.');
-    canvasState.updateNode(current.id, { data: earlier.data });
+    if (earlier.type !== current.type) {
+      throw new OperationError(
+        `Node "${current.id}" was a ${earlier.type} card in that snapshot; it is a ${current.type} now.`,
+        409,
+      );
+    }
+    // Content only: where the card sits in groups is today's, not the snapshot's.
+    const data = { ...earlier.data };
+    for (const key of ['parentGroup', 'children'] as const) {
+      if (current.data[key] === undefined) delete data[key];
+      else data[key] = current.data[key];
+    }
+    canvasState.updateNode(current.id, { data });
     return { ok: true, id: current.id, contentRevision: canvasState.getNode(current.id)?.contentRevision ?? null };
   },
 });

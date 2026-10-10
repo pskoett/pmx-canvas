@@ -225,6 +225,31 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
     expect(nearCard.value).toBeNull();
   });
 
+  test('Enter on the chip opens its card; Escape in the card closes it', () => {
+    const { close } = nearScene();
+    const { container } = render(
+      <>
+        <NearPinMark node={close} pinned={false} />
+        <NearPinCard />
+      </>,
+    );
+    fireEvent.keyDown(container.querySelector('.node-near-mark') as Element, { key: 'Enter' });
+    expect(nearCard.value?.nodeId).toBe('close');
+    fireEvent.keyDown(container.querySelector('.near-hint') as Element, { key: 'Escape' });
+    expect(nearCard.value).toBeNull();
+  });
+
+  test('the card opens above a chip in the lower half of the window, and scrolls if still too tall', () => {
+    nearScene();
+    const bottom = window.innerHeight - 40;
+    nearCard.value = { nodeId: 'close', at: { left: 100, right: 160, top: bottom - 18, bottom }, view: '0,0,1' };
+    const { container } = render(<NearPinCard />);
+    const card = container.querySelector('.near-hint') as HTMLElement;
+    expect(card.style.top).toBe('');
+    expect(card.style.bottom).toBe(`${window.innerHeight - (bottom - 18) + 8}px`);
+    expect(card.style.maxHeight).toBe(`${Math.max(120, bottom - 18 - 16)}px`);
+  });
+
   test('a hovered pin draws numbered tethers to its neighbours, nearest first, and its 600 px radius', () => {
     nearScene();
     hoveredNodeId.value = 'pin-a';

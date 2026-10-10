@@ -417,12 +417,16 @@ describe('session receipt', () => {
       '“SMB interviews” changed after you read it — read it again before relying on it.',
     );
 
+    // You edited n2 after the session: Undo leaves your edit alone.
+    nodes.value = new Map(nodes.value).set('n2', {
+      ...(nodes.value.get('n2') as CanvasNodeState),
+      lastEditedBy: { actor: 'human', source: 'browser' },
+    });
     fireEvent.click(getByText('Undo'));
     await waitFor(() => expect(getByText('Undone')).toBeTruthy());
     const restores = calls.filter((call) => call.url.endsWith('/restore-node'));
     expect(restores.map((call) => [call.url, JSON.parse(String(call.init?.body)).nodeId])).toEqual([
       ['/api/canvas/snapshots/snap-1/restore-node', 'n1'],
-      ['/api/canvas/snapshots/snap-1/restore-node', 'n2'],
     ]);
   });
 

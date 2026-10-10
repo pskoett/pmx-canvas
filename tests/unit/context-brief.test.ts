@@ -128,6 +128,27 @@ describe('links changed after a read (docs/design/LinksChanged.dc.html)', () => 
     expect(byId.get('raise')?.text.split('\n')).toContain('→ flow: smb (smb)');
   });
 
+  test('a link drawn since the read leads its card, so the relations cap never hides it', () => {
+    const others = Array.from({ length: 10 }, (_, index) => node(`old-${index}`, 'x', 1));
+    const edges = [
+      ...others.map((other) => ({ from: 'raise', to: other.id, type: 'relation', revision: 1 })),
+      {
+        from: 'raise',
+        to: 'smb',
+        type: 'relation',
+        label: 'supports',
+        revision: 4,
+        changedBy: human,
+        createdAt: 't4',
+        changedAt: 't4',
+      },
+    ];
+    const brief = compileContextBrief(input({ nodes: [raise, smb, ...others], edges, contentRevision: 5, since: 3 }));
+    const lines = brief.document?.entries.find((entry) => entry.nodeId === 'raise')?.text.split('\n') ?? [];
+    expect(lines[1]).toBe('→ relation "supports": smb (smb) (new, by a person)');
+    expect(lines.at(-1)).toBe('… 3 more relations');
+  });
+
   test('a link relabelled since the read says "changed", by the agent that did it', () => {
     const brief = compileContextBrief(input({ nodes: [raise, smb], edges: links, contentRevision: 5, since: 1 }));
     const raiseText = brief.document?.entries.find((entry) => entry.nodeId === 'raise')?.text ?? '';

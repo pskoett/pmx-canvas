@@ -171,6 +171,20 @@ Per vision move 0a and `BoardPins.dc.html`: `board_pins` table (board, who, when
 pinned board's README + pinned cards, then discovery); the context chip counts "N cards · M boards";
 Home's pinned-boards section per `Home.dc.html`. Read status per board from slice 1.
 
+### 7. Home (Folders) — Home.dc.html, Pane600.dc.html (gaps 19, 20)
+
+- **Done (2026-10-10).** Home is a library: a folder tree (counts, a pin dot on folders holding a
+  pinned board, "+ New folder"), the pinned boards with their ≈ token cost, the open folder's
+  breadcrumb, subfolder cards and board cards (thumbnail from the board list's new `preview`,
+  README line, cards, ↔ links, last opened), and a details pane for the selected board
+  (in-context switch, README, pinned cards, links, Open board, ⋯ move / rename / create from /
+  delete). A card selects; Open board (or a double-click) opens. At ≤ 760 px the tree is a folder
+  picker, pins a banner, subfolders chips, boards rows and details a bottom sheet.
+- **Deviations:** folders carry no colour (decided 2026-10-07, superseding the drawing's hues); the
+  folder's README line is left out until folders have a README; the Map and Graph tabs wait for
+  wave 2; links are board portals only ("wiki link" has no data yet). The ≈ token cost per pinned
+  board is the board list's `mapChars` (README + pinned card summaries) / 4, an estimate.
+
 ### 6. The curation evaluation
 
 **Ready, 2026-10-07.** Board, seed script, protocol, rubric and how results are used are in

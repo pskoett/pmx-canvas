@@ -17,7 +17,38 @@ import { normalizeBoardCategory } from '../../../shared/boards.js';
 import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
+import { BRIEF_SUMMARY_LENGTH } from '../../context-brief.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
+
+/** The most cards a Home thumbnail draws (the largest first); the rest are noise at that size. */
+const PREVIEW_CARDS = 24;
+
+/**
+ * A board's thumbnail on Home (docs/design/Home.dc.html): its cards as
+ * rectangles in 0–1 of the board's extent, pinned ones flagged.
+ */
+function boardPreview(
+  nodes: CanvasLayout['nodes'],
+  pins: readonly string[],
+): Array<{ x: number; y: number; w: number; h: number; pinned?: true }> {
+  const cards = nodes.filter((node) => node.type !== 'group');
+  if (cards.length === 0) return [];
+  const left = Math.min(...cards.map((node) => node.position.x));
+  const top = Math.min(...cards.map((node) => node.position.y));
+  const width = Math.max(...cards.map((node) => node.position.x + node.size.width)) - left || 1;
+  const height = Math.max(...cards.map((node) => node.position.y + node.size.height)) - top || 1;
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+  return [...cards]
+    .sort((a, b) => b.size.width * b.size.height - a.size.width * a.size.height)
+    .slice(0, PREVIEW_CARDS)
+    .map((node) => ({
+      x: round((node.position.x - left) / width),
+      y: round((node.position.y - top) / height),
+      w: round(node.size.width / width),
+      h: round(node.size.height / height),
+      ...(pins.includes(node.id) ? { pinned: true as const } : {}),
+    }));
+}
 
 export function boardsPayload(): Record<string, unknown> {
   const boards = canvasState.listBoards();
@@ -40,12 +71,29 @@ export function boardsPayload(): Record<string, unknown> {
     boards: boards.map((board) => {
       const read = canvasState.readBoard(board.id, true);
       const readme = read?.layout.nodes.find((node) => node.id === board.readmeNodeId && node.type === 'markdown');
+      const pins = read?.state.contextPins ?? [];
+      const pinnedNodes = (read?.layout.nodes ?? []).filter((node) => pins.includes(node.id));
+      const summary = readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1000 }) : null;
       return {
         ...board,
-        summary: readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1000 }) : null,
-        pinnedTitles: (read?.layout.nodes ?? [])
-          .filter((node) => read?.state.contextPins.includes(node.id))
-          .map((node) => ({ nodeId: node.id, title: typeof node.data.title === 'string' ? node.data.title : node.id })),
+        summary,
+        pinnedTitles: pinnedNodes.map((node) => ({
+          nodeId: node.id,
+          title: typeof node.data.title === 'string' ? node.data.title : node.id,
+        })),
+        preview: boardPreview(read?.layout.nodes ?? [], pins),
+        // What a pinned board's map roughly costs in the brief: its README and pinned cards as summaries.
+        mapChars:
+          (summary?.length ?? 0) +
+          pinnedNodes.reduce(
+            (sum, node) =>
+              sum +
+              summarizeNodeForAgentContext(node, {
+                defaultTextLength: BRIEF_SUMMARY_LENGTH,
+                webpageTextLength: BRIEF_SUMMARY_LENGTH,
+              }).length,
+            0,
+          ),
         links: links.get(board.id) ?? [],
         backlinks: boards.flatMap((source) =>
           (links.get(source.id) ?? [])

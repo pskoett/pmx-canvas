@@ -221,6 +221,8 @@ test('the logo opens Home by click and keyboard without losing board content', a
     .filter({ hasText: 'Logo navigation board' })
     .getByRole('button', { name: /Logo navigation board/ })
     .click();
+  // Home.dc.html: a card selects the board; the details pane opens it.
+  await page.getByRole('button', { name: 'Open board' }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Logo navigation keeps this card' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Present', exact: true })).toBeVisible();
   await logo.focus();
@@ -271,23 +273,30 @@ test('switch boards from the top bar, go Home, delete with a confirm, and reopen
   await expect(home.getByRole('button', { name: 'Back up now' })).toHaveCount(0);
   await expect(home.getByTestId('home-backup')).toHaveCount(0);
 
-  // File a board under a new category: Home shows it in its own section.
+  // File a board under a new folder (⋯ → Move): it opens as its own folder.
   const firstRow = home.getByTestId('home-board').filter({ hasText: 'E2E First' });
-  await firstRow.getByRole('button', { name: 'Move', exact: true }).click();
+  await firstRow.getByRole('button', { name: 'E2E First' }).click();
+  await home.getByRole('button', { name: /More: move, rename/ }).click();
+  await home.getByRole('menuitem', { name: 'Move…' }).click();
   await page.getByRole('textbox', { name: 'New folder name' }).fill('E2E Planning');
   await page.getByRole('button', { name: 'Move board', exact: true }).click();
-  const planning = home.getByTestId('home-section').filter({ hasText: 'E2E Planning' });
-  await expect(planning.getByTestId('home-board').filter({ hasText: 'E2E First' })).toBeInViewport();
+  await home.locator('[data-testid="home-section"][data-folder="E2E Planning"]').click();
+  await expect(home.getByTestId('home-board').filter({ hasText: 'E2E First' })).toBeInViewport();
 
   // Delete asks in place first.
-  await secondRow.getByRole('button', { name: 'Delete' }).click();
-  await expect(home.getByText(/Delete E2E Second and its 1 node and snapshots/)).toBeVisible();
+  await home.getByRole('navigation', { name: 'Folder path' }).getByRole('button', { name: 'Library' }).click();
+  await secondRow.getByRole('button', { name: 'E2E Second' }).click();
+  await home.getByRole('button', { name: /More: move, rename/ }).click();
+  await home.getByRole('menuitem', { name: 'Delete…' }).click();
+  await expect(home.getByText(/Delete E2E Second and its 1 card and snapshots/)).toBeVisible();
   await home.getByRole('button', { name: 'Delete board' }).click();
   await expect(home.getByTestId('home-board').filter({ hasText: 'E2E Second' })).toHaveCount(0);
   expect((await boards(request)).boards.some((board) => board.id === second)).toBe(false);
 
   // Reopen the first board from Home: its note is back on screen.
-  await home.getByRole('button', { name: /E2E First/ }).click();
+  await home.locator('[data-testid="home-section"][data-folder="E2E Planning"]').click();
+  await home.getByRole('button', { name: 'E2E First' }).click();
+  await home.getByRole('button', { name: 'Open board' }).click();
   await expect(home).toHaveCount(0);
   await expect(page.locator('.canvas-node').filter({ hasText: 'First board note' })).toBeInViewport();
 });
@@ -325,6 +334,7 @@ test('a delayed new-board response preserves a newer board choice', async ({ pag
     .getByTestId('home-view')
     .getByRole('button', { name: /Keep my choice/ })
     .click();
+  await page.getByRole('button', { name: 'Open board' }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Chosen board content' })).toBeVisible();
   release();
   await page.unrouteAll({ behavior: 'wait' });
@@ -334,10 +344,7 @@ test('a delayed new-board response preserves a newer board choice', async ({ pag
   expect((await boards(request)).activeBoardId).toBe(existing.id);
 });
 
-test('nested folders move boards, retain collapse state, and search across closed branches', async ({
-  page,
-  request,
-}) => {
+test('nested folders move boards, retain tree folding, and search the library at 600px', async ({ page, request }) => {
   const created = await (
     await request.post('/api/canvas/boards', {
       data: { name: 'Architecture decisions', category: 'Engineering/Canvas' },
@@ -347,37 +354,53 @@ test('nested folders move boards, retain collapse state, and search across close
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: null } });
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto('/workbench');
-  const row = page.getByTestId('home-board').filter({ hasText: 'Architecture decisions' });
-  await row.getByRole('button', { name: 'Move', exact: true }).click();
+  const home = page.getByTestId('home-view');
+  const folderChip = (path: string) => home.locator(`[data-testid="home-section"][data-folder="${path}"]`);
+  const row = home.getByTestId('home-board').filter({ hasText: 'Architecture decisions' });
+  await home.getByRole('navigation', { name: 'Folder path' }).getByRole('button', { name: 'Library' }).click();
+  await folderChip('Engineering').click();
+  await folderChip('Engineering/Canvas').click();
+  await row.getByRole('button', { name: 'Architecture decisions' }).click();
+  await home.getByRole('button', { name: /More: move, rename/ }).click();
+  await home.getByRole('menuitem', { name: 'Move…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Move Architecture decisions' });
   await dialog.getByRole('radio', { name: 'Engineering/Canvas', exact: true }).check();
   await dialog.getByRole('textbox', { name: 'New folder name' }).fill('Decisions');
   await dialog.getByRole('button', { name: 'Move board', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  const branch = page.locator('[data-folder="Engineering/Canvas/Decisions"]');
-  await expect(branch.getByTestId('home-board')).toContainText('Architecture decisions');
+  await folderChip('Engineering/Canvas/Decisions').click();
+  await expect(row).toBeVisible();
   expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.category).toBe(
     'Engineering/Canvas/Decisions',
   );
-  const engineering = page.locator('[data-folder="Engineering"] > button');
-  await engineering.click();
-  await expect(row).toHaveCount(0);
+
+  // The tree (the folder picker at this width) keeps its folding across a reload.
+  const picker = home.locator('.home-narrow-picker');
+  await picker.click();
+  await home.getByRole('button', { name: 'Fold Engineering' }).click();
   await page.reload();
-  await expect(engineering).toHaveAttribute('aria-expanded', 'false');
-  await page.getByRole('searchbox', { name: 'Find boards and folders' }).fill('Architecture');
-  await expect(branch.getByTestId('home-board')).toBeVisible();
-  await expect(page.getByTestId('home-board').filter({ hasText: 'Other decisions' })).toHaveCount(0);
-  await page.getByRole('searchbox', { name: 'Find boards and folders' }).clear();
-  await engineering.click();
-  await row.getByRole('button', { name: 'Move', exact: true }).click();
+  await home.locator('.home-narrow-picker').click();
+  await expect(home.getByRole('button', { name: 'Unfold Engineering' })).toHaveAttribute('aria-expanded', 'false');
+  await home.locator('.home-narrow-picker').click();
+
+  // Search reaches boards inside folded folders, and only the matches.
+  await home.getByRole('searchbox', { name: 'Find boards, cards and folders' }).fill('Architecture');
+  await expect(row).toBeVisible();
+  await expect(home.getByTestId('home-board').filter({ hasText: 'Other decisions' })).toHaveCount(0);
+  await row.getByRole('button', { name: 'Architecture decisions' }).click();
+  await home.getByRole('button', { name: /More: move, rename/ }).click();
+  await home.getByRole('menuitem', { name: 'Move…' }).click();
   await dialog.getByRole('radio', { name: 'Engineering', exact: true }).check();
   await dialog.getByRole('button', { name: 'Move board', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.category).toBe(
     'Engineering',
   );
-  await expect(branch).toHaveCount(0);
-  await expect(page.locator('[data-folder="Engineering"]')).toContainText('Architecture decisions');
+  await home.getByRole('searchbox', { name: 'Find boards, cards and folders' }).clear();
+  await home.getByRole('navigation', { name: 'Folder path' }).getByRole('button', { name: 'Library' }).click();
+  await folderChip('Engineering').click();
+  await expect(row).toBeVisible();
+  await expect(folderChip('Engineering/Canvas')).toHaveCount(0);
 });
 
 test('creates a selective board copy, links boards, and jumps through library search at 600px', async ({
@@ -394,7 +417,9 @@ test('creates a selective board copy, links boards, and jumps through library se
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto('/workbench');
   const sourceRow = page.getByTestId('home-board').filter({ hasText: 'Source memory' });
-  await sourceRow.getByRole('button', { name: 'Create from…' }).click();
+  await sourceRow.getByRole('button', { name: 'Source memory' }).click();
+  await page.getByRole('button', { name: /More: move, rename/ }).click();
+  await page.getByRole('menuitem', { name: 'Create from…' }).click();
   const copyDialog = page.getByRole('dialog', { name: 'Create from Source memory' });
   await expect(copyDialog).toBeInViewport();
   await expect(copyDialog.getByText(/Asks, history, and context pins start clear/)).toBeVisible();
@@ -406,6 +431,7 @@ test('creates a selective board copy, links boards, and jumps through library se
   const createdRow = page.getByTestId('home-board').filter({ hasText: 'Focused memory' });
   await expect(createdRow).toBeVisible();
   await createdRow.getByRole('button', { name: /Focused memory/ }).click();
+  await page.getByRole('button', { name: 'Open board' }).click();
   await expect(
     page.locator('.canvas-node[data-node-type="markdown"]').filter({ hasText: 'Reusable decision' }),
   ).toBeVisible();

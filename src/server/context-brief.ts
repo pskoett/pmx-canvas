@@ -239,16 +239,19 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   const pinIds = [...new Set(input.pinnedNodeIds)].sort();
   const relationsOf = (id: string): string[] => {
     const lines: string[] = [];
+    const marked: string[] = [];
     for (const edge of input.edges ?? []) {
       const other = edge.from === id ? edge.to : edge.to === id ? edge.from : null;
       if (!other) continue;
       const otherTitle = nodeById.get(other) ? nodeTitle(nodeById.get(other) as CanvasNodeState) : other;
       const kind = `${edge.type}${edge.label ? ` "${edge.label}"` : ''}`;
       const mark = linkMark(edge);
-      lines.push(
+      // A link drawn or changed since the read leads, so the relations cap never hides it.
+      (mark ? marked : lines).push(
         edge.from === id ? `→ ${kind}: ${otherTitle} (${other})${mark}` : `← ${kind}: ${otherTitle} (${other})${mark}`,
       );
     }
+    lines.unshift(...marked);
     return lines.length > MAX_RELATIONS
       ? [...lines.slice(0, MAX_RELATIONS), `… ${lines.length - MAX_RELATIONS} more relations`]
       : lines;
