@@ -424,7 +424,8 @@ MCP endpoint through **OAuth using the user's OpenAI login**. Both paths act
 as that user and respect the same board roles, knowledge scopes and personal
 privacy established by the team features. External-client OAuth is a separate
 compatibility goal; its current blocker does not prevent validating the
-ChatGPT version and plugin distribution first.
+ChatGPT version and plugin distribution to an eligible audience first. Public
+distribution remains subject to the separate sharing and submission checks below.
 
 **Technical validation:** a user signs in with OpenAI, creates a durable hosted
 board, and uses it through the ChatGPT plugin. Installation, account connection,
@@ -446,6 +447,12 @@ support continuous improvement of the whole project: product decisions, UX,
 reliability, performance, node capabilities and agent-context quality across
 local, ChatGPT and full hosted distributions. Carry the same metric
 definitions into the later full hosted version so results remain comparable.
+
+**Platform baseline:** Sites already supplies unique-visitor and page-view
+analytics over time, currently excluding Enterprise-owned Sites. These traffic
+counts do not establish PMX activation, retention or curation value; the product
+events below remain PMX implementation work.
+Source: [Sites analytics](https://learn.chatgpt.com/docs/sites#review-site-analytics).
 
 | Question | Product metrics |
 |---|---|
@@ -534,6 +541,17 @@ the current PMX server runs there unchanged.
 Sources: [Sites sign-in](https://learn.chatgpt.com/docs/sites#add-sign-in-with-chatgpt)
 and [supported site shapes](https://learn.chatgpt.com/docs/sites#choose-a-supported-site-shape).
 
+**Plugin hosting and distribution.** The public
+[Sites-hosted plugin guide](https://help.openai.com/en/articles/20001547-hosting-a-plugin-with-chatgpt-sites)
+documents MCP hosting, owner publication, installation, connection and tool
+updates. Business/Enterprise users can share within their workspace, subject to
+permissions; each recipient needs both Site and plugin access and their own
+connection. Pro/personal accounts currently cannot share a Site-hosted plugin
+directly through invitations or a share link. Sharing the Site does not share
+the plugin. Validate an eligible pilot audience and a supported distribution
+route before promising installations beyond the owner. Public directory release
+is a separate goal, not an automatic consequence of publishing the Site.
+
 The installed **Sites plugin 1.0.1** documents a stateless JSON-RPC `POST /mcp`
 endpoint declared through `capabilities: ["mcp"]`. Sites authenticates callers,
 checks Site access and supplies a Site-scoped user ID. Publication provisions a
@@ -541,19 +559,29 @@ private plugin for ChatGPT/Codex and refreshes its tools on republication.
 Its `get_site(include_mcp_connection: true)` contract exposes both `mcp_url` and
 `oauth_resource`, explicitly described for Codex connections. This establishes
 an OAuth resource mechanism, but does not establish registration, callbacks or
-token issuance for arbitrary third-party clients. Evidence: the bundled
-`sites/references/site-mcp-server.md`, `identity-and-secrets.md`, `storage.md`
-and native Sites tool schema, inspected on the date above. Those installed
+token issuance for arbitrary third-party clients. Implementation evidence:
+the installed [MCP server reference](/Users/pepe/.codex/plugins/cache/openai-curated-remote/sites/1.0.1/skills/sites/references/site-mcp-server.md),
+[identity and secrets reference](/Users/pepe/.codex/plugins/cache/openai-curated-remote/sites/1.0.1/skills/sites/references/identity-and-secrets.md),
+[storage reference](/Users/pepe/.codex/plugins/cache/openai-curated-remote/sites/1.0.1/skills/sites/references/storage.md)
+and native Sites tool schema, inspected on the date above. These local paths
+identify the installed version on the maintainer's machine. Those installed
 references are implementation guidance; they are not a public compatibility
 guarantee. The automatic private plugin is also not a public-directory release;
 [public submission](https://developers.openai.com/plugins/deploy/submission)
 has its own connection and review requirements.
+The submission guide currently excludes packages containing `apps`/`.app.json`
+references and requires MCP URL configuration and connection setup instead.
+Therefore, the automatically created Site plugin is not evidence that its
+package or OAuth connection is ready for public submission.
 
 **OpenAI login and MCP authorization are separate steps.** The official
 [plugin sign-in guide](https://developers.openai.com/siwc/chatgpt-plugin)
-describes two OAuth transactions: signing a user into an application and
-authorizing the connector to act for that user. Its general commercial sign-in
-integration is a limited partner trial, separate from Sites' built-in login.
+describes two OAuth transactions for a custom integration: signing a user into
+an application and authorizing the connector to act for that user. This is
+general integration guidance, not a specification of Sites' managed auth flow.
+The [website sign-in guide](https://developers.openai.com/siwc/website)
+limits that commercial integration to a partner trial, separate from Sites'
+built-in login.
 The [MCP authentication guide](https://developers.openai.com/plugins/build/auth)
 requires discovery, client identification/registration, PKCE and resource-bound
 tokens. A browser session, an OpenAI ID token or an API inference token is not
@@ -607,7 +635,8 @@ decision, not an implemented fallback or a reason to expose the Site publicly.
 
 ### What must change in PMX's hosted runtime
 
-The installed Sites runtime guidance specifies Cloudflare Workers, with 128 MB
+The installed [Sites runtime guidance](/Users/pepe/.codex/plugins/cache/openai-curated-remote/sites/1.0.1/skills/sites/SKILL.md)
+(plugin 1.0.1, checked 2026-10-10) specifies Cloudflare Workers, with 128 MB
 per isolate and HTTP-based external connections. PMX currently uses
 [`Bun.serve`](../src/server/server.ts), synchronous
 [`bun:sqlite`](../src/server/canvas-db.ts), a process-wide
@@ -621,6 +650,17 @@ runtime, not just uploading the browser bundle.
 - **MCP and the plugin UI:** Sites' documented tool endpoint is the starting contract. Verify PMX's resources, resource templates, notifications and MCP Apps UI embedding separately; a successful tool call does not prove that `canvas://pinned-context`, the embedded workbench or nested app frames work. Existing `isHostedWorkbench()` means an MCP App host transport is installed, not that Sites deployment is supported ([transport source](../src/client/state/workbench-transport.ts)).
 
 ### Hosted pilot operating requirements
+
+**Documented platform limits, checked 2026-10-10:** D1 is limited to 10 GB per
+Site; R2 has no fixed storage limit stated. HTTP, HTTPS and WebSockets are
+supported, but raw TCP is not. Sites does not offer data residency at launch.
+Source: [Sites limits](https://learn.chatgpt.com/docs/sites#understand-limits-and-unsupported-uses).
+Separate plan-specific beta quotas apply across the account's Sites; reaching
+them can restrict storage growth or public availability. Read current allowances
+in ChatGPT. Source: [beta usage limits](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites).
+The reviewed docs do not specify numerical request-rate, concurrency, CPU-time,
+upload-size or connection-duration limits for Sites. Do not substitute generic
+Cloudflare plan quotas or PMX's own 20 MiB attachment cap for platform limits.
 
 Use **D1 for boards and metadata, and R2 for attachments and generated assets**
 as the pilot storage architecture. Load individual boards as needed; do not
@@ -640,7 +680,8 @@ rejected without silent loss, and both clients converge on the authoritative
 board. Working storage alone does not establish this behavior.
 
 **Acceptance before expanding access:** after that proof passes, load-test
-concurrent editing, MCP traffic and live updates together against the deployed hosted runtime. Verify
+concurrent editing, MCP traffic and live updates together against the deployed
+hosted runtime. Verify
 durable writes, user isolation, event delivery and reconnect behavior under
 load, and record latency, failures and resource usage. Use measured results and
 the account's actual Sites quotas to set the initial operating envelope and
