@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>See change in the session receipt</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 2900px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 24px">
+
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">“See change” in the session receipt</h1>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">When a session ends, its receipt lists what the agent edited. “See change” opens the change in place: Before above After, the changed words marked, and Undo for that card alone. Stacked, not side by side — the receipt is 290 px wide, and two columns would leave each about 118 px. Violet marks what the agent wrote; nothing here is amber unless it needs a look.</p>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">1 · One change open, one collapsed — Harbor and Daylight</span>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+<sc-for list="{{full}}" as="f" hint-placeholder-count="2">
+<div style="{{f.frame}}">
+<div style="{{f.bar}}"><span style="{{f.conn}}"></span><span style="font-size: 13px; font-weight: 600">Pricing research ▾</span><span style="flex: 1"></span><span style="{{f.chip}}">4 cards · ≈ 1.1k tokens</span><span style="{{f.avatar}}">C</span></div>
+<div style="{{f.card}}"><div style="{{f.cardBar}}"></div><div style="{{f.cardHead}}"><span style="font-size: 12px; font-weight: 600">SMB is price-sensitive</span></div><div style="{{f.cardBody}}">Interviews show SMB buyers compare on price first. Eight of twelve would move down a tier at $24.</div></div>
+<div style="{{f.card2}}"><div style="{{f.cardBar}}"></div><div style="{{f.cardHead}}"><span style="font-size: 12px; font-weight: 600">Churn by month</span></div><div style="{{f.cardBody}}">Pro plan, monthly logo churn, last 12 months.</div></div>
+<div style="{{f.r.box}}">
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{f.r.dot}}"></span><span style="{{f.r.title}}">What Codex did</span><span style="{{f.r.close}}">×</span></div>
+<div style="{{f.r.who}}">This session · 14:54–14:55 · saved as a snapshot · ended by the agent</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px"><sc-for list="{{f.r.tiles}}" as="t" hint-placeholder-count="3"><div style="{{f.r.tile}}"><span style="{{f.r.tileLabel}}">{{t.l}}</span><span style="{{t.st}}">{{t.v}}</span></div></sc-for></div>
+<div style="{{f.r.row}}"><div style="{{f.r.rowHead}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.eye}}"></path></svg><span style="{{f.r.rowName}}">Read</span><span style="{{f.r.rowCount}}">2</span></div><div style="{{f.r.items}}">Raise Pro to $24?, Competitor pricing</div></div>
+<div style="{{f.r.row}}">
+<div style="{{f.r.rowHead}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pen}}"></path></svg><span style="{{f.r.rowName}}">Edited</span><span style="{{f.r.rowCount}}">2</span><span style="{{f.r.mini}}">Undo</span></div>
+<div style="{{f.r.edits}}">
+<div style="{{f.r.line}}"><span><span style="{{f.r.cardName}}">SMB is price-sensitive</span><span style="{{f.r.change}}"> — rewrote the second paragraph</span></span><span style="{{f.r.link}}">Hide change</span></div>
+<div style="{{f.r.side}}"><span style="{{f.r.sideLabel}}">Before</span><span style="{{f.r.text}}"><sc-for list="{{f.r.before}}" as="w" hint-placeholder-count="4"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="{{f.r.side}}"><span style="{{f.r.sideLabel}}">After</span><span style="{{f.r.text}}"><sc-for list="{{f.r.after}}" as="w" hint-placeholder-count="4"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{f.r.mini}}">Undo this card</span><span style="{{f.r.change}}">puts back the text from before</span></div>
+<div style="{{f.r.line}} margin-top: 4px"><span><span style="{{f.r.cardName}}">Churn by month</span><span style="{{f.r.change}}"> — added the September row</span></span><span style="{{f.r.link}}">See change</span></div>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; margin-top: 10px"><span style="{{f.r.track}}"><span style="{{f.r.knob}}"></span></span><span style="{{f.r.change}}">Dim untouched nodes</span></div>
+</div>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #b9c6d6">The cards the session edited keep their violet title-bar line while the receipt is up. “Hide change” closes the view; only one change is open at a time, so the receipt never grows past the canvas.</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">2 · States of an open change, and of the row’s Undo</span>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{states}}" as="x" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">{{x.name}}</span>
+<div style="{{x.r.box}} width: auto">
+<div style="{{x.r.line}}"><span><span style="{{x.r.cardName}}">{{x.title}}</span><span style="{{x.r.change}}"> — {{x.change}}</span></span><span style="{{x.r.link}}">Hide change</span></div>
+<div style="{{x.r.side}}"><span style="{{x.r.sideLabel}}">Before</span><span style="{{x.r.text}}"><sc-for list="{{x.before}}" as="w" hint-placeholder-count="4"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="{{x.r.side}}"><span style="{{x.r.sideLabel}}">After</span><span style="{{x.r.text}}"><sc-for list="{{x.after}}" as="w" hint-placeholder-count="4"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span style="{{x.btnSt}}">{{x.btn}}</span><span style="{{x.r.change}}">{{x.note}}</span></div>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">{{x.why}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 24px; padding: 12px 14px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31">
+<span style="font-size: 12px; font-weight: 600">The Edited row’s Undo</span>
+<sc-for list="{{rowUndo}}" as="u" hint-placeholder-count="3"><span style="display: flex; align-items: center; gap: 8px"><span style="{{u.st}}">{{u.t}}</span><span style="font-size: 11px; color: #8ea3bd">{{u.d}}</span></span></sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">3 · A long card — the excerpt is cut around the first difference</span>
+<div style="display: grid; grid-template-columns: 290px 1fr; gap: 24px; align-items: start">
+<div style="{{long.r.box}} width: 290px; box-sizing: border-box">
+<div style="{{long.r.line}}"><span><span style="{{long.r.cardName}}">Pricing research notes</span><span style="{{long.r.change}}"> — tightened the summary</span></span><span style="{{long.r.link}}">Hide change</span></div>
+<div style="{{long.r.side}}"><span style="{{long.r.sideLabel}}">Before</span><span style="{{long.r.textLong}}"><sc-for list="{{long.before}}" as="w" hint-placeholder-count="5"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="{{long.r.side}}"><span style="{{long.r.sideLabel}}">After</span><span style="{{long.r.textLong}}"><sc-for list="{{long.after}}" as="w" hint-placeholder-count="5"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{long.r.mini}}">Undo this card</span><span style="{{long.r.change}}">undoes the whole card</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #b9c6d6">
+<span>About 1,200 characters around the first difference; a muted “…” where the text is cut, at either end. Each box scrolls past 120 px.</span>
+<span>The excerpt is for reading the change; Undo always restores the whole card as it was before the session, which the caption says.</span>
+<span>Removed words: struck through, muted, on the soft surface. Added words: a violet tint with a violet underline — the agent wrote them. No red and green: red is an error, green is done.</span>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<span style="{{s.label}}">4 · At 600 px — the same receipt, and where the live counts go</span>
+<div style="display: grid; grid-template-columns: 600px 600px; gap: 48px">
+<sc-for list="{{narrow}}" as="n" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600">{{n.name}}</span>
+<div style="{{n.frame}}">
+<div style="{{n.bar}}"><span style="{{n.conn}}"></span><span style="font-size: 13px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Pricing research ▾</span><span style="{{n.chip}}">4 in context</span><span style="{{n.avatar}}">C<span style="{{n.status}}"></span></span><span style="{{n.more}}">⋯</span></div>
+<sc-if value="{{n.live}}" hint-placeholder-val="{{ true }}">
+<div style="{{n.pop}}">
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{n.popDot}}"></span><span style="font-size: 12px; font-weight: 600; flex: 1">Codex · working</span><span style="font-size: 11px; color: {{n.mutedC}}">14:54</span></div>
+<span style="{{n.counts}}">2 read · 1 edited</span>
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{n.track}}"><span style="{{n.knob}}"></span></span><span style="font-size: 11px; color: {{n.mutedC}}">Dim untouched nodes</span></div>
+<span style="{{n.link}}">Open session panel</span>
+</div>
+</sc-if>
+<sc-if value="{{n.receipt}}" hint-placeholder-val="{{ false }}">
+<div style="{{n.r.box}} position: absolute; right: 12px; top: 56px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{n.r.dot}}"></span><span style="{{n.r.title}}">What Codex did</span><span style="{{n.r.close}}">×</span></div>
+<div style="{{n.r.who}}">This session · 14:54–14:55 · ended by the agent</div>
+<div style="{{n.r.row}}">
+<div style="{{n.r.rowHead}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.pen}}"></path></svg><span style="{{n.r.rowName}}">Edited</span><span style="{{n.r.rowCount}}">1</span><span style="{{n.r.mini}}">Undo</span></div>
+<div style="{{n.r.edits}}">
+<div style="{{n.r.line}}"><span><span style="{{n.r.cardName}}">SMB is price-sensitive</span><span style="{{n.r.change}}"> — rewrote the second paragraph</span></span><span style="{{n.r.link}}">Hide change</span></div>
+<div style="{{n.r.side}}"><span style="{{n.r.sideLabel}}">Before</span><span style="{{n.r.text}}"><sc-for list="{{n.r.before}}" as="w" hint-placeholder-count="4"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="{{n.r.side}}"><span style="{{n.r.sideLabel}}">After</span><span style="{{n.r.text}}"><sc-for list="{{n.r.after}}" as="w" hint-placeholder-count="4"><span style="{{w.st}}">{{w.t}}</span></sc-for></span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="{{n.r.mini}}">Undo this card</span></div>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">{{n.note}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+<div style="{{s.panel}} padding: 16px 18px; gap: 8px">
+<span style="font-size: 13px; font-weight: 600">The rule</span>
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="5"><span style="font-size: 12px; color: #b9c6d6">{{r}}</span></sc-for>
+</div>
+<div style="{{s.panel}} padding: 16px 18px; gap: 8px">
+<span style="font-size: 13px; font-weight: 600">Settled: Pane600 vs ContextChip600</span>
+<span style="font-size: 12px; color: #b9c6d6">ContextChip600 wins. At ≤ 760 px the agent chip is its initial only, so the live counts are not in the bar. They move into the avatar’s popover, with the same button that turns the dim-untouched lens on and off, plus “Open session panel”. A violet ring on the avatar says a session is attached; a small dot shows its phase.</span>
+<span style="font-size: 12px; color: #b9c6d6">Pane600’s floating “Claude · 4 read · 1 edited” chip at the bottom of the canvas is the older layout and is marked superseded there.</span>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var i = {
+      eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      pen: 'M4 20l4.2-1L19 8.2 15.8 5 5 15.8z'
+    };
+    var s = {
+      label: 'font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#6b7d94;',
+      panel: 'display:flex;flex-direction:column;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;',
+      ic: 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;'
+    };
+    function hexA(h, a) { var n = parseInt(h.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; }
+    var H = { name: 'Harbor', bg: '#081524', panel: '#0f1d31', soft: '#13243b', line: '#1b2c44', line2: '#2a4566', text: '#e6eef7', textSoft: '#b9c6d6', muted: '#8ea3bd', dim: '#6b7d94', pin: '#4BBCFF', agent: '#B388FF', ok: '#2fd07f', shadow: '0 12px 40px rgba(0,0,0,0.5)' };
+    var D = { name: 'Daylight', bg: '#F6F7F9', panel: '#FFFFFF', soft: '#F2F4F7', line: '#DDE2E9', line2: '#C9D1DC', text: '#0B1726', textSoft: '#3a4a5e', muted: '#55657a', dim: '#7a8899', pin: '#1A7ABF', agent: '#7C4DDB', ok: '#1E7F51', shadow: '0 12px 40px rgba(8,21,36,0.18)' };
+    function words(c, parts) {
+      return parts.map(function (p) {
+        var st = p[0] === 'del' ? 'text-decoration:line-through;color:' + c.muted + ';background:' + c.soft + ';border-radius:3px;'
+          : p[0] === 'add' ? 'background:' + hexA(c.agent, 0.16) + ';box-shadow:inset 0 -1.5px 0 ' + c.agent + ';border-radius:3px;color:' + c.text + ';'
+          : p[0] === 'cut' ? 'color:' + c.dim + ';' : '';
+        return { t: p[1], st: st };
+      });
+    }
+    var BEFORE = [['cut', '… '], ['same', 'Interviews show SMB buyers compare on price first. '], ['del', 'Most said a $4 increase would not change their plan.'], ['same', ' Support quality came second.']];
+    var AFTER = [['cut', '… '], ['same', 'Interviews show SMB buyers compare on price first. '], ['add', 'Eight of twelve would move down a tier at $24.'], ['same', ' Support quality came second.']];
+    function receipt(c) {
+      var mini = 'display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid ' + c.line + ';border-radius:6px;color:' + c.text + ';font-size:11px;flex-shrink:0;white-space:nowrap;';
+      return {
+        box: 'width:290px;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid ' + c.line + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:6px;color:' + c.text + ';',
+        dot: 'width:7px;height:7px;border-radius:50%;background:' + c.dim + ';',
+        title: 'flex:1;font-size:12px;font-weight:600;',
+        close: 'width:22px;text-align:center;color:' + c.muted + ';font-size:14px;',
+        who: 'margin:-4px 0 0 15px;font-size:11px;color:' + c.muted + ';',
+        tiles: [{ l: 'Items', v: '3', st: 'font-size:15px;font-weight:700;color:' + c.text + ';' }, { l: 'Done', v: '3', st: 'font-size:15px;font-weight:700;color:' + c.ok + ';' }, { l: 'Held', v: '0', st: 'font-size:15px;font-weight:700;color:' + c.dim + ';' }],
+        tile: 'padding:8px 10px;border-radius:8px;border:1px solid ' + c.line + ';background:' + c.soft + ';display:flex;flex-direction:column;gap:2px;',
+        tileLabel: 'font-size:10px;color:' + c.dim + ';',
+        row: 'display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-bottom:8px;border-bottom:1px solid ' + c.line + ';',
+        rowHead: 'display:flex;align-items:center;gap:6px;color:' + c.agent + ';',
+        rowName: 'flex:1;font-size:12px;font-weight:600;color:' + c.text + ';',
+        rowCount: 'font-size:11px;color:' + c.dim + ';',
+        items: 'padding-left:19px;font-size:11px;color:' + c.muted + ';',
+        edits: 'padding-left:19px;display:flex;flex-direction:column;gap:6px;font-size:11px;color:' + c.textSoft + ';',
+        line: 'display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;',
+        cardName: 'color:' + c.textSoft + ';',
+        change: 'color:' + c.muted + ';font-size:11px;',
+        link: 'color:' + c.agent + ';font-size:11px;flex-shrink:0;white-space:nowrap;',
+        side: 'display:flex;flex-direction:column;gap:2px;padding:6px 8px;border-radius:6px;border:1px solid ' + c.line + ';',
+        sideLabel: 'font-size:11px;font-weight:500;color:' + c.dim + ';',
+        text: 'font-size:11px;line-height:1.5;color:' + c.text + ';',
+        textLong: 'display:block;max-height:120px;overflow:hidden;font-size:11px;line-height:1.5;color:' + c.text + ';',
+        mini: mini,
+        track: 'position:relative;display:inline-block;width:32px;height:18px;border-radius:999px;background:' + c.line + ';',
+        knob: 'position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:999px;background:' + c.muted + ';',
+        before: words(c, BEFORE), after: words(c, AFTER)
+      };
+    }
+    function full(c) {
+      return {
+        r: receipt(c),
+        frame: 'position:relative;height:720px;border-radius:12px;border:1px solid ' + c.line + ';overflow:hidden;background-color:' + c.bg + ';background-image:radial-gradient(' + hexA(c.muted, 0.16) + ' 1px, transparent 1.2px);background-size:24px 24px;',
+        bar: 'position:absolute;left:0;right:0;top:0;height:44px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px;background:' + c.panel + ';border-bottom:1px solid ' + c.line + ';color:' + c.text + ';',
+        conn: 'width:7px;height:7px;border-radius:999px;background:' + c.ok + ';',
+        chip: 'display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;border:1px solid ' + hexA(c.pin, 0.35) + ';color:' + c.pin + ';font-size:12px;font-weight:500;',
+        avatar: 'width:24px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:' + c.muted + ';background:' + c.soft + ';',
+        card: 'position:absolute;left:16px;top:70px;width:300px;box-sizing:border-box;border-radius:10px;border:1px solid ' + c.line + ';background:' + c.panel + ';overflow:hidden;color:' + c.text + ';',
+        card2: 'position:absolute;left:16px;top:240px;width:300px;box-sizing:border-box;border-radius:10px;border:1px solid ' + c.line + ';background:' + c.panel + ';overflow:hidden;color:' + c.text + ';',
+        cardBar: 'height:2.5px;background:' + c.agent + ';',
+        cardHead: 'display:flex;align-items:center;height:32px;padding:0 12px;border-bottom:1px solid ' + c.line + ';',
+        cardBody: 'padding:8px 12px 12px;font-size:12px;color:' + c.textSoft + ';',
+      };
+    }
+    var fulls = [H, D].map(function (c) { var f = full(c); f.r.box = f.r.box + 'position:absolute;right:14px;top:58px;'; return f; });
+    var R = receipt(H);
+    var btnDisabled = 'display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #1b2c44;border-radius:6px;color:#6b7d94;font-size:11px;white-space:nowrap;';
+    function st(name, btn, btnSt, note, why) { return { name: name, r: R, title: 'SMB is price-sensitive', change: 'rewrote the second paragraph', before: words(H, BEFORE), after: words(H, AFTER), btn: btn, btnSt: btnSt, note: note, why: why }; }
+    var states = [
+      st('Ready', 'Undo this card', R.mini, 'puts back the text from before', 'The default: the session edited the card and nothing changed since.'),
+      st('Undone', '✓ Undone', btnDisabled, 'the card shows Before again', 'After Undo the change stays open, so the person sees what came back.'),
+      st('You edited it since', 'You edited it since', btnDisabled, 'undo would lose your edit', 'Your later edit wins; Undo is not offered. Neutral, not amber: nothing needs a look.'),
+      st('On another board', 'Open its board to undo', 'display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #2a4566;border-radius:6px;color:#e6eef7;font-size:11px;white-space:nowrap;', 'it is on Churn analysis', 'A button, not a dead caption: it opens the card’s board, where Undo works.')
+    ];
+    var rowUndo = [
+      { t: 'Undo', st: R.mini, d: 'all cards this session edited' },
+      { t: '✓ Undone', st: btnDisabled, d: 'every card restored' },
+      { t: 'Kept your edits', st: btnDisabled, d: 'cards you edited since were left alone' }
+    ];
+    var long = { r: receipt(H),
+      before: words(H, [['cut', '… '], ['same', 'The 2025 study priced Pro at $19 against Competitor B at $22 and Competitor C at $25. Across twelve interviews, SMB buyers named price, onboarding time and phone support. '], ['del', 'We think a modest increase is safe because most customers are on annual plans and switching costs are high for teams above ten seats.'], ['same', ' Enterprise buyers ranked SSO and audit logs first; price came fourth. The pilot in Denmark '], ['cut', '…']]),
+      after: words(H, [['cut', '… '], ['same', 'The 2025 study priced Pro at $19 against Competitor B at $22 and Competitor C at $25. Across twelve interviews, SMB buyers named price, onboarding time and phone support. '], ['add', 'A $5 increase is risky for SMB: eight of twelve would move down a tier.'], ['same', ' Enterprise buyers ranked SSO and audit logs first; price came fourth. The pilot in Denmark '], ['cut', '…']]) };
+    function narrow(c, live) {
+      var r = receipt(c);
+      return {
+        name: live ? 'During the session — Harbor' : 'After the session — Daylight', live: live, receipt: !live, r: r, mutedC: c.muted,
+        note: live ? 'The agent is its initial at ≤ 760 px. Tapping it opens the counts and the lens switch that sit in the agent chip at wider sizes.' : 'The receipt stays the same 290 px card in the top-right corner; the stacked change needs no other layout at 600 px.',
+        frame: 'position:relative;width:600px;height:' + (live ? 300 : 640) + 'px;box-sizing:border-box;border-radius:12px;border:1px solid ' + c.line + ';overflow:hidden;background-color:' + c.bg + ';background-image:radial-gradient(' + hexA(c.muted, 0.16) + ' 1px, transparent 1.2px);background-size:24px 24px;color:' + c.text + ';',
+        bar: 'position:absolute;left:0;right:0;top:0;height:44px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;background:' + c.panel + ';border-bottom:1px solid ' + c.line + ';',
+        conn: 'width:7px;height:7px;border-radius:999px;flex-shrink:0;background:' + c.ok + ';',
+        chip: 'display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:999px;border:1px solid ' + hexA(c.pin, 0.35) + ';color:' + c.pin + ';font-size:12px;font-weight:500;flex-shrink:0;',
+        avatar: 'position:relative;width:24px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:600;color:' + c.agent + ';background:' + hexA(c.agent, 0.16) + ';box-shadow:inset 0 0 0 1.5px ' + (live ? c.agent : hexA(c.agent, 0.4)) + ';',
+        status: live ? 'position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;border-radius:999px;background:' + c.agent + ';box-shadow:0 0 0 2px ' + c.panel + ';' : 'display:none;',
+        more: 'width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:' + c.muted + ';font-size:16px;',
+        pop: 'position:absolute;right:36px;top:50px;width:240px;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid ' + c.line2 + ';background:' + c.panel + ';box-shadow:' + c.shadow + ';display:flex;flex-direction:column;gap:8px;',
+        popDot: 'width:7px;height:7px;border-radius:999px;background:' + c.agent + ';',
+        counts: 'align-self:flex-start;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:' + hexA(c.agent, 0.14) + ';color:' + c.agent + ';font-size:12px;font-weight:500;',
+        track: 'position:relative;display:inline-block;width:32px;height:18px;border-radius:999px;background:' + c.agent + ';',
+        knob: 'position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:999px;background:' + c.panel + ';',
+        link: 'font-size:12px;color:' + c.agent + ';'
+      };
+    }
+    var narrows = [narrow(H, true), narrow(D, false)];
+    var rules = [
+      '1 · “See change” opens the change inside the receipt: Before above After, each an excerpt of about 1,200 characters around the first difference, “…” where cut, scrolling past 120 px.',
+      '2 · Changed words are marked: removed ones struck through and muted, added ones with a violet tint and underline — the agent wrote them.',
+      '3 · Undo this card restores the whole card to its text before the session. Its states: Undo this card · ✓ Undone · You edited it since (not offered) · Open its board to undo (a button that opens the board).',
+      '4 · One change open at a time; “Hide change” closes it. The receipt keeps its width at every size, so 600 px needs no other layout.',
+      '5 · Edited cards keep the violet title-bar line while the receipt is up.'
+    ];
+    return { i: i, s: s, full: fulls, states: states, rowUndo: rowUndo, long: long, narrow: narrows, rules: rules };
+  }
+}
+</script>
+</body>
+</html>

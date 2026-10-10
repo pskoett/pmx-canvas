@@ -13,7 +13,7 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 40px 56px; background: #050d17; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px 56px; background: #050d17; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 16px">
 <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">At 600 px — the narrow end</h1><p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">The narrow end of the reference widths (600, 1024, 1920 px): an agent-host pane or a narrow side browser. One column, panels become drawers and sheets, nothing important hides behind a scrollbar. Every board above is the full-window end.</p></div>
 <div style="display: flex; gap: 64px">
 
@@ -70,7 +70,8 @@ body{margin:0}
 <div style="{{p.node}} left: 64px; top: 330px; width: 250px"><div style="{{p.head}}"><span style="{{p.title}}">Churn flat after raise</span><span style="{{p.mark}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>by Claude</span><button aria-label="Expand (Enter)" style="width: 22px; height: 22px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="13" height="13" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"></path></svg></button><button aria-label="Add to context (P)" style="width: 18px; height: 18px; box-sizing: border-box; border: 1.5px solid #6b7d94; border-radius: 999px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button></div><div style="{{p.body}}">Pro churn 2.1% → 2.2%.</div></div>
 <div style="{{p.node}} left: 330px; top: 330px; width: 250px"><div style="position: absolute; left: 0; right: 0; top: 0; height: 2.5px; background: #B388FF"></div><div style="{{p.head}}"><span style="{{p.title}}">SMB is price-sensitive</span><span style="{{p.mark}}"><svg width="11" height="11" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M4 20l4.2-1L19 8.2 15.8 5 5 15.8z"></path></svg>edited</span><button aria-label="Expand (Enter)" style="width: 22px; height: 22px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="13" height="13" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"></path></svg></button><button aria-label="Add to context (P)" style="width: 18px; height: 18px; box-sizing: border-box; border: 1.5px solid #6b7d94; border-radius: 999px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button></div><div style="{{p.body}}">6 of 9 would downgrade.</div></div>
 <div style="position: absolute; left: 56px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 8px">
-<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<span style="font-size: 11px; color: #b9c6d6">Superseded 2026-10-10: these two floating chips moved to the top bar — the context summary (ContextChip600) and the agent’s initial, whose popover holds the live counts and the lens switch (SeeChange).</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; opacity: 0.45">
 <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); background: #0f1d31; color: #4BBCFF; font-size: 12px; font-weight: 500">4 in context <span style="color: #f4c542">· 1 out of date</span></span>
 <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(179,136,255,0.35); background: #0f1d31; color: #B388FF; font-size: 12px; font-weight: 500"><span style="width: 7px; height: 7px; border-radius: 999px; background: #B388FF"></span>Claude · 4 read · 1 edited</span>
 </div>
@@ -82,7 +83,7 @@ body{margin:0}
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
 class Component extends DCLogic {
   renderVals() {
     var p = {
