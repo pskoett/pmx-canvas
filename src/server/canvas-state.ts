@@ -418,14 +418,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function replaceById<T extends { id: string }>(list: T[], item: T): T[] {
-  const idx = list.findIndex((x) => x.id === item.id);
-  if (idx === -1) return [...list, item];
-  const copy = list.slice();
-  copy[idx] = item;
-  return copy;
-}
-
 function isPersistedBlobRef(value: unknown): value is PersistedBlobRef {
   return (
     isRecord(value) &&
