@@ -137,12 +137,13 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
     // compositeFoldedOpNames and frees the name in the same change.
     toolName: 'canvas_snapshot',
     description:
-      'Canvas snapshots: save the current state, list saved snapshots, restore one, delete one, garbage-collect old ones, or diff the live canvas against one. Action "save" stores a named snapshot; "list" returns saved snapshots (newest first); "restore" replaces the live canvas with a snapshot; "delete" removes one; "gc" keeps the newest N and deletes the rest (dryRun to preview); "diff" shows added/removed/modified nodes and edges versus a snapshot (by name or id).',
-    actionSummary: 'save | list | restore | delete | gc | diff',
+      'Canvas snapshots: save the current state, list saved snapshots, restore one, delete one, garbage-collect old ones, or diff the live canvas against one. Action "save" stores a named snapshot; "list" returns saved snapshots (newest first); "restore" replaces the live canvas with a snapshot; "delete" removes one; "gc" keeps the newest N and deletes the rest (dryRun to preview); "diff" shows added/removed/modified nodes and edges versus a snapshot (by name or id); "restore-node" puts one card (nodeId) back to its content in a snapshot, leaving the rest of the board as it is.',
+    actionSummary: 'save | list | restore | restore-node | delete | gc | diff',
     actions: {
       save: 'snapshot.save',
       list: 'snapshot.list',
       restore: 'snapshot.restore',
+      'restore-node': 'snapshot.restore-node',
       delete: 'snapshot.delete',
       gc: 'snapshot.gc',
       diff: 'snapshot.diff',

@@ -721,7 +721,10 @@ into it ("3 sessions ended", their labels, the union of their context); a merged
 receipt has no *View diff* and points to History, which keeps each session's
 snapshot. The receipt is kept until dismissed so restore/diff actions do not
 disappear on a timer. A single session's *View diff* is `GET /api/canvas/snapshots/<id>/diff` against that
-snapshot, and restoring the snapshot undoes the session. Adapters should end their session
+snapshot, and restoring the snapshot undoes the session. *Undo* on one edited card is
+`POST /api/canvas/snapshots/<id>/restore-node` with `{ "nodeId": "…" }`: that card's content goes
+back to the snapshot's, as one undoable edit; position, links and pins stay (file cards refuse,
+they follow their file). Adapters should end their session
 explicitly so the human gets the receipt promptly rather than after the idle
 expiry. The browser's *Start agent session* button is this same endpoint
 (`source: "browser"`, `attached: true`) — subsequent agent-less writes are

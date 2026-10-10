@@ -1,7 +1,7 @@
 /**
  * Slice 3 operations (plan-005, migration item 5): snapshot.list /
  * snapshot.save / snapshot.gc / snapshot.diff (+ query-param variant) /
- * snapshot.restore / snapshot.delete.
+ * snapshot.restore / snapshot.restore-node / snapshot.delete.
  *
  * Wire notes:
  * - snapshot.list serves the bare-array body (tests/e2e clearSnapshots reads
@@ -333,6 +333,46 @@ const snapshotRestoreOperation = defineOperation<z.infer<typeof snapshotRestoreS
   },
 });
 
+// ── snapshot.restore-node ─────────────────────────────────────
+
+const snapshotRestoreNodeShape = {
+  id: z.string().optional().catch(undefined).describe('Snapshot ID or name holding the earlier version'),
+  nodeId: z.string().optional().catch(undefined).describe('The card to put back as it was in that snapshot'),
+};
+
+const snapshotRestoreNodeSchema = z.looseObject(snapshotRestoreNodeShape);
+
+/**
+ * One card back to its content in a snapshot — the receipt's Undo on an edit
+ * (docs/design/AgentContext.dc.html), without restoring the rest of the board.
+ * A normal, undoable node edit: position, links and pins stay as they are.
+ */
+const snapshotRestoreNodeOperation = defineOperation<
+  z.infer<typeof snapshotRestoreNodeSchema>,
+  Record<string, unknown>
+>({
+  name: 'snapshot.restore-node',
+  mutates: true,
+  input: snapshotRestoreNodeSchema,
+  inputShape: snapshotRestoreNodeShape,
+  http: {
+    method: 'POST',
+    path: '/api/canvas/snapshots/:id/restore-node',
+  },
+  handler: ({ id, nodeId }) => {
+    const snapshot = canvasState.getSnapshotData(id ?? '');
+    if (!snapshot) throw new OperationError('Snapshot not found', 404);
+    const current = canvasState.getNode(nodeId ?? '');
+    const earlier = snapshot.nodes.find((node) => node.id === nodeId);
+    if (!current || !earlier)
+      throw new OperationError(`Node "${nodeId}" is not in both the board and the snapshot.`, 404);
+    // A file card mirrors its file on disk; old text would only be overwritten by the watcher.
+    if (current.type === 'file') throw new OperationError('A file card follows its file; restore the file instead.');
+    canvasState.updateNode(current.id, { data: earlier.data });
+    return { ok: true, id: current.id, contentRevision: canvasState.getNode(current.id)?.contentRevision ?? null };
+  },
+});
+
 // ── snapshot.delete ───────────────────────────────────────────
 
 const snapshotDeleteShape = {
@@ -375,6 +415,7 @@ export const snapshotOperations: Operation[] = [
   snapshotGcOperation,
   snapshotDiffQueryOperation,
   snapshotDiffOperation,
+  snapshotRestoreNodeOperation,
   snapshotRestoreOperation,
   snapshotDeleteOperation,
 ];

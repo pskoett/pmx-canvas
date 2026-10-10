@@ -6,8 +6,10 @@ import {
   dismissSessionReceipt,
   type ReceiptNode,
   type SessionContextActivity,
+  sendSteering,
   sessionReceipt,
   setActivityLens,
+  undoSessionEdits,
 } from '../state/session-store';
 import { IconClose, IconPin } from '../icons';
 import { GLYPHS } from './NodeContextMark';
@@ -43,12 +45,30 @@ export function summarizeDiff(diff: unknown): DiffSummary | null {
 
 const titles = (nodes: ReceiptNode[]) => nodes.map((node) => node.title).join(', ');
 
+function clock(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime())
+    ? ''
+    : `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+}
+
 /**
  * What the session did with context (docs/design/AgentContext.dc.html): an
  * amber line for pins it read that changed since, one row per kind of touch,
  * and the lens switch that dims every node the session did not touch.
  */
-function ReceiptContext({ context, label }: { context: SessionContextActivity; label: string }) {
+function ReceiptContext({
+  context,
+  label,
+  snapshotId,
+}: {
+  context: SessionContextActivity;
+  label: string;
+  /** The pre-session snapshot: what Undo on an edit restores from (single sessions only). */
+  snapshotId: string | null;
+}) {
+  const [told, setTold] = useState(false);
+  const [undone, setUndone] = useState(false);
   const rows: Array<{ key: keyof SessionContextActivity; name: string; glyph: keyof typeof GLYPHS | 'pin' }> = [
     { key: 'read', name: 'Read', glyph: 'eye' },
     { key: 'pinned', name: 'Pinned', glyph: 'pin' },
@@ -69,6 +89,19 @@ function ReceiptContext({ context, label }: { context: SessionContextActivity; l
             {titles(context.changedSinceRead)} changed after {label} read{' '}
             {context.changedSinceRead.length === 1 ? 'it' : 'them'}.
           </span>
+          <button
+            type="button"
+            class="session-receipt-mini"
+            disabled={told}
+            onClick={() => {
+              const them = context.changedSinceRead.length === 1 ? 'it' : 'them';
+              void sendSteering(
+                `${context.changedSinceRead.map((node) => `“${node.title}”`).join(', ')} changed after you read ${them} — read ${them} again before relying on ${them}.`,
+              ).then((ok) => setTold(ok));
+            }}
+          >
+            {told ? 'Told' : `Tell ${label}`}
+          </button>
         </div>
       )}
       {present.map((row) => (
@@ -92,6 +125,21 @@ function ReceiptContext({ context, label }: { context: SessionContextActivity; l
                 }}
               >
                 Unpin
+              </button>
+            )}
+            {row.key === 'edited' && snapshotId && (
+              <button
+                type="button"
+                class="session-receipt-mini"
+                disabled={undone}
+                onClick={() => {
+                  void undoSessionEdits(
+                    snapshotId,
+                    context.edited.map((node) => node.id),
+                  ).then((ok) => setUndone(ok));
+                }}
+              >
+                {undone ? 'Undone' : 'Undo'}
               </button>
             )}
           </div>
@@ -142,10 +190,16 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
     }
   };
 
-  const ended = new Date(receipt.endedAt);
-  const endedLabel = Number.isNaN(ended.getTime())
-    ? ''
-    : `${String(ended.getHours()).padStart(2, '0')}:${String(ended.getMinutes()).padStart(2, '0')}`;
+  const endedLabel = clock(receipt.endedAt);
+  const startedLabel = receipt.startedAt ? clock(receipt.startedAt) : '';
+  const endedBy =
+    receipt.endedBy === 'human'
+      ? 'ended by you'
+      : receipt.endedBy === 'idle-timeout'
+        ? 'ended on idle timeout'
+        : receipt.endedBy === 'agent'
+          ? 'ended by the agent'
+          : '';
 
   return (
     <div class="session-receipt" data-testid="session-receipt" role="status">
@@ -153,15 +207,8 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
         <span class="session-receipt-dot" aria-hidden="true" />
         <span class="session-receipt-title">
           {receipt.sessions > 1
-            ? `${receipt.sessions} sessions ended`
-            : receipt.endedBy === 'human'
-              ? 'Session ended by you'
-              : receipt.endedBy === 'idle-timeout'
-                ? 'Session ended — idle timeout'
-                : receipt.endedBy === 'agent'
-                  ? 'Session ended by the agent'
-                  : 'Session ended'}
-          {endedLabel ? ` · ${endedLabel}` : ''}
+            ? `${receipt.sessions} sessions ended${endedLabel ? ` · ${endedLabel}` : ''}`
+            : `What ${receipt.labels[0]} did`}
         </span>
         <button
           type="button"
@@ -172,7 +219,20 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           <IconClose />
         </button>
       </div>
-      {receipt.sessions > 1 && <div class="session-receipt-who">{receipt.labels.join(', ')}</div>}
+      {receipt.sessions > 1 ? (
+        <div class="session-receipt-who">{receipt.labels.join(', ')}</div>
+      ) : (
+        // AgentContext.dc.html: "This session · 14:02–14:20 · saved as a snapshot".
+        <div class="session-receipt-who" data-testid="session-receipt-span">
+          {[
+            `This session · ${startedLabel ? `${startedLabel}–` : ''}${endedLabel}`,
+            receipt.snapshot ? 'saved as a snapshot' : '',
+            endedBy,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+      )}
       <div class="session-receipt-tiles">
         <div class="session-receipt-tile">
           <span class="session-receipt-tile-label">Items</span>
@@ -203,7 +263,11 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           </div>
         )}
       </div>
-      <ReceiptContext context={receipt.context} label={receipt.labels.join(', ')} />
+      <ReceiptContext
+        context={receipt.context}
+        label={receipt.labels.join(', ')}
+        snapshotId={receipt.sessions === 1 ? (receipt.snapshot?.id ?? null) : null}
+      />
       <div class="session-receipt-note">
         {receipt.sessions > 1
           ? 'History has each session’s diff and the snapshot from before it.'

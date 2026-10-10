@@ -177,6 +177,8 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
     }
     case 'node.remove':
       return { nodeIds: [str(input.id)] };
+    case 'snapshot.restore-node':
+      return { nodeIds: [str(input.nodeId)] };
     case 'node.add':
       return createTarget(input, input.type === 'group' ? groupChildren(input) : []);
     case 'jsonrender.add':

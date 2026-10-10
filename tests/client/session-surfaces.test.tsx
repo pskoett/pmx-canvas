@@ -382,6 +382,50 @@ describe('session receipt', () => {
     expect(sessionReceipt.value).toBe(useful);
   });
 
+  test('one session reads "What <agent> did · This session · start–end" (AgentContext.dc.html)', () => {
+    act(() => applySessionReceipt({ ...ended, startedAt: '2026-08-23T13:50:00.000Z', endedBy: 'human' }));
+    const { getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    const card = getByTestId('session-receipt');
+    expect(card.querySelector('.session-receipt-title')?.textContent).toBe('What Copilot did');
+    const local = (iso: string) => {
+      const at = new Date(iso);
+      return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    };
+    expect(getByTestId('session-receipt-span').textContent).toBe(
+      `This session · ${local('2026-08-23T13:50:00.000Z')}–${local(ended.endedAt)} · saved as a snapshot · ended by you`,
+    );
+  });
+
+  test('Tell <agent> steers about pins that changed after it read them; Undo puts edited cards back', async () => {
+    act(() =>
+      applySessionReceipt({
+        ...ended,
+        context: {
+          changedSinceRead: [{ id: 'n1', title: 'SMB interviews' }],
+          edited: [
+            { id: 'n1', title: 'SMB interviews' },
+            { id: 'n2', title: 'Pricing' },
+          ],
+        },
+      }),
+    );
+    const { getByText } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    fireEvent.click(getByText('Tell Copilot'));
+    await waitFor(() => expect(getByText('Told')).toBeTruthy());
+    const steer = calls.find((call) => call.url === '/api/canvas/ax/steer');
+    expect(JSON.parse(String(steer?.init?.body)).message).toBe(
+      '“SMB interviews” changed after you read it — read it again before relying on it.',
+    );
+
+    fireEvent.click(getByText('Undo'));
+    await waitFor(() => expect(getByText('Undone')).toBeTruthy());
+    const restores = calls.filter((call) => call.url.endsWith('/restore-node'));
+    expect(restores.map((call) => [call.url, JSON.parse(String(call.init?.body)).nodeId])).toEqual([
+      ['/api/canvas/snapshots/snap-1/restore-node', 'n1'],
+      ['/api/canvas/snapshots/snap-1/restore-node', 'n2'],
+    ]);
+  });
+
   test('dismiss clears the receipt; a malformed frame is ignored', () => {
     act(() => applySessionReceipt(ended));
     const { getByLabelText, container } = render(<SessionReceipt onOpenSnapshots={() => {}} />);

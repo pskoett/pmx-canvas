@@ -159,6 +159,8 @@ export interface SessionReceipt {
     labels: string[];
     /** Endings folded into this card (see applySessionReceipt). */
     sessions: number;
+    /** When the session attached (the receipt's "This session · start–end"); null if unknown. */
+    startedAt: string | null;
     endedAt: string;
     /** Why it ended — the receipt should answer this, not leave the human asking. */
     endedBy?: 'human' | 'agent' | 'idle-timeout';
@@ -209,5 +211,10 @@ export declare const sessionReceipt: import("@preact/signals-core").Signal<Sessi
  * extend an open receipt. Qualifying endings while one is up merge into it.
  */
 export declare function applySessionReceipt(data: Record<string, unknown>): void;
+/**
+ * Undo on the receipt's Edited row (AgentContext.dc.html): each card back to
+ * its content in the pre-session snapshot — the rest of the board stays.
+ */
+export declare function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<boolean>;
 export declare function dismissSessionReceipt(): void;
 export declare function resetSessionStore(): void;

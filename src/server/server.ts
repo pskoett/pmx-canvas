@@ -206,6 +206,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
   emitPrimaryWorkbenchEvent('agent-session-ended', {
     label: presence.label,
     parentAgentId: presence.parentAgentId ?? null,
+    startedAt,
     endedAt,
     endedBy,
     counts,

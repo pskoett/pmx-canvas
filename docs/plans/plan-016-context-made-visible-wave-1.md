@@ -90,8 +90,16 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   on a board with two agents at once, each receipt includes the other's reads.
   The receipt also reads the board open when the session ends; a session whose board the person
   switched away from mid-session reports the newly open board (known limit, 0.8.0 review).
-- **Not built:** per-row Undo of an edit (needs stored previous content); the pre-session snapshot
-  restore still undoes the whole session. The drawn bottom-bar placement of the lens is folded into
+- **Receipt extras, done (2026-10-10, gap 18).** A single session's receipt reads "What <agent>
+  did" with "This session · start–end · saved as a snapshot · ended by …"; the amber line has
+  "Tell <agent>" (a steering message to reread the changed pins); the Edited row has Undo, which
+  puts each edited card back to its pre-session content through the new
+  `snapshot.restore-node` operation (`canvas_snapshot { action: "restore-node" }`,
+  `POST /api/canvas/snapshots/:id/restore-node`) — one undoable edit per card, position, links
+  and pins kept.
+- **Not built:** per-edit descriptions ("rewrote the second paragraph" — no data says what an edit
+  did), "see change" and the violet session bar on edited cards, the live per-session lens count,
+  and the Suggested state (gap 17). The drawn bottom-bar placement of the lens is folded into
   the receipt card, which already sits where session results appear.
 
 ### 4. Near a pin: neighbours in the brief, and the near mark

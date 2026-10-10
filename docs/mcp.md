@@ -260,7 +260,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
 | `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, explicit shared-workbench switching, README designation, transactional inactive copies, and board pins (the working set across boards) |
-| `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
+| `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 Board categories are nested folder paths: `canvas_board { action: "update", id:
 "<id>", category: "Engineering/Canvas/Decisions" }`. Use `category: ""` to

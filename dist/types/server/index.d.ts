@@ -550,6 +550,11 @@ export declare class PmxCanvas extends EventEmitter {
     restoreSnapshot(id: string): Promise<{
         ok: boolean;
     }>;
+    /** Put one card back to its content in a snapshot (the receipt's Undo on an edit). */
+    restoreSnapshotNode(snapshotId: string, nodeId: string): Promise<{
+        ok: boolean;
+        id: string;
+    }>;
     deleteSnapshot(id: string): {
         ok: boolean;
     };

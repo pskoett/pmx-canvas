@@ -243,7 +243,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads`, `read-status` |
 | `canvas_ax_delivery` | `claim`, `mark` |
 | `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin` |
-| `canvas_snapshot` | `save`, `list`, `restore`, `delete`, `gc`, `diff` |
+| `canvas_snapshot` | `save`, `list`, `restore`, `restore-node`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 
 Important routing:
@@ -261,7 +261,7 @@ As of v0.3.0, the 57 legacy single-purpose tools from the v0.2 compatibility win
 The composites above plus the retained standalones are now the whole MCP surface: `canvas_batch`,
 `canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_interaction`, `canvas_ingest_activity`, and
 `canvas_invoke_command`. Snapshots are the `canvas_snapshot` composite (actions
-`save | list | restore | delete | gc | diff`); the 6 legacy snapshot standalones were removed in
+`save | list | restore | restore-node | delete | gc | diff`); the 6 legacy snapshot standalones were removed in
 v0.4.0 after their deprecated 0.3.x window.
 
 ## Spatial Rules

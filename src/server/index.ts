@@ -1395,6 +1395,14 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
+  /** Put one card back to its content in a snapshot (the receipt's Undo on an edit). */
+  async restoreSnapshotNode(snapshotId: string, nodeId: string): Promise<{ ok: boolean; id: string }> {
+    return (await executeOperation('snapshot.restore-node', { id: snapshotId, nodeId }, { source: 'sdk' })) as {
+      ok: boolean;
+      id: string;
+    };
+  }
+
   deleteSnapshot(id: string): { ok: boolean } {
     return deleteCanvasSnapshot(id);
   }

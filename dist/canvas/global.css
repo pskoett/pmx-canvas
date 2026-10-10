@@ -2951,6 +2951,9 @@ body,
   color: var(--c-warn);
   font-size: var(--fs-meta);
 }
+.session-receipt-warn > span {
+  flex: 1;
+}
 .session-receipt-warn svg,
 .session-receipt-context-head svg {
   width: 13px;

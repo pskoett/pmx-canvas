@@ -381,6 +381,8 @@ export interface SessionReceipt {
   labels: string[];
   /** Endings folded into this card (see applySessionReceipt). */
   sessions: number;
+  /** When the session attached (the receipt's "This session · start–end"); null if unknown. */
+  startedAt: string | null;
   endedAt: string;
   /** Why it ended — the receipt should answer this, not leave the human asking. */
   endedBy?: 'human' | 'agent' | 'idle-timeout';
@@ -452,6 +454,7 @@ function mergeReceipts(open: SessionReceipt, next: SessionReceipt): SessionRecei
   return {
     labels: [...new Set([...open.labels, ...next.labels])],
     sessions: open.sessions + 1,
+    startedAt: open.startedAt && next.startedAt && next.startedAt < open.startedAt ? next.startedAt : open.startedAt,
     endedAt: next.endedAt,
     endedBy: open.endedBy === next.endedBy ? next.endedBy : undefined,
     // Board-wide counts: the latest frame is the current board.
@@ -483,6 +486,7 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
   const next: SessionReceipt = {
     labels: [data.label],
     sessions: 1,
+    startedAt: typeof data.startedAt === 'string' ? data.startedAt : null,
     endedAt: data.endedAt,
     endedBy:
       data.endedBy === 'human' || data.endedBy === 'agent' || data.endedBy === 'idle-timeout'
@@ -508,6 +512,27 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
   const open = sessionReceipt.value;
   sessionReceipt.value = open ? mergeReceipts(open, next) : next;
   if (open && activityLensNodeIds.value) setActivityLens(true);
+}
+
+/**
+ * Undo on the receipt's Edited row (AgentContext.dc.html): each card back to
+ * its content in the pre-session snapshot — the rest of the board stays.
+ */
+export async function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<boolean> {
+  let ok = true;
+  for (const nodeId of nodeIds) {
+    const result = await requestOk(
+      'undoSessionEdit',
+      `/api/canvas/snapshots/${encodeURIComponent(snapshotId)}/restore-node`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId }),
+      },
+    );
+    ok = ok && result.ok;
+  }
+  return ok;
 }
 
 export function dismissSessionReceipt(): void {
