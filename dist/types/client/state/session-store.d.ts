@@ -187,6 +187,11 @@ export interface ReceiptNode {
     id: string;
     title: string;
     reason?: string;
+    /** Edited cards: what the edit did ("rewrote the second paragraph"). */
+    change?: string;
+    /** Edited cards: the text before and at the session's end, cut around the first difference. */
+    before?: string;
+    after?: string;
 }
 export interface SessionContextActivity {
     read: ReceiptNode[];
@@ -199,8 +204,25 @@ export interface SessionContextActivity {
  * The agent-activity lens: while on, nodes the last session did not touch
  * (read, pin, create, edit) are dimmed. Null when off.
  */
-export declare const activityLensNodeIds: import("@preact/signals-core").Signal<Set<string> | null>;
-export declare function setActivityLens(on: boolean): void;
+/**
+ * The activity lens ("Dim untouched nodes"): off, one live session's touches
+ * (the chip that was pressed), or the receipt's. A live lens hands over to the
+ * receipt when that session ends, and switches off if its ending has none.
+ */
+export type ActivityLens = {
+    kind: 'live';
+    sessionId: string;
+} | {
+    kind: 'receipt';
+} | null;
+export declare const activityLens: import("@preact/signals-core").Signal<ActivityLens>;
+export declare const activityLensNodeIds: import("@preact/signals-core").ReadonlySignal<Set<string> | null>;
+/** Cards an agent edited in a live session or in the receipt's session: they carry the violet bar. */
+export declare const sessionEditedIds: import("@preact/signals-core").ReadonlySignal<Set<string>>;
+/** Turn the lens on for a live session (from its chip) or the receipt, or off. */
+export declare function setActivityLens(on: boolean, live?: {
+    sessionId: string;
+}): void;
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
 export declare const sessionReceipt: import("@preact/signals-core").Signal<SessionReceipt | null>;
 /**
@@ -215,6 +237,9 @@ export declare function applySessionReceipt(data: Record<string, unknown>): void
  * Undo on the receipt's Edited row (AgentContext.dc.html): each card back to
  * its content in the pre-session snapshot — the rest of the board stays.
  */
-export declare function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<boolean>;
+export declare function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<{
+    ok: boolean;
+    restored: number;
+}>;
 export declare function dismissSessionReceipt(): void;
 export declare function resetSessionStore(): void;

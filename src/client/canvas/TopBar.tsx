@@ -26,9 +26,9 @@ import { BarHint } from './BarHint';
 import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
-import { agentPhaseLabel } from '../../shared/agent-presence.js';
+import { type AgentPresence, agentPhaseLabel } from '../../shared/agent-presence.js';
 import { activeSession, agentPresences, attachedSessions, writerColor, writerInitial } from '../state/presence-store';
-import { endSession, pendingGates, startSession } from '../state/session-store';
+import { activityLens, endSession, pendingGates, setActivityLens, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
 /**
@@ -114,6 +114,7 @@ function AgentChip() {
                 <span class="agent-chip-dot" aria-hidden="true" />
                 <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
                 <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
+                <SessionTouches session={session} />
                 {workers > 0 && (
                   <span class="agent-chip-workers">
                     +{workers} worker{workers === 1 ? '' : 's'}
@@ -149,6 +150,44 @@ function AgentChip() {
         </BarHint>
       )}
     </>
+  );
+}
+
+/**
+ * What the session has done so far (AgentContext.dc.html lens, Pane600
+ * "Claude · 4 read · 1 edited"): the counts, and a press dims every card it
+ * has not touched. Hidden until it has touched something.
+ */
+function SessionTouches({ session }: { session: AgentPresence }) {
+  const touches = session.session;
+  const parts = touches
+    ? (
+        [
+          ['read', touches.read.length],
+          ['created', touches.created.length],
+          ['edited', touches.edited.length],
+          ['pinned', touches.pinned.length],
+        ] as const
+      ).filter(([, count]) => count > 0)
+    : [];
+  const lens = activityLens.value;
+  const on = lens?.kind === 'live' && lens.sessionId === session.sessionId;
+  // While its lens is on the button stays, even at zero, so it can be turned off.
+  if (parts.length === 0 && !on) return null;
+  return (
+    <button
+      type="button"
+      class={`agent-chip-touches${on ? ' is-on' : ''}`}
+      aria-pressed={on}
+      aria-label={`This session: ${parts.map(([word, count]) => `${count} ${word}`).join(', ') || 'nothing yet'}. ${on ? 'Show all cards' : 'Dim untouched cards'}`}
+      onClick={(event) => {
+        // Inside the chip's tap-to-open hint: toggling the lens must not open it.
+        event.stopPropagation();
+        setActivityLens(!on, { sessionId: session.sessionId });
+      }}
+    >
+      {parts.map(([word, count]) => `${count} ${word}`).join(' · ') || 'nothing yet'}
+    </button>
   );
 }
 

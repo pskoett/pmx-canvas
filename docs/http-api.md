@@ -549,6 +549,8 @@ curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
 # brief summary carries the card's relations). An edge whose revision is newer than both
 # ends' links value has not been seen by an agent; the workbench marks it on the link's pill.
 curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
+# boards=<id>,<id> also returns boards: { <id>: { lastReadAt, lastReadBy } | null } for each
+# listed board, so the context chip reads every pinned board's status in one request.
 
 # Context reads — a proxy (an MCP server attached to this daemon, a host adapter)
 # records the read its agent actually made. Its own fetches send
@@ -696,16 +698,18 @@ When that session ends (`attached: false`, `session-end`, or the idle expiry)
 the stream carries one `agent-session-ended` frame:
 
 ```json
-{ "label": "Copilot", "parentAgentId": null, "endedAt": "…", "endedBy": "agent",
+{ "label": "Copilot", "writer": "copilot", "parentAgentId": null, "startedAt": "…", "endedAt": "…", "endedBy": "agent",
   "unchanged": false, "counts": { "items": 4, "done": 3, "cancelled": 1, "rejected": 0, "held": 0 },
   "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00" },
   "context": { "read": [{ "id": "…", "title": "Brief" }], "pinned": [{ "id": "…", "title": "Chart", "reason": "…" }],
-               "created": [], "edited": [], "changedSinceRead": [{ "id": "…", "title": "Brief" }] } }
+               "created": [], "edited": [{ "id": "…", "title": "SMB", "change": "rewrote the second paragraph", "before": "…" }],
+               "changedSinceRead": [{ "id": "…", "title": "Brief" }] } }
 ```
 
 `context` is what the session did with the board's context: nodes whose content an
 agent read since the session attached, pins the agent made (with their reason), nodes
-it created and edited (against the pre-session snapshot), and pinned nodes changed
+it created and edited (against the pre-session snapshot; each edit says what it did in
+`change` and keeps the start of the old text in `before`), and pinned nodes changed
 after their latest read. A session that only read or pinned is not `unchanged`.
 
 `items`/`done` count the work items on the board; cancelled items, rejected

@@ -1,8 +1,10 @@
 # Plan 016 — Context made visible (wave 1)
 
-**Status:** Slices 1–3 and 4a done (2026-10-05); slice 6's eval is ready to run (2026-10-07,
-[`docs/evals/curation-effect.md`](../evals/curation-effect.md)); 5a (board pins, server) done
-2026-10-07; 5b (board pin UI) and 4b next.
+**Status (2026-10-10):** built on `main`, not released. Slices 1–5 and 7 are done, with the
+receipt extras, edit descriptions and the live session lens (slice 3) and Home (slice 7). Slice 6
+(the curation evaluation) waits until the maintainer tests a version. Suggested cards were dropped
+(2026-10-10: the agent changes the canvas directly; asks and suggestions go through the composer).
+Open design follow-up: a drawing for the open "See change" view.
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),
@@ -97,9 +99,13 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   `snapshot.restore-node` operation (`canvas_snapshot { action: "restore-node" }`,
   `POST /api/canvas/snapshots/:id/restore-node`) — one undoable edit per card, position, links
   and pins kept.
-- **Not built:** per-edit descriptions ("rewrote the second paragraph" — no data says what an edit
-  did), "see change" and the violet session bar on edited cards, the live per-session lens count,
-  and the Suggested state (gap 17). The drawn bottom-bar placement of the lens is folded into
+- **Edits and the live lens, done (2026-10-10).** Each Edited line says what the edit did
+  (`describeEdit`: "rewrote the second paragraph", "added 2 paragraphs", "renamed it …"), from the
+  pre-session snapshot against the card now; "See change" shows Before / Now with Undo for that
+  card. Cards the session edited carry the violet title-bar bar while it is live or its receipt is
+  up. Presence carries the session's touches (`session`: read, created, edited, pinned ids), shown
+  as "2 read · 1 edited" in the agent chip; pressing it dims untouched cards, and that lens carries
+  on as the receipt's when the session ends. The drawn bottom-bar placement of the lens is folded into
   the receipt card, which already sits where session results appear.
 
 ### 4. Near a pin: neighbours in the brief, and the near mark

@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { AgentPresenceRegistry, describeWrite } from '../../src/server/agent-presence.ts';
+import { withCurrentActor } from '../../src/server/attribution.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { executeOperation } from '../../src/server/operations/registry.ts';
+import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 import {
   HUMAN_STARTED_SESSION_LABEL,
   MAX_ACTIVITY_ENTRIES,
@@ -182,6 +185,43 @@ describe('sessionActive', () => {
     registry.observeActivity('session-end', { source: 'copilot', title: 'bye' }, T0 + 10);
     expect(registry.snapshot(T0 + 10).sessionActive).toBe(false);
     expect(registry.snapshot(T0 + 10).presences).toHaveLength(0);
+  });
+
+  test('an attached session carries what it created and edited since it found each board (the live lens)', async () => {
+    const root = createTestWorkspace('pmx-canvas-presence-touches-');
+    resetCanvasForTests(root);
+    try {
+      canvasState.loadFromDisk({ clearExisting: true });
+      const open = async (name: string) => {
+        const { board } = (await executeOperation('board.create', { name })) as { board: { id: string } };
+        await executeOperation('board.open', { id: board.id }, { fromWorkbench: true, humanAuthor: true });
+      };
+      const card = (id: string) => makeNode({ id, type: 'markdown', data: { title: id, content: 'before' } });
+      await open('First');
+      canvasState.addNode(card('kept'));
+      canvasState.addNode(card('edited'));
+      // Real time: a board's creation is compared with when the session started.
+      const now = Date.now();
+      registry.observeActivity('session-start', { source: 'copilot', title: 'Copilot' }, now);
+      canvasState.addNode(card('created'));
+      canvasState.updateNode('edited', { data: { title: 'edited', content: 'after' } });
+      const session = () => registry.snapshot(now).presences[0]?.session;
+      expect([session()?.created, session()?.edited]).toEqual([['created'], ['edited']]);
+      // A person's later edit takes the card back out of the agent's session.
+      withCurrentActor({ actor: 'human', source: 'browser' }, () =>
+        canvasState.updateNode('edited', { data: { title: 'edited', content: 'mine' } }),
+      );
+      expect(session()?.edited).toEqual([]);
+
+      // A board created mid-session began empty: every card on it is the session's.
+      await open('Second');
+      registry.boardOpened();
+      canvasState.addNode(card('on-second'));
+      expect(session()?.created).toEqual(['on-second']);
+    } finally {
+      canvasState.close();
+      removeTestWorkspace(root);
+    }
   });
 
   test('agentId is the writer key; the host label is kept as source', () => {

@@ -1305,6 +1305,25 @@ body,
   white-space: nowrap;
   min-width: 0;
 }
+.agent-chip-touches {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--c-agent) 35%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--c-agent);
+  font: 500 11px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agent-chip-touches:hover,
+.agent-chip-touches.is-on {
+  background: color-mix(in srgb, var(--c-agent) 16%, transparent);
+}
+.agent-chip-touches:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
 .agent-chip-who {
   font: 10px var(--font-code);
   font-weight: 400;
@@ -1451,7 +1470,9 @@ body,
 
 /* The node an attached agent is editing right now: the violet agent bar
    across the top of the header (docs/design/Context.dc.html). */
-.canvas-node.agent-mutating .node-titlebar {
+.canvas-node.agent-mutating .node-titlebar,
+/* AgentContext.dc.html: "violet bar for the session" on cards the agent edited. */
+.canvas-node.session-edited .node-titlebar {
   box-shadow: inset 0 2.5px 0 var(--c-agent);
 }
 
@@ -2992,6 +3013,69 @@ body,
   padding-left: 19px;
   font-size: var(--fs-meta);
   color: var(--c-muted);
+}
+/* Edited row (AgentContext.dc.html): one line per card, what the edit did, See change. */
+.session-receipt-edits {
+  margin: 0;
+  padding: 0 0 0 19px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-meta);
+  color: var(--c-text-soft);
+}
+.session-receipt-edit-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.session-receipt-edit-change {
+  color: var(--c-muted);
+}
+.session-receipt-link {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-agent);
+  font: inherit;
+  cursor: pointer;
+}
+.session-receipt-link:hover {
+  text-decoration: underline;
+}
+.session-receipt-diff-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+.session-receipt-diff-pair > .session-receipt-mini {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.session-receipt-diff-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--c-line);
+}
+.session-receipt-diff-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-dim);
+}
+.session-receipt-diff-text {
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--c-text);
 }
 .session-receipt-mini {
   padding: 2px var(--space-2);

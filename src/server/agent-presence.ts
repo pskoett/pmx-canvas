@@ -27,6 +27,7 @@ import {
   PRESENCE_ATTACHED_IDLE_TTL_MS,
   PRESENCE_THINKING_SETTLE_MS,
   PRESENCE_TOOLING_SETTLE_MS,
+  type SessionTouches,
   TRANSPORT_SOURCES,
 } from '../shared/agent-presence.js';
 import type { PmxAxActivityKind } from './ax-state.js';
@@ -203,6 +204,70 @@ interface StoredPresence extends AgentPresence {
   startSnapshotId: string | null;
   /** When this session attached (ISO); the receipt counts reads and pins from here. */
   startedAt: string | null;
+  /**
+   * Each board as the session found it — its cards and content revision —
+   * captured at attach and when a board opens mid-session (a session started
+   * on Home gets one when its first write opens a board). The live lens
+   * counts from here.
+   */
+  startBoards: Map<string, { nodeIds: Set<string>; revision: number }>;
+  /** The last computed touches and what they were computed from. */
+  touchesCache: { key: string; value: SessionTouches | undefined } | null;
+}
+
+type Baselines = StoredPresence['startBoards'];
+
+/**
+ * Record the open board as this session finds it, unless it already has. A
+ * board created after the session started began empty: a write on Home opens
+ * a new board while saving, after its first cards exist, so those count as
+ * the session's.
+ */
+function captureBaseline(baselines: Baselines, since: string | null): void {
+  const boardId = canvasState.activeBoardId;
+  if (!boardId || baselines.has(boardId)) return;
+  const createdAt = canvasState.listBoards().find((board) => board.id === boardId)?.createdAt;
+  const bornInSession = since !== null && createdAt !== undefined && createdAt >= since;
+  baselines.set(
+    boardId,
+    bornInSession
+      ? { nodeIds: new Set(), revision: 0 }
+      : {
+          nodeIds: new Set(canvasState.nodeStamps().map((node) => node.id)),
+          revision: canvasState.getContentRevision().revision,
+        },
+  );
+}
+
+/** The cards an attached session read, created, edited and pinned on the open board since it found it. */
+function sessionTouches(stored: StoredPresence, readVersion: number): SessionTouches | undefined {
+  const boardId = canvasState.activeBoardId;
+  if (!stored.attached || !stored.startedAt || !boardId) return undefined;
+  // A board can open without a change event (a write on Home): record it now.
+  captureBaseline(stored.startBoards, stored.startedAt);
+  const start = stored.startBoards.get(boardId);
+  if (!start) return undefined;
+  const since = stored.startedAt;
+  const pins = Object.entries(canvasState.getContextPinMeta());
+  const key = `${boardId}|${canvasState.getContentRevision().revision}|${readVersion}|${pins.map(([id, meta]) => `${id}@${meta.pinnedAt}`).join(',')}`;
+  if (stored.touchesCache?.key === key) return stored.touchesCache.value;
+  const stamps = canvasState.nodeStamps();
+  const value: SessionTouches = {
+    startedAt: since,
+    read: canvasState.getReadNodeIdsSince(boardId, since),
+    created: stamps.filter((node) => !start.nodeIds.has(node.id) && node.createdBy?.actor === 'agent').map((n) => n.id),
+    edited: stamps
+      .filter(
+        (node) =>
+          start.nodeIds.has(node.id) &&
+          node.lastEditedBy?.actor === 'agent' &&
+          (node.contentRevision ?? 0) > start.revision,
+      )
+      .map((node) => node.id),
+    pinned: pins.filter(([, meta]) => meta.pinnedBy.actor === 'agent' && meta.pinnedAt >= since).map(([id]) => id),
+  };
+  stored.touchesCache = { key, value };
+  return value;
 }
 
 function presenceKey(source: string, agentId: string | null | undefined): string {
@@ -380,6 +445,8 @@ export class AgentPresenceRegistry {
       toolingUntilMs: null,
       startSnapshotId: null,
       startedAt: null,
+      startBoards: new Map(),
+      touchesCache: null,
     };
     const wasAttached = stored.attached;
     stored.lastSeenMs = now;
@@ -437,6 +504,7 @@ export class AgentPresenceRegistry {
       // placeholder that already adopted work is a real session and stays.
       let inheritedSnapshotId: string | null = null;
       let inheritedStartedAt: string | null = null;
+      let inheritedStartBoards: Baselines | null = null;
       if (stored.source !== 'browser') {
         const placeholder = [...this.presences.values()].find(
           (presence) =>
@@ -453,10 +521,13 @@ export class AgentPresenceRegistry {
           }
           inheritedSnapshotId = placeholder.startSnapshotId;
           inheritedStartedAt = placeholder.startedAt;
+          inheritedStartBoards = placeholder.startBoards;
         }
       }
       stored.startSnapshotId = inheritedSnapshotId ?? this.onSessionStart(this.publicView(stored, now));
       stored.startedAt = inheritedStartedAt ?? new Date(now).toISOString();
+      stored.startBoards = inheritedStartBoards ?? new Map();
+      captureBaseline(stored.startBoards, stored.startedAt);
     }
     if (input.attached === false) {
       if (wasAttached)
@@ -592,6 +663,23 @@ export class AgentPresenceRegistry {
     if (this.presences.size > 0) this.scheduleEmit();
   }
 
+  /** Bumped when an agent read is recorded: the live lens's read list changed. */
+  private readVersion = 0;
+
+  /** A read landed (server.ts's read listener): re-count and re-emit. */
+  noteRead(): void {
+    this.readVersion += 1;
+    this.refresh();
+  }
+
+  /** A board opened: attached sessions record it as they find it, before any write lands. */
+  boardOpened(): void {
+    for (const stored of this.presences.values()) {
+      if (stored.attached) captureBaseline(stored.startBoards, stored.startedAt);
+    }
+    this.refresh();
+  }
+
   /** Remove a writer (session-end). */
   detach(sessionId: string): boolean {
     const stored = this.presences.get(sessionId);
@@ -608,7 +696,7 @@ export class AgentPresenceRegistry {
 
   snapshot(now = Date.now()): AgentPresenceSnapshot {
     this.sweep(now, { emit: false });
-    const presences = [...this.presences.values()].map((stored) => this.publicView(stored, now));
+    const presences = [...this.presences.values()].map((stored) => this.publicView(stored, now, true));
     return {
       presences,
       sessionActive: isSessionActive(presences),
@@ -629,15 +717,22 @@ export class AgentPresenceRegistry {
     this.maybeStopSweeper();
   }
 
-  private publicView(stored: StoredPresence, now: number): AgentPresence {
+  /** `withTouches`: only emitted snapshots carry the session's touches (they read the DB). */
+  private publicView(stored: StoredPresence, now: number, withTouches = false): AgentPresence {
     const {
       lastSeenMs: _lastSeenMs,
       phaseSetMs: _phaseSetMs,
       toolingUntilMs,
       startSnapshotId: _startSnapshotId,
+      startBoards: _startBoards,
+      touchesCache: _touchesCache,
       lastActivityNodeId,
       ...presence
     } = stored;
+    if (withTouches) {
+      const session = sessionTouches(stored, this.readVersion);
+      if (session) presence.session = session;
+    }
     let phase = presence.phase;
     let detail = presence.detail;
     if (toolingUntilMs !== null && toolingUntilMs > now) {
@@ -780,6 +875,15 @@ export const agentPresence = new AgentPresenceRegistry();
 // and context pins. Re-emit on every AX / pin change — whatever transport made
 // it — so no caller has to remember to refresh, and the SDK paths that bypass
 // the operation registry are covered too.
+// The live lens also follows card content (a person's edit takes a card out of
+// the agent's session) and the open board — but not moves, so a drag stays quiet.
+let lastBoardId = canvasState.activeBoardId;
+let lastRevision = canvasState.getContentRevision().revision;
 canvasState.onChange((type) => {
-  if (type === 'ax' || type === 'pins') agentPresence.refresh();
+  const boardId = canvasState.activeBoardId;
+  const revision = canvasState.getContentRevision().revision;
+  if (boardId !== lastBoardId) agentPresence.boardOpened();
+  else if (type === 'ax' || type === 'pins' || revision !== lastRevision) agentPresence.refresh();
+  lastBoardId = boardId;
+  lastRevision = revision;
 });

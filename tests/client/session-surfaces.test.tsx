@@ -11,7 +11,14 @@ import {
   replaceContextPinsFromServer,
 } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
-import { applySessionReceipt, resetSessionStore, sessionReceipt } from '../../src/client/state/session-store.ts';
+import {
+  activityLens,
+  activityLensNodeIds,
+  applySessionReceipt,
+  resetSessionStore,
+  sessionEditedIds,
+  sessionReceipt,
+} from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 // rail-chrome-v2 phase 5: the human's steering surface while a session is
@@ -428,6 +435,145 @@ describe('session receipt', () => {
     expect(restores.map((call) => [call.url, JSON.parse(String(call.init?.body)).nodeId])).toEqual([
       ['/api/canvas/snapshots/snap-1/restore-node', 'n1'],
     ]);
+  });
+
+  test('each edited card says what the edit did; See change shows before and now, with Undo for that card', async () => {
+    nodes.value = new Map(nodes.value).set('n1', {
+      ...makeNode('n1', 'SMB'),
+      data: { title: 'SMB', content: 'Six would downgrade.' },
+    });
+    act(() =>
+      applySessionReceipt({
+        ...ended,
+        context: {
+          edited: [
+            {
+              id: 'n1',
+              title: 'SMB',
+              change: 'rewrote the second paragraph',
+              before: 'Eight of twelve churned.',
+              after: 'Six would downgrade.',
+            },
+          ],
+        },
+      }),
+    );
+    const { getByText, getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    expect(getByTestId('session-receipt').textContent).toContain('SMB — rewrote the second paragraph');
+    fireEvent.click(getByText('See change'));
+    const pair = getByTestId('session-receipt').querySelector('.session-receipt-diff-pair') as HTMLElement;
+    expect([...pair.querySelectorAll('.session-receipt-diff-text')].map((side) => side.textContent)).toEqual([
+      'Eight of twelve churned.',
+      'Six would downgrade.',
+    ]);
+    fireEvent.click(getByText('Undo this card'));
+    await waitFor(() => expect(getByText('Undone')).toBeTruthy());
+    expect(calls.filter((call) => call.url.endsWith('/restore-node'))).toHaveLength(1);
+    // The receipt's edited cards carry the violet bar.
+    expect(sessionEditedIds.value.has('n1')).toBe(true);
+  });
+
+  test('Undo keeps cards you edited since, and says so; See change says when a card is not on the open board', async () => {
+    nodes.value = new Map(nodes.value).set('n1', {
+      ...makeNode('n1', 'SMB'),
+      lastEditedBy: { actor: 'human', source: 'browser' },
+    });
+    act(() =>
+      applySessionReceipt({
+        ...ended,
+        context: {
+          edited: [
+            { id: 'n1', title: 'SMB', change: 'rewrote it', before: 'old', after: 'new' },
+            { id: 'gone', title: 'Elsewhere', change: 'rewrote it', before: 'old', after: 'new' },
+          ],
+        },
+      }),
+    );
+    const { getAllByText, getByText } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    fireEvent.click(getAllByText('See change')[0]);
+    expect(getByText('You edited it since')).toBeTruthy();
+    fireEvent.click(getAllByText('See change')[0]);
+    expect(getByText('Open its board to undo')).toBeTruthy();
+    fireEvent.click(getByText('Undo'));
+    // n1 is yours and stays; "gone" is not on the open board, so only the server can judge it.
+    await waitFor(() => expect(getByText('Undone')).toBeTruthy());
+    expect(
+      calls
+        .filter((call) => call.url.endsWith('/restore-node'))
+        .map((call) => JSON.parse(String(call.init?.body)).nodeId),
+    ).toEqual(['gone']);
+  });
+
+  test('the agent chip counts this session live; its lens hands over to the receipt when the session ends', () => {
+    const live = {
+      sessionId: 'copilot',
+      source: 'copilot',
+      agentId: null,
+      label: 'Copilot',
+      phase: 'idle' as const,
+      detail: null,
+      focusNodeId: null,
+      cursor: null,
+      attached: true,
+      opCount: 3,
+      contextUsage: null,
+      lastSeenAt: '2026-08-23T00:00:00.000Z',
+      session: { startedAt: '2026-08-23T00:00:00.000Z', read: ['n1', 'n2'], created: [], edited: ['n1'], pinned: [] },
+    };
+    act(() => applyPresenceSnapshot({ presences: [live] }));
+    const { getByRole } = render(<TopBar />);
+    const touches = getByRole('button', { name: /This session: 2 read, 1 edited/ });
+    expect(touches.textContent).toBe('2 read · 1 edited');
+    fireEvent.click(touches);
+    expect(activityLens.value).toEqual({ kind: 'live', sessionId: 'copilot' });
+    expect([...(activityLensNodeIds.value ?? [])].sort()).toEqual(['n1', 'n2']);
+    expect(sessionEditedIds.value.has('n1')).toBe(true);
+
+    act(() => applyPresenceSnapshot({ presences: [] }));
+    act(() => applySessionReceipt({ ...ended, writer: 'copilot', context: { read: [{ id: 'n2', title: 'B' }] } }));
+    expect(activityLens.value).toEqual({ kind: 'receipt' });
+    expect([...(activityLensNodeIds.value ?? [])]).toEqual(['n2']);
+  });
+
+  test("each agent's chip shows its own lens; an ending with nothing to show turns the lens off", () => {
+    const attached = (sessionId: string, read: string[]) => ({
+      sessionId,
+      source: sessionId,
+      agentId: null,
+      label: sessionId,
+      phase: 'idle' as const,
+      detail: null,
+      focusNodeId: null,
+      cursor: null,
+      attached: true,
+      opCount: 1,
+      contextUsage: null,
+      lastSeenAt: '2026-08-23T00:00:00.000Z',
+      session: { startedAt: '2026-08-23T00:00:00.000Z', read, created: [], edited: [], pinned: [] },
+    });
+    act(() => applyPresenceSnapshot({ presences: [attached('codex', ['n1']), attached('claude', ['n2'])] }));
+    const { getAllByRole } = render(<TopBar />);
+    fireEvent.click(getAllByRole('button', { name: /This session: 1 read/ })[0] as HTMLElement);
+    expect([...(activityLensNodeIds.value ?? [])].length).toBe(1);
+    const lens = activityLens.value;
+    expect(lens?.kind).toBe('live');
+    const chosen = lens?.kind === 'live' ? lens.sessionId : '';
+    expect([...(activityLensNodeIds.value ?? [])]).toEqual([chosen === 'codex' ? 'n1' : 'n2']);
+
+    // Another writer with the same label ending changes nothing; the lens's own writer ending turns it off.
+    act(() => applySessionReceipt({ ...ended, label: chosen, writer: 'someone-else', unchanged: true }));
+    expect(activityLens.value?.kind).toBe('live');
+    act(() => applySessionReceipt({ ...ended, label: chosen, writer: chosen, unchanged: true }));
+    expect(activityLens.value).toBeNull();
+  });
+
+  test('a card two merged sessions both edited keeps the first Before and the last After', () => {
+    const edit = (before: string, after: string, change: string) => ({ id: 'n1', title: 'SMB', before, after, change });
+    act(() => applySessionReceipt({ ...ended, context: { edited: [edit('A', 'B', 'rewrote it')] } }));
+    act(() =>
+      applySessionReceipt({ ...ended, label: 'Codex', context: { edited: [edit('B', 'C', 'added 1 paragraph')] } }),
+    );
+    expect(sessionReceipt.value?.context.edited).toEqual([edit('A', 'C', 'rewrote it; then added 1 paragraph')]);
   });
 
   test('dismiss clears the receipt; a malformed frame is ignored', () => {

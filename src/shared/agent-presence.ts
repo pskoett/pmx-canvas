@@ -50,6 +50,21 @@ export interface AgentPresence {
    */
   contextUsage: { used: number; total: number } | null;
   lastSeenAt: string;
+  /**
+   * What this session has done since it attached (AgentContext.dc.html lens:
+   * "Claude · this session"): ids of the cards read, created, edited and
+   * pinned on the open board. Only on attached presences; counts every agent
+   * on the board, like the receipt.
+   */
+  session?: SessionTouches;
+}
+
+export interface SessionTouches {
+  startedAt: string;
+  read: string[];
+  created: string[];
+  edited: string[];
+  pinned: string[];
 }
 
 /**

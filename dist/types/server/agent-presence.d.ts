@@ -171,11 +171,18 @@ export declare class AgentPresenceRegistry {
      * (a gate opened or resolved) without any writer being touched.
      */
     refresh(): void;
+    /** Bumped when an agent read is recorded: the live lens's read list changed. */
+    private readVersion;
+    /** A read landed (server.ts's read listener): re-count and re-emit. */
+    noteRead(): void;
+    /** A board opened: attached sessions record it as they find it, before any write lands. */
+    boardOpened(): void;
     /** Remove a writer (session-end). */
     detach(sessionId: string): boolean;
     snapshot(now?: number): AgentPresenceSnapshot;
     /** Test / shutdown hook. */
     reset(): void;
+    /** `withTouches`: only emitted snapshots carry the session's touches (they read the DB). */
     private publicView;
     private hasPendingGate;
     private evictOverflow;

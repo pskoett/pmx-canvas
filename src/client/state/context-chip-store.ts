@@ -55,16 +55,15 @@ async function load(): Promise<void> {
   if (!current()) return;
   if (brief?.entries) briefSize.value = { chars: JSON.stringify(brief).length };
   const pinned = boardList.value.filter((board) => board.pin);
-  const reads = new Map<string, BoardRead | null>();
-  await Promise.all(
-    pinned.map(async (board) => {
-      const status = await requestJson<{ board?: BoardRead | null } | null>(
-        'fetchBoardReadStatus',
-        `/api/canvas/ax/context-status?board=${encodeURIComponent(board.id)}`,
-        null,
-      );
-      reads.set(board.id, status?.board ?? null);
-    }),
+  if (pinned.length === 0) {
+    if (current()) pinnedBoardReads.value = new Map();
+    return;
+  }
+  // One request for every pinned board's latest read.
+  const status = await requestJson<{ boards?: Record<string, BoardRead | null> } | null>(
+    'fetchBoardReadStatus',
+    `/api/canvas/ax/context-status?boards=${pinned.map((board) => encodeURIComponent(board.id)).join(',')}`,
+    null,
   );
-  if (current()) pinnedBoardReads.value = reads;
+  if (current()) pinnedBoardReads.value = new Map(pinned.map((board) => [board.id, status?.boards?.[board.id] ?? null]));
 }

@@ -77,6 +77,12 @@ describe('board pins', () => {
       board: { lastReadAt: string } | null;
     };
     expect(typeof status.board?.lastReadAt).toBe('string');
+    // Every pinned board's status in one request (the context chip).
+    const batch = (await executeOperation('ax.reads.status', { boards: `${research.id},${work.id}` })) as {
+      boards: Record<string, { lastReadAt: string } | null>;
+    };
+    expect(typeof batch.boards[research.id]?.lastReadAt).toBe('string');
+    expect(Object.keys(batch.boards)).toEqual([research.id, work.id]);
     expect(canvasState.getNodeReadStatus(research.id).map((status) => status.nodeId)).not.toContain(
       research.ids.Decision,
     );

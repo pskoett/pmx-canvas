@@ -522,6 +522,38 @@ describe('agent presence over SSE', () => {
     expect(payload.context.changedSinceRead.map((node) => node.title)).toEqual(['Brief']);
   });
 
+  test('the receipt says what each edit did and keeps the text from before it; presence counts the session live', async () => {
+    const html = await (await fetch(`${baseUrl}/workbench`)).text();
+    const token = JSON.parse(html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1] ?? '""') as string;
+    const human = { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token };
+    const agent = { 'x-pmx-source': 'copilot' };
+    const card = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'SMB', content: 'One.\n\nTwo.', x: 0, y: 0 }, human)
+    ).json()) as { id: string };
+    await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: true });
+    await fetch(`${baseUrl}/api/canvas/node/${card.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...agent },
+      body: JSON.stringify({ content: 'One.\n\nTwo, revised.' }),
+    });
+    const live = (await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json()) as {
+      presences: Array<{ attached: boolean; session?: { edited: string[] } }>;
+    };
+    expect(live.presences.find((presence) => presence.attached)?.session?.edited).toEqual([card.id]);
+
+    const receipt = readSseEvent('agent-session-ended', () => true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: false });
+    const payload = (await receipt) as {
+      startedAt: string | null;
+      context: { edited: Array<{ id: string; change?: string; before?: string }> };
+    };
+    expect(typeof payload.startedAt).toBe('string');
+    expect(payload.context.edited).toEqual([
+      expect.objectContaining({ id: card.id, change: 'rewrote the second paragraph', before: 'One.\n\nTwo.' }),
+    ]);
+  });
+
   test("the browser's End button stamps the receipt endedBy human", async () => {
     await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: true });
     const receipt = readSseEvent('agent-session-ended', () => true);

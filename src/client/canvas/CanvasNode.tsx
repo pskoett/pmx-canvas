@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preac
 import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
 import { type ChipFold, headerChip, isAgentPin, NearPinMark, NodeContextMark, NodeTypeIcon } from './NodeContextMark';
-import { activityLensNodeIds } from '../state/session-store';
+import { activityLensNodeIds, sessionEditedIds } from '../state/session-store';
 import {
   activeNodeId,
   activeNeighborNodeIds,
@@ -471,6 +471,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isGroup ? 'group-node' : '',
     isStrictSize ? 'strict-size' : '',
     isAgentMutating ? 'agent-mutating' : '',
+    sessionEditedIds.value.has(node.id) ? 'session-edited' : '',
     activityLensNodeIds.value && !activityLensNodeIds.value.has(node.id) ? 'lens-dimmed' : '',
   ]
     .filter(Boolean)

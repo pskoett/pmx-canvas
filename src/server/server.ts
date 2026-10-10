@@ -83,6 +83,7 @@ import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_NAME_LENGTH } from './document-imp
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
 import { agentPresence } from './agent-presence.js';
+import { cardText, changeExcerpts, describeEdit } from './edit-summary.js';
 import { HUMAN_STARTED_SESSION_LABEL } from '../shared/agent-presence.js';
 import { diffLayouts } from './mutation-history.js';
 import { humanPresence } from './human-presence.js';
@@ -159,6 +160,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
   // or every node when the board was empty at attach (no snapshot was taken).
   let addedIds = startSnapshotId ? new Set<string>() : new Set(layout.nodes.map((node) => node.id));
   let modifiedIds = new Set<string>();
+  let beforeNodes = new Map<string, CanvasNodeState>();
   // A session that changed NOTHING on the board leaves no snapshot behind —
   // session churn (idle timeouts, receipt tests, attach/detach cycles) was
   // flooding the History drawer with identical boards.
@@ -168,6 +170,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
       const diff = diffLayouts(snapData.name, snapData, layout);
       addedIds = new Set(diff.addedNodes.map((node) => node.id));
       modifiedIds = new Set(diff.modifiedNodes.map((node) => node.id));
+      beforeNodes = new Map(snapData.nodes.map((node) => [node.id, node]));
       if (
         diff.addedNodes.length === 0 &&
         diff.removedNodes.length === 0 &&
@@ -197,7 +200,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
     rejected: ax.approvalGates.filter((gate) => gate.status === 'rejected').length,
     held: ax.approvalGates.filter((gate) => gate.status === 'held').length,
   };
-  const context = sessionContextActivity(layout.nodes, startedAt, addedIds, modifiedIds);
+  const context = sessionContextActivity(layout.nodes, startedAt, addedIds, modifiedIds, beforeNodes);
   // Reading or pinning is something the human wants to see even when the
   // board itself did not change ("did the agent read what I pinned?").
   if (context.read.length > 0 || context.pinned.length > 0) unchanged = false;
@@ -205,6 +208,8 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy, started
   // workbench session and would overwrite it. The label is what the receipt shows.
   emitPrimaryWorkbenchEvent('agent-session-ended', {
     label: presence.label,
+    // The writer key (the envelope reserves `sessionId`): the client's live lens matches on it.
+    writer: presence.sessionId,
     parentAgentId: presence.parentAgentId ?? null,
     startedAt,
     endedAt,
@@ -220,6 +225,11 @@ interface ReceiptNode {
   id: string;
   title: string;
   reason?: string;
+  /** Edited cards: what the edit did ("rewrote the second paragraph"). */
+  change?: string;
+  /** Edited cards: the text before and after, cut around the first difference, for "See change". */
+  before?: string;
+  after?: string;
 }
 
 /**
@@ -232,6 +242,7 @@ function sessionContextActivity(
   startedAt: string | null,
   addedIds: Set<string>,
   modifiedIds: Set<string>,
+  beforeNodes: Map<string, CanvasNodeState>,
 ): {
   read: ReceiptNode[];
   pinned: ReceiptNode[];
@@ -257,7 +268,14 @@ function sessionContextActivity(
     return [{ ...entry(node), ...(meta.reason ? { reason: meta.reason } : {}) }];
   });
   const created = nodes.filter((node) => addedIds.has(node.id) && node.createdBy?.actor === 'agent').map(entry);
-  const edited = nodes.filter((node) => modifiedIds.has(node.id) && node.lastEditedBy?.actor === 'agent').map(entry);
+  const edited = nodes
+    .filter((node) => modifiedIds.has(node.id) && node.lastEditedBy?.actor === 'agent')
+    .map((node) => {
+      const before = beforeNodes.get(node.id);
+      return before
+        ? { ...entry(node), change: describeEdit(before, node), ...changeExcerpts(cardText(before), cardText(node)) }
+        : entry(node);
+    });
   const readStatus = new Map(canvasState.getNodeReadStatus(boardId).map((status) => [status.nodeId, status]));
   const changedSinceRead = [...canvasState.contextPinnedNodeIds].flatMap((id) => {
     const node = byId.get(id);
@@ -3355,6 +3373,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   // browser only (an MCP notification would make a read cause more reads).
   canvasState.setContextReadListener((boardId) => {
     emitPrimaryWorkbenchEvent('context-status-changed', { boardId });
+    // The live session lens counts reads (AgentContext.dc.html).
+    agentPresence.noteRead();
   });
 
   // Ensure direct HTTP server usage records undo/redo history, not just PmxCanvas.start().

@@ -105,6 +105,10 @@ constants, so they cannot drift); the registry is `src/server/agent-presence.ts`
   so clients never run their own ticker.
 - **Transport.** One SSE frame, `agent-presence`, carries the full snapshot on
   every change, including the last `MAX_ACTIVITY_ENTRIES` agent writes with a
-  one-line summary. `GET /api/canvas/ax/presence` for the connect-time read;
+  one-line summary. An attached presence also carries `session`
+  (`{ startedAt, read, created, edited, pinned }`, card ids on the open board
+  since it attached, counting every agent there, like the receipt): the agent
+  chip's "2 read · 1 edited" and the live lens. A recorded read re-emits the
+  frame. `GET /api/canvas/ax/presence` for the connect-time read;
   `POST /api/canvas/ax/presence` (`canvas_ax_state { action: "set-presence" }`)
   for explicit updates.

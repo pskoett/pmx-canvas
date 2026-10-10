@@ -2213,6 +2213,10 @@
           "board": {
             "description": "Board id; defaults to the open board.",
             "type": "string"
+          },
+          "boards": {
+            "description": "Comma-separated board ids: also return each one's latest agent read (pinned boards, in one request).",
+            "type": "string"
           }
         },
         "required": [

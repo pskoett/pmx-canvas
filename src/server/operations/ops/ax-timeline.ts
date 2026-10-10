@@ -547,6 +547,10 @@ const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchem
 
 const axReadsStatusShape = {
   board: z.string().optional().describe('Board id; defaults to the open board.'),
+  boards: z
+    .string()
+    .optional()
+    .describe('Comma-separated board ids: also return each one\'s latest agent read (pinned boards, in one request).'),
 };
 const axReadsStatusSchema = z.looseObject(axReadsStatusShape);
 
@@ -573,10 +577,14 @@ const axReadsStatusOperation = defineOperation<z.infer<typeof axReadsStatusSchem
         : boardId
           ? (canvasState.readBoard(boardId, false)?.state.contextPinMeta ?? {})
           : {};
+    const others = typeof input.boards === 'string' ? input.boards.split(',').map((id) => id.trim()) : [];
     return {
       ok: true,
       boardId,
       board: canvasState.getBoardLastRead(boardId),
+      ...(others.length > 0
+        ? { boards: Object.fromEntries(others.filter(Boolean).map((id) => [id, canvasState.getBoardLastRead(id)])) }
+        : {}),
       nodes: canvasState.getNodeReadStatus(boardId),
       links: canvasState.getSeenLinks(boardId),
       pins,

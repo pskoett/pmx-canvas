@@ -20,6 +20,8 @@
 
 **Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible with the curation evaluation, the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
 
+**Wave 1 status, 2026-10-10 — context made visible: built on `main`, not released.** From the board alone a person can now see what is in the agent's context and whether its copy is current: read / not read / changed marks on pinned cards; near-a-pin (the brief carries neighbours, the dotted chip, tethers and the 600 px radius, the moment a card arrives or leaves); links that changed since a read, on the link and in the brief ("new, by codex"); board pins and Home as a library (folder tree, board cards, details, the in-context switch); the session receipt (what the agent did, per-edit descriptions with "See change", Tell <agent>, Undo per card via `snapshot.restore-node`) and the live session lens in the agent chip. Remaining: the curation evaluation, deferred until the maintainer tests a version; a drawing for the open "See change" view. **Dropped 2026-10-10:** Suggested cards — the agent changes the canvas directly, and an ask or a suggestion already goes through the composer. Detail and deviations: [plan 016](plans/plan-016-context-made-visible-wave-1.md), [design.md](design.md).
+
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
 | Release scope | Content | Acceptance target (not a completion claim) |
@@ -194,7 +196,7 @@ Objection: none, the panel did not see it. Risk: the wiki sprawls. Mitigation: t
 - **Agent surface.** `canvas://pinned-context` gains a pinned-boards section; `canvas_board` gains `pin` and `unpin`, with the HTTP route, SDK method and CLI command kept in step. Read instrumentation (`context_reads`) already records the board of each read, so "read / not read yet" works per board.
 - **Data.** A `board_pins` table: board id, who pinned, when.
 - **Design.** Wave 1 of [design.md](design.md); drawn on the BoardPins and Home boards.
-- **Deferred from the 0.9.0 tech-debt sweep (2026-10-08).** The context chip asks for each pinned board's read status with one request per board. Batch it into one request when the Home redesign lands, which needs the same per-board read data.
+- **Done 2026-10-10 (deferred from the 0.9.0 tech-debt sweep).** The context chip reads every pinned board's status in one request (`context-status?boards=…`), landed with the Home redesign.
 
 ### 1. One read, one brief (M)
 

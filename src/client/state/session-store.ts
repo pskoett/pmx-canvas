@@ -5,7 +5,7 @@ import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shar
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence.js';
 import { axSurfaceState, nodes } from './canvas-store';
 import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
-import { agentActivity } from './presence-store';
+import { agentActivity, agentPresences } from './presence-store';
 
 // Structural views of the AX wire shapes (the client never imports server
 // modules; the status/kind unions come from shared/). Only the fields the
@@ -401,6 +401,11 @@ export interface ReceiptNode {
   id: string;
   title: string;
   reason?: string;
+  /** Edited cards: what the edit did ("rewrote the second paragraph"). */
+  change?: string;
+  /** Edited cards: the text before and at the session's end, cut around the first difference. */
+  before?: string;
+  after?: string;
 }
 
 export interface SessionContextActivity {
@@ -418,7 +423,14 @@ function receiptNodes(value: unknown): ReceiptNode[] {
     const record = entry as Record<string, unknown>;
     if (typeof record.id !== 'string' || typeof record.title !== 'string') return [];
     return [
-      { id: record.id, title: record.title, ...(typeof record.reason === 'string' ? { reason: record.reason } : {}) },
+      {
+        id: record.id,
+        title: record.title,
+        ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
+        ...(typeof record.change === 'string' ? { change: record.change } : {}),
+        ...(typeof record.before === 'string' ? { before: record.before } : {}),
+        ...(typeof record.after === 'string' ? { after: record.after } : {}),
+      },
     ];
   });
 }
@@ -427,18 +439,61 @@ function receiptNodes(value: unknown): ReceiptNode[] {
  * The agent-activity lens: while on, nodes the last session did not touch
  * (read, pin, create, edit) are dimmed. Null when off.
  */
-export const activityLensNodeIds = signal<Set<string> | null>(null);
+/**
+ * The activity lens ("Dim untouched nodes"): off, one live session's touches
+ * (the chip that was pressed), or the receipt's. A live lens hands over to the
+ * receipt when that session ends, and switches off if its ending has none.
+ */
+export type ActivityLens = { kind: 'live'; sessionId: string } | { kind: 'receipt' } | null;
+export const activityLens = signal<ActivityLens>(null);
 
-export function setActivityLens(on: boolean): void {
-  const context = sessionReceipt.value?.context;
-  activityLensNodeIds.value =
-    on && context
-      ? new Set([...context.read, ...context.pinned, ...context.created, ...context.edited].map((node) => node.id))
-      : null;
+const touchedIds = (lists: Array<Array<{ id: string } | string>>): Set<string> =>
+  new Set(lists.flat().map((entry) => (typeof entry === 'string' ? entry : entry.id)));
+
+export const activityLensNodeIds = computed<Set<string> | null>(() => {
+  const lens = activityLens.value;
+  if (lens?.kind === 'live') {
+    const touches = agentPresences.value.find(
+      (presence) => presence.attached && presence.sessionId === lens.sessionId,
+    )?.session;
+    return touches ? touchedIds([touches.read, touches.pinned, touches.created, touches.edited]) : null;
+  }
+  const context = lens?.kind === 'receipt' ? sessionReceipt.value?.context : undefined;
+  return context ? touchedIds([context.read, context.pinned, context.created, context.edited]) : null;
+});
+
+/** Cards an agent edited in a live session or in the receipt's session: they carry the violet bar. */
+export const sessionEditedIds = computed<Set<string>>(
+  () =>
+    new Set([
+      ...agentPresences.value.flatMap((presence) => (presence.attached ? (presence.session?.edited ?? []) : [])),
+      ...(sessionReceipt.value?.context.edited.map((node) => node.id) ?? []),
+    ]),
+);
+
+/** Turn the lens on for a live session (from its chip) or the receipt, or off. */
+export function setActivityLens(on: boolean, live?: { sessionId: string }): void {
+  activityLens.value = on ? (live ? { kind: 'live', ...live } : { kind: 'receipt' }) : null;
 }
 
 /** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
 export const sessionReceipt = signal<SessionReceipt | null>(null);
+
+/** A card both sessions edited: the first Before, the last After, both changes. */
+function mergeEdits(open: ReceiptNode[], next: ReceiptNode[]): ReceiptNode[] {
+  const later = new Map(next.map((node) => [node.id, node]));
+  const merged = open.map((node) => {
+    const again = later.get(node.id);
+    if (!again) return node;
+    later.delete(node.id);
+    return {
+      ...again,
+      change: [node.change, again.change].filter(Boolean).join('; then '),
+      before: node.before ?? again.before,
+    };
+  });
+  return [...merged, ...later.values()];
+}
 
 function unionNodes(a: ReceiptNode[], b: ReceiptNode[]): ReceiptNode[] {
   const seen = new Set(a.map((node) => node.id));
@@ -464,7 +519,7 @@ function mergeReceipts(open: SessionReceipt, next: SessionReceipt): SessionRecei
       read: unionNodes(open.context.read, next.context.read),
       pinned: unionNodes(open.context.pinned, next.context.pinned),
       created: unionNodes(open.context.created, next.context.created),
-      edited: unionNodes(open.context.edited, next.context.edited),
+      edited: mergeEdits(open.context.edited, next.context.edited),
       changedSinceRead: unionNodes(open.context.changedSinceRead, next.context.changedSinceRead),
     },
   };
@@ -482,7 +537,13 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
   const snapshot = data.snapshot as SessionReceipt['snapshot'] | undefined;
   const context = data.context as Record<string, unknown> | undefined;
   if (typeof data.label !== 'string' || typeof data.endedAt !== 'string') return;
-  if (data.unchanged === true || typeof data.parentAgentId === 'string') return;
+  const lens = activityLens.value;
+  const endsLiveLens = lens?.kind === 'live' && lens.sessionId === data.writer;
+  if (data.unchanged === true || typeof data.parentAgentId === 'string') {
+    // The session the lens followed ended with nothing to show: the lens goes off.
+    if (endsLiveLens) activityLens.value = null;
+    return;
+  }
   const next: SessionReceipt = {
     labels: [data.label],
     sessions: 1,
@@ -511,15 +572,20 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
   };
   const open = sessionReceipt.value;
   sessionReceipt.value = open ? mergeReceipts(open, next) : next;
-  if (open && activityLensNodeIds.value) setActivityLens(true);
+  // A live lens carries on as the receipt's once its session ends.
+  if (endsLiveLens) activityLens.value = { kind: 'receipt' };
 }
 
 /**
  * Undo on the receipt's Edited row (AgentContext.dc.html): each card back to
  * its content in the pre-session snapshot — the rest of the board stays.
  */
-export async function undoSessionEdits(snapshotId: string, nodeIds: string[]): Promise<boolean> {
+export async function undoSessionEdits(
+  snapshotId: string,
+  nodeIds: string[],
+): Promise<{ ok: boolean; restored: number }> {
   let ok = true;
+  let restored = 0;
   for (const nodeId of nodeIds) {
     // A card you edited after the session keeps your edit.
     if (nodes.value.get(nodeId)?.lastEditedBy?.actor === 'human') continue;
@@ -533,13 +599,14 @@ export async function undoSessionEdits(snapshotId: string, nodeIds: string[]): P
       },
     );
     ok = ok && result.ok;
+    if (result.ok) restored += 1;
   }
-  return ok;
+  return { ok, restored };
 }
 
 export function dismissSessionReceipt(): void {
   sessionReceipt.value = null;
-  activityLensNodeIds.value = null;
+  if (activityLens.value?.kind === 'receipt') activityLens.value = null;
 }
 
 export function resetSessionStore(): void {
