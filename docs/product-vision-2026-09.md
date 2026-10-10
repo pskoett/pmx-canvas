@@ -1,7 +1,7 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03
+**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
@@ -48,6 +48,15 @@ and its fixes as groundwork; pause further full-plugin release work. This is a
 sequencing decision, not authorization to build or launch hosted PMX now, and it
 does not change local PMX Canvas's existing distribution.
 
+**Hosted direction, 2026-10-10:** after the team features in Part 3, the first
+hosted version targets ChatGPT Sites with OpenAI login and the MCP server hosted
+there too. This is the foundation for the full ChatGPT plugin and for other
+agents connecting to the same remote MCP server through OAuth using their
+user's OpenAI login. Sites login and its ChatGPT/Codex MCP plugin are documented;
+arbitrary external-client OAuth remains a separate validation gate. See Part 4
+for the live probe's discovery/registration blockers, node compatibility
+assessment and acceptance targets.
+
 **Hold the line.** No host-compatibility work jumps the queue until 0.7 ships, with two exceptions: regressions the reference project catches, and a bug that blocks the maintainer's real work in the host they use daily (today the Copilot app, a WebKit pane the Chromium reference does not cover). The second exception is narrow on purpose: it covers a board that cannot be used, not a tile that paints late or a host the maintainer is only testing.
 
 ## The one-line vision
@@ -58,7 +67,7 @@ does not change local PMX Canvas's existing distribution.
 
 **Both halves, and which one is the bet.** The board being the human's durable workspace, written by agents, is proven: every real board was agent-written from the maintainer's prompts and then shaped, pinned, presented and returned to. The board being the agent's working memory, read and acted on, is a hypothesis: nothing yet shows an agent reading the board and behaving differently because of it, canvas steering has gone quiet, and the conversation lives in the host's chat. The vision holds both as one loop, so it has to prove the second half rather than let it ride on the first. Two things make that possible. Every node type needs a text form that carries its meaning, because a board that is rich for a human (decks, charts, drawings) is nearly opaque to an agent otherwise (move 1). And the loop is measured release by release, with a fixed benchmark (Part 1, item 4).
 
-Human attention helps select the agent's context; it does not define the whole product. Explicit steering directs agents; annotations, pins, connections, and grouping inform relevance, while spatial layout and human camera attention can contribute weaker cues. The server compiles one brief for every agent turn, paged so it never floods a host. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run a board is shared: first as an exported file, then as a link, then with comments and a second writer. That is the destination, not hosted multi-tenant multiplayer (Part 3).
+Human attention helps select the agent's context; it does not define the whole product. Explicit steering directs agents; annotations, pins, connections, and grouping inform relevance, while spatial layout and human camera attention can contribute weaker cues. The server compiles one brief for every agent turn, paged so it never floods a host. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run a board is shared: first as an exported file, then as a link, then with comments and a second writer. That is the sharing sequence in Part 3; the first managed hosted offering follows it in Part 4.
 
 **Purpose clarification:** pmx-canvas supports **knowledge work broadly**, including research, analysis, dashboards, planning, discovery, coordination, and orchestrating coding or other work. These are examples, not a closed list or a coding-only boundary. Its promise is to help humans and agents do the work, carry useful understanding into the next task, and see known changes and uncertainty in the context they use. The [companion vision](product-context-vision-2026-09.md#position) explored a separate memory graph and wiki; as of 2026-09-23 that role is played by the boards themselves (move 0), and its publication and audience guidance waits until sharing reaches a second writer. Contributing to memory does not automatically make every item a confirmed fact or shared organizational knowledge; attention does not grant approval or sharing permission.
 
@@ -363,7 +372,7 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 
 ## Part 3: Long term, share this board
 
-**Decided with the maintainer, 2026-09-23:** the destination is "share this board", not hosted multi-tenant multiplayer. Hosted multiplayer competes head-on with established whiteboard products that have teams, funding and their own MCP integrations. What they cannot easily be is local-first, host-agnostic, and inside the agent's pane in Claude Code, Codex, Copilot and Amp; that is where this product wins. A PM board is something its owner presents to colleagues, so sharing grows from that, one step at a time, and each step is justified only by someone using the one before it.
+**Decided with the maintainer, 2026-09-23; scope clarified 2026-10-10:** this phase delivers "share this board" through local and self-hosted sharing. Part 4 adds the first managed hosted offering after the team features. Hosted multiplayer competes head-on with established whiteboard products that have teams, funding and their own MCP integrations. What they cannot easily be is local-first, host-agnostic, and inside the agent's pane in Claude Code, Codex, Copilot and Amp; that is where this product wins. A PM board is something its owner presents to colleagues, so sharing grows from that, one step at a time, and each step is justified only by someone using the one before it.
 
 | Step | What it is | Needs first |
 |---|---|---|
@@ -393,7 +402,203 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 
 **The vision it enables.** A quarterly OKR board with the PM, the team leads and each of their agents on it, every card attributed, every ask answered by the person it was addressed to, and the time scrubber showing how the plan changed and who changed it, reached from a link the PM sent after the workshop.
 
-**The constraints that hold.** No required externals: history and sync are the journal, not a third-party service. Everything in move 7 is mandatory before step 2 opens a port, and MCP-app hosting of third-party apps needs a per-board allowlist once viewers are not all the owner. Org/team/personal scopes do not imply multi-tenant hosting or an enterprise governance engine; those remain outside this plan.
+**The constraints that hold.** Local and self-hosted PMX need no required externals: history and sync are the journal, not a third-party service. Everything in move 7 is mandatory before step 2 opens a port, and MCP-app hosting of third-party apps needs a per-board allowlist once viewers are not all the owner. Org/team/personal scopes do not themselves require multi-tenant hosting or an enterprise governance engine. The first hosted offering follows these team features in Part 4.
+
+## Part 4: First hosted version — ChatGPT Sites
+
+**Direction decided with the maintainer, 2026-10-10.** After the team features
+in Part 3, aim to deliver the first hosted version of PMX Canvas in **ChatGPT
+Sites**, with **OpenAI login**. The **MCP server is hosted there as well**, so
+users can reach their boards and context without running a local PMX process
+or a private tunnel.
+
+This hosted foundation enables full development and release of the **ChatGPT
+plugin**. Other agents should be able to connect directly to the same hosted
+MCP endpoint through **OAuth using the user's OpenAI login**. Both paths act
+as that user and respect the same board roles, knowledge scopes and personal
+privacy established by the team features.
+
+**Done when:** a user signs in with OpenAI, creates a durable hosted board,
+and uses it through the ChatGPT plugin; an agent outside ChatGPT connects over
+MCP through OAuth with that user's OpenAI login and reads and updates the same
+authorised board. Installation, account connection, rendering, context
+synchronisation and reconnect behavior are verified across both paths.
+
+The milestone follows the team features and retains local and self-hosted
+distribution. The assessment below separates documented platform capabilities,
+source-level portability and deployed verification; none is interchangeable.
+
+### Platform evidence and OAuth validation
+
+**Checked 2026-10-10.** Sites provides browser sign-in and forwards the visitor's
+identity to server code. PMX must still enforce membership, board roles and
+personal-library access. Sites also offers D1 for durable records and R2 for
+uploaded files. These are documented platform building blocks, not proof that
+the current PMX server runs there unchanged.
+Sources: [Sites sign-in](https://learn.chatgpt.com/docs/sites#add-sign-in-with-chatgpt)
+and [supported site shapes](https://learn.chatgpt.com/docs/sites#choose-a-supported-site-shape).
+
+The installed **Sites plugin 1.0.1** documents a stateless JSON-RPC `POST /mcp`
+endpoint declared through `capabilities: ["mcp"]`. Sites authenticates callers,
+checks Site access and supplies a Site-scoped user ID. Publication provisions a
+private plugin for ChatGPT/Codex and refreshes its tools on republication.
+Its `get_site(include_mcp_connection: true)` contract exposes both `mcp_url` and
+`oauth_resource`, explicitly described for Codex connections. This establishes
+an OAuth resource mechanism, but does not establish registration, callbacks or
+token issuance for arbitrary third-party clients. Evidence: the bundled
+`sites/references/site-mcp-server.md`, `identity-and-secrets.md`, `storage.md`
+and native Sites tool schema, inspected on the date above. Those installed
+references are implementation guidance; they are not a public compatibility
+guarantee. The automatic private plugin is also not a public-directory release;
+[public submission](https://developers.openai.com/plugins/deploy/submission)
+has its own connection and review requirements.
+
+**OpenAI login and MCP authorization are separate steps.** The official
+[plugin sign-in guide](https://developers.openai.com/siwc/chatgpt-plugin)
+describes two OAuth transactions: signing a user into an application and
+authorizing the connector to act for that user. Its general commercial sign-in
+integration is a limited partner trial, separate from Sites' built-in login.
+The [MCP authentication guide](https://developers.openai.com/plugins/build/auth)
+requires discovery, client identification/registration, PKCE and resource-bound
+tokens. A browser session, an OpenAI ID token or an API inference token is not
+evidence of a valid PMX MCP access token. Sites' service bypass credential also
+supplies no visitor identity and is not a substitute for per-user OAuth.
+
+**Live probe result, 2026-10-10: OAuth is present; plug-and-play access by a
+fresh external client did not pass.** A separate owner-private
+[PMX MCP OAuth validation Site](https://pmx-mcp-oauth-validation-20261010.skottpedersen.chatgpt.site)
+was deployed with one read-only identity-check tool and no PMX board data.
+TypeScript and the Sites production build passed; deployment reported
+`succeeded` and `has_mcp: true`. This tests the platform boundary, not PMX's
+full server, board isolation or renderers.
+
+| Check | Observed result |
+|---|---|
+| Sites connection metadata | Returned the published `/mcp` URL as both `mcp_url` and `oauth_resource`, plus a provisioned plugin ID. |
+| Unauthenticated MCP request | `401` with `WWW-Authenticate: Bearer`, a resource-discovery URL and scopes `openid resource.invoke email`. |
+| Protected-resource discovery | `200` JSON naming `https://auth.openai.com` as issuer, the exact Site `/mcp` resource and scopes including `resource.invoke` and `offline_access`. |
+| Authorization-server discovery | `https://auth.openai.com/.well-known/oauth-authorization-server` returned `200` HTML rather than JSON. PMX's installed MCP SDK 1.28.0 failed discovery with `Unexpected token '<'`; its discovery path did not continue to OpenID metadata after that parse failure. |
+| OpenID discovery, fetched separately | Valid JSON advertised authorization-code/refresh grants and `S256` PKCE, but no `registration_endpoint` or `client_id_metadata_document_supported`. |
+| Fresh-client registration preflight | Given that metadata, SDK 1.28.0 rejected registration with `Incompatible auth server: does not support dynamic client registration`. No registration request or token exchange was sent. |
+
+These results establish an advertised OpenAI OAuth path and two concrete
+interoperability blockers for the tested standard client path. They do not
+prove all external clients are forbidden: a supported pre-registered client
+and explicit endpoint configuration may differ. They also do not establish
+that the Site's own browser-login client ID can be reused by another agent;
+client registration, redirect URIs and resource permissions must be approved
+for that agent. Do not borrow Codex's client identity or reuse browser/service
+credentials as a workaround. No external client has yet completed consent,
+received a resource-bound token or called the probe as a user.
+
+Reproduce from the Site's challenge URL and the issuer's public metadata; retain
+the date and SDK version because platform discovery can change. The next
+dependency is a supported external-client registration/configuration from
+OpenAI or a platform change, followed by the end-to-end test below. The vision's
+“other agents simply use MCP through their OpenAI login” remains a target with
+an observed blocker, not a validated launch capability.
+
+**External-client acceptance gate.** Obtain the exact published MCP URL and
+OAuth resource from Sites; inspect its unauthenticated challenge and discovery
+metadata; establish a supported registration and callback path for a named
+external client. Complete browser consent and an authorization-code/PKCE
+exchange, then call a read-only identity tool through that client. Verify token
+refresh or reauthorization, revoked access and two users' isolation before
+claiming parity. A discovery document alone is only partial validation. If
+Sites does not support external clients directly, investigate a separately
+authorized MCP gateway; that is an architectural alternative requiring a new
+decision, not an implemented fallback or a reason to expose the Site publicly.
+
+### What must change in PMX's hosted runtime
+
+The installed Sites runtime guidance specifies Cloudflare Workers, with 128 MB
+per isolate and HTTP-based external connections. PMX currently uses
+[`Bun.serve`](../src/server/server.ts), synchronous
+[`bun:sqlite`](../src/server/canvas-db.ts), a process-wide
+[`CanvasStateManager`](../src/server/canvas-state.ts), local files and in-memory
+SSE subscribers. Hosting therefore requires porting the server to the Sites
+runtime, not just uploading the browser bundle.
+
+- **Storage and identity:** use D1 for board/knowledge records and R2 for originals and generated assets, with authorization on every read and write. Scope board selection, pins, context cursors and agent sessions to users/workspaces. Sites identity establishes who called; PMX roles determine what they may do.
+- **Live state:** preserve one authoritative mutation path while replacing reliance on a long-lived process. Prove concurrent writes, event delivery, reconnect and persistence across Worker replacement. Presence, locks, approval expiry, flow advancement and MCP app sessions also need a hosted lifecycle; do not assume timers or module-level maps survive or coordinate isolates. Select the synchronization mechanism only after checking Sites' supported bindings and streaming behavior.
+- **Assets and builds:** prebuild the canvas and viewers; serve protected documents and uploaded objects by durable IDs. Local file watching, desktop open/reveal, subprocess MCP servers, Bun.WebView screenshots and runtime package builds do not transfer unchanged. A local bridge or external builder would be a separate integration.
+- **MCP and the plugin UI:** Sites' documented tool endpoint is the starting contract. Verify PMX's resources, resource templates, notifications and MCP Apps UI embedding separately; a successful tool call does not prove that `canvas://pinned-context`, the embedded workbench or nested app frames work. Existing `isHostedWorkbench()` means an MCP App host transport is installed, not that Sites deployment is supported ([transport source](../src/client/state/workbench-transport.ts)).
+
+### Node compatibility for the first hosted version
+
+**Source audit, 2026-10-10; no deployed node certification.** The
+[`CanvasNodeState` union](../src/client/types.ts) has 18 types. “Portable” below
+means the renderer can plausibly be reused once the common hosted backend is
+in place. “Adapt” identifies a concrete current dependency to replace.
+“Conditional” requires a platform or upstream integration test. All node types
+remain in the product vision; local-only behavior is not promised as hosted
+parity.
+
+| Node type | Hosted assessment | What carries over and what must be proved or changed |
+|---|---|---|
+| `markdown` | Portable; adapt path-backed content | Inline text and editing can carry over. Local-file reads/saves need cloud document content or an explicit local bridge. Preserve links, source provenance and context text. |
+| `status` | Portable | Renders supplied status data. Live changes must use authenticated hosted writes. |
+| `context` | Portable; adapt local links | Cards, pins and AX actions can carry over. Open/reveal of a desktop path needs an uploaded resource or local bridge. |
+| `ledger` | Portable | Renders supplied entries; persist and authorize their updates in the hosted store. |
+| `trace` | Portable | Renders supplied trace data; a connected agent must deliver new events. Hosting does not create that telemetry. |
+| `file` | Adapt | Reuse text/code/table rendering. Replace `/api/file`, raw/PDF byte routes and local watchers with authorized stored objects and explicit updates. Local filesystem paths are not cloud file identities. |
+| `diff` | Portable | Displays supplied unified-diff text. Reading a local Git checkout to produce the diff remains an agent/source integration. |
+| `image` | Adapt assets | Data URLs and permitted HTTPS images can render. Local paths require uploaded objects; private image loading must work without exposing credentials. Remote sources retain their own access restrictions. |
+| `html` | Adapt surfaces | HTML and the existing primitives can use their browser renderer. Port surface documents, theme/assets and the nonce-tagged AX bridge; test sandbox/CSP and real interactions. `ax-board`/`ax-flow` additionally require hosted AX state and loop execution. |
+| `mermaid` | Adapt surfaces | The bundled browser renderer can carry over. Serve its sandboxed document and script/theme routes; verify visible output in both the Site and plugin. |
+| `mcp-app` | Conditional by mode | Remote URL frames depend on embedding policy. Prebuilt web artifacts need stored asset serving. External MCP Apps need a hosted session/credential/bridge implementation; local stdio servers cannot run unchanged. See modes below. |
+| `webpage` | Portable stored preview; conditional refresh/live frame | Stored preview data can render. Port the server fetcher while preserving SSRF/redirect restrictions; it currently uses Node DNS and pinned-IP HTTP/HTTPS. Live embedding depends on the target's CSP/X-Frame-Options, login and browser cookie policy. Keep preview/link fallback. |
+| `json-render` | Adapt viewer assets | Reuse the spec-driven browser viewer, ship its JS/CSS at deploy time, and port spec/state/action routes. Preserve `specVersion` changes so updates visibly reload. |
+| `graph` | Adapt viewer assets | Uses the json-render viewer path; apply the same asset, spec refresh and AX action checks. Supplying graph data is separate from scanning a local repository. |
+| `group` | Portable | Layout and membership follow hosted board state; preserve per-member mutation authorization. |
+| `board` | Portable with scoped queries | Port portals, navigation and backlinks. Linked boards require independent access checks; unreadable targets must reveal neither title nor context. |
+| `prompt` | Conditional execution | Existing prompt display can carry over. Submission needs authenticated delivery to an agent; Sites hosting and login do not provision an agent runtime. |
+| `response` | Portable history; conditional live stream | Stored answers can render. Live responses require a host adapter and durable delivery/reconnect behavior. |
+
+**File attachments are a mode, not a nineteenth type.**
+[`FileNode`](../src/client/nodes/FileNode.tsx) selects
+[`AttachmentNode`](../src/client/nodes/AttachmentNode.tsx) when `attachmentId`
+is present. Port originals to protected object storage and metadata/import
+state to D1. Preserve the 20 MiB limit, explicit processing request, agent draft,
+human review and source-linked commit. PDF/Office extraction remains dependent
+on an agent's tools; hosting supplies neither OCR nor a converter. Local code
+dependency discovery also needs content/virtual-path indexing in place of
+[`code-graph.ts`](../src/server/code-graph.ts)'s filesystem resolution.
+
+**The three `mcp-app` modes need separate promises.** Prebuilt web artifacts
+are a strong candidate, but [`web-artifacts.ts`](../src/server/web-artifacts.ts)
+currently builds packages and writes local files; build elsewhere and upload
+the result. Plain URL frames remain subject to the remote site's embed policy.
+External MCP Apps use PMX's own AppBridge and
+[`mcp-app-runtime.ts`](../src/server/mcp-app-runtime.ts), which supports HTTP
+or subprocess transports and stores sessions in a process map. Remote HTTP is
+the hosted candidate; upstream OAuth, credentials, resources and reconnect are
+separate work from the user's authentication to PMX. Transport headers/env can
+currently travel in node `transportConfig`; hosted/shared boards must use
+server-only credentials and safe references instead.
+
+The [Excalidraw preset](../src/server/diagram-presets.ts) already uses remote
+HTTP and is a useful integration pilot, but must pass create, interact,
+checkpoint and reload tests. Its live app shell is not a standalone Site.
+For iframe-backed nodes, test both direct Site browsing and the nested ChatGPT
+plugin surface: sandbox identity, protected asset loading, postMessage origin
+and nonce checks, theme propagation and user-visible refresh all matter.
+
+Source anchors for this assessment: [native renderers](../src/client/nodes/),
+[surface and asset routes](../src/server/server.ts),
+[viewer server](../src/json-render/server.ts),
+[webpage fetcher](../src/server/webpage-node.ts),
+[external app operations](../src/server/operations/ops/app.ts), and
+[document imports](../src/server/document-import.ts).
+
+**Hosted proof before claiming compatibility:** create one board containing all
+18 types plus attachment, primitive and web-artifact variants; verify visible
+content, edits and pinned context, not only stored node data. Repeat after
+reload/reconnect and Worker replacement, with two users whose private boards
+and credentials differ. Check the 600/1024/1920 px surfaces and nine themes from
+the design gate. Record unsupported integrations explicitly. External-client
+OAuth, full MCP resource/UI support and third-party app hosting each need their
+own passing evidence before the complete hosted promise is met.
 
 ## Architecture diagnosis at the original review
 
@@ -441,7 +646,7 @@ Revised 2026-09-23 and 2026-09-24. The original 0.6 bundled five moves into 2–
 - The minimalist deletes the registry. Refuted three to zero: the browser alone calls 55 API paths.
 - The rendering architect deletes the tool rail and top bar. Design for 600 px first; the rail is the good part of the chrome.
 - Every vision, and my own first draft, proposed cutting node types on the strength of the repo's test board. The real boards refute the chart cut outright, and the maintainer's rule closes the rest: usage on one machine is not evidence of non-use. No node type is cut; consolidation is confined to how nodes render.
-- Four of six visions leaned on Obsidian, and five on git, as the format, the snapshot system, or the remote transport. The maintainer's rule is that this is its own app with no reliance on externals, and I agree: the app owns its history (the journal), its store (SQLite), and its remote reach (tokens and a listen mode). What survives of the folder idea is an export.
+- Four of six visions leaned on Obsidian, and five on git, as the format, the snapshot system, or the remote transport. For local and self-hosted distribution, the maintainer's rule is that this is its own app with no reliance on externals, and I agree: the app owns its history (the journal), its store (SQLite), and its remote reach (tokens and a listen mode). What survives of the folder idea is an export.
 - Several visions invented constants (700 chars, six frames, 14k lines) with the same confidence they mocked the repo's. So did I. Every such number in this document is a starting value to tune in use, not a claim.
 
 ## Evidence
