@@ -14,7 +14,8 @@ the comparison with earlier results; add a new case beside this one instead of e
 ## The question
 
 The same task, with the brief delivered, on a curated and an uncurated copy of the same board.
-How much better is the work on the curated board, and does that gap grow release by release?
+How good is the work in each condition, what does retrieval cost, and what contribution does
+curation make? Improve useful outcomes, not the size of the difference between conditions.
 With one real user this is a test case, not statistics; real sessions only confirm or
 contradict it.
 
@@ -44,6 +45,12 @@ action: "read-status", board }` after the run: a card is read only when pulled).
 explain the score: a missed current decision that was never pulled is a curation or ranking
 miss; one that was pulled and misread is a model miss.
 
+Record retrieval cost separately from the answer rubric: brief-page requests, full-card pulls
+(including repeats), elapsed task time, and host-reported tokens when available. Count only the
+run's reads, not the evaluator's inspection calls. Keep character counts and estimated tokens
+distinct from measured tokens; missing instrumentation is unknown, not zero. Lower cost is an
+improvement at comparable quality, not a reason to skip evidence needed for a correct answer.
+
 ## Protocol
 
 1. **Scratch workspace.** Start a server on a scratch workspace or database, never your real
@@ -59,7 +66,10 @@ miss; one that was pulled and misread is a model miss.
    its delivered pins for curated runs. Record the cards read (pulled in full). A run without a confirmed brief read is a delivery failure: record it, do not
    score it, and fix the adapter rather than doubt the thesis.
 5. **Runs.** Three per board with the same host and model: 6 runs. Alternate curated and
-   uncurated. Record host, model and date.
+   uncurated. Record host, model, relevant configuration, product version, date and per-run
+   retrieval costs. Keep those conditions comparable between releases; changing the model or
+   host starts a separate comparison series. Three runs per condition are diagnostic, not
+   enough to make small score differences a statistical release gate.
 6. **Blind scoring.** Score the answer files in shuffled order without the key file, using the
    rubric below, then join scores to the key.
 
@@ -79,13 +89,23 @@ stated as fact that is not on the board. The minimum score is 0.
 ## How results are used
 
 Run the eval on every release that touches the brief, pins, budgets or adapters, and at least
-once per minor version. Record the **curation gap**: curated mean minus uncurated mean, with
-delivery confirmed in every scored run, and the cards each run pulled.
+once per minor version. Record absolute scores and retrieval costs for **both conditions**,
+all run scores (not only means), delivery failures, and the cards each run pulled. Also record
+the **curation gap**: curated mean minus uncurated mean, with delivery confirmed in every
+scored run. Excluding a delivery failure from scoring does not remove it from the report.
 
-- **Track the gap over releases.** It is the number the brief, pins, near-a-pin, board pins and
-  lifecycle work exist to raise. A change to any of them is judged by whether the gap grows.
-- **A release that lowers the gap or breaks delivery is a regression** to fix before it ships,
-  the same as a failing test.
+- **Quality first; cost alongside it.** Improve absolute answer quality and delivery reliability
+  in both conditions. At comparable quality, fewer unnecessary reads, lower token use or shorter
+  task time are useful improvements. Make quality/cost tradeoffs explicit rather than collapsing
+  them into a single score.
+- **Use the gap diagnostically, not as a target.** Curated 8 → 9 and uncurated 5 → 8 narrows the
+  gap from 3 to 1 while both improve. Curated 8 → 8 and uncurated 5 → 3 widens it from 3 to 5
+  while one condition regresses. Neither gap direction alone establishes product improvement.
+- **Investigate regressions.** Broken delivery is a defect to fix before release. A lower
+  absolute score or higher retrieval cost under comparable conditions triggers inspection of
+  the lost rubric points and repeat runs. Reproducible quality loss is a regression; unexplained
+  cost increases need resolution or a documented quality tradeoff. Do not block a release merely
+  because the gap shrank or a small diagnostic sample varied.
 - **Read the misses.** For each run below 10, note which rubric line it lost and why (not
   delivered, delivered but ignored, misread). That note is the improvement backlog.
 - **Add cases, keep this one.** New boards (another domain, a larger board, cross-board pins)
@@ -95,12 +115,12 @@ delivery confirmed in every scored run, and the cards each run pulled.
 
 Per release:
 
-| Version | Host / model | Date | Curated mean | Uncurated mean | Gap | Delivery confirmed | Notes (lost lines, pulls) |
-|---|---|---|---|---|---|---|---|
+| Version | Host / model / config | Date | Curated mean | Uncurated mean | Gap | Delivery failures / attempts | Costs by condition | Notes (lost lines, variation) |
+|---|---|---|---|---|---|---|---|---|
 
 Per run (kept for the misses):
 
-| Run id | Version | Board | Cards pulled | R1 | R2 | R3 | R4 | R5 | Penalty | Total | Lost lines, why |
-|---|---|---|---|---|---|---|---|---|---|---|---|
+| Run id | Version | Board | Delivery | Cards pulled | Brief requests / full pulls | Elapsed time | Tokens (measured / estimated / unknown) | R1 | R2 | R3 | R4 | R5 | Penalty | Total | Lost lines, why |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 Not yet run.

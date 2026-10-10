@@ -63,6 +63,9 @@ discovery tier keeps working on the renamed field.
 - Each delivered card carries its qualification when it has one: review due (with reason),
   changed since read, lifecycle unknown. Never presents stale context as validated.
 - `canvas_query` search still finds retired cards, marked retired.
+- Dashboard portals/source-backed cards carry the accessible source's review qualification
+  separately from their own lifecycle. A durable container never suppresses a source warning;
+  unreadable targets disclose neither content nor lifecycle metadata.
 
 ### 3. Menus: folder settings, category editor, card Lifecycle tab
 
@@ -76,11 +79,28 @@ Variant A: "⧗ review due" bottom line (outlined amber, glyph + word + reason) 
 filter row (All / To review / Retired); Undo toast after retire; Home folder rows with category
 (glyph + word, inherited "↳"), "⧗ N due" and per-folder "unknown" counts.
 
+Dashboard source warnings identify the affected source rather than marking every card due.
+Extend the portal/source-card drawings to distinguish “source needs review” from the card's own
+review reason before building this state; no additional healthy-card badge is required.
+
 ### 5. When review is due
 
 Rate-based checks plus event triggers already observable: a provenance source changed, a
 superseding decision linked, a dependency card changed. Recipe cards (move 13) add the "refresh
 this board" handoff; regenerating a card is not validation.
+
+Apply the vision's dashboard/source lifecycle rules: folder defaults stop at links; source
+updates trigger review of explicitly dependent conclusions, not unrelated navigational cards.
+Opening or refreshing a dashboard never renews evidence validation. Preserve source revision
+or observation time on cached values, independently of when they were fetched.
+
+**Dashboard acceptance case:** a durable dashboard links to a fast-changing status source and
+an unrelated durable reference, and has a conclusion explicitly derived from the status source.
+Make the status source due or change its relevant content: the portal reports the source's
+qualification and the dependent conclusion needs review, while the reference and dashboard
+structure remain unaffected. Reopen and refresh: last-validated timestamps stay unchanged.
+Repeat with a cached/unavailable source (no fresh-check claim), and an unreadable target when
+sharing is available (no title or lifecycle leak). Verify the same distinctions in the brief.
 
 ## Out of this plan
 

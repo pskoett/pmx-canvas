@@ -159,7 +159,7 @@ Move 0 comes first, so real boards stop being overwritten. Then three changes th
    - **Delivery: does the brief reach the agent?** Record which resources each agent session reads and whether the pinned nodes were in what it read, per host. A miss here is plumbing (the skill, an adapter's per-prompt injection, the MCP client), and the answer is to fix the adapter, not to doubt the thesis.
    - **Effect: when it arrives, does curation change the work?** One fixed eval under `docs/evals/`: the same task, with the brief delivered, on a curated and an uncurated board, scored on criteria written before the first run. With one real user, real sessions cannot carry statistical weight; the eval is the test, and real sessions only confirm or contradict it.
 
-   **Continuous improvement, not a verdict (decided with the maintainer, 2026-10-07).** The eval ([curation-effect](evals/curation-effect.md)) is a benchmark rerun on every release that touches the brief, pins, budgets or adapters. It tracks the curation gap (curated minus uncurated score, delivery confirmed): changes to the brief and attention features are judged by whether the gap grows, a release that lowers it is a regression, and each lost rubric line feeds the improvement backlog. This replaces the 2026-09 one-off decision rule.
+   **Continuous improvement, not a verdict (decided 2026-10-07; evaluation rule corrected with the maintainer 2026-10-10).** The eval ([curation-effect](evals/curation-effect.md)) is a benchmark rerun on every release that touches the brief, pins, budgets or adapters. Track absolute answer quality on both curated and uncurated boards, delivery reliability and retrieval cost. The curation gap (curated minus uncurated score) diagnoses the contribution of curation; it is not a target to maximise. Better uncurated answers can narrow the gap without regression, and worse uncurated answers can widen it without improvement. Investigate repeatable quality or cost regressions under comparable conditions and fix broken delivery; three runs per condition are diagnostic, not a statistical release gate. Each lost rubric line feeds the improvement backlog. This replaces the 2026-09 one-off decision rule and the later gap-growth requirement.
 
 ## Part 2: The shape I believe in
 
@@ -323,6 +323,14 @@ The real boards are full of numbers from elsewhere: 13 metric charts, developer-
 - **Categories carry no colour:** a glyph and a word, like node kinds.
 - **The board shows only "⧗ review due"** — on the card, with a short reason, only while a review is due (variant A). Rate, decay type, inheritance, the four clocks and review history live in the card's Lifecycle tab and in folder settings; "unknown" is reported per folder on Home, never per card. A healthy card shows no lifecycle line. "Review due" (outlined ⧗) and "changed since read" (filled △) are both amber and differ by glyph, word, fill and place.
 - **Retire is reversible.** Retiring removes a card from the brief only; the card stays dimmed on the board, searchable as retired, with its history. A person restores it from the Lifecycle tab; restore is recorded and is not a validation.
+
+**Dashboards and source lifecycles (decided with the maintainer, 2026-10-10).** A board can be a durable dashboard without everything it presents being durable or fresh. Classify the knowledge, not the dashboard format:
+
+- **Structure can be durable.** The dashboard's layout, navigation and selection of boards need no age-based expiry. A broken target or a change in purpose can still require maintenance; durable never means permanently correct.
+- **Sources keep their own lifecycle.** A portal to an operational-status board carries that source's review qualification, not the dashboard's durable default. Folder defaults apply to content filed there; they do not propagate across links. A locally authored metric card can override the dashboard folder's lifecycle independently.
+- **Refreshing is not validating.** Opening the dashboard, following a link or successfully fetching a source does not reset its last-validated time. Distinguish retrieval time from the source's observation/update time and evidence validation. Cached values retain their source revision or “as of” time; an unavailable source is not presented as freshly checked.
+- **Conclusions have dependencies.** “We are on track” is a separate conclusion, not just navigation. A relevant source change can flag that conclusion for review through an explicit derivation/dependency relation. A plain navigational link does not make every connected card stale, and the rest of the dashboard does not become due merely because one source changed.
+- **Expose the reason where it matters.** A portal or source-backed card surfaces “source needs review” when applicable, separately from its own lifecycle, and the agent's brief carries the same qualification. Any dashboard roll-up reports affected sources, not a blanket claim that the dashboard is false or fresh. Unreadable targets retain the locked/no-title boundary; lifecycle signals never disclose protected source information.
 
 **Model-independent first.** Categories, lifecycle metadata and review outcomes are ordinary app data, editable by people and through the existing agent interfaces. They need no classifier, particular model or external inference service. Routine private knowledge maintenance can happen during agent-assisted work, with attribution and reversible history; publishing to a wider audience remains a separate explicit action.
 
@@ -847,16 +855,52 @@ Provide one shared, editable board export/import format across all three
 editions. Users deliberately transfer a board by exporting it from one edition
 and importing a copy into another; later edits remain independent. Preserve
 node content, layout, edges, groups, annotations, context pins, provenance and
-the attachments/assets the user chooses to include. This portable archive is
-additional to today's read-only HTML export. Import creates a new board by
-default and applies destination ownership and permissions; credentials and
-source access grants never travel with it. Local file references and live
+the attachments/assets the user chooses to include. Preserve the knowledge
+context too: relevant category definitions, folder/board assignments, the
+effective inherited lifecycle policy and its source, explicit overrides,
+validation status and evidence references, last-validated timestamps, retired
+state, and review/restore history. Include only the definitions and folder
+metadata needed for the selected boards, not the whole workspace taxonomy or
+private neighbouring boards. Export review shows what metadata and evidence
+will leave with the content. This portable archive is additional to today's
+read-only HTML export.
+
+**Identity and relations.** Import creates a new board by default, assigning
+destination IDs to copied boards, cards and assets while retaining their origin
+IDs as provenance. Use an explicit ID map to reconnect edges, groups, pins,
+portals and evidence references within the imported set; never match by title
+or accidentally reconnect a copied ID to an unrelated destination object.
+Linked boards are included only when explicitly selected and authorised.
+References to objects outside the archive remain marked external/unresolved,
+with only metadata authorised for export, until the user explicitly reconnects
+them. A missing target does not delete the relation or grant access to its source.
+
+**Lifecycle and authority.** Show category/policy conflicts before import;
+never overwrite a destination category merely because its name matches.
+Preserve the exported effective policy by default, even if the source folder
+ancestry is absent; mapping to a destination policy is an explicit choice with
+its effects shown and recorded. Import or recovery from an archive does not
+renew validation or reactivate cards retired in that archive; the deliberate
+Lifecycle-tab restore remains a separate action. Keep original review dates, evidence and historical
+attribution, recording the import separately. Missing or inaccessible evidence
+is flagged without erasing its historical validation record or claiming a fresh
+check. Historical actors are provenance, not destination identities or roles.
+
+Destination ownership and permissions apply; credentials and source access
+grants never travel with the archive. Local file references and live
 integrations may need reconnecting, with unavailable capabilities made explicit.
 
 **Portability acceptance:** round-trip a representative board between the
 local and ChatGPT editions for the pilot, and add Cloudflare to the same checks
-when that edition exists. Verify retained content and relationships, selected
-attachments, explicit integration limitations and independent edits after import.
+when that edition exists. Include two linked boards, an unexported target, a
+same-named destination category with different defaults, a card with a lifecycle
+override, a retired card and a review whose evidence is unavailable. Verify ID
+remapping, retained relationships and selected attachments, explicit unresolved
+references, category conflict handling, unchanged validation dates and retired
+state, preserved review history, destination permissions and independent edits
+after import. The recovery check states which history and assets the archive
+includes; preserving review history does not imply a complete mutation journal
+or all snapshots.
 
 Keep the local product as a maintained distribution, not a frozen predecessor
 or a thin client that requires the cloud. Keep the ChatGPT plugin and its user
