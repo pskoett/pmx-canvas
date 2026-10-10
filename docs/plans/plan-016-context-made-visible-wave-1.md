@@ -4,7 +4,28 @@
 receipt extras, edit descriptions and the live session lens (slice 3) and Home (slice 7). Slice 6
 (the curation evaluation) waits until the maintainer tests a version. Suggested cards were dropped
 (2026-10-10: the agent changes the canvas directly; asks and suggestions go through the composer).
-Open design follow-up: a drawing for the open "See change" view.
+
+**Handoff (2026-10-10, end of session).**
+- **Drag performance, done:** on a 306-card board every card re-rendered on every drag frame. Cards
+  now render through a memoised `WorldNode` (CanvasViewport.tsx), `useHeaderFold` measures only
+  when its key changes, and `App` subscribes to "board is empty" instead of the node map. Profiled
+  (Chrome CPU profile, 90-frame drag): Preact diff ~700 → ~70 ms, GC 385 → 20 ms, p95 frame 37 →
+  21 ms; long tasks 4 → 2.
+- **Next, drag:** the two remaining long tasks (~50–65 ms) are at pickup and drop, not per frame.
+  Suspects to profile: pickup — `bringToFront`, `buildSnapCache` (O(n)), `reportHumanGrab`,
+  `takeOverNode`, `noteNearAtGrab`; drop — `persistLayout`, `settleNearAfterDrop`, attention
+  entries. Profiler script approach: Playwright + CDP `Profiler` on an unminified
+  `bun build src/client/index.tsx --outdir dist/canvas` (rebuild minified after).
+- **Next, design:** build to [`SeeChange.dc.html`](../design/SeeChange.dc.html) (drawn 2026-10-10,
+  33a853d8): stack Before/After; mark removed (line-through, muted) and added (violet tint +
+  underline) words with a word-level diff; captions under Undo ("puts back the text from before",
+  "the card shows Before again", "undo would lose your edit"); "Open its board to undo" becomes a
+  button naming the board; the row Undo's "Kept your edits" caption; one change open at a time.
+  At ≤ 760 px the live counts move into the agent avatar's popover (with the dim switch and "Open
+  session panel"), and the avatar gets a violet ring and phase dot (ContextChip600 wins over
+  Pane600).
+- **Not run this session:** the curation evaluation (maintainer, later); a full browser suite on
+  a quiet machine (the presentation-record tests failed under load at 261e7c0f and its parent).
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),

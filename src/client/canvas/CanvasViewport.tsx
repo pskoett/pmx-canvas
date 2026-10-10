@@ -1,4 +1,5 @@
 import { effect } from '@preact/signals';
+import { Component } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { askText } from './TextPrompt';
 import { ContextNode } from '../nodes/ContextNode';
@@ -92,6 +93,29 @@ function renderNodeContent(node: CanvasNodeState) {
       return <GroupNode node={node} />;
     default:
       return <div>Unknown node type</div>;
+  }
+}
+
+/**
+ * One card in the world. A drag frame replaces only the moved node's object in
+ * the nodes map, so every other card keeps its props and skips the re-render
+ * (and its header re-measure); its own signals still update it.
+ */
+class WorldNode extends Component<{
+  node: CanvasNodeState;
+  onContextMenu?: (e: MouseEvent, nodeId: string) => void;
+}> {
+  shouldComponentUpdate(next: { node: CanvasNodeState; onContextMenu?: (e: MouseEvent, nodeId: string) => void }) {
+    return next.node !== this.props.node || next.onContextMenu !== this.props.onContextMenu;
+  }
+
+  render() {
+    const { node, onContextMenu } = this.props;
+    return (
+      <CanvasNode node={node} onContextMenu={onContextMenu}>
+        {renderNodeContent(node)}
+      </CanvasNode>
+    );
   }
 }
 
@@ -895,9 +919,7 @@ export function CanvasViewport({
         <AnnotationLayer annotations={Array.from(annotations.value.values())} />
         {draftAnnotation && draftAnnotation.points.length >= 2 && <AnnotationLayer annotations={[draftAnnotation]} />}
         {worldNodes.map((node) => (
-          <CanvasNode key={node.id} node={node} onContextMenu={onNodeContextMenu}>
-            {renderNodeContent(node)}
-          </CanvasNode>
+          <WorldNode key={node.id} node={node} onContextMenu={onNodeContextMenu} />
         ))}
         {/* Snap alignment guide lines */}
         {activeGuides.value && (

@@ -1,3 +1,4 @@
+import { computed } from '@preact/signals';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { Presentation } from './canvas/Presentation';
 import { presenting } from './state/presentation';
@@ -67,6 +68,12 @@ import type { AnnotationTool } from './types';
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
 }
+
+/**
+ * App needs only whether the board is empty. Reading the nodes map itself
+ * would re-render the whole shell (and re-measure the canvas) on every drag frame.
+ */
+const boardIsEmpty = computed(() => nodes.value.size === 0);
 
 export function App() {
   // Off by default in a narrow pane (Pane600.dc.html); the Settings menu turns it on.
@@ -341,8 +348,6 @@ export function App() {
     if (typeof ready === 'function') ready();
   }, [hasInitialLayout]);
 
-  const allNodes = Array.from(nodes.value.values());
-
   const area = canvasArea();
 
   return (
@@ -382,7 +387,7 @@ export function App() {
             <HomeView />
           ) : (
             hasInitialLayout &&
-            allNodes.length === 0 &&
+            boardIsEmpty.value &&
             intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}

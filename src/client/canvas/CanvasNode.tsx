@@ -153,7 +153,9 @@ function useHeaderFold(
     if (!el || !chip || chip.amber || fold === 'hidden') return;
     const room = Math.min(el.scrollWidth, TITLE_MIN_WIDTH * scale);
     if (el.clientWidth + 0.5 < room) setFold(fold === 'word' ? 'glyph' : 'hidden');
-  });
+    // Measures only when what fits can change: a moved card keeps its key, so a
+    // drag frame does not force a layout read.
+  }, [key, fold]);
   return chip ? fold : 'word';
 }
 
