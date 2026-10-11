@@ -11,7 +11,7 @@ import {
   updateBoard,
   type BoardSummary,
 } from '../state/boards-store';
-import { categoryAncestors, MIGRATED_SNAPSHOT_CATEGORY, normalizeBoardCategory } from '../../shared/boards.js';
+import { folderAncestors, MIGRATED_SNAPSHOT_FOLDER, normalizeBoardFolder } from '../../shared/boards.js';
 import { askText } from './TextPrompt';
 import { BoardFolderDialog } from './BoardFolderDialog';
 import { requestJson } from '../state/intent-bridge';
@@ -44,9 +44,9 @@ function linkCount(board: BoardSummary): number {
   return (board.links?.length ?? 0) + (board.backlinks?.length ?? 0);
 }
 
-export async function promptNewBoard(category?: string | null): Promise<void> {
+export async function promptNewBoard(folder?: string | null): Promise<void> {
   const name = await askText('New board', 'Board name', { confirm: 'Create' });
-  if (name) await createAndOpenBoard(name, category);
+  if (name) await createAndOpenBoard(name, folder);
 }
 
 const COLLAPSED_KEY = 'pmx-canvas-home-collapsed';
@@ -59,7 +59,7 @@ function readCollapsed(): Set<string> {
   } catch {
     // Storage can be unavailable (private windows, embedded panes): fall back to the default.
   }
-  return new Set([MIGRATED_SNAPSHOT_CATEGORY]);
+  return new Set([MIGRATED_SNAPSHOT_FOLDER]);
 }
 
 function writeCollapsed(collapsed: Set<string>): void {
@@ -70,8 +70,7 @@ function writeCollapsed(collapsed: Set<string>): void {
   }
 }
 
-const inFolder = (board: BoardSummary, path: string) =>
-  board.category === path || !!board.category?.startsWith(`${path}/`);
+const inFolder = (board: BoardSummary, path: string) => board.folder === path || !!board.folder?.startsWith(`${path}/`);
 
 const leaf = (path: string) => path.split('/').at(-1) ?? path;
 
@@ -103,7 +102,7 @@ function BoardThumbnail({ board }: { board: BoardSummary }) {
  * subfolders and board cards in the middle, the selected board's details on
  * the right. At ≤ 760 px (Pane600.dc.html) the tree becomes a folder picker,
  * the boards a list and the details a bottom sheet. Folders are board
- * categories; categories carry no colour (decided 2026-10-07). Browser
+ * folder paths; folders carry no colour (decided 2026-10-07). Browser
  * confirm dialogs are no-ops in agent panes, so Delete asks in place.
  */
 export function HomeView() {
@@ -111,7 +110,7 @@ export function HomeView() {
   const [view, setView] = useState<'Folders' | 'Map' | 'Graph'>('Folders');
   const [folder, setFolder] = useState<string>(() => {
     const recent = [...boardList.value].sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))[0];
-    return recent?.category ?? '';
+    return recent?.folder ?? '';
   });
   const [extraFolders, setExtraFolders] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -129,8 +128,8 @@ export function HomeView() {
 
   const folders = [
     ...new Set([
-      ...boards.flatMap((board) => (board.category ? categoryAncestors(board.category) : [])),
-      ...extraFolders.flatMap(categoryAncestors),
+      ...boards.flatMap((board) => (board.folder ? folderAncestors(board.folder) : [])),
+      ...extraFolders.flatMap(folderAncestors),
     ]),
   ].sort((a, b) => a.localeCompare(b));
   const childrenOf = (path: string) =>
@@ -144,10 +143,10 @@ export function HomeView() {
   const pinnedChars = pinned.reduce((sum, board) => sum + (board.mapChars ?? 0), 0);
   const subfolders = childrenOf(folder);
   const here = boards
-    .filter((board) => (board.category ?? '') === folder)
+    .filter((board) => (board.folder ?? '') === folder)
     .sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''));
   const matches = query
-    ? boards.filter((board) => `${board.name} ${board.category ?? ''}`.toLocaleLowerCase().includes(query))
+    ? boards.filter((board) => `${board.name} ${board.folder ?? ''}`.toLocaleLowerCase().includes(query))
     : [];
   const shown = query ? matches : here;
   const selected = boards.find((board) => board.id === selectedId) ?? null;
@@ -214,7 +213,7 @@ export function HomeView() {
     if (!name) return;
     let path: string | null;
     try {
-      path = normalizeBoardCategory(folder ? `${folder}/${name}` : name);
+      path = normalizeBoardFolder(folder ? `${folder}/${name}` : name);
     } catch {
       return;
     }
@@ -271,7 +270,7 @@ export function HomeView() {
           <button type="button" class="home-tree-name" onClick={() => goTo('')}>
             Unfiled
           </button>
-          <span class="home-tree-count">{boards.filter((board) => !board.category).length}</span>
+          <span class="home-tree-count">{boards.filter((board) => !board.folder).length}</span>
         </div>
       </li>
     </ul>
@@ -281,12 +280,12 @@ export function HomeView() {
     <ul class="home-pinned" aria-label="Pinned boards">
       {pinned.map((board) => (
         <li key={board.id}>
-          <button type="button" class="home-pinned-row" onClick={() => goTo(board.category ?? '')}>
+          <button type="button" class="home-pinned-row" onClick={() => goTo(board.folder ?? '')}>
             <span class="home-pin-dot" aria-hidden="true">
               <IconPin />
             </span>
             <span class="home-pinned-name">{board.name}</span>
-            <span class="home-tree-count">{board.category ? leaf(board.category) : 'Unfiled'}</span>
+            <span class="home-tree-count">{board.folder ? leaf(board.folder) : 'Unfiled'}</span>
           </button>
         </li>
       ))}
@@ -341,7 +340,7 @@ export function HomeView() {
     <aside class="home-details" aria-label="Board details" data-testid="home-details">
       <button type="button" class="home-details-grip" aria-label="Close details" onClick={() => select(null)} />
       <div class="home-details-head">
-        <span class="home-details-folder">{selected.category ? leaf(selected.category) : 'Unfiled'}</span>
+        <span class="home-details-folder">{selected.folder ? leaf(selected.folder) : 'Unfiled'}</span>
         <span class="home-details-name">{selected.name}</span>
       </div>
       <div class={`home-details-context${selected.pin ? ' is-on' : ''}`}>
@@ -588,7 +587,7 @@ export function HomeView() {
                     Library
                   </button>
                   {folder &&
-                    categoryAncestors(folder).map((path) => (
+                    folderAncestors(folder).map((path) => (
                       <span key={path}>
                         <span class="home-crumb-sep">/</span>
                         <button type="button" onClick={() => goTo(path)}>

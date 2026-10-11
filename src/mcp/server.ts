@@ -870,7 +870,7 @@ export async function startMcpServer(): Promise<void> {
     'canvas://boards',
     {
       description:
-        'The boards in this workspace with their categories, most recently opened first, and which one is ' +
+        'The boards in this workspace with their folders, most recently opened first, and which one is ' +
         'open (activeBoardId; null = Home). Writes go to the open board; use canvas_board action "open" to switch the shared workbench.',
       mimeType: 'application/json',
     },

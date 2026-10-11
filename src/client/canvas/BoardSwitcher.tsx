@@ -92,7 +92,7 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
                     <span class="board-switcher-item-copy">
                       <span class="board-switcher-item-name">{entry.name}</span>
                       <span class="board-switcher-item-folder">
-                        {entry.category?.split('/').join(' / ') || 'Unfiled'}
+                        {entry.folder?.split('/').join(' / ') || 'Unfiled'}
                       </span>
                     </span>
                     <span class="board-switcher-item-meta">

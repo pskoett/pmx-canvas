@@ -49,14 +49,14 @@ cmd(
 cmd(
   'board create',
   'Create an empty board (use board open with its returned id before writing)',
-  ['pmx-canvas board create "Q4 planning"', 'pmx-canvas board create "Q4 planning" --category Planning'],
+  ['pmx-canvas board create "Q4 planning"', 'pmx-canvas board create "Q4 planning" --folder Planning'],
   async (args) => {
     const { positional, flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('board create');
     const name = positional.join(' ').trim();
-    if (!name) die('Usage: pmx-canvas board create <name> [--category <category>]');
-    const category = getStringFlag(flags, 'category');
-    output(await invokeOperation('board.create', { name, ...(category ? { category } : {}) }));
+    if (!name) die('Usage: pmx-canvas board create <name> [--folder <folder>]');
+    const folder = getStringFlag(flags, 'folder');
+    output(await invokeOperation('board.create', { name, ...(folder ? { folder } : {}) }));
   },
 );
 
@@ -97,15 +97,15 @@ cmd('board rename', 'Rename a board', ['pmx-canvas board rename board-abc123 "Q4
 });
 
 cmd(
-  'board category',
-  'File a board under a category on Home (--clear removes it)',
-  ['pmx-canvas board category board-abc123 "Planning"', 'pmx-canvas board category board-abc123 --clear'],
+  'board folder',
+  'File a board under a folder on Home (--clear removes it)',
+  ['pmx-canvas board folder board-abc123 "Planning"', 'pmx-canvas board folder board-abc123 --clear'],
   async (args) => {
     const { positional, flags } = parseFlags(args);
-    if (flags.help || flags.h) return showCommandHelp('board category');
+    if (flags.help || flags.h) return showCommandHelp('board folder');
     const [id, ...rest] = positional;
-    const category = flags.clear ? '' : rest.join(' ').trim();
-    if (!id || (!category && !flags.clear)) die('Usage: pmx-canvas board category <board-id> <category> | --clear');
-    output(await invokeOperation('board.update', { id, category }));
+    const folder = flags.clear ? '' : rest.join(' ').trim();
+    if (!id || (!folder && !flags.clear)) die('Usage: pmx-canvas board folder <board-id> <folder> | --clear');
+    output(await invokeOperation('board.update', { id, folder }));
   },
 );

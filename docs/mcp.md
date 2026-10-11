@@ -267,8 +267,8 @@ nodeId, preserveHumanEdits: true }`. The server skips a card whose latest editor
 returning `restored: false, skipped: "human-edit"`; only `restored: true` means it restored
 the content. Omitting the option permits an explicit restore over human content.
 
-Board categories are nested folder paths: `canvas_board { action: "update", id:
-"<id>", category: "Engineering/Canvas/Decisions" }`. Use `category: ""` to
+Board folders are nested folder paths: `canvas_board { action: "update", id:
+"<id>", folder: "Engineering/Canvas/Decisions" }`. Use `folder: ""` to
 unfile a board. Moving preserves its ID and content; list results expose the
 full path for navigating the memory library.
 
@@ -282,7 +282,7 @@ of the first markdown card. Humans can change the designation using **Set as REA
 clicking **README** clears it. Read-only tasks leave the board unchanged.
 
 `canvas_board { action: "create-from" }` accepts `sourceBoardId`, `name`, optional
-`category`, `nodeIds`, `includeReadme`, `includeStructure`, and `preview`. Preview
+`folder`, `nodeIds`, `includeReadme`, `includeStructure`, and `preview`. Preview
 first: `prompt`, `response`, `trace`, and `mcp-app` are not reusable. Creation is
 transactional and inactive, assigns fresh node/edge IDs, and copies no pins, AX
 state, or history. Groups and the designated README are opt-in.

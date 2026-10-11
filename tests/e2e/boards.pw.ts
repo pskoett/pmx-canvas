@@ -361,10 +361,10 @@ test('a delayed new-board response preserves a newer board choice', async ({ pag
 test('nested folders move boards, retain tree folding, and search the library at 600px', async ({ page, request }) => {
   const created = await (
     await request.post('/api/canvas/boards', {
-      data: { name: 'Architecture decisions', category: 'Engineering/Canvas' },
+      data: { name: 'Architecture decisions', folder: 'Engineering/Canvas' },
     })
   ).json();
-  await request.post('/api/canvas/boards', { data: { name: 'Other decisions', category: 'Research/Decisions' } });
+  await request.post('/api/canvas/boards', { data: { name: 'Other decisions', folder: 'Research/Decisions' } });
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: null } });
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto('/workbench');
@@ -384,7 +384,7 @@ test('nested folders move boards, retain tree folding, and search the library at
   await expect(dialog).toHaveCount(0);
   await folderChip('Engineering/Canvas/Decisions').click();
   await expect(row).toBeVisible();
-  expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.category).toBe(
+  expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.folder).toBe(
     'Engineering/Canvas/Decisions',
   );
 
@@ -407,9 +407,7 @@ test('nested folders move boards, retain tree folding, and search the library at
   await dialog.getByRole('radio', { name: 'Engineering', exact: true }).check();
   await dialog.getByRole('button', { name: 'Move board', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.category).toBe(
-    'Engineering',
-  );
+  expect((await (await request.get(`/api/canvas/boards/${created.board.id}`)).json()).board.folder).toBe('Engineering');
   await home.getByRole('searchbox', { name: 'Find boards, cards and folders' }).clear();
   await home.getByRole('navigation', { name: 'Folder path' }).getByRole('button', { name: 'Library' }).click();
   await folderChip('Engineering').click();
@@ -805,7 +803,7 @@ test('Home Map persists human positions and Graph matches agent focus without op
   request,
 }) => {
   const source = (
-    await (await request.post('/api/canvas/boards', { data: { name: 'Planning map', category: 'Work' } })).json()
+    await (await request.post('/api/canvas/boards', { data: { name: 'Planning map', folder: 'Work' } })).json()
   ).board;
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
   const claim = await note(request, 'A decision to explore');

@@ -13,7 +13,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { normalizeBoardCategory } from '../../../shared/boards.js';
+import { normalizeBoardFolder } from '../../../shared/boards.js';
 import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
@@ -147,11 +147,11 @@ const jsonResult = (result: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
 });
 
-/** '' or null clears the category; undefined leaves it alone. */
-function boardCategory(value: unknown): string | null | undefined {
+/** '' or null clears the folder; undefined leaves it alone. */
+function boardFolder(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
   try {
-    return normalizeBoardCategory(typeof value === 'string' ? value : null);
+    return normalizeBoardFolder(typeof value === 'string' ? value : null);
   } catch (error) {
     throw new OperationError(error instanceof Error ? error.message : String(error));
   }
@@ -215,7 +215,7 @@ const boardGetOperation = defineOperation<z.infer<typeof getSchema>, Record<stri
 
 const createShape = {
   name: z.unknown().optional().describe('Board name'),
-  category: z.unknown().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
+  folder: z.unknown().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
 };
 const createSchema = z.looseObject(createShape);
 
@@ -231,12 +231,12 @@ const boardCreateOperation = defineOperation<z.infer<typeof createSchema>, Recor
       'Create a new empty board without opening it. Use canvas_board action "open" with the returned board id before writing to it.',
     extraShape: {
       name: z.string().describe('Board name'),
-      category: z.string().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
+      folder: z.string().optional().describe('Folder path on Home, e.g. Engineering/Canvas'),
     },
     formatResult: jsonResult,
   },
   handler: (input, ctx) => {
-    const board = canvasState.createBoard(boardName(input.name), boardCategory(input.category) ?? null);
+    const board = canvasState.createBoard(boardName(input.name), boardFolder(input.folder) ?? null);
     if (!board) throw new OperationError('Boards need a workspace database.', 409);
     emitBoardsChanged(ctx);
     return { ok: true, board };
@@ -275,7 +275,7 @@ const boardOpenOperation = defineOperation<z.infer<typeof openSchema>, Record<st
 const updateShape = {
   id: z.unknown().optional().describe('Board id'),
   name: z.unknown().optional().describe('New name'),
-  category: z.unknown().optional().describe('Folder path on Home; "" or null unfiles it'),
+  folder: z.unknown().optional().describe('Folder path on Home; "" or null unfiles it'),
   readmeNodeId: z.unknown().optional().describe('Markdown node id to use as README; null clears it'),
   mapPosition: z
     .object({ x: z.number().finite(), y: z.number().finite() })
@@ -294,11 +294,11 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
   mcp: {
     toolName: 'canvas_update_board',
     description:
-      'Rename a board, move it into a nested folder on Home (e.g. Engineering/Canvas; category "" unfiles it), or designate its markdown introduction with readmeNodeId. During board authoring, set a useful README when none exists; preserve an existing designation unless the human requests a change. Moving preserves the board ID and content.',
+      'Rename a board, move it into a nested folder on Home (e.g. Engineering/Canvas; folder "" unfiles it), or designate its markdown introduction with readmeNodeId. During board authoring, set a useful README when none exists; preserve an existing designation unless the human requests a change. Moving preserves the board ID and content.',
     extraShape: {
       id: z.string().describe('Board id'),
       name: z.string().optional().describe('New name'),
-      category: z.string().optional().describe('Folder path, up to 8 levels of 1–60 characters; "" unfiles it'),
+      folder: z.string().optional().describe('Folder path, up to 8 levels of 1–60 characters; "" unfiles it'),
       readmeNodeId: z.string().nullable().optional().describe('Markdown node id used as the board README'),
     },
     formatResult: jsonResult,
@@ -307,7 +307,7 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
     const id = typeof input.id === 'string' ? input.id : '';
     const patch = {
       ...(input.name !== undefined ? { name: boardName(input.name) } : {}),
-      ...(input.category !== undefined ? { category: boardCategory(input.category) ?? null } : {}),
+      ...(input.folder !== undefined ? { folder: boardFolder(input.folder) ?? null } : {}),
       ...(input.mapPosition !== undefined ? { mapPosition: input.mapPosition } : {}),
     };
     if (input.readmeNodeId !== undefined) {
@@ -336,7 +336,7 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
 const fromShape = {
   sourceBoardId: z.string().describe('Source board id'),
   name: z.string().describe('New board name'),
-  category: z.string().optional(),
+  folder: z.string().optional(),
   nodeIds: z.array(z.string()).optional(),
   includeReadme: z.boolean().optional(),
   includeStructure: z.boolean().optional(),
@@ -383,7 +383,7 @@ const boardCreateFromOperation = defineOperation<z.infer<typeof fromSchema>, Rec
     const board = canvasState.createBoardFromBoard({
       ...input,
       name: boardName(input.name),
-      category: boardCategory(input.category),
+      folder: boardFolder(input.folder),
     });
     if (!board) throw new OperationError('Could not create board from source.', 409);
     emitBoardsChanged(ctx);

@@ -25,7 +25,7 @@ function node(id: string, content: string, revision: number): CanvasNodeState {
 
 function input(overrides: Partial<ContextBriefInput> = {}): ContextBriefInput {
   return {
-    activeBoard: { boardId: 'active', name: 'Active', category: 'okr' },
+    activeBoard: { boardId: 'active', name: 'Active', folder: 'okr' },
     nodes: [],
     pinnedNodeIds: [],
     contentRevision: 0,
@@ -38,11 +38,11 @@ function input(overrides: Partial<ContextBriefInput> = {}): ContextBriefInput {
   };
 }
 
-function library(boardId: string, linkIds: string[], category = 'okr'): ContextBriefLibraryBoard {
+function library(boardId: string, linkIds: string[], folder = 'okr'): ContextBriefLibraryBoard {
   return {
     boardId,
     name: boardId,
-    category,
+    folder,
     readme: { nodeId: `${boardId}-readme`, title: `${boardId} intro`, summary: `${boardId} summary` },
     pinnedTitles: [{ nodeId: `${boardId}-pin`, title: `${boardId} decision` }],
     linkIds,
@@ -395,7 +395,7 @@ describe('compileContextBrief', () => {
     expect(future.nextCursor).toBeNull();
   });
 
-  test('deduplicates cyclic/duplicate links and ranks unrelated same-category boards last', () => {
+  test('deduplicates cyclic/duplicate links and ranks unrelated same-folder boards last', () => {
     const previous = library('previous', ['link-a', 'link-b']);
     const result = compileContextBrief(
       input({ libraryBoards: [library('related', []), previous, { ...previous }, library('active', ['cycle'])] }),

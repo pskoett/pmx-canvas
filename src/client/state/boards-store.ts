@@ -11,7 +11,7 @@ import type { MemoryTarget } from '../../shared/memory-graph.js';
 export interface BoardSummary {
   id: string;
   name: string;
-  category: string | null;
+  folder: string | null;
   createdAt: string;
   lastOpenedAt: string | null;
   nodeCount: number;
@@ -123,13 +123,13 @@ export async function openMemoryTarget(target: MemoryTarget): Promise<void> {
   }
 }
 
-/** Create a board (filed in `category` when given) and open it. */
-export async function createAndOpenBoard(name: string, category?: string | null): Promise<void> {
+/** Create a board (filed in `folder` when given) and open it. */
+export async function createAndOpenBoard(name: string, folder?: string | null): Promise<void> {
   const sequence = ++openRequestSequence;
   const created = await requestJson<{ board?: BoardSummary } | null>('createBoard', '/api/canvas/boards', null, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, ...(category ? { category } : {}) }),
+    body: JSON.stringify({ name, ...(folder ? { folder } : {}) }),
   });
   if (created?.board && sequence === openRequestSequence) await openBoard(created.board.id);
 }
@@ -159,7 +159,7 @@ export async function previewBoardCopy(sourceBoardId: string): Promise<BoardCopy
 export async function createBoardFrom(opts: {
   sourceBoardId: string;
   name: string;
-  category?: string;
+  folder?: string;
   nodeIds: string[];
   includeReadme: boolean;
   includeStructure: boolean;
@@ -178,14 +178,14 @@ export async function createBoardFrom(opts: {
   return result?.board ?? null;
 }
 
-/** Rename and/or re-file a board; `category: null` removes it from its category. */
+/** Rename and/or re-file a board; `folder: null` unfiles it. */
 export async function updateBoard(
   id: string,
-  patch: { name?: string; category?: string | null; mapPosition?: { x: number; y: number } | null },
+  patch: { name?: string; folder?: string | null; mapPosition?: { x: number; y: number } | null },
 ): Promise<void> {
   const payload = await post('updateBoard', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', {
     ...patch,
-    ...(patch.category === null ? { category: '' } : {}),
+    ...(patch.folder === null ? { folder: '' } : {}),
   });
   applyBoards(payload);
 }

@@ -47,7 +47,7 @@ function json(data: unknown): Response {
 function boardPayload(active: string) {
   return {
     activeBoardId: active,
-    boards: [{ id: active, name: active, category: null, createdAt: '', lastOpenedAt: null, nodeCount: 1 }],
+    boards: [{ id: active, name: active, folder: null, createdAt: '', lastOpenedAt: null, nodeCount: 1 }],
   };
 }
 

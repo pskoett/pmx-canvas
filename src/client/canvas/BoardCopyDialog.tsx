@@ -42,7 +42,7 @@ export function BoardCopyDialog({ board, onClose }: { board: BoardSummary; onClo
     const created = await createBoardFrom({
       sourceBoardId: board.id,
       name: name.trim(),
-      ...(board.category ? { category: board.category } : {}),
+      ...(board.folder ? { folder: board.folder } : {}),
       nodeIds: [...selected],
       includeReadme,
       includeStructure,

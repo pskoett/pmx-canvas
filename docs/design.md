@@ -224,11 +224,12 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
 ## Build plan
 
 Each wave pairs a vision move with the design that shows it. A wave is done only
-when both halves pass its check. Wave 2 is implemented in the current checkout;
-completion still requires the checks below and the [release gates](RELEASE.md).
-Wave 3, including [knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md),
-remains deferred. This is implementation status, not a release promise or
-authorization to publish.
+when both halves pass its check. Wave 2 passed the local stabilization gates
+(1,418 unit, 276 client and 248 headed browser tests, plus live human/agent checks).
+Wave 3 has started with the board-folder contract rename; relations and
+[knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md)
+remain to be built. The [release gates](RELEASE.md) still apply before a release.
+This is implementation status, not a release promise or authorization to publish.
 
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|

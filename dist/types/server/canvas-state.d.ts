@@ -319,10 +319,10 @@ declare class CanvasStateManager {
     getContextBriefCursor(boardId: string, consumer: string): number | null;
     advanceContextBriefCursor(boardId: string, consumer: string, revision: number): void;
     /** Creates a board without opening it. */
-    createBoard(name: string, category?: string | null): CanvasBoard | null;
+    createBoard(name: string, folder?: string | null): CanvasBoard | null;
     updateBoard(id: string, patch: {
         name?: string;
-        category?: string | null;
+        folder?: string | null;
         mapPosition?: {
             x: number;
             y: number;
@@ -340,7 +340,7 @@ declare class CanvasStateManager {
     createBoardFromBoard(input: {
         sourceBoardId: string;
         name: string;
-        category?: string | null;
+        folder?: string | null;
         nodeIds?: string[];
         includeReadme?: boolean;
         includeStructure?: boolean;

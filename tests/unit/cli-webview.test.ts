@@ -250,7 +250,7 @@ describe('agent CLI webview commands', () => {
     const result = Bun.spawnSync([process.execPath, cliIndexPath, '--help']);
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();
-    expect(output).toContain('board list|create|open|rename|category');
+    expect(output).toContain('board list|create|open|rename|folder');
     expect(output).not.toContain('the human opens them');
   });
 

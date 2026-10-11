@@ -192,7 +192,7 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
             boardTitle: board.name,
             cardId: result.id,
           }));
-          const metadata = `${board.name} ${board.category ?? ''}`.toLocaleLowerCase();
+          const metadata = `${board.name} ${board.folder ?? ''}`.toLocaleLowerCase();
           const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
           const readmeText = typeof readme?.data.content === 'string' ? readme.data.content : '';
           if (`${metadata} ${readmeText.toLocaleLowerCase()}`.includes(q.toLocaleLowerCase())) {
@@ -200,7 +200,7 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
               id: board.id,
               type: 'board',
               title: board.name,
-              snippet: readmeText.slice(0, 160) || board.category || board.name,
+              snippet: readmeText.slice(0, 160) || board.folder || board.name,
               score: metadata.includes(q.toLocaleLowerCase()) ? 4 : 2,
               boardId: board.id,
               boardTitle: board.name,
@@ -315,7 +315,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     const libraryBoards: ContextBriefLibraryBoard[] = [];
     for (const board of canvasState.listBoards()) {
       if (board.id === active.id) continue;
-      if (!linkedIds.has(board.id) && (!active.category || active.category !== board.category)) continue;
+      if (!linkedIds.has(board.id) && (!active.folder || active.folder !== board.folder)) continue;
       const read = readFull(board.id);
       if (!read) continue;
       const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
@@ -323,7 +323,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       libraryBoards.push({
         boardId: board.id,
         name: board.name,
-        category: board.category,
+        folder: board.folder,
         ...(readme
           ? {
               readme: {
@@ -370,7 +370,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       return readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1_000 }) : null;
     };
     const relationsOf = (boardId: string) => ({
-      folder: library.find((board) => board.id === boardId)?.category ?? null,
+      folder: library.find((board) => board.id === boardId)?.folder ?? null,
       readmeSummary: readmeSummary(boardId),
       links: [...new Set((linksFrom.get(boardId) ?? []).flatMap((id) => names.get(id) ?? []))],
       backlinks: [
@@ -451,7 +451,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       })),
     );
     const result = compileContextBrief({
-      activeBoard: { boardId: active.id, name: active.name, category: active.category },
+      activeBoard: { boardId: active.id, name: active.name, folder: active.folder },
       nodes: layout.nodes,
       pinnedNodeIds,
       contentRevision: revision.revision,

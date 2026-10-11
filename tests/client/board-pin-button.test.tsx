@@ -23,7 +23,7 @@ afterEach(cleanup);
 const board = (pin: BoardSummary['pin']): BoardSummary => ({
   id: 'board-research',
   name: 'Research',
-  category: null,
+  folder: null,
   createdAt: '2026-10-07T00:00:00.000Z',
   lastOpenedAt: null,
   nodeCount: 3,

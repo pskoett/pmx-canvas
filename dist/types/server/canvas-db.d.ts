@@ -76,8 +76,8 @@ export declare function loadStateFromDB(db: Database, boardId?: string): Persist
 export interface CanvasBoard {
     id: string;
     name: string;
-    /** A human-chosen shelf on Home ("Planning", "Research"); null is uncategorized. */
-    category: string | null;
+    /** A human-chosen folder on Home ("Planning", "Research"); null is unfiled. */
+    folder: string | null;
     createdAt: string;
     lastOpenedAt: string | null;
     nodeCount: number;
@@ -96,13 +96,13 @@ export interface CanvasBoard {
 /** Most recently opened first, then never-opened boards, newest first. */
 export declare function listBoardsFromDB(db: Database): CanvasBoard[];
 export declare function getBoardFromDB(db: Database, id: string): CanvasBoard | null;
-export declare function createBoardInDB(db: Database, name: string, category?: string | null): CanvasBoard;
+export declare function createBoardInDB(db: Database, name: string, folder?: string | null): CanvasBoard;
 /** Pin a board into the working set, or unpin it with null. False when the board does not exist. */
 export declare function setBoardPinInDB(db: Database, id: string, meta: ContextPinMeta | null): boolean;
-/** Rename and/or re-shelve a board; `category: null` removes it from its category. */
+/** Rename and/or re-shelve a board; `folder: null` unfiles it. */
 export declare function updateBoardInDB(db: Database, id: string, patch: {
     name?: string;
-    category?: string | null;
+    folder?: string | null;
     readmeNodeId?: string | null;
     mapPosition?: {
         x: number;
@@ -111,7 +111,7 @@ export declare function updateBoardInDB(db: Database, id: string, patch: {
     previousBoardId?: string | null;
 }): boolean;
 /** Create and populate an inactive board as one SQLite transaction. */
-export declare function createBoardWithStateInDB(db: Database, name: string, category: string | null, state: PersistedCanvasState, readmeNodeId: string | null, invalidateTarget?: (boardId: string, nodeId: string) => void): CanvasBoard;
+export declare function createBoardWithStateInDB(db: Database, name: string, folder: string | null, state: PersistedCanvasState, readmeNodeId: string | null, invalidateTarget?: (boardId: string, nodeId: string) => void): CanvasBoard;
 /** Derived incoming-link metadata only: the target owns its clock and its body. */
 export declare function invalidateLinksInDB(db: Database, boardId: string, nodeId: string): void;
 /** A target's appearance/disappearance changes its incoming saved relations on source cards. */

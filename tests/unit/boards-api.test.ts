@@ -127,37 +127,37 @@ describe('boards over HTTP', () => {
     expect((resolved.body.approvalGate as { status: string }).status).toBe('approved');
   });
 
-  test('boards are filed under categories, which can be changed and cleared', async () => {
-    const created = await call('POST', '/api/canvas/boards', AGENT, { name: 'OKR April', category: 'Planning' });
+  test('boards are filed under folders, which can be changed and cleared', async () => {
+    const created = await call('POST', '/api/canvas/boards', AGENT, { name: 'OKR April', folder: 'Planning' });
     const id = (created.body.board as CanvasBoard).id;
-    expect((created.body.board as CanvasBoard).category).toBe('Planning');
+    expect((created.body.board as CanvasBoard).folder).toBe('Planning');
 
-    await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: 'Quarterly' });
+    await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { folder: 'Quarterly' });
     const moved = (await boards()).boards.find((board) => board.id === id);
-    expect(moved).toMatchObject({ name: 'OKR April', category: 'Quarterly' });
+    expect(moved).toMatchObject({ name: 'OKR April', folder: 'Quarterly' });
 
-    await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: '' });
-    expect((await boards()).boards.find((board) => board.id === id)?.category).toBeNull();
-    expect((await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { category: 'x'.repeat(61) })).status).toBe(400);
+    await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { folder: '' });
+    expect((await boards()).boards.find((board) => board.id === id)?.folder).toBeNull();
+    expect((await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { folder: 'x'.repeat(61) })).status).toBe(400);
   });
 
   test('nested folder paths normalize, persist and reject ambiguous segments without changing the board', async () => {
     const created = await call('POST', '/api/canvas/boards', AGENT, {
       name: 'Decision record',
-      category: ' Engineering / Canvas / Decisions ',
+      folder: ' Engineering / Canvas / Decisions ',
     });
     expect(created.status).toBe(200);
     const board = created.body.board as CanvasBoard;
-    expect(board.category).toBe('Engineering/Canvas/Decisions');
+    expect(board.folder).toBe('Engineering/Canvas/Decisions');
     const deep = Array.from({ length: 8 }, (_, index) => `Folder ${index}`).join('/');
-    expect((await call('PATCH', `/api/canvas/boards/${board.id}`, AGENT, { category: deep })).status).toBe(200);
-    for (const category of ['A//B', '/A', 'A/', 'A/../B', `${deep}/Ninth`, `A/${'x'.repeat(61)}`]) {
+    expect((await call('PATCH', `/api/canvas/boards/${board.id}`, AGENT, { folder: deep })).status).toBe(200);
+    for (const folder of ['A//B', '/A', 'A/', 'A/../B', `${deep}/Ninth`, `A/${'x'.repeat(61)}`]) {
       expect(
-        (await call('PATCH', `/api/canvas/boards/${board.id}`, AGENT, { category, name: 'Must not rename' })).status,
+        (await call('PATCH', `/api/canvas/boards/${board.id}`, AGENT, { folder, name: 'Must not rename' })).status,
       ).toBe(400);
     }
     const read = await call('GET', `/api/canvas/boards/${board.id}`, AGENT);
-    expect(read.body.board).toMatchObject({ id: board.id, name: 'Decision record', category: deep });
+    expect(read.body.board).toMatchObject({ id: board.id, name: 'Decision record', folder: deep });
   });
 
   test('rename, get, and deleting the open board returns to Home', async () => {
@@ -368,13 +368,13 @@ describe('boards over HTTP', () => {
   });
 
   test('graph qualifies cross-board card identities, bounds exploration and survives persisted snapshots', async () => {
-    const target = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Graph target', category: 'Research' }))
-      .body.board as CanvasBoard;
+    const target = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Graph target', folder: 'Research' })).body
+      .board as CanvasBoard;
     await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
     const card = String((await addNote('Remote evidence')).body.id);
     const template = canvasState.getNode(card)!;
-    const source = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Graph source', category: 'Planning' }))
-      .body.board as CanvasBoard;
+    const source = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Graph source', folder: 'Planning' })).body
+      .board as CanvasBoard;
     await call('POST', '/api/canvas/boards/open', HUMAN, { id: source.id });
     canvasState.addNode({ ...template, data: { title: 'Local claim', content: 'A different body' } });
     const beforeEdge = (await call('GET', '/api/workbench/poll', HUMAN)).body.seq;

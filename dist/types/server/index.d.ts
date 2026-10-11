@@ -253,11 +253,11 @@ export declare class PmxCanvas extends EventEmitter {
         import: DocumentImport;
         nodeIds: string[];
     }>;
-    createBoard(name: string, category?: string): Promise<CanvasBoard>;
-    /** Rename a board and/or file it under a category (`category: null` removes it). */
+    createBoard(name: string, folder?: string): Promise<CanvasBoard>;
+    /** Rename a board and/or file it under a folder (`folder: null` unfiles it). */
     updateBoard(id: string, patch: {
         name?: string;
-        category?: string | null;
+        folder?: string | null;
         mapPosition?: {
             x: number;
             y: number;
@@ -270,7 +270,7 @@ export declare class PmxCanvas extends EventEmitter {
     createBoardFrom(input: {
         sourceBoardId: string;
         name: string;
-        category?: string;
+        folder?: string;
         nodeIds?: string[];
         includeReadme?: boolean;
         includeStructure?: boolean;

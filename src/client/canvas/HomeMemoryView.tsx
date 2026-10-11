@@ -137,7 +137,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
         return {
           ...node,
           title: board.name,
-          folder: board.category,
+          folder: board.folder,
           inContext: !!board.pin,
           nodeCount: board.nodeCount,
           position: board.mapPosition ?? undefined,

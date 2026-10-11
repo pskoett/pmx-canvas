@@ -40,7 +40,7 @@ function card(id: string, x: number, title = id): CanvasNodeState {
 const board = (id: string, name: string, pin: BoardSummary['pin'] = null): BoardSummary => ({
   id,
   name,
-  category: null,
+  folder: null,
   createdAt: '2026-10-07T00:00:00.000Z',
   lastOpenedAt: null,
   nodeCount: 3,

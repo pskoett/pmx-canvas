@@ -45,11 +45,11 @@ The database holds many named boards. **Home is the library view, not a board**:
 a folder tree with the boards pinned into the agent's context, the open folder's
 subfolders and board cards (a thumbnail, the README line, cards and links), and
 a details pane for the selected board (in-context switch, README, pinned cards,
-links, Open board). Folders are nested category paths (up to eight 60-character
+links, Open board). Boards use nested folder paths (up to eight 60-character
 segments); a new folder exists once a board is filed beneath it. Agents can explicitly open/switch boards; deletion
 remains human-only. Creating a board or a copy from reusable cards leaves it
 inactive. Agents open its returned ID before writing; this also switches the
-shared workbench the human sees. Agents may list, read, rename, categorize, and
+shared workbench the human sees. Agents may list, read, rename, file into folders, and
 search boards without switching. Home
 provides a copy-preview dialog; an open board's command palette offers a
 board-link picker. Neither depends on native browser prompts.

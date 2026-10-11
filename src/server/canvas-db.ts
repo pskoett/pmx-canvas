@@ -8,7 +8,7 @@
 import { Database } from 'bun:sqlite';
 import type { ActorAttribution } from './attribution.js';
 import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
-import { MIGRATED_SNAPSHOT_CATEGORY, normalizeBoardCategory } from '../shared/boards.js';
+import { MIGRATED_SNAPSHOT_FOLDER, normalizeBoardFolder } from '../shared/boards.js';
 import { wikiLinksFromData } from '../shared/memory-graph.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -76,7 +76,7 @@ const SCHEMA_SQL = `
     viewport_y REAL NOT NULL DEFAULT 0,
     viewport_scale REAL NOT NULL DEFAULT 1,
     tour TEXT NOT NULL DEFAULT 'null',
-    category TEXT,
+    folder TEXT,
     readme_node_id TEXT
   );
 
@@ -442,7 +442,24 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'context_reads', 'seen_links', "seen_links TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, 'context_pins', 'meta', 'meta TEXT');
   ensureColumn(db, 'snapshot_pins', 'meta', 'meta TEXT');
-  ensureColumn(db, 'boards', 'category', 'category TEXT');
+  const boardColumns = db
+    .query<{ name: string }, []>('PRAGMA table_info(boards)')
+    .all()
+    .map((column) => column.name);
+  if (!boardColumns.includes('folder') || boardColumns.includes('category')) {
+    // Recheck under the writer lock; already-current databases need no write transaction.
+    db.transaction(() => {
+      if (
+        db
+          .query<{ name: string }, []>('PRAGMA table_info(boards)')
+          .all()
+          .some((column) => column.name === 'category')
+      ) {
+        db.exec('ALTER TABLE boards RENAME COLUMN category TO folder');
+      }
+      ensureColumn(db, 'boards', 'folder', 'folder TEXT');
+    }).immediate();
+  }
   ensureColumn(db, 'boards', 'readme_node_id', 'readme_node_id TEXT');
   ensureColumn(db, 'boards', 'map_position', 'map_position TEXT');
   ensureColumn(db, 'boards', 'previous_board_id', 'previous_board_id TEXT');
@@ -578,11 +595,11 @@ function snapshotsToBoards(db: Database): void {
     );
     const boardId = createBoardId();
     db.run(
-      'INSERT INTO boards (id, name, category, created_at, viewport_x, viewport_y, viewport_scale, tour) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO boards (id, name, folder, created_at, viewport_x, viewport_y, viewport_scale, tour) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         boardId,
         snapshot.name,
-        MIGRATED_SNAPSHOT_CATEGORY,
+        MIGRATED_SNAPSHOT_FOLDER,
         snapshot.created_at,
         Number(meta.get('viewport_x') ?? 0),
         Number(meta.get('viewport_y') ?? 0),
@@ -1010,8 +1027,8 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
 export interface CanvasBoard {
   id: string;
   name: string;
-  /** A human-chosen shelf on Home ("Planning", "Research"); null is uncategorized. */
-  category: string | null;
+  /** A human-chosen folder on Home ("Planning", "Research"); null is unfiled. */
+  folder: string | null;
   createdAt: string;
   lastOpenedAt: string | null;
   nodeCount: number;
@@ -1028,7 +1045,7 @@ export interface CanvasBoard {
 interface BoardListRow {
   id: string;
   name: string;
-  category: string | null;
+  folder: string | null;
   created_at: string;
   last_opened_at: string | null;
   node_count: number;
@@ -1038,7 +1055,7 @@ interface BoardListRow {
   pin_meta: string | null;
 }
 
-const BOARD_LIST_SQL = `SELECT b.id, b.name, b.category, b.created_at, b.last_opened_at, b.readme_node_id, b.map_position, b.previous_board_id,
+const BOARD_LIST_SQL = `SELECT b.id, b.name, b.folder, b.created_at, b.last_opened_at, b.readme_node_id, b.map_position, b.previous_board_id,
     (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count, p.meta AS pin_meta
   FROM boards b LEFT JOIN board_pins p ON p.board_id = b.id`;
 
@@ -1046,7 +1063,7 @@ function rowToBoard(row: BoardListRow): CanvasBoard {
   return {
     id: row.id,
     name: row.name,
-    category: row.category,
+    folder: row.folder,
     createdAt: row.created_at,
     lastOpenedAt: row.last_opened_at,
     nodeCount: row.node_count,
@@ -1070,12 +1087,12 @@ export function getBoardFromDB(db: Database, id: string): CanvasBoard | null {
   return row ? rowToBoard(row) : null;
 }
 
-export function createBoardInDB(db: Database, name: string, category: string | null = null): CanvasBoard {
-  category = normalizeBoardCategory(category);
+export function createBoardInDB(db: Database, name: string, folder: string | null = null): CanvasBoard {
+  folder = normalizeBoardFolder(folder);
   const id = createBoardId();
   const createdAt = new Date(Date.now()).toISOString();
-  db.run('INSERT INTO boards (id, name, category, created_at) VALUES (?, ?, ?, ?)', [id, name, category, createdAt]);
-  return { id, name, category, createdAt, lastOpenedAt: null, nodeCount: 0, readmeNodeId: null, pin: null };
+  db.run('INSERT INTO boards (id, name, folder, created_at) VALUES (?, ?, ?, ?)', [id, name, folder, createdAt]);
+  return { id, name, folder, createdAt, lastOpenedAt: null, nodeCount: 0, readmeNodeId: null, pin: null };
 }
 
 /** Pin a board into the working set, or unpin it with null. False when the board does not exist. */
@@ -1086,22 +1103,22 @@ export function setBoardPinInDB(db: Database, id: string, meta: ContextPinMeta |
   return true;
 }
 
-/** Rename and/or re-shelve a board; `category: null` removes it from its category. */
+/** Rename and/or re-shelve a board; `folder: null` unfiles it. */
 export function updateBoardInDB(
   db: Database,
   id: string,
   patch: {
     name?: string;
-    category?: string | null;
+    folder?: string | null;
     readmeNodeId?: string | null;
     mapPosition?: { x: number; y: number } | null;
     previousBoardId?: string | null;
   },
 ): boolean {
-  const category = patch.category === undefined ? undefined : normalizeBoardCategory(patch.category);
+  const folder = patch.folder === undefined ? undefined : normalizeBoardFolder(patch.folder);
   if (!db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id)) return false;
   if (patch.name !== undefined) db.run('UPDATE boards SET name = ? WHERE id = ?', [patch.name, id]);
-  if (category !== undefined) db.run('UPDATE boards SET category = ? WHERE id = ?', [category, id]);
+  if (folder !== undefined) db.run('UPDATE boards SET folder = ? WHERE id = ?', [folder, id]);
   if (patch.readmeNodeId !== undefined) {
     db.run('UPDATE boards SET readme_node_id = ? WHERE id = ?', [patch.readmeNodeId, id]);
   }
@@ -1119,13 +1136,13 @@ export function updateBoardInDB(
 export function createBoardWithStateInDB(
   db: Database,
   name: string,
-  category: string | null,
+  folder: string | null,
   state: PersistedCanvasState,
   readmeNodeId: string | null,
   invalidateTarget?: (boardId: string, nodeId: string) => void,
 ): CanvasBoard {
   return db.transaction(() => {
-    const board = createBoardInDB(db, name, category);
+    const board = createBoardInDB(db, name, folder);
     saveStateToDB(db, board.id, state);
     for (const edge of state.edges) {
       if (edge.toBoardId && !edge.id.startsWith('codegraph-') && !edge.id.startsWith('boardmap-'))

@@ -9,10 +9,10 @@ const realFetch = globalThis.fetch;
 const calls: Array<{ url: string; init?: RequestInit }> = [];
 let memoryGraph: MemoryGraph | null = null;
 
-const board = (id: string, name: string, nodeCount: number, category: string | null = null): BoardSummary => ({
+const board = (id: string, name: string, nodeCount: number, folder: string | null = null): BoardSummary => ({
   id,
   name,
-  category,
+  folder,
   createdAt: '2026-09-01T00:00:00.000Z',
   lastOpenedAt: '2026-09-20T00:00:00.000Z',
   nodeCount,
@@ -326,7 +326,7 @@ describe('Home folders', () => {
     });
     const patch = calls.find((call) => call.init?.method === 'PATCH');
     expect(patch?.url).toBe('/api/canvas/boards/b-loose');
-    expect(JSON.parse(String(patch?.init?.body))).toEqual({ category: 'Planning/Monthly' });
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({ folder: 'Planning/Monthly' });
     expect(new Headers(patch?.init?.headers).get('X-PMX-Workbench')).toBe('1');
     await waitFor(() => expect(rows()).toContain('Monthly'));
   });

@@ -1,6 +1,7 @@
 # Plan 017 — Knowledge categories and context lifecycle
 
-**Status:** Planned, not started. Scheduled after wave 1 (plan 016); not a wave 1 prerequisite.
+**Status:** Wave 3 in progress after the stabilized Wave 2 checkpoint. Slice 0 is implemented;
+categories, lifecycle and the remaining slices are not implemented yet. Not a release.
 **Date:** 2026-10-07
 **Source:** vision [move 13](../product-vision-2026-09.md#13-context-lifecycle-and-recipe-cards-m-then-later-classification)
 (decided model) and Part 3 (user-defined knowledge scopes); [design.md](../design.md) wave 3.
@@ -30,11 +31,11 @@ no tagging. Nothing here needs a model, accounts or an external service.
 ## Prerequisite
 
 **Board folders.** Folders are the decided hierarchy (2026-10-06), and they already exist: a
-board's `category` field is a nested folder path on Home (e.g. `Engineering/Canvas`, up to 8
-levels; `canvas_board update`, `pmx-canvas board category`). Its name collides with this plan's
-knowledge category, so slice 0 renames it to `folder` in all four layers (no alias) and adds a
-place to store per-folder properties (the folder's knowledge category and lifecycle overrides),
-keyed by folder path.
+board's `folder` field is a nested folder path on Home (e.g. `Engineering/Canvas`, up to 8
+levels; `canvas_board update`, `pmx-canvas board folder`). Slice 0 renamed the old board
+`category` field in all four layers without an alias, preserving stored folder paths. Slice 1
+adds per-folder properties (the knowledge category and lifecycle overrides), keyed by folder
+path, together with their consumers rather than unused schema scaffolding.
 
 ## Slices
 
@@ -44,6 +45,13 @@ Each slice is its own commit and leaves the suite green. Design ships with its f
 
 As above. Moving a board between folders stays an ordinary write; the brief's same-folder
 discovery tier keeps working on the renamed field.
+
+**Implemented 2026-10-11.** The persistence regression covers concurrent legacy-schema opens,
+current WAL reads during an unrelated writer transaction, and reopening with paths, content,
+pins and Map positions intact. Real headed board cases (18) pass. Live human folder creation,
+move and reload preserve the nested path; a real CLI move updates the human's Home tree without
+opening a board. Oracle's two startup findings were reproduced, fixed and closed. There is no
+lifecycle UI or review behavior in this slice.
 
 ### 1. Data: categories, inheritance, lifecycle, review records (no UI)
 

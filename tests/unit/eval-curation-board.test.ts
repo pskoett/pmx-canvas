@@ -22,7 +22,7 @@ const nodes: CanvasNodeState[] = CARDS.map((card, index) => ({
 
 function firstRead(pinnedNodeIds: string[], budget: number): Map<string, string> {
   const input: ContextBriefInput = {
-    activeBoard: { boardId: 'eval', name: 'eval', category: null },
+    activeBoard: { boardId: 'eval', name: 'eval', folder: null },
     nodes,
     pinnedNodeIds,
     contentRevision: nodes.length,

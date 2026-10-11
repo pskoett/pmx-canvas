@@ -16,6 +16,10 @@ PMX Canvas is a server-authoritative spatial workbench controlled through MCP, H
 Humans curate agent context by pinning nodes; agents read that curation through
 `canvas://pinned-context`. State survives browser refresh.
 
+Boards use `folder` for their nested Home path (for example `Engineering/Canvas`).
+File a board with `canvas_board { action: "update", id: "<board-id>", folder:
+"Engineering/Canvas" }`; `folder: ""` unfiles it. Moving preserves its ID and content.
+
 At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
 falling back to broader resources. The budget is UTF-16 code units, not tokens.

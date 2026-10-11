@@ -835,10 +835,10 @@ export class PmxCanvas extends EventEmitter {
     )) as { import: DocumentImport; nodeIds: string[] };
   }
 
-  async createBoard(name: string, category?: string): Promise<CanvasBoard> {
+  async createBoard(name: string, folder?: string): Promise<CanvasBoard> {
     const result = (await executeOperation(
       'board.create',
-      { name, ...(category ? { category } : {}) },
+      { name, ...(folder ? { folder } : {}) },
       { source: 'sdk' },
     )) as {
       board: CanvasBoard;
@@ -846,10 +846,10 @@ export class PmxCanvas extends EventEmitter {
     return result.board;
   }
 
-  /** Rename a board and/or file it under a category (`category: null` removes it). */
+  /** Rename a board and/or file it under a folder (`folder: null` unfiles it). */
   async updateBoard(
     id: string,
-    patch: { name?: string; category?: string | null; mapPosition?: { x: number; y: number } | null },
+    patch: { name?: string; folder?: string | null; mapPosition?: { x: number; y: number } | null },
   ): Promise<void> {
     await executeOperation('board.update', { id, ...patch }, { source: 'sdk' });
   }
@@ -870,7 +870,7 @@ export class PmxCanvas extends EventEmitter {
   async createBoardFrom(input: {
     sourceBoardId: string;
     name: string;
-    category?: string;
+    folder?: string;
     nodeIds?: string[];
     includeReadme?: boolean;
     includeStructure?: boolean;

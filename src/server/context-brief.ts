@@ -12,7 +12,7 @@ export type ContextBriefReason =
   | 'ask'
   | 'steer'
   | 'linked'
-  | 'category';
+  | 'folder';
 
 /** How long a card's summary is in the brief: enough to know what it is. */
 export const BRIEF_SUMMARY_LENGTH = 280;
@@ -29,7 +29,7 @@ export interface ContextBriefSourceEntry {
 export interface ContextBriefLibraryBoard {
   boardId: string;
   name: string;
-  category: string | null;
+  folder: string | null;
   readme?: { nodeId: string; title: string; summary: string; provenance?: { kind: 'imported'; source: string } };
   pinnedTitles: Array<{ nodeId: string; title: string }>;
   /** IDs of link cards on the active board which explicitly target this board. */
@@ -77,7 +77,7 @@ export interface ContextBriefEdge {
 }
 
 export interface ContextBriefInput {
-  activeBoard: { boardId: string; name: string; category: string | null };
+  activeBoard: { boardId: string; name: string; folder: string | null };
   /** The brief is a map, not a dump: overview and relations let the agent choose what to pull. */
   overview?: ContextBriefOverview;
   /** Edges on the open board, carried as each card's relations. */
@@ -130,7 +130,7 @@ export interface CompiledContextEntry {
 export interface ContextBriefDocument {
   version: 1;
   budgetUnit: 'utf16-code-units';
-  board: { boardId: string; name: string; category: string | null };
+  board: { boardId: string; name: string; folder: string | null };
   cursor: {
     requested: number | null;
     next: number | null;
@@ -416,13 +416,11 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   const explicit = library.filter((board) => board.linkIds.length > 0);
   const related = library.filter(
     (board) =>
-      board.linkIds.length === 0 &&
-      input.activeBoard.category !== null &&
-      board.category === input.activeBoard.category,
+      board.linkIds.length === 0 && input.activeBoard.folder !== null && board.folder === input.activeBoard.folder,
   );
   for (const [boards, reason] of [
     [explicit, 'linked'],
-    [related, 'category'],
+    [related, 'folder'],
   ] as const) {
     for (const board of boards) {
       if (board.boardId === input.activeBoard.boardId) continue;

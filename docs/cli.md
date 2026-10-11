@@ -338,8 +338,8 @@ pmx-canvas board create "Q4 planning"          # created, not opened
 pmx-canvas board open <board-id>               # open the returned ID before writing
 pmx-canvas board open --home                   # return the shared workbench to Home
 pmx-canvas board rename <board-id> "New name"
-pmx-canvas board create "Q4 planning" --category Planning
-pmx-canvas board category <board-id> "Planning/Quarterly" # nested folders; --clear unfiles it
+pmx-canvas board create "Q4 planning" --folder Planning
+pmx-canvas board folder <board-id> "Planning/Quarterly" # nested folders; --clear unfiles it
 pmx-canvas board pin <board-id> --reason "Q4 rests on it" # join the agent's working set
 pmx-canvas board unpin <board-id>
 pmx-canvas board from <source-id> "Follow-up" --preview

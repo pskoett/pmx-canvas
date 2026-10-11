@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { normalizeBoardCategory } from '../../shared/boards.js';
+import { normalizeBoardFolder } from '../../shared/boards.js';
 import { boardList, updateBoard, type BoardSummary } from '../state/boards-store';
 import { useFocusTrap } from './use-focus-trap';
 
@@ -14,7 +14,7 @@ export function BoardFolderDialog({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [parent, setParent] = useState(board.category ?? '');
+  const [parent, setParent] = useState(board.folder ?? '');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -32,18 +32,18 @@ export function BoardFolderDialog({
 
   const destination = name.trim() ? [parent, name.trim()].filter(Boolean).join('/') : parent;
   const move = async () => {
-    let category: string | null;
+    let folder: string | null;
     try {
       if (name.includes('/')) throw new Error('Use one folder name; choose its parent above.');
-      category = normalizeBoardCategory(destination);
+      folder = normalizeBoardFolder(destination);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       return;
     }
     setBusy(true);
     setError('');
-    await updateBoard(board.id, { category });
-    if (boardList.value.find((entry) => entry.id === board.id)?.category === category) onClose();
+    await updateBoard(board.id, { folder });
+    if (boardList.value.find((entry) => entry.id === board.id)?.folder === folder) onClose();
     else setError('Could not move this board. Try again.');
     setBusy(false);
   };
@@ -108,7 +108,7 @@ export function BoardFolderDialog({
           <button
             type="button"
             class="text-prompt-confirm"
-            disabled={busy || destination === (board.category ?? '')}
+            disabled={busy || destination === (board.folder ?? '')}
             onClick={() => void move()}
           >
             {busy ? 'Moving…' : 'Move board'}

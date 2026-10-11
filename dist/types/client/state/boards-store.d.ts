@@ -7,7 +7,7 @@ import type { MemoryTarget } from '../../shared/memory-graph.js';
 export interface BoardSummary {
     id: string;
     name: string;
-    category: string | null;
+    folder: string | null;
     createdAt: string;
     lastOpenedAt: string | null;
     nodeCount: number;
@@ -77,8 +77,8 @@ export declare function loadBoards(): Promise<void>;
 export declare function openBoard(id: string | null): Promise<void>;
 /** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */
 export declare function openMemoryTarget(target: MemoryTarget): Promise<void>;
-/** Create a board (filed in `category` when given) and open it. */
-export declare function createAndOpenBoard(name: string, category?: string | null): Promise<void>;
+/** Create a board (filed in `folder` when given) and open it. */
+export declare function createAndOpenBoard(name: string, folder?: string | null): Promise<void>;
 export interface BoardCopyCard {
     id: string;
     type: string;
@@ -100,15 +100,15 @@ export declare function previewBoardCopy(sourceBoardId: string): Promise<BoardCo
 export declare function createBoardFrom(opts: {
     sourceBoardId: string;
     name: string;
-    category?: string;
+    folder?: string;
     nodeIds: string[];
     includeReadme: boolean;
     includeStructure: boolean;
 }): Promise<BoardSummary | null>;
-/** Rename and/or re-file a board; `category: null` removes it from its category. */
+/** Rename and/or re-file a board; `folder: null` unfiles it. */
 export declare function updateBoard(id: string, patch: {
     name?: string;
-    category?: string | null;
+    folder?: string | null;
     mapPosition?: {
         x: number;
         y: number;

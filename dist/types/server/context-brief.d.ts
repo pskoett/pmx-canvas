@@ -1,5 +1,5 @@
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
-export type ContextBriefReason = 'overview' | 'pinned' | 'near' | 'changed' | 'pinned-board' | 'human' | 'ask' | 'steer' | 'linked' | 'category';
+export type ContextBriefReason = 'overview' | 'pinned' | 'near' | 'changed' | 'pinned-board' | 'human' | 'ask' | 'steer' | 'linked' | 'folder';
 /** How long a card's summary is in the brief: enough to know what it is. */
 export declare const BRIEF_SUMMARY_LENGTH = 280;
 export interface ContextBriefSourceEntry {
@@ -16,7 +16,7 @@ export interface ContextBriefSourceEntry {
 export interface ContextBriefLibraryBoard {
     boardId: string;
     name: string;
-    category: string | null;
+    folder: string | null;
     readme?: {
         nodeId: string;
         title: string;
@@ -82,7 +82,7 @@ export interface ContextBriefInput {
     activeBoard: {
         boardId: string;
         name: string;
-        category: string | null;
+        folder: string | null;
     };
     /** The brief is a map, not a dump: overview and relations let the agent choose what to pull. */
     overview?: ContextBriefOverview;
@@ -144,7 +144,7 @@ export interface ContextBriefDocument {
     board: {
         boardId: string;
         name: string;
-        category: string | null;
+        folder: string | null;
     };
     cursor: {
         requested: number | null;

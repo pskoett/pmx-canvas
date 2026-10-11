@@ -487,7 +487,7 @@ describe('session receipt', () => {
   test('Undo keeps cards you edited since, and says so; See change says when a card is not on the open board', async () => {
     activeBoardId.value = 'current';
     boardList.value = [
-      { id: 'other', name: 'Churn analysis', category: null, createdAt: '', lastOpenedAt: null, nodeCount: 1 },
+      { id: 'other', name: 'Churn analysis', folder: null, createdAt: '', lastOpenedAt: null, nodeCount: 1 },
     ];
     nodes.value = new Map(nodes.value).set('n1', {
       ...makeNode('n1', 'SMB'),

@@ -93,8 +93,8 @@ console.log(canvas.getAxContext());
 
 // Boards — agents may open boards; deletion is reserved for trusted embedding hosts.
 // Open the intended board before writing: this also switches the shared workbench.
-const board = await canvas.createBoard('Q4 planning', 'Planning'); // optional category
-await canvas.updateBoard(board.id, { category: 'Planning/Quarterly' }); // nested folders; null unfiles it
+const board = await canvas.createBoard('Q4 planning', 'Planning'); // optional folder
+await canvas.updateBoard(board.id, { folder: 'Planning/Quarterly' }); // nested folders; null unfiles it
 await canvas.openBoard(board.id);
 console.log(canvas.listBoards()); // { activeBoardId, boards }
 const intro = canvas.addNode({ type: 'markdown', title: 'README', content: '# Quarterly planning' });

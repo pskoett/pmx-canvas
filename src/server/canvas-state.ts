@@ -1259,14 +1259,14 @@ class CanvasStateManager {
   }
 
   /** Creates a board without opening it. */
-  createBoard(name: string, category: string | null = null): CanvasBoard | null {
+  createBoard(name: string, folder: string | null = null): CanvasBoard | null {
     if (!this._db) return null;
-    return createBoardInDB(this._db, name, category);
+    return createBoardInDB(this._db, name, folder);
   }
 
   updateBoard(
     id: string,
-    patch: { name?: string; category?: string | null; mapPosition?: { x: number; y: number } | null },
+    patch: { name?: string; folder?: string | null; mapPosition?: { x: number; y: number } | null },
   ): boolean {
     return this._db ? updateBoardInDB(this._db, id, patch) : false;
   }
@@ -1309,7 +1309,7 @@ class CanvasStateManager {
   createBoardFromBoard(input: {
     sourceBoardId: string;
     name: string;
-    category?: string | null;
+    folder?: string | null;
     nodeIds?: string[];
     includeReadme?: boolean;
     includeStructure?: boolean;
@@ -1413,7 +1413,7 @@ class CanvasStateManager {
     const board = createBoardWithStateInDB(
       this._db,
       input.name,
-      input.category ?? null,
+      input.folder ?? null,
       this.externalizePersistedStateBlobs(state),
       input.includeReadme && source.board.readmeNodeId ? (ids.get(source.board.readmeNodeId) ?? null) : null,
       (boardId, nodeId) => this.invalidateRelationTarget(boardId, nodeId),

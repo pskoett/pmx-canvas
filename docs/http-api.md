@@ -79,7 +79,7 @@ boards. In-process SDK embedding hosts retain deletion authority.
 Every change emits a
 `boards-changed` SSE frame with `{ activeBoardId, boards }`.
 
-`category` is a folder path, for example `Engineering/Canvas/Decisions`.
+`folder` is a folder path, for example `Engineering/Canvas/Decisions`.
 Home renders nested, collapsible folders and searches board names and paths.
 Paths support up to eight levels, each with 1–60 characters; surrounding spaces
 are trimmed. Empty segments and `.`/`..` are rejected. `null` or `""` unfiles a
@@ -128,18 +128,18 @@ curl http://localhost:4313/api/canvas/boards
 # Read one board
 curl http://localhost:4313/api/canvas/boards/<board-id>
 
-# Create a board (optionally in a category) — it is NOT opened
+# Create a board (optionally in a folder) — it is NOT opened
 curl -X POST http://localhost:4313/api/canvas/boards \
-  -H "Content-Type: application/json" -d '{"name":"Q4 planning","category":"Planning"}'
+  -H "Content-Type: application/json" -d '{"name":"Q4 planning","folder":"Planning"}'
 
 # Preview/create an inactive copy from reusable cards (preview false creates)
 curl -X POST http://localhost:4313/api/canvas/boards/from \
   -H "Content-Type: application/json" \
   -d '{"sourceBoardId":"board-source","name":"Follow-up","nodeIds":["node-1"],"includeReadme":true,"includeStructure":true,"preview":true}'
 
-# Rename and/or file under a category on Home ("category": "" removes it)
+# Rename and/or file under a folder on Home ("folder": "" removes it)
 curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \
-  -H "Content-Type: application/json" -d '{"name":"Q4 planning (final)","category":"Planning"}'
+  -H "Content-Type: application/json" -d '{"name":"Q4 planning (final)","folder":"Planning"}'
 
 # Designate a Markdown card on this board as its README (null clears it)
 curl -X PATCH http://localhost:4313/api/canvas/boards/<board-id> \

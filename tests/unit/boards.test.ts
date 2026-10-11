@@ -352,6 +352,81 @@ afterEach(() => {
   removeTestWorkspace(root);
 });
 
+test('opening a pre-folder database preserves paths, content, pins and map positions through concurrent and contended opens', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const board = canvasState.createBoard('Decisions', 'Engineering/Canvas/Decisions')!;
+  canvasState.switchBoard(board.id);
+  canvasState.addNode({ ...note('decision', 'Decision'), position: { x: 72, y: -36 } });
+  canvasState.setBoardReadme(board.id, 'decision');
+  canvasState.pinBoard(board.id, 'Keep this context');
+  canvasState.updateBoard(board.id, { mapPosition: { x: -150, y: 240 } });
+  canvasState.flushToDisk();
+  const before = canvasState.readBoard(board.id, false)!;
+  const dbPath = canvasState.databasePath!;
+  canvasState.close();
+
+  // Persist the actual pre-rename schema, with its populated category column.
+  const oldDb = new Database(dbPath);
+  oldDb.exec('ALTER TABLE boards RENAME COLUMN folder TO category');
+  oldDb.close();
+
+  const dbModule = new URL('../../src/server/canvas-db.ts', import.meta.url).pathname;
+  const openingCode = `
+    import { openCanvasDb, getBoardFromDB } from ${JSON.stringify(dbModule)};
+    const db = openCanvasDb(${JSON.stringify(dbPath)});
+    console.log(JSON.stringify(getBoardFromDB(db, ${JSON.stringify(board.id)})));
+    db.close();
+  `;
+  const concurrent = [0, 1].map(() =>
+    Bun.spawn([process.execPath, '--eval', openingCode], { stdout: 'pipe', stderr: 'pipe' }),
+  );
+  for (const result of await Promise.all(
+    concurrent.map(async (child) => ({
+      status: await child.exited,
+      board: await new Response(child.stdout).text(),
+      error: await new Response(child.stderr).text(),
+    })),
+  )) {
+    expect(result.error).toBe('');
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.board)).toEqual(before.board);
+  }
+
+  // Current WAL readers must not wait for an unrelated writer's transaction.
+  const writer = new Database(dbPath);
+  writer.exec('BEGIN IMMEDIATE');
+  try {
+    const reader = Bun.spawn([process.execPath, '--eval', openingCode], { stdout: 'pipe', stderr: 'pipe' });
+    expect(await reader.exited).toBe(0);
+    expect(await new Response(reader.stderr).text()).toBe('');
+    expect(JSON.parse(await new Response(reader.stdout).text())).toEqual(before.board);
+  } finally {
+    writer.exec('ROLLBACK');
+    writer.close();
+  }
+
+  for (let opening = 0; opening < 2; opening++) {
+    canvasState.setWorkspaceRoot(root);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    expect(canvasState.databasePath).toBe(dbPath);
+    const read = canvasState.readBoard(board.id, false)!;
+    expect(read.board).toEqual(before.board);
+    expect(read.board.folder).toBe('Engineering/Canvas/Decisions');
+    expect(read.board).not.toHaveProperty('category');
+    expect(read.state).toEqual(before.state);
+    const db = new Database(dbPath);
+    const columns = db
+      .query<{ name: string }, []>('PRAGMA table_info(boards)')
+      .all()
+      .map((column) => column.name);
+    expect(columns).toContain('folder');
+    expect(columns).not.toContain('category');
+    db.close();
+    canvasState.close();
+  }
+}, 10_000);
+
 describe('migrating a one-board workspace', () => {
   test('the live board stays open, every old snapshot becomes its own board, and a copy is kept', async () => {
     const dbPath = writeSchema1Workspace(root);
@@ -360,7 +435,7 @@ describe('migrating a one-board workspace', () => {
     expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
     const boards = canvasState.listBoards();
     // Migrated snapshots are filed on their own shelf; the live board is not.
-    expect(boards.map((entry) => entry.category)).toEqual([null, 'From old snapshots', 'From old snapshots']);
+    expect(boards.map((entry) => entry.folder)).toEqual([null, 'From old snapshots', 'From old snapshots']);
     expect(boards.map((entry) => [entry.name, entry.nodeCount])).toEqual([
       [basename(root), 2],
       ['Discovery', 1],
@@ -421,10 +496,10 @@ describe('boards', () => {
     const id = canvasState.activeBoardId!;
     const before = canvasState.getActiveBoard()!;
     await expect(
-      executeOperation('board.update', { id, name: 'Unwanted rename', category: 'Other', readmeNodeId: 'missing' }),
+      executeOperation('board.update', { id, name: 'Unwanted rename', folder: 'Other', readmeNodeId: 'missing' }),
     ).rejects.toThrow('README must identify');
     expect(canvasState.getActiveBoard()?.name).toBe(before.name);
-    expect(canvasState.getActiveBoard()?.category).toBe(before.category);
+    expect(canvasState.getActiveBoard()?.folder).toBe(before.folder);
     await openCanvasBoard(null);
     await executeOperation('board.create-from', { sourceBoardId: id, name: 'Copy', nodeIds: ['readme'] });
     expect(canvasState.activeBoardId).toBeNull();
