@@ -117,10 +117,13 @@ export declare class PmxCanvas extends EventEmitter {
         fromSearch?: string;
         toSearch?: string;
         type: CanvasEdge['type'];
+        kind?: string;
+        reason?: string;
         label?: string;
         style?: CanvasEdge['style'];
         animated?: boolean;
     }): string;
+    updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>): Promise<CanvasEdge>;
     addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & {
         id?: string;
         createdAt?: string;
@@ -258,14 +261,7 @@ export declare class PmxCanvas extends EventEmitter {
     knowledge<T extends import('./knowledge-lifecycle.js').KnowledgeInput>(input: T): Promise<import('./knowledge-lifecycle.js').KnowledgeResults[T['action']]>;
     lifecycle<T extends import('./knowledge-lifecycle.js').LifecycleInput>(input: T): Promise<import('./knowledge-lifecycle.js').LifecycleResults[T['action']]>;
     /** Rename a board and/or file it under a folder (`folder: null` unfiles it). */
-    updateBoard(id: string, patch: {
-        name?: string;
-        folder?: string | null;
-        mapPosition?: {
-            x: number;
-            y: number;
-        } | null;
-    }): Promise<void>;
+    updateBoard(id: string, patch: Parameters<typeof canvasState.updateBoard>[1]): Promise<void>;
     setBoardReadme(id: string, readmeNodeId: string | null): Promise<void>;
     /** Pin a board into the agent's working set (its README and pinned cards reach every brief). */
     pinBoard(id: string, reason?: string): Promise<void>;

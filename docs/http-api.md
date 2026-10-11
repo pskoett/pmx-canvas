@@ -5,20 +5,24 @@ any language. Default base URL: `http://localhost:4313`.
 
 ## Knowledge lifecycle data (plan 017 slice 1)
 
-This is a data-only contract: no due engine, UI, classifier, templates, or brief filtering yet.
+The slice-1 data contract now also drives the workbench, due engine and qualified agent context.
+Categories remain explicit; nothing classifies cards automatically.
 `Lifecycle` is `{ decayType: "reality"|"decision"|"dependency"|"relevance",
-rate: "fast"|"medium"|"slow"|"durable", triggers: string[], revalidationMethod: string }`.
-Strings in triggers and the method must be nonempty. Rates are qualitative, not expiration days.
+rate: "fast"|"medium"|"slow"|"durable", triggers: string[], revalidationMethod: string, cadenceDays?: number }`.
+Strings in triggers and the method must be nonempty. Optional `cadenceDays` is an integer, 1–36500.
+Medium uses that explicit cadence; omitting it adds no guessed expiry. Fast checks at use in a
+new session, slow on resumed work, durable has no passive expiry. The latest attached session
+is the boundary, falling back to the active board's last-open time, then process start.
 A category is the same fields plus stable `id`, editable `name` and `glyph` (nonempty strings).
 
 | Route | Input / result |
 |---|---|
-| `GET /api/canvas/knowledge` | `{ok, categories, folders}` (one workspace list; initially empty) |
+| `GET /api/canvas/knowledge` | `{ok, categories, folders, cards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
 | `POST /api/canvas/knowledge/category` | `{category}` creates or replaces by id; returns `{ok, category}` |
 | `POST /api/canvas/knowledge/folder` | `{path, categoryId: string|null, lifecycleOverride: Lifecycle|null}` replaces folder properties; returns `{ok, folder}` |
 | `GET /api/canvas/node/:id/lifecycle?board=<board-id>` | Effective category/lifecycle and history, without opening that board |
 | `POST /api/canvas/node/:id/lifecycle` | `{lifecycleOverride: Lifecycle|null, expectedBoardId?}`; returns `{ok:true}` |
-| `POST /api/canvas/node/:id/review` | `{outcome, evidence: string, applied: boolean, expectedBoardId?, expectedContentRevision?}`; returns `{ok, record}` |
+| `POST /api/canvas/node/:id/review` | `{outcome, evidence: string, applied: boolean, expectedBoardId?, expectedContentRevision?, expectedSources?}`; returns `{ok, record}` |
 | `POST /api/canvas/node/:id/lifecycle/restore` | `{evidence: string, expectedBoardId?}`; returns `{ok, record}` |
 
 Folder paths use the board-folder canonicalization (trimmed segments, at most eight levels).
@@ -27,14 +31,20 @@ starts its own defaults, discarding ancestor lifecycle overrides. A card's full 
 only lifecycle, never category. Unfiled/unclassified stays unknown. No defaults are inferred.
 The effective read returns `boardId`, `nodeId`, `contentRevision`, `category`, `categorySourceFolder`, `lifecycle`,
 `lifecycleSourceFolder`, `lifecycleSource` (`card`/`folder`/`unknown`), `records`, `retired`,
-and `lastValidation` (record or null). Source folders are canonical paths; null means no folder source.
+`lastValidation` (record or null), and `qualification`. Source folders are canonical paths; null means no folder source.
+Qualification carries `retired`, `unknown`, `due`, `reasons`, `changedSinceRead`, `lastReadAt`,
+`contentChangedAt`, `lastValidatedAt`, `contentRevision`, `relevance`, source warnings in `sources`,
+and inspected source revision tokens in `observations`. Direct node reads and search results also
+carry qualification. Reads on an inactive board do not open it.
 
 Outcomes are `retain`, `revise`, `externalize`, `retire`, `unresolved`. Only an **applied**
 retain/revise/externalize with non-whitespace evidence renews validation. Reviews do not perform
 content edits or externalization for you: `applied` records whether the disposition was actually
 carried out. Validating outcomes require `expectedContentRevision` from the actual content checked;
 missing is 400, a stale version is 409. Never copy a newer metadata revision onto evidence for an older
-body. The reviewed content is saved successfully before its record is appended; save failure adds
+body. For cards with dependencies, also pass `expectedSources` from the checked lifecycle's
+`qualification.observations`. Changed, added, removed or unavailable sources refuse validation
+with 409; a later read is not permission to apply older evidence. The reviewed content is saved successfully before its record is appended; save failure adds
 no review. Applied retire persists until explicit restore, even after later successful reviews.
 Restore is audited with outcome `restore`, applied true, and never validates. Rows retain server
 id, board+node identity, evidence, application, actor `who`, server timestamp `when`, and reviewed
@@ -58,7 +68,39 @@ setter (including to clear an override) so metadata cannot replay the body or re
 SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"folder-set", ...payload})`
 and `canvas.lifecycle({action:"get"|"set"|"review"|"restore", id, ...payload})` use these
 same inputs/results. `get` accepts `board`; writes accept `expectedBoardId`, and validating
-reviews require `expectedContentRevision`.
+reviews require `expectedContentRevision` and the matching `expectedSources` when dependencies exist.
+
+### Relations, source observations and active context
+
+Edge add/update accept open `kind` (1–80 characters) and `reason` (up to 4000), independently
+of the existing `type`, label, style and animation. Update with null clears kind/reason.
+Kinds/reasons survive undo, snapshots and restart and advance the links clock, not content.
+Board update accepts `relationVocabulary: [{kind, ink, directed}]` (up to 64 unique kinds,
+including an explicit empty list). `ink` is supports/contradicts/cites/derived/informs/related;
+pin, agent and warning colours are not relation inks. Unknown kinds remain legal.
+
+For lifecycle, `derived-from`, `contradicts` and `supersedes` point **source → dependent**;
+`depends-on` points **dependent → prerequisite**. `cites`, `supports`, `related`, wiki links
+and portals are navigational unless an explicit dependency or provenance source is also recorded.
+The server captures `sourceRevision` when a dependency is authored or retyped. A reason or
+style edit never resets that baseline. Source changes propagate through dependencies, including
+cycles, but not unrelated references. A new contradiction or superseding decision needs review.
+Folder defaults stop at links. Portal source warnings stay separate from the portal's own lifecycle.
+
+`data.provenance` accepts `sources: [{boardId, cardId, contentRevision?, observedAt?,
+availability?: "live"|"cached"|"unavailable"}]` and an inert `recipe: {tool, input?, prompt}`.
+Keep `observedAt`/source revision distinct from retrieval `syncedAt`/`fetchedAt`; retrieval-only
+updates do not advance content or validation. Cached/unavailable warnings never claim a fresh check.
+The human's **Ask agent to refresh this board** sends steering; Canvas executes no recipe tool.
+
+Retired cards remain in raw layout, direct reads and search, marked retired. They leave briefs,
+pinned context, nearby active context and README summaries. Restore is audited, never validation.
+Brief entries carry qualification and board overviews carry `readmeQualification` separately.
+Every brief also carries a lifecycle snapshot independent of its content cursor. With
+`lifecycle.complete: true`, its retired/unknown/review lists replace cached qualification; keys
+are JSON `[boardId,cardId]`. If the snapshot exceeds a quarter of the budget, `complete: false`
+explicitly requires rechecking cached cards via lifecycle-get before reuse. Empty lists in an
+incomplete snapshot do not mean healthy or active. Delivered entries still carry qualification.
 
 `GET /health` includes `contracts: ["pmx-embedded-workbench-v4"]` when the daemon
 enforces `expectedBoardId` and `expectedContentRevision` preconditions, bulk-write
@@ -504,8 +546,8 @@ Rich-text editing preserves wiki references and aliases; editing a visible label
 the alias, not the bound target. Code spans/fences are ignored.
 The human Create dialog for an unresolved board-only link creates exactly its
 authored name and re-saves the source using its captured board/revision; a stale
-source is refused. Rich relationship kinds/reasons, provenance/staleness and
-lifecycle remain deferred wave-3 work.
+source is refused. Rich relationship kinds/reasons and source-driven lifecycle qualification
+use the [shared contract above](#relations-source-observations-and-active-context).
 
 ```bash
 # Add an edge

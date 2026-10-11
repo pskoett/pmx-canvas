@@ -452,6 +452,8 @@ export class PmxCanvas extends EventEmitter {
     fromSearch?: string;
     toSearch?: string;
     type: CanvasEdge['type'];
+    kind?: string;
+    reason?: string;
     label?: string;
     style?: CanvasEdge['style'];
     animated?: boolean;
@@ -472,6 +474,13 @@ export class PmxCanvas extends EventEmitter {
       },
       () => undefined,
     );
+  }
+
+  async updateEdge(
+    id: string,
+    patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>,
+  ): Promise<CanvasEdge> {
+    return (await executeOperation('edge.update', { id, ...patch }, { source: 'sdk' })) as CanvasEdge;
   }
 
   addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): string {
@@ -866,10 +875,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Rename a board and/or file it under a folder (`folder: null` unfiles it). */
-  async updateBoard(
-    id: string,
-    patch: { name?: string; folder?: string | null; mapPosition?: { x: number; y: number } | null },
-  ): Promise<void> {
+  async updateBoard(id: string, patch: Parameters<typeof canvasState.updateBoard>[1]): Promise<void> {
     await executeOperation('board.update', { id, ...patch }, { source: 'sdk' });
   }
 

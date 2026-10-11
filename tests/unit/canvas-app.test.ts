@@ -813,7 +813,7 @@ test('both app profiles leave flow materialization local-only, preserving fenced
     // Local materialization is unchanged, even when its output lies outside the fence.
     await post('/api/canvas/ax/interaction', flow, human);
     const stepId = `axflow-${source.id}-step-1`;
-    const before = await (await fetch(`${base}/api/canvas/node/${stepId}`)).json();
+    const before = await (await fetch(`${base}/api/canvas/node/${stepId}`, { headers: human })).json();
     await post('/api/canvas/human-presence', { clientId: 'flow-guard-test', grabbingNodeId: stepId }, human);
     expect(
       (
@@ -823,7 +823,7 @@ test('both app profiles leave flow materialization local-only, preserving fenced
         })
       ).status,
     ).toBe(403);
-    expect(await (await fetch(`${base}/api/canvas/node/${stepId}`)).json()).toEqual(before);
+    expect(await (await fetch(`${base}/api/canvas/node/${stepId}`, { headers: human })).json()).toEqual(before);
     await post('/api/canvas/human-presence', { clientId: 'flow-guard-test', left: true }, human);
   });
 }, 15_000);
@@ -858,7 +858,7 @@ test('both app profiles guard automatic parent frames on child move and resize, 
     const human = await humanHeaders();
     const child = await post('/api/canvas/node', { type: 'markdown', title: 'Child', x: 100, y: 100 }, human);
     const group = await post('/api/canvas/group', { title: 'Auto frame', childIds: [child.id] }, human);
-    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`)).json();
+    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`, { headers: human })).json();
     const beforeChild = await get(child.id);
     const beforeGroup = await get(group.id);
     const position = { x: beforeChild.position.x + 20, y: beforeChild.position.y + 30 };
@@ -909,7 +909,7 @@ test('both app profiles refit only affected frames, leaving an unrelated held fr
     const b = await post('/api/canvas/node', { type: 'markdown', title: 'B', x: 2000, y: 1000 }, human);
     const ga = await post('/api/canvas/group', { title: 'Frame A', childIds: [a.id] }, human);
     const gb = await post('/api/canvas/group', { title: 'Frame B', childIds: [b.id] }, human);
-    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`)).json();
+    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`, { headers: human })).json();
     const originalB = await get(gb.id);
     await post(
       '/api/canvas/update',
@@ -943,7 +943,13 @@ test('both app profiles guard normalized group destinations and translated child
     const human = await humanHeaders();
     const child = await post('/api/canvas/node', { type: 'markdown', title: 'Child', x: 100, y: 100 }, human);
     const group = await post('/api/canvas/group', { title: 'Frame', childIds: [child.id] }, human);
-    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`)).json();
+    const get = async (id: string) => {
+      const result = await (await fetch(`${base}/api/canvas/node/${id}`, { headers: human })).json();
+      // Normalizing the proxy's top-level x/y patch reads the node even if the
+      // later write is refused. That read clock is not a stored-state mutation.
+      delete result.qualification.lastReadAt;
+      return result;
+    };
     const before = await get(group.id);
     const beforeChild = await get(child.id);
     const right = before.position.x + before.size.width;
@@ -990,7 +996,7 @@ test('both app profiles discard invalid bulk overrides before calculating transl
     const human = await humanHeaders();
     const child = await post('/api/canvas/node', { type: 'markdown', title: 'Child', x: 100, y: 100 }, human);
     const group = await post('/api/canvas/group', { title: 'Frame', childIds: [child.id] }, human);
-    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`)).json();
+    const get = async (id: string) => await (await fetch(`${base}/api/canvas/node/${id}`, { headers: human })).json();
     const before = await get(group.id);
     const beforeChild = await get(child.id);
     const move = { id: group.id, position: { x: before.position.x + before.size.width, y: before.position.y } };

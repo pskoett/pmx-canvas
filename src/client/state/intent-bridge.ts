@@ -596,7 +596,14 @@ export async function deleteSnapshot(id: string): Promise<{ ok: boolean }> {
 /** Patch an edge in place (label/type/style/animated) via the server. */
 export async function updateEdgeFromClient(
   edgeId: string,
-  patch: { label?: string; type?: string; style?: string; animated?: boolean },
+  patch: {
+    kind?: string | null;
+    reason?: string | null;
+    label?: string;
+    type?: string;
+    style?: string;
+    animated?: boolean;
+  },
 ): Promise<{ ok: boolean }> {
   return requestJson(
     'updateEdgeFromClient',

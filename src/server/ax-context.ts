@@ -15,6 +15,8 @@ import {
 } from './ax-state.js';
 import type { CanvasLayout } from './canvas-state.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
+import { lifecycleQualifications } from './lifecycle-status.js';
+import { memoryKey } from '../shared/memory-graph.js';
 
 /**
  * Compact, surface-safe view of the canvas-bound AX state, injected into (and
@@ -54,18 +56,29 @@ export function buildCanvasAxSurfaceSnapshot(): PmxAxSurfaceSnapshot {
   };
 }
 
-function serializeNodes(nodes: CanvasNodeState[]) {
-  return nodes.map((node) =>
-    serializeNodeForAgentContext(node, {
-      defaultTextLength: 700,
-      webpageTextLength: 1600,
-      includePosition: true,
-    }),
-  );
+function serializeNodes(nodes: CanvasNodeState[], qualifications: ReturnType<typeof lifecycleQualifications>) {
+  const qualification = (node: CanvasNodeState) =>
+    canvasState.activeBoardId
+      ? qualifications[memoryKey({ boardId: canvasState.activeBoardId, cardId: node.id })]
+      : undefined;
+  return nodes
+    .filter((node) => !qualification(node)?.retired)
+    .map((node) => ({
+      ...serializeNodeForAgentContext(node, {
+        defaultTextLength: 700,
+        webpageTextLength: 1600,
+        includePosition: true,
+      }),
+      qualification: qualification(node),
+    }));
 }
 
-export function buildCanvasAxPinnedContext(): PmxAxPinnedContext {
-  const nodeIds = Array.from(canvasState.contextPinnedNodeIds);
+export function buildCanvasAxPinnedContext(qualifications = lifecycleQualifications()): PmxAxPinnedContext {
+  const nodeIds = Array.from(canvasState.contextPinnedNodeIds).filter(
+    (id) =>
+      !canvasState.activeBoardId ||
+      !qualifications[memoryKey({ boardId: canvasState.activeBoardId, cardId: id })]?.retired,
+  );
   const nodes = nodeIds
     .map((id) => canvasState.getNode(id))
     .filter((node): node is CanvasNodeState => node !== undefined);
@@ -73,7 +86,7 @@ export function buildCanvasAxPinnedContext(): PmxAxPinnedContext {
     preamble: nodes.length > 0 ? buildAgentContextPreamble(nodes) : '',
     nodeIds,
     count: nodeIds.length,
-    nodes: serializeNodes(nodes),
+    nodes: serializeNodes(nodes, qualifications),
   };
 }
 
@@ -122,6 +135,7 @@ function buildHumanAnnotations(layout: CanvasLayout): PmxAxHumanAnnotation[] {
 export function buildCanvasAxContext(consumer?: string): PmxAxContext & { boardId: string | null } {
   const layout = canvasState.getLayout();
   const ax = canvasState.getAxState();
+  const qualifications = lifecycleQualifications();
   const focusNodes = ax.focus.nodeIds
     .map((id) => canvasState.getNode(id))
     .filter((node): node is CanvasNodeState => node !== undefined);
@@ -138,9 +152,9 @@ export function buildCanvasAxContext(consumer?: string): PmxAxContext & { boardI
       omittedPending: Math.max(0, totalPending - pendingSteering.length),
       pendingActivity: buildPendingAxActivity(ax, consumer),
     },
-    pinned: buildCanvasAxPinnedContext(),
+    pinned: buildCanvasAxPinnedContext(qualifications),
     focus: ax.focus,
-    focusNodes: serializeNodes(focusNodes),
+    focusNodes: serializeNodes(focusNodes, qualifications),
     workItems: ax.workItems,
     approvalGates: ax.approvalGates,
     reviewAnnotations: ax.reviewAnnotations,

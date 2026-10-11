@@ -54,6 +54,8 @@ import {
 import { WEBPAGE_NODE_DEFAULT_SIZE, normalizeWebpageUrl } from '../../webpage-node.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 import { readTargetBoard } from './boards.js';
+import { lifecycleQualifications } from '../../lifecycle-status.js';
+import { memoryKey } from '../../../shared/memory-graph.js';
 
 // ── Node types ────────────────────────────────────────────────
 // Single definition site for the basic node-type list: drives the HTTP type
@@ -967,23 +969,32 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
     },
     buildInput: (input) => ({ id: input.id, board: input.board, includeBlobs: true }),
     formatResult: (result, input) => {
-      const node = result as CanvasNodeState;
-      const payload = wantsFullPayload(input) ? serializeCanvasNodeForAgent(node) : compactNodePayload(node);
+      const node = result as SerializedCanvasNode;
+      const payload = {
+        ...(wantsFullPayload(input) ? serializeCanvasNodeForAgent(node) : compactNodePayload(node)),
+        qualification: node.qualification,
+      };
       return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
     },
   },
   handler: ({ id, includeBlobs, board }) => {
     const full = includeBlobs === true || includeBlobs === 'true';
+    const qualify = (node: CanvasNodeState, boardId: string | null) => ({
+      ...(full ? serializeCanvasNode(node) : serializeCanvasNodeWithBlobSummaries(node)),
+      qualification: boardId
+        ? lifecycleQualifications(Date.now(), [{ boardId, cardId: id }])[memoryKey({ boardId, cardId: id })]
+        : undefined,
+    });
     if (typeof board === 'string' && board.trim()) {
       const target = readTargetBoard(board, full);
       const node = target.layout.nodes.find((candidate) => candidate.id === id);
       if (!node) throw new OperationError(`Node "${id}" not found on board "${board}".`, 404);
-      return full ? serializeCanvasNode(node) : serializeCanvasNodeWithBlobSummaries(node);
+      return qualify(node, target.boardId);
     }
     const node = full ? canvasState.getNode(id) : canvasState.getNodeForPersistence(id);
     if (!node) throw new OperationError(`Node "${id}" not found.`, 404);
     const responseNode = withContextPinReadState(node);
-    return full ? serializeCanvasNode(responseNode) : serializeCanvasNodeWithBlobSummaries(responseNode);
+    return qualify(responseNode, canvasState.activeBoardId);
   },
 });
 

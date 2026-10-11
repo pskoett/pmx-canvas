@@ -233,11 +233,13 @@ export declare function addCanvasEdge(input: {
     fromSearch?: string;
     toSearch?: string;
     type: CanvasEdge['type'];
+    kind?: string;
+    reason?: string;
     label?: string;
     style?: CanvasEdge['style'];
     animated?: boolean;
 }): CanvasEdge;
-export declare function updateCanvasEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge;
+export declare function updateCanvasEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>): CanvasEdge;
 export declare function removeCanvasEdge(id: string): {
     removed: boolean;
 };

@@ -4,6 +4,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
+import { relationKindSchema, relationReasonSchema } from '../../../shared/relations.js';
 import type { CanvasEdge } from '../../canvas-state.js';
 import { addCanvasEdge, removeCanvasEdge, updateCanvasEdge } from '../../canvas-operations.js';
 import { readJsonValue } from '../http.js';
@@ -39,6 +40,10 @@ const edgeAddShape = {
     .catch(undefined)
     .describe('Resolve the target node by exact or fuzzy title/content search'),
   type: z.unknown().optional().describe('Edge type: flow, depends-on, relation, or references'),
+  kind: relationKindSchema
+    .optional()
+    .describe('Open semantic kind, e.g. supports, contradicts, derived-from, supersedes'),
+  reason: relationReasonSchema.optional().describe('Why this relation exists'),
   label: z.unknown().optional().describe('Edge label text'),
   style: z.unknown().optional().describe('Optional edge stroke style: solid, dashed, or dotted'),
   animated: z.unknown().optional().describe('Animate the edge stroke'),
@@ -87,6 +92,8 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
                 to: body.to,
                 ...(body.toBoardId ? { toBoardId: body.toBoardId } : {}),
                 type: body.type,
+                kind: body.kind,
+                reason: body.reason,
                 label: body.label,
                 style: body.style,
                 animated: body.animated,
@@ -120,6 +127,8 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
         ...(typeof body.fromSearch === 'string' ? { fromSearch: body.fromSearch } : {}),
         ...(typeof body.toSearch === 'string' ? { toSearch: body.toSearch } : {}),
         type: rawType as CanvasEdge['type'],
+        ...(input.kind ? { kind: input.kind } : {}),
+        ...(input.reason ? { reason: input.reason } : {}),
         ...(body.label ? { label: String(body.label) } : {}),
         ...(style ? { style: style as CanvasEdge['style'] } : {}),
         ...(body.animated !== undefined ? { animated: Boolean(body.animated) } : {}),
@@ -136,6 +145,8 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
 const edgeUpdateShape = {
   id: z.string().optional().catch(undefined).describe('Edge ID to update'),
   type: z.unknown().optional().describe('New edge type: flow, depends-on, relation, or references'),
+  kind: relationKindSchema.nullable().optional().describe('Semantic kind; null clears it'),
+  reason: relationReasonSchema.nullable().optional().describe('Why this relation exists; null clears it'),
   label: z.unknown().optional().describe('New label text; empty string or null clears the label'),
   style: z.unknown().optional().describe('New stroke style: solid, dashed, or dotted'),
   animated: z.unknown().optional().describe('Animate the edge stroke'),
@@ -169,7 +180,15 @@ const edgeUpdateOperation = defineOperation<z.infer<typeof edgeUpdateSchema>, Ca
           {
             type: 'text' as const,
             text: JSON.stringify(
-              { id: body.id, type: body.type, label: body.label, style: body.style, animated: body.animated },
+              {
+                id: body.id,
+                type: body.type,
+                kind: body.kind,
+                reason: body.reason,
+                label: body.label,
+                style: body.style,
+                animated: body.animated,
+              },
               null,
               2,
             ),
@@ -184,7 +203,9 @@ const edgeUpdateOperation = defineOperation<z.infer<typeof edgeUpdateSchema>, Ca
     if (!id) {
       throw new OperationError('Missing required field: id.');
     }
-    const patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>> = {};
+    const patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>> = {};
+    if ('kind' in input) patch.kind = input.kind ?? undefined;
+    if ('reason' in input) patch.reason = input.reason || undefined;
     if ('type' in body && body.type !== undefined) {
       if (typeof body.type !== 'string' || !VALID_EDGE_TYPES.has(body.type)) {
         throw new OperationError(`Invalid edge type: "${String(body.type)}".`);

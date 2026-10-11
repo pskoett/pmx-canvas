@@ -515,7 +515,8 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
       op.mutates ||
       name === 'knowledge.category-set' ||
       name === 'knowledge.folder-set' ||
-      (name === 'board.update' && Object.hasOwn(asRecord(rawInput), 'folder'))
+      (name === 'board.update' &&
+        ['folder', 'relationVocabulary'].some((key) => Object.hasOwn(asRecord(rawInput), key)))
         ? checkScopeFence(op, rawInput, writerKey)
         : name === 'ax.policy.set'
           ? checkScopeOwnership(rawInput, writerKey)

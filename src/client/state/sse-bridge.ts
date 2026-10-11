@@ -1,4 +1,5 @@
 import { findOpenCanvasPosition } from '../utils/placement.js';
+import { refreshKnowledge } from './knowledge-store';
 import { cameraSchema, tourStopSchema } from '../../shared/tour.js';
 import { ownsCamera, playStop, presentationError, presenting, presentStop, recordingCamera } from './presentation';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
@@ -405,6 +406,8 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
     to: raw.to,
     ...(typeof raw.toBoardId === 'string' ? { toBoardId: raw.toBoardId } : {}),
     type: raw.type,
+    ...(typeof raw.kind === 'string' ? { kind: raw.kind } : {}),
+    ...(typeof raw.reason === 'string' ? { reason: raw.reason } : {}),
     ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
     ...(raw.style === 'solid' || raw.style === 'dashed' || raw.style === 'dotted' ? { style: raw.style } : {}),
     ...(raw.animated === true ? { animated: true } : {}),
@@ -1229,6 +1232,8 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ext-app-result': handleExtAppResult,
   'context-pins-changed': handleContextPinsChanged,
   'context-status-changed': handleContextStatusChanged,
+  'knowledge-changed': () => void refreshKnowledge(),
+  'lifecycle-changed': () => void refreshKnowledge(),
   'boards-changed': (data) => {
     applyBoards(data);
     refreshContextChip();

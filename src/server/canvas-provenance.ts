@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'node:url';
+import { z } from 'zod';
 import { normalizeHtmlNodeSemanticData } from './html-node-summary.js';
 
 export type CanvasNodeType =
@@ -26,7 +27,8 @@ export type CanvasNodeProvenanceSourceKind =
   | 'webpage-url'
   | 'mcp-tool'
   | 'artifact-file'
-  | 'image-url';
+  | 'image-url'
+  | 'recipe';
 
 export type CanvasNodeRefreshStrategy =
   | 'file-watch'
@@ -34,7 +36,21 @@ export type CanvasNodeRefreshStrategy =
   | 'image-reload'
   | 'webpage-refresh'
   | 'mcp-app-rehydrate'
-  | 'artifact-reopen';
+  | 'artifact-reopen'
+  | 'agent-request';
+
+const observedSourceSchema = z.object({
+  boardId: z.string().min(1),
+  cardId: z.string().min(1),
+  contentRevision: z.number().int().nonnegative().optional(),
+  observedAt: z.iso.datetime().optional(),
+  availability: z.enum(['live', 'cached', 'unavailable']).optional(),
+});
+const recipeSchema = z.object({
+  tool: z.string().max(200),
+  input: z.unknown().optional(),
+  prompt: z.string().max(20000),
+});
 
 export interface CanvasNodeProvenance {
   sourceKind: CanvasNodeProvenanceSourceKind;
@@ -42,6 +58,8 @@ export interface CanvasNodeProvenance {
   refreshStrategy: CanvasNodeRefreshStrategy;
   snapshotContent: boolean;
   syncedAt?: string;
+  sources?: Array<z.infer<typeof observedSourceSchema>>;
+  recipe?: z.infer<typeof recipeSchema>;
   details?: Record<string, unknown>;
 }
 
@@ -82,6 +100,17 @@ function normalizeExistingProvenance(value: unknown): CanvasNodeProvenance | nul
 
   const syncedAt = pickString(value.syncedAt);
   if (syncedAt) normalized.syncedAt = syncedAt;
+  if (value.sources !== undefined)
+    normalized.sources = z
+      .array(observedSourceSchema)
+      .max(100)
+      .refine(
+        (sources) =>
+          new Set(sources.map((source) => JSON.stringify([source.boardId, source.cardId]))).size === sources.length,
+        'Source targets must be unique',
+      )
+      .parse(value.sources);
+  if (value.recipe !== undefined) normalized.recipe = recipeSchema.parse(value.recipe);
   if (isRecord(value.details) && Object.keys(value.details).length > 0) {
     normalized.details = { ...value.details };
   }

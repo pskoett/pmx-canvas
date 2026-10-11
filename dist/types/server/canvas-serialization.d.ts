@@ -1,6 +1,8 @@
 import type { CanvasAnnotation, CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
 import { type CanvasNodeProvenance } from './canvas-provenance.js';
+import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 export interface SerializedCanvasNode extends CanvasNodeState {
+    qualification?: LifecycleQualification;
     kind: string;
     title: string | null;
     content: string | null;

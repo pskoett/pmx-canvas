@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
@@ -661,8 +662,8 @@ test('a recorded review cannot outlive the reviewed content after abrupt process
   canvasState.switchBoard(board.id);
   canvasState.addNode(note('card', 'Version A'));
   canvasState.close();
-  const stateModule = new URL('../../src/server/canvas-state.ts', import.meta.url).pathname;
-  const opsModule = new URL('../../src/server/operations/index.ts', import.meta.url).pathname;
+  const stateModule = fileURLToPath(new URL('../../src/server/canvas-state.ts', import.meta.url));
+  const opsModule = fileURLToPath(new URL('../../src/server/operations/index.ts', import.meta.url));
   const child = Bun.spawn(
     [
       process.execPath,
@@ -714,7 +715,7 @@ test('opening a pre-folder database preserves paths, content, pins and map posit
   oldDb.exec('ALTER TABLE boards RENAME COLUMN folder TO category');
   oldDb.close();
 
-  const dbModule = new URL('../../src/server/canvas-db.ts', import.meta.url).pathname;
+  const dbModule = fileURLToPath(new URL('../../src/server/canvas-db.ts', import.meta.url));
   const openingCode = `
     import { openCanvasDb, getBoardFromDB } from ${JSON.stringify(dbModule)};
     const db = openCanvasDb(${JSON.stringify(dbPath)});

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { memoryKey, type MemoryGraph, type MemoryGraphNode } from '../../shared/memory-graph.js';
+import { relationText } from '../../shared/relations.js';
 import { boardList, openMemoryTarget, updateBoard } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
 import { BoardPinButton } from './BoardPinButton';
@@ -508,7 +509,9 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                   return (
                     <li key={edge.id}>
                       {edge.source.boardId === selected.boardId && (map || edge.from === selected.key) ? '→' : '←'}{' '}
-                      {edge.kind} · {edge.label}{' '}
+                      {edge.kind === 'card'
+                        ? relationText({ ...edge, kind: edge.relationKind })
+                        : `${edge.kind} · ${edge.label ?? ''}`}{' '}
                       {edge.missing ? (
                         <span class="home-memory-missing">
                           ⚠ Missing target: {target.boardId}

@@ -92,3 +92,37 @@ Recorded while the redesign's phases land so nothing rides in silently. The rede
 | Agents can resolve their own gates | Pre-existing design question surfaced by the session panel: `ax.approval.resolve` accepts any caller, so an agent could approve its own gate over HTTP/MCP. The panel and the `held` TTL path assume the human answers. Either gate `resolve` on the workbench marker (like the scope fence) or document it as a cooperating-agent contract; decide before the next adapter ships. |
 | Batch never carries `fromWorkbench` | `canvas.batch` inner dispatches are always agent writes (the browser never uses batch), so the scope fence and presence treat them as such. Holds by construction today; if the client ever adopts batch, the marker must thread through `ops/batch.ts`. Comment at the dispatch site. |
 | Presence registry is a second single-slot listener family | `setSessionStartListener` / `setSessionEndListener` / `setEmitter` on `agentPresence` follow architecture rule 8 (owned by `server.ts`). If a third consumer ever needs session lifecycle (e.g. an audit log), fan out inside the existing registration — do not add a competing one. |
+
+## Wave 3 maintainability review (2026-10-11)
+
+Scope: remaining Wave 3 changes against the published foundation, the preceding
+`Sweep tech debt before 0.9.0` commit, and the next stages in `docs/design.md` and
+`docs/product-vision-2026-09.md`. This is a source/data-flow review with disposable
+scale measurements, not an exhaustive re-audit of every historical row above.
+The owner requested self-review, not Oracle. Stabilization evidence is in plan 018.
+
+**Fixed in this batch:** AX context computed the same library qualification three times
+for pins and focus. It now shares one request-local result. Fit also reuses its captured
+layout rather than loading the whole layout again just to inspect edges. The initial
+resetting preset menu and its orphaned highlight-menu state are gone. The vision's
+“planned, not implemented” lifecycle status is corrected. No dependency or cache was added.
+
+Measurement: Bun 1.4.2 in the Linux orb, nine warm samples per case, short Markdown cards,
+no review history or dependencies. At 30 boards × 150 cards, AX context median falls from
+138.6 to 48.3 ms; at 10 × 150, from 44.0 to 13.6 ms. Single-card reads remain approximately
+46 ms at 4,500 cards. The qualification object is 1,302,961 JSON characters. These are
+lower-bound server measurements, not browser latency or a supported capacity guarantee.
+Logs: `/tmp/pmx-w3-debt-baseline.zPoaEM/log` and `/tmp/pmx-w3-debt-after.iXN2fq/log`.
+
+| Priority / boundary | Evidence and disposition |
+|---|---|
+| Before larger-library scaling | `lifecycle-status.ts` reads every board and each card's full review history even for one-card requests. `KnowledgeSync` reloads workspace qualifications after board changes. Bound narrow reads to the dependency closure, batch/index review summaries, and separate folder aggregates from card detail when scaling this path. Measure populated review histories and long dependency chains as well as empty history. Avoid a TTL cache: cadence, sessions, retirement and source changes have different invalidation clocks. |
+| Wave 4, frame host | `ExtAppFrame.tsx` still owns 1,597 lines of bridge/recovery behavior. Consolidate mount budget, theme delivery and visible fallback with the planned frame host, preserving working draft/refresh behavior. Do not start another recovery ladder or infer native WebKit paint from Chromium tests. |
+| Wave 5, groups and agent output | Keep board-qualified relation/provenance identities when moving cards into or out of a board. Review records currently outlive snapshots and are keyed by board + card; define their move semantics before adding make-board/inline-board. Do not clone validation as if a new claim had been checked. |
+| Journal and shared/hosted stages | The due evaluator still reads the local `canvasState` singleton. Separate runtime acquisition from qualification when a second runtime needs it, not by speculative package splitting now. Filter authorized sources before summaries, titles and lifecycle reasons are computed. Categories are not permissions. Keep validation audit distinct from an undoable content journal and finish the authoritative mutation-path decision before event sourcing. |
+| Test maintenance | Large integration files remain (`server-api.test.ts`, `canvas.pw.ts`). Split by owning domain when those domains next change, preserving isolation and race cases. Do not replace human browser or real transport checks with source-string assertions to make the suite cheaper. |
+
+The earlier gate-resolution question is superseded by vision move 7 and plan 010:
+approvals are attributed coordination, not a human-only security boundary. Tour cleanup
+remains explicitly deferred in vision move 12. Neither is reopened in this batch.
+The codebase supports continued staged vision work; this review is not release approval.

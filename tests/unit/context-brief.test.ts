@@ -6,6 +6,7 @@ import {
 } from '../../src/server/context-brief.ts';
 import type { ActorAttribution } from '../../src/server/attribution.ts';
 import type { CanvasNodeState } from '../../src/server/canvas-state.ts';
+import type { LifecycleQualification } from '../../src/shared/lifecycle-status.ts';
 
 const actor: ActorAttribution = { actor: 'unknown', source: 'test' };
 
@@ -52,6 +53,46 @@ function library(boardId: string, linkIds: string[], folder = 'okr'): ContextBri
 function at(id: string, x: number, content = `${id} body`, revision = 1): CanvasNodeState {
   return { ...node(id, content, revision), position: { x, y: 0 } };
 }
+
+test('a large lifecycle snapshot cannot starve the brief or falsely clear cached retirement', () => {
+  const status: LifecycleQualification = {
+    retired: false,
+    unknown: true,
+    due: false,
+    reasons: [],
+    sources: [],
+    observations: {},
+    changedSinceRead: false,
+    lastReadAt: null,
+    lastValidatedAt: null,
+    contentRevision: 1,
+    contentChangedAt: null,
+    relevance: 'not-selected',
+  };
+  const qualifications = Object.fromEntries(
+    Array.from({ length: 1000 }, (_, i) => [
+      JSON.stringify(['library', `card-${i}`]),
+      { ...status, retired: i % 2 === 0 },
+    ]),
+  );
+  qualifications[JSON.stringify(['active', 'pin'])] = status;
+  const small = compileContextBrief(
+    input({
+      qualifications,
+      nodes: [node('pin', 'Important content', 1)],
+      pinnedNodeIds: ['pin'],
+      contentRevision: 1,
+      budget: 3000,
+    }),
+  );
+  expect(small.serialized.length).toBeLessThanOrEqual(3000);
+  expect(small.document?.entries.find((entry) => entry.nodeId === 'pin')?.text).toContain('Important content');
+  expect(small.document?.lifecycle?.complete).toBe(false);
+  expect(small.document?.lifecycle?.instruction).toContain('Recheck cached cards');
+  const full = compileContextBrief(input({ qualifications, budget: 200000 }));
+  expect(full.document?.lifecycle?.complete).toBe(true);
+  expect(full.document?.lifecycle?.retired).toHaveLength(500);
+});
 
 describe('near a pin (docs/design/NearPin.dc.html)', () => {
   test('neighbours follow the pins as title + short summary, nearest first, never full content', () => {

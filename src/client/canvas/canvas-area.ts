@@ -55,10 +55,17 @@ export interface CanvasFitInsets {
  * both (0.5.0 Amp report, finding A; architecture rule 9's trap).
  */
 export function canvasFitInsets(): CanvasFitInsets {
+  let top = 16;
   let bottom = 16;
   try {
     const area = canvasArea();
     const areaBottom = area.top + area.height;
+    for (const selector of ['.lifecycle-filters', '.relation-legend']) {
+      const el = document.querySelector(selector);
+      if (!(el instanceof HTMLElement) || !el.isConnected) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.height > 0) top = Math.max(top, rect.bottom - area.top + 12);
+    }
     for (const selector of ['.command-bar', '.minimap']) {
       const el = document.querySelector(selector);
       if (!(el instanceof HTMLElement) || !el.isConnected) continue;
@@ -70,5 +77,5 @@ export function canvasFitInsets(): CanvasFitInsets {
   } catch {
     // Chromeless embeds and unit DOMs: the defaults below are the contract.
   }
-  return { top: 16, right: 16, bottom, left: 16 };
+  return { top, right: 16, bottom, left: 16 };
 }

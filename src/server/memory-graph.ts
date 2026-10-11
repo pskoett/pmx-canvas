@@ -24,6 +24,8 @@ export function memoryGraph(projection: 'full' | 'boards' = 'full'): MemoryGraph
     target: MemoryTarget,
     label?: string,
     type?: string,
+    relationKind?: string,
+    reason?: string,
   ) => {
     edges.push({
       id,
@@ -35,6 +37,8 @@ export function memoryGraph(projection: 'full' | 'boards' = 'full'): MemoryGraph
       missing: false,
       ...(label ? { label } : {}),
       ...(type ? { type } : {}),
+      ...(relationKind ? { relationKind } : {}),
+      ...(reason ? { reason } : {}),
     });
   };
   for (const { board, read } of reads) {
@@ -95,6 +99,8 @@ export function memoryGraph(projection: 'full' | 'boards' = 'full'): MemoryGraph
         { boardId: edge.toBoardId ?? board.id, cardId: edge.to },
         edge.label,
         edge.type,
+        edge.kind,
+        edge.reason,
       );
     }
   }

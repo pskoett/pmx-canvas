@@ -3,6 +3,9 @@ import { canvasState } from '../../canvas-state.js';
 import { categorySchema, lifecycleSchema, type Lifecycle } from '../../knowledge-lifecycle.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { readTargetBoard } from './boards.js';
+import { lifecycleQualifications } from '../../lifecycle-status.js';
+import { memoryKey } from '../../../shared/memory-graph.js';
+import { folderAncestors } from '../../../shared/boards.js';
 
 const jsonResult = (result: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -21,7 +24,21 @@ export const lifecycleOperations: Operation[] = [
       description: 'Read workspace categories and folder properties. No inferred defaults.',
       formatResult: jsonResult,
     },
-    handler: () => ({ ok: true, ...canvasState.knowledge.list() }),
+    handler: () => {
+      const catalog = canvasState.knowledge.list();
+      const paths = new Set([
+        ...catalog.folders.flatMap((folder) => folderAncestors(folder.path)),
+        ...canvasState.listBoards().flatMap((board) => (board.folder ? folderAncestors(board.folder) : [])),
+      ]);
+      return {
+        ok: true,
+        ...catalog,
+        cards: lifecycleQualifications(),
+        resolvedFolders: Object.fromEntries(
+          [...paths].map((path) => [path, canvasState.knowledge.resolve(path, null, catalog)]),
+        ),
+      };
+    },
   }),
   defineOperation({
     name: 'knowledge.category-set',
@@ -89,6 +106,9 @@ export const lifecycleOperations: Operation[] = [
         contentRevision: node.contentRevision ?? 0,
         ...canvasState.knowledge.resolve(folder, node.data.lifecycleOverride as Lifecycle | null),
         ...canvasState.knowledge.reviews(read.boardId, input.id),
+        qualification: lifecycleQualifications(Date.now(), [{ boardId: read.boardId, cardId: input.id }])[
+          memoryKey({ boardId: read.boardId, cardId: input.id })
+        ],
       };
     },
   }),
@@ -118,12 +138,17 @@ export const lifecycleOperations: Operation[] = [
       evidence: z.string(),
       applied: z.boolean(),
       expectedContentRevision: z.number().int().nonnegative().optional(),
+      expectedSources: z.record(z.string(), z.number().int().nonnegative().nullable()).optional(),
     }),
     inputShape: {
       ...target,
       outcome: z.enum(['retain', 'revise', 'externalize', 'retire', 'unresolved']),
       evidence: z.string(),
       applied: z.boolean(),
+      expectedSources: z
+        .record(z.string(), z.number().int().nonnegative().nullable())
+        .optional()
+        .describe('Required when validating dependencies: observations from lifecycle-get after checking the sources.'),
       expectedContentRevision: z
         .number()
         .int()
@@ -141,7 +166,23 @@ export const lifecycleOperations: Operation[] = [
     handler: (input, ctx) => {
       if (!canvasState.getNode(input.id) || !canvasState.activeBoardId)
         throw new OperationError('Card not found.', 404);
-      const record = canvasState.knowledge.record(canvasState.activeBoardId, input.id, input);
+      const observations =
+        lifecycleQualifications()[memoryKey({ boardId: canvasState.activeBoardId, cardId: input.id })]?.observations ??
+        {};
+      const validates =
+        input.applied && input.evidence.trim() && ['retain', 'revise', 'externalize'].includes(input.outcome);
+      if (validates) {
+        const expected = input.expectedSources ?? {};
+        if (
+          Object.keys(expected).length !== Object.keys(observations).length ||
+          Object.entries(observations).some(([key, revision]) => revision === null || expected[key] !== revision)
+        )
+          throw new OperationError(
+            'Sources changed or are unavailable. Check the current sources and pass expectedSources from lifecycle-get.',
+            409,
+          );
+      }
+      const record = canvasState.knowledge.record(canvasState.activeBoardId, input.id, input, observations);
       ctx.emit('lifecycle-changed', { boardId: canvasState.activeBoardId, nodeId: input.id });
       return { ok: true, record };
     },

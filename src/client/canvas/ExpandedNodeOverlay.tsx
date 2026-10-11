@@ -18,6 +18,8 @@ import { AxStepControls } from '../nodes/AxStepControls';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
 import { BoardNode } from '../nodes/BoardNode';
+import { RelationsPanel } from './RelationsPanel';
+import { openLifecycle } from '../state/knowledge-store';
 import {
   collapseExpandedNode,
   contextPinnedNodeIds,
@@ -130,6 +132,7 @@ export function ExpandedNodeOverlay() {
   const nodeId = expandedNodeId.value;
   const node = nodeId ? nodes.value.get(nodeId) : undefined;
   const [copied, setCopied] = useState(false);
+  const [relationsFor, setRelationsFor] = useState<string | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [presentationExitToken, setPresentationExitToken] = useState('');
   const presentationOverlayRef = useRef<HTMLDivElement>(null);
@@ -307,6 +310,17 @@ export function ExpandedNodeOverlay() {
           </BarHint>
           <span class="expanded-spacer" />
           <div class="expanded-actions">
+            <button type="button" class="expanded-action-btn" onClick={() => openLifecycle(node.id)}>
+              Lifecycle
+            </button>
+            <button
+              type="button"
+              class="expanded-action-btn"
+              aria-pressed={relationsFor === nodeId}
+              onClick={() => setRelationsFor(relationsFor === nodeId ? null : nodeId)}
+            >
+              Relations
+            </button>
             {hasText && (
               <BarHint label="Copy content to clipboard">
                 <button type="button" class="expanded-action-btn" onClick={handleCopy}>
@@ -337,12 +351,15 @@ export function ExpandedNodeOverlay() {
         </div>
 
         {/* Body: the surface at full size */}
-        <div class={`expanded-body${isEmbeddedViewer ? ' is-embedded' : ''}`}>
-          {isEmbeddedViewer ? (
-            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>{renderContent(node, true)}</div>
-          ) : (
-            renderContent(node, true)
-          )}
+        <div class="expanded-content-row">
+          <div class={`expanded-body${isEmbeddedViewer ? ' is-embedded' : ''}`}>
+            {isEmbeddedViewer ? (
+              <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>{renderContent(node, true)}</div>
+            ) : (
+              renderContent(node, true)
+            )}
+          </div>
+          {relationsFor === nodeId && <RelationsPanel key={nodeId} nodeId={node.id} />}
         </div>
         {/* AX step controls follow the node into focus mode. Without this,
             expanding a materialized flow step showed only its text — the

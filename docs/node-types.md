@@ -562,8 +562,10 @@ Code spans and fenced code are ignored. An unresolved board-only link offers a
 human Create dialog: it creates exactly the authored board name and re-saves
 the source using its captured board and revision, refusing a stale source.
 Wiki links, backlinks, portals, native edges, and create-from's `previousBoardId`
-share the Home/agent memory projection. This is discovery, not the wave-3 rich
-relationship kinds/reasons, provenance/staleness, or lifecycle system.
+share the Home/agent memory projection. Native edges also carry open `kind` and `reason`,
+independently of their line type. Boards may set `relationVocabulary: [{kind, ink, directed}]`.
+Explicit dependency relations or provenance sources drive downstream review; ordinary navigation
+does not. See [lifecycle and source contracts](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
 
 | Type | Use case |
 |------|----------|

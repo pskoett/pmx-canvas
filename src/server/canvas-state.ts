@@ -14,6 +14,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { KnowledgeLifecycle, lifecycleSchema, type Lifecycle } from './knowledge-lifecycle.js';
+import { relationSourceEnd } from '../shared/relations.js';
 import { OperationError } from './operations/types.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import {
@@ -252,6 +253,8 @@ export interface CanvasNodeState {
   lastEditedBy?: ActorAttribution;
   /** Board-monotonic revision of this node's latest semantic content. */
   contentRevision?: number;
+  /** Time of that semantic change; absent for content created before this clock was recorded. */
+  contentChangedAt?: string;
   /** Board-monotonic revision of this node's latest link change, kept apart from its text. */
   linksRevision?: number;
 }
@@ -288,6 +291,11 @@ export interface CanvasEdge {
   /** Target on another board. Source and mutation ownership stay on the active board. */
   toBoardId?: string;
   type: 'relation' | 'depends-on' | 'flow' | 'references';
+  /** Open semantic relation kind, independent of the structural edge type. */
+  kind?: string;
+  reason?: string;
+  /** Source content observed when an explicit dependency was authored. Never refreshed by reads. */
+  sourceRevision?: number;
   label?: string;
   style?: 'solid' | 'dashed' | 'dotted';
   animated?: boolean;
@@ -1289,7 +1297,7 @@ class CanvasStateManager {
 
   updateBoard(
     id: string,
-    patch: { name?: string; folder?: string | null; mapPosition?: { x: number; y: number } | null },
+    patch: Pick<Parameters<typeof updateBoardInDB>[2], 'name' | 'folder' | 'mapPosition' | 'relationVocabulary'>,
   ): boolean {
     return this._db ? updateBoardInDB(this._db, id, patch) : false;
   }
@@ -1441,8 +1449,12 @@ class CanvasStateManager {
       input.includeReadme && source.board.readmeNodeId ? (ids.get(source.board.readmeNodeId) ?? null) : null,
       (boardId, nodeId) => this.invalidateRelationTarget(boardId, nodeId),
     );
-    updateBoardInDB(this._db, board.id, { previousBoardId: source.board.id });
+    updateBoardInDB(this._db, board.id, {
+      previousBoardId: source.board.id,
+      relationVocabulary: source.board.relationVocabulary,
+    });
     board.previousBoardId = source.board.id;
+    board.relationVocabulary = source.board.relationVocabulary;
     const referencedAttachmentIds = new Set<string>();
     for (const node of nodes) {
       if (typeof node.data.attachmentId === 'string') referencedAttachmentIds.add(node.data.attachmentId);
@@ -2069,13 +2081,20 @@ class CanvasStateManager {
         this.nodes.set(id, {
           ...node,
           contentRevision: old.contentRevision,
+          contentChangedAt: old.contentChangedAt,
           linksRevision,
           lastEditedBy: old.lastEditedBy,
         });
         continue;
       }
       const revision = this.nextContentRevision();
-      this.nodes.set(id, { ...node, lastEditedBy: currentActor(), contentRevision: revision, linksRevision });
+      this.nodes.set(id, {
+        ...node,
+        lastEditedBy: currentActor(),
+        contentRevision: revision,
+        contentChangedAt: new Date().toISOString(),
+        linksRevision,
+      });
     }
     for (const id of new Set([...before.keys(), ...restoredIds]))
       this.touchWikiRelations(before.get(id), this.nodes.get(id));
@@ -2088,7 +2107,7 @@ class CanvasStateManager {
     // A link the restore added, retyped, relabelled or removed is a link change on both ends.
     // It comes back as it was saved, author included, under a new revision.
     const relation = (edge: CanvasEdge) =>
-      `${edge.from}\0${edge.toBoardId ?? ''}\0${edge.to}\0${edge.type}\0${edge.label ?? ''}`;
+      JSON.stringify([edge.from, edge.toBoardId, edge.to, edge.type, edge.kind, edge.label, edge.reason]);
     const edgesBefore = new Map(beforeEdges.map((edge) => [edge.id, edge]));
     for (const [id, edge] of this.edges) {
       const old = edgesBefore.get(id);
@@ -2116,6 +2135,12 @@ class CanvasStateManager {
     delete copy.strictSize;
     delete copy.arrangeLocked;
     delete copy.lifecycleOverride;
+    delete copy.fetchedAt;
+    if (copy.provenance && typeof copy.provenance === 'object') {
+      const provenance = { ...(copy.provenance as Record<string, unknown>) };
+      delete provenance.syncedAt;
+      copy.provenance = provenance;
+    }
     return copy;
   }
 
@@ -2226,6 +2251,7 @@ class CanvasStateManager {
       createdBy: existing.createdBy,
       lastEditedBy: currentActor(),
       contentRevision: this.nextContentRevision(),
+      contentChangedAt: new Date().toISOString(),
     });
   }
 
@@ -2254,6 +2280,7 @@ class CanvasStateManager {
             createdBy: actor,
             lastEditedBy: actor,
             contentRevision: this.nextContentRevision(),
+            contentChangedAt: new Date().toISOString(),
           },
           undefined,
           savedWikiLinks,
@@ -2272,6 +2299,7 @@ class CanvasStateManager {
         this.nodes.set(cloned.id, {
           ...structuredClone(cloned),
           contentRevision: this.nextContentRevision(),
+          contentChangedAt: new Date().toISOString(),
           lastEditedBy: currentActor(),
         });
         this.touchWikiRelations(undefined, this.nodes.get(cloned.id));
@@ -2355,6 +2383,7 @@ class CanvasStateManager {
         createdBy: existing.createdBy ?? unknownActor(),
         lastEditedBy: currentActor(),
         contentRevision: this.nextContentRevision(),
+        contentChangedAt: new Date().toISOString(),
       };
     } else {
       nextNode = {
@@ -2362,6 +2391,7 @@ class CanvasStateManager {
         createdBy: existing.createdBy,
         lastEditedBy: existing.lastEditedBy,
         contentRevision: existing.contentRevision,
+        contentChangedAt: existing.contentChangedAt,
       };
     }
     this.nodes.set(id, nextNode);
@@ -2391,9 +2421,11 @@ class CanvasStateManager {
         const current = this.nodes.get(id);
         if (current && this.nodeContentChanged(current, restored)) {
           restored.contentRevision = this.nextContentRevision();
+          restored.contentChangedAt = new Date().toISOString();
           restored.lastEditedBy = currentActor();
         } else if (current) {
           restored.contentRevision = current.contentRevision;
+          restored.contentChangedAt = current.contentChangedAt;
           restored.lastEditedBy = current.lastEditedBy;
         }
         // Links are tracked apart: undoing a node change never rolls its links revision back.
@@ -2626,11 +2658,13 @@ class CanvasStateManager {
         existing.from === edge.from &&
         existing.to === edge.to &&
         existing.toBoardId === edge.toBoardId &&
-        existing.type === edge.type
+        existing.type === edge.type &&
+        existing.kind === edge.kind
       ) {
         return false;
       }
     }
+    if (!edge.changedBy) edge = { ...edge, sourceRevision: this.relationSourceRevision(edge) };
     const stamp = this.touchRelations(edge);
     // A link that arrives with an author is being restored (undo of a removal, a
     // demo seed): it keeps its authorship and only takes a new revision. The API
@@ -2658,19 +2692,34 @@ class CanvasStateManager {
     return true;
   }
 
-  updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null {
+  private relationSourceRevision(edge: CanvasEdge): number | undefined {
+    const end = relationSourceEnd(edge);
+    if (!end) return undefined;
+    const node =
+      end === 'to' && edge.toBoardId && edge.toBoardId !== this._activeBoardId
+        ? this.readBoard(edge.toBoardId, false)?.layout.nodes.find((item) => item.id === edge.to)
+        : this.nodes.get(end === 'from' ? edge.from : edge.to);
+    return node?.contentRevision;
+  }
+
+  updateEdge(
+    id: string,
+    patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>,
+  ): CanvasEdge | null {
     const existing = this.edges.get(id);
     if (!existing) return null;
     // Retyping onto an existing from/to/type triple would create the duplicate
     // addEdge refuses.
-    if (patch.type && patch.type !== existing.type) {
+    const candidate = { ...existing, ...patch };
+    if (candidate.type !== existing.type || candidate.kind !== existing.kind) {
       for (const other of this.edges.values()) {
         if (
           other.id !== id &&
           other.from === existing.from &&
           other.to === existing.to &&
           other.toBoardId === existing.toBoardId &&
-          other.type === patch.type
+          other.type === candidate.type &&
+          other.kind === candidate.kind
         ) {
           return null;
         }
@@ -2678,12 +2727,18 @@ class CanvasStateManager {
     }
     const before = structuredClone(existing);
     const updated: CanvasEdge = { ...existing, ...patch };
+    if (candidate.type !== existing.type || candidate.kind !== existing.kind)
+      updated.sourceRevision = this.relationSourceRevision(updated);
     // An explicit undefined in the patch clears the field (label/style/animated
     // are optional on the wire shape — never store undefined values).
-    for (const key of ['label', 'style', 'animated'] as const) {
+    for (const key of ['kind', 'reason', 'label', 'style', 'animated'] as const) {
       if (key in patch && patch[key] === undefined) delete updated[key];
     }
-    const relationChanged = updated.type !== before.type || updated.label !== before.label;
+    const relationChanged =
+      updated.type !== before.type ||
+      updated.label !== before.label ||
+      updated.kind !== before.kind ||
+      updated.reason !== before.reason;
     if (relationChanged) Object.assign(updated, this.touchRelations(updated));
     const after = structuredClone(updated);
     this.edges.set(id, updated);

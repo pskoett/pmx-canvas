@@ -1,7 +1,8 @@
 # Plan 017 — Knowledge categories and context lifecycle
 
-**Status:** Wave 3 in progress after the stabilized Wave 2 checkpoint. Slices 0 and 1 are implemented;
-the brief, UI and due engine (slices 2–5) remain pending. Not a release.
+**Status:** Wave 3 implementation includes slices 0–5 and the relationship layer.
+Local stabilization passed; see plan 018 for evidence and limitations. The owner's manual
+E2E acceptance is still required. Not a release; version remains 0.8.2.
 **Date:** 2026-10-07
 **Source:** vision [move 13](../product-vision-2026-09.md#13-context-lifecycle-and-recipe-cards-m-then-later-classification)
 (decided model) and Part 3 (user-defined knowledge scopes); [design.md](../design.md) wave 3.
@@ -87,7 +88,7 @@ Later workbench reconnect, save-lineage, ownership and scope findings are fixed;
 with 1,437 unit, 302 client and 266 headed browser cases, plus live human/agent checks.
 No lifecycle browser appearance changed; the user-facing review controls remain pending.
 
-### 2. The brief (pending)
+### 2. The brief (implemented)
 
 - Retired cards leave the brief; restored cards return.
 - Each delivered card carries its qualification when it has one: review due (with reason),
@@ -97,13 +98,13 @@ No lifecycle browser appearance changed; the user-facing review controls remain 
   separately from their own lifecycle. A durable container never suppresses a source warning;
   unreadable targets disclose neither content nor lifecycle metadata.
 
-### 3. Menus: folder settings, category editor, card Lifecycle tab (pending)
+### 3. Menus: folder settings, category editor, card Lifecycle tab (implemented)
 
 Per `Categories`, `CategoryEditor`, `Lifecycle`: choose or inherit a category; edit the one list
 and start from a template; the card tab with inherited/override switch, the four clocks as
 separate tiles (only "read by agent" violet), outcomes with evidence, history, retire/restore.
 
-### 4. The board and Home (pending)
+### 4. The board and Home (implemented)
 
 Variant A: "⧗ review due" bottom line (outlined amber, glyph + word + reason) only while due;
 filter row (All / To review / Retired); Undo toast after retire; Home folder rows with category
@@ -113,7 +114,7 @@ Dashboard source warnings identify the affected source rather than marking every
 Extend the portal/source-card drawings to distinguish “source needs review” from the card's own
 review reason before building this state; no additional healthy-card badge is required.
 
-### 5. When review is due (pending)
+### 5. When review is due (implemented)
 
 Rate-based checks plus event triggers already observable: a provenance source changed, a
 superseding decision linked, a dependency card changed. Recipe cards (move 13) add the "refresh
@@ -131,6 +132,33 @@ qualification and the dependent conclusion needs review, while the reference and
 structure remain unaffected. Reopen and refresh: last-validated timestamps stay unchanged.
 Repeat with a cached/unavailable source (no fresh-check claim), and an unreadable target when
 sharing is available (no title or lifecycle leak). Verify the same distinctions in the brief.
+
+## Remaining-wave implementation and stabilization
+
+Relations retain open kind/reason and editable per-board vocabulary across undo, snapshots,
+restart and all agent transports. Relation text reaches graph/brief/pinned context. Source
+observations and inert recipes retain observation/revision separately from retrieval time.
+Dependency cycles propagate review without recursion; navigation never implies a dependency.
+Validating dependent cards requires matching checked source revisions, as well as card content.
+The dashboard case, unavailable/cached sources, cadence boundary, session use and retired
+filtering have regression coverage. Brief lifecycle snapshots are independent of the content
+cursor and bounded: incomplete snapshots explicitly require rechecking cached cards.
+
+Category presets, inherited folder settings, lifecycle overrides, four clocks, due reasons,
+review evidence/history, reversible retirement and a post-retirement Undo toast are implemented.
+See [design decisions and deviations](../design.md) for dialog placement and spatial dimming.
+Reloading review metadata clears old evidence/applied state, preventing stale drafts from gaining
+new source/content preconditions. Retired cards remain searchable and direct-readable, marked
+retired. Restore, refresh, read, pin and content edits never renew evidence validation.
+
+The owner requested adversarial self-review because Oracle was unavailable. Failures remain in
+separate `/tmp/pmx-w3-*` attempt directories, including the cached-provenance regression and the
+headed stale-evidence reproduction. The original stale-evidence test failed with the old 99%
+evidence retained after a 95% content change; the corrected same browser case passes. No release,
+tag, publish, deployment or version bump is authorized. The final local gates pass 1,443 unit,
+302 client and 268 headed browser tests, coverage and fresh-workspace headed CLI E2E. Real CLI,
+stdio MCP and live human gestures passed on disposable boards. The forward-looking debt review
+is recorded in plan 009 and beside its owning stages in the vision.
 
 ## Out of this plan
 

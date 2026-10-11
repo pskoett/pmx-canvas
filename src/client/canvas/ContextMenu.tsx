@@ -28,6 +28,9 @@ import {
 } from '../state/intent-bridge';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { askText } from './TextPrompt';
+import { activeBoard, boardIncarnation } from '../state/boards-store';
+import { openLifecycle } from '../state/knowledge-store';
+import { RELATION_KINDS, relationKind } from '../../shared/relations.js';
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -119,7 +122,54 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
     // a drawn edge used to be frozen the moment it existed.
     const edgeId = menu.edgeId;
     const edge = edges.value.get(edgeId);
+    const incarnation = boardIncarnation;
     items = [
+      {
+        label: 'Relation kind…',
+        render: () => (
+          <label class="relation-kind-control">
+            Kind{' '}
+            <select
+              aria-label="Relation kind"
+              value={edge ? relationKind(edge) : ''}
+              onChange={(event) => {
+                const kind = event.currentTarget.value;
+                if (kind === '__custom__') {
+                  onClose();
+                  void askText('Relation kind', 'An open kind, such as supports').then((value) => {
+                    if (value?.trim() && incarnation === boardIncarnation)
+                      void updateEdgeFromClient(edgeId, { kind: value.trim() });
+                  });
+                } else void updateEdgeFromClient(edgeId, { kind });
+              }}
+            >
+              {[
+                ...new Set([
+                  ...(activeBoard()?.relationVocabulary ?? RELATION_KINDS).map((item) => item.kind),
+                  ...(edge ? [relationKind(edge)] : []),
+                ]),
+              ].map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind}
+                </option>
+              ))}
+              <option value="__custom__">Custom kind…</option>
+            </select>
+          </label>
+        ),
+      },
+      {
+        label: edge?.reason ? 'Edit why…' : 'Add why…',
+        action: () => {
+          void askText('Why this relation exists', 'One sentence explaining the link', {
+            initial: edge?.reason ?? '',
+            allowEmpty: true,
+            confirm: 'Save',
+          }).then((reason) => {
+            if (reason !== null && incarnation === boardIncarnation) void updateEdgeFromClient(edgeId, { reason });
+          });
+        },
+      },
       {
         label: edge?.label
           ? `Edit label “${edge.label.slice(0, 18)}${edge.label.length > 18 ? '…' : ''}”`
@@ -130,7 +180,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
             allowEmpty: true,
             confirm: 'Save',
           }).then((next) => {
-            if (next === null) return;
+            if (next === null || incarnation !== boardIncarnation) return;
             void updateEdgeFromClient(edgeId, { label: next });
           });
         },
@@ -463,6 +513,8 @@ function buildCanvasMenuItems(canvasX: number, canvasY: number): MenuItem[] {
 function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   const items: MenuItem[] = [];
   const localPath = getNodeLocalPath(node);
+
+  items.push({ label: 'Lifecycle', action: () => openLifecycle(node.id) });
 
   // S2: Delegate to focusNode() which centers, brings to front, and persists
   items.push({

@@ -131,7 +131,7 @@ async function edge(
   key: string,
   from: string,
   to: string,
-  body: { type: string; label?: string; style?: string; animated?: boolean },
+  body: { type: string; kind?: string; reason?: string; label?: string; style?: string; animated?: boolean },
 ): Promise<void> {
   const result = await api<{ id?: string }>('POST', '/api/canvas/edge', {
     from: serverId(from),
@@ -1774,7 +1774,9 @@ async function bandAgentAtWork(): Promise<void> {
 async function buildEdges(): Promise<void> {
   await edge('edge-runs', 'status', 'trace-plan', { type: 'flow', label: 'runs', animated: true });
   await edge('edge-then', 'trace-plan', 'trace-apply', { type: 'flow', label: 'then', style: 'dotted' });
-  await edge('edge-decisions', 'context', 'ledger', { type: 'relation', label: 'decisions' });
+  await edge('edge-decisions', 'context', 'ledger', {
+    type: 'relation', kind: 'supports', label: 'decisions', reason: 'The working context explains the recorded decisions.',
+  });
   await edge('edge-changed-in', 'file-ts', 'diff', { type: 'depends-on', label: 'changed in' });
   await edge('edge-gate', 'mermaid-sequence', 'mermaid-state', {
     type: 'references',
@@ -1811,6 +1813,7 @@ async function buildPinsAndAnnotations(): Promise<void> {
 interface ExportedNode {
   id: string;
   type: string;
+  contentChangedAt?: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
   data: Record<string, unknown>;
@@ -1973,7 +1976,11 @@ async function exportFixture(outputPath: string, workspace: string): Promise<{ n
   const known = new Set(stableIds.values());
   const nodes = layout.nodes.map((raw) => {
     if (!known.has(raw.id)) throw new Error(`Node "${raw.id}" was not created by this script.`);
-    return { ...raw, data: normalizeNodeData(raw.data) };
+    return {
+      ...raw,
+      ...(raw.contentChangedAt ? { contentChangedAt: FIXTURE_TIMESTAMP } : {}),
+      data: normalizeNodeData(raw.data),
+    };
   });
   // Auto-detected import edges are recomputed at runtime; never freeze them.
   // A link's authorship carries wall-clock times; pin them like annotations.

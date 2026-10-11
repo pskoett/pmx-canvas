@@ -6,6 +6,7 @@
  */
 import { Database } from 'bun:sqlite';
 import type { ActorAttribution } from './attribution.js';
+import { type RelationDefinition } from '../shared/relations.js';
 import { type Tour } from '../shared/tour.js';
 import { type CanvasThemeName } from '../shared/themes.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, CanvasSnapshot, CanvasSnapshotListOptions, ViewportState } from './canvas-state.js';
@@ -90,6 +91,7 @@ export interface CanvasBoard {
     } | null;
     /** The source of a recurring/template board, separate from ordinary portals. */
     previousBoardId?: string | null;
+    relationVocabulary?: RelationDefinition[];
     /** Pinned into the agent's working set (vision move 0a); null when not pinned. */
     pin: ContextPinMeta | null;
 }
@@ -109,6 +111,7 @@ export declare function updateBoardInDB(db: Database, id: string, patch: {
         y: number;
     } | null;
     previousBoardId?: string | null;
+    relationVocabulary?: RelationDefinition[];
 }): boolean;
 /** Create and populate an inactive board as one SQLite transaction. */
 export declare function createBoardWithStateInDB(db: Database, name: string, folder: string | null, state: PersistedCanvasState, readmeNodeId: string | null, invalidateTarget?: (boardId: string, nodeId: string) => void): CanvasBoard;

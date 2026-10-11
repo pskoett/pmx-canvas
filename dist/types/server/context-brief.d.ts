@@ -1,3 +1,4 @@
+import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
 export type ContextBriefReason = 'overview' | 'pinned' | 'near' | 'changed' | 'pinned-board' | 'human' | 'ask' | 'steer' | 'linked' | 'folder';
 /** How long a card's summary is in the brief: enough to know what it is. */
@@ -42,6 +43,7 @@ export interface ContextBriefPinnedBoard {
     name: string;
     folder: string | null;
     readmeSummary: string | null;
+    readmeNodeId?: string;
     /** Pinned cards as title + short summary, each pullable by id. */
     cards: Array<{
         nodeId: string;
@@ -56,6 +58,7 @@ export interface ContextBriefPinnedBoard {
 export interface ContextBriefOverview {
     folder: string | null;
     readmeSummary: string | null;
+    readmeNodeId?: string;
     links: string[];
     backlinks: string[];
 }
@@ -66,6 +69,8 @@ export interface ContextBriefEdge {
     /** Readable qualified target title, resolved by the shared memory graph. */
     remoteTitle?: string;
     type: string;
+    kind?: string;
+    reason?: string;
     label?: string | null;
     /** Board revision of the link's latest add, retype or relabel, and who made it. */
     revision?: number;
@@ -79,6 +84,7 @@ export interface ContextBriefEdge {
     changedAt?: string;
 }
 export interface ContextBriefInput {
+    qualifications?: Readonly<Record<string, LifecycleQualification>>;
     activeBoard: {
         boardId: string;
         name: string;
@@ -107,6 +113,8 @@ export interface ContextBriefInput {
     budget: number;
 }
 export interface CompiledContextEntry {
+    qualification?: LifecycleQualification;
+    readmeQualification?: LifecycleQualification;
     sourceBoardId: string;
     nodeId: string;
     reason: ContextBriefReason;
@@ -155,6 +163,20 @@ export interface ContextBriefDocument {
         valid: boolean;
     };
     entries: CompiledContextEntry[];
+    /** Independent of the content cursor. Only complete snapshots replace cached qualification. */
+    lifecycle?: {
+        scope: 'workspace';
+        complete: boolean;
+        instruction?: string;
+        retired: string[];
+        unknown: string[];
+        review: Array<{
+            key: string;
+            due: boolean;
+            reasons: string[];
+            sources: LifecycleQualification['sources'];
+        }>;
+    };
     deletions: Array<{
         sourceBoardId: string;
         nodeId: string;

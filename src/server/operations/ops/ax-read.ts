@@ -13,7 +13,11 @@
  */
 import { agentPresence } from '../../agent-presence.js';
 import { z } from 'zod';
-import { buildAgentContextPreamble, serializeNodeForAgentContext } from '../../../shared/agent-context.js';
+import {
+  buildAgentContextPreamble,
+  serializeNodeForAgentContext,
+  summarizeNodeForAgentContext,
+} from '../../../shared/agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from '../../ax-context.js';
 import { applyAxInteraction } from '../../ax-interaction.js';
 import {
@@ -31,6 +35,9 @@ import { defineOperation, OperationError, type Operation, type OperationContext 
 import { readTargetBoard } from './boards.js';
 import { normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
 import { isRecord } from './nodes.js';
+import { lifecycleQualifications } from '../../lifecycle-status.js';
+import { memoryKey } from '../../../shared/memory-graph.js';
+import { findNeighborhoods } from '../../spatial-analysis.js';
 
 // ── Activity-reaction validation (moved from server.ts) ───────
 
@@ -167,20 +174,64 @@ const pinnedContextOperation = defineOperation<z.infer<typeof pinnedContextSchem
   },
   handler: ({ board }) => {
     const target = readTargetBoard(board);
-    const pinnedIds = Array.from(target.pinnedNodeIds);
+    const qualifications = lifecycleQualifications(Date.now(), target.boardId ? [{ boardId: target.boardId }] : []);
+    const qualification = (id: string, boardId = target.boardId) =>
+      boardId ? qualifications[memoryKey({ boardId, cardId: id })] : undefined;
+    const pinnedIds = Array.from(target.pinnedNodeIds).filter((id) => !qualification(id)?.retired);
     const nodes = pinnedIds
       .map((id) => target.layout.nodes.find((node) => node.id === id))
       .filter((node): node is CanvasNodeState => node !== undefined);
     const preamble =
       pinnedIds.length > 0 ? buildAgentContextPreamble(nodes, { defaultTextLength: 700, webpageTextLength: 1600 }) : '';
-    const serialized = nodes.map((node) =>
-      serializeNodeForAgentContext(node, {
+    const serialized = nodes.map((node) => ({
+      ...serializeNodeForAgentContext(node, {
         defaultTextLength: 700,
         webpageTextLength: 1600,
         includePosition: true,
       }),
-    );
-    return { preamble, nodeIds: pinnedIds, count: pinnedIds.length, nodes: serialized };
+      qualification: qualification(node.id),
+    }));
+    const activeNodes = target.layout.nodes.filter((node) => !qualification(node.id)?.retired);
+    return {
+      preamble,
+      nodeIds: pinnedIds,
+      count: pinnedIds.length,
+      pinnedCount: pinnedIds.length,
+      nodes: serialized,
+      edges: target.layout.edges.filter(
+        (edge) =>
+          pinnedIds.includes(edge.from) &&
+          (!edge.toBoardId || edge.toBoardId === target.boardId) &&
+          pinnedIds.includes(edge.to),
+      ),
+      neighborhoods: findNeighborhoods(activeNodes, new Set(pinnedIds)).map((neighborhood) => ({
+        pinnedNodeId: neighborhood.pinnedNodeId,
+        pinnedNodeTitle: neighborhood.pinnedNodeTitle,
+        nearbyNodes: neighborhood.neighbors.map((node) => ({ ...node, qualification: qualification(node.id) })),
+      })),
+      pinnedBoards: canvasState
+        .listBoards()
+        .filter((board) => board.pin)
+        .map((board) => {
+          const read = canvasState.readBoard(board.id, true);
+          const cards = (read?.layout.nodes ?? []).filter((node) => !qualification(node.id, board.id)?.retired);
+          const readme = cards.find((node) => node.id === board.readmeNodeId && node.type === 'markdown');
+          return {
+            boardId: board.id,
+            name: board.name,
+            pin: board.pin,
+            summary: readme ? summarizeNodeForAgentContext(readme, { defaultTextLength: 1000 }) : null,
+            readmeQualification: readme ? qualification(readme.id, board.id) : null,
+            pinnedTitles: cards
+              .filter((node) => read?.state.contextPins.includes(node.id))
+              .map((node) => ({
+                nodeId: node.id,
+                title: String(node.data.title ?? node.id),
+                qualification: qualification(node.id, board.id),
+              })),
+          };
+        }),
+    };
   },
 });
 

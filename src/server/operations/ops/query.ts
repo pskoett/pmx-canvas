@@ -24,6 +24,8 @@ import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
 import { boardConnections, memoryGraph } from '../../memory-graph.js';
+import { relationText } from '../../../shared/relations.js';
+import { lifecycleQualifications } from '../../lifecycle-status.js';
 import {
   compileContextBrief,
   BRIEF_SUMMARY_LENGTH,
@@ -215,8 +217,18 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
           cardId: result.id,
         }));
     results.sort((a, b) => b.score - a.score);
+    const delivered = Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results;
+    const qualifications = lifecycleQualifications(
+      Date.now(),
+      delivered.flatMap((result) => (result.boardId ? [{ boardId: result.boardId, cardId: result.cardId }] : [])),
+    );
     return {
-      results: Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results,
+      results: delivered.map((result) => ({
+        ...result,
+        ...(result.boardId
+          ? { qualification: qualifications[memoryKey({ boardId: result.boardId, cardId: result.cardId })] }
+          : {}),
+      })),
       query: q,
     };
   },
@@ -255,12 +267,20 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
 
     // Capture the active target and revision synchronously. Library boards are
     // read from SQLite and are never opened or made writable by this operation.
+    let qualifications = lifecycleQualifications();
+    const included = (boardId: string, node: CanvasNodeState) =>
+      !qualifications[memoryKey({ boardId, cardId: node.id })]?.retired;
     const layout = canvasState.getLayout();
+    layout.nodes = layout.nodes.filter((node) => included(active.id, node));
     // One read per board per brief: linked/same-folder tiers, README summaries and
     // pinned boards all share it (the link scan below reads without blobs).
     const fullReads = new Map<string, ReturnType<typeof canvasState.readBoard>>();
     const readFull = (boardId: string) => {
-      if (!fullReads.has(boardId)) fullReads.set(boardId, canvasState.readBoard(boardId, true));
+      if (!fullReads.has(boardId)) {
+        const read = canvasState.readBoard(boardId, true);
+        if (read) read.layout.nodes = read.layout.nodes.filter((node) => included(boardId, node));
+        fullReads.set(boardId, read);
+      }
       return fullReads.get(boardId) ?? null;
     };
     const revision = canvasState.getContentRevision();
@@ -287,7 +307,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       ] as const) {
         if (source.boardId !== active.id || !source.cardId) continue;
         const other = graphNodes.get(direction === '→' ? edge.to : edge.from);
-        const kind = edge.kind === 'card' ? `${edge.type}${edge.label ? ` "${edge.label}"` : ''}` : edge.kind;
+        const kind = edge.kind === 'card' ? relationText({ ...edge, kind: edge.relationKind }) : edge.kind;
         memoryRelations[source.cardId] ??= [];
         memoryRelations[source.cardId].push(
           `${direction} ${kind}: ${qualifiedTitle(target) ?? other?.title ?? 'Missing target'} (${target.boardId}${target.cardId ? ` / ${target.cardId}` : ''})`,
@@ -372,6 +392,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     const relationsOf = (boardId: string) => ({
       folder: library.find((board) => board.id === boardId)?.folder ?? null,
       readmeSummary: readmeSummary(boardId),
+      readmeNodeId: library.find((board) => board.id === boardId)?.readmeNodeId ?? undefined,
       links: [...new Set((linksFrom.get(boardId) ?? []).flatMap((id) => names.get(id) ?? []))],
       backlinks: [
         ...new Set(
@@ -450,7 +471,12 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         text: item.message,
       })),
     );
+    qualifications = lifecycleQualifications(
+      Date.now(),
+      [...fullReads.keys()].map((boardId) => ({ boardId })),
+    );
     const result = compileContextBrief({
+      qualifications,
       activeBoard: { boardId: active.id, name: active.name, folder: active.folder },
       nodes: layout.nodes,
       pinnedNodeIds,
@@ -469,6 +495,8 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
             `Missing target (${edge.toBoardId} / ${edge.to})`)
           : undefined,
         type: edge.type,
+        kind: edge.kind,
+        reason: edge.reason,
         label: edge.label ?? null,
         revision: edge.revision,
         changedBy: edge.changedBy,

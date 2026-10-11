@@ -3,6 +3,17 @@
 import { cmd, die, getStringFlag, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
 
 cmd(
+  'board vocabulary',
+  'Set a board relation vocabulary from JSON',
+  ['pmx-canvas board vocabulary <id> \'[{"kind":"supports","ink":"supports","directed":true}]\''],
+  async (args) => {
+    const [id, json] = args;
+    if (!id || !json) die('Expected board id and vocabulary JSON.');
+    output(await invokeOperation('board.update', { id, relationVocabulary: JSON.parse(json) }));
+  },
+);
+
+cmd(
   'board knowledge',
   'Workspace knowledge actions with a JSON payload',
   [

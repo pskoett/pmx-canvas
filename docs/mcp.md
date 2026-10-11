@@ -24,14 +24,26 @@ open a board. `canvas_node` adds `lifecycle-get` (`id`, optional `board`), `life
 (`id`, nullable `lifecycleOverride`), `review` (`id`, `outcome`, `evidence`, `applied`), and
 `lifecycle-restore` (`id`, `evidence`). Writes accept `expectedBoardId` and obey scope/edit locks.
 See [the canonical fields and semantics](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
-This slice stores history and resolves inheritance only; no due calculation or brief exclusion yet.
+Effective reads include qualification: due reasons, unknown/retired, separate clocks and source warnings.
+Retired cards leave briefs and pinned context, but direct reads/search retain them marked retired.
 Never mark applied without actually applying an outcome; only successful evidence-backed
 retain/revise/externalize with a matching `expectedContentRevision` validates. Capture that revision
 from the card content you actually checked: missing or stale preconditions refuse the review.
+For dependencies, capture `qualification.observations` with the checked sources and send it as
+`expectedSources`. Missing, changed or unavailable sources refuse validation; do not refresh the
+tokens without rechecking the evidence. Brief `lifecycle` snapshots update qualification independently
+of the content cursor; `complete: false` requires rechecking cached cards before reuse.
 Records retain the reviewed revision; content persistence failure adds no record.
 Restore never validates and only explicit restore reverses retirement.
 Moving/unfiling a board checks both the active scope and the target board's stored global
 scope or writer territory. Opening Home or another board cannot bypass the target's fence.
+
+`canvas_edge` add/update accept open `kind` and `reason`; update null clears either.
+`canvas_board` update accepts `relationVocabulary: [{kind, ink, directed}]`.
+Use `derived-from`, `contradicts`, `supersedes` source → dependent, and `depends-on`
+dependent → prerequisite. Other relations and wiki/portal links do not imply validation dependencies.
+Provenance may record source revision/observation separately from retrieval time, plus an inert
+recipe for a human-requested refresh. Reading or regenerating never validates.
 
 ## Board tours
 

@@ -28,6 +28,7 @@ import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
 import { getCanvasNodeTitle } from './canvas-serialization.js';
 import { computeAutoArrange } from '../shared/auto-arrange.js';
+import { relationKindSchema, relationReasonSchema } from '../shared/relations.js';
 import {
   applyJsonRenderStreamPatches,
   buildGraphSpec,
@@ -1534,10 +1535,14 @@ export function addCanvasEdge(input: {
   fromSearch?: string;
   toSearch?: string;
   type: CanvasEdge['type'];
+  kind?: string;
+  reason?: string;
   label?: string;
   style?: CanvasEdge['style'];
   animated?: boolean;
 }): CanvasEdge {
+  const kind = input.kind === undefined ? undefined : relationKindSchema.parse(input.kind);
+  const reason = input.reason === undefined ? undefined : relationReasonSchema.parse(input.reason);
   const fromResult = resolveCanvasNode({
     ...(typeof input.from === 'string' ? { id: input.from } : {}),
     ...(typeof input.fromSearch === 'string' ? { search: input.fromSearch } : {}),
@@ -1561,6 +1566,8 @@ export function addCanvasEdge(input: {
     to: toResult.node.id,
     ...(input.toBoardId && input.toBoardId !== canvasState.activeBoardId ? { toBoardId: input.toBoardId } : {}),
     type: input.type,
+    ...(kind ? { kind } : {}),
+    ...(reason ? { reason } : {}),
     ...(input.label ? { label: input.label } : {}),
     ...(input.style ? { style: input.style } : {}),
     ...(input.animated !== undefined ? { animated: input.animated } : {}),
@@ -1575,7 +1582,7 @@ export function addCanvasEdge(input: {
 
 export function updateCanvasEdge(
   id: string,
-  patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>,
+  patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>,
 ): CanvasEdge {
   if (!canvasState.getEdges().some((edge) => edge.id === id)) {
     throw new Error(`Edge "${id}" not found.`);
@@ -1921,7 +1928,8 @@ export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitView
   const padding = positiveNumber(options.padding, 24); // screen px now, not world units
   const maxScale = positiveNumber(options.maxScale, 1);
   const nodeIdFilter = options.nodeIds && options.nodeIds.length > 0 ? new Set(options.nodeIds) : null;
-  const targetNodes = canvasState.getLayout().nodes.filter((node) => !nodeIdFilter || nodeIdFilter.has(node.id));
+  const layout = canvasState.getLayout();
+  const targetNodes = layout.nodes.filter((node) => !nodeIdFilter || nodeIdFilter.has(node.id));
 
   if (targetNodes.length === 0) {
     const viewport = canvasState.viewport;
@@ -1947,8 +1955,9 @@ export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitView
   // nominal bottom space: the minimap is always there; the command bar only
   // while a session is attached.
   const bottomReserve = agentPresence.snapshot().sessionActive ? 128 : 96;
+  const topReserve = Math.max(padding, layout.edges.length ? 90 : 48);
   const usableWidth = Math.max(80, width - padding * 2);
-  const usableHeight = Math.max(80, height - padding - bottomReserve);
+  const usableHeight = Math.max(80, height - topReserve - bottomReserve);
   const worldWidth = Math.max(1, bounds.width);
   const worldHeight = Math.max(1, bounds.height);
   const scale = Math.min(maxScale, usableWidth / worldWidth, usableHeight / worldHeight);
@@ -1956,7 +1965,7 @@ export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitView
   const centerY = minY + bounds.height / 2;
   const viewport = {
     x: padding + usableWidth / 2 - centerX * scale,
-    y: padding + usableHeight / 2 - centerY * scale,
+    y: topReserve + usableHeight / 2 - centerY * scale,
     scale,
   };
 

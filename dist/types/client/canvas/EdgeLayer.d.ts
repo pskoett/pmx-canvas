@@ -1,5 +1,7 @@
 import { type Signal } from '@preact/signals';
 import type { CanvasEdge, CanvasNodeState } from '../types';
+/** Vocabulary and counts live with the edges, independent of the folder tree. */
+export declare function RelationLegend(): import("preact/src").JSX.Element | null;
 /** The link pill's hint, outside the zoomed canvas so it keeps screen size and is never clipped. */
 export declare function EdgeHint(): import("preact/src").JSX.Element | null;
 /**

@@ -440,7 +440,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | Composite | `action` values | What it does |
 |-----------|-----------------|--------------|
 | `canvas_import` | `list` · `read` · `submit` · `unavailable` | Process human-requested imports: inspect metadata/controlled bytes, submit reviewable Markdown with references/warnings/agent description, or report unavailable. Request/cancel/commit are human-only |
-| `canvas_node` | `add` · `get` · `update` · `remove` · `lifecycle-get` · `lifecycle-set` · `review` · `lifecycle-restore` | Node CRUD plus effective lifecycle and audited evidence/review/restore data (no due engine or brief filtering) |
+| `canvas_node` | `add` · `get` · `update` · `remove` · `lifecycle-get` · `lifecycle-set` · `review` · `lifecycle-restore` | Node CRUD, lifecycle qualification, evidence-backed review and reversible retirement; retired cards leave active context |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` · `workboard` | Schema introspection, spec dry-run validation, native json-render / graph node creation, and a live AX work-item board |
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
@@ -555,8 +555,15 @@ Native edge add accepts optional `toBoardId`: `from` is on the open source board
 --to-board <board-id> --type references`. The human More menu offers a card
 picker and the source footer shows remote connections. Auto-arrange stays local;
 static export omits remote lines but shows explicit external connection evidence.
-Rich relationship kinds/reasons, provenance-driven staleness, and lifecycle are
-wave 3, not implemented here.
+Edges accept open `kind`/`reason`; update null clears them. Boards accept
+`relationVocabulary: [{kind, ink, directed}]`, with six fixed relation inks, never pin/agent/warning
+colours. `derived-from`, `contradicts`, `supersedes` point source → dependent; `depends-on` points
+dependent → prerequisite. Ordinary references/wiki links/portals do not propagate review due.
+Lifecycle reads return qualification, including source observations. Validating dependent cards
+requires `expectedSources` from the evidence checked, plus `expectedContentRevision`; stale or
+unavailable sources refuse. Retired cards leave briefs/pinned context but remain marked in search
+and direct reads. Brief `lifecycle.complete: false` requires rechecking cached cards before reuse;
+empty incomplete lists are not a health claim. Recipe metadata is inert and refresh never validates.
 
 Use `canvas_board { action: "open", id: "<board-id>" }` to open a created or
 existing board before authoring. Verify the returned `activeBoardId`; opening

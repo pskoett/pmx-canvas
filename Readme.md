@@ -1,8 +1,10 @@
 # pmx-canvas
 
-**Knowledge lifecycle data:** workspace categories, inheriting folder properties, card lifecycle
-overrides and attributed evidence/review/restore history are available through HTTP, SDK, MCP
-and CLI. No default classification, expiration days, lifecycle UI or due engine is added.
+**Relationships and knowledge lifecycle:** explain connections with kinds and reasons, use
+per-board vocabularies, and inspect evidence and downstream impact. Folder categories supply
+explicit lifecycle defaults. Review due reasons, separate read/content/validation clocks,
+evidence-backed outcomes and reversible retirement appear in the workbench and agent context.
+Nothing classifies cards automatically or treats reading as validation.
 See the [contract and examples](docs/http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
 
 pmx-canvas is a visual workspace for planning, discovery, analysis, coordination,
@@ -76,8 +78,16 @@ Agents explore the same summary-only projection through
 Focus is a board ID, a JSON qualified key `[boardId,cardId|null]`, or `pins`;
 depth is 0–4 (default 2), undirected and membership-inclusive. Summaries are
 capped at 280 characters. Discovery counts links seen on their owning boards,
-without switching boards or marking full content read. Rich relationship
-kinds/reasons, provenance/staleness, and lifecycle remain wave-3 work.
+without switching boards or marking full content read. Rich kinds and reasons travel with
+relations. Source changes flag explicitly dependent conclusions, not unrelated navigation.
+
+Open **Categories** on Home to edit workspace categories or apply an editable preset, and use
+folder settings to assign or inherit one. On a card, **More → Lifecycle** shows its effective
+defaults, four clocks and review history. Applied evidence-backed retain/revise/externalize
+validates the version checked. Retire removes the card from active briefs, not from the board
+or search; Restore (or the retirement Undo toast) is audited and does not validate it.
+The board's **All / To review / Retired** filter dims other cards. Unknown lifecycle is counted
+on Home and never silently assigned an expiry. Refresh recipes ask an agent to act, never run tools.
 
 ## Main features
 

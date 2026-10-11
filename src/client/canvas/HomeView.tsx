@@ -19,6 +19,9 @@ import { approxTokens } from '../state/context-chip-store';
 import { BoardCopyDialog } from './BoardCopyDialog';
 import { BoardPinButton } from './BoardPinButton';
 import { HomeMemoryView } from './HomeMemoryView';
+import { KnowledgeDialog } from './KnowledgeDialog';
+import { knowledge } from '../state/knowledge-store';
+import type { LifecycleQualification } from '../../shared/lifecycle-status.js';
 import { IconChevronDown, IconChevronRight, IconMore, IconPin, IconSearch } from '../icons';
 
 interface LibraryHit {
@@ -27,6 +30,7 @@ interface LibraryHit {
   cardId: string;
   title: string | null;
   snippet: string;
+  qualification?: LifecycleQualification;
 }
 
 function openedAgo(iso: string | null): string {
@@ -113,6 +117,7 @@ export function HomeView() {
     return recent?.folder ?? '';
   });
   const [extraFolders, setExtraFolders] = useState<string[]>([]);
+  const [knowledgeDialog, setKnowledgeDialog] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -129,6 +134,7 @@ export function HomeView() {
   const folders = [
     ...new Set([
       ...boards.flatMap((board) => (board.folder ? folderAncestors(board.folder) : [])),
+      ...(knowledge.value?.folders ?? []).flatMap((item) => folderAncestors(item.path)),
       ...extraFolders.flatMap(folderAncestors),
     ]),
   ].sort((a, b) => a.localeCompare(b));
@@ -233,6 +239,13 @@ export function HomeView() {
     const open = !collapsed.has(path);
     const count = boards.filter((board) => inFolder(board, path)).length;
     const hasPin = boards.some((board) => board.pin && inFolder(board, path));
+    const resolved = knowledge.value?.resolvedFolders[path];
+    const boardIds = new Set(boards.filter((board) => inFolder(board, path)).map((board) => board.id));
+    const cards = Object.entries(knowledge.value?.cards ?? {})
+      .filter(([key]) => boardIds.has((JSON.parse(key) as [string, string])[0]))
+      .map(([, status]) => status);
+    const due = cards.filter((status) => !status.retired && (status.due || status.sources.length)).length;
+    const unknown = cards.filter((status) => status.unknown).length;
     return (
       <li key={path}>
         <div class={`home-tree-row${folder === path && !query ? ' is-selected' : ''}`} data-folder={path}>
@@ -255,6 +268,17 @@ export function HomeView() {
           </button>
           {hasPin && <span class="home-tree-pin" aria-label="Has a board in the agent's context" />}
           <span class="home-tree-count">{count}</span>
+          {knowledge.value && (
+            <span class="home-folder-qualification">
+              <span class={resolved?.category ? 'category-tag' : 'category-tag is-unknown'}>
+                {resolved?.category
+                  ? `${resolved.categorySourceFolder === path ? '' : '↳ '}${resolved.category.glyph} ${resolved.category.name}`
+                  : 'unknown'}
+              </span>
+              {due > 0 && <span class="lifecycle-warning">⧗ {due} due</span>}
+              {unknown > 0 && <span>{unknown} unknown</span>}
+            </span>
+          )}
         </div>
         {open && kids.length > 0 && <ul class="home-tree">{kids.map((kid) => treeRow(kid, depth + 1))}</ul>}
       </li>
@@ -271,6 +295,20 @@ export function HomeView() {
             Unfiled
           </button>
           <span class="home-tree-count">{boards.filter((board) => !board.folder).length}</span>
+          {knowledge.value && (
+            <span class="home-folder-qualification">
+              <span class="category-tag is-unknown">unknown</span>
+              <span>
+                {
+                  Object.entries(knowledge.value.cards).filter(
+                    ([key, status]) =>
+                      status.unknown && boards.some((board) => !board.folder && board.id === JSON.parse(key)[0]),
+                  ).length
+                }{' '}
+                unknown
+              </span>
+            </span>
+          )}
         </div>
       </li>
     </ul>
@@ -510,6 +548,13 @@ export function HomeView() {
 
   return (
     <div class="home-shell">
+      {knowledgeDialog !== null && (
+        <KnowledgeDialog
+          key={knowledgeDialog}
+          folder={knowledgeDialog || undefined}
+          onClose={() => setKnowledgeDialog(null)}
+        />
+      )}
       <nav class="home-view-tabs" aria-label="Library view">
         {(['Folders', 'Map', 'Graph'] as const).map((tab) => (
           <button type="button" class="home-button" aria-pressed={view === tab} onClick={() => setView(tab)} key={tab}>
@@ -525,6 +570,9 @@ export function HomeView() {
             <div class="home-library-head">
               <span class="home-library-title">Library</span>
               <span class="home-tree-count">{plural(boards.length, 'board')}</span>
+              <button type="button" class="home-button" onClick={() => setKnowledgeDialog('')}>
+                Categories
+              </button>
             </div>
             {searchField}
             {pinned.length > 0 && (
@@ -600,6 +648,10 @@ export function HomeView() {
                   {query ? `Results for “${search.trim()}”` : folder ? leaf(folder) : 'Library'}
                 </h1>
               </div>
+              <button type="button" class="home-button" onClick={() => setKnowledgeDialog(folder)}>
+                {' '}
+                {folder ? 'Folder settings' : 'Categories'}
+              </button>
               <button type="button" class="home-button is-primary" onClick={() => void promptNewBoard(folder || null)}>
                 {folder ? 'New board here' : 'New board'}
               </button>
@@ -619,6 +671,7 @@ export function HomeView() {
                         <li key={`${hit.boardId}:${hit.cardId}`}>
                           <button type="button" class="home-hit" onClick={() => void openHit(hit)}>
                             <span class="home-card-name">{hit.title || hit.boardTitle}</span>
+                            {hit.qualification?.retired && <span class="category-tag">Retired</span>}
                             <span class="home-card-meta">
                               {hit.boardTitle} · {hit.snippet}
                             </span>

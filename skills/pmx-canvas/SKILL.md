@@ -33,8 +33,14 @@ Only actually applied retain/revise/externalize with nonempty evidence and match
 never attach an unchecked newer revision to old evidence. Failed content persistence adds no review.
 Records retain the reviewed version; unversioned legacy records are unknown for current content. Reading,
 editing, refreshing and restoring never validate. Retirement lasts until explicit audited restore
-(evidence string), regardless of other later reviews. There is no due engine, lifecycle UI or
-brief filtering in this data-only slice. Do not claim those behaviors.
+(evidence string), regardless of other later reviews. Retired cards leave briefs and pinned context,
+but remain marked in direct reads/search. Lifecycle qualification carries due reasons, unknown,
+source warnings and four separate clocks. For dependencies, send `expectedSources` captured from
+the checked lifecycle's `qualification.observations`; changed or unavailable sources refuse validation.
+Never copy new tokens onto old evidence. Brief `lifecycle` snapshots are independent of the content
+cursor: replace cached qualification when `complete: true`; recheck cached cards before reuse when
+`complete: false`. Unknown is not expiry. Medium uses only explicit `cadenceDays`, fast checks at
+session use, slow at resume, durable has no passive expiry. Presets are editable, never classification.
 
 At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
@@ -659,8 +665,14 @@ source on the open board to a remote card (CLI `edge add --from <id> --to <id> -
 use the source footer and More-menu card picker. Auto-arrange stays local;
 static export shows external connection evidence, not remote lines.
 Home folders are neutral and independent of links; Map drags persist SQLite
-`mapPosition` (board update accepts `{ x, y }` or `null` to reset). Rich kinds,
-reasons, provenance/staleness and lifecycle remain deferred to wave 3.
+`mapPosition` (board update accepts `{ x, y }` or `null` to reset). Edges accept open `kind`
+and `reason`; boards accept `relationVocabulary: [{kind, ink, directed}]`. Rich kind is independent
+of edge type/style. Use `derived-from`, `contradicts`, `supersedes` source → dependent, and
+`depends-on` dependent → prerequisite. Other relations/wiki links/portals are navigation, not
+validation dependencies. Provenance `sources` record boardId/cardId/contentRevision/observedAt
+and live/cached/unavailable availability, separately from retrieval timestamps. Source changes
+propagate only through explicit dependencies. An inert provenance `recipe` (tool/input/prompt)
+lets the human ask an agent to refresh; regeneration itself does not validate.
 
 Use `scope: "library"` to search inactive boards without switching. Board cards
 are text-only links through `data.boardId`; they are not direct cross-board card

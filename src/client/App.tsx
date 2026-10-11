@@ -10,6 +10,8 @@ import { CommandBar } from './canvas/CommandBar';
 import { ConnectionBanner } from './canvas/ConnectionBanner';
 import { CommandPalette } from './canvas/CommandPalette';
 import { BoardLinkDialog } from './canvas/BoardLinkDialog';
+import { LifecyclePanel } from './canvas/LifecyclePanel';
+import { KnowledgeSync, LifecycleFilters } from './canvas/LifecycleChrome';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { EmptyState } from './canvas/EmptyState';
 import { HomeView } from './canvas/HomeView';
@@ -26,7 +28,7 @@ import { SessionReceipt } from './canvas/SessionReceipt';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import { promptedCreate, ToolRail } from './canvas/ToolRail';
-import { EdgeHint } from './canvas/EdgeLayer';
+import { EdgeHint, RelationLegend } from './canvas/EdgeLayer';
 import { TextPrompt } from './canvas/TextPrompt';
 import { TopBar } from './canvas/TopBar';
 import {
@@ -385,6 +387,9 @@ export function App() {
             annotationTool={annotationTool}
           />
           <AttentionToast />
+          <KnowledgeSync />
+          {!onHome && <LifecycleFilters />}
+          {!onHome && <RelationLegend />}
           <AttentionHistory />
           <ActivityFeed />
           <WritersSheet />
@@ -415,6 +420,7 @@ export function App() {
         </div>
       </div>
       {sessionIsActive && <SessionPanel />}
+      <LifecyclePanel />
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
       {boardLinkOpen && <BoardLinkDialog {...boardLinkSource} onClose={() => setBoardLinkOpen(false)} />}

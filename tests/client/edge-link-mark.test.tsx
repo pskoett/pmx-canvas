@@ -157,6 +157,8 @@ describe('link marks', () => {
       to: 'b',
       type: 'relation',
       label: 'informs',
+      kind: 'supports',
+      reason: 'The sample supports this conclusion.',
       revision: 9,
       changedBy: human,
       changedAt: '2026-10-08T14:20:00.000Z',
@@ -175,13 +177,15 @@ describe('link marks', () => {
     const [pill, legacyPill] = [...host.querySelectorAll('[data-testid="edge-pill"]')] as Element[];
     const hint = () => document.querySelector('[data-testid="edge-hint"]')?.textContent ?? null;
     fireEvent.pointerEnter(pill as Element);
-    expect(hint()).toMatch(/^You relabelled it · .+ \(drawn by codex · .+\)$/);
+    expect(hint()).toContain('a → b');
+    expect(hint()).toContain('supports "informs" (why: The sample supports this conclusion.)');
+    expect(hint()).toMatch(/You relabelled it · .+ \(drawn by codex · .+\)$/);
     fireEvent.pointerLeave(pill as Element);
     expect(hint()).toBeNull();
 
     // A link from before authorship was recorded names no one.
     fireEvent.pointerEnter(legacyPill as Element);
-    expect(hint()).toBeNull();
+    expect(hint()).toBe('b → c\nrelation "cites"');
 
     // A hint whose link goes away under a resting pointer goes with it.
     fireEvent.pointerEnter(pill as Element);

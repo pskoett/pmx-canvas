@@ -11,7 +11,7 @@ import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
 import type { ContextRead } from '../../src/server/context-reads.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { diffLayouts, formatDiff } from '../../src/server/mutation-history.ts';
-import { intentRegistry } from '../../src/server/intent-registry.ts';
+import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { executeOperation } from '../../src/server/operations/registry.ts';
 import {
   createTestWorkspace,
@@ -283,18 +283,21 @@ describe('MCP composite tools (plan-006)', () => {
         expect(formatDiff(diffLayouts('remote', { ...empty, edges: [edge] }, empty))).toContain(`s → ${target}/x`);
         return;
       }
-      const emitted: string[] = [];
-      intentRegistry.setEmitter((event) => emitted.push(event));
+      const base = startCanvasServer({ workspaceRoot: root, port: 0 });
+      expect(base).not.toBeNull();
       for (const toBoardId of [target, source, undefined]) {
-        emitted.length = 0;
+        const { seq } = (await (await fetch(`${base}/api/workbench/poll`)).json()) as { seq: number };
         const added = (await executeOperation('edge.add', { from: 's', to: 'x', toBoardId, type: 'references' })) as {
           id: string;
         };
-        expect(emitted.includes('ax-intent')).toBe(toBoardId !== target);
+        const { events } = (await (await fetch(`${base}/api/workbench/poll?since=${seq}`)).json()) as {
+          events: Array<{ event: string }>;
+        };
+        expect(events.some((entry) => entry.event === 'ax-intent')).toBe(toBoardId !== target);
         canvasState.removeEdge(added.id);
       }
     } finally {
-      intentRegistry.setEmitter(null);
+      stopCanvasServer();
       removeTestWorkspace(root);
     }
   });

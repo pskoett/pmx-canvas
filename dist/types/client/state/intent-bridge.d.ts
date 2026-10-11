@@ -233,6 +233,8 @@ export declare function deleteSnapshot(id: string): Promise<{
 }>;
 /** Patch an edge in place (label/type/style/animated) via the server. */
 export declare function updateEdgeFromClient(edgeId: string, patch: {
+    kind?: string | null;
+    reason?: string | null;
     label?: string;
     type?: string;
     style?: string;

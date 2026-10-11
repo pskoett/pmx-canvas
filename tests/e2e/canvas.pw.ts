@@ -636,7 +636,10 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   await expect(page.locator('.canvas-node[data-node-type="html"]')).toHaveCount(1);
 });
 
-test('double-click an edge → Delete edge removes a hand-drawn connection', async ({ page, request }) => {
+test('rich relation kind and reason survive live edits and reload; a human can delete it', async ({
+  page,
+  request,
+}) => {
   const mk = async (title: string, x: number) =>
     (await (
       await request.post('/api/canvas/node', {
@@ -646,9 +649,16 @@ test('double-click an edge → Delete edge removes a hand-drawn connection', asy
     ).json()) as { id: string };
   const a = await mk('Edge A', 100);
   const b = await mk('Edge B', 700);
+  const unrelated = await mk('Unrelated', 1100);
   const edge = (await (
     await request.post('/api/canvas/edge', {
-      data: { from: a.id, to: b.id, type: 'relation' },
+      data: {
+        from: a.id,
+        to: b.id,
+        type: 'relation',
+        kind: 'supports',
+        reason: 'Measured throughput supports this choice.',
+      },
       headers: { 'x-pmx-workbench': '1' },
     })
   ).json()) as { id: string };
@@ -656,17 +666,62 @@ test('double-click an edge → Delete edge removes a hand-drawn connection', asy
   await page.goto('/workbench');
   const path = page.locator(`path#edge-path-${edge.id}`);
   await expect(path).toHaveCount(1);
-  // The wide invisible hitbox is the interactive element; dispatch avoids
-  // having to hit the curved 12px stroke with a real pointer.
-  await page
-    .locator(`g:has(path#edge-path-${edge.id}) > path`)
-    .first()
-    .dispatchEvent('dblclick', { bubbles: true, clientX: 400, clientY: 260 });
+  await expect(page.getByRole('button', { name: 'supports 1', exact: true })).toBeVisible();
+  const filters = await page.getByRole('group', { name: 'Lifecycle filter' }).boundingBox();
+  const legend = await page.getByLabel('Relation legend').boundingBox();
+  expect(legend!.y).toBeGreaterThanOrEqual(filters!.y + filters!.height);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.locator(`[data-node-id="${unrelated.id}"]`).getByRole('button', { name: 'Expand (focus mode)' }).focus();
+  const focusedLegend = await page.getByLabel('Relation legend').boundingBox();
+  const canvasArea = await page.locator('.canvas-region').boundingBox();
+  expect(focusedLegend!.x).toBeGreaterThanOrEqual(canvasArea!.x);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  for (const preset of ['Dependencies', 'Decision', 'Flow', 'Research']) {
+    await page.getByLabel('Board relation preset').selectOption(preset);
+    await expect(page.getByLabel('Board relation preset')).toHaveValue(preset);
+    await page.reload();
+    await expect(page.getByLabel('Board relation preset')).toHaveValue(preset);
+  }
+  await page.getByRole('button', { name: 'supports 1', exact: true }).click();
+  await expect(page.locator(`[data-node-id="${unrelated.id}"]`)).toHaveClass(/relation-dimmed/);
+  await expect(page.locator(`[data-node-id="${a.id}"]`)).not.toHaveClass(/relation-dimmed/);
+  await page.getByRole('button', { name: 'supports 1', exact: true }).click();
+  await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
+  await expect(page.locator(`[data-node-id="${unrelated.id}"]`)).toHaveClass(/relation-dimmed/);
+  const pill = page.locator('.edge-pill').filter({ hasText: 'supports' });
+  await pill.hover();
+  await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText('Measured throughput supports this choice.');
+  await pill.dblclick();
+  await page.getByLabel('Relation kind', { exact: true }).selectOption('contradicts');
+  await page.getByText('Edit why…', { exact: true }).click();
+  await page.getByRole('textbox').fill('A second measurement contradicts the assumption.');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'contradicts 1', exact: true })).toBeVisible();
+  await page.reload();
+  const revised = page.locator('.edge-pill').filter({ hasText: 'contradicts' });
+  await revised.hover();
+  await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText(
+    'A second measurement contradicts the assumption.',
+  );
+  await page.locator(`[data-node-id="${b.id}"]`).getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await page.getByRole('button', { name: 'Relations', exact: true }).click();
+  await expect(page.getByRole('complementary', { name: 'Relations' })).toContainText(
+    'A second measurement contradicts the assumption.',
+  );
+  await expect(page.getByRole('heading', { name: 'Evidence against', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Board vocabulary', exact: true }).click();
+  await page.getByLabel('Kind 1', { exact: true }).fill('backs');
+  await page.getByRole('button', { name: 'Save vocabulary', exact: true }).click();
+  await expect(page.getByLabel('Board relation preset')).toHaveValue('');
+  await expect(page.getByLabel('Board relation preset').locator('option:checked')).toHaveText('Custom vocabulary');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await revised.dblclick();
   await page.getByText('Delete edge').click();
   await expect(path).toHaveCount(0);
   const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ id: string }> };
   expect(state.edges.some((entry) => entry.id === edge.id)).toBe(false);
-  for (const id of [a.id, b.id])
+  for (const id of [a.id, b.id, unrelated.id])
     await request.delete(`/api/canvas/node/${id}`, { headers: { 'x-pmx-workbench': '1' } });
 });
 
@@ -6029,4 +6084,105 @@ test('the size floor survives the browser: a clamped node is not shrunk by auto-
   expect(validation.sizeWarnings.some((w) => w.id === id)).toBe(false);
 
   await request.delete(`/api/canvas/node/${id}`);
+});
+
+test('human lifecycle review preserves evidence clocks, refuses stale drafts, retires and restores', async ({
+  page,
+  request,
+}) => {
+  const { id } = (await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Lifecycle review probe',
+        content: 'Capacity is 99%.',
+        x: 220,
+        y: 160,
+        width: 420,
+        height: 220,
+      },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await card.hover();
+  await card.getByRole('button', { name: 'More actions' }).click();
+  await page.locator('.context-menu').getByRole('button', { name: 'Lifecycle', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Lifecycle', exact: true });
+  await expect(dialog.getByText('No evidence-backed validation')).toBeVisible();
+  await dialog.getByLabel('Set a card lifecycle override').check();
+  await dialog.getByRole('combobox', { name: 'Check', exact: true }).selectOption('fast');
+  await dialog.getByLabel('Revalidate by').fill('Compare with the source dashboard.');
+  await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
+  await expect(dialog.locator('.lifecycle-warning').first()).toContainText('Fast: check at use');
+  await dialog.getByRole('button', { name: 'Close lifecycle' }).click();
+  const dueFooter = card.getByRole('button', { name: /review due/ });
+  await expect(dueFooter).toBeInViewport({ ratio: 1 });
+  await dueFooter.click();
+  await dialog.getByLabel('Evidence · a link or a note').fill('Observed 99% in the dashboard.');
+  await dialog.getByLabel('I applied this outcome').check();
+  // A human keeps typing while another writer changes the content. The old draft must not validate it.
+  await request.patch(`/api/canvas/node/${id}`, { data: { content: 'Capacity is 95%.' } });
+  await expect(dialog.getByRole('alert')).toContainText('Content changed while');
+  await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
+  await expect(dialog.getByRole('alert').first()).toContainText('Not saved');
+  await dialog.getByRole('button', { name: 'Reload lifecycle and source revisions' }).click();
+  await expect(dialog.getByLabel('Evidence · a link or a note')).toHaveValue('');
+  await expect(dialog.getByLabel('I applied this outcome')).not.toBeChecked();
+  await dialog.getByLabel('Evidence · a link or a note').fill('Checked the new value: 95%.');
+  await dialog.getByLabel('I applied this outcome').check();
+  await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
+  await expect(dialog.locator('.lifecycle-history')).toContainText('Checked the new value: 95%.');
+  const validated = (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()) as {
+    lastValidation: { when: string };
+    qualification: { due: boolean };
+  };
+  expect(validated.qualification.due).toBe(false);
+  await dialog.getByRole('combobox', { name: 'Outcome', exact: true }).selectOption('retire');
+  await dialog.getByLabel('Evidence · a link or a note').fill('No longer active.');
+  await dialog.getByLabel('I applied this outcome').check();
+  await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Undo retirement' })).toBeVisible();
+  await expect(card).toHaveClass(/lifecycle-retired/);
+  await dialog.getByRole('button', { name: 'Close lifecycle' }).click();
+  await page.locator('.retirement-toast').getByRole('button', { name: 'Undo retirement' }).click();
+  await expect(card).not.toHaveClass(/lifecycle-retired/);
+  const restored = (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()) as typeof validated;
+  expect(restored.lastValidation.when).toBe(validated.lastValidation.when);
+  await page.reload();
+  await expect(card.locator('.node-lifecycle-warning')).toHaveCount(0);
+  await card.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await page.getByRole('button', { name: 'Lifecycle', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Reload lifecycle and source revisions' }).click();
+  await dialog.getByRole('button', { name: 'Close lifecycle' }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
+test('human adopts and edits category defaults without a preset overwriting their changes', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Categories', exact: true }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Categories', exact: true });
+  await dialog.getByRole('button', { name: /^Solo research/ }).click();
+  await expect(dialog.getByRole('status')).toContainText('Starter data added');
+  await dialog.locator('.category-choice').filter({ hasText: 'Finding' }).click();
+  await dialog.getByLabel('Name', { exact: true }).fill('Reviewed finding');
+  await dialog.getByLabel('Revalidate by').fill('Compare both supporting and conflicting source evidence.');
+  await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Category saved');
+  await dialog.getByRole('button', { name: /^Solo research/ }).click();
+  await expect(dialog.getByRole('status')).toContainText('Starter data added');
+  await expect(dialog.locator('.category-choice').filter({ hasText: 'Reviewed finding' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close settings' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Categories', exact: true }).first().click();
+  await expect(dialog.locator('.category-choice').filter({ hasText: 'Reviewed finding' })).toBeVisible();
+  const catalog = await (await request.get('/api/canvas/knowledge')).json();
+  expect(catalog.categories.find((item: { id: string }) => item.id === 'finding').revalidationMethod).toBe(
+    'Compare both supporting and conflicting source evidence.',
+  );
+  expect(catalog.resolvedFolders['Projects/Findings'].category.name).toBe('Reviewed finding');
 });

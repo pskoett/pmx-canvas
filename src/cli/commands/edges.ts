@@ -44,11 +44,31 @@ cmd(
       ...(toSearch ? { toSearch } : {}),
     };
     if (flags.label && flags.label !== true) body.label = flags.label;
+    if (typeof flags.kind === 'string') body.kind = flags.kind;
+    if (typeof flags.reason === 'string') body.reason = flags.reason;
     if (typeof flags.style === 'string') body.style = flags.style;
     if (flags.animated) body.animated = true;
 
     const result = await invokeOperation('edge.add', body);
     output(result);
+  },
+);
+
+cmd(
+  'edge update',
+  'Edit a relation kind, reason, label or appearance',
+  ['pmx-canvas edge update <id> --kind supports --reason "Evidence from interviews"'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('edge update');
+    if (!positional[0]) die('Missing edge ID', 'pmx-canvas edge update <id> --kind supports');
+    const body: Record<string, unknown> = { id: positional[0] };
+    for (const key of ['kind', 'reason', 'label', 'type', 'style']) {
+      if (typeof flags[key] === 'string') body[key] = flags[key];
+    }
+    if (flags['clear-kind']) body.kind = null;
+    if (flags['clear-reason']) body.reason = null;
+    output(await invokeOperation('edge.update', body));
   },
 );
 

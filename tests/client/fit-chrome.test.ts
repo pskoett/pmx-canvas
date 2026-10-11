@@ -148,7 +148,7 @@ describe('focusNode respects the reserved band', () => {
 });
 
 describe('fitAll respects the reserved band', () => {
-  test('no fitted node intersects the bottom chrome reserve (Amp finding A)', () => {
+  test('no fitted node intersects the bottom chrome or the lifecycle and relation controls', () => {
     const area = document.createElement('div');
     area.getBoundingClientRect = () =>
       ({ top: 0, left: 0, width: 1280, height: 577, right: 1280, bottom: 577 }) as DOMRect;
@@ -156,6 +156,8 @@ describe('fitAll respects the reserved band', () => {
     registerCanvasArea(area);
     stubChrome('.command-bar', { top: 487, height: 90 });
     stubChrome('.minimap', { top: 467, height: 110 });
+    stubChrome('.lifecycle-filters', { top: 8, height: 27 });
+    stubChrome('.relation-legend', { top: 48, height: 29 });
 
     // Four spread-out surface nodes, like the report's scenario.
     nodes.value = new Map(
@@ -176,7 +178,7 @@ describe('fitAll respects the reserved band', () => {
           (n) =>
             n.position.x * v.scale + v.x >= 0 &&
             (n.position.x + n.size.width) * v.scale + v.x <= 1280 &&
-            n.position.y * v.scale + v.y >= 0,
+            n.position.y * v.scale + v.y >= 77,
         );
         if (allAbove && allVisible) return resolve();
         if (Date.now() > deadline)

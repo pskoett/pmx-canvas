@@ -88,16 +88,22 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   await expect(page.getByText('canvas.buildWebArtifact', { exact: true })).toBeVisible();
   await expect(page.getByText('playwright', { exact: true })).toBeVisible();
 
-  const artifactFrame = page.frameLocator('.canvas-node:has-text("SDLC Control Room Artifact") iframe.mcp-app-frame');
+  const artifactFrame = page.frameLocator(
+    '.canvas-node:has(.node-title:text-is("SDLC Control Room Artifact")) iframe.mcp-app-frame',
+  );
   await expect(artifactFrame.getByText('Delivery Control Room')).toBeVisible();
 
-  const dashboardFrame = page.frameLocator('.canvas-node:has-text("Control Tower Widgets") iframe.mcp-app-frame');
+  const dashboardFrame = page.frameLocator(
+    '.canvas-node:has(.node-title:text-is("Control Tower Widgets")) iframe.mcp-app-frame',
+  );
   await expect(dashboardFrame.getByText('Control Tower Widgets')).toBeVisible();
 
-  const intakeFrame = page.frameLocator('.canvas-node:has-text("Release Gate Intake") iframe.mcp-app-frame');
+  const intakeFrame = page.frameLocator(
+    '.canvas-node:has(.node-title:text-is("Release Gate Intake")) iframe.mcp-app-frame',
+  );
   await expect(intakeFrame.getByText('Release Gate Intake')).toBeVisible();
 
-  const graphFrame = page.frameLocator('.canvas-node:has-text("Lead Time Trend") iframe.mcp-app-frame');
+  const graphFrame = page.frameLocator('.canvas-node:has(.node-title:text-is("Lead Time Trend")) iframe.mcp-app-frame');
   await expect(graphFrame.getByText('Lead Time Trend')).toBeVisible();
 
   await expect

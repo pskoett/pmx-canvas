@@ -56,6 +56,8 @@ export interface MemoryGraphEdge {
   from: string;
   to: string;
   kind: 'member' | 'portal' | 'wiki' | 'card' | 'previous';
+  relationKind?: string;
+  reason?: string;
   label?: string;
   type?: string;
   source: MemoryTarget;

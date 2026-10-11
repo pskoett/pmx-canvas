@@ -22,7 +22,7 @@ export interface PmxAxSurfaceSnapshot {
  * human review text is redacted below.
  */
 export declare function buildCanvasAxSurfaceSnapshot(): PmxAxSurfaceSnapshot;
-export declare function buildCanvasAxPinnedContext(): PmxAxPinnedContext;
+export declare function buildCanvasAxPinnedContext(qualifications?: Record<string, import("../shared/lifecycle-status.js").LifecycleQualification>): PmxAxPinnedContext;
 export declare function buildCanvasAxContext(consumer?: string): PmxAxContext & {
     boardId: string | null;
 };

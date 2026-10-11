@@ -2,6 +2,7 @@ import { batch, signal } from '@preact/signals';
 import { requestJson } from './intent-bridge';
 import { focusNode, hasInitialServerLayout, nodes } from './canvas-store';
 import type { MemoryTarget } from '../../shared/memory-graph.js';
+import type { RelationDefinition } from '../../shared/relations.js';
 
 /**
  * Many boards (plan 012): the workspace's boards and which one is open. The
@@ -18,6 +19,7 @@ export interface BoardSummary {
   readmeNodeId?: string | null;
   mapPosition?: { x: number; y: number } | null;
   previousBoardId?: string | null;
+  relationVocabulary?: RelationDefinition[];
   summary?: string | null;
   pinnedTitles?: Array<{ nodeId: string; title: string }>;
   links?: Array<{
@@ -228,13 +230,19 @@ export async function createBoardFrom(opts: {
 /** Rename and/or re-file a board; `folder: null` unfiles it. */
 export async function updateBoard(
   id: string,
-  patch: { name?: string; folder?: string | null; mapPosition?: { x: number; y: number } | null },
-): Promise<void> {
+  patch: {
+    name?: string;
+    folder?: string | null;
+    mapPosition?: { x: number; y: number } | null;
+    relationVocabulary?: RelationDefinition[];
+  },
+): Promise<boolean> {
   const payload = await post('updateBoard', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', {
     ...patch,
     ...(patch.folder === null ? { folder: '' } : {}),
   });
   applyBoards(payload);
+  return payload !== null;
 }
 
 /** Pin a board into the agent's working set, or unpin it. */

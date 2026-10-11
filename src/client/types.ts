@@ -53,6 +53,8 @@ export interface CanvasEdge {
   to: string;
   toBoardId?: string;
   type: 'relation' | 'depends-on' | 'flow' | 'references';
+  kind?: string;
+  reason?: string;
   label?: string;
   style?: 'solid' | 'dashed' | 'dotted';
   animated?: boolean;

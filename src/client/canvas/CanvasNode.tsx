@@ -1,4 +1,7 @@
 import { activeBoardId, boardList, openMemoryTarget } from '../state/boards-store';
+import { cardQualification, lifecycleFilter } from '../state/knowledge-store';
+import { relationHighlight } from '../state/relation-store';
+import { LifecycleFooter } from './LifecycleChrome';
 import { BarHint } from './BarHint';
 import { BoardPinButton } from './BoardPinButton';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
@@ -478,6 +481,14 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isAgentMutating ? 'agent-mutating' : '',
     sessionEditedIds.value.has(node.id) ? 'session-edited' : '',
     activityLensNodeIds.value && !activityLensNodeIds.value.has(node.id) ? 'lens-dimmed' : '',
+    relationHighlight.value && !relationHighlight.value.cards.has(node.id) ? 'relation-dimmed' : '',
+    cardQualification(node.id)?.retired ? 'lifecycle-retired' : '',
+    lifecycleFilter.value === 'To review' &&
+    !cardQualification(node.id)?.due &&
+    !cardQualification(node.id)?.sources.length
+      ? 'lifecycle-filter-dimmed'
+      : '',
+    lifecycleFilter.value === 'Retired' && !cardQualification(node.id)?.retired ? 'lifecycle-filter-dimmed' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -536,6 +547,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             </div>
           </div>
         </div>
+        <LifecycleFooter nodeId={node.id} />
       </div>
     );
   }
@@ -811,6 +823,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               on a content-fitted node). Renders nothing unless the node carries a
               `data.axStep` stamp. */}
             <AxStepControls node={node} />
+            <LifecycleFooter nodeId={node.id} />
             {remoteEdges.map((edge) => {
               const targetBoard = boardList.value.find((board) => board.id === edge.toBoardId);
               const link = sourceBoard?.links?.find(
@@ -838,6 +851,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             })}
           </div>
         )}
+        {node.collapsed && <LifecycleFooter nodeId={node.id} />}
       </div>
       {!node.collapsed && (
         <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />

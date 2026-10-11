@@ -10,6 +10,7 @@ import type { ActorAttribution } from './attribution.js';
 import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
 import { MIGRATED_SNAPSHOT_FOLDER, normalizeBoardFolder } from '../shared/boards.js';
 import { wikiLinksFromData } from '../shared/memory-graph.js';
+import { relationVocabularySchema, type RelationDefinition } from '../shared/relations.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -306,12 +307,12 @@ const SCHEMA_SQL = `
   );
 `;
 
-type EdgeAttribution = Pick<CanvasEdge, 'changedBy' | 'changedAt' | 'createdBy' | 'createdAt'>;
+type EdgeAttribution = Pick<CanvasEdge, 'changedBy' | 'changedAt' | 'createdBy' | 'createdAt' | 'sourceRevision'>;
 
 /** A link's authorship (LinkAuthorship.dc.html) as one JSON column, like a node's attribution. */
 function edgeAttribution(edge: CanvasEdge): string {
-  const { changedBy, changedAt, createdBy, createdAt } = edge;
-  return JSON.stringify({ changedBy, changedAt, createdBy, createdAt });
+  const { changedBy, changedAt, createdBy, createdAt, sourceRevision } = edge;
+  return JSON.stringify({ changedBy, changedAt, createdBy, createdAt, sourceRevision });
 }
 
 /** Idempotently add a column to an existing table (no prior-migrations system in this repo). */
@@ -473,6 +474,11 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'boards', 'previous_board_id', 'previous_board_id TEXT');
   ensureColumn(db, 'edges', 'to_board_id', 'to_board_id TEXT');
   ensureColumn(db, 'snapshot_edges', 'to_board_id', 'to_board_id TEXT');
+  for (const table of ['edges', 'snapshot_edges']) {
+    ensureColumn(db, table, 'kind', 'kind TEXT');
+    ensureColumn(db, table, 'reason', 'reason TEXT');
+  }
+  ensureColumn(db, 'boards', 'relation_vocabulary', 'relation_vocabulary TEXT');
   ensureColumn(db, 'nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");
   ensureColumn(db, 'nodes', 'content_revision', 'content_revision INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'snapshot_nodes', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}' ");
@@ -794,7 +800,11 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
         node.collapsed ? 1 : 0,
         node.pinned ? 1 : 0,
         JSON.stringify(node.data),
-        JSON.stringify({ createdBy: node.createdBy, lastEditedBy: node.lastEditedBy }),
+        JSON.stringify({
+          createdBy: node.createdBy,
+          lastEditedBy: node.lastEditedBy,
+          contentChangedAt: node.contentChangedAt,
+        }),
         node.contentRevision ?? 0,
         node.linksRevision ?? 0,
       );
@@ -803,17 +813,18 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
 
     // Save edges
     const upsertEdge = db.prepare(
-      `INSERT INTO edges (board_id, id, from_node, to_node, type, label, style, animated, revision, attribution, to_board_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO edges (board_id, id, from_node, to_node, type, label, style, animated, revision, attribution, to_board_id, kind, reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(board_id, id) DO UPDATE SET
          from_node = excluded.from_node, to_node = excluded.to_node, type = excluded.type,
          label = excluded.label, style = excluded.style, animated = excluded.animated,
-         revision = excluded.revision, attribution = excluded.attribution, to_board_id = excluded.to_board_id
+         revision = excluded.revision, attribution = excluded.attribution, to_board_id = excluded.to_board_id,
+         kind = excluded.kind, reason = excluded.reason
        WHERE from_node IS NOT excluded.from_node OR to_node IS NOT excluded.to_node
           OR type IS NOT excluded.type OR label IS NOT excluded.label
           OR style IS NOT excluded.style OR animated IS NOT excluded.animated
           OR revision IS NOT excluded.revision OR attribution IS NOT excluded.attribution
-          OR to_board_id IS NOT excluded.to_board_id`,
+          OR to_board_id IS NOT excluded.to_board_id OR kind IS NOT excluded.kind OR reason IS NOT excluded.reason`,
     );
     for (const edge of state.edges) {
       upsertEdge.run(
@@ -828,6 +839,8 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
         edge.revision ?? 0,
         edgeAttribution(edge),
         edge.toBoardId ?? null,
+        edge.kind ?? null,
+        edge.reason ?? null,
       );
     }
     deleteMissingRows(db, 'edges', 'id', boardId, new Set(state.edges.map((edge) => edge.id)));
@@ -929,7 +942,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
   const nodeRows = db.query<NodeRow, [string]>('SELECT * FROM nodes WHERE board_id = ?').all(id);
   const nodes: CanvasNodeState[] = nodeRows.map((row) => {
     const attribution = JSON.parse(row.attribution || '{}') as Partial<
-      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy'>
+      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt'>
     >;
     return {
       id: row.id,
@@ -942,6 +955,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
       data: JSON.parse(row.data) as Record<string, unknown>,
       createdBy: attribution.createdBy,
       lastEditedBy: attribution.lastEditedBy,
+      contentChangedAt: attribution.contentChangedAt,
       contentRevision: row.content_revision,
       linksRevision: row.links_revision,
     };
@@ -954,6 +968,8 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     to_node: string;
     to_board_id: string | null;
     type: string;
+    kind: string | null;
+    reason: string | null;
     label: string | null;
     style: string | null;
     animated: number;
@@ -967,6 +983,8 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
     to: row.to_node,
     ...(row.to_board_id ? { toBoardId: row.to_board_id } : {}),
     type: row.type as CanvasEdge['type'],
+    ...(row.kind ? { kind: row.kind } : {}),
+    ...(row.reason ? { reason: row.reason } : {}),
     ...(row.label ? { label: row.label } : {}),
     ...(row.style ? { style: row.style as CanvasEdge['style'] } : {}),
     ...(row.animated ? { animated: true } : {}),
@@ -1046,6 +1064,7 @@ export interface CanvasBoard {
   mapPosition?: { x: number; y: number } | null;
   /** The source of a recurring/template board, separate from ordinary portals. */
   previousBoardId?: string | null;
+  relationVocabulary?: RelationDefinition[];
   /** Pinned into the agent's working set (vision move 0a); null when not pinned. */
   pin: ContextPinMeta | null;
 }
@@ -1060,10 +1079,11 @@ interface BoardListRow {
   readme_node_id: string | null;
   map_position: string | null;
   previous_board_id: string | null;
+  relation_vocabulary: string | null;
   pin_meta: string | null;
 }
 
-const BOARD_LIST_SQL = `SELECT b.id, b.name, b.folder, b.created_at, b.last_opened_at, b.readme_node_id, b.map_position, b.previous_board_id,
+const BOARD_LIST_SQL = `SELECT b.id, b.name, b.folder, b.created_at, b.last_opened_at, b.readme_node_id, b.map_position, b.previous_board_id, b.relation_vocabulary,
     (SELECT COUNT(*) FROM nodes n WHERE n.board_id = b.id) AS node_count, p.meta AS pin_meta
   FROM boards b LEFT JOIN board_pins p ON p.board_id = b.id`;
 
@@ -1078,6 +1098,7 @@ function rowToBoard(row: BoardListRow): CanvasBoard {
     readmeNodeId: row.readme_node_id,
     mapPosition: row.map_position ? (JSON.parse(row.map_position) as { x: number; y: number }) : null,
     previousBoardId: row.previous_board_id,
+    relationVocabulary: row.relation_vocabulary ? JSON.parse(row.relation_vocabulary) : [],
     pin: row.pin_meta ? (JSON.parse(row.pin_meta) as ContextPinMeta) : null,
   };
 }
@@ -1121,10 +1142,15 @@ export function updateBoardInDB(
     readmeNodeId?: string | null;
     mapPosition?: { x: number; y: number } | null;
     previousBoardId?: string | null;
+    relationVocabulary?: RelationDefinition[];
   },
 ): boolean {
   const folder = patch.folder === undefined ? undefined : normalizeBoardFolder(patch.folder);
+  const vocabulary =
+    patch.relationVocabulary === undefined ? undefined : relationVocabularySchema.parse(patch.relationVocabulary);
   if (!db.query<{ id: string }, [string]>('SELECT id FROM boards WHERE id = ?').get(id)) return false;
+  if (vocabulary !== undefined)
+    db.run('UPDATE boards SET relation_vocabulary = ? WHERE id = ?', [JSON.stringify(vocabulary), id]);
   if (patch.name !== undefined) db.run('UPDATE boards SET name = ? WHERE id = ?', [patch.name, id]);
   if (folder !== undefined) db.run('UPDATE boards SET folder = ? WHERE id = ?', [folder, id]);
   if (patch.readmeNodeId !== undefined) {
@@ -1382,7 +1408,11 @@ export function saveSnapshotToDB(
         node.collapsed ? 1 : 0,
         node.pinned ? 1 : 0,
         JSON.stringify(node.data),
-        JSON.stringify({ createdBy: node.createdBy, lastEditedBy: node.lastEditedBy }),
+        JSON.stringify({
+          createdBy: node.createdBy,
+          lastEditedBy: node.lastEditedBy,
+          contentChangedAt: node.contentChangedAt,
+        }),
         node.contentRevision ?? 0,
         node.linksRevision ?? 0,
       );
@@ -1390,8 +1420,8 @@ export function saveSnapshotToDB(
 
     // Insert snapshot edges
     const insertEdge = db.prepare(
-      `INSERT INTO snapshot_edges (snapshot_id, id, from_node, to_node, type, label, style, animated, revision, attribution, to_board_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO snapshot_edges (snapshot_id, id, from_node, to_node, type, label, style, animated, revision, attribution, to_board_id, kind, reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const edge of state.edges) {
       insertEdge.run(
@@ -1406,6 +1436,8 @@ export function saveSnapshotToDB(
         edge.revision ?? 0,
         edgeAttribution(edge),
         edge.toBoardId ?? null,
+        edge.kind ?? null,
+        edge.reason ?? null,
       );
     }
 
@@ -1518,7 +1550,7 @@ export function loadSnapshotFromDB(
     .all(snapshotRow.id);
   const nodes: CanvasNodeState[] = nodeRows.map((row) => {
     const attribution = JSON.parse(row.attribution || '{}') as Partial<
-      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy'>
+      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt'>
     >;
     return {
       id: row.id,
@@ -1531,6 +1563,7 @@ export function loadSnapshotFromDB(
       data: JSON.parse(row.data) as Record<string, unknown>,
       createdBy: attribution.createdBy,
       lastEditedBy: attribution.lastEditedBy,
+      contentChangedAt: attribution.contentChangedAt,
       contentRevision: row.content_revision,
       linksRevision: row.links_revision,
     };
@@ -1543,6 +1576,8 @@ export function loadSnapshotFromDB(
     to_node: string;
     to_board_id: string | null;
     type: string;
+    kind: string | null;
+    reason: string | null;
     label: string | null;
     style: string | null;
     animated: number;
@@ -1558,6 +1593,8 @@ export function loadSnapshotFromDB(
     to: row.to_node,
     ...(row.to_board_id ? { toBoardId: row.to_board_id } : {}),
     type: row.type as CanvasEdge['type'],
+    ...(row.kind ? { kind: row.kind } : {}),
+    ...(row.reason ? { reason: row.reason } : {}),
     ...(row.label ? { label: row.label } : {}),
     ...(row.style ? { style: row.style as CanvasEdge['style'] } : {}),
     ...(row.animated ? { animated: true } : {}),

@@ -11,19 +11,65 @@ import {
 import { linkMarks, writerName } from '../state/context-status-store';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
+import { activeBoard, updateBoard } from '../state/boards-store';
+import { hoveredNodeId } from '../state/near-pin-store';
+import {
+  RELATION_PRESETS,
+  relationDefinition,
+  relationKind,
+  relationPreset,
+  relationText,
+} from '../../shared/relations.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
+import { relationFilter, relationHighlight } from '../state/relation-store';
 
-// ── Edge type visual styles ──────────────────────────────────
-const EDGE_COLORS: Record<CanvasEdge['type'], string> = {
-  relation: 'var(--c-muted)',
-  'depends-on': 'var(--c-rel-informs)',
-  flow: 'var(--c-accent)',
-  // --c-dim is a very low-contrast hairline in dark palettes (forest: #5D7566
-  // on #0C1712); the dashed style is what distinguishes `references`.
-  references: 'var(--c-muted)',
-};
-
-const DIRECTED_TYPES = new Set<CanvasEdge['type']>(['depends-on', 'flow']);
+/** Vocabulary and counts live with the edges, independent of the folder tree. */
+export function RelationLegend() {
+  const board = activeBoard();
+  const list = [...edges.value.values()];
+  if (!board || list.length === 0) return null;
+  const kinds = [...new Set(list.map(relationKind))];
+  const selected = relationFilter.value?.boardId === board.id ? relationFilter.value.kind : null;
+  return (
+    <div class="relation-legend" aria-label="Relation legend" onPointerDown={(event) => event.stopPropagation()}>
+      <select
+        aria-label="Board relation preset"
+        value={relationPreset(board.relationVocabulary) ?? ''}
+        onChange={(event) => {
+          const preset = RELATION_PRESETS[event.currentTarget.value];
+          if (preset) {
+            relationFilter.value = null;
+            void updateBoard(board.id, { relationVocabulary: preset });
+          }
+        }}
+      >
+        <option value="" disabled>
+          Custom vocabulary
+        </option>
+        {Object.keys(RELATION_PRESETS).map((name) => (
+          <option key={name}>{name}</option>
+        ))}
+      </select>
+      {kinds.map((kind) => {
+        const definition = relationDefinition({ kind }, board.relationVocabulary);
+        return (
+          <button
+            type="button"
+            key={kind}
+            aria-pressed={selected === kind}
+            style={{ '--relation-ink': `var(--c-rel-${definition.ink})` }}
+            onClick={() => {
+              relationFilter.value = selected === kind ? null : { boardId: board.id, kind };
+            }}
+          >
+            <span class="relation-swatch" aria-hidden="true" />
+            {kind} <span class="relation-count">{list.filter((edge) => relationKind(edge) === kind).length}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** The attached agent's name; a session you started that no agent has joined yet names no one. */
 function agentName(): string {
@@ -102,6 +148,8 @@ function dashArray(edge: CanvasEdge, scale: number): string | undefined {
   const dashed = `${8 * scale} ${4 * scale}`;
   if (edge.style === 'dashed') return dashed;
   if (edge.style === 'dotted') return `${3 * scale} ${3 * scale}`;
+  if (!edge.style && relationDefinition(edge, activeBoard()?.relationVocabulary).kind === 'related')
+    return `${2 * scale} ${5 * scale}`;
   if (edge.type === 'references' && !edge.style) return dashed;
   return undefined;
 }
@@ -193,6 +241,8 @@ interface EdgePathProps {
   edge: CanvasEdge;
   fromNode: CanvasNodeState;
   toNode: CanvasNodeState;
+  start: Anchor;
+  end: Anchor;
   focused: boolean; // connected to the active node
   dimmed: boolean; // active node exists but this edge is NOT connected
   selected: boolean; // click-selected — Delete removes it
@@ -208,10 +258,19 @@ interface EdgePathProps {
  */
 export type EdgeLayerPart = 'lines' | 'pills';
 
-function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, onContextMenu, part }: EdgePathProps) {
-  const start = computeAnchor(fromNode, toNode);
-  const end = computeAnchor(toNode, fromNode);
-
+function EdgePath({
+  edge,
+  fromNode,
+  toNode,
+  start,
+  end,
+  focused,
+  dimmed,
+  selected,
+  scale,
+  onContextMenu,
+  part,
+}: EdgePathProps) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -221,8 +280,9 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
   const cp2 = sideControlPoint(end, curvature);
 
   const d = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${end.x} ${end.y}`;
-  const color = EDGE_COLORS[edge.type];
-  const directed = DIRECTED_TYPES.has(edge.type);
+  const definition = relationDefinition(edge, activeBoard()?.relationVocabulary);
+  const color = `var(--c-rel-${definition.ink})`;
+  const directed = definition.directed;
   const dash = dashArray(edge, scale);
 
   // Labels keep a constant screen size only while nodes are still readable —
@@ -231,12 +291,14 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
   const labelScale = Math.min(scale, 2.2);
   const zoom = viewport.value.scale;
   const marks = linkMarks(edge);
-  const showLabel = !!edge.label && zoom >= 0.35;
+  // Reasons belong in the hint/inspector, not a long pill covering both endpoints.
+  const label = edge.label ?? edge.kind;
+  const showLabel = !!label && zoom >= 0.35;
   // Pill layout in label units (× labelScale): ✦, the label, then a hairline and
   // "not seen by …", which keeps only its glyph on a short line or below 60% zoom.
   const pad = showLabel ? 9 : 5;
   const sparkWidth = marks.agent ? 12 : 0;
-  const labelWidth = showLabel ? (edge.label?.length ?? 0) * 7 : 0;
+  const labelWidth = showLabel ? (label?.length ?? 0) * 7 : 0;
   const notSeenText = `not seen by ${agentName()}`;
   const wordedNotSeenWidth = 12 + notSeenText.length * 6.2 + 4;
   const fullWidth =
@@ -276,8 +338,13 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
         onClick={select}
         onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
         onPointerEnter={(e) => {
-          const text = linkHint(edge, marks.notSeen);
-          if (!text) return;
+          const text = [
+            `${String(fromNode.data.title ?? fromNode.id)} → ${String(toNode.data.title ?? toNode.id)}`,
+            relationText(edge),
+            linkHint(edge, marks.notSeen),
+          ]
+            .filter(Boolean)
+            .join('\n');
           const rect = (e.currentTarget as SVGGElement).getBoundingClientRect();
           edgeHint.value = {
             x: rect.left + rect.width / 2,
@@ -313,9 +380,9 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
             x={(labelX + labelWidth / 2) * labelScale}
             text-anchor="middle"
             dominant-baseline="central"
-            fill="var(--c-text)"
+            fill={color}
           >
-            {edge.label}
+            {label}
           </text>
         )}
         {marks.notSeen && (
@@ -371,19 +438,6 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
         onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
       />
 
-      {/* Glow layer for focused or selected edges */}
-      {(focused || selected) && (
-        <path
-          d={d}
-          fill="none"
-          stroke={color}
-          stroke-width={6 * scale}
-          stroke-dasharray={dash}
-          opacity={selected ? 0.3 : 0.15}
-          style={{ filter: 'blur(3px)' }}
-        />
-      )}
-
       {/* Visible edge — the `edge-arrow` marker uses the default
           markerUnits="strokeWidth", so the arrowhead scales with this. */}
       <path
@@ -396,7 +450,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
         stroke-dasharray={dash}
         marker-end={directed ? 'url(#edge-arrow)' : undefined}
         opacity={selected ? 1 : dimmed ? 0.2 : focused ? 1 : 0.85}
-        style={{ transition: 'opacity 0.2s, stroke-width 0.2s' }}
+        style={{ color, transition: 'opacity 0.2s, stroke-width 0.2s' }}
       />
 
       {/* Animated pulse dot */}
@@ -422,11 +476,43 @@ interface EdgeLayerProps {
 export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerProps) {
   const nodeMap = nodes.value;
   const edgeList = Array.from(edges.value.values());
-  const focusId = activeNodeId.value;
+  const focusId = hoveredNodeId.value ?? activeNodeId.value;
   const hasFocus = focusId !== null;
   const searchSet = searchHighlightIds.value;
   const hasSearch = searchSet !== null;
   const scale = edgeChromeScale(viewport.value.scale);
+
+  // Allocate a port to every incident link, including parallel and reverse links.
+  const ports = new Map<string, { start: Anchor; end: Anchor }>();
+  const sides = new Map<string, Array<{ anchor: Anchor; node: CanvasNodeState; order: number; id: string }>>();
+  for (const edge of edgeList) {
+    if (edge.toBoardId) continue;
+    const from = visibleNodeFor(edge.from);
+    const to = visibleNodeFor(edge.to);
+    if (!from || !to || from.id === to.id) continue;
+    const start = computeAnchor(from, to);
+    const end = computeAnchor(to, from);
+    ports.set(edge.id, { start, end });
+    for (const [anchor, node, other] of [
+      [start, from, to],
+      [end, to, from],
+    ] as const) {
+      const key = `${node.id}:${anchor.side}`;
+      const vertical = anchor.side === 'left' || anchor.side === 'right';
+      const group = sides.get(key) ?? [];
+      group.push({ anchor, node, order: vertical ? other.position.y : other.position.x, id: edge.id });
+      sides.set(key, group);
+    }
+  }
+  for (const group of sides.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+    group.forEach(({ anchor, node }, index) => {
+      const fraction = (index + 1) / (group.length + 1);
+      if (anchor.side === 'left' || anchor.side === 'right') anchor.y = node.position.y + node.size.height * fraction;
+      else anchor.x = node.position.x + node.size.width * fraction;
+    });
+  }
 
   // A drag-to-connect preview must draw on a board with no edges yet.
   if (edgeList.length === 0 && (part === 'pills' || !draggingEdge.value)) return null;
@@ -479,7 +565,7 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
           markerHeight={8 * Math.min(scale, 2.2)}
           orient="auto-start-reverse"
         >
-          <path d="M 0 1 L 10 5 L 0 9 z" fill="currentColor" opacity="0.75" />
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="context-stroke" opacity="0.75" />
         </marker>
       </defs>
       {edgeList.map((edge) => {
@@ -488,17 +574,21 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
         // An endpoint hidden behind a collapsed group's chip is drawn to the chip.
         const fromNode = visibleNodeFor(edge.from);
         const toNode = visibleNodeFor(edge.to);
-        if (!fromNode || !toNode || fromNode.id === toNode.id) return null;
+        const anchors = ports.get(edge.id);
+        if (!fromNode || !toNode || !anchors) return null;
         const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);
         const searchDimmed = hasSearch && !(searchSet.has(edge.from) || searchSet.has(edge.to));
+        const highlight = relationHighlight.value;
         return (
           <EdgePath
             key={edge.id}
             edge={edge}
             fromNode={fromNode}
             toNode={toNode}
+            start={anchors.start}
+            end={anchors.end}
             focused={isConnected}
-            dimmed={(hasFocus && !isConnected) || searchDimmed}
+            dimmed={(highlight !== null && !highlight.links.has(edge.id)) || searchDimmed}
             selected={selectedEdgeId.value === edge.id}
             scale={scale}
             onContextMenu={onEdgeContextMenu}

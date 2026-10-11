@@ -15,7 +15,7 @@ import { KnowledgeLifecycle, type Lifecycle } from './knowledge-lifecycle.js';
 import { type Tour } from '../shared/tour.js';
 import { type WikiBoard } from './wiki-links.js';
 import { type WikiLink } from '../shared/memory-graph.js';
-import { type CanvasBoard, type ContextPinMeta, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
+import { updateBoardInDB, type CanvasBoard, type ContextPinMeta, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type DocumentImport, type DocumentImportStatus, type ImportSection, type Attachment } from './document-import.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 import { type ActorAttribution } from './attribution.js';
@@ -78,6 +78,8 @@ export interface CanvasNodeState {
     lastEditedBy?: ActorAttribution;
     /** Board-monotonic revision of this node's latest semantic content. */
     contentRevision?: number;
+    /** Time of that semantic change; absent for content created before this clock was recorded. */
+    contentChangedAt?: string;
     /** Board-monotonic revision of this node's latest link change, kept apart from its text. */
     linksRevision?: number;
 }
@@ -109,6 +111,11 @@ export interface CanvasEdge {
     /** Target on another board. Source and mutation ownership stay on the active board. */
     toBoardId?: string;
     type: 'relation' | 'depends-on' | 'flow' | 'references';
+    /** Open semantic relation kind, independent of the structural edge type. */
+    kind?: string;
+    reason?: string;
+    /** Source content observed when an explicit dependency was authored. Never refreshed by reads. */
+    sourceRevision?: number;
     label?: string;
     style?: 'solid' | 'dashed' | 'dotted';
     animated?: boolean;
@@ -322,14 +329,7 @@ declare class CanvasStateManager {
     advanceContextBriefCursor(boardId: string, consumer: string, revision: number): void;
     /** Creates a board without opening it. */
     createBoard(name: string, folder?: string | null): CanvasBoard | null;
-    updateBoard(id: string, patch: {
-        name?: string;
-        folder?: string | null;
-        mapPosition?: {
-            x: number;
-            y: number;
-        } | null;
-    }): boolean;
+    updateBoard(id: string, patch: Pick<Parameters<typeof updateBoardInDB>[2], 'name' | 'folder' | 'mapPosition' | 'relationVocabulary'>): boolean;
     setBoardReadme(id: string, nodeId: string | null): boolean;
     /**
      * Pin a board into the agent's working set (vision move 0a). Workspace-level:
@@ -440,7 +440,8 @@ declare class CanvasStateManager {
     private touchWikiRelations;
     private invalidateIncomingRelations;
     addEdge(edge: CanvasEdge): boolean;
-    updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
+    private relationSourceRevision;
+    updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
     /**
      * An edge as undo/redo puts it back. A relation change restores the link as it
      * was, author included, under a new revision so the next brief carries it; a

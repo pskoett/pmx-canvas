@@ -4,6 +4,9 @@ import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state
 import { contextReadFromPayload, pinnedBoardReads } from '../../src/server/context-reads.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { executeOperation } from '../../src/server/operations/registry.ts';
+import type { LifecycleResults } from '../../src/server/knowledge-lifecycle.ts';
+import { lifecycleQualifications } from '../../src/server/lifecycle-status.ts';
+import { agentPresence } from '../../src/server/agent-presence.ts';
 import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 // Connection changes (option C, docs/design/LinksOptions.dc.html): links are
@@ -17,6 +20,7 @@ beforeEach(() => {
   resetCanvasForTests(root);
 });
 afterEach(() => {
+  agentPresence.reset();
   canvasState.close();
   removeTestWorkspace(root);
 });
@@ -35,6 +39,304 @@ async function twoCards(): Promise<void> {
 }
 
 describe('connection changes are tracked apart from text', () => {
+  test('dependency cycles propagate source changes but a reason edit and a reference do not reset or spread them', async () => {
+    await twoCards();
+    canvasState.addNode(makeNode({ id: 'downstream', type: 'markdown' }));
+    canvasState.addNode(makeNode({ id: 'reference', type: 'markdown' }));
+    const connect = async (from: string, to: string, kind: string) =>
+      (await executeOperation('edge.add', { from, to, kind, type: 'relation' })) as { id: string };
+    const forward = await connect('plan', 'risk', 'derived-from');
+    await connect('risk', 'plan', 'derived-from');
+    await connect('risk', 'downstream', 'derived-from');
+    await connect('plan', 'reference', 'cites');
+    const get = async (id: string) => (await executeOperation('node.lifecycle-get', { id })) as LifecycleResults['get'];
+    expect((await get('downstream')).qualification.due).toBe(false);
+    canvasState.updateNode('plan', { data: { ...node('plan').data, content: 'A changed primary observation.' } });
+    await executeOperation('edge.update', { id: forward.id, reason: 'Clarified why this depends on the source.' });
+    for (const id of ['plan', 'risk', 'downstream']) expect((await get(id)).qualification.due).toBe(true);
+    expect((await get('reference')).qualification.due).toBe(false);
+    for (const id of ['plan', 'risk', 'downstream']) {
+      const checked = await get(id);
+      await executeOperation('node.review', {
+        id,
+        outcome: 'retain',
+        applied: true,
+        evidence: 'Compared the current dependency evidence.',
+        expectedContentRevision: checked.contentRevision,
+        expectedSources: checked.qualification.observations,
+      });
+    }
+    for (const id of ['plan', 'risk', 'downstream']) expect((await get(id)).qualification.due).toBe(false);
+    await connect('reference', 'downstream', 'contradicts');
+    expect((await get('downstream')).qualification.due).toBe(true);
+    expect((await get('risk')).qualification.due).toBe(false);
+  });
+
+  test('cadence boundaries and new-session reads keep validation separate from use', async () => {
+    await twoCards();
+    canvasState.updateNode('plan', { data: { title: 'Capacity plan', content: 'Check the primary observation.' } });
+    const boardId = canvasState.activeBoardId!;
+    const policy = {
+      decayType: 'reality',
+      rate: 'medium',
+      cadenceDays: 17,
+      triggers: [],
+      revalidationMethod: 'Compare primary evidence',
+    };
+    await executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: policy });
+    await executeOperation('node.review', {
+      id: 'plan',
+      outcome: 'retain',
+      applied: true,
+      evidence: 'Checked',
+      expectedContentRevision: content('plan'),
+    });
+    const checked = (await executeOperation('node.lifecycle-get', { id: 'plan' })) as LifecycleResults['get'];
+    const at = Date.parse(checked.lastValidation!.when);
+    const key = JSON.stringify([boardId, 'plan']);
+    expect(lifecycleQualifications(at + 17 * 86400000 - 1)[key].due).toBe(false);
+    expect(lifecycleQualifications(at + 17 * 86400000)[key].due).toBe(true);
+    expect(lifecycleQualifications(at + 999 * 86400000)[JSON.stringify([boardId, 'risk'])].due).toBe(false);
+    await executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: { ...policy, rate: 'durable' } });
+    expect(lifecycleQualifications(at + 999 * 86400000)[key].due).toBe(false);
+    await executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: { ...policy, rate: 'fast' } });
+    agentPresence.touch({ source: 'test', agentId: 'reviewer', attached: true }, at);
+    expect(lifecycleQualifications(at)[key].due).toBe(false);
+    agentPresence.touch({ source: 'test', agentId: 'new-reviewer', attached: true }, at + 1);
+    expect(lifecycleQualifications(at + 1)[key].due).toBe(true);
+    const other = canvasState.createBoard('Unrelated')!;
+    canvasState.switchBoard(other.id);
+    expect(lifecycleQualifications(at + 1)[key].due).toBe(false);
+    const search = (await executeOperation('search', { q: 'plan', scope: 'library' })) as {
+      results: Array<{ cardId: string; qualification: LifecycleResults['get']['qualification'] }>;
+    };
+    expect(search.results.find((entry) => entry.cardId === 'plan')?.qualification.due).toBe(true);
+    const read = (await executeOperation('node.get', { board: boardId, id: 'plan' })) as {
+      qualification: LifecycleResults['get']['qualification'];
+    };
+    expect(read.qualification.due).toBe(true);
+    expect(read.qualification.lastValidatedAt).toBe(checked.lastValidation!.when);
+    expect(canvasState.activeBoardId).toBe(other.id);
+    const pins = (await executeOperation('pinned-context.get', { board: boardId })) as { nodes: unknown[] };
+    expect(pins.nodes).toEqual([]);
+  });
+
+  test('dashboard qualification follows explicit sources, keeps clocks separate and excludes retired cards', async () => {
+    await twoCards();
+    canvasState.updateNode('plan', { data: { title: 'Capacity conclusion', content: 'Add a replica.' } });
+    const dashboard = canvasState.activeBoardId!;
+    const source = canvasState.createBoard('Operational status')!;
+    canvasState.switchBoard(source.id);
+    canvasState.addNode(makeNode({ id: 'plan', type: 'markdown', data: { title: 'Status', content: '99.2%' } }));
+    const policy = {
+      decayType: 'reality',
+      rate: 'fast',
+      triggers: ['source changed'],
+      revalidationMethod: 'Compare the source',
+    };
+    await executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: policy });
+    const get = async (id: string, board = canvasState.activeBoardId!) =>
+      (await executeOperation('node.lifecycle-get', { id, board })) as LifecycleResults['get'];
+    const validate = async (id: string) => {
+      const checked = await get(id);
+      return executeOperation('node.review', {
+        id,
+        outcome: 'retain',
+        evidence: 'Compared primary evidence',
+        applied: true,
+        expectedContentRevision: checked.contentRevision,
+        expectedSources: checked.qualification.observations,
+      });
+    };
+    await validate('plan');
+    const validatedAt = (await get('plan')).lastValidation!.when;
+    canvasState.switchBoard(dashboard);
+    for (const id of ['plan', 'risk'])
+      await executeOperation('node.lifecycle-set', { id, lifecycleOverride: { ...policy, rate: 'durable' } });
+    canvasState.addNode(makeNode({ id: 'portal', type: 'board', data: { title: 'Operations', boardId: source.id } }));
+    await executeOperation('edge.add', { from: 'plan', to: 'plan', toBoardId: source.id, type: 'depends-on' });
+    await executeOperation('edge.add', { from: 'risk', to: 'plan', toBoardId: source.id, type: 'references' });
+    const before = await get('plan');
+    canvasState.switchBoard(source.id);
+    canvasState.updateNode('plan', { data: { ...node('plan').data, content: '95.0%' } });
+    canvasState.switchBoard(dashboard);
+    const conclusion = await get('plan');
+    expect(conclusion.qualification.due).toBe(true);
+    expect((await get('risk')).qualification.due).toBe(false);
+    const portal = await get('portal');
+    expect(portal.qualification.due).toBe(false);
+    expect(portal.qualification.sources[0]?.title).toBe('Status');
+    expect(portal.qualification.sources[0]?.reasons.length).toBeGreaterThan(0);
+    await expect(
+      executeOperation('node.review', {
+        id: 'plan',
+        outcome: 'retain',
+        applied: true,
+        evidence: 'stale evidence',
+        expectedContentRevision: before.contentRevision,
+        expectedSources: before.qualification.observations,
+      }),
+    ).rejects.toThrow('Sources changed');
+    const brief = (await executeOperation('context.get', { budget: 50000 })) as {
+      entries: Array<{ nodeId: string; qualification?: LifecycleResults['get']['qualification'] }>;
+    };
+    expect(brief.entries.find((entry) => entry.nodeId === 'plan')?.qualification?.due).toBe(true);
+    expect(brief.entries.find((entry) => entry.nodeId === 'risk')?.qualification?.due).toBe(false);
+    await executeOperation('node.get', { id: 'plan', board: source.id });
+    expect((await get('plan', source.id)).lastValidation!.when).toBe(validatedAt);
+    await executeOperation('pin.set', { nodeIds: ['plan'] });
+    const cursor = canvasState.getContentRevision().revision;
+    await executeOperation('node.review', {
+      id: 'plan',
+      outcome: 'retire',
+      evidence: 'No longer active',
+      applied: true,
+    });
+    const retired = (await executeOperation('context.get', { budget: 50000 })) as typeof brief;
+    expect(retired.entries.some((entry) => entry.nodeId === 'plan' && entry.qualification?.retired)).toBe(false);
+    expect(retired.entries.some((entry) => entry.nodeId === 'plan')).toBe(false);
+    const delta = (await executeOperation('context.get', { since: cursor, budget: 50000 })) as {
+      lifecycle: { retired: string[] };
+    };
+    expect(delta.lifecycle.retired).toContain(JSON.stringify([dashboard, 'plan']));
+    expect(canvasState.getContentRevision().revision).toBe(cursor);
+    const pins = (await executeOperation('pinned-context.get', {})) as { nodeIds: string[]; preamble: string };
+    expect(pins.nodeIds).not.toContain('plan');
+    expect(pins.preamble).not.toContain('Capacity conclusion');
+    const found = (await executeOperation('search', { q: String(node('plan').data.title) })) as {
+      results: Array<{ id: string; qualification: { retired: boolean } }>;
+    };
+    expect(found.results.find((entry) => entry.id === 'plan')?.qualification.retired).toBe(true);
+    await executeOperation('node.lifecycle-restore', { id: 'plan', evidence: 'Needed again' });
+    expect((await get('plan')).qualification.due).toBe(true);
+    const restoredDelta = (await executeOperation('context.get', { since: cursor, budget: 50000 })) as typeof delta;
+    expect(restoredDelta.lifecycle.retired).not.toContain(JSON.stringify([dashboard, 'plan']));
+    canvasState.flushToDisk();
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+    expect((await get('plan', dashboard)).qualification.due).toBe(true);
+    expect((await get('plan', source.id)).lastValidation!.when).toBe(validatedAt);
+  });
+
+  test('retrieval metadata is not a content change; cached and unavailable provenance stays qualified', async () => {
+    await twoCards();
+    const boardId = canvasState.activeBoardId!;
+    const provenance = {
+      sourceKind: 'recipe',
+      sourceUri: 'recipe://status',
+      refreshStrategy: 'agent-request',
+      snapshotContent: true,
+      syncedAt: '2026-01-01T00:00:00Z',
+      recipe: { tool: 'status', input: { region: 'west' }, prompt: 'Compare capacity.' },
+    };
+    canvasState.updateNode('plan', { data: { ...node('plan').data, provenance } });
+    const revision = content('plan');
+    const changedAt = node('plan').contentChangedAt;
+    canvasState.updateNode('plan', {
+      data: {
+        ...node('plan').data,
+        fetchedAt: '2026-02-01T00:00:00Z',
+        provenance: { ...provenance, syncedAt: '2026-02-01T00:00:00Z' },
+      },
+    });
+    expect(content('plan')).toBe(revision);
+    expect(node('plan').contentChangedAt).toBe(changedAt);
+    canvasState.updateNode('risk', {
+      data: {
+        ...node('risk').data,
+        provenance: {
+          ...provenance,
+          sources: [
+            {
+              boardId,
+              cardId: 'plan',
+              contentRevision: revision,
+              observedAt: '2026-01-01T00:00:00Z',
+              availability: 'cached',
+            },
+          ],
+        },
+      },
+    });
+    const cached = (await executeOperation('node.lifecycle-get', { id: 'risk' })) as LifecycleResults['get'];
+    expect(cached.qualification.sources[0]).toMatchObject({
+      observedAt: '2026-01-01T00:00:00Z',
+      observedRevision: revision,
+    });
+    expect(cached.qualification.sources[0].reasons).toContain('Cached observation; not freshly checked.');
+    await expect(
+      executeOperation('node.update', {
+        id: 'risk',
+        data: {
+          provenance: {
+            ...provenance,
+            sources: [
+              { boardId, cardId: 'plan', availability: 'unavailable' },
+              { boardId, cardId: 'plan', availability: 'live' },
+            ],
+          },
+        },
+      }),
+    ).rejects.toThrow('Source targets must be unique');
+    canvasState.removeNode('plan');
+    const unavailable = (await executeOperation('node.lifecycle-get', { id: 'risk' })) as LifecycleResults['get'];
+    expect(unavailable.qualification.due).toBe(true);
+    expect(unavailable.qualification.sources[0].unavailable).toBe(true);
+    await expect(
+      executeOperation('node.review', {
+        id: 'risk',
+        outcome: 'retain',
+        applied: true,
+        evidence: 'Only the old cached value',
+        expectedContentRevision: unavailable.contentRevision,
+        expectedSources: unavailable.qualification.observations,
+      }),
+    ).rejects.toThrow('Sources changed or are unavailable');
+  });
+
+  test('rich parallel relations keep reasons through the brief, snapshots and restart without editing content', async () => {
+    await twoCards();
+    const boardId = canvasState.activeBoardId!;
+    const revision = content('plan');
+    const vocabulary = [{ kind: 'qualifies', ink: 'informs' as const, directed: true }];
+    await executeOperation('board.update', { id: boardId, relationVocabulary: vocabulary });
+    const first = (await executeOperation('edge.add', {
+      from: 'plan',
+      to: 'risk',
+      type: 'relation',
+      kind: 'supports',
+      reason: 'Six interviews agree.',
+    })) as { id: string };
+    await executeOperation('edge.add', {
+      from: 'plan',
+      to: 'risk',
+      type: 'relation',
+      kind: 'cites',
+      reason: 'Interview log, page 2.',
+    });
+    expect(content('plan')).toBe(revision);
+    const brief = JSON.stringify(await executeOperation('context.get', { budget: 50000 }));
+    expect(brief).toContain('Six interviews agree.');
+    expect(brief).toContain('Interview log, page 2.');
+    const snapshot = canvasState.saveSnapshot('Rich relations')!;
+    await executeOperation('edge.update', { id: first.id, kind: 'qualifies', reason: 'Only the SMB segment.' });
+    const graph = JSON.stringify(await executeOperation('memory-graph.get', {}));
+    expect(graph).toContain('qualifies');
+    expect(graph).toContain('Only the SMB segment.');
+    expect(content('plan')).toBe(revision);
+    canvasState.restoreSnapshot(snapshot.id);
+    expect(edge(first.id)?.reason).toBe('Six interviews agree.');
+    canvasState.flushToDisk();
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    canvasState.switchBoard(boardId);
+    expect(edge(first.id)?.kind).toBe('supports');
+    expect(edge(first.id)?.reason).toBe('Six interviews agree.');
+    expect(canvasState.listBoards().find((board) => board.id === boardId)?.relationVocabulary).toEqual(vocabulary);
+  });
+
   test.each([
     'node.get',
     'layout.get',

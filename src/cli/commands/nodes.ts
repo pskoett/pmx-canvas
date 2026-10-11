@@ -133,6 +133,7 @@ function summarizeNodeResult(node: Record<string, unknown>): Record<string, unkn
     ...(node.path !== undefined ? { path: node.path } : {}),
     ...(node.url !== undefined ? { url: node.url } : {}),
     ...(node.provenance !== undefined ? { provenance: node.provenance } : {}),
+    ...(node.qualification !== undefined ? { qualification: node.qualification } : {}),
     ...(typeof data.mode === 'string' ? { mode: data.mode } : {}),
     ...(typeof data.viewerType === 'string' ? { viewerType: data.viewerType } : {}),
     ...(typeof data.serverName === 'string' ? { serverName: data.serverName } : {}),

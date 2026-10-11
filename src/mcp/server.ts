@@ -35,8 +35,7 @@ import { agentSourceLabel } from '../server/operations/invoker.js';
 import { contextReadFromPayload, pinnedBoardReads, graphReads } from '../server/context-reads.js';
 import type { MemoryGraph } from '../shared/memory-graph.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
-import { serializeNodeForAgentContext } from '../shared/agent-context.js';
-import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
+import { buildSpatialContext } from '../server/spatial-analysis.js';
 import {
   getCanvasNodeTitle,
   serializeCanvasLayoutForAgent,
@@ -90,7 +89,7 @@ function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-tim
   const server = resourceNotificationServer;
   if (!server) return;
   try {
-    if (type === 'pins') {
+    if (type === 'pins' || type === 'nodes') {
       server.server.sendResourceUpdated({ uri: 'canvas://pinned-context' });
     }
     if (type === 'pins' || type === 'ax') {
@@ -520,59 +519,9 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       const readTarget = await c.prepareContextRead();
       const board = readTarget.boardId ?? undefined;
-      const pinnedIds = new Set(readTarget.pinnedNodeIds);
-      const layout = await c.getLayout(board);
-
-      const pinnedNodes = layout.nodes.filter((n) => pinnedIds.has(n.id));
-      const pinnedEdges = layout.edges.filter(
-        (e) => pinnedIds.has(e.from) && (!e.toBoardId || e.toBoardId === board) && pinnedIds.has(e.to),
-      );
-
-      // Compute neighborhoods: for each pinned node, find nearby unpinned nodes
-      const neighborhoods = findNeighborhoods(layout.nodes, pinnedIds);
-      const library = (await c.invoker().invoke('board.list', {})) as {
-        boards?: Array<{
-          id: string;
-          name: string;
-          pin: { pinnedBy: unknown; pinnedAt: string; reason?: string } | null;
-          summary: string | null;
-          pinnedTitles: Array<{ nodeId: string; title: string }>;
-        }>;
-      };
-
-      const context = {
-        pinnedCount: pinnedNodes.length,
-        nodes: pinnedNodes.map((n) =>
-          serializeNodeForAgentContext(n, {
-            defaultTextLength: 700,
-            webpageTextLength: 1600,
-            includePosition: true,
-          }),
-        ),
-        edges: pinnedEdges.map((e) => ({
-          id: e.id,
-          from: e.from,
-          to: e.to,
-          ...(e.toBoardId !== undefined ? { toBoardId: e.toBoardId } : {}),
-          type: e.type,
-          label: e.label ?? null,
-        })),
-        neighborhoods: neighborhoods.map((nh) => ({
-          pinnedNodeId: nh.pinnedNodeId,
-          pinnedNodeTitle: nh.pinnedNodeTitle,
-          nearbyNodes: nh.neighbors,
-        })),
-        pinnedBoards: (library.boards ?? [])
-          .filter((board) => board.pin)
-          .map((board) => ({
-            boardId: board.id,
-            name: board.name,
-            pin: board.pin,
-            summary: board.summary,
-            pinnedTitles: board.pinnedTitles,
-          })),
-      };
-
+      // Content and lifecycle are captured by one synchronous server operation,
+      // never joined across separate HTTP reads with different retirement state.
+      const context = await c.invoker().invoke('pinned-context.get', { board });
       const text = JSON.stringify(context, null, 2);
       await recordContextRead(c, 'mcp-resource', 'canvas://pinned-context', text, readTarget);
       return {

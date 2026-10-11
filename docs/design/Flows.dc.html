@@ -13,12 +13,34 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1280px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 32px">
+<div style="width: 1440px; min-height: 1280px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 32px">
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Lineage, evidence and drill-in</h1>
 <p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">The same relation layer for data work: where a number came from and whether it's still current, what a finding rests on, and a group of sources opened with its outside links kept.</p>
 </div>
+
+<!-- Wave 3 source qualification extension, 2026-10-11. Lifecycle variant A supersedes the older filled stale chips below. -->
+<section style="display:flex;gap:24px;align-items:start">
+<div style="width:600px;box-sizing:border-box;padding:16px;background:#0b1828;border:1px solid #1b2c44;border-radius:10px">
+<h2 style="font-size:15px;margin:0 0 12px">600 px · Durable dashboard</h2>
+<div style="padding:12px;background:#0f1d31;border:1px solid #1b2c44;border-radius:10px">
+<strong>▣ Operational status</strong><p style="color:#8ea3bd">Portal · opens the source board</p>
+<div style="padding:8px;border:1px solid #f4c542;border-radius:6px;color:#f4c542;font-size:11px">⧗ source needs review · Availability<br><span>Fast: check at use. Open source →</span></div>
+</div>
+<div style="margin-top:12px;padding:12px;background:#0f1d31;border:1px solid #1b2c44;border-radius:10px">
+<strong>Capacity conclusion</strong><p>We need a second replica.</p>
+<div style="padding:8px;border:1px solid #f4c542;border-radius:6px;color:#f4c542;font-size:11px">⧗ review due · Availability changed.</div>
+</div>
+<p style="color:#8ea3bd;font-size:11px">The portal reports its source, not its own expiry. Unrelated durable references and dashboard structure have no review line.</p>
+</div>
+<div style="flex:1;padding:16px;border:1px solid #1b2c44;border-radius:10px;background:#0f1d31">
+<h2 style="font-size:15px;margin:0 0 12px">Full window · source-backed card</h2>
+<strong>Availability mirror</strong><p>99.2% · observed 2026-10-10 · source revision 42</p>
+<div style="padding:8px;border:1px solid #f4c542;border-radius:6px;color:#f4c542;font-size:11px">⧗ source needs review · Availability<br>Cached observation; not freshly checked.</div>
+<p style="color:#8ea3bd">Unavailable source: retain the observation and say “Source unavailable; no fresh check.” Never replace “as of” with retrieval time. Lifecycle opens the four clocks and recorded evidence. Only evidence-backed review renews validation, not Refresh or a regenerated recipe.</p>
+</div>
+</section>
 
 <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
 

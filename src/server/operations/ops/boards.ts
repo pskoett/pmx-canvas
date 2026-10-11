@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { normalizeBoardFolder } from '../../../shared/boards.js';
+import { relationVocabularySchema } from '../../../shared/relations.js';
 import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
@@ -285,6 +286,9 @@ const boardOpenOperation = defineOperation<z.infer<typeof openSchema>, Record<st
 const updateShape = {
   id: z.unknown().optional().describe('Board id'),
   name: z.unknown().optional().describe('New name'),
+  relationVocabulary: relationVocabularySchema
+    .optional()
+    .describe('Board relation vocabulary: open kinds with a meaning ink and direction'),
   folder: z.unknown().optional().describe('Folder path on Home; "" or null unfiles it'),
   readmeNodeId: z.unknown().optional().describe('Markdown node id to use as README; null clears it'),
   mapPosition: z
@@ -317,6 +321,7 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
     const id = typeof input.id === 'string' ? input.id : '';
     const patch = {
       ...(input.name !== undefined ? { name: boardName(input.name) } : {}),
+      ...(input.relationVocabulary !== undefined ? { relationVocabulary: input.relationVocabulary } : {}),
       ...(input.folder !== undefined ? { folder: boardFolder(input.folder) ?? null } : {}),
       ...(input.mapPosition !== undefined ? { mapPosition: input.mapPosition } : {}),
     };

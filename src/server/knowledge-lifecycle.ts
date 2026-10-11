@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { normalizeBoardFolder } from '../shared/boards.js';
 import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
+import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 
 export const lifecycleSchema = z.strictObject({
   decayType: z.enum(['reality', 'decision', 'dependency', 'relevance']),
   rate: z.enum(['fast', 'medium', 'slow', 'durable']),
   triggers: z.array(z.string().trim().min(1)),
   revalidationMethod: z.string().trim().min(1),
+  cadenceDays: z.number().int().min(1).max(36500).optional(),
 });
 export const categorySchema = lifecycleSchema.extend({
   id: z.string().trim().min(1),
@@ -33,6 +35,7 @@ export interface ReviewRecord {
   when: string;
   /** Exact semantic version reviewed; old unversioned records remain unknown. */
   contentRevision: number | null;
+  sourceRevisions?: Record<string, number | null>;
 }
 
 export type KnowledgeInput =
@@ -40,7 +43,13 @@ export type KnowledgeInput =
   | { action: 'category-set'; category: KnowledgeCategory }
   | ({ action: 'folder-set' } & FolderProperties);
 export interface KnowledgeResults {
-  list: { ok: true; categories: KnowledgeCategory[]; folders: FolderProperties[] };
+  list: {
+    ok: true;
+    categories: KnowledgeCategory[];
+    folders: FolderProperties[];
+    cards: Record<string, LifecycleQualification>;
+    resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
+  };
   'category-set': { ok: true; category: KnowledgeCategory };
   'folder-set': { ok: true; folder: FolderProperties };
 }
@@ -55,12 +64,17 @@ export type LifecycleInput =
       evidence: string;
       applied: boolean;
       expectedContentRevision?: number;
+      expectedSources?: Record<string, number | null>;
     }
   | { action: 'restore'; id: string; expectedBoardId?: string | null; evidence: string };
 export interface LifecycleResults {
-  get: { ok: true; boardId: string; nodeId: string; contentRevision: number } & ReturnType<
-    KnowledgeLifecycle['resolve']
-  > &
+  get: {
+    ok: true;
+    boardId: string;
+    nodeId: string;
+    contentRevision: number;
+    qualification: LifecycleQualification;
+  } & ReturnType<KnowledgeLifecycle['resolve']> &
     ReturnType<KnowledgeLifecycle['reviews']>;
   set: { ok: true };
   review: { ok: true; record: ReviewRecord };
@@ -114,8 +128,8 @@ export class KnowledgeLifecycle {
     return folder;
   }
 
-  resolve(folderPath: string | null, override?: Lifecycle | null) {
-    const { categories, folders } = this.list();
+  resolve(folderPath: string | null, override?: Lifecycle | null, catalog = this.list()) {
+    const { categories, folders } = catalog;
     let category: KnowledgeCategory | null = null;
     let categorySourceFolder: string | null = null;
     let lifecycle: Lifecycle | null = null;
@@ -134,6 +148,7 @@ export class KnowledgeLifecycle {
               rate: category.rate,
               triggers: category.triggers,
               revalidationMethod: category.revalidationMethod,
+              ...(category.cadenceDays ? { cadenceDays: category.cadenceDays } : {}),
             }
           : null;
         lifecycleSourceFolder = category ? path : null;
@@ -176,6 +191,7 @@ export class KnowledgeLifecycle {
     boardId: string,
     nodeId: string,
     input: Pick<ReviewRecord, 'outcome' | 'evidence' | 'applied'> & { expectedContentRevision?: number },
+    sourceRevisions?: Record<string, number | null>,
   ): ReviewRecord {
     const validated = z
       .object({
@@ -204,6 +220,7 @@ export class KnowledgeLifecycle {
       who: currentActor(),
       when: new Date().toISOString(),
       contentRevision,
+      ...(sourceRevisions ? { sourceRevisions } : {}),
     };
     this.db()
       .query('INSERT INTO review_records (board_id, node_id, value) VALUES (?, ?, ?)')

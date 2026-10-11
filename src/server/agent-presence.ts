@@ -713,6 +713,14 @@ export class AgentPresenceRegistry {
     };
   }
 
+  /** Latest attached session: a newly attached reviewer must check fast context again. */
+  reviewSessionStartedAt(): number | null {
+    const starts = [...this.presences.values()]
+      .filter((presence) => presence.attached && presence.startedAt)
+      .map((presence) => Date.parse(presence.startedAt!));
+    return starts.length ? Math.max(...starts) : null;
+  }
+
   /** Test / shutdown hook. */
   reset(): void {
     this.steeringConsumers.clear();

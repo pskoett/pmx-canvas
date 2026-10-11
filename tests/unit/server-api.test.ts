@@ -1986,11 +1986,11 @@ describe('canvas server HTTP API', () => {
     }).then((r) => r.json())) as { viewport: { scale: number } };
 
     // Screen-space fit over a 1440x900 node in the reported 720x450 window:
-    // usable = (720 - 2*24) x (450 - 24 - 96) with the default 24px padding
-    // and the 96px quiet-board bottom reserve — the height binds. The old
+    // usable = (720 - 2*24) x (450 - 48 - 96), reserving the lifecycle
+    // filters and the quiet-board minimap. The height binds. The old
     // hardcoded 1440x900 assumption produced ~2x this, the "clipped on both
     // sides" symptom.
-    expect(fitted.viewport.scale).toBeCloseTo(Math.min((720 - 48) / 1440, (450 - 24 - 96) / 900), 3);
+    expect(fitted.viewport.scale).toBeCloseTo(Math.min((720 - 48) / 1440, (450 - 48 - 96) / 900), 3);
 
     // An explicit width still wins over the reported client size.
     const explicit = (await fetch(`${baseUrl}/api/canvas/fit`, {
@@ -1998,7 +1998,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodeIds: [wide.id], width: 1560, height: 1020 }),
     }).then((r) => r.json())) as { viewport: { scale: number } };
-    expect(explicit.viewport.scale).toBeCloseTo(1, 2);
+    expect(explicit.viewport.scale).toBeCloseTo((1020 - 48 - 96) / 900, 3);
 
     await fetch(`${baseUrl}/api/canvas/node/${wide.id}`, { method: 'DELETE' });
   });

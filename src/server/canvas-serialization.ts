@@ -4,8 +4,10 @@ import type { CanvasAnnotation, CanvasLayout, CanvasNodeState, ViewportState } f
 import { normalizeCanvasNodeData, type CanvasNodeProvenance } from './canvas-provenance.js';
 import { getCanvasNodeKind as getSharedCanvasNodeKind } from '../shared/canvas-node-kind.js';
 import { canOpenNodeAsSurface } from '../shared/surface.js';
+import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 
 export interface SerializedCanvasNode extends CanvasNodeState {
+  qualification?: LifecycleQualification;
   kind: string;
   title: string | null;
   content: string | null;

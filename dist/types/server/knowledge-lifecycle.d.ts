@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { z } from 'zod';
 import { type ActorAttribution } from './attribution.js';
+import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 export declare const lifecycleSchema: z.ZodObject<{
     decayType: z.ZodEnum<{
         reality: "reality";
@@ -16,6 +17,7 @@ export declare const lifecycleSchema: z.ZodObject<{
     }>;
     triggers: z.ZodArray<z.ZodString>;
     revalidationMethod: z.ZodString;
+    cadenceDays: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 export declare const categorySchema: z.ZodObject<{
     decayType: z.ZodEnum<{
@@ -32,6 +34,7 @@ export declare const categorySchema: z.ZodObject<{
     }>;
     triggers: z.ZodArray<z.ZodString>;
     revalidationMethod: z.ZodString;
+    cadenceDays: z.ZodOptional<z.ZodNumber>;
     id: z.ZodString;
     name: z.ZodString;
     glyph: z.ZodString;
@@ -54,6 +57,7 @@ export interface ReviewRecord {
     when: string;
     /** Exact semantic version reviewed; old unversioned records remain unknown. */
     contentRevision: number | null;
+    sourceRevisions?: Record<string, number | null>;
 }
 export type KnowledgeInput = {
     action: 'list';
@@ -68,6 +72,8 @@ export interface KnowledgeResults {
         ok: true;
         categories: KnowledgeCategory[];
         folders: FolderProperties[];
+        cards: Record<string, LifecycleQualification>;
+        resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
     };
     'category-set': {
         ok: true;
@@ -95,6 +101,7 @@ export type LifecycleInput = {
     evidence: string;
     applied: boolean;
     expectedContentRevision?: number;
+    expectedSources?: Record<string, number | null>;
 } | {
     action: 'restore';
     id: string;
@@ -107,6 +114,7 @@ export interface LifecycleResults {
         boardId: string;
         nodeId: string;
         contentRevision: number;
+        qualification: LifecycleQualification;
     } & ReturnType<KnowledgeLifecycle['resolve']> & ReturnType<KnowledgeLifecycle['reviews']>;
     set: {
         ok: true;
@@ -134,7 +142,10 @@ export declare class KnowledgeLifecycle {
     };
     setCategory(value: KnowledgeCategory): KnowledgeCategory;
     setFolder(value: FolderProperties): FolderProperties;
-    resolve(folderPath: string | null, override?: Lifecycle | null): {
+    resolve(folderPath: string | null, override?: Lifecycle | null, catalog?: {
+        categories: KnowledgeCategory[];
+        folders: FolderProperties[];
+    }): {
         category: {
             decayType: "reality" | "decision" | "dependency" | "relevance";
             rate: "fast" | "medium" | "slow" | "durable";
@@ -143,6 +154,7 @@ export declare class KnowledgeLifecycle {
             id: string;
             name: string;
             glyph: string;
+            cadenceDays?: number | undefined;
         } | null;
         categorySourceFolder: string | null;
         lifecycle: {
@@ -150,6 +162,7 @@ export declare class KnowledgeLifecycle {
             rate: "fast" | "medium" | "slow" | "durable";
             triggers: string[];
             revalidationMethod: string;
+            cadenceDays?: number | undefined;
         } | null;
         lifecycleSourceFolder: string | null;
         lifecycleSource: "unknown" | "card" | "folder";
@@ -161,5 +174,5 @@ export declare class KnowledgeLifecycle {
     };
     record(boardId: string, nodeId: string, input: Pick<ReviewRecord, 'outcome' | 'evidence' | 'applied'> & {
         expectedContentRevision?: number;
-    }): ReviewRecord;
+    }, sourceRevisions?: Record<string, number | null>): ReviewRecord;
 }

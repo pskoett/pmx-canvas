@@ -1,4 +1,7 @@
 import { summarizeNodeForAgentContext } from '../shared/agent-context.js';
+import { relationText } from '../shared/relations.js';
+import { memoryKey } from '../shared/memory-graph.js';
+import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState, NodeDeletionTombstone } from './canvas-state.js';
 import { findNeighborhoods } from './spatial-analysis.js';
 
@@ -45,6 +48,7 @@ export interface ContextBriefPinnedBoard {
   name: string;
   folder: string | null;
   readmeSummary: string | null;
+  readmeNodeId?: string;
   /** Pinned cards as title + short summary, each pullable by id. */
   cards: Array<{ nodeId: string; title: string; summary: string }>;
   /** Names of the boards it links to and is linked from. */
@@ -56,6 +60,7 @@ export interface ContextBriefPinnedBoard {
 export interface ContextBriefOverview {
   folder: string | null;
   readmeSummary: string | null;
+  readmeNodeId?: string;
   links: string[];
   backlinks: string[];
 }
@@ -67,6 +72,8 @@ export interface ContextBriefEdge {
   /** Readable qualified target title, resolved by the shared memory graph. */
   remoteTitle?: string;
   type: string;
+  kind?: string;
+  reason?: string;
   label?: string | null;
   /** Board revision of the link's latest add, retype or relabel, and who made it. */
   revision?: number;
@@ -77,6 +84,7 @@ export interface ContextBriefEdge {
 }
 
 export interface ContextBriefInput {
+  qualifications?: Readonly<Record<string, LifecycleQualification>>;
   activeBoard: { boardId: string; name: string; folder: string | null };
   /** The brief is a map, not a dump: overview and relations let the agent choose what to pull. */
   overview?: ContextBriefOverview;
@@ -102,6 +110,8 @@ export interface ContextBriefInput {
 }
 
 export interface CompiledContextEntry {
+  qualification?: LifecycleQualification;
+  readmeQualification?: LifecycleQualification;
   sourceBoardId: string;
   nodeId: string;
   reason: ContextBriefReason;
@@ -140,6 +150,15 @@ export interface ContextBriefDocument {
     valid: boolean;
   };
   entries: CompiledContextEntry[];
+  /** Independent of the content cursor. Only complete snapshots replace cached qualification. */
+  lifecycle?: {
+    scope: 'workspace';
+    complete: boolean;
+    instruction?: string;
+    retired: string[];
+    unknown: string[];
+    review: Array<{ key: string; due: boolean; reasons: string[]; sources: LifecycleQualification['sources'] }>;
+  };
   deletions: Array<{ sourceBoardId: string; nodeId: string; revision: number }>;
   delivery: {
     truncated: boolean;
@@ -264,7 +283,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
         : nodeById.get(other)
           ? nodeTitle(nodeById.get(other) as CanvasNodeState)
           : other;
-      const kind = `${edge.type}${edge.label ? ` "${edge.label}"` : ''}`;
+      const kind = relationText(edge);
       const mark = linkMark(edge);
       // Changed local/outgoing links lead; the cap can still omit other relations.
       (mark ? marked : lines).push(
@@ -297,6 +316,10 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   const candidates: Candidate[] = [];
   const candidateKeys = new Set<string>();
   const add = (candidate: Candidate): void => {
+    const qualification =
+      input.qualifications?.[memoryKey({ boardId: candidate.entry.sourceBoardId, cardId: candidate.entry.nodeId })];
+    if (qualification?.retired) return;
+    if (qualification) candidate.entry.qualification = qualification;
     const key = `${candidate.entry.sourceBoardId}\0${candidate.entry.nodeId}`;
     if (candidateKeys.has(key)) return;
     candidateKeys.add(key);
@@ -394,6 +417,12 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
         reason: 'pinned-board',
         title: board.name,
         text: [board.readmeSummary ?? '', ...relations].filter(Boolean).join('\n'),
+        ...(board.readmeNodeId && board.readmeSummary
+          ? {
+              readmeQualification:
+                input.qualifications?.[memoryKey({ boardId: board.boardId, cardId: board.readmeNodeId })],
+            }
+          : {}),
       },
     });
     for (const card of board.cards) {
@@ -469,6 +498,31 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
   let deltaBlocked = !cursorValid;
   let resetComplete = false;
 
+  const qualifications = Object.entries(input.qualifications ?? {});
+  let lifecycle: ContextBriefDocument['lifecycle'] = input.qualifications
+    ? {
+        scope: 'workspace',
+        complete: true,
+        retired: qualifications.filter(([, status]) => status.retired).map(([key]) => key),
+        unknown: qualifications.filter(([, status]) => status.unknown && !status.retired).map(([key]) => key),
+        review: qualifications
+          .filter(([, status]) => !status.retired && (status.due || status.sources.length))
+          .map(([key, status]) => ({ key, due: status.due, reasons: status.reasons, sources: status.sources })),
+      }
+    : undefined;
+  // A large library must not consume the entire content budget. Do not send a
+  // partial list that a consumer could mistake for an authoritative empty one.
+  if (lifecycle && JSON.stringify(lifecycle).length > budget / 4)
+    lifecycle = {
+      scope: 'workspace',
+      complete: false,
+      instruction:
+        'Recheck cached cards with canvas_node lifecycle-get before reuse. This budget omits the workspace qualification snapshot; empty lists do not mean healthy or active.',
+      retired: [],
+      unknown: [],
+      review: [],
+    };
+
   const makeDocument = (
     entries = delivered,
     deleted = deletions,
@@ -486,6 +540,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       valid: cursorValid,
     },
     entries,
+    ...(lifecycle ? { lifecycle } : {}),
     deletions: deleted,
     delivery: {
       truncated: counted(entries) < candidates.length || deleted.length < tombstones.length,
@@ -523,6 +578,12 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
       nodeId: `board:${input.activeBoard.boardId}`,
       reason: 'overview',
       title: input.activeBoard.name,
+      ...(overview.readmeNodeId && overview.readmeSummary
+        ? {
+            readmeQualification:
+              input.qualifications?.[memoryKey({ boardId: input.activeBoard.boardId, cardId: overview.readmeNodeId })],
+          }
+        : {}),
       text: [
         overview.readmeSummary ?? '',
         overview.folder ? `Folder: ${overview.folder}.` : '',

@@ -37,6 +37,8 @@ export interface CanvasEdge {
     to: string;
     toBoardId?: string;
     type: 'relation' | 'depends-on' | 'flow' | 'references';
+    kind?: string;
+    reason?: string;
     label?: string;
     style?: 'solid' | 'dashed' | 'dotted';
     animated?: boolean;
@@ -73,7 +75,7 @@ export type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export declare const TYPE_LABELS: Record<CanvasNodeState['type'], string>;
 /** Node types that support the full-viewport expand/focus overlay. */
-export declare const EXPANDABLE_TYPES: Set<"image" | "file" | "group" | "html" | "markdown" | "mcp-app" | "webpage" | "json-render" | "graph" | "board" | "prompt" | "response" | "status" | "context" | "ledger" | "trace" | "diff" | "mermaid">;
+export declare const EXPANDABLE_TYPES: Set<"image" | "board" | "file" | "group" | "html" | "markdown" | "mcp-app" | "webpage" | "json-render" | "graph" | "prompt" | "response" | "status" | "context" | "ledger" | "trace" | "diff" | "mermaid">;
 export declare const EXCALIDRAW_SERVER_NAME = "Excalidraw";
 export declare const EXCALIDRAW_CREATE_VIEW_TOOL = "create_view";
 export declare function isExcalidrawNode(node: CanvasNodeState): boolean;

@@ -1,4 +1,5 @@
 import type { MemoryTarget } from '../../shared/memory-graph.js';
+import type { RelationDefinition } from '../../shared/relations.js';
 /**
  * Many boards (plan 012): the workspace's boards and which one is open. The
  * server is the authority; this mirrors GET /api/canvas/boards and the
@@ -17,6 +18,7 @@ export interface BoardSummary {
         y: number;
     } | null;
     previousBoardId?: string | null;
+    relationVocabulary?: RelationDefinition[];
     summary?: string | null;
     pinnedTitles?: Array<{
         nodeId: string;
@@ -122,7 +124,8 @@ export declare function updateBoard(id: string, patch: {
         x: number;
         y: number;
     } | null;
-}): Promise<void>;
+    relationVocabulary?: RelationDefinition[];
+}): Promise<boolean>;
 /** Pin a board into the agent's working set, or unpin it. */
 export declare function setBoardPinned(id: string, pinned: boolean): Promise<void>;
 export declare function setBoardReadme(id: string, readmeNodeId: string | null): Promise<void>;

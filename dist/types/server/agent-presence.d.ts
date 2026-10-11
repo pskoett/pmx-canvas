@@ -180,6 +180,8 @@ export declare class AgentPresenceRegistry {
     /** Remove a writer (session-end). */
     detach(sessionId: string): boolean;
     snapshot(now?: number): AgentPresenceSnapshot;
+    /** Latest attached session: a newly attached reviewer must check fast context again. */
+    reviewSessionStartedAt(): number | null;
     /** Test / shutdown hook. */
     reset(): void;
     /** `withTouches`: only emitted snapshots carry the session's touches (they read the DB). */

@@ -189,6 +189,9 @@ The move the evidence demands before any other. A workspace holds many named boa
 - **A changed connection is marked on the connection (decided with the maintainer 2026-10-08, option C of [LinksOptions](design/LinksOptions.dc.html)).** Text and links are tracked apart per card. A link a person adds or edits says "not seen by <agent>" on its pill until a brief carries either end; a link an agent drew says "by <agent>". The agent is whichever agent is attached (Claude, Codex, Copilot or any other), never a fixed name. Cards keep their read marks; only a text change is amber ("changed"), and the context panel lists "links changed" in neutral. A link change still reaches the next brief through the card's links revision.
 - **One relation graph, two readers (decided with the maintainer 2026-10-07).** The canvas is the agent's extended memory across cards and boards, so the relations are one projection with two readers. Its nodes are boards and cards; its edges are portals and `[[links]]`, card edges and cross-board card links, with folder membership for grouping. Home's Graph view ([HomeGraph](design/HomeGraph.dc.html)) draws it for the human, with what is in the agent's context marked and a "local graph, depth N" around the focus. The agent reads the same projection as `canvas://graph{?focus,depth}`: the local graph around a board, a card or the pins, each node with its title, short summary and in-context mark, and ids that `canvas_node`/`canvas_board` pull in full. The brief (Part 1, item 1) is this graph's depth-1 neighbourhood of the open board and its pins; the agent walks further through `canvas://graph` and decides what to read. One projection, built like the code graph, so what the human sees and what the agent navigates cannot drift. Ships with wave 2's Map and Graph.
 - **Growth by gesture.** "Make board" turns a group into a board and leaves a portal; "Inline board" reverses it. Group, board and board of boards are one scale.
+  **Wave 5 maintenance checkpoint (2026-10-11):** define how board-qualified relations,
+  provenance and review records move before implementing these gestures. Moving a card must
+  preserve its outside links and audit identity; copying a claim must not invent a validation.
 - **Search across boards.** The ⌘K palette searches the whole library, not just the open board: board names, README summaries, card titles and card text, with the board each hit lives on. A wiki a human cannot search is a pile; the agent's `canvas_query` search gains the same library scope.
 - **Backup.** Once boards are the wiki, `canvas.db` holds the whole library, its history and its snapshots in one file. `pmx-canvas backup` writes a consistent copy (`VACUUM INTO`, safe while the server runs) to a folder the human chooses, keeps the last N, and runs on a schedule the human sets; `pmx-canvas restore` brings one back. It is a local file, so the no-externals rule holds. The per-board folder export in move 4 is the human-readable companion, not a substitute.
 - **Agent surface.** `canvas://boards` (the library: README summary, folder, links, backlinks, last touched; levels dropped 2026-10-06), `canvas://graph{?focus,depth}` (the relation graph above, local around a focus), a `board` target on every operation with the MCP session bound to one board, and a `canvas_board` composite (22 → 23 tools, with the freeze test and all four transports updated together).
@@ -212,6 +215,16 @@ Objection: none, the panel did not see it. Risk: the wiki sprawls. Mitigation: t
 ### 1. One read, one brief (M)
 
 Above. **Every node type has a text form that carries its meaning.** The brief can only be as good as what each node says about itself. `summarizeNodeForAgentContext` (`src/server/agent-context.ts`) gives every type a text form today, but for the rich kinds it carries structure, not meaning: a graph passes its raw config JSON, an MCP app its tool input (nothing about what an Excalidraw drawing shows), an image its URL, an HTML deck whatever summary its author supplied. The requirement: each type states what it shows or claims in a few sentences, written by the agent that creates or updates the node and refreshed with it, with a mechanical fallback where none exists. A check per node type asserts the brief form of a sample node is non-empty prose, not a config dump. A board rich for the human must not be blank to the agent, or "one surface" is only true for markdown. Objection: ranking by "the human's camera" rests on a signal the product does not have; the server holds one global viewport that agents also write via `view.fit` and `view.focus`, so a camera ranker would rank the agent's own last focus. Accepted. The camera rides the per-tab human-presence heartbeat, viewport writes get an actor like every other write, and the camera is a weak tiebreak, never the primary axis. Primary axes: pins, delta since last read, author, recency.
+
+**Larger-library maintenance checkpoint (2026-10-11).** Wave 3's due evaluator still scans
+the library and loads each card's review history for a single-card read. Before expanding this
+path to larger shared libraries, bound narrow reads to the dependency closure, batch/index
+review summaries, and separate Home's folder aggregates from card detail. Measure long
+dependency chains and populated histories, not only empty-history fixtures. Reuse a captured
+qualification within a request, as the Wave 3 AX cleanup now does; a cross-request cache must
+account separately for source revisions, cadence boundaries, session use and retirement.
+The measured baseline and remaining costs are in
+[the Wave 3 debt review](plans/plan-009-tech-debt-backlog.md#wave-3-maintainability-review-2026-10-11).
 
 ### 2. The session projects itself onto the board (M)
 
@@ -241,6 +254,12 @@ A folder export (one markdown file per note plus a board file in the product's o
 
 Objection (feasibility, refuted as written): "a log written by `executeOperation` and nothing else" does not describe this codebase (487 `canvasState.` references in 40 files; the SDK makes 87 direct calls). Accepted: the XL half (state as a fold of the journal) comes after move 6 collapses the SDK onto the registry.
 
+**Journal maintenance checkpoint (2026-10-11).** Establish one authoritative mutation path
+before treating state as a journal fold. Keep evidence validation and review/restore audit
+distinct from undoable content history: replay, Undo and snapshot restore must not renew
+validation or silently erase retirement. Preserve the separate read, content, validation and
+relevance clocks through the transition and test restart/replay against those invariants.
+
 ### 5. Keep every node type; unify how they render (M)
 
 The maintainer's rule, and it is the right one: his own usage is not evidence that a node type is unused, and a node that renders any MCP app belongs in the product. So no node type is removed, and the generic `mcp-app` node stays generic. What changes is the machinery under the iframe-backed kinds (`html`, `mcp-app`, `json-render`, `graph`, `webpage`, `mermaid`), which today is spread over six components with three copies of the AX bridge and one 1,591-line frame component whose recovery ladder has produced ten rounds of black tiles (0.6.2 ships the latest as a known limitation).
@@ -252,6 +271,12 @@ A frame host is necessary but not sufficient while four hosts set the definition
 **Decided with the maintainer, 2026-10-05, replacing the 2026-09-24 decision: the workbench has no single reference width.** It lives in narrow agent-host panes, the resizable side browser in the Claude desktop app, and full browser windows of any size. The gate checks three widths in Chromium: 600 px (the narrow end), 1024 px (the middle, between the layout breakpoints) and 1920 px (a full window). Every node type must paint at all three or the release does not ship. (The 2026-09-24 decision made 600 px the one reference surface.) It is nearly free and covers the Claude Code and Codex panes and full windows, and Chromium is also the engine a hosted version would target first. What it misses is WebKit, where the Copilot app pane (the maintainer's host) and most black-tile rounds live, and which every iPhone and Safari viewer of a shared link will use. Those stay best-effort behind the visible fallback and retry. Recommended trigger for adding a WebKit project to the gate: whichever comes first of Part 3 step 2 (the read-only link) or the next WebKit-only bug that reaches a release. The compiled-binary window is not an option today: headed `Bun.WebView` is not implemented ([`bun-webview-integration.md`](bun-webview-integration.md)).
 
 Deletes: the `ExtAppFrame` recovery machinery, two of three AX-bridge copies, five per-type iframe implementations. Capabilities removed: none. Every deletion the earlier version of this move argued from "zero real uses" was withdrawn once the real boards surfaced; what remains is argued from cost and incident count only.
+
+**Wave 4 maintenance checkpoint (2026-10-11).** Consolidate frame budget, theme delivery,
+fallback and retry together rather than adding another recovery path. Reuse the existing
+shared AX bridge. Preserve authored drafts, input state, offscreen replacements and the
+painted-refresh handoff in the current browser cases. Chromium passes do not establish native
+Copilot/WebKit paint; keep that limitation explicit until separately exercised.
 
 ### 6a. Make the tool surface cheap (S) — ready to ship
 
@@ -301,6 +326,12 @@ The workbench runs at any size: a 500 to 600 px panel inside Claude Code, Codex 
 
 Both files stay, because different agents read different files (Claude Code reads CLAUDE.md; Codex, Copilot and Amp read AGENTS.md), and they stay byte-identical under the CI gate that already enforces it. Each becomes the same 120-line contract; the AX design reference moves to `docs/ax.md` and is linked from both; each "this shipped N times" paragraph becomes a test or a Biome rule where an oracle exists. Objection: the ten-time black-tile class has no executable oracle (Playwright is Chromium-only). True, and move 5 replaces the oracle ladder with a paint deadline and a visible fallback, which a test can assert; the WebKit Playwright project, when move 5's trigger adds it, covers the rest.
 
+**Maintenance with each wave (2026-10-11).** Sweep the changed subsystem for orphans,
+duplicate reads and stale public contracts. Split the large server/browser integration files
+by owning domain when those domains next change, retaining isolation and race coverage.
+Keep human browser gestures and real agent transports alongside unit tests. This is staged
+maintenance, not a broad rewrite or permission to replace behavioral checks with source matching.
+
 ### 11. Static export: the first step to sharing (M)
 
 A self-contained HTML file of one board: the renderer and the board's data in one file, read-only, with pan, zoom and card expand. It can be attached to an email or a chat message, or posted to a wiki page. No server and no authentication, and the app produces the file itself, so the no-externals rule holds. Iframe-backed nodes export their stored markup in sandboxed iframes, as they render today; a node whose content cannot be inlined (a live MCP app) exports as its last screenshot where capture is available (macOS today, see move 9) and otherwise as a labelled placeholder.
@@ -315,7 +346,14 @@ Five of the real boards include agent-generated HTML slide decks, one with 15 sl
 
 ### 13. Context lifecycle and recipe cards (M, then later classification)
 
-**Direction revised with the maintainer, 2026-10-07; planned, not implemented.** Every knowledge document has a lifecycle, including Markdown cards derived from imported sources. Use the maintainer's [context-decay framework](https://github.com/pskoett/pskoett-ai-skills/tree/5a836dc7163da6799fe34ed4283da6d7f0358f14/skills/context-decay): context loses usefulness in different ways, not at one universal half-life. Its rates are qualitative planning judgments, not probabilities that a claim is true.
+**Direction revised with the maintainer, 2026-10-07.** Folder categories, card lifecycle,
+source-driven review and inert recipe handoff are implemented in Wave 3; see
+[plan 017](plans/plan-017-knowledge-categories-and-lifecycle.md) for scope and
+[plan 018](plans/plan-018-connected-memory-wave-2.md#remaining-wave-3-stabilization-2026-10-11)
+for verification. Claim-level review, classifier assistance and shared-audience access remain
+future work. This status does not authorize a release.
+
+Every knowledge document has a lifecycle, including Markdown cards derived from imported sources. Use the maintainer's [context-decay framework](https://github.com/pskoett/pskoett-ai-skills/tree/5a836dc7163da6799fe34ed4283da6d7f0358f14/skills/context-decay): context loses usefulness in different ways, not at one universal half-life. Its rates are qualitative planning judgments, not probabilities that a claim is true.
 
 - **What can decay.** Reality (facts change), decisions (superseded choices), dependencies (versions, owners or prerequisites change), and relevance (the task changes). A document can contain several claims with different authorities and review triggers; reviewing one never validates them all.
 - **When to check.** Fast means check at use; medium means source-appropriate cadence plus event triggers; slow means maintenance or resumed work; durable means no passive expiry. Contradictions, superseding decisions and dependency changes trigger review regardless of age. Each category can supply defaults, with explicit document or claim overrides; unclassified context stays visibly unknown rather than receiving an invented expiry date.
@@ -849,6 +887,14 @@ repository before the ChatGPT validation needs it.
 - **Local runtime:** retain the Bun server, local SQLite store, filesystem access/watchers, local MCP entry point and existing CLI/SDK workflows. Local PMX must remain usable without a cloud account, hosted service or network connection for its local features.
 - **ChatGPT version / Sites runtime:** adapt the shared product to Sites' identity, storage and MCP contracts for the first validation and plugin distribution. Keep this experience working as the product grows; it is a supported delivery surface, not a disposable prototype.
 - **Cloudflare runtime:** later compose the same product into the full hosted service, with deployment, identity, storage and live-state integrations under PMX's control. Reuse suitable Sites work without making the standalone service depend on Sites.
+
+**Shared-runtime maintenance checkpoint (2026-10-11).** The current lifecycle evaluator
+acquires data from the local `canvasState` singleton. When a second runtime needs it, separate
+runtime acquisition from qualification so the same rules consume an authorized board snapshot.
+Apply access checks before computing source titles, summaries and lifecycle reasons, not only
+before returning content. Categories are not permissions. Verify unreadable-source behavior
+and the local offline path before claiming the shared boundary is ready; do not split packages
+ahead of that need.
 
 **Continuity for early local users.** Existing users keep their local canvas,
 boards, SQLite storage and local workflows as hosted versions arrive. Shared

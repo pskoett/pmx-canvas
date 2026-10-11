@@ -229,11 +229,10 @@ when both halves pass its check. Wave 2 passed its original local checkpoint
 The later [combined stabilization](plans/plan-018-connected-memory-wave-2.md#combined-stabilization)
 with the Wave 3 foundation passes 1,437 unit, 302 client and 266 headed browser tests,
 plus live human/agent checks and the final focused Oracle review.
-Wave 3 has started with the board-folder contract rename and the data-only
-[category/lifecycle foundation](plans/plan-017-knowledge-categories-and-lifecycle.md#1-data-categories-inheritance-lifecycle-review-records-no-ui).
-Relations and the user-facing
-[knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md)
-remain to be built. The [release gates](RELEASE.md) still apply before a release.
+Wave 3 now implements relations, source-driven review and the user-facing
+[knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md).
+The remaining-wave stabilization record is in that plan. The [release gates](RELEASE.md)
+still apply before a release. The owner has not authorized a release or version bump.
 This is implementation status, not a release promise or authorization to publish.
 
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
@@ -263,12 +262,42 @@ lines; auto-arrange remains local and static export retains explicit external
 connection evidence. Rich kinds/reasons, provenance-driven staleness and
 lifecycle are wave 3, not claims of this implementation.
 
+**Wave-3 implementation decisions and deviations.** The relation legend uses the six fixed
+inks, open kinds and per-board Research/Dependencies/Decision/Flow presets. The selector keeps
+the matching preset name, or “Custom vocabulary” after edits. Its 24 px control and rounded
+count chips follow `Uses`; the initial resetting selector and separate highlight menu were
+corrected after owner feedback. The legend stays below the lifecycle filters, outside the
+scrollable canvas, and Fit reserves both rows. Parallel links
+receive separate endpoint slots. Hover explains endpoints, kind and reason; the expanded
+card's Relations view uses the same qualified graph as agents, with navigable targets and a
+vocabulary editor. Connections are grouped into Evidence for/against, Sources, Used by and
+other Connections. Reasons stay in the hint/inspector, not long pills covering both endpoints.
+Research highlights evidence; Dependencies follows explicit downstream impact; Decision traces
+option/if/chosen links backward from the selected outcome; Flow reads existing AX step status.
+Custom vocabularies use the local neighborhood. These are view-only, not a decision or execution engine. Remote cards
+remain footer links, not long lines across boards.
+
+Lifecycle uses a focus-trapped dialog reachable from More or the expanded-card Lifecycle
+button, rather than replacing the expanded content with a tab. This also works for card types
+without an expanded view. Four clock tiles stay separate; only read delivery is violet. New
+review metadata clears the evidence draft and applied checkbox. Retire/Restore are audited;
+the post-retirement toast offers Undo. Filters dim nonmatches rather than deleting their spatial
+context. Due footers use variant A, including collapsed cards; healthy cards gain no badge.
+Home reports category/inheritance and due/unknown counts. Presets add only missing starter
+entries and never overwrite edits. Medium cadence is an explicit optional day count, never
+inferred from the category name. Unknown stays unknown.
+
+The `Flows` source-qualification extension distinguishes a portal's source warning from its
+own lifecycle and labels cached observations. A durable dashboard does not suppress warnings
+from a fast source. Dependency direction is source → dependent for derived-from/contradicts/
+supersedes, dependent → prerequisite for depends-on. Only explicit dependencies propagate review.
+Recipe refresh is a human-requested steering broadcast; Canvas does not execute the named tool.
+
 **Context lifecycle (direction added 2026-10-07).** [Vision move 13](product-vision-2026-09.md#13-context-lifecycle-and-recipe-cards-m-then-later-classification)
 extends Wave 3's source-change warning into evidence-backed review: decay type/rate, triggers,
 validation evidence and review outcomes. Amber means needs review, not false. Read receipts,
-content revisions, evidence validation and task relevance remain separate. The lifecycle needs
-its own review-state drawings and implementation slices before building; existing Lineage
-drawings do not specify all those states. This adds no Wave 1 prerequisite and leaves the
+content revisions, evidence validation and task relevance remain separate. Categories, Lifecycle,
+Lifecycle600 and Restore supply the review-state drawings beyond Lineage. This adds no Wave 1 prerequisite and leaves the
 curation evaluation after its remaining features. Local categories and lifecycle data work
 without a model; Jev-style classification is optional longer-term assistance, not a dependency
 of Wave 3 or the org/team/personal structure.

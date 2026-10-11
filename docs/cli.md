@@ -13,7 +13,15 @@ the active scope, without opening it. Home or an unfenced board does not bypass 
 For example: `pmx-canvas board lifecycle review '{"id":"card-id","outcome":"retain",
 "evidence":"Checked source revision v2","applied":true,"expectedBoardId":"board-id",
 "expectedContentRevision":12}'` (replace 12 with the revision of the card content actually checked).
-Read supports `board`; writes target the open board. This is data only, not a due engine or UI.
+Read supports `board`; writes target the open board. For dependencies also send `expectedSources`
+from the checked lifecycle result's `qualification.observations`; stale or unavailable sources refuse
+validation. Qualification includes due reasons, unknown/retired status and separate clocks.
+Retired cards leave active context but remain in direct reads and search, explicitly marked.
+
+`edge add` and `edge update` accept `--kind` and `--reason`; update also accepts `--clear-kind`
+and `--clear-reason`. `board vocabulary <board-id> '<JSON-array>'` sets an editable vocabulary
+of `{kind, ink, directed}`. These are semantic relations, independent of edge line type/style.
+Dependency directions and the bounded brief lifecycle snapshot are documented in the HTTP contract.
 
 The CLI is the shell-native way to run and control PMX Canvas. It targets
 `http://localhost:4313` by default — override with `PMX_CANVAS_URL` or
