@@ -511,11 +511,12 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     // carries one, else its transport/source label.
     const rawAgentId = asRecord(rawInput).agentId;
     const writerKey = typeof rawAgentId === 'string' && rawAgentId.trim() ? rawAgentId.trim() : (meta.source ?? 'api');
-    const refusal = op.mutates
-      ? checkScopeFence(op, rawInput, writerKey)
-      : name === 'ax.policy.set'
-        ? checkScopeOwnership(rawInput, writerKey)
-        : null;
+    const refusal =
+      op.mutates || name === 'knowledge.category-set' || name === 'knowledge.folder-set'
+        ? checkScopeFence(op, rawInput, writerKey)
+        : name === 'ax.policy.set'
+          ? checkScopeOwnership(rawInput, writerKey)
+          : null;
     if (refusal) throw new OperationError(`Outside the agent scope: ${refusal}`, 403);
     // User wins (item 6): a node a human is holding right now is not the
     // agent's to change — refuse with 409 so the agent requeues the edit.

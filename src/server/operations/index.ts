@@ -30,8 +30,10 @@ import { axPresenceOperations } from './ops/ax-presence.js';
 import { humanPresenceOperations } from './ops/human-presence.js';
 import { canvasWireOperations } from './ops/canvas-wire.js';
 import { importOperations } from './ops/imports.js';
+import { lifecycleOperations } from './ops/lifecycle.js';
 
 for (const op of [
+  ...lifecycleOperations,
   ...nodeOperations,
   ...edgeOperations,
   ...viewportOperations,

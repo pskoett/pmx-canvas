@@ -11,6 +11,7 @@
  * `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of 0.4.0 —
  * the one-shot boot migration into SQLite was retired.
  */
+import { KnowledgeLifecycle, type Lifecycle } from './knowledge-lifecycle.js';
 import { type Tour } from '../shared/tour.js';
 import { type WikiBoard } from './wiki-links.js';
 import { type WikiLink } from '../shared/memory-graph.js';
@@ -243,6 +244,7 @@ declare class CanvasStateManager {
     private _db;
     private _dbPath;
     private _saveTimer;
+    readonly knowledge: KnowledgeLifecycle;
     /** Workspace root backing persistence and workspace-relative path resolution. */
     get workspaceRoot(): string;
     /** Set the workspace root to enable auto-persistence. */
@@ -416,6 +418,8 @@ declare class CanvasStateManager {
     addNode(node: CanvasNodeState, savedWikiLinks?: WikiLink[]): void;
     addJsonRenderNode(node: CanvasNodeState): void;
     addGraphNode(node: CanvasNodeState): void;
+    /** Metadata stays on the stored node: no blob hydration, wiki resolution or group reflow. */
+    setNodeLifecycle(id: string, value: Lifecycle | null): void;
     updateNode(id: string, patch: Partial<CanvasNodeState>, savedWikiLinks?: WikiLink[] | null): void;
     removeNode(id: string): void;
     getNode(id: string): CanvasNodeState | undefined;

@@ -16,6 +16,21 @@ nodes in the browser, agents are notified immediately.
 > (23 tools: 17 composites plus 6 standalones). The current import workflow
 > adds `canvas_import` (24 tools: 18 composites plus 6 standalones). **Prefer the composites.**
 
+## Knowledge lifecycle data
+
+`canvas_board` adds `knowledge-list`, `category-set` (`category`), and `folder-set`
+(`path`, nullable `categoryId`, nullable `lifecycleOverride`). These workspace actions never
+open a board. `canvas_node` adds `lifecycle-get` (`id`, optional `board`), `lifecycle-set`
+(`id`, nullable `lifecycleOverride`), `review` (`id`, `outcome`, `evidence`, `applied`), and
+`lifecycle-restore` (`id`, `evidence`). Writes accept `expectedBoardId` and obey scope/edit locks.
+See [the canonical fields and semantics](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
+This slice stores history and resolves inheritance only; no due calculation or brief exclusion yet.
+Never mark applied without actually applying an outcome; only successful evidence-backed
+retain/revise/externalize with a matching `expectedContentRevision` validates. Capture that revision
+from the card content you actually checked: missing or stale preconditions refuse the review.
+Records retain the reviewed revision; content persistence failure adds no record.
+Restore never validates and only explicit restore reverses retirement.
+
 ## Board tours
 
 `canvas_view { action: "get-tour" }` returns `{ tour, derived }`, using group
@@ -244,7 +259,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | Composite | `action` values | Replaced (removed in v0.3.0) |
 |-----------|-----------------|----------|
 | `canvas_import` | `list` · `read` · `submit` · `unavailable` | Agent half of human-consented document import; request, cancel, and commit remain human-only HTTP/SDK actions |
-| `canvas_node` | `add` · `get` · `update` · `remove` | `canvas_add_node`, `canvas_get_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_add_html_node` (`add` + `type:"html"`), `canvas_add_html_primitive` (`add` + `type:"html"`, `primitive:"<kind>"`), `canvas_refresh_webpage_node` (`update` + `refresh:true`) |
+| `canvas_node` | `add` · `get` · `update` · `remove` · `lifecycle-get` · `lifecycle-set` · `review` · `lifecycle-restore` | Node CRUD, effective lifecycle, audited reviews and explicit retirement restore |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` · `workboard` | `canvas_describe_schema`, `canvas_validate_spec`, `canvas_add_json_render_node`, `canvas_stream_json_render_node`, `canvas_add_graph_node` |
 | `canvas_edge` | `add` · `update` · `remove` | `canvas_add_edge`, `canvas_update_edge`, `canvas_remove_edge` |
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
@@ -259,7 +274,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` · `read-status` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is the context read log; `read-status` is per node: last read, by whom, at which content revision) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, explicit shared-workbench switching, README designation, transactional inactive copies, and board pins (the working set across boards) |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `folder-set` | Boards and explicit workspace category/folder data |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 For receipt-safe single-card Undo, use `canvas_snapshot { action: "restore-node", id,

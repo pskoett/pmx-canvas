@@ -3,6 +3,57 @@
 REST endpoints for all canvas operations + an SSE event stream. Works from
 any language. Default base URL: `http://localhost:4313`.
 
+## Knowledge lifecycle data (plan 017 slice 1)
+
+This is a data-only contract: no due engine, UI, classifier, templates, or brief filtering yet.
+`Lifecycle` is `{ decayType: "reality"|"decision"|"dependency"|"relevance",
+rate: "fast"|"medium"|"slow"|"durable", triggers: string[], revalidationMethod: string }`.
+Strings in triggers and the method must be nonempty. Rates are qualitative, not expiration days.
+A category is the same fields plus stable `id`, editable `name` and `glyph` (nonempty strings).
+
+| Route | Input / result |
+|---|---|
+| `GET /api/canvas/knowledge` | `{ok, categories, folders}` (one workspace list; initially empty) |
+| `POST /api/canvas/knowledge/category` | `{category}` creates or replaces by id; returns `{ok, category}` |
+| `POST /api/canvas/knowledge/folder` | `{path, categoryId: string|null, lifecycleOverride: Lifecycle|null}` replaces folder properties; returns `{ok, folder}` |
+| `GET /api/canvas/node/:id/lifecycle?board=<board-id>` | Effective category/lifecycle and history, without opening that board |
+| `POST /api/canvas/node/:id/lifecycle` | `{lifecycleOverride: Lifecycle|null, expectedBoardId?}`; returns `{ok:true}` |
+| `POST /api/canvas/node/:id/review` | `{outcome, evidence: string, applied: boolean, expectedBoardId?, expectedContentRevision?}`; returns `{ok, record}` |
+| `POST /api/canvas/node/:id/lifecycle/restore` | `{evidence: string, expectedBoardId?}`; returns `{ok, record}` |
+
+Folder paths use the board-folder canonicalization (trimmed segments, at most eight levels).
+Null category inherits; null override clears that local override. An explicit child category
+starts its own defaults, discarding ancestor lifecycle overrides. A card's full override changes
+only lifecycle, never category. Unfiled/unclassified stays unknown. No defaults are inferred.
+The effective read returns `boardId`, `nodeId`, `contentRevision`, `category`, `categorySourceFolder`, `lifecycle`,
+`lifecycleSourceFolder`, `lifecycleSource` (`card`/`folder`/`unknown`), `records`, `retired`,
+and `lastValidation` (record or null). Source folders are canonical paths; null means no folder source.
+
+Outcomes are `retain`, `revise`, `externalize`, `retire`, `unresolved`. Only an **applied**
+retain/revise/externalize with non-whitespace evidence renews validation. Reviews do not perform
+content edits or externalization for you: `applied` records whether the disposition was actually
+carried out. Validating outcomes require `expectedContentRevision` from the actual content checked;
+missing is 400, a stale version is 409. Never copy a newer metadata revision onto evidence for an older
+body. The reviewed content is saved successfully before its record is appended; save failure adds
+no review. Applied retire persists until explicit restore, even after later successful reviews.
+Restore is audited with outcome `restore`, applied true, and never validates. Rows retain server
+id, board+node identity, evidence, application, actor `who`, server timestamp `when`, and reviewed
+`contentRevision` (null for legacy unversioned records, never backfilled as a current validation);
+append order resolves retirement even when timestamps coincide. Reload and board snapshots
+never erase this history. Restoring content is not restoring retirement.
+
+Workspace writes work on Home without opening/switching boards; agent workspace writes are
+refused under a scope fence. Card writes target the active board and use the existing expected
+board, scope and human edit-lock guards. Writes emit live knowledge/lifecycle notifications;
+metadata-only edits do not advance content revision or lastEditedBy. Read/delivery clocks,
+content revisions, evidence validation and task relevance remain separate; reading, editing,
+refreshing and restoration never validate. No synthetic content-change date is added to legacy cards.
+
+SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"folder-set", ...payload})`
+and `canvas.lifecycle({action:"get"|"set"|"review"|"restore", id, ...payload})` use these
+same inputs/results. `get` accepts `board`; writes accept `expectedBoardId`, and validating
+reviews require `expectedContentRevision`.
+
 `GET /health` includes `contracts: ["pmx-embedded-workbench-v4"]` when the daemon
 enforces `expectedBoardId` and `expectedContentRevision` preconditions, bulk-write
 fences/locks using validated geometry and affected automatic parent frames only,

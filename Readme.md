@@ -1,5 +1,10 @@
 # pmx-canvas
 
+**Knowledge lifecycle data:** workspace categories, inheriting folder properties, card lifecycle
+overrides and attributed evidence/review/restore history are available through HTTP, SDK, MCP
+and CLI. No default classification, expiration days, lifecycle UI or due engine is added.
+See the [contract and examples](docs/http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
+
 pmx-canvas is a visual workspace for planning, discovery, analysis, coordination,
 and orchestrating work with agents—from exploring an idea to directing its
 execution and carrying the learning forward.

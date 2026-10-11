@@ -320,6 +320,8 @@ Agent CLI (works against running server):
   pin <ids...> | --list | --clear     Manage context pins
   board list|create|open|rename|folder|pin|unpin
                                       Manage boards and open the target before writing
+  board knowledge <action> [JSON]     List/set workspace categories and folder properties
+  board lifecycle <action> <JSON>     Get/set card lifecycle, review, or explicitly restore
   backup [status|schedule]            Back up every board, now or on a schedule
   restore <backup-file>               Replace every board with a backup
   export [--board id] [--out file]    Export a board as one HTML file anyone can open

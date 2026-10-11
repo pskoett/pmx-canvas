@@ -20,6 +20,22 @@ Boards use `folder` for their nested Home path (for example `Engineering/Canvas`
 File a board with `canvas_board { action: "update", id: "<board-id>", folder:
 "Engineering/Canvas" }`; `folder: ""` unfiles it. Moving preserves its ID and content.
 
+Knowledge lifecycle data is explicit, never classified automatically. `canvas_board` actions
+`knowledge-list`, `category-set` (`category`: id/name/glyph/decayType/rate/triggers/revalidationMethod),
+and `folder-set` (`path`, nullable `categoryId`, nullable `lifecycleOverride`) work on Home without
+opening a board. `canvas_node` actions `lifecycle-get`, `lifecycle-set`, `review`, and
+`lifecycle-restore` take `id`; reads may specify `board`, writes should carry `expectedBoardId`.
+Lifecycle overrides are full decayType/rate/triggers/revalidationMethod objects or null to inherit.
+New child categories reset ancestor lifecycle defaults; cards never override category.
+Review requires outcome retain/revise/externalize/retire/unresolved, evidence, and applied.
+Only actually applied retain/revise/externalize with nonempty evidence and matching
+`expectedContentRevision` validates. Capture the revision from the actual card content you checked;
+never attach an unchecked newer revision to old evidence. Failed content persistence adds no review.
+Records retain the reviewed version; unversioned legacy records are unknown for current content. Reading,
+editing, refreshing and restoring never validate. Retirement lasts until explicit audited restore
+(evidence string), regardless of other later reviews. There is no due engine, lifecycle UI or
+brief filtering in this data-only slice. Do not claim those behaviors.
+
 At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
 falling back to broader resources. The budget is UTF-16 code units, not tokens.
@@ -232,7 +248,7 @@ always authoritative, independent of the installed release version.
 | Composite | Actions |
 |-----------|---------|
 | `canvas_import` | `list`, `read`, `submit`, `unavailable` |
-| `canvas_node` | `add`, `get`, `update`, `remove` |
+| `canvas_node` | `add`, `get`, `update`, `remove`, `lifecycle-get`, `lifecycle-set`, `review`, `lifecycle-restore` |
 | `canvas_render` | `describe-schema`, `validate`, `add-json-render`, `stream-json-render`, `add-graph`, `workboard` |
 | `canvas_edge` | `add`, `update`, `remove` |
 | `canvas_group` | `create`, `add`, `ungroup` |
@@ -246,7 +262,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads`, `read-status` |
 | `canvas_ax_delivery` | `claim`, `mark` |
-| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin` |
+| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `folder-set` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `restore-node`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 

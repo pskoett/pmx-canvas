@@ -440,12 +440,12 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | Composite | `action` values | What it does |
 |-----------|-----------------|--------------|
 | `canvas_import` | `list` · `read` · `submit` · `unavailable` | Process human-requested imports: inspect metadata/controlled bytes, submit reviewable Markdown with references/warnings/agent description, or report unavailable. Request/cancel/commit are human-only |
-| `canvas_node` | `add` · `get` · `update` · `remove` | Create / read / mutate / delete a node. **`add` covers html + primitives too**: `{ action:"add", type:"html", html:"…" }` and `{ action:"add", type:"html", primitive:"choice-grid", data:{} }` — no separate add-html tool needed |
+| `canvas_node` | `add` · `get` · `update` · `remove` · `lifecycle-get` · `lifecycle-set` · `review` · `lifecycle-restore` | Node CRUD plus effective lifecycle and audited evidence/review/restore data (no due engine or brief filtering) |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` · `workboard` | Schema introspection, spec dry-run validation, native json-render / graph node creation, and a live AX work-item board |
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, shared-workbench switching, README designation, links/backlinks, inactive copies, and board pins |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `folder-set` | Boards and workspace knowledge categories/folder properties; knowledge writes never open a board |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`); `restore-node` puts one card (`nodeId`) back to its content in snapshot `id` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
 | `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Read the budgeted brief or summary-only connected memory graph, find nodes, read full layout, or **`validate`** collisions / containment / dangling edges |

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { HumanPresenceRegistry, humanPresence } from '../../src/server/human-presence.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { createCanvas } from '../../src/server/index.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { HUMAN_GRAB_TTL_MS, HUMAN_PRESENCE_TTL_MS } from '../../src/shared/human-presence.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
@@ -64,6 +65,59 @@ describe('human presence over HTTP', () => {
   beforeEach(async () => {
     humanPresence.reset();
     await post('/api/canvas/clear', {}, { 'x-pmx-workbench': '1' });
+  });
+
+  test('lifecycle HTTP and SDK contracts preserve edit locks, scope and attribution', async () => {
+    const node = (await (await post('/api/canvas/node', { type: 'markdown', title: 'Evidence' })).json()) as {
+      id: string;
+    };
+    const id = node.id;
+    const sdk = createCanvas();
+    const lifecycleOverride = {
+      decayType: 'reality' as const,
+      rate: 'fast' as const,
+      triggers: [],
+      revalidationMethod: 'check source',
+    };
+    const read = () => fetch(`${baseUrl}/api/canvas/node/${id}/lifecycle`).then((r) => r.json());
+    await sdk.lifecycle({ action: 'set', id, lifecycleOverride });
+    expect(await read()).toMatchObject({ lifecycle: lifecycleOverride, lifecycleSource: 'card', lastValidation: null });
+    await post('/api/canvas/human-presence', { clientId: 'lifecycle-lock', grabbingNodeId: id });
+    for (const [path, body] of [
+      [`node/${id}/lifecycle`, { lifecycleOverride: null }],
+      [`node/${id}/review`, { outcome: 'retain', evidence: 'source', applied: true }],
+      [`node/${id}/lifecycle/restore`, { evidence: '' }],
+    ] as const)
+      expect((await post(`/api/canvas/${path}`, body)).status).toBe(409);
+    await expect(sdk.lifecycle({ action: 'set', id, lifecycleOverride: null })).rejects.toThrow('being edited');
+    await post('/api/canvas/human-presence', { clientId: 'lifecycle-lock', left: true });
+    const other = (await (await post('/api/canvas/node', { type: 'markdown', title: 'Fence anchor' })).json()) as {
+      id: string;
+    };
+    canvasState.setPolicy({ scope: { nodeIds: [other.id] } });
+    expect(
+      (await post(`/api/canvas/node/${id}/review`, { outcome: 'retain', evidence: 'source', applied: true })).status,
+    ).toBe(403);
+    await expect(
+      sdk.knowledge({ action: 'category-set', category: { ...lifecycleOverride, id: 'a', name: 'A', glyph: 'A' } }),
+    ).rejects.toThrow('Outside the agent scope');
+    expect(
+      (await post('/api/canvas/knowledge/folder', { path: 'A', categoryId: null, lifecycleOverride: null })).status,
+    ).toBe(403);
+    canvasState.setPolicy({ scope: null });
+    const response = await post(
+      `/api/canvas/node/${id}/review`,
+      {
+        outcome: 'retain',
+        evidence: 'source',
+        applied: true,
+        expectedContentRevision: canvasState.getNode(id)!.contentRevision,
+      },
+      { 'x-pmx-source': 'transport-test' },
+    );
+    expect(response.status).toBe(200);
+    expect(await read()).toMatchObject({ lastValidation: { who: { actor: 'agent', source: 'transport-test' } } });
+    expect(await sdk.lifecycle({ action: 'get', id })).toEqual(await read());
   });
 
   test.each([

@@ -13,6 +13,8 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
+import { KnowledgeLifecycle, lifecycleSchema, type Lifecycle } from './knowledge-lifecycle.js';
+import { OperationError } from './operations/types.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import {
   copyFileSync,
@@ -624,6 +626,13 @@ class CanvasStateManager {
 
   private normalizeNode(node: CanvasNodeState): CanvasNodeState {
     const data = { ...node.data };
+    // Lifecycle is optional metadata, never a card taxonomy or validation clock.
+    delete data.categoryId;
+    if (data.lifecycleOverride !== undefined && data.lifecycleOverride !== null) {
+      const lifecycle = lifecycleSchema.safeParse(data.lifecycleOverride);
+      if (!lifecycle.success) throw new OperationError('Invalid lifecycle override.');
+      data.lifecycleOverride = lifecycle.data;
+    }
     delete data.createdBy;
     delete data.lastEditedBy;
     delete data.contentRevision;
@@ -811,6 +820,16 @@ class CanvasStateManager {
   private _db: import('bun:sqlite').Database | null = null;
   private _dbPath: string | null = null;
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly knowledge = new KnowledgeLifecycle(
+    () => this._db,
+    () => this.notifyChange('nodes'),
+    (boardId, nodeId) => {
+      const node = this.nodes.get(nodeId);
+      if (boardId !== this._activeBoardId || !node) throw new OperationError('Card not found.', 404);
+      return node.contentRevision ?? 0;
+    },
+    () => this.flushToDisk(),
+  );
 
   /** Workspace root backing persistence and workspace-relative path resolution. */
   get workspaceRoot(): string {
@@ -820,6 +839,8 @@ class CanvasStateManager {
   /** Set the workspace root to enable auto-persistence. */
   setWorkspaceRoot(workspaceRoot: string): void {
     this.close();
+    // Detached content cannot belong to the next database, even if loading it fails.
+    this.applyPersistedState(this.emptyPersistedState());
     this._workspaceRoot = workspaceRoot;
 
     // Determine DB path. PMX_CANVAS_DB_PATH wins; PMX_CANVAS_STATE_FILE is
@@ -1038,6 +1059,8 @@ class CanvasStateManager {
         this._theme = normalizeCanvasTheme(readThemeFromDB(this._db), this._theme);
       } catch (error) {
         logCanvasStateWarning('load state from sqlite failed', error, {});
+        // Failed replacement is not an empty board: retain any live state and identity.
+        return false;
       }
     }
 
@@ -1626,6 +1649,10 @@ class CanvasStateManager {
   }
 
   private applyPersistedState(state: PersistedCanvasState): void {
+    // Validate the complete replacement before discarding any live board state.
+    const nodes = (Array.isArray(state.nodes) ? state.nodes : [])
+      .filter((node) => node?.id)
+      .map((node) => structuredClone(this.normalizeNode(node)));
     this._boardGeneration += 1;
     this._tour = state.tour ? structuredClone(state.tour) : undefined;
     this.nodes.clear();
@@ -1645,13 +1672,7 @@ class CanvasStateManager {
     };
     this._theme = normalizeCanvasTheme(state.theme, this._theme);
 
-    if (Array.isArray(state.nodes)) {
-      for (const node of state.nodes) {
-        if (node?.id) {
-          this.nodes.set(node.id, structuredClone(this.normalizeNode(node)));
-        }
-      }
-    }
+    for (const node of nodes) this.nodes.set(node.id, node);
     if (Array.isArray(state.edges)) {
       for (const edge of state.edges) {
         if (edge?.id) this.edges.set(edge.id, structuredClone(edge));
@@ -2094,6 +2115,7 @@ class CanvasStateManager {
     const copy = { ...data };
     delete copy.strictSize;
     delete copy.arrangeLocked;
+    delete copy.lifecycleOverride;
     return copy;
   }
 
@@ -2222,6 +2244,7 @@ class CanvasStateManager {
   }
 
   addNode(node: CanvasNodeState, savedWikiLinks?: WikiLink[]): void {
+    node = this.normalizeNode(node);
     const actor = currentActor();
     const cloned = structuredClone(
       this.normalizeNode(
@@ -2268,6 +2291,31 @@ class CanvasStateManager {
     this.addNode(node);
   }
 
+  /** Metadata stays on the stored node: no blob hydration, wiki resolution or group reflow. */
+  setNodeLifecycle(id: string, value: Lifecycle | null): void {
+    const existing = this.nodes.get(id);
+    if (!existing) throw new OperationError('Card not found.', 404);
+    const lifecycle = value === null ? null : lifecycleSchema.parse(value);
+    const previous = structuredClone(existing.data.lifecycleOverride) as Lifecycle | null | undefined;
+    const apply = (override: Lifecycle | null | undefined) => {
+      const node = this.nodes.get(id);
+      if (!node) return;
+      const data = { ...node.data };
+      if (override === undefined) delete data.lifecycleOverride;
+      else data.lifecycleOverride = structuredClone(override);
+      this.nodes.set(id, { ...node, data });
+      this.scheduleSave();
+      this.notifyChange('nodes');
+    };
+    apply(lifecycle);
+    this.recordMutation({
+      operationType: 'updateNode',
+      description: `Changed lifecycle of "${existing.data.title ?? id}"`,
+      forward: this.suppressed(() => apply(lifecycle)),
+      inverse: this.suppressed(() => apply(previous)),
+    });
+  }
+
   // null replays a legacy snapshot using existing records before resolving new refs.
   updateNode(id: string, patch: Partial<CanvasNodeState>, savedWikiLinks?: WikiLink[] | null): void {
     const existing = this.nodes.get(id);
@@ -2285,9 +2333,6 @@ class CanvasStateManager {
       }
     }
     const oldSnapshot = structuredClone(existing);
-    if (existing.type === 'group' && patch.position) {
-      this.translateGroupChildren(id, patch.position.x - existing.position.x, patch.position.y - existing.position.y);
-    }
     let nextNode = this.normalizeNode(
       this.bindWikiLinks(
         { ...existing, ...patch },
@@ -2296,6 +2341,9 @@ class CanvasStateManager {
         savedWikiLinks !== null && !!patch.data && 'content' in patch.data,
       ),
     );
+    if (existing.type === 'group' && patch.position) {
+      this.translateGroupChildren(id, patch.position.x - existing.position.x, patch.position.y - existing.position.y);
+    }
     if (this.nodeContentChanged(existing, nextNode)) {
       const data = { ...nextNode.data };
       const suppliedData = patch.data;

@@ -254,6 +254,9 @@ export declare class PmxCanvas extends EventEmitter {
         nodeIds: string[];
     }>;
     createBoard(name: string, folder?: string): Promise<CanvasBoard>;
+    /** Workspace category and folder actions do not open a board. */
+    knowledge<T extends import('./knowledge-lifecycle.js').KnowledgeInput>(input: T): Promise<import('./knowledge-lifecycle.js').KnowledgeResults[T['action']]>;
+    lifecycle<T extends import('./knowledge-lifecycle.js').LifecycleInput>(input: T): Promise<import('./knowledge-lifecycle.js').LifecycleResults[T['action']]>;
     /** Rename a board and/or file it under a folder (`folder: null` unfiles it). */
     updateBoard(id: string, patch: {
         name?: string;
@@ -752,3 +755,4 @@ export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, Ht
 export { traceManager } from './trace-manager.js';
 export type { PmxAxApprovalGate, PmxAxApprovalStatus, PmxAxCommandDescriptor, PmxAxContext, PmxAxEvent, PmxAxElicitation, PmxAxElicitationStatus, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxModeRequestStatus, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxTimelineSummary, PmxAxWorkItem, PmxAxWorkItemStatus, } from './ax-state.js';
 export type { AxTimelineQuery } from './canvas-db.js';
+export type { Lifecycle, KnowledgeCategory, FolderProperties, ReviewRecord, KnowledgeInput, KnowledgeResults, LifecycleInput, LifecycleResults, } from './knowledge-lifecycle.js';

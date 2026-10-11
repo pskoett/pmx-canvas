@@ -161,6 +161,10 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
   const input = asRecord(rawInput);
   if (BOARD_WIDE_OPS.has(op.name)) return { boardWide: true };
   switch (op.name) {
+    case 'node.lifecycle-set':
+    case 'node.review':
+    case 'node.lifecycle-restore':
+      return { nodeIds: [str(input.id)] };
     case 'canvas.apply-updates':
       return applyUpdatesTarget(input);
     case 'node.update': {

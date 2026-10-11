@@ -846,6 +846,25 @@ export class PmxCanvas extends EventEmitter {
     return result.board;
   }
 
+  /** Workspace category and folder actions do not open a board. */
+  async knowledge<T extends import('./knowledge-lifecycle.js').KnowledgeInput>(
+    input: T,
+  ): Promise<import('./knowledge-lifecycle.js').KnowledgeResults[T['action']]> {
+    const { action, ...payload } = input;
+    return (await executeOperation(`knowledge.${action}`, payload, {
+      source: 'sdk',
+    })) as import('./knowledge-lifecycle.js').KnowledgeResults[T['action']];
+  }
+
+  async lifecycle<T extends import('./knowledge-lifecycle.js').LifecycleInput>(
+    input: T,
+  ): Promise<import('./knowledge-lifecycle.js').LifecycleResults[T['action']]> {
+    const { action, ...payload } = input;
+    return (await executeOperation(action === 'review' ? 'node.review' : `node.lifecycle-${action}`, payload, {
+      source: 'sdk',
+    })) as import('./knowledge-lifecycle.js').LifecycleResults[T['action']];
+  }
+
   /** Rename a board and/or file it under a folder (`folder: null` unfiles it). */
   async updateBoard(
     id: string,
@@ -1851,3 +1870,13 @@ export type {
   PmxAxWorkItemStatus,
 } from './ax-state.js';
 export type { AxTimelineQuery } from './canvas-db.js';
+export type {
+  Lifecycle,
+  KnowledgeCategory,
+  FolderProperties,
+  ReviewRecord,
+  KnowledgeInput,
+  KnowledgeResults,
+  LifecycleInput,
+  LifecycleResults,
+} from './knowledge-lifecycle.js';

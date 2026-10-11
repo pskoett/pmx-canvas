@@ -14,10 +14,10 @@ import type { PmxAxSource } from '../../ax-state.js';
 export declare const AX_SOURCES: readonly ["agent", "amp", "api", "browser", "cli", "codex", "copilot", "mcp", "sdk", "system"];
 /** Zod schema for the optional `source` field shared by AX MCP tool shapes. */
 export declare const AX_SOURCE_SHAPE: z.ZodOptional<z.ZodEnum<{
-    amp: "amp";
     agent: "agent";
     system: "system";
     sdk: "sdk";
+    amp: "amp";
     api: "api";
     browser: "browser";
     cli: "cli";

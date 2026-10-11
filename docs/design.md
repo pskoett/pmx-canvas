@@ -226,7 +226,9 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
 Each wave pairs a vision move with the design that shows it. A wave is done only
 when both halves pass its check. Wave 2 passed the local stabilization gates
 (1,418 unit, 276 client and 248 headed browser tests, plus live human/agent checks).
-Wave 3 has started with the board-folder contract rename; relations and
+Wave 3 has started with the board-folder contract rename and the data-only
+[category/lifecycle foundation](plans/plan-017-knowledge-categories-and-lifecycle.md#1-data-categories-inheritance-lifecycle-review-records-no-ui).
+Relations and the user-facing
 [knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md)
 remain to be built. The [release gates](RELEASE.md) still apply before a release.
 This is implementation status, not a release promise or authorization to publish.

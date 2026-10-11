@@ -1,5 +1,18 @@
 # CLI reference
 
+## Knowledge lifecycle data
+
+`pmx-canvas board knowledge list` reads workspace categories/folders.
+`pmx-canvas board knowledge category-set '<JSON>'` accepts `{category: {...}}`;
+`board knowledge folder-set '<JSON>'` accepts `{path, categoryId, lifecycleOverride}`.
+Neither workspace write opens a board; scope fences refuse agent workspace writes.
+`pmx-canvas board lifecycle get|set|review|restore '<JSON>'` uses `id` and the
+[HTTP contract fields](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
+For example: `pmx-canvas board lifecycle review '{"id":"card-id","outcome":"retain",
+"evidence":"Checked source revision v2","applied":true,"expectedBoardId":"board-id",
+"expectedContentRevision":12}'` (replace 12 with the revision of the card content actually checked).
+Read supports `board`; writes target the open board. This is data only, not a due engine or UI.
+
 The CLI is the shell-native way to run and control PMX Canvas. It targets
 `http://localhost:4313` by default — override with `PMX_CANVAS_URL` or
 `PMX_CANVAS_PORT` when the server runs elsewhere, or per invocation with the

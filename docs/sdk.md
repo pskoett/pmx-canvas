@@ -7,6 +7,32 @@ The published SDK entrypoint is Bun-first. Node.js consumers should use the
 bun add pmx-canvas
 ```
 
+## Knowledge lifecycle data
+
+`await canvas.knowledge({action: "list"})` reads the workspace category list and folder
+properties. `category-set` and `folder-set` use the [HTTP contract fields](http-api.md#knowledge-lifecycle-data-plan-017-slice-1)
+without opening a board. `await canvas.lifecycle({action: "get", id, board})` reads inherited
+policy and review history; `set`, `review` and `restore` write the active board and accept
+`expectedBoardId`. These registry-backed SDK writes obey the same scope and human edit locks
+as HTTP/MCP. No lifecycle UI, due engine or brief filtering is implemented in this data slice.
+
+After actually checking the card and its evidence, capture its semantic version rather than
+acknowledging a newer body you have not read:
+
+```ts
+const reviewed = canvas.getNode(cardId)!;
+// Inspect this content and verify its source before recording success.
+await canvas.lifecycle({
+  action: 'review', id: cardId, expectedBoardId: boardId,
+  outcome: 'retain', evidence: 'Checked source revision v2', applied: true,
+  expectedContentRevision: reviewed.contentRevision ?? 0,
+});
+```
+
+Missing/stale validating preconditions fail. Reviewed content must persist before the audit
+record. Read, edit, refresh and explicit retirement restore never renew validation; historical
+records retain their reviewed revision, and legacy unversioned evidence remains unknown.
+
 ## Quick example
 
 ```ts

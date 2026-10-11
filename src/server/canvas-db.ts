@@ -55,6 +55,13 @@ export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'ha
 }
 
 const SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS knowledge_categories (id TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS folder_properties (path TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS review_records (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id TEXT NOT NULL, node_id TEXT NOT NULL, value TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS review_records_target ON review_records (board_id, node_id, sequence);
   CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -420,6 +427,8 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
   const db = new Database(dbPath);
+  // Concurrent openers may contend even while negotiating the journal mode.
+  db.exec('PRAGMA busy_timeout=5000');
   db.exec('PRAGMA journal_mode=WAL');
   // FULL, not NORMAL: under WAL, NORMAL lets a host/OS-level crash lose the most
   // recent commits (a clean process exit loses nothing either way). The reporter of
@@ -428,7 +437,6 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   // typical save is a row or two — so that objection is gone and the durability is
   // worth the fsync.
   db.exec('PRAGMA synchronous=FULL');
-  db.exec('PRAGMA busy_timeout=5000');
   if (needsBoardsMigration(db)) migrateToBoards(db, dbPath, options.migratedBoardName ?? 'Board');
   db.exec(SCHEMA_SQL);
   db.exec(CONTEXT_READS_SCHEMA_SQL);

@@ -299,7 +299,7 @@
     },
     {
       "name": "canvas_board",
-      "description": "Boards in this workspace — the library of the human's and your working memory, filed in folders on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action \"list\" returns every board (with its folder), most recently opened first; \"get\" reads one (default: the open board); \"create\" makes a new empty board WITHOUT opening it (optional folder); \"open\" explicitly switches the shared workbench to id (null or omitted opens Home), changing the visible board and subsequent write target. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. \"update\" renames a board, files it under a folder (folder \"\" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with \"update\". Preserve an existing README unless the human asks to change it; humans can override the designation manually. \"pin\" adds a board to the working set (its README and pinned cards reach your brief whichever board is open; optional reason), \"unpin\" removes it; a pinned board is read-only context, never a write target. Only the human deletes boards.",
+      "description": "Knowledge data: knowledge-list reads categories/folders; category-set replaces category (id/name/glyph/decayType/rate/triggers/revalidationMethod); folder-set replaces path/categoryId/lifecycleOverride (null inherits). These workspace actions never open a board and are refused under agent scope fences. Boards in this workspace — the library of the human's and your working memory, filed in folders on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action \"list\" returns every board (with its folder), most recently opened first; \"get\" reads one (default: the open board); \"create\" makes a new empty board WITHOUT opening it (optional folder); \"open\" explicitly switches the shared workbench to id (null or omitted opens Home), changing the visible board and subsequent write target. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. \"update\" renames a board, files it under a folder (folder \"\" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with \"update\". Preserve an existing README unless the human asks to change it; humans can override the designation manually. \"pin\" adds a board to the working set (its README and pinned cards reach your brief whichever board is open; optional reason), \"unpin\" removes it; a pinned board is read-only context, never a write target. Only the human deletes boards.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -312,10 +312,13 @@
               "create-from",
               "open",
               "update",
+              "knowledge-list",
+              "category-set",
+              "folder-set",
               "pin",
               "unpin"
             ],
-            "description": "Operation to perform: list | get | create | create-from | open | update | pin | unpin."
+            "description": "Operation to perform: list | get | create | create-from | open | update | pin | unpin | knowledge-list | category-set | folder-set."
           },
           "id": {
             "description": "Board id (default: the open board)"
@@ -380,6 +383,123 @@
               }
             ]
           },
+          "category": {
+            "type": "object",
+            "properties": {
+              "decayType": {
+                "type": "string",
+                "enum": [
+                  "reality",
+                  "decision",
+                  "dependency",
+                  "relevance"
+                ]
+              },
+              "rate": {
+                "type": "string",
+                "enum": [
+                  "fast",
+                  "medium",
+                  "slow",
+                  "durable"
+                ]
+              },
+              "triggers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "revalidationMethod": {
+                "type": "string",
+                "minLength": 1
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "glyph": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "decayType",
+              "rate",
+              "triggers",
+              "revalidationMethod",
+              "id",
+              "name",
+              "glyph"
+            ],
+            "additionalProperties": false
+          },
+          "path": {
+            "type": "string"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycleOverride": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "decayType": {
+                    "type": "string",
+                    "enum": [
+                      "reality",
+                      "decision",
+                      "dependency",
+                      "relevance"
+                    ]
+                  },
+                  "rate": {
+                    "type": "string",
+                    "enum": [
+                      "fast",
+                      "medium",
+                      "slow",
+                      "durable"
+                    ]
+                  },
+                  "triggers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "revalidationMethod": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "decayType",
+                  "rate",
+                  "triggers",
+                  "revalidationMethod"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
             "description": "Why this board matters; shown to the human on hover",
             "type": "string"
@@ -397,7 +517,7 @@
     },
     {
       "name": "canvas_node",
-      "description": "Create, read, update, or remove a canvas node. One tool for node CRUD: action \"add\" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); \"get\" reads one node by id; \"update\" patches an existing node (title, content, position, size, data); \"remove\" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use canvas_app (actions: open-mcp-app, diagram, build-artifact).",
+      "description": "Lifecycle data: lifecycle-get reads effective inheritance and review history (optional board); lifecycle-set sets full lifecycleOverride or null; review requires outcome retain/revise/externalize/retire/unresolved, evidence and applied. Applied retain/revise/externalize with nonempty evidence also requires expectedContentRevision from the content actually checked; stale reviews fail. Records keep that revision and persist content before evidence. lifecycle-restore requires evidence and explicitly restores retirement, never validation. Writes accept expectedBoardId and obey edit locks/scope. No due engine or brief filtering yet. Create, read, update, or remove a canvas node. One tool for node CRUD: action \"add\" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); \"get\" reads one node by id; \"update\" patches an existing node (title, content, position, size, data); \"remove\" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use canvas_app (actions: open-mcp-app, diagram, build-artifact).",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -407,9 +527,13 @@
               "add",
               "get",
               "update",
-              "remove"
+              "remove",
+              "lifecycle-get",
+              "lifecycle-set",
+              "review",
+              "lifecycle-restore"
             ],
-            "description": "Operation to perform: add | get | update | remove."
+            "description": "Operation to perform: add | get | update | remove | lifecycle-get | lifecycle-set | review | lifecycle-restore."
           },
           "intentId": {
             "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
@@ -572,8 +696,7 @@
             "description": "The node ID to retrieve"
           },
           "board": {
-            "description": "Board id to read without opening it.",
-            "type": "string"
+            "description": "Board id to read without opening it."
           },
           "includeBlobs": {
             "description": "Include full blob payloads instead of blob summaries."
@@ -622,6 +745,80 @@
           },
           "refresh": {
             "description": "Webpage nodes: pass true to re-fetch the page instead of patching fields."
+          },
+          "expectedBoardId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycleOverride": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "decayType": {
+                    "type": "string",
+                    "enum": [
+                      "reality",
+                      "decision",
+                      "dependency",
+                      "relevance"
+                    ]
+                  },
+                  "rate": {
+                    "type": "string",
+                    "enum": [
+                      "fast",
+                      "medium",
+                      "slow",
+                      "durable"
+                    ]
+                  },
+                  "triggers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "revalidationMethod": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "decayType",
+                  "rate",
+                  "triggers",
+                  "revalidationMethod"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "retain",
+              "revise",
+              "externalize",
+              "retire",
+              "unresolved"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "applied": {
+            "type": "boolean"
           }
         },
         "required": [

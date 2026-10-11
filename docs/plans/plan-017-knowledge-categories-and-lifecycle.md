@@ -1,7 +1,7 @@
 # Plan 017 — Knowledge categories and context lifecycle
 
-**Status:** Wave 3 in progress after the stabilized Wave 2 checkpoint. Slice 0 is implemented;
-categories, lifecycle and the remaining slices are not implemented yet. Not a release.
+**Status:** Wave 3 in progress after the stabilized Wave 2 checkpoint. Slices 0 and 1 are implemented;
+the brief, UI and due engine (slices 2–5) remain pending. Not a release.
 **Date:** 2026-10-07
 **Source:** vision [move 13](../product-vision-2026-09.md#13-context-lifecycle-and-recipe-cards-m-then-later-classification)
 (decided model) and Part 3 (user-defined knowledge scopes); [design.md](../design.md) wave 3.
@@ -65,7 +65,27 @@ lifecycle UI or review behavior in this slice.
 - Four-layer parity: read and write categories, set a folder's category, override a card's
   lifecycle, record an outcome, retire, restore.
 
-### 2. The brief
+**Implemented 2026-10-11 (data only).** Workspace category/folder replacements, one effective
+resolver with source paths, full nullable card overrides, and append-only attributed review/restore
+records are persisted. Explicit child categories reset ancestor lifecycle overrides; unknown stays
+unknown. Only applied retain/revise/externalize with nonempty evidence renew validation. Retirement
+survives unrelated reviews/content restoration until explicit audited restore. History is qualified
+by board+node and remains outside snapshots. Lifecycle-only edits preserve semantic revision and
+lastEditedBy; no speculative date is stamped onto legacy content. Workspace writes on Home do not
+open boards and do not bypass agent fences. Active-card writes use the existing board, scope and
+human-lock boundary. HTTP/SDK/MCP/CLI share the registry contract; MCP extends canvas_board and
+canvas_node rather than adding tools. See [public fields](../http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
+Validating outcomes require the reviewed content revision; stale reviews fail with 409. The body
+is flushed before an audit append, so a failed save cannot leave a durable validation of lost text.
+Unit (1431) and client (276) suites, build, typecheck and lint pass (zero lint errors; existing
+warnings remain). Oracle findings were reproduced and fixed, including metadata-only edits,
+failed load/workspace rebinding and concurrent database opens; the final focused review found
+no data-slice blocker. Live human Source drafts and selection survive CLI lifecycle changes;
+CLI retain → retire → restore preserves the validation and attributed audit history across restart.
+A separate workbench reconnect-attribution bug found during that walkthrough is being stabilized.
+No lifecycle browser appearance changed; the user-facing review controls remain pending.
+
+### 2. The brief (pending)
 
 - Retired cards leave the brief; restored cards return.
 - Each delivered card carries its qualification when it has one: review due (with reason),
@@ -75,13 +95,13 @@ lifecycle UI or review behavior in this slice.
   separately from their own lifecycle. A durable container never suppresses a source warning;
   unreadable targets disclose neither content nor lifecycle metadata.
 
-### 3. Menus: folder settings, category editor, card Lifecycle tab
+### 3. Menus: folder settings, category editor, card Lifecycle tab (pending)
 
 Per `Categories`, `CategoryEditor`, `Lifecycle`: choose or inherit a category; edit the one list
 and start from a template; the card tab with inherited/override switch, the four clocks as
 separate tiles (only "read by agent" violet), outcomes with evidence, history, retire/restore.
 
-### 4. The board and Home
+### 4. The board and Home (pending)
 
 Variant A: "⧗ review due" bottom line (outlined amber, glyph + word + reason) only while due;
 filter row (All / To review / Retired); Undo toast after retire; Home folder rows with category
@@ -91,7 +111,7 @@ Dashboard source warnings identify the affected source rather than marking every
 Extend the portal/source-card drawings to distinguish “source needs review” from the card's own
 review reason before building this state; no additional healthy-card badge is required.
 
-### 5. When review is due
+### 5. When review is due (pending)
 
 Rate-based checks plus event triggers already observable: a provenance source changed, a
 superseding decision linked, a dependency card changed. Recipe cards (move 13) add the "refresh

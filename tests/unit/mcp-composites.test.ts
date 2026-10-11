@@ -110,6 +110,91 @@ afterEach(async () => {
 });
 
 describe('MCP composite tools (plan-006)', () => {
+  test('knowledge lifecycle actions have MCP/HTTP/CLI parity without a Home board switch', async () => {
+    const { client, port } = await createMcpSession();
+    try {
+      const lifecycle = { decayType: 'decision', rate: 'durable', triggers: [], revalidationMethod: 'check decision' };
+      const result = await call(client, 'canvas_board', {
+        action: 'category-set',
+        category: { ...lifecycle, id: 'decisions', name: 'Decisions', glyph: 'D' },
+      });
+      expect(result.isError).not.toBe(true);
+      const base = await resolveBaseUrl(port);
+      expect(await (await fetch(`${base}/api/canvas/boards`)).json()).toMatchObject({ activeBoardId: null });
+      expect(
+        (
+          await call(client, 'canvas_board', {
+            action: 'folder-set',
+            path: 'A/B',
+            categoryId: 'decisions',
+            lifecycleOverride: null,
+          })
+        ).isError,
+      ).not.toBe(true);
+      const list = parseJsonText(await call(client, 'canvas_board', { action: 'knowledge-list' }));
+      expect(list).toEqual(await (await fetch(`${base}/api/canvas/knowledge`)).json());
+      const board = parseJsonText<{ board: { id: string } }>(
+        await call(client, 'canvas_board', { action: 'create', name: 'Lifecycle', folder: 'A/B' }),
+      ).board;
+      await call(client, 'canvas_board', { action: 'open', id: board.id });
+      const node = parseJsonText<{ id: string }>(
+        await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Decision' }),
+      );
+      expect(
+        (
+          await call(client, 'canvas_node', {
+            action: 'lifecycle-set',
+            id: node.id,
+            lifecycleOverride: { ...lifecycle, rate: 'slow' },
+            expectedBoardId: board.id,
+          })
+        ).isError,
+      ).not.toBe(true);
+      expect(
+        (
+          await call(client, 'canvas_node', {
+            action: 'review',
+            id: node.id,
+            outcome: 'retire',
+            evidence: 'superseded',
+            applied: true,
+          })
+        ).isError,
+      ).not.toBe(true);
+      const get = () => call(client, 'canvas_node', { action: 'lifecycle-get', id: node.id });
+      expect(parseJsonText(await get())).toMatchObject({
+        retired: true,
+        lastValidation: null,
+        category: { id: 'decisions' },
+        lifecycle: { rate: 'slow' },
+      });
+      expect(
+        (await call(client, 'canvas_node', { action: 'lifecycle-restore', id: node.id, evidence: 'needed' })).isError,
+      ).not.toBe(true);
+      const effective = parseJsonText(await get());
+      expect(effective).toEqual(await (await fetch(`${base}/api/canvas/node/${node.id}/lifecycle`)).json());
+      const child = Bun.spawn(
+        [
+          'bun',
+          'run',
+          fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)),
+          'board',
+          'lifecycle',
+          'get',
+          JSON.stringify({ id: node.id }),
+          '--server-url',
+          base,
+        ],
+        { stdout: 'pipe', stderr: 'pipe' },
+      );
+      const stdout = await new Response(child.stdout).text();
+      expect(await child.exited).toBe(0);
+      expect(JSON.parse(stdout)).toEqual(effective);
+    } finally {
+      await client.close();
+    }
+  });
+
   test.each([false, true])('duplicate-id edges remain qualified in MCP reads (app=%s)', async (app) => {
     let sourceBoard = '';
     let targetBoard = '';

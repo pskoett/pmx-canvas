@@ -2,6 +2,34 @@
 
 import { cmd, die, getStringFlag, invokeOperation, output, parseFlags, showCommandHelp } from '../shared.js';
 
+cmd(
+  'board knowledge',
+  'Workspace knowledge actions with a JSON payload',
+  [
+    'pmx-canvas board knowledge list',
+    'pmx-canvas board knowledge folder-set \'{"path":"A","categoryId":null,"lifecycleOverride":null}\'',
+  ],
+  async (args) => {
+    const [action, payload = '{}'] = args;
+    if (!['list', 'category-set', 'folder-set'].includes(action ?? ''))
+      die('Expected list, category-set or folder-set.');
+    output(await invokeOperation(`knowledge.${action}`, JSON.parse(payload)));
+  },
+);
+
+cmd(
+  'board lifecycle',
+  'Card lifecycle and audited reviews with a JSON payload',
+  ['pmx-canvas board lifecycle get \'{"id":"card"}\''],
+  async (args) => {
+    const [action, payload = '{}'] = args;
+    if (!['get', 'set', 'review', 'restore'].includes(action ?? '')) die('Expected get, set, review or restore.');
+    output(
+      await invokeOperation(action === 'review' ? 'node.review' : `node.lifecycle-${action}`, JSON.parse(payload)),
+    );
+  },
+);
+
 cmd('board list', 'List boards, most recently opened first', ['pmx-canvas board list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('board list');

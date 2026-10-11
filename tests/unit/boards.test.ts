@@ -347,6 +347,349 @@ beforeEach(() => {
   root = createTestWorkspace('pmx-canvas-boards-');
 });
 
+test('knowledge inheritance resets at explicit child categories, clears overrides and survives reload without opening Home', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const lifecycle = {
+    decayType: 'reality',
+    rate: 'fast',
+    triggers: ['source changed'],
+    revalidationMethod: 'check source',
+  };
+  await executeOperation('knowledge.category-set', { category: { ...lifecycle, id: 'a', name: 'A', glyph: 'A' } });
+  await executeOperation('knowledge.category-set', {
+    category: { ...lifecycle, rate: 'durable', id: 'b', name: 'B', glyph: 'B' },
+  });
+  await executeOperation('knowledge.folder-set', {
+    path: ' A ',
+    categoryId: 'a',
+    lifecycleOverride: { ...lifecycle, rate: 'slow' },
+  });
+  await executeOperation('knowledge.folder-set', { path: 'A/B', categoryId: 'b', lifecycleOverride: null });
+  const board = canvasState.createBoard('Knowledge', 'A/B/C')!;
+  canvasState.switchBoard(board.id);
+  canvasState.addNode(note('shared', 'Knowledge'));
+  const read = () => executeOperation('node.lifecycle-get', { id: 'shared', board: board.id });
+  expect(await read()).toMatchObject({
+    category: { id: 'b' },
+    lifecycle: { rate: 'durable' },
+    categorySourceFolder: 'A/B',
+  });
+  const before = structuredClone(canvasState.getNode('shared'));
+  await executeOperation('node.lifecycle-set', {
+    id: 'shared',
+    lifecycleOverride: lifecycle,
+    expectedBoardId: board.id,
+  });
+  expect(canvasState.getNode('shared')).toMatchObject({
+    contentRevision: before!.contentRevision,
+    lastEditedBy: before!.lastEditedBy,
+  });
+  expect(await read()).toMatchObject({ category: { id: 'b' }, lifecycle: { rate: 'fast' }, lifecycleSource: 'card' });
+  await executeOperation('node.lifecycle-set', { id: 'shared', lifecycleOverride: null });
+  await executeOperation('knowledge.folder-set', { path: 'A/B', categoryId: null, lifecycleOverride: null });
+  expect(await read()).toMatchObject({
+    category: { id: 'a' },
+    lifecycle: { rate: 'slow' },
+    lifecycleSourceFolder: 'A',
+  });
+  canvasState.switchBoard(null);
+  await executeOperation('knowledge.category-set', {
+    category: { ...lifecycle, id: 'a', name: 'Renamed', glyph: 'R' },
+  });
+  expect(canvasState.activeBoardId).toBeNull();
+  canvasState.close();
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  expect(await read()).toMatchObject({ category: { name: 'Renamed' }, lifecycle: { rate: 'slow' } });
+});
+
+test('audited reviews separate application, evidence, retirement, restoration and duplicate card identities', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const a = canvasState.createBoard('A')!;
+  canvasState.switchBoard(a.id);
+  canvasState.addNode(note('shared', 'A'));
+  const read = () => executeOperation('node.lifecycle-get', { id: 'shared', board: a.id });
+  const review = (outcome: string, applied: boolean, evidence: string) =>
+    executeOperation(
+      'node.review',
+      {
+        id: 'shared',
+        outcome,
+        applied,
+        evidence,
+        agentId: 'reviewer',
+        expectedContentRevision: canvasState.getNode('shared')!.contentRevision,
+      },
+      { source: 'sdk' },
+    );
+  expect(await read()).toMatchObject({ lifecycle: null, lastValidation: null, retired: false });
+  for (const [outcome, applied, evidence] of [
+    ['retain', false, 'source'],
+    ['revise', true, '  '],
+    ['unresolved', true, 'source'],
+  ] as const) {
+    await review(outcome, applied, evidence);
+    expect(await read()).toMatchObject({ lastValidation: null });
+  }
+  await review('retain', true, 'source v1');
+  expect(await read()).toMatchObject({
+    lastValidation: { evidence: 'source v1', who: { actor: 'agent', source: 'sdk', agentId: 'reviewer' } },
+  });
+  await review('retire', false, 'not applied');
+  expect(await read()).toMatchObject({ retired: false });
+  await review('retire', true, 'superseded');
+  await review('externalize', true, 'source v2');
+  expect(await read()).toMatchObject({ retired: true, lastValidation: { evidence: 'source v2' } });
+  const beforeContent = canvasState.getNode('shared')!.contentRevision!;
+  await executeOperation('node.update', { id: 'shared', content: 'Revised content, not validated' });
+  expect(canvasState.getNode('shared')!.contentRevision!).toBeGreaterThan(beforeContent);
+  await executeOperation('node.get', { id: 'shared' });
+  expect(await read()).toMatchObject({ retired: true, lastValidation: { evidence: 'source v2' } });
+  await executeOperation('node.lifecycle-restore', { id: 'shared', evidence: 'needed again' });
+  expect(await read()).toMatchObject({ retired: false, lastValidation: { evidence: 'source v2' } });
+  const b = canvasState.createBoard('B')!;
+  canvasState.switchBoard(b.id);
+  canvasState.addNode(note('shared', 'B'));
+  expect(await executeOperation('node.lifecycle-get', { id: 'shared' })).toMatchObject({
+    records: [],
+    lastValidation: null,
+  });
+  await expect(
+    executeOperation('node.review', {
+      id: 'shared',
+      outcome: 'retire',
+      applied: true,
+      evidence: '',
+      expectedBoardId: a.id,
+    }),
+  ).rejects.toThrow('active board changed');
+  canvasState.close();
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  expect(await read()).toMatchObject({ retired: false, lastValidation: { evidence: 'source v2' } });
+});
+
+test('rejected lifecycle data leaves a group patch atomic', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const original = canvasState.createBoard('Original')!;
+  canvasState.switchBoard(original.id);
+  canvasState.addNode(note('child', 'Original child'));
+  canvasState.addNode({ ...note('group', 'Group'), type: 'group', data: { title: 'Group' } });
+  canvasState.groupNodes('group', ['child']);
+  const before = canvasState.getLayout();
+  await expect(
+    executeOperation('node.update', { id: 'group', position: { x: 500, y: 300 }, data: { lifecycleOverride: {} } }),
+  ).rejects.toThrow();
+  expect(canvasState.getLayout()).toEqual(before);
+});
+
+test('failed lifecycle board and snapshot loads preserve the original identity, content and persisted rows', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const original = canvasState.createBoard('Original')!;
+  canvasState.switchBoard(original.id);
+  canvasState.addNode(note('child', 'Original child'));
+  const before = canvasState.getLayout();
+  const snapshot = canvasState.saveSnapshot('Original snapshot')!;
+  const other = canvasState.createBoard('Other')!;
+  canvasState.switchBoard(other.id);
+  canvasState.addNode(note('other-child', 'Other child'));
+  canvasState.flushToDisk();
+  canvasState.switchBoard(original.id);
+  const db = new Database(canvasState.databasePath!);
+  try {
+    db.run("UPDATE nodes SET data=json_set(data, '$.lifecycleOverride', json('{}')) WHERE board_id=?", [other.id]);
+    db.run("UPDATE snapshot_nodes SET data=json_set(data, '$.lifecycleOverride', json('{}')) WHERE snapshot_id=?", [
+      snapshot.id,
+    ]);
+    const stored = db.query('SELECT board_id,id,data FROM nodes ORDER BY board_id,id').all();
+    expect(() => canvasState.switchBoard(other.id)).toThrow();
+    expect(canvasState.activeBoardId).toBe(original.id);
+    expect(canvasState.getLayout()).toEqual(before);
+    expect(canvasState.restoreSnapshot(snapshot.id)).toBe(false);
+    expect(canvasState.getLayout()).toEqual(before);
+    canvasState.writeWorkspaceMeta('active_board', other.id);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(false);
+    expect(canvasState.activeBoardId).toBe(original.id);
+    expect(canvasState.getLayout()).toEqual(before);
+    canvasState.writeWorkspaceMeta('active_board', original.id);
+    canvasState.flushToDisk();
+    canvasState.close();
+    resetCanvasForTests(root);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    expect(canvasState.activeBoardId).toBe(original.id);
+    expect(canvasState.getLayout()).toEqual(before);
+    expect(db.query('SELECT board_id,id,data FROM nodes ORDER BY board_id,id').all()).toEqual(stored);
+  } finally {
+    db.close();
+  }
+});
+
+test('a failed load after workspace rebinding never exposes or persists the previous library', () => {
+  const otherRoot = createTestWorkspace('pmx-other-library-');
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const original = canvasState.createBoard('Private library')!;
+  canvasState.switchBoard(original.id);
+  canvasState.addNode(note('private', 'Private content from A'));
+  canvasState.flushToDisk();
+  try {
+    canvasState.setWorkspaceRoot(otherRoot);
+    canvasState.loadFromDisk({ clearExisting: true });
+    const other = canvasState.createBoard('Other library')!;
+    canvasState.switchBoard(other.id);
+    canvasState.addNode(note('public', 'Original B content'));
+    canvasState.flushToDisk();
+    const db = new Database(canvasState.databasePath!);
+    try {
+      db.run("UPDATE nodes SET data=json_set(data, '$.lifecycleOverride', json('{}')) WHERE board_id=?", [other.id]);
+      canvasState.setWorkspaceRoot(root);
+      expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+      expect(canvasState.getNode('private')!.data.content).toBe('Private content from A');
+      // No reset helper here: the real rebind must detach A even when B cannot load.
+      canvasState.setWorkspaceRoot(otherRoot);
+      expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(false);
+      const exposed = canvasState.getLayout().nodes.map((node) => node.id);
+      canvasState.flushToDisk();
+      const leaked = db
+        .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM nodes WHERE id='private'")
+        .get()!.count;
+      expect({ exposed, leaked }).toEqual({ exposed: [], leaked: 0 });
+      expect(
+        db.query<{ count: number }, [string]>('SELECT COUNT(*) AS count FROM nodes WHERE board_id=?').get(other.id)!
+          .count,
+      ).toBe(1);
+    } finally {
+      db.close();
+    }
+  } finally {
+    canvasState.close();
+    removeTestWorkspace(otherRoot);
+  }
+});
+
+test.each(['group', 'wiki', 'html'])('lifecycle-only edits and undo preserve unrelated %s state', async (kind) => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const board = canvasState.createBoard('Metadata only')!;
+  canvasState.switchBoard(board.id);
+  const card = note('card', 'Card');
+  if (kind === 'wiki') card.data.content = 'Unresolved [[Later]]';
+  if (kind === 'html') {
+    card.type = 'html';
+    card.data = { title: 'HTML', html: `<p>${'Content '.repeat(1000)}</p>`, summary: 'Keep this summary' };
+  }
+  canvasState.addNode(card);
+  if (kind === 'group') {
+    canvasState.addNode({ ...note('group', 'Group'), type: 'group', data: { title: 'Group' } });
+    canvasState.groupNodes('group', ['card']);
+    canvasState.updateNode('group', { size: { width: 1600, height: 900 } });
+    canvasState.setPolicy({ scope: { nodeIds: ['card'] } });
+  }
+  if (kind === 'wiki') canvasState.createBoard('Later');
+  if (kind === 'html') {
+    canvasState.close();
+    resetCanvasForTests(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+  }
+  const before = canvasState.getLayout();
+  canvasState.onMutation((info) => mutationHistory.record(info));
+  const lifecycleOverride = { decayType: 'reality', rate: 'fast', triggers: [], revalidationMethod: 'Check source' };
+  await executeOperation('node.lifecycle-set', { id: 'card', lifecycleOverride, expectedBoardId: board.id });
+  const changed = canvasState.getLayout();
+  expect(changed).toEqual({
+    ...before,
+    nodes: before.nodes.map((node) =>
+      node.id === 'card' ? { ...node, data: { ...node.data, lifecycleOverride } } : node,
+    ),
+  });
+  // Undo the metadata without replaying the card's body or its group layout.
+  mutationHistory.undo();
+  expect(canvasState.getLayout()).toEqual(before);
+});
+
+test('review evidence retains its content version and cannot acknowledge a stale edit or failed save', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const board = canvasState.createBoard('Evidence')!;
+  canvasState.switchBoard(board.id);
+  canvasState.addNode(note('card', 'Before'));
+  canvasState.flushToDisk();
+  const reviewed = canvasState.getNode('card')!.contentRevision!;
+  const review = {
+    id: 'card',
+    outcome: 'retain',
+    evidence: 'Checked original source',
+    applied: true,
+    expectedContentRevision: reviewed,
+  };
+  const first = await executeOperation('node.review', review);
+  expect(first).toMatchObject({ record: { contentRevision: reviewed } });
+  await expect(executeOperation('node.review', { ...review, expectedContentRevision: undefined })).rejects.toThrow(
+    'require expectedContentRevision',
+  );
+  await executeOperation('node.update', { id: 'card', content: 'Changed after the source check' });
+  const current = canvasState.getNode('card')!.contentRevision!;
+  await expect(executeOperation('node.review', review)).rejects.toThrow('changed');
+  const db = new Database(canvasState.databasePath!);
+  try {
+    db.exec(
+      "CREATE TRIGGER reject_content_save BEFORE UPDATE ON nodes BEGIN SELECT RAISE(ABORT, 'Content save refused'); END",
+    );
+    await expect(executeOperation('node.review', { ...review, expectedContentRevision: current })).rejects.toThrow(
+      'Content save refused',
+    );
+    expect(canvasState.knowledge.reviews(board.id, 'card').records).toHaveLength(1);
+  } finally {
+    db.exec('DROP TRIGGER reject_content_save');
+    db.close();
+  }
+  canvasState.close();
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  expect(canvasState.knowledge.reviews(board.id, 'card').lastValidation).toMatchObject({ contentRevision: reviewed });
+  expect(canvasState.getNode('card')!.contentRevision).toBe(current);
+});
+
+test('a recorded review cannot outlive the reviewed content after abrupt process exit', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const board = canvasState.createBoard('Durable evidence')!;
+  canvasState.switchBoard(board.id);
+  canvasState.addNode(note('card', 'Version A'));
+  canvasState.close();
+  const stateModule = new URL('../../src/server/canvas-state.ts', import.meta.url).pathname;
+  const opsModule = new URL('../../src/server/operations/index.ts', import.meta.url).pathname;
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--eval',
+      `
+    import { canvasState } from ${JSON.stringify(stateModule)};
+    import { executeOperation } from ${JSON.stringify(opsModule)};
+    canvasState.setWorkspaceRoot(${JSON.stringify(root)});
+    canvasState.loadFromDisk({ clearExisting: true });
+    canvasState.updateNode('card', { data: { title: 'Version B', content: 'Reviewed B' } });
+    await executeOperation('node.review', { id: 'card', outcome: 'revise', applied: true, evidence: 'Verified B', expectedContentRevision: canvasState.getNode('card').contentRevision });
+    process.exit(0);
+  `,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(await child.exited).toBe(0);
+  expect(await new Response(child.stderr).text()).toBe('');
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  expect(canvasState.getNode('card')!.data.content).toBe('Reviewed B');
+  expect(canvasState.knowledge.reviews(board.id, 'card').lastValidation).toMatchObject({
+    evidence: 'Verified B',
+    contentRevision: canvasState.getNode('card')!.contentRevision,
+  });
+});
+
 afterEach(() => {
   canvasState.close();
   removeTestWorkspace(root);
