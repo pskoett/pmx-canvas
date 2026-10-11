@@ -1,4 +1,5 @@
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
+import type { CanvasNodeState } from '../types';
 /**
  * Per-tab identity: an AGENT driving the workbench UI from its own pane opens
  * `/workbench?agent=<key>` and every write from that tab is booked as that
@@ -26,16 +27,11 @@ export declare function vetoGhostIntent(intent: {
     reason?: string;
 }): Promise<boolean>;
 /** Fetch rendered markdown HTML from the server. */
-export declare function renderMarkdown(markdown: string, nodeId?: string): Promise<string>;
+export declare function renderMarkdown(markdown: string, nodeId?: string, expectedBoardId?: string | null): Promise<string | null>;
 /** Fetch file content from the server. */
 export declare function fetchFile(path: string): Promise<{
     content: string;
     provenance?: unknown;
-}>;
-/** Save file content to the server. */
-export declare function saveFile(path: string, content: string): Promise<{
-    ok: boolean;
-    updatedAt?: string;
 }>;
 /** Fetch current workbench state. */
 export declare function fetchWorkbenchState(): Promise<Record<string, unknown>>;
@@ -44,7 +40,7 @@ export declare function openWorkbenchFile(path: string): Promise<{
     ok: boolean;
 }>;
 /** Fetch canvas state from server. */
-export declare function fetchCanvasState(): Promise<Record<string, unknown>>;
+export declare function fetchCanvasState(expectedBoardId: string | null): Promise<Record<string, unknown>>;
 export declare function saveCanvasTheme(theme: string): Promise<{
     ok: boolean;
     theme?: string;
@@ -125,10 +121,12 @@ export declare function updateNodeFromClient(id: string, patch: {
     children?: string[];
     expectedContentRevision?: number;
     expectedBoardId?: string | null;
+    persistFile?: boolean;
 }): Promise<{
     ok: boolean;
     id?: string;
     contentRevision?: number;
+    lastEditedBy?: CanvasNodeState['lastEditedBy'];
 }>;
 /** Refresh a webpage node from its persisted URL on the server. */
 export declare function refreshWebpageNodeFromClient(id: string, url?: string): Promise<{

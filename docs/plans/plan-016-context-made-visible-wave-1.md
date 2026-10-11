@@ -73,6 +73,13 @@ receipt extras, edit descriptions and the live session lens (slice 3) and Home (
   iframe test's fetch spy; that test passed alone and the full unchanged rerun passed 247/247.
   First-failure evidence, rerun results and the unchanged-baseline reproduction are retained.
 
+**Later combined checkpoint (2026-10-11; not released).** Wave 2 and the Wave 3 foundation
+now pass 1,437 unit, 302 client and all 266 headed browser cases, including the presentation
+and receipt cases. Live human/agent checks and final focused Oracle review are complete;
+the earlier red runs above remain historical evidence, not relabelled passes. See the
+[combined stabilization record](plan-018-connected-memory-wave-2.md#combined-stabilization).
+The maintainer's curation evaluation remains deferred.
+
 **Date:** 2026-10-05
 **Source:** [design.md](../design.md#build-plan) wave 1; vision Part 1 bet (item 4), moves 0a, 2, 7.
 Drawings: [`AgentContext`](../design/AgentContext.dc.html), [`Context`](../design/Context.dc.html),

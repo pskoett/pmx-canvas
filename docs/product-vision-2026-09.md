@@ -22,6 +22,17 @@
 
 **Wave 1 status, 2026-10-10 — context made visible: built on `main`, not released.** From the board alone a person can now see what is in the agent's context and whether its copy is current: read / not read / changed marks on pinned cards; near-a-pin (the brief carries neighbours, the dotted chip, tethers and the 600 px radius, the moment a card arrives or leaves); links that changed since a read, on the link and in the brief ("new, by codex"); board pins and Home as a library (folder tree, board cards, details, the in-context switch); the session receipt (what the agent did, per-edit descriptions with "See change", Tell <agent>, Undo per card via `snapshot.restore-node`) and the live session lens in the agent chip. Remaining: the curation evaluation, deferred until the maintainer tests a version; building to the new [SeeChange](design/SeeChange.dc.html) drawing (2026-10-10); the pickup/drop pauses of a drag on large boards (per-frame cost fixed 2026-10-10). Handoff detail in plan 016. **Dropped 2026-10-10:** Suggested cards — the agent changes the canvas directly, and an ask or a suggestion already goes through the composer. Detail and deviations: [plan 016](plans/plan-016-context-made-visible-wave-1.md), [design.md](design.md).
 
+**Stabilization update, 2026-10-11 (supersedes the remaining-work list above):** See change now
+matches its drawing, and the measured page-wide pickup/drop style cost is removed; occasional
+long drag tasks remain. The maintainer's real-agent curation evaluation is still deferred.
+[Wave 2](plans/plan-018-connected-memory-wave-2.md) is implemented and stabilized: Home Map/Graph,
+saved wiki bindings, qualified cross-board card edges and graph reads. The
+[Wave 3 foundation](plans/plan-017-knowledge-categories-and-lifecycle.md) has board folders and
+audited category/lifecycle data; richer relations, provenance, lifecycle qualification/UI and
+the due engine remain to be built. The combined local gates pass 1,437 unit, 302 client and
+266 headed browser cases, with live human/agent checks. Nothing in this batch is released.
+The maintainer requires Waves 2 and 3 before considering 0.9.0 and has withheld release approval.
+
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
 | Release scope | Content | Acceptance target (not a completion claim) |

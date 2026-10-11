@@ -448,10 +448,15 @@ What the session asks of you:
 - **403 = outside the scope fence.** The human may fence you to a region (`policy.scope`): writes
   outside it are refused with a reason naming the node or position (a fenced group frame
   grants its members too). Read `policy.scope` in `canvas://ax-context`, ask the human to widen
-  it, never retry blindly. The fence is the human's: `set-policy` does not take `scope`.
-- **409 = a human is holding that node** (dragging or editing it right now). Requeue the change
-  and retry in a moment. If you had signalled an intent on it, it was vetoed — a `yield` timeline
-  event says who took over.
+  it, never retry blindly. Workspace category/folder changes and moving/unfiling boards are
+  board-wide changes, so a card fence cannot authorize them. Moving/unfiling checks both the
+  active scope and the target board's stored applicable scope or writer territory, without
+  opening that board. Switching to an unfenced board or Home does not bypass its fence. The fence is the human's:
+  `set-policy` does not take `scope`.
+- **409 = a conflict; read its reason.** A human holding that node means requeue and retry after
+  release. A stale content revision or changed board means reread before retrying, never blindly
+  overwrite newer work. A workbench reconnect refusal requires reconnecting and retrying the
+  preserved draft. If a human vetoed your intent, a `yield` timeline event says who took over.
 - **A gate you do not answer auto-holds** (`held`, default TTL 5 min). `held` is a non-approval:
   do not proceed; the human can reopen it from the panel. A rejection reaches you as steering.
 - **Your latest edit can be undone from the panel.** One shared undo stack: when the human undoes
@@ -499,7 +504,14 @@ Use the visible workbench when the human is actively curating layout:
   confirmation. Ctrl/Cmd+Z and Shift+Z work the shared undo stack.
 - The **minimap** (bottom-right of the canvas) is a true-scale map; hover magnifies it, click
   jumps, drag pans. A banner under the top bar reports a dropped stream (reconnecting) or a
-  post-reconnect resync; edits still save over HTTP meanwhile.
+  post-reconnect resync. HTTP saves continue during an ordinary stream interruption, but a daemon
+  restart refuses stale workbench writes (including file saves) until reconnect renews the human
+  capability. Markdown drafts remain available in Source and Document; retry refused saves after
+  reconnect. Drafts and save queues belong to board + card in the current tab, surviving
+  close/reopen and board switches, not a page reload. An obsolete save cannot overwrite a newer
+  draft through an editor replacement. A restart or restore also invalidates old save
+  acknowledgements, even when the replacement card has the same ID and a lower revision;
+  the draft remains unsaved. Same-board reconnect keeps Source open and preserves its selection.
 - Other open tabs appear as green cursors with a name tag (`/workbench?name=mia` sets yours);
   a node you drag is locked for agents until you release it.
 - The chrome is a persistent 52px left tool rail plus a slim 44px top bar (0.4.8+). The rail
@@ -640,6 +652,8 @@ Saved unresolved links resolve only on an explicit save, not on reads; legacy
 Markdown without binding metadata gets a one-time backfill.
 Rich-text edits retain the wiki reference and binding; a changed visible label
 updates its alias without changing its target.
+Card-aware Markdown previews carry their captured board ID and discard stale
+responses after navigation, so delayed rendering cannot borrow another board's bindings.
 Native `canvas_edge { action: "add", from, to, toBoardId, type }` connects a
 source on the open board to a remote card (CLI `edge add --from <id> --to <id> --to-board <board-id>`). Humans
 use the source footer and More-menu card picker. Auto-arrange stays local;

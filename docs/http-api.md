@@ -43,11 +43,17 @@ append order resolves retirement even when timestamps coincide. Reload and board
 never erase this history. Restoring content is not restoring retirement.
 
 Workspace writes work on Home without opening/switching boards; agent workspace writes are
-refused under a scope fence. Card writes target the active board and use the existing expected
+refused under a scope fence. Moving or unfiling a board changes inherited lifecycle for all its
+cards, so agent folder changes are also refused under a fence; other board metadata is unaffected.
+This checks both the active board's applicable fence and the target board's stored global fence
+or the writer's assigned territory, even when another board or Home is open. It never opens the target.
+Card writes target the active board and use the existing expected
 board, scope and human edit-lock guards. Writes emit live knowledge/lifecycle notifications;
 metadata-only edits do not advance content revision or lastEditedBy. Read/delivery clocks,
 content revisions, evidence validation and task relevance remain separate; reading, editing,
 refreshing and restoration never validate. No synthetic content-change date is added to legacy cards.
+Generic node PATCH/SDK `updateNode` rejects `data.lifecycleOverride`; use the dedicated lifecycle
+setter (including to clear an override) so metadata cannot replay the body or resolve wiki links.
 
 SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"folder-set", ...payload})`
 and `canvas.lifecycle({action:"get"|"set"|"review"|"restore", id, ...payload})` use these
@@ -127,8 +133,14 @@ trusted workbench deletes a board — deletion requires both `x-pmx-workbench: 1
 per-boot `x-pmx-workbench-token` embedded in the served `/workbench` HTML;
 the marker alone is not authority. Public HTTP integrations must not delete
 boards. In-process SDK embedding hosts retain deletion authority.
-Every change emits a
-`boards-changed` SSE frame with `{ activeBoardId, boards }`.
+Every change emits a `boards-changed` SSE frame with
+`{ activeBoardId, boards, catalogEpoch, catalogRevision, reloadRevision, boardGeneration }`.
+Board-list and board-mutation responses carry the same catalog fields. Within a server
+process, `catalogRevision` increases for every catalog snapshot; reject older or duplicate
+snapshots before changing board identity or camera. Only a current `connected` handshake
+authorizes a replacement `catalogEpoch`. `reloadRevision` is a sticky library-restore marker,
+retained by subsequent GETs so an overtaking response cannot hide a restore.
+`boardGeneration` identifies the loaded board incarnation, including revisits and restores.
 
 `folder` is a folder path, for example `Engineering/Canvas/Decisions`.
 Home renders nested, collapsible folders and searches board names and paths.
@@ -145,6 +157,18 @@ Creating a copy records `previousBoardId` as its source board ID; it does not
 open either board.
 Board-list `links` expose qualified `boardId`/`cardId` targets; native card
 connections include `cardTitle` (null if missing), so footers need not display raw IDs.
+
+### Markdown previews and saved links
+
+`POST /api/render` accepts `{markdown, nodeId?, expectedBoardId?}` and returns `{html}`.
+For a card-aware preview, send its captured board ID with `nodeId`; a different active
+board returns 409 without HTML, so a delayed request cannot borrow another card's bindings.
+Workbench previews discard responses that no longer belong to the displayed board or draft.
+Plain Markdown without `nodeId` renders independently of a card.
+
+Saved text replays its durable wiki bindings, including unresolved targets. Changed drafts
+retain existing bindings and may resolve newly authored references by title; previews do not
+persist those bindings. An explicit save is required to bind a saved unresolved reference.
 
 ### Connected memory projection
 
@@ -401,6 +425,26 @@ the operation. This is a precondition, not a board switch or permission grant.
 against the node's top-level `contentRevision`; stale content returns `409`
 without changing the node. Conditional edits cannot request webpage refresh.
 The private MCP App uses these guards to reject stale board actions and note drafts.
+
+Native Markdown Save captures the currently observed revision for each attempt. Newer content
+arriving during rendering or network delivery refuses that attempt and keeps the draft; a later
+deliberate human Save may replace already-observed work. Queued saves advance their precondition
+only through successful acknowledgements of their own preceding saves, never through an external
+revision or an automatic retry after conflict. Acknowledgements from before a restart, restore,
+or board replacement cannot update canonical content, clear an unsaved draft or advance queued
+preconditions, even if the replacement reused the same card ID with a lower revision.
+Board switches detach the old cards until the
+replacement layout arrives, keeping unsaved drafts under their original board/card. The replacement
+`GET /api/canvas/state` supplies the captured `expectedBoardId` query (`null` for Home), so another
+tab switching boards before the read returns causes `409`, not a layout attributed to the wrong board.
+
+For file-backed Markdown, `PATCH /api/canvas/node/:id` accepts `persistFile: true` with top-level
+`content`, `expectedBoardId`, and `expectedContentRevision`. It checks both preconditions and
+validates the patch before synchronously writing the existing workspace `.md` file and card,
+normalizing line endings to LF. In this mode, `data` accepts only the `rendered` preview;
+change other metadata separately, never alongside the disk save.
+A stale/refused save changes neither disk nor card. Ordinary PATCH remains data-only, and the
+hosted MCP App still refuses file-linked edits. This is not a crash-recovery disk/SQLite transaction.
 
 Replacing a JSON-render node's `spec` preserves its current title; include `title`
 to rename it explicitly. A new authored spec still resets the viewer's local drafts.
@@ -1079,8 +1123,22 @@ curl -N http://localhost:4313/api/workbench/events
 The browser, the CLI `watch` command, and the MCP resource notifications
 all consume this stream. Auto-reconnect with exponential backoff.
 
-`canvas-layout-update` and `context-pins-changed` carry the owning `boardId`
-(null for Home). A board transition is a new baseline, not a deletion or unpin.
+The direct workbench's `connected` snapshot renews its per-process
+`workbenchToken` (also embedded in boot HTML) over both SSE and polling.
+A same-bundle daemon restart does not reload the page or discard an open draft.
+Registered writes and file saves marked as workbench calls with a supplied stale capability
+return 409 until reconnect renews it; they are never silently recorded as agent
+edits. A refused Markdown save retains its draft and enabled Save control for
+retry after reconnect. Drafts and complete save queues are qualified by board + card in the
+current tab, surviving close/reopen and board switches (not a page reload); superseded drafts
+cannot resume an older render and overwrite newer text. Do not log or forward this human capability: hosted MCP
+workbench polling strips it from tool results, including hydration metadata.
+
+`canvas-layout-update` carries its owning `boardId` (null for Home), `catalogEpoch`
+and `boardGeneration`; accept its baseline only for the activation in the accepted catalog.
+`context-pins-changed` carries the owning `boardId`. A board transition is a new baseline,
+not a deletion or unpin. Same-board reconnects install a fresh baseline without closing
+the editor or discarding its draft and selection, whichever snapshot arrives first.
 Remote-edge endpoint changes also publish `boards-changed` so card titles and
 missing-target states update; ordinary geometry changes do not refresh the catalog.
 

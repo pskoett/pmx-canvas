@@ -6,6 +6,8 @@
 `pmx-canvas board knowledge category-set '<JSON>'` accepts `{category: {...}}`;
 `board knowledge folder-set '<JSON>'` accepts `{path, categoryId, lifecycleOverride}`.
 Neither workspace write opens a board; scope fences refuse agent workspace writes.
+Moving/unfiling a board also checks its stored global scope or writer territory alongside
+the active scope, without opening it. Home or an unfenced board does not bypass that policy.
 `pmx-canvas board lifecycle get|set|review|restore '<JSON>'` uses `id` and the
 [HTTP contract fields](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
 For example: `pmx-canvas board lifecycle review '{"id":"card-id","outcome":"retain",

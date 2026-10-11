@@ -3,8 +3,12 @@
  * in-place delete confirm — asserted on what the human sees.
  */
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 let HUMAN: Record<string, string>;
 
@@ -505,7 +509,7 @@ for (const sameBoard of [false, true]) {
       held = resolve;
     });
     let intercepted = false;
-    await page.route('**/api/canvas/state?includeBlobs=true', async (route) => {
+    await page.route(/\/api\/canvas\/state\?includeBlobs=true(?:&|$)/, async (route) => {
       if (intercepted) return route.continue();
       intercepted = true;
       const response = await route.fetch();
@@ -690,6 +694,79 @@ test('relation refreshes preserve an unsaved Source draft, selection and wiki pr
   expect(persisted.data.wikiLinks).toEqual(saved.data.wikiLinks);
 });
 
+test('a draft render delayed across A → B → A never retargets a saved wiki link', async ({ page, request }) => {
+  const targetName = 'Delayed render evidence';
+  const first = (await (await request.post('/api/canvas/boards', { data: { name: targetName } })).json()).board;
+  const source = (await (await request.post('/api/canvas/boards', { data: { name: 'Render owner A' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const original = `[[${targetName}|Read evidence]]`;
+  const claim = (
+    await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title: 'Qualified draft', content: original, x: 100, y: 100, width: 480 },
+      })
+    ).json()
+  ).id;
+  await request.patch(`/api/canvas/boards/${first.id}`, { data: { name: 'Archived render evidence' } });
+  const replacement = (await (await request.post('/api/canvas/boards', { data: { name: targetName } })).json()).board;
+  const other = (await (await request.post('/api/canvas/boards', { data: { name: 'Render owner B' } })).json()).board;
+  await page.goto('/workbench');
+  await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: '</> Source', exact: true }).click();
+  await expect(page.locator('.md-preview a.wiki-link')).toHaveAttribute('data-wiki-board', first.id);
+  const draft = `${original}\n\nHuman draft retained on A.`;
+  let send!: () => void;
+  let deliver!: () => void;
+  const sending = new Promise<void>((resolve) => {
+    send = resolve;
+  });
+  const delivering = new Promise<void>((resolve) => {
+    deliver = resolve;
+  });
+  let captured = false;
+  let processed = false;
+  let status = 0;
+  await page.route('**/api/render', async (route) => {
+    const body = route.request().postDataJSON() as { markdown: string; nodeId?: string };
+    if (captured || body.markdown !== draft || body.nodeId !== claim) return route.continue();
+    captured = true;
+    await sending;
+    const response = await route.fetch();
+    status = response.status();
+    processed = true;
+    await delivering;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.locator('.md-editor-expanded textarea').fill(draft);
+    await expect.poll(() => captured).toBe(true);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: other.id } });
+    await expect(page.getByRole('button', { name: /^Board: Render owner B/ })).toBeVisible();
+    send();
+    await expect.poll(() => processed).toBe(true);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+    await expect(page.locator(`[data-node-id="${claim}"]`)).toBeVisible();
+    await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: '</> Source', exact: true }).click();
+    await expect(page.locator('.md-editor-expanded textarea')).toHaveValue(draft);
+    await expect(page.locator('.md-preview a.wiki-link')).toHaveAttribute('data-wiki-board', first.id);
+    deliver();
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.getByRole('button', { name: 'Back to document', exact: true }).click();
+    const link = page.getByRole('dialog', { name: 'Qualified draft' }).getByRole('link', { name: 'Read evidence' });
+    await expect(link).toHaveAttribute('data-wiki-board', first.id);
+    await expect(link).not.toHaveAttribute('data-wiki-board', replacement.id);
+    expect(status).toBe(409);
+    expect((await (await request.get(`/api/canvas/node/${claim}`)).json()).data.wikiLinks).toEqual([
+      { ref: targetName, target: { boardId: first.id } },
+    ]);
+  } finally {
+    send();
+    deliver();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
 test('a delayed file-backed draft render cannot overwrite a subsequently saved document or selection', async ({
   page,
   request,
@@ -743,6 +820,17 @@ test('a delayed file-backed draft render cannot overwrite a subsequently saved d
     await expect.poll(() => waiting).toBe(true);
     await editor.fill(saved);
     await editor.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(2, 8));
+    await page.route(`**/api/canvas/node/${claim}`, (route) =>
+      route.request().method() === 'PATCH'
+        ? route.fulfill({ status: 409, json: { ok: false, error: 'Card update refused after file save.' } })
+        : route.continue(),
+    );
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.locator('.attention-toast')).toContainText('Card update refused after file save.');
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+    await expect(editor).toHaveValue(saved);
+    expect(readFileSync(path, 'utf8')).toBe(saved);
+    await page.unroute(`**/api/canvas/node/${claim}`);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
     expect(readFileSync(path, 'utf8')).toBe(saved);
@@ -910,4 +998,578 @@ test('a wiki card jump waits for a delayed target layout before focusing it', as
   await expect(page.locator(`[data-node-id="${id}"]`)).toBeInViewport();
   expect(delayed).toBe(true);
   await page.unrouteAll({ behavior: 'wait' });
+});
+
+for (const fetchedBeforeJump of [false, true]) {
+  test(`a completed card jump survives an older catalog replay (response already fetched=${fetchedBeforeJump})`, async ({
+    page,
+    request,
+  }) => {
+    const a = (await (await request.post('/api/canvas/boards', { data: { name: 'Jump source' } })).json()).board.id;
+    const b = (await (await request.post('/api/canvas/boards', { data: { name: 'Jump target' } })).json()).board.id;
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: b } });
+    const target = await note(request, 'Far evidence', 2600, 1800);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: a } });
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', content: '[[Jump target#Far evidence|Jump]]', x: 100, y: 100 },
+    });
+    await page.goto('/workbench?transport=poll');
+    await expect(page.getByRole('link', { name: 'Jump', exact: true })).toBeVisible();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let fetchCatalog!: () => void;
+    const catalogQueued = new Promise<void>((resolve) => {
+      fetchCatalog = resolve;
+    });
+    let held = false;
+    let fetched = false;
+    await page.route('**/api/workbench/poll?*', async (route) => {
+      held = true;
+      if (fetchedBeforeJump) {
+        await catalogQueued;
+        const response = await route.fetch();
+        fetched = true;
+        await gate;
+        await route.fulfill({ response });
+      } else {
+        await gate;
+        await route.fulfill({ response: await route.fetch() });
+      }
+    });
+    try {
+      await expect.poll(() => held).toBe(true);
+      expect(
+        (await request.patch(`/api/canvas/boards/${a}`, { headers: HUMAN, data: { name: 'Renamed source' } })).ok(),
+      ).toBe(true);
+      fetchCatalog();
+      if (fetchedBeforeJump) await expect.poll(() => fetched).toBe(true);
+      await page.getByRole('link', { name: 'Jump', exact: true }).click();
+      const card = page.locator(`[data-node-id="${target}"]`);
+      await expect(card).toBeInViewport();
+      const replay = page.waitForResponse((response) => response.url().includes('/api/workbench/poll?'));
+      release();
+      await replay;
+      await page.waitForTimeout(500);
+      await expect(page.getByRole('button', { name: /^Board: Jump target/ })).toBeVisible();
+      await expect(card).toBeInViewport();
+    } finally {
+      fetchCatalog();
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+}
+
+for (const transport of ['sse', 'poll']) {
+  test(`human Source save retains its draft and authorship after daemon restart (${transport})`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    const directory = mkdtempSync(join(tmpdir(), 'pmx-workbench-reconnect-'));
+    let child: ChildProcess | undefined;
+    let releaseReconnect!: () => void;
+    const reconnectGate = new Promise<void>((resolve) => {
+      releaseReconnect = resolve;
+    });
+    const stop = async () => {
+      if (!child || child.exitCode !== null || child.signalCode !== null) return;
+      const exited = once(child, 'exit');
+      child.kill('SIGTERM');
+      await exited;
+    };
+    const start = async (port = 0): Promise<string> => {
+      child = spawn('bun', ['run', 'src/cli/index.ts', '--no-open', `--port=${port}`], {
+        env: {
+          ...process.env,
+          PMX_CANVAS_WORKSPACE_ROOT: directory,
+          PMX_CANVAS_DB_PATH: join(directory, 'canvas.db'),
+          PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let log = '';
+      const url = await new Promise<string>((resolve, reject) => {
+        child!.once('error', reject);
+        child!.once('exit', () => reject(new Error(`Test daemon exited: ${log}`)));
+        child!.stderr!.on('data', (chunk) => {
+          log += String(chunk);
+        });
+        child!.stdout!.on('data', (chunk) => {
+          log += String(chunk);
+          const port = log.match(/PMX Canvas running at http:\/\/localhost:(\d+)/)?.[1];
+          if (port) resolve(`http://127.0.0.1:${port}`);
+        });
+      });
+      expect((await request.get(`${url}/health`)).ok()).toBe(true);
+      return url;
+    };
+    try {
+      const url = await start();
+      const html = await (await request.get(`${url}/workbench`)).text();
+      const token = JSON.parse(html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)![1]) as string;
+      const created = await request.post(`${url}/api/canvas/node`, {
+        headers: { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token },
+        data: { type: 'markdown', title: 'Reconnect decision', content: 'Saved decision.', x: 100, y: 100 },
+      });
+      const { id } = await created.json();
+      await page.goto(`${url}/workbench?transport=${transport}`);
+      await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+      await page.getByRole('button', { name: '</> Source', exact: true }).click();
+      const editor = page.locator('.md-editor-expanded textarea');
+      const draft = 'Saved decision.\n\nHuman continuation kept across restart.';
+      await editor.fill(draft);
+      await editor.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(6, 15));
+      const connected = page.waitForResponse(async (response) => {
+        const path = new URL(response.url()).pathname;
+        if (transport === 'sse') return path === '/api/workbench/events';
+        if (path !== '/api/workbench/poll') return false;
+        const body = await response.json();
+        return body.events.some((entry: { event: string }) => entry.event === 'connected');
+      });
+      // Hold renewal, but let ordinary requests reach the restarted daemon.
+      await page.route(/\/api\/workbench\/(?:events|poll)(?:\?|$)/, async (route) => {
+        await reconnectGate;
+        await route.continue();
+      });
+      await stop();
+      expect(await start(Number(new URL(url).port))).toBe(url);
+      const refused = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/canvas/node/${id}` && response.request().method() === 'PATCH',
+      );
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      expect((await refused).status()).toBe(409);
+      await expect(page.locator('.attention-toast')).toContainText('Reconnect before saving');
+      await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+      await expect(editor).toHaveValue(draft);
+      expect((await (await request.get(`${url}/api/canvas/node/${id}`)).json()).data.content).toBe('Saved decision.');
+      releaseReconnect();
+      await connected;
+      // Wait for the reconnect snapshot's human heartbeat, not merely its response headers.
+      await expect
+        .poll(async () => (await (await request.get(`${url}/api/canvas/human-presence`)).json()).humans.length)
+        .toBeGreaterThan(0);
+      await expect(editor).toHaveValue(draft);
+      expect(
+        await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd]),
+      ).toEqual([6, 15]);
+      // A refused draft belongs to the card, not the overlay component.
+      await page.locator('.expanded-close').click();
+      await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+      await page.getByRole('button', { name: '</> Source', exact: true }).click();
+      await expect(editor).toHaveValue(draft);
+      await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+      const saved = await (await request.get(`${url}/api/canvas/node/${id}`)).json();
+      expect(saved.data.content).toBe(draft);
+      expect(saved.lastEditedBy.actor).toBe('human');
+      expect((await (await request.get(`${url}/api/canvas/history`)).json()).top.actor).toBe('human');
+      if (transport === 'poll') {
+        await page.goto(`${url}/workbench?transport=poll&agent=reconnect-agent`);
+        await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+        await page.getByRole('button', { name: '</> Source', exact: true }).click();
+        // Hold layout delivery: the acknowledgement must carry the actual author,
+        // not rely on a later poll to correct a fabricated human byline.
+        await page.route(/\/api\/workbench\/poll(?:\?|$)/, (route) => route.abort());
+        await editor.fill('Agent continuation of the human decision.');
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+        const edited = await (await request.get(`${url}/api/canvas/node/${id}`)).json();
+        expect(edited.lastEditedBy).toMatchObject({ actor: 'agent', source: 'reconnect-agent' });
+        await page.locator('.expanded-close').click();
+        await expect(page.locator(`[data-node-id="${id}"] .node-type-icon`)).toHaveAttribute(
+          'data-byline',
+          'Edited by reconnect-agent',
+        );
+      }
+    } finally {
+      releaseReconnect();
+      await page.unrouteAll({ behavior: 'wait' });
+      await page.goto('about:blank');
+      await stop();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test.describe('save and board ownership boundaries', () => {
+  test.use({ deviceScaleFactor: 2 });
+  for (const fileBacked of [false, true]) {
+    test(`a suspended native Save refuses subsequent canonical content without changing its draft (file-backed=${fileBacked})`, async ({
+      page,
+      request,
+      context,
+    }) => {
+      const directory = mkdtempSync(join(process.cwd(), '.pmx-save-fence-'));
+      const path = join(directory, 'decision.md');
+      const original = 'Original shared decision.';
+      const draft = 'Human draft waiting for render.';
+      const newer = 'Newer decision saved in another tab.';
+      writeFileSync(path, original);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const peer = await context.newPage();
+      try {
+        const { id } = await (
+          await request.post('/api/canvas/node', {
+            headers: HUMAN,
+            data: {
+              type: 'markdown',
+              title: 'Concurrent decision',
+              content: original,
+              x: 100,
+              y: 100,
+              ...(fileBacked ? { data: { path } } : {}),
+            },
+          })
+        ).json();
+        for (const tab of [page, peer]) {
+          await tab.goto('/workbench?transport=poll');
+          await tab.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+          await tab.getByRole('button', { name: '</> Source', exact: true }).click();
+        }
+        const editor = page.locator('.md-editor-expanded textarea');
+        await editor.fill(draft);
+        await expect(page.locator('.md-preview')).toContainText(draft);
+        let captured = false;
+        await page.route('**/api/render', async (route) => {
+          if (captured || route.request().postDataJSON().markdown !== draft) return route.continue();
+          captured = true;
+          const response = await route.fetch();
+          await gate;
+          await route.fulfill({ response });
+        });
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect.poll(() => captured).toBe(true);
+        await peer.locator('.md-editor-expanded textarea').fill(newer);
+        await peer.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(peer.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+        // Observe a real poll containing the newer canonical body, without editing this draft.
+        await page.waitForResponse(
+          async (response) => response.url().includes('/api/workbench/poll') && (await response.text()).includes(newer),
+        );
+        await expect(editor).toHaveValue(draft);
+        const patch = page.waitForResponse(
+          (response) => response.url().endsWith(`/api/canvas/node/${id}`) && response.request().method() === 'PATCH',
+        );
+        release();
+        expect((await patch).status()).toBe(409);
+        await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+        expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
+        if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
+        await expect(editor).toHaveValue(draft);
+        await page.screenshot({ path: test.info().outputPath(`native-conflict-${fileBacked}.png`) });
+        // A subsequent deliberate human save may override work already observed.
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+        const saved = await (await request.get(`/api/canvas/node/${id}`)).json();
+        expect(saved.data.content).toBe(draft);
+        expect(saved.lastEditedBy.actor).toBe('human');
+        if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(draft);
+        await page.screenshot({ path: test.info().outputPath(`native-saved-${fileBacked}.png`) });
+      } finally {
+        release();
+        await page.unrouteAll({ behavior: 'wait' });
+        await peer.close();
+        await page.goto('about:blank');
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  }
+
+  test('switch acceptance detaches old same-ID cards until the new layout arrives and retains the original draft', async ({
+    page,
+    request,
+  }) => {
+    const ids: string[] = [];
+    const cardIds: string[] = [];
+    for (const name of ['Switch owner A', 'Switch owner B']) {
+      const { board } = await (await request.post('/api/canvas/boards', { data: { name } })).json();
+      ids.push(board.id);
+      await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+      cardIds.push(await note(request, name));
+    }
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: ids[0] } });
+    const sharedId = cardIds[0]!;
+    // Fixture only: closed boards can contain IDs repeated by imports/restores.
+    // The public create API generates fresh IDs, so qualify this stored row
+    // before exercising the real board-open response and browser save boundary.
+    const db = new DatabaseSync(process.env.PMX_PLAYWRIGHT_DB_PATH ?? 'test-results/playwright/canvas.db');
+    try {
+      expect(
+        db.prepare('UPDATE nodes SET id = ? WHERE board_id = ? AND id = ?').run(sharedId, ids[1]!, cardIds[1]!).changes,
+      ).toBe(1);
+    } finally {
+      db.close();
+    }
+    await page.goto('/workbench?transport=poll');
+    const card = page.locator(`[data-node-id="${sharedId}"]`);
+    await card.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: '</> Source', exact: true }).click();
+    const draft = 'Unsaved A-only continuation.';
+    await page.locator('textarea').fill(draft);
+    await expect(page.locator('.md-preview')).toContainText(draft);
+    await page.locator('.expanded-close').click();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(/\/api\/(?:canvas\/state|workbench\/poll)(?:\?|$)/, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    try {
+      await page.getByRole('button', { name: /^Board: Switch owner A/ }).click();
+      await page.getByRole('menuitem', { name: /^Switch owner B/ }).click();
+      await expect(page.getByRole('button', { name: /^Board: Switch owner B/ })).toBeVisible();
+      await expect(card).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath('switch-awaiting-layout.png') });
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+      await expect(card).toContainText('Switch owner B body');
+      await card.getByRole('button', { name: 'Edit', exact: true }).click();
+      await expect(page.locator('[contenteditable]')).toContainText('Switch owner B body');
+      await page.locator('.expanded-close').click();
+      await page.getByRole('button', { name: /^Board: Switch owner B/ }).click();
+      await page.getByRole('menuitem', { name: /^Switch owner A/ }).click();
+      await card.getByRole('button', { name: 'Edit', exact: true }).click();
+      await page.getByRole('button', { name: '</> Source', exact: true }).click();
+      await expect(page.locator('textarea')).toHaveValue(draft);
+      await page.screenshot({ path: test.info().outputPath('switch-restored-draft.png') });
+      expect((await (await request.get(`/api/canvas/node/${sharedId}?board=${ids[1]}`)).json()).data.content).toBe(
+        'Switch owner B body',
+      );
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+});
+
+for (const remount of [false, true]) {
+  for (const fileBacked of [false, true]) {
+    test(`a superseded native save cannot overwrite newer content (file-backed=${fileBacked}, remount=${remount})`, async ({
+      page,
+      request,
+    }) => {
+      const directory = mkdtempSync(join(process.cwd(), '.pmx-save-race-'));
+      const path = join(directory, 'decision.md');
+      writeFileSync(path, 'Original decision.');
+      const older = 'Intermediate decision.';
+      const newer = 'Latest checked decision.';
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let waiting = false;
+      try {
+        const { id } = await (
+          await request.post('/api/canvas/node', {
+            headers: HUMAN,
+            data: {
+              type: 'markdown',
+              title: 'Save ordering',
+              content: 'Original decision.',
+              x: 100,
+              y: 100,
+              ...(fileBacked ? { data: { path } } : {}),
+            },
+          })
+        ).json();
+        await page.goto('/workbench?transport=poll');
+        await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+        await page.getByRole('button', { name: '</> Source', exact: true }).click();
+        const editor = page.locator('.md-editor-expanded textarea');
+        await editor.fill(older);
+        await expect(page.locator('.md-preview')).toContainText(older);
+        await page.route('**/api/render', async (route) => {
+          if (route.request().postDataJSON().markdown !== older) return route.continue();
+          const response = await route.fetch();
+          waiting = true;
+          await gate;
+          await route.fulfill({ response });
+        });
+        const oldRender = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === '/api/render' && response.request().postDataJSON().markdown === older,
+        );
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect.poll(() => waiting).toBe(true);
+        if (remount) {
+          await page.locator('.expanded-close').click();
+          await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+          await page.getByRole('button', { name: '</> Source', exact: true }).click();
+        }
+        await editor.fill(newer);
+        await expect(page.locator('.md-preview')).toContainText(newer);
+        if (fileBacked)
+          expect((await request.post('/api/file/save', { headers: HUMAN, data: { path, content: newer } })).ok()).toBe(
+            true,
+          );
+        const observed = page.waitForResponse(
+          async (response) => response.url().includes('/api/workbench/poll') && (await response.text()).includes(newer),
+        );
+        expect((await request.patch(`/api/canvas/node/${id}`, { headers: HUMAN, data: { content: newer } })).ok()).toBe(
+          true,
+        );
+        release();
+        await (await oldRender).finished();
+        // Allow the obsolete continuation to send its write, rather than accepting
+        // the first still-correct sample immediately after the held render ends.
+        await page.waitForTimeout(250);
+        expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
+        // A new human attempt may override observed work, not a revision this
+        // browser has not received yet. Do not depend on SSE flushing in Chromium.
+        await observed;
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+        if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
+        await page.locator('.expanded-close').click();
+        await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+        await expect(page.locator('[contenteditable]')).toContainText(newer);
+      } finally {
+        release();
+        await page.unrouteAll({ behavior: 'wait' });
+        await page.goto('about:blank');
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  }
+}
+
+test.describe('native acknowledgement and resync ownership', () => {
+  test.use({ deviceScaleFactor: 2 });
+  for (const closeBeforeAck of [true, false]) {
+    for (const fileBacked of [false, true]) {
+      test(`close saves a trailing native draft through its own preceding acknowledgement (file=${fileBacked}, queued=${closeBeforeAck})`, async ({
+        page,
+        request,
+      }) => {
+        const directory = mkdtempSync(join(process.cwd(), '.pmx-ack-lineage-'));
+        const path = join(directory, 'decision.md');
+        writeFileSync(path, 'Original.');
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        try {
+          const { id } = await (
+            await request.post('/api/canvas/node', {
+              headers: HUMAN,
+              data: {
+                type: 'markdown',
+                title: 'Trailing decision',
+                content: 'Original.',
+                x: 100,
+                y: 100,
+                ...(fileBacked ? { data: { path } } : {}),
+              },
+            })
+          ).json();
+          await page.goto('/workbench?transport=poll');
+          await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+          const editor = page.locator('[contenteditable]');
+          await expect(editor).toContainText('Original.');
+          // Only acknowledgements can advance this browser's canonical revision.
+          await page.route('**/api/workbench/poll?*', (route) => route.abort());
+          let held = false;
+          await page.route(`**/api/canvas/node/${id}`, async (route) => {
+            if (route.request().method() === 'PATCH' && route.request().postDataJSON().content === 'First save.') {
+              held = true;
+              await gate;
+            }
+            await route.continue();
+          });
+          const firstAck = page.waitForResponse(
+            (response) =>
+              response.url().endsWith(`/api/canvas/node/${id}`) &&
+              response.request().method() === 'PATCH' &&
+              response.request().postDataJSON().content === 'First save.',
+          );
+          await editor.fill('First save.');
+          await editor.press('Control+s');
+          await expect.poll(() => held).toBe(true);
+          await editor.fill('Final trailing draft.');
+          const trailingAck = page.waitForResponse(
+            (response) =>
+              response.url().endsWith(`/api/canvas/node/${id}`) &&
+              response.request().method() === 'PATCH' &&
+              response.request().postDataJSON().content === 'Final trailing draft.',
+          );
+          if (closeBeforeAck) await page.locator('.expanded-close').click();
+          release();
+          expect((await firstAck).status()).toBe(200);
+          await (await firstAck).finished();
+          if (!closeBeforeAck) {
+            // Let the ACK continuation run, without a canonical poll or debounce.
+            await page.waitForTimeout(50);
+            await page.locator('.expanded-close').click();
+          }
+          expect((await trailingAck).status()).toBe(200);
+          await expect
+            .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).data.content)
+            .toBe('Final trailing draft.');
+          if (fileBacked) expect(readFileSync(path, 'utf8')).toBe('Final trailing draft.');
+          await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+          await expect(page.locator('[contenteditable]')).toContainText('Final trailing draft.');
+          await page.screenshot({ path: test.info().outputPath(`trailing-save-${fileBacked}-${closeBeforeAck}.png`) });
+        } finally {
+          release();
+          await page.unrouteAll({ behavior: 'wait' });
+          await page.goto('about:blank');
+          rmSync(directory, { recursive: true, force: true });
+        }
+      });
+    }
+  }
+
+  test('a held B resync refuses A state after another tab opens A', async ({ page, request, context }) => {
+    const a = (await (await request.post('/api/canvas/boards', { data: { name: 'Resync A' } })).json()).board.id;
+    expect((await request.post('/api/canvas/boards', { data: { name: 'Resync B' } })).ok()).toBe(true);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: a } });
+    const cardA = await note(request, 'A-only content');
+    const peer = await context.newPage();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      for (const tab of [page, peer]) {
+        await tab.goto('/workbench?transport=poll');
+        await expect(tab.locator(`[data-node-id="${cardA}"]`)).toBeVisible();
+      }
+      await page.route('**/api/workbench/poll?*', (route) => route.abort());
+      let held = false;
+      await page.route('**/api/canvas/state?*', async (route) => {
+        held = true;
+        await gate;
+        await route.continue();
+      });
+      await page.getByRole('button', { name: /^Board: Resync A/ }).click();
+      await page.getByRole('menuitem', { name: /^Resync B/ }).click();
+      await expect(page.getByRole('button', { name: /^Board: Resync B/ })).toBeVisible();
+      await expect.poll(() => held).toBe(true);
+      await expect(peer.getByRole('button', { name: /^Board: Resync B/ })).toBeVisible();
+      await peer.getByRole('button', { name: /^Board: Resync B/ }).click();
+      await peer.getByRole('menuitem', { name: /^Resync A/ }).click();
+      await expect(peer.locator(`[data-node-id="${cardA}"]`)).toBeVisible();
+      expect((await boards(request)).activeBoardId).toBe(a);
+      const resync = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/canvas/state');
+      release();
+      expect((await resync).status()).toBe(409);
+      await expect(page.getByRole('button', { name: /^Board: Resync B/ })).toBeVisible();
+      await expect(page.locator('.canvas-node')).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath('wrong-owner-resync-refused.png') });
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+      await peer.close();
+    }
+  });
 });

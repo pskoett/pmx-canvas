@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { posix, win32 } from 'node:path';
 import { isCanvasBundlePath } from '../../src/server/server.ts';
+import { isParentTraversal } from '../../src/server/operations/ops/nodes.ts';
 
 // The 0.3.1 Windows report: resolve() returns backslash paths on win32, so the
 // old `distPath.startsWith(`${bundleDir}/`)` containment check rejected every
@@ -37,4 +39,16 @@ describe('canvas bundle containment (Windows path separators)', () => {
     expect(isCanvasBundlePath(win32Dir, win32Dir)).toBe(false);
     expect(isCanvasBundlePath(posixDir, posixDir)).toBe(false);
   });
+});
+
+test('Markdown disk saves reject parent traversal with native Windows and POSIX separators', () => {
+  for (const [paths, root] of [
+    [win32, 'C:\\workspace'],
+    [posix, '/workspace'],
+  ] as const) {
+    expect(isParentTraversal(paths.relative(root, paths.resolve(root, '../outside/note.md')), paths.sep)).toBe(true);
+    expect(isParentTraversal(paths.relative(root, paths.resolve(root, '..')), paths.sep)).toBe(true);
+    expect(isParentTraversal(paths.relative(root, paths.resolve(root, 'notes/note.md')), paths.sep)).toBe(false);
+    expect(isParentTraversal(paths.relative(root, paths.resolve(root, '..notes/note.md')), paths.sep)).toBe(false);
+  }
 });

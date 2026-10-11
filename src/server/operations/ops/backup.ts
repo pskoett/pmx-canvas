@@ -120,9 +120,10 @@ const backupRestoreOperation = defineOperation<z.infer<typeof restoreSchema>, Re
     }
     const previous = `${canvasState.databasePath}.before-restore`;
     restoreCanvasLibrary(file);
-    // `reloaded` tells open tabs to take the board fresh even when its id is unchanged.
-    ctx.emit('boards-changed', { ...boardsPayload(), reloaded: true });
-    return { ok: true, restored: file, previous, ...boardsPayload() };
+    // Keep the reload marker in later catalogs too, if a GET overtakes this event.
+    const catalog = boardsPayload(true);
+    ctx.emit('boards-changed', catalog);
+    return { ok: true, restored: file, previous, ...catalog };
   },
 });
 

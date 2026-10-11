@@ -5,8 +5,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Breaking
+
+- Board hierarchy uses `folder` instead of `category` in API fields and commands; stored folder paths are preserved.
+
 ### Added
 
+- Knowledge category and lifecycle data tools provide inherited folder settings and auditable card reviews and restores.
 - Home Map and Graph show connected boards and cards alongside Folders, with saved draggable Map positions.
 - Markdown wiki links keep durable board/card targets, and a human Create dialog can turn an unresolved board link into a new board.
 - Cross-board card connections and previous-board links now appear in the same summary-only memory graph agents can explore through HTTP, SDK, CLI, and MCP.
@@ -29,6 +34,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Markdown drafts survive refused saves, close/reopen and board switches, and delayed saves cannot replace newer text.
+- Reconnecting after a daemon restart preserves open drafts and records retried workbench saves as human edits.
+- Delayed board updates no longer undo a card jump's camera, and old save acknowledgements cannot replace restored content.
+- Lifecycle metadata edits cannot replay card content or bypass a board's scope fence by moving folders.
 - Saved Markdown links keep their bindings through rendering, Undo and restore; unresolved links wait for an explicit save before resolving.
 - Older Markdown cards get saved link bindings on first load, and older snapshots preserve known targets through renames.
 - Context summaries do not mark omitted relations as seen, and removed or restored remote targets invalidate the source's link mark.

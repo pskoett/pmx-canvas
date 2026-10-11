@@ -24,6 +24,7 @@
  * authentication boundary.
  */
 import { type FenceRect } from '../shared/scope-fence.js';
+import { type PmxAxPolicy } from './ax-state.js';
 import type { Operation } from './operations/types.js';
 /** Bounding box of the fenced nodes plus padding; null when none of them exist. */
 export declare function scopeFenceRect(fence: {
@@ -47,7 +48,7 @@ export interface FenceTarget {
     unknown?: string;
 }
 /** Returns a human-readable refusal, or null when the target is inside the fence. */
-export declare function checkFenceTarget(target: FenceTarget, opName: string, writerKey?: string): string | null;
+export declare function checkFenceTarget(target: FenceTarget, opName: string, writerKey?: string, policy?: PmxAxPolicy): string | null;
 /** Describe what a registry op would write, in fence terms. */
 export declare function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget;
 /** Registry entry point: refusal text or null. Only call for mutating, agent-originated ops. */

@@ -12,6 +12,7 @@
  *
  * This module must never import server.ts or index.ts.
  */
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { normalizeBoardFolder } from '../../../shared/boards.js';
 import { canvasState, type CanvasLayout } from '../../canvas-state.js';
@@ -23,6 +24,9 @@ import { defineOperation, OperationError, type Operation, type OperationContext 
 
 /** The most cards a Home thumbnail draws (the largest first); the rest are noise at that size. */
 const PREVIEW_CARDS = 24;
+export const boardCatalogEpoch = randomUUID();
+let catalogRevision = 0;
+let reloadRevision = 0;
 
 /**
  * A board's thumbnail on Home (docs/design/Home.dc.html): its cards as
@@ -51,13 +55,19 @@ function boardPreview(
     }));
 }
 
-export function boardsPayload(): Record<string, unknown> {
+export function boardsPayload(reloaded = false): Record<string, unknown> {
+  const revision = ++catalogRevision;
+  if (reloaded) reloadRevision = revision;
   const boards = canvasState.listBoards();
   const names = new Map(boards.map((board) => [board.id, board.name]));
   const graph = memoryGraph();
   const titles = new Map(graph.nodes.map((node) => [node.key, node.title]));
   const connections = boardConnections(graph);
   return {
+    catalogEpoch: boardCatalogEpoch,
+    catalogRevision: revision,
+    reloadRevision,
+    boardGeneration: canvasState.boardGeneration,
     activeBoardId: canvasState.activeBoardId,
     boards: boards.map((board) => {
       const read = canvasState.readBoard(board.id, true);

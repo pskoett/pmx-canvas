@@ -9,7 +9,7 @@
 import { executeOperation, listOperations } from './registry.js';
 import { SOURCE_LABEL_RE } from '../agent-presence.js';
 import { OperationError } from './types.js';
-import { isWorkbenchToken } from '../workbench-auth.js';
+import { isWorkbenchToken, refuseStaleWorkbenchWrite } from '../workbench-auth.js';
 
 function responseJson(data: unknown, status = 200): Response {
   return Response.json(data, {
@@ -90,7 +90,12 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       // the browser is not agent activity, so it never synthesizes an
       // auto-ghost. Everything else (CLI, scripts, adapters) counts as agent.
       const workbenchMarked = req.headers.get('x-pmx-workbench') === '1';
-      const humanAuthor = isWorkbenchToken(req.headers.get('x-pmx-workbench-token'));
+      const token = req.headers.get('x-pmx-workbench-token');
+      const humanAuthor = isWorkbenchToken(token);
+      // Before reconnect delivers the rotated capability, do not silently
+      // downgrade an old tab's human save to an agent edit.
+      const staleWrite = refuseStaleWorkbenchWrite(req);
+      if (staleWrite) return staleWrite;
       // Presence writer label: adapters/CLI may identify themselves; plain
       // HTTP callers read as 'api'.
       const sourceHeader = req.headers.get('x-pmx-source');

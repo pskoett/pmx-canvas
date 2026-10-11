@@ -79,6 +79,22 @@ describe('human presence over HTTP', () => {
       triggers: [],
       revalidationMethod: 'check source',
     };
+    await fetch(`${baseUrl}/api/canvas/node/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'Unresolved [[Later]]' }),
+    });
+    canvasState.createBoard('Later');
+    const beforeMetadata = canvasState.getNode(id);
+    const generic = await fetch(`${baseUrl}/api/canvas/node/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { lifecycleOverride } }),
+    });
+    expect(generic.status).toBe(400);
+    expect((await generic.json()).error).toContain('lifecycle');
+    expect(() => sdk.updateNode(id, { data: { lifecycleOverride } })).toThrow('lifecycle');
+    expect(canvasState.getNode(id)).toEqual(beforeMetadata);
     const read = () => fetch(`${baseUrl}/api/canvas/node/${id}/lifecycle`).then((r) => r.json());
     await sdk.lifecycle({ action: 'set', id, lifecycleOverride });
     expect(await read()).toMatchObject({ lifecycle: lifecycleOverride, lifecycleSource: 'card', lastValidation: null });
@@ -94,6 +110,11 @@ describe('human presence over HTTP', () => {
     const other = (await (await post('/api/canvas/node', { type: 'markdown', title: 'Fence anchor' })).json()) as {
       id: string;
     };
+    const boardId = canvasState.activeBoardId!;
+    await sdk.knowledge({ action: 'category-set', category: { ...lifecycleOverride, id: 'a', name: 'A', glyph: 'A' } });
+    await sdk.knowledge({ action: 'folder-set', path: 'A', categoryId: 'a', lifecycleOverride: null });
+    await sdk.updateBoard(boardId, { folder: 'A' });
+    expect(await read()).toMatchObject({ category: { id: 'a' }, categorySourceFolder: 'A' });
     canvasState.setPolicy({ scope: { nodeIds: [other.id] } });
     expect(
       (await post(`/api/canvas/node/${id}/review`, { outcome: 'retain', evidence: 'source', applied: true })).status,
@@ -104,6 +125,18 @@ describe('human presence over HTTP', () => {
     expect(
       (await post('/api/canvas/knowledge/folder', { path: 'A', categoryId: null, lifecycleOverride: null })).status,
     ).toBe(403);
+    await expect(sdk.updateBoard(boardId, { folder: 'B' })).rejects.toThrow('Outside the agent scope');
+    const patchFolder = (headers: Record<string, string>) =>
+      fetch(`${baseUrl}/api/canvas/boards/${boardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ folder: '' }),
+      });
+    expect((await patchFolder({})).status).toBe(403);
+    expect(canvasState.getActiveBoard()?.folder).toBe('A');
+    expect(await read()).toMatchObject({ category: { id: 'a' } });
+    expect((await patchFolder({ 'x-pmx-workbench': '1' })).status).toBe(200);
+    expect(await read()).toMatchObject({ category: null });
     canvasState.setPolicy({ scope: null });
     const response = await post(
       `/api/canvas/node/${id}/review`,

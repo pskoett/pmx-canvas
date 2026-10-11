@@ -512,7 +512,10 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     const rawAgentId = asRecord(rawInput).agentId;
     const writerKey = typeof rawAgentId === 'string' && rawAgentId.trim() ? rawAgentId.trim() : (meta.source ?? 'api');
     const refusal =
-      op.mutates || name === 'knowledge.category-set' || name === 'knowledge.folder-set'
+      op.mutates ||
+      name === 'knowledge.category-set' ||
+      name === 'knowledge.folder-set' ||
+      (name === 'board.update' && Object.hasOwn(asRecord(rawInput), 'folder'))
         ? checkScopeFence(op, rawInput, writerKey)
         : name === 'ax.policy.set'
           ? checkScopeOwnership(rawInput, writerKey)

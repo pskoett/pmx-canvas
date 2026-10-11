@@ -1,8 +1,9 @@
 import type { JSX } from 'preact';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { signal, type Signal } from '@preact/signals';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconArrowLeft } from '../icons';
 import { expandNode, nodes, updateNodeData } from '../state/canvas-store';
-import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
+import { fetchFile, renderMarkdown, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { activeBoard, setBoardReadme, openMemoryTarget, boardList } from '../state/boards-store';
 import { showToast } from '../state/attention-bridge';
@@ -10,7 +11,7 @@ import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
 import { InlineMarkdownEditor } from './InlineMarkdownEditor';
 import { isHostedWorkbench } from '../state/workbench-transport';
-import { activeBoardId } from '../state/boards-store';
+import { activeBoardId, boardIncarnation } from '../state/boards-store';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
 function RenderedMarkdown({
@@ -119,32 +120,76 @@ export function toggleTaskMarker(markdown: string, index: number): string {
   });
 }
 
+// A draft belongs to its qualified card, not the card/overlay component currently
+// showing it. Keep dirty or in-flight work across close, expand and board switches.
+type MarkdownDraft = {
+  latestMdRef: { current: string };
+  renderedMdRef: { current: { markdown: string; html: string } | null };
+  dirty: Signal<boolean>;
+  editBase: { current: { boardId: string | null; revision: number } };
+  saveQueue: { current: Promise<void> };
+  nativeSaveAttempts: Set<{ revision: number }>;
+  pending: number;
+  owners: number;
+};
+const markdownDrafts = new Map<string, MarkdownDraft>();
+
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const board = activeBoard();
   const boardId = activeBoardId.value;
+  const draftKey = JSON.stringify([boardId, node.id]);
+  const draft = useMemo(() => {
+    const existing = markdownDrafts.get(draftKey);
+    if (existing) return existing;
+    const created: MarkdownDraft = {
+      latestMdRef: { current: typeof node.data.content === 'string' ? node.data.content : '' },
+      renderedMdRef: { current: null },
+      dirty: signal(false),
+      editBase: { current: { boardId, revision: node.contentRevision ?? 0 } },
+      saveQueue: { current: Promise.resolve() },
+      nativeSaveAttempts: new Set(),
+      pending: 0,
+      owners: 0,
+    };
+    markdownDrafts.set(draftKey, created);
+    return created;
+  }, [draftKey]);
+  const { latestMdRef, renderedMdRef, editBase, saveQueue } = draft;
   const path = node.data.path as string;
   const [content, setContent] = useState('');
   const [rendered, setRendered] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const dirty = draft.dirty.value;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const persistTimerRef = useRef<number | null>(null);
+  const persistTimerRef = useMemo<{ current: number | null }>(() => ({ current: null }), [draft]);
   // Always-current md + saver, so the unmount cleanup can flush a pending
-  // debounced save without capturing stale closures.
-  const latestMdRef = useRef<string>('');
-  const persistFnRef = useRef<((md: string) => Promise<void>) | null>(null);
-  const dirtyRef = useRef(false);
-  const editBase = useRef({ boardId, revision: node.contentRevision ?? 0 });
-  const saveQueue = useRef(Promise.resolve());
+  // debounced save without borrowing another board's same-ID card.
+  const persistFnRef = useMemo<{ current: ((md: string) => Promise<void>) | null }>(() => ({ current: null }), [draft]);
   const reviewActive = node.data.reviewActive as boolean | undefined;
   // Binding-only saves/restores and target availability changes invalidate HTML,
   // but position-only layouts must not trigger another render request.
   const savedWikiBindings = JSON.stringify(node.data.wikiLinks ?? []);
 
+  useLayoutEffect(() => {
+    draft.owners++;
+    // Reattach when replacing the last clean card instance in the same commit.
+    markdownDrafts.set(draftKey, draft);
+    setContent(latestMdRef.current);
+    const preview = renderedMdRef.current;
+    const matches = preview?.markdown === latestMdRef.current;
+    setRendered(matches ? preview.html : '');
+    setLoaded(matches);
+    return () => {
+      draft.owners--;
+      if (!draft.owners && !draft.pending && !draft.dirty.value && markdownDrafts.get(draftKey) === draft)
+        markdownDrafts.delete(draftKey);
+    };
+  }, [draft]);
+
   useEffect(() => {
-    const renderingDraft = dirtyRef.current;
+    const renderingDraft = draft.dirty.value || draft.pending > 0;
     if (!renderingDraft) editBase.current = { boardId, revision: node.contentRevision ?? 0 };
     let cancelled = false;
     (async () => {
@@ -156,23 +201,27 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         const result = await fetchFile(path);
         if (cancelled) return;
         raw = result.content;
-      } else if (node.data.content) {
-        raw = node.data.content as string;
+      } else if (typeof node.data.content === 'string') {
+        raw = node.data.content;
       } else {
         setLoaded(true);
         return;
       }
-      const html = await renderMarkdown(raw, node.id);
+      const html = await renderMarkdown(raw, node.id, boardId);
       if (
+        html === null ||
         cancelled ||
-        (renderingDraft || dirtyRef.current
+        activeBoardId.value !== boardId ||
+        (renderingDraft || draft.dirty.value
           ? latestMdRef.current !== raw
           : !path && nodes.value.get(node.id)?.data.content !== raw)
       )
         return;
+      renderedMdRef.current = { markdown: raw, html };
       setRendered(html);
       setLoaded(true);
-      if (!dirtyRef.current) {
+      if (!renderingDraft && !draft.dirty.value) {
+        latestMdRef.current = raw;
         setContent(raw);
         updateNodeData(node.id, { content: raw, rendered: html });
       } else if (nodes.value.get(node.id)?.data.content === raw) {
@@ -185,22 +234,36 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     };
   }, [boardId, path, node.id, node.data.content, savedWikiBindings, node.linksRevision]);
 
-  const handleInput = useCallback(async (e: Event) => {
-    const value = (e.target as HTMLTextAreaElement).value;
-    dirtyRef.current = true;
-    latestMdRef.current = value;
-    setContent(value);
-    setDirty(true);
-    const html = await renderMarkdown(value, node.id);
-    setRendered(html);
-  }, []);
+  const handleInput = useCallback(
+    async (e: Event) => {
+      const value = (e.target as HTMLTextAreaElement).value;
+      draft.dirty.value = true;
+      latestMdRef.current = value;
+      setContent(value);
+      const html = await renderMarkdown(value, node.id, boardId);
+      if (html === null || activeBoardId.value !== boardId || latestMdRef.current !== value) return;
+      renderedMdRef.current = { markdown: value, html };
+      setRendered(html);
+    },
+    [boardId, draft, node.id],
+  );
 
   const persistContent = useCallback(
     async (newContent: string) => {
-      if (isHostedWorkbench()) {
-        // Serialize autosaves against the captured source revision, not whatever
-        // newer revision a background poll has delivered while typing.
-        saveQueue.current = saveQueue.current.then(async () => {
+      // Human wins over already-observed work, not work arriving while this
+      // particular attempt waits in the queue or for its rendered preview.
+      const incarnation = boardIncarnation;
+      const attempt = { revision: nodes.value.get(node.id)?.contentRevision ?? 0 };
+      draft.nativeSaveAttempts.add(attempt);
+      draft.pending++;
+      // Order the complete save, including disk writes and rendering. A later
+      // draft must not persist before an older render resumes and overwrites it.
+      saveQueue.current = saveQueue.current.then(async () => {
+        if (incarnation !== boardIncarnation || activeBoardId.value !== boardId || latestMdRef.current !== newContent)
+          return;
+        if (isHostedWorkbench()) {
+          // Serialize autosaves against the captured source revision, not whatever
+          // newer revision a background poll has delivered while typing.
           setSaving(true);
           const result = await updateNodeFromClient(node.id, {
             content: newContent,
@@ -208,81 +271,132 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
             expectedContentRevision: editBase.current.revision,
           });
           setSaving(false);
-          if (!result.ok) return; // Refusal toast is shown by the request helper; keep the draft.
+          if (!result.ok || incarnation !== boardIncarnation) return; // Keep refused or obsolete drafts.
           editBase.current.revision = result.contentRevision ?? editBase.current.revision;
+          const html = await renderMarkdown(newContent, node.id, boardId);
+          if (incarnation !== boardIncarnation || activeBoardId.value !== boardId || latestMdRef.current !== newContent)
+            return;
           const current = nodes.value.get(node.id);
-          if (current)
-            nodes.value = new Map(nodes.value).set(node.id, { ...current, contentRevision: editBase.current.revision });
-          if (latestMdRef.current !== newContent) return;
-          dirtyRef.current = false;
-          setDirty(false);
-          const html = await renderMarkdown(newContent, node.id);
-          setRendered(html);
-          updateNodeData(node.id, { content: newContent, rendered: html });
-        });
-        await saveQueue.current;
-        return;
-      }
-      if (!path) {
-        const html = await renderMarkdown(newContent, node.id);
-        if (activeBoardId.value === boardId && latestMdRef.current === newContent) {
-          setRendered(html);
-          setDirty(false);
-          updateNodeData(node.id, { content: newContent, rendered: html });
+          if (!current || (current.contentRevision ?? 0) > editBase.current.revision) return;
+          nodes.value = new Map(nodes.value).set(node.id, {
+            ...current,
+            contentRevision: editBase.current.revision,
+            lastEditedBy: result.lastEditedBy,
+            data: { ...current.data, content: newContent, ...(html !== null ? { rendered: html } : {}) },
+          });
+          draft.dirty.value = false;
+          if (html !== null) {
+            renderedMdRef.current = { markdown: newContent, html };
+            setRendered(html);
+          }
+          return;
         }
+        const html = await renderMarkdown(newContent, node.id, boardId);
+        if (
+          html === null ||
+          incarnation !== boardIncarnation ||
+          activeBoardId.value !== boardId ||
+          latestMdRef.current !== newContent
+        )
+          return;
+        // Preview the local draft independently of persistence. Switching Source
+        // back to Document must not resurrect saved text while PATCH is pending.
+        if (
+          activeBoardId.value === boardId &&
+          latestMdRef.current === newContent &&
+          renderedMdRef.current?.markdown !== newContent
+        ) {
+          renderedMdRef.current = { markdown: newContent, html };
+          setRendered(html);
+        }
+        const expectedContentRevision = attempt.revision;
         const result = await updateNodeFromClient(node.id, {
           content: newContent,
           data: { rendered: html },
           expectedBoardId: boardId,
+          expectedContentRevision,
+          ...(path ? { persistFile: true } : {}),
         });
+        // A restored/restarted library may reuse this ID with a lower revision.
+        // The old ACK grants neither canonical state nor queued-save authority.
+        if (incarnation !== boardIncarnation) return;
+        if (result.ok && result.contentRevision !== undefined) {
+          // Advance only through a successful predecessor in this board/card's
+          // queue. An external revision or a refused save grants no retry.
+          for (const queued of draft.nativeSaveAttempts) {
+            if (queued.revision === expectedContentRevision) queued.revision = result.contentRevision;
+          }
+        }
         const current = nodes.value.get(node.id);
         if (
           result.ok &&
           result.contentRevision !== undefined &&
           current &&
           activeBoardId.value === boardId &&
-          latestMdRef.current === newContent &&
           (current.contentRevision ?? 0) <= result.contentRevision
         ) {
-          // Reconcile the text and acknowledgement atomically: an older poll
-          // may already have replaced our optimistic content while saving.
+          // ACK the canonical revision even while a newer local draft is dirty,
+          // so a later save need not wait for polling to observe our own write.
+          const preview = renderedMdRef.current;
+          const replacePreview = preview?.markdown !== newContent;
           nodes.value = new Map(nodes.value).set(node.id, {
             ...current,
             contentRevision: result.contentRevision,
-            lastEditedBy: { actor: 'human', source: 'browser' },
-            // A newer binding-aware render may already have arrived via layout.
-            // The acknowledgement owns text/revision, not pre-save preview HTML.
-            data: { ...current.data, content: newContent },
+            lastEditedBy: result.lastEditedBy,
+            data: {
+              ...current.data,
+              content: newContent,
+              rendered: preview?.markdown === newContent ? preview.html : html,
+            },
           });
-          dirtyRef.current = false;
-          setContent(newContent);
+          if (latestMdRef.current === newContent) {
+            // A remounted editor must not initialize from another source's HTML
+            // while the canonical post-save render is still pending.
+            if (replacePreview) {
+              renderedMdRef.current = { markdown: newContent, html };
+              setRendered(html);
+            }
+            draft.dirty.value = false;
+            setContent(newContent);
+          }
         }
-        return;
-      }
-      setSaving(true);
-      const result = await saveFile(path, newContent);
-      setSaving(false);
-      if (result.ok) {
-        const html = await renderMarkdown(newContent, node.id);
-        if (latestMdRef.current === newContent) {
-          dirtyRef.current = false;
-          setRendered(html);
-          setDirty(false);
-          updateNodeData(node.id, { content: newContent, rendered: html, savedAt: result.updatedAt });
-        }
-        await updateNodeFromClient(node.id, {
-          content: newContent,
-          data: { rendered: html, savedAt: result.updatedAt },
-        });
+      });
+      try {
+        await saveQueue.current;
+      } finally {
+        draft.nativeSaveAttempts.delete(attempt);
+        draft.pending--;
+        if (!draft.owners && !draft.pending && !draft.dirty.value && markdownDrafts.get(draftKey) === draft)
+          markdownDrafts.delete(draftKey);
       }
     },
-    [boardId, path, node.id],
+    [boardId, path, node.id, draft],
   );
 
   const handleSave = useCallback(async () => {
     if (!dirty) return;
     await persistContent(content);
   }, [dirty, content, persistContent]);
+
+  const handleDocumentMode = useCallback(async () => {
+    if (renderedMdRef.current?.markdown !== content) {
+      const html = await renderMarkdown(content, node.id, boardId);
+      // Do not mount the rich editor from another source's HTML, including
+      // while a draft render is pending or unavailable. Keep Source retryable.
+      if (html === null || activeBoardId.value !== boardId || latestMdRef.current !== content) return;
+      if (renderedMdRef.current?.markdown !== content) {
+        renderedMdRef.current = { markdown: content, html };
+      }
+    }
+    if (activeBoardId.value !== boardId || latestMdRef.current !== content) return;
+    // Another instance may have populated the shared cache. The rich editor
+    // mounts from this instance's HTML, which must match that cache as well.
+    const preview = renderedMdRef.current;
+    if (preview?.markdown !== content) return;
+    setRendered(preview.html);
+    setLoaded(true);
+    setSourceMode(false);
+  }, [boardId, content, node.id]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -309,9 +423,8 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // don't hit the backend on every letter.
   const handleInlineChange = useCallback(
     (md: string) => {
-      dirtyRef.current = true;
+      draft.dirty.value = true;
       setContent(md);
-      setDirty(true);
       latestMdRef.current = md;
       if (persistTimerRef.current !== null) window.clearTimeout(persistTimerRef.current);
       persistTimerRef.current = window.setTimeout(() => {
@@ -319,7 +432,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         void persistContent(md);
       }, 800);
     },
-    [persistContent],
+    [persistContent, draft],
   );
 
   // Fires on ⌘S and blur — persist immediately with whatever markdown the
@@ -327,7 +440,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // write twice with slightly different content.
   const handleInlineSave = useCallback(
     (md: string) => {
-      dirtyRef.current = true;
+      draft.dirty.value = true;
       setContent(md);
       latestMdRef.current = md;
       if (persistTimerRef.current !== null) {
@@ -336,7 +449,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       }
       void persistContent(md);
     },
-    [persistContent],
+    [persistContent, draft],
   );
 
   // On unmount / node switch, flush any pending debounced save so trailing
@@ -349,7 +462,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       const fn = persistFnRef.current;
       if (fn) void fn(latestMdRef.current);
     };
-  }, [node.id]);
+  }, [draft]);
 
   const reviewBanner = reviewActive ? (
     <div
@@ -374,7 +487,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     return (
       <div class="md-editor-expanded" onKeyDown={handleKeyDown}>
         <div class="md-editor-toolbar">
-          <button type="button" class="md-toolbar-btn" onClick={() => setSourceMode(false)}>
+          <button type="button" class="md-toolbar-btn" onClick={handleDocumentMode}>
             <IconArrowLeft size={14} /> Back to document
           </button>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -419,7 +532,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         >
           <button
             type="button"
-            onClick={() => setSourceMode(false)}
+            onClick={handleDocumentMode}
             style={{
               padding: '4px 10px',
               fontSize: '11px',

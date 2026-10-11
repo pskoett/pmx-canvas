@@ -103,7 +103,7 @@ describe('library backup', () => {
     expect(readdirSync(join(root, 'chosen')).some((file) => file.endsWith('.db'))).toBe(true);
     expect((await run(['backup', 'schedule', '--every=1m', '--to', join(root, 'chosen')])).code).toBe(0);
     expect((await run(['backup', 'schedule', '--off'])).code).toBe(0);
-  });
+  }, 30_000); // Ten real CLI cold starts share this one test's timeout.
 
   test('CLI shutdown stays alive on save failure and exits durably after recovery', async () => {
     const root = createTestWorkspace('pmx-canvas-shutdown-');
@@ -199,6 +199,11 @@ describe('library backup', () => {
     await addNote('Scratch');
     const restored = await call('POST', '/api/canvas/backup/restore', { file: backup });
     expect(restored.status).toBe(200);
+    const laterCatalog = (await call('GET', '/api/canvas/boards')).body;
+    expect(restored.body.reloadRevision).toBe(restored.body.catalogRevision);
+    expect(laterCatalog.catalogEpoch).toBe(restored.body.catalogEpoch);
+    expect(laterCatalog.reloadRevision).toBe(restored.body.reloadRevision);
+    expect(Number(laterCatalog.catalogRevision)).toBeGreaterThan(Number(restored.body.catalogRevision));
     expect(await boardNames()).toEqual([expect.stringMatching(/^Board /), 'Discovery']);
     const state = (await call('GET', '/api/canvas/state')).body as { nodes: Array<{ data: { title?: string } }> };
     expect(state.nodes.map((node) => node.data.title)).toEqual(['Objective one']);

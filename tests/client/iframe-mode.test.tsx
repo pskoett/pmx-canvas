@@ -206,6 +206,8 @@ describe('useSurfaceFrame', () => {
     iframeMode.value = 'srcdoc';
     const calls: string[] = [];
     globalThis.fetch = (async (url: string | URL | Request) => {
+      // Connect-time store refreshes may arrive here; this case owns surface requests only.
+      if (!String(url).startsWith('/api/canvas/surface/')) return Response.json({});
       calls.push(String(url));
       return new Response('<!doctype html><h1>inline surface</h1>', {
         headers: { 'Content-Type': 'text/html' },

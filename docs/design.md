@@ -224,8 +224,11 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
 ## Build plan
 
 Each wave pairs a vision move with the design that shows it. A wave is done only
-when both halves pass its check. Wave 2 passed the local stabilization gates
+when both halves pass its check. Wave 2 passed its original local checkpoint
 (1,418 unit, 276 client and 248 headed browser tests, plus live human/agent checks).
+The later [combined stabilization](plans/plan-018-connected-memory-wave-2.md#combined-stabilization)
+with the Wave 3 foundation passes 1,437 unit, 302 client and 266 headed browser tests,
+plus live human/agent checks and the final focused Oracle review.
 Wave 3 has started with the board-folder contract rename and the data-only
 [category/lifecycle foundation](plans/plan-017-knowledge-categories-and-lifecycle.md#1-data-categories-inheritance-lifecycle-review-records-no-ui).
 Relations and the user-facing

@@ -26,6 +26,7 @@
 import { type FenceRect, fenceRectFromNodes } from '../shared/scope-fence.js';
 import { canvasState } from './canvas-state.js';
 import { resolvePatchGeometry, validCanvasNodeUpdates } from './canvas-geometry.js';
+import { normalizeAxPolicy, type PmxAxPolicy } from './ax-state.js';
 import type { Operation } from './operations/types.js';
 
 /** Bounding box of the fenced nodes plus padding; null when none of them exist. */
@@ -55,8 +56,12 @@ function inside(rect: FenceRect, x: number, y: number): boolean {
 }
 
 /** Returns a human-readable refusal, or null when the target is inside the fence. */
-export function checkFenceTarget(target: FenceTarget, opName: string, writerKey?: string): string | null {
-  const policy = canvasState.getPolicy();
+export function checkFenceTarget(
+  target: FenceTarget,
+  opName: string,
+  writerKey?: string,
+  policy: PmxAxPolicy = canvasState.getPolicy(),
+): string | null {
   // Per-agent territory (fleet orchestration) overrides the global fence for
   // that writer; writers without a territory fall under the global fence.
   const territory = writerKey ? policy.agentScopes[writerKey] : undefined;
@@ -154,7 +159,14 @@ function createTarget(input: Record<string, unknown>, extraNodeIds: string[] = [
 }
 
 /** Ops that rewrite the whole board — never allowed under a fence. */
-const BOARD_WIDE_OPS = new Set(['arrange', 'canvas.clear', 'snapshot.restore', 'render.workboard', 'tour.set']);
+const BOARD_WIDE_OPS = new Set([
+  'arrange',
+  'canvas.clear',
+  'snapshot.restore',
+  'render.workboard',
+  'tour.set',
+  'board.update',
+]);
 
 /** Describe what a registry op would write, in fence terms. */
 export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget {
@@ -239,7 +251,17 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
 
 /** Registry entry point: refusal text or null. Only call for mutating, agent-originated ops. */
 export function checkScopeFence(op: Operation, rawInput: unknown, writerKey?: string): string | null {
-  return checkFenceTarget(describeOpTarget(op, rawInput), op.name, writerKey);
+  const target = describeOpTarget(op, rawInput);
+  const activeRefusal = checkFenceTarget(target, op.name, writerKey);
+  if (activeRefusal) return activeRefusal;
+  // Re-filing changes every card's lifecycle inheritance, even on a closed
+  // board. Its stored policy applies without opening it or dropping the active fence.
+  const input = asRecord(rawInput);
+  if (op.name === 'board.update' && typeof input.id === 'string' && input.id !== canvasState.activeBoardId) {
+    const board = canvasState.readBoard(input.id, false);
+    return checkFenceTarget(target, op.name, writerKey, normalizeAxPolicy(board?.state.ax?.policy));
+  }
+  return null;
 }
 
 /**

@@ -7,6 +7,8 @@ export declare function defaultNodeSize(type: string): {
     width: number;
     height: number;
 };
+/** Parent traversal in a relative path, using the path implementation's separator. */
+export declare function isParentTraversal(path: string, separator: string): boolean;
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 export declare function pickFiniteNumber(record: Record<string, unknown>, key: string): number | undefined;
 export declare function getRecord(value: unknown): Record<string, unknown> | undefined;

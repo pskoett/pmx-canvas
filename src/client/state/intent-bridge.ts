@@ -2,7 +2,7 @@ import { canvasArea } from '../canvas/canvas-area';
 import { showToast } from './attention-bridge';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
-import type { CanvasEdge } from '../types';
+import type { CanvasEdge, CanvasNodeState } from '../types';
 import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
 import { activeBoardId, boardsLoaded } from './boards-store';
 function logRequestError(action: string, error: unknown): void {
@@ -141,7 +141,11 @@ export async function vetoGhostIntent(intent: {
 }
 
 /** Fetch rendered markdown HTML from the server. */
-export async function renderMarkdown(markdown: string, nodeId?: string): Promise<string> {
+export async function renderMarkdown(
+  markdown: string,
+  nodeId?: string,
+  expectedBoardId: string | null = activeBoardId.value,
+): Promise<string | null> {
   const data = await requestJson<{ html?: string }>(
     'renderMarkdown',
     '/api/render',
@@ -149,10 +153,10 @@ export async function renderMarkdown(markdown: string, nodeId?: string): Promise
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown, ...(nodeId ? { nodeId } : {}) }),
+      body: JSON.stringify({ markdown, ...(nodeId ? { nodeId, expectedBoardId } : {}) }),
     },
   );
-  return data.html ?? '';
+  return data.html ?? null;
 }
 
 /** Fetch file content from the server. */
@@ -161,20 +165,6 @@ export async function fetchFile(path: string): Promise<{
   provenance?: unknown;
 }> {
   return requestJson('fetchFile', `/api/file?path=${encodeURIComponent(path)}`, { content: '' });
-}
-
-/** Save file content to the server. */
-export async function saveFile(path: string, content: string): Promise<{ ok: boolean; updatedAt?: string }> {
-  return requestJson(
-    'saveFile',
-    '/api/file/save',
-    { ok: false },
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, content }),
-    },
-  );
 }
 
 /** Fetch current workbench state. */
@@ -192,8 +182,12 @@ export async function openWorkbenchFile(path: string): Promise<{ ok: boolean }> 
 }
 
 /** Fetch canvas state from server. */
-export async function fetchCanvasState(): Promise<Record<string, unknown>> {
-  return requestJson('fetchCanvasState', '/api/canvas/state?includeBlobs=true', {});
+export async function fetchCanvasState(expectedBoardId: string | null): Promise<Record<string, unknown>> {
+  return requestJson(
+    'fetchCanvasState',
+    `/api/canvas/state?includeBlobs=true&expectedBoardId=${encodeURIComponent(expectedBoardId ?? 'null')}`,
+    {},
+  );
 }
 
 export async function saveCanvasTheme(theme: string): Promise<{ ok: boolean; theme?: string }> {
@@ -338,8 +332,9 @@ export async function updateNodeFromClient(
     children?: string[];
     expectedContentRevision?: number;
     expectedBoardId?: string | null;
+    persistFile?: boolean;
   },
-): Promise<{ ok: boolean; id?: string; contentRevision?: number }> {
+): Promise<{ ok: boolean; id?: string; contentRevision?: number; lastEditedBy?: CanvasNodeState['lastEditedBy'] }> {
   return requestJson(
     'updateNodeFromClient',
     `/api/canvas/node/${encodeURIComponent(id)}`,

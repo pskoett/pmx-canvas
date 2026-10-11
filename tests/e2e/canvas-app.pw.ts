@@ -212,6 +212,63 @@ test('real source editor keeps a refused draft when another writer changes the n
   await capture(page, 'workbench-app-conflict.png');
 });
 
+test('a hosted post-save render keeps a newer agent edit and a retryable human draft', async ({ page, request }) => {
+  await board(request, 'Hosted save reconciliation');
+  const id = await note(request, 'Checked decision');
+  const app = await mount(page);
+  await app.locator(`.canvas-node[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+  await app.getByRole('button', { name: '</> Source', exact: true }).click();
+  const editor = app.locator('.md-editor-expanded textarea');
+  const draft = 'Human decision awaiting its preview.';
+  const newer = 'Newer agent decision after the acknowledged save.';
+  await editor.fill(draft);
+  await expect(app.locator('.md-preview')).toContainText(draft);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let saved = false;
+  let rendering = false;
+  let deliveredNewer = false;
+  await page.route('**/test-tool', async (route) => {
+    const input = route.request().postDataJSON();
+    const result = await client.callTool(input);
+    if (input.arguments?.method === 'PATCH' && input.arguments.path === `/api/canvas/node/${id}`) saved = true;
+    if (saved && input.arguments?.path === '/api/render' && JSON.parse(input.arguments.body).markdown === draft) {
+      rendering = true;
+      await gate;
+    }
+    if (
+      input.arguments?.path.startsWith('/api/workbench/poll') &&
+      JSON.stringify(result._meta?.response).includes(newer)
+    )
+      deliveredNewer = true;
+    await route.fulfill({ json: result });
+  });
+  try {
+    await app.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect.poll(() => rendering).toBe(true);
+    const acknowledged = await (await request.get(`/api/canvas/node/${id}`)).json();
+    expect(acknowledged.data.content).toBe(draft);
+    expect((await request.patch(`/api/canvas/node/${id}`, { data: { content: newer } })).ok()).toBe(true);
+    const updated = await (await request.get(`/api/canvas/node/${id}`)).json();
+    expect(updated.contentRevision).toBeGreaterThan(acknowledged.contentRevision);
+    await expect.poll(() => deliveredNewer).toBe(true);
+    release();
+    await page.waitForTimeout(250); // Observe the obsolete continuation after its held response is released.
+    await expect(editor).toHaveValue(draft);
+    await expect(app.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+    await app.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(app.locator('.attention-toast')).toContainText('This node changed');
+    await expect(editor).toHaveValue(draft);
+    expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.goto('about:blank');
+  }
+});
+
 test('background context retries without a footer and late launcher data cannot roll back the workbench', async ({
   page,
   request,

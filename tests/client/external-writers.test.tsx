@@ -166,7 +166,9 @@ describe('activity feed', () => {
     fireEvent.click(getByText('Veto'));
     await waitFor(() => expect(calls.some((call) => call.url === '/api/canvas/ax/intent/int-1')).toBe(true));
     expect(calls.find((call) => call.url === '/api/canvas/ax/intent/int-1')?.init?.method).toBe('DELETE');
-    await waitFor(() => expect(queryByTestId('activity-proposal')).toBeNull());
+    // Avoid serializing happy-dom's cyclic element on each pending assertion:
+    // Bun's failure formatting can block the microtasks that remove the row.
+    await waitFor(() => expect(queryByTestId('activity-proposal') === null).toBe(true));
   });
 
   test('Writers opens the sheet; Esc closes the sheet first, then the feed', () => {

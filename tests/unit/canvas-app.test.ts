@@ -417,8 +417,12 @@ test('context excludes uncurated content, stale ids and images; selected and pin
 });
 
 test('workbench transport preserves guards and authority, keeps hydration private, and rejects proxy escapes', async () => {
+  await read(); // Starts the owned daemon even when this authority regression runs alone.
   const { board } = await post('/api/canvas/boards', { name: 'Real workbench transport' });
   await post('/api/canvas/boards/open', { id: board.id });
+  const html = await (await fetch(`${base}/workbench`)).text();
+  const token = JSON.parse(html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1] ?? '""') as string;
+  expect(token.length).toBeGreaterThan(0);
   const request = async (path: string, method = 'GET', body?: unknown, expectedBoardId: string | null = board.id) => {
     const result = await client.callTool({
       name: 'pmx_workbench_request',
@@ -431,6 +435,8 @@ test('workbench transport preserves guards and authority, keeps hydration privat
     });
     expect(result.isError).not.toBe(true);
     expect(JSON.stringify(result.content)).not.toContain('Private full source');
+    // Check the whole tool result, including private hydration metadata, without printing the capability.
+    expect(JSON.stringify(result).includes(token)).toBe(false);
     return z.object({ status: z.number(), body: z.string() }).parse(result._meta?.response);
   };
   const descriptor = (await client.listTools()).tools.find((tool) => tool.name === 'pmx_workbench_request')!;
@@ -449,6 +455,7 @@ test('workbench transport preserves guards and authority, keeps hydration privat
   const poll = await request('/api/workbench/poll');
   expect(poll.status).toBe(200);
   expect(poll.body).toContain('Private full source');
+  expect(poll.body).not.toContain('workbenchToken');
   const edit = { content: 'Kept', expectedContentRevision: node.contentRevision };
   expect((await request(`/api/canvas/node/${node.id}`, 'PATCH', edit, 'stale-board')).status).toBe(409);
   expect((await request(`/api/canvas/node/${node.id}`, 'PATCH', { content: 'No revision' })).status).toBe(409);

@@ -8,7 +8,8 @@
  *
  * This module must never import server.ts or index.ts.
  */
-import { resolve } from 'node:path';
+import { realpathSync, statSync, writeFileSync } from 'node:fs';
+import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { canvasState, type CanvasAnnotation, type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
 import {
@@ -107,6 +108,11 @@ export function defaultNodeSize(type: string): { width: number; height: number }
 }
 
 // ── Shared helpers (moved from server.ts) ─────────────────────
+
+/** Parent traversal in a relative path, using the path implementation's separator. */
+export function isParentTraversal(path: string, separator: string): boolean {
+  return path === '..' || path.startsWith(`..${separator}`);
+}
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -446,6 +452,8 @@ export function buildNodePatch(
   }
   if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
     const data = body.data as Record<string, unknown>;
+    if (Object.hasOwn(data, 'lifecycleOverride'))
+      throw new OperationError('Update lifecycle overrides through node.lifecycle-set, not a content patch.');
     const source = data.source;
     const importedSource = source && typeof source === 'object' && 'attachmentId' in source;
     const attachedFileContent =
@@ -984,6 +992,10 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
 const nodeUpdateShape = {
   id: z.string().describe('Node ID to update'),
   expectedContentRevision: z.number().int().nonnegative().optional().describe('Reject an edit based on stale content'),
+  persistFile: z
+    .boolean()
+    .optional()
+    .describe('Save file-backed Markdown to disk and card together; requires board and content revision preconditions'),
   intentId: z
     .string()
     .optional()
@@ -1176,6 +1188,35 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       }
     }
 
+    let markdownPath: string | undefined;
+    if (input.persistFile) {
+      if (
+        existing.type !== 'markdown' ||
+        typeof existing.data.path !== 'string' ||
+        !existing.data.path ||
+        typeof input.content !== 'string' ||
+        input.expectedContentRevision === undefined ||
+        typeof input.expectedBoardId !== 'string'
+      ) {
+        throw new OperationError(
+          'File persistence requires file-backed Markdown, content, expectedBoardId and expectedContentRevision.',
+        );
+      }
+      const data = isRecord(body.data) ? body.data : {};
+      if (Object.keys(data).some((key) => key !== 'rendered'))
+        throw new OperationError('File persistence accepts only data.rendered; update metadata separately.');
+      markdownPath = realpathSync(resolve(canvasState.getWorkspaceRoot(), existing.data.path));
+      const workspacePath = relative(realpathSync(canvasState.getWorkspaceRoot()), markdownPath);
+      if (
+        isParentTraversal(workspacePath, sep) ||
+        isAbsolute(workspacePath) ||
+        extname(markdownPath).toLowerCase() !== '.md' ||
+        !statSync(markdownPath).isFile()
+      ) {
+        throw new OperationError('File persistence requires a Markdown file inside the workspace.');
+      }
+      body = { ...body, content: input.content.replace(/\r\n?/g, '\n') };
+    }
     const { patch, groupChildIds } = buildNodePatch(existing, body);
     const prevPath = existing.type === 'file' && typeof existing.data.path === 'string' ? existing.data.path : null;
     if (nextFilePath && nextFileContent && patch.data) {
@@ -1186,6 +1227,12 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       }
       applyFileContentToNodeData(data, nextFileContent);
       patch.data = data;
+    }
+    if (markdownPath && patch.data) {
+      // No await between revision validation, disk persistence and the card
+      // update: a refused/stale attempt must not write either half.
+      writeFileSync(markdownPath, String(patch.data.content), 'utf8');
+      patch.data.savedAt = new Date().toISOString();
     }
     canvasState.updateNode(id, patch);
     if (groupChildIds !== undefined && !setGroupChildrenFromApi(id, groupChildIds)) {

@@ -65,12 +65,21 @@ export declare const boardList: import("@preact/signals-core").Signal<BoardSumma
 export declare const activeBoardId: import("@preact/signals-core").Signal<string | null>;
 /** False until the first list arrives — Home must not flash before the server answers. */
 export declare const boardsLoaded: import("@preact/signals-core").Signal<boolean>;
+export declare let catalogEpoch: string | null;
+export declare let boardGeneration: number | null;
+/** Invalidates suspended writes when the canonical board/library is replaced. */
+export declare let boardIncarnation: number;
+/** Only the current transport's connected handshake may replace the server epoch. */
+export declare function connectBoardCatalog(epoch: string): void;
 /** The SSE bridge resyncs the canvas when the open board changes under it. */
-export declare function setBoardSwitchHandler(handler: (() => void) | null): void;
+export declare function setBoardSwitchHandler(handler: ((initial: boolean) => void) | null): void;
 export declare function applyBoards(data: {
     activeBoardId?: unknown;
     boards?: unknown;
-    reloaded?: unknown;
+    catalogEpoch?: unknown;
+    catalogRevision?: unknown;
+    reloadRevision?: unknown;
+    boardGeneration?: unknown;
 } | null): void;
 export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */

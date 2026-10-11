@@ -30,6 +30,8 @@ retain/revise/externalize with a matching `expectedContentRevision` validates. C
 from the card content you actually checked: missing or stale preconditions refuse the review.
 Records retain the reviewed revision; content persistence failure adds no record.
 Restore never validates and only explicit restore reverses retirement.
+Moving/unfiling a board checks both the active scope and the target board's stored global
+scope or writer territory. Opening Home or another board cannot bypass the target's fence.
 
 ## Board tours
 
@@ -365,6 +367,12 @@ Target another board without opening it with `canvas_query { action: "layout",
 board: "<id>" }` or `canvas_node { action: "get", id: "<node-id>", board:
 "<id>" }`. Unknown boards error, and full inactive-board reads resolve stored
 blob references.
+
+`canvas_node { action: "update" }` accepts `expectedBoardId` and `expectedContentRevision`
+to refuse stale writes. Ordinary updates change the card only. File-backed Markdown may opt
+into `persistFile: true` with both preconditions and top-level `content` to save the existing
+workspace `.md` file and card together. In this mode, `data` accepts only the `rendered` preview;
+refused saves change neither. See [the file-save contract](http-api.md#nodes).
 
 For Mermaid nodes, `canvas_node` actions `add` and `update` accept
 `data: { fit: "contain" | "none" }`. Contain is the default, shrinking overflow

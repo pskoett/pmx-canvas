@@ -3,11 +3,19 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preac
 import { BoardSwitcher } from '../../src/client/canvas/BoardSwitcher.tsx';
 import { HomeView } from '../../src/client/canvas/HomeView.tsx';
 import { memoryKey, type MemoryGraph } from '../../src/shared/memory-graph.ts';
-import { activeBoardId, boardList, boardsLoaded, type BoardSummary } from '../../src/client/state/boards-store.ts';
+import {
+  activeBoardId,
+  boardList,
+  boardsLoaded,
+  connectBoardCatalog,
+  type BoardSummary,
+} from '../../src/client/state/boards-store.ts';
 
 const realFetch = globalThis.fetch;
 const calls: Array<{ url: string; init?: RequestInit }> = [];
 let memoryGraph: MemoryGraph | null = null;
+let fixtureEpoch = 0;
+let fixtureRevision = 0;
 
 const board = (id: string, name: string, nodeCount: number, folder: string | null = null): BoardSummary => ({
   id,
@@ -36,10 +44,21 @@ beforeAll(() => {
           )
         : boardList.value;
     const openedId = url === '/api/canvas/boards/open' ? JSON.parse(String(init?.body)).id : null;
-    return new Response(JSON.stringify({ ok: true, activeBoardId: openedId, boards: updated }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        catalogEpoch: `home-${fixtureEpoch}`,
+        catalogRevision: ++fixtureRevision,
+        reloadRevision: 0,
+        boardGeneration: 0,
+        activeBoardId: openedId,
+        boards: updated,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
   }) as unknown as typeof fetch;
 });
 afterAll(() => {
@@ -48,6 +67,9 @@ afterAll(() => {
 
 beforeEach(() => {
   calls.length = 0;
+  fixtureEpoch++;
+  fixtureRevision = 0;
+  connectBoardCatalog(`home-${fixtureEpoch}`);
   boardList.value = [board('b-okr', 'C4 OKR planning', 26), board('b-disc', 'Discovery', 17)];
   memoryGraph = {
     focus: null,

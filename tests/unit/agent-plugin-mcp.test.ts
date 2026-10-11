@@ -179,7 +179,10 @@ describe('portable plugin MCP workspace connector', () => {
     try {
       await rooted.connect(rootedTransport);
       let connected = false;
-      for (let attempt = 0; attempt < 40; attempt++) {
+      // Root discovery and the upstream MCP handshake complete after initialize.
+      // Give that real startup the test's budget, not just forty 50ms sleeps.
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
         connected = (await rooted.listResources()).resources.some((resource) => resource.uri === 'canvas://layout');
         if (connected) break;
         await new Promise((resolveWait) => setTimeout(resolveWait, 50));

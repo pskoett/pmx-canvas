@@ -195,12 +195,15 @@ export function registerWorkbenchApp(server: McpServer, ensureCanvas: () => Prom
           throw new OperationError('This asset is too large for the MCP connection.');
         const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
         const text = /^(text\/|application\/(json|javascript))/.test(contentType);
-        return reply(
-          response.status,
-          text ? new TextDecoder().decode(bytes) : Buffer.from(bytes).toString('base64'),
-          contentType,
-          text ? 'text' : 'base64',
-        );
+        let body = text ? new TextDecoder().decode(bytes) : Buffer.from(bytes).toString('base64');
+        if (target.pathname === '/api/workbench/poll') {
+          // Hosted frames act as agents; the direct workbench's human capability
+          // must not escape in private tool hydration metadata either.
+          const poll = JSON.parse(body) as { events: Array<{ payload: Record<string, unknown> }> };
+          for (const event of poll.events) delete event.payload.workbenchToken;
+          body = JSON.stringify(poll);
+        }
+        return reply(response.status, body, contentType, text ? 'text' : 'base64');
       } catch (error) {
         if (error instanceof OperationError)
           return reply(error.status, JSON.stringify({ ok: false, error: error.message }));

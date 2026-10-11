@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { effect } from '@preact/signals';
 import {
   activeBoardId,
   applyBoards,
   boardList,
   boardsLoaded,
+  connectBoardCatalog,
   createAndOpenBoard,
   openBoard,
   updateBoard,
@@ -14,10 +16,12 @@ import {
   contextPinnedNodeIds,
   edges,
   expandedNodeId,
+  hasInitialServerLayout,
   nodes,
   pendingConnection,
   selectedEdgeId,
   selectedNodeIds,
+  viewport,
 } from '../../src/client/state/canvas-store.ts';
 import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
 import { resetAttentionBridge } from '../../src/client/state/attention-bridge.ts';
@@ -26,6 +30,8 @@ import { applySessionReceipt, dismissSessionReceipt, sessionReceipt } from '../.
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 const originalFetch = globalThis.fetch;
+let fixtureEpoch = 0;
+let fixtureRevision = 0;
 
 interface DeferredResponse {
   promise: Promise<Response>;
@@ -46,6 +52,9 @@ function json(data: unknown): Response {
 
 function boardPayload(active: string) {
   return {
+    catalogEpoch: `test-${fixtureEpoch}`,
+    catalogRevision: ++fixtureRevision,
+    reloadRevision: 0,
     activeBoardId: active,
     boards: [{ id: active, name: active, folder: null, createdAt: '', lastOpenedAt: null, nodeCount: 1 }],
   };
@@ -76,8 +85,12 @@ function layout(id: string): {
 
 beforeEach(() => {
   boardsLoaded.value = false;
+  fixtureEpoch++;
+  fixtureRevision = 0;
+  connectBoardCatalog(`test-${fixtureEpoch}`);
   boardList.value = [];
   activeBoardId.value = null;
+  hasInitialServerLayout.value = false;
   nodes.value = new Map();
   edges.value = new Map();
   activeNodeId.value = null;
@@ -95,6 +108,44 @@ afterEach(() => {
 });
 
 describe('board switch client state', () => {
+  test.each(['B', null])('replacement state reads carry their captured board owner (%s)', (boardId) => {
+    const urls: string[] = [];
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Promise<Response>(() => {});
+    }) as unknown as typeof fetch;
+    applyBoards({ ...boardPayload('B'), activeBoardId: boardId });
+    const stateUrl = urls.find((url) => url.includes('/api/canvas/state'));
+    expect(new URL(stateUrl!, 'http://localhost').searchParams.get('expectedBoardId')).toBe(boardId ?? 'null');
+  });
+
+  test.each([true, false])('initial layout before the board catalog survives (tagged=%s)', (tagged) => {
+    boardsLoaded.value = false;
+    activeBoardId.value = null;
+    EVENT_HANDLERS['canvas-layout-update']({ ...(tagged ? { boardId: 'A' } : {}), layout: layout('initial') });
+    applyBoards(boardPayload('A'));
+    expect([...nodes.value.keys()]).toEqual(['initial']);
+    expect(hasInitialServerLayout.value).toBe(true);
+  });
+
+  test('a tagged replacement layout never renders under the previous board identity', () => {
+    globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'A', layout: layout('A-card') });
+    const seen: string[] = [];
+    const stop = effect(() => {
+      seen.push(`${activeBoardId.value}:${[...nodes.value.keys()].join(',')}`);
+    });
+    try {
+      EVENT_HANDLERS['canvas-layout-update']({ boardId: 'B', layout: layout('B-card') });
+      expect([...nodes.value.keys()]).toEqual(['A-card']);
+      applyBoards(boardPayload('B'));
+      expect([...nodes.value.keys()]).toEqual(['B-card']);
+      expect(seen).toEqual(['A:A-card', 'B:B-card']);
+    } finally {
+      stop();
+    }
+  });
+
   test('navigation resets attention but preserves changes to reopen; Home dismisses the receipt', async () => {
     globalThis.fetch = Object.assign(() => Promise.resolve(json({})), { preconnect: originalFetch.preconnect });
     resetAttentionBridge();
@@ -182,6 +233,8 @@ describe('board switch client state', () => {
 
     EVENT_HANDLERS['boards-changed'](boardPayload('B'));
 
+    expect([...nodes.value.keys()]).toEqual([]);
+    expect([...edges.value.keys()]).toEqual([]);
     expect(activeNodeId.value).toBeNull();
     expect(expandedNodeId.value).toBeNull();
     expect([...selectedNodeIds.value]).toEqual([]);
@@ -195,6 +248,7 @@ describe('board switch client state', () => {
     'rename',
   ] as const)('a late %s response cannot overwrite a newer boards SSE frame', async (action) => {
     const openResponse = deferredResponse();
+    const older = boardPayload('B');
     globalThis.fetch = ((input: RequestInfo | URL) => {
       const url = String(input);
       if (url.startsWith('/api/canvas/boards/')) return openResponse.promise;
@@ -203,7 +257,7 @@ describe('board switch client state', () => {
 
     const opening = action === 'open' ? openBoard('B') : updateBoard('A', { name: 'Renamed' });
     EVENT_HANDLERS['boards-changed'](boardPayload('C'));
-    openResponse.resolve(json(boardPayload('B')));
+    openResponse.resolve(json(older));
     await opening;
 
     expect(activeBoardId.value).toBe('C');
@@ -274,7 +328,7 @@ describe('board switch client state', () => {
     const creating = createAndOpenBoard('Created');
     const created = boardPayload('C').boards[0]!;
     EVENT_HANDLERS['boards-changed']({
-      activeBoardId: 'A',
+      ...boardPayload('A'),
       boards: [...boardPayload('A').boards, created],
     });
     createResponse.resolve(json({ board: created }));
@@ -282,5 +336,93 @@ describe('board switch client state', () => {
 
     expect(opened).toEqual(['C']);
     expect(activeBoardId.value).toBe('C');
+  });
+
+  test('older streamed catalogs cannot undo a newer HTTP selection; genuine newer switches still apply', () => {
+    globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    const older = boardPayload('A');
+    const selected = boardPayload('B');
+    applyBoards(selected);
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'B', layout: layout('B-card') });
+    EVENT_HANDLERS['boards-changed'](older);
+    EVENT_HANDLERS['boards-changed'](selected);
+    expect(activeBoardId.value).toBe('B');
+    expect([...nodes.value.keys()]).toEqual(['B-card']);
+    EVENT_HANDLERS['boards-changed'](boardPayload('C'));
+    expect(activeBoardId.value).toBe('C');
+    expect([...nodes.value.keys()]).toEqual([]);
+  });
+
+  test('an obsolete activation cannot become a later visit to the same board camera baseline', () => {
+    globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    applyBoards({ ...boardPayload('B'), boardGeneration: 4 });
+    const old = { ...layout('A-card'), viewport: { x: 300, y: 200, scale: 0.5 } };
+    EVENT_HANDLERS['canvas-layout-update']({
+      catalogEpoch: `test-${fixtureEpoch}`,
+      boardGeneration: 3,
+      boardId: 'A',
+      layout: old,
+    });
+    applyBoards({ ...boardPayload('A'), boardGeneration: 5 });
+    const fresh = { ...layout('A-card'), viewport: { x: 90, y: 60, scale: 0.8 } };
+    EVENT_HANDLERS['canvas-layout-update']({
+      catalogEpoch: `test-${fixtureEpoch}`,
+      boardGeneration: 5,
+      boardId: 'A',
+      layout: fresh,
+    });
+    expect(viewport.value).toEqual(fresh.viewport);
+  });
+
+  test('a reload survives an overtaking GET, without replaying the reset for its older event', () => {
+    globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'A', layout: layout('before-restore') });
+    const restored = boardPayload('A');
+    restored.reloadRevision = restored.catalogRevision;
+    applyBoards({ ...boardPayload('A'), reloadRevision: restored.reloadRevision });
+    expect([...nodes.value.keys()]).toEqual([]);
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'A', layout: layout('restored') });
+    EVENT_HANDLERS['boards-changed'](restored);
+    expect([...nodes.value.keys()]).toEqual(['restored']);
+  });
+
+  test.each([
+    true,
+    false,
+  ])('same-board restart drains tagged snapshots without closing the editor (layout first=%s)', (layoutFirst) => {
+    globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    const older = boardPayload('A');
+    const current = boardPayload('B');
+    applyBoards(current);
+    connectBoardCatalog(current.catalogEpoch);
+    applyBoards(older);
+    expect(activeBoardId.value).toBe('B');
+    const oldLayout = layout('shared');
+    oldLayout.nodes[0]!.contentRevision = 99;
+    oldLayout.nodes[0]!.data.content = 'Old run';
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'B', layout: oldLayout });
+    expandedNodeId.value = 'shared';
+    selectedNodeIds.value = new Set(['shared']);
+    const fresh = { ...current, catalogEpoch: 'replacement-server', catalogRevision: 1, boardGeneration: 1 };
+    applyBoards(fresh);
+    expect(nodes.value.get('shared')?.data.content).toBe('Old run');
+    EVENT_HANDLERS.connected({ catalogEpoch: fresh.catalogEpoch });
+    const freshLayout = layout('shared');
+    freshLayout.nodes[0]!.contentRevision = 7;
+    freshLayout.nodes[0]!.data.content = 'Fresh run';
+    freshLayout.viewport = { x: 130, y: 75, scale: 0.6 };
+    const frame = { catalogEpoch: fresh.catalogEpoch, boardGeneration: 1, boardId: 'B', layout: freshLayout };
+    if (layoutFirst) EVENT_HANDLERS['canvas-layout-update'](frame);
+    applyBoards(fresh);
+    if (!layoutFirst) EVENT_HANDLERS['canvas-layout-update'](frame);
+    expect(nodes.value.get('shared')?.data.content).toBe('Fresh run');
+    expect(nodes.value.get('shared')?.contentRevision).toBe(7);
+    expect(viewport.value).toEqual(freshLayout.viewport);
+    expect(hasInitialServerLayout.value).toBe(true);
+    expect(expandedNodeId.value).toBe('shared');
+    expect([...selectedNodeIds.value]).toEqual(['shared']);
+    applyBoards({ ...current, catalogRevision: 1000 });
+    expect(nodes.value.get('shared')?.data.content).toBe('Fresh run');
+    expect(activeBoardId.value).toBe('B');
   });
 });

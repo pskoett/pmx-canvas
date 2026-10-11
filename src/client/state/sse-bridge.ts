@@ -32,7 +32,15 @@ import {
   reconnectDelay,
   resetCanvasInteractionState,
 } from './canvas-store';
-import { activeBoardId, applyBoards, loadBoards, setBoardSwitchHandler } from './boards-store';
+import {
+  activeBoardId,
+  applyBoards,
+  boardGeneration,
+  catalogEpoch,
+  connectBoardCatalog,
+  loadBoards,
+  setBoardSwitchHandler,
+} from './boards-store';
 import { applyContextStatus, refreshContextStatus } from './context-status-store';
 import { refreshContextChip } from './context-chip-store';
 import {
@@ -485,6 +493,7 @@ let stopHumanPresence: (() => void) | null = null;
 let boardResyncGeneration = 0;
 let layoutRevision = 0;
 let pinsRevision = 0;
+let pendingBoardLayout: Record<string, unknown> | null = null;
 
 function handleHumanPresence(data: Record<string, unknown>): void {
   applyHumanSnapshot(data as Partial<HumanPresenceSnapshot>);
@@ -495,13 +504,24 @@ function handleHumanPresence(data: Record<string, unknown>): void {
  * a different board now, so take its layout like a fresh connection would —
  * camera included — and drop what belonged to the old board.
  */
-function resyncForBoardSwitch(): void {
+function resyncForBoardSwitch(initial: boolean): void {
+  const pending = pendingBoardLayout;
+  pendingBoardLayout = null;
+  if (initial) {
+    // Untagged initial fetches may already have supplied the layout. Tagged
+    // SSE waits here for the first catalog to identify its owner.
+    if (pending?.boardId === activeBoardId.value) handleCanvasLayoutUpdate(pending);
+    return;
+  }
+  const boardId = activeBoardId.value;
   const generation = ++boardResyncGeneration;
   savedLayout = null;
   hasInitialServerLayout.value = false;
   resetIntents();
   resetCanvasInteractionState();
   resetAttentionBridge();
+  applyServerCanvasLayout({ nodes: [], edges: [] });
+  if (pending?.boardId === activeBoardId.value) handleCanvasLayoutUpdate(pending);
   // Keep the change available when visiting another board, so its Open board
   // action can bring the person back to Undo. Home still clears board chrome.
   if (activeBoardId.value === null) dismissSessionReceipt();
@@ -511,9 +531,9 @@ function resyncForBoardSwitch(): void {
   void refreshAxSurface();
   const layoutAtRequest = layoutRevision;
   const pinsAtRequest = pinsRevision;
-  void fetchCanvasState().then((layout) => {
+  void fetchCanvasState(boardId).then((layout) => {
     if (generation === boardResyncGeneration && layoutAtRequest === layoutRevision)
-      handleCanvasLayoutUpdate({ layout });
+      handleCanvasLayoutUpdate({ layout, boardId });
   });
   void requestJson<{ nodeIds?: unknown }>('fetchPinnedContext', '/api/canvas/pinned-context', {}).then((data) => {
     if (generation === boardResyncGeneration && pinsAtRequest === pinsRevision)
@@ -523,6 +543,19 @@ function resyncForBoardSwitch(): void {
 setBoardSwitchHandler(resyncForBoardSwitch);
 
 function handleConnected(data: Record<string, unknown>): void {
+  // A current connection authorizes catalogs from this server run. Old HTTP
+  // continuations and buffered layouts cannot cross the snapshot boundary.
+  boardResyncGeneration++;
+  pendingBoardLayout = null;
+  // The following snapshot is a fresh baseline, including lower revisions after
+  // a restart/restore. Keep same-board editors and their text selections mounted.
+  hasInitialServerLayout.value = false;
+  if (typeof data.catalogEpoch === 'string') connectBoardCatalog(data.catalogEpoch);
+  // A same-bundle daemon restart keeps drafts alive but rotates its human capability.
+  // Install it before connect-time requests or presence heartbeats can write.
+  if (!isHostedWorkbench() && typeof data.workbenchToken === 'string') {
+    (window as Window & { __PMX_WORKBENCH_TOKEN?: string }).__PMX_WORKBENCH_TOKEN = data.workbenchToken;
+  }
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
   // Hosted writes capture the active board. Load its identity before reporting
@@ -965,6 +998,22 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
       }
     | undefined;
   if (!layout?.nodes) return;
+  // Board IDs repeat on A → B → A and after restores. Only the accepted
+  // activation may establish its camera/content baseline.
+  if (typeof data.boardGeneration === 'number') {
+    if (data.catalogEpoch !== catalogEpoch || (boardGeneration !== null && data.boardGeneration < boardGeneration))
+      return;
+    if (boardGeneration === null || data.boardGeneration > boardGeneration) {
+      pendingBoardLayout = data;
+      return;
+    }
+  }
+  // The server sends a switched board's layout before boards-changed. Do not
+  // mount it under the previous owner, even when card IDs happen to match.
+  if (data.boardId !== undefined && data.boardId !== activeBoardId.value) {
+    pendingBoardLayout = data;
+    return;
+  }
   layoutRevision += 1;
   const shouldApplyViewport = !hasInitialServerLayout.value;
   hasInitialServerLayout.value = true;
@@ -1310,6 +1359,8 @@ function startPollingTransport(): () => void {
 }
 
 export function connectSSE(): () => void {
+  boardResyncGeneration++;
+  pendingBoardLayout = null;
   // Host-default theming: a ?theme= param applies before the first server
   // frame so an embedding host panel never flashes the server-global theme.
   initSessionThemeOverride(applyCanvasTheme);
@@ -1360,6 +1411,7 @@ export function connectSSE(): () => void {
 
   for (const [event] of Object.entries(EVENT_HANDLERS)) {
     source.addEventListener(event, (e) => {
+      if (eventSource !== source) return;
       gotFirstEvent = true;
       try {
         dispatchWorkbenchEvent(event, JSON.parse((e as MessageEvent).data));

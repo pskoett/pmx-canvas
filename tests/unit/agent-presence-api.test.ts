@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { agentPresence } from '../../src/server/agent-presence.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { workbenchToken } from '../../src/server/workbench-auth.ts';
@@ -113,6 +115,38 @@ describe('agent presence over HTTP', () => {
     // The human's own edit is not agent presence.
     expect(afterHuman.presences).toHaveLength(1);
     expect(afterHuman.presences[0]?.opCount).toBe(1);
+  });
+
+  test('a stale workbench capability refuses writes rather than booking them as agent edits', async () => {
+    const stale = { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': 'previous-daemon-capability' };
+    const refused = await postJson('/api/canvas/node', { type: 'markdown', title: 'Unsaved human edit' }, stale);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error).toContain('Reconnect');
+    const state = await (await fetch(`${baseUrl}/api/canvas/state`, { headers: stale })).json();
+    expect(state.nodes).toEqual([]);
+    expect((await getPresence()).activity).toEqual([]);
+    const path = join(workspaceRoot, 'reconnect.md');
+    writeFileSync(path, 'Original file.');
+    expect((await postJson('/api/file/save', { path, content: 'Refused file edit.' }, stale)).status).toBe(409);
+    expect(readFileSync(path, 'utf8')).toBe('Original file.');
+    const preview = await postJson('/api/render', { markdown: 'Draft preview.' }, stale);
+    expect(preview.status).toBe(200);
+    expect((await preview.json()).html).toContain('Draft preview.');
+
+    const html = await (await fetch(`${baseUrl}/workbench`)).text();
+    const token = JSON.parse(html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1] ?? '""') as string;
+    const renewed = { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token };
+    expect((await postJson('/api/file/save', { path, content: 'Reconnected file edit.' }, renewed)).status).toBe(200);
+    expect(readFileSync(path, 'utf8')).toBe('Reconnected file edit.');
+    const saved = await postJson(
+      '/api/canvas/node',
+      { type: 'markdown', title: 'Reconnected human edit' },
+      { 'x-pmx-workbench': '1', 'x-pmx-workbench-token': token },
+    );
+    expect(saved.ok).toBe(true);
+    const { id } = await saved.json();
+    const node = await (await fetch(`${baseUrl}/api/canvas/node/${id}`)).json();
+    expect(node.lastEditedBy.actor).toBe('human');
   });
 
   test('agent writes feed the activity list with a summary and the writer', async () => {

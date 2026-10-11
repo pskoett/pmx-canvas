@@ -504,6 +504,7 @@ test('right-drag pans over blank canvas and node content without moving or creat
     },
   });
   await page.goto('/workbench');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Pan target' })).toBeVisible();
 
   const dragRight = async (x: number, y: number, dx: number, dy: number) => {
     await page.mouse.move(x, y);

@@ -77,12 +77,14 @@ human-lock boundary. HTTP/SDK/MCP/CLI share the registry contract; MCP extends c
 canvas_node rather than adding tools. See [public fields](../http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
 Validating outcomes require the reviewed content revision; stale reviews fail with 409. The body
 is flushed before an audit append, so a failed save cannot leave a durable validation of lost text.
-Unit (1431) and client (276) suites, build, typecheck and lint pass (zero lint errors; existing
+Initial data-slice unit (1431) and client (276) suites, build, typecheck and lint pass (zero lint errors; existing
 warnings remain). Oracle findings were reproduced and fixed, including metadata-only edits,
 failed load/workspace rebinding and concurrent database opens; the final focused review found
 no data-slice blocker. Live human Source drafts and selection survive CLI lifecycle changes;
 CLI retain → retire → restore preserves the validation and attributed audit history across restart.
-A separate workbench reconnect-attribution bug found during that walkthrough is being stabilized.
+Later workbench reconnect, save-lineage, ownership and scope findings are fixed; the
+[combined stabilization gate](plan-018-connected-memory-wave-2.md#combined-stabilization) passes
+with 1,437 unit, 302 client and 266 headed browser cases, plus live human/agent checks.
 No lifecycle browser appearance changed; the user-facing review controls remain pending.
 
 ### 2. The brief (pending)

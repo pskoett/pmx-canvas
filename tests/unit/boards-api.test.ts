@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { CanvasBoard } from '../../src/server/canvas-db.ts';
 import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
@@ -47,7 +49,7 @@ async function call(method: string, path: string, headers: Record<string, string
 }
 
 const boards = async () => (await call('GET', '/api/canvas/boards', AGENT)).body;
-const addNote = (title: string, headers = AGENT) =>
+const addNote = (title: string, headers: Record<string, string> = AGENT) =>
   call('POST', '/api/canvas/node', headers, { type: 'markdown', title, content: title });
 
 describe('boards over HTTP', () => {
@@ -139,6 +141,68 @@ describe('boards over HTTP', () => {
     await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { folder: '' });
     expect((await boards()).boards.find((board) => board.id === id)?.folder).toBeNull();
     expect((await call('PATCH', `/api/canvas/boards/${id}`, AGENT, { folder: 'x'.repeat(61) })).status).toBe(400);
+  });
+
+  test.each([
+    'scope',
+    'territory',
+  ] as const)('inactive target %s fences folder changes without opening it', async (kind) => {
+    const previousBoardId = (await boards()).activeBoardId;
+    const target = (await call('POST', '/api/canvas/boards', HUMAN, { name: `Fenced ${kind}`, folder: 'Original' }))
+      .body.board as CanvasBoard;
+    const other = (await call('POST', '/api/canvas/boards', HUMAN, { name: `Unfenced ${kind}` })).body
+      .board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+    const note = await addNote('Territory anchor', HUMAN);
+    const fence = { nodeIds: [note.body.id], padding: 40 };
+    expect(
+      (
+        await call(
+          'POST',
+          '/api/canvas/ax/policy',
+          HUMAN,
+          kind === 'scope' ? { scope: fence } : { agentScopes: { writer: fence } },
+        )
+      ).status,
+    ).toBe(200);
+    try {
+      for (const active of [other.id, null]) {
+        await call('POST', '/api/canvas/boards/open', HUMAN, { id: active });
+        const blocked = await call('PATCH', `/api/canvas/boards/${target.id}`, AGENT, {
+          folder: 'Escaped',
+          agentId: 'writer',
+        });
+        expect(blocked.status).toBe(403);
+        expect(blocked.body.error).toContain(kind === 'scope' ? 'scope fence' : 'assigned territory');
+        expect((await call('GET', `/api/canvas/boards/${target.id}`, AGENT)).body.board).toMatchObject({
+          folder: 'Original',
+        });
+        expect((await boards()).activeBoardId).toBe(active);
+        expect(
+          (await call('PATCH', `/api/canvas/boards/${target.id}`, AGENT, { name: `Renamed ${kind}` })).status,
+        ).toBe(200);
+        const control = await call('PATCH', `/api/canvas/boards/${target.id}`, AGENT, {
+          folder: 'Other writer',
+          agentId: 'different',
+        });
+        expect(control.status).toBe(kind === 'scope' ? 403 : 200);
+        expect(
+          (await call('PATCH', `/api/canvas/boards/${target.id}`, HUMAN, { folder: 'Human allowed' })).status,
+        ).toBe(200);
+        expect((await boards()).activeBoardId).toBe(active);
+        await call('PATCH', `/api/canvas/boards/${target.id}`, HUMAN, { folder: 'Original' });
+      }
+      // The active board's fence still protects an otherwise unfenced target.
+      await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+      expect(
+        (await call('PATCH', `/api/canvas/boards/${other.id}`, AGENT, { folder: 'Escape active', agentId: 'writer' }))
+          .status,
+      ).toBe(403);
+    } finally {
+      await call('DELETE', `/api/canvas/boards/${target.id}`, HUMAN);
+      await call('DELETE', `/api/canvas/boards/${other.id}`, HUMAN);
+      await call('POST', '/api/canvas/boards/open', HUMAN, { id: previousBoardId });
+    }
   });
 
   test('nested folder paths normalize, persist and reject ambiguous segments without changing the board', async () => {
@@ -365,6 +429,128 @@ describe('boards over HTTP', () => {
     expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
     createCanvas().updateNode(note, { data: { ...canvasState.getNode(note)!.data, wikiLinks: forged } });
     expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
+  });
+
+  test('a delayed render refuses a foreign same-ID card instead of borrowing its wiki bindings', async () => {
+    const targetName = 'Qualified render target';
+    const content = `[[${targetName}]]`;
+    const firstTarget = (await call('POST', '/api/canvas/boards', HUMAN, { name: targetName })).body
+      .board as CanvasBoard;
+    const source = (await call('POST', '/api/canvas/boards', HUMAN, { name: 'Render owner A' })).body
+      .board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: source.id });
+    const id = String((await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content })).body.id);
+    const template = structuredClone(canvasState.getNode(id)!);
+    await call('PATCH', `/api/canvas/boards/${firstTarget.id}`, HUMAN, { name: 'Render archive' });
+    const secondTarget = (await call('POST', '/api/canvas/boards', HUMAN, { name: targetName })).body
+      .board as CanvasBoard;
+    const other = (await call('POST', '/api/canvas/boards', HUMAN, { name: 'Render owner B' })).body
+      .board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: other.id });
+    canvasState.addNode({ ...template, data: { content } });
+    expect(canvasState.getNode(id)?.data.wikiLinks).toEqual([
+      { ref: targetName, target: { boardId: secondTarget.id } },
+    ]);
+    const delayed = await call('POST', '/api/render', HUMAN, {
+      markdown: content,
+      nodeId: id,
+      expectedBoardId: source.id,
+    });
+    expect(delayed.status).toBe(409);
+    expect(delayed.body.html).toBeUndefined();
+    const local = await call('POST', '/api/render', HUMAN, {
+      markdown: content,
+      nodeId: id,
+      expectedBoardId: other.id,
+    });
+    expect(local.status).toBe(200);
+    expect(local.body.html).toContain(`data-wiki-board="${secondTarget.id}"`);
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: source.id });
+    const returned = await call('POST', '/api/render', HUMAN, {
+      markdown: content,
+      nodeId: id,
+      expectedBoardId: source.id,
+    });
+    expect(returned.body.html).toContain(`data-wiki-board="${firstTarget.id}"`);
+    expect(returned.body.html).not.toContain(`data-wiki-board="${secondTarget.id}"`);
+  });
+
+  test('conditional file-backed Markdown saves keep disk and card together; ordinary PATCH remains data-only', async () => {
+    const path = join(workspaceRoot, 'conditional.md');
+    writeFileSync(path, 'Original on disk.');
+    const created = await call('POST', '/api/canvas/node', HUMAN, {
+      type: 'markdown',
+      content: 'Original on disk.',
+      data: { path },
+    });
+    const id = created.body.id as string;
+    const expectedBoardId = (await boards()).activeBoardId;
+    const originalRevision = created.body.contentRevision;
+    const update = (body: Record<string, unknown>) => call('PATCH', `/api/canvas/node/${id}`, HUMAN, body);
+    expect((await update({ content: 'Card only.' })).status).toBe(200);
+    expect(readFileSync(path, 'utf8')).toBe('Original on disk.');
+    const current = (await call('GET', `/api/canvas/node/${id}`, HUMAN)).body;
+    const conditional = {
+      expectedBoardId,
+      expectedContentRevision: current.contentRevision,
+      persistFile: true,
+      content: 'Both\r\nnormalized.',
+    };
+    expect((await update({ ...conditional, expectedContentRevision: originalRevision })).status).toBe(409);
+    expect((await update({ ...conditional, expectedBoardId: 'another-board' })).status).toBe(409);
+    expect((await update({ ...conditional, expectedContentRevision: undefined })).status).toBe(400);
+    expect((await update({ ...conditional, data: { path: 'another.md' } })).status).toBe(400);
+    expect((await update({ ...conditional, data: { lifecycleOverride: null } })).status).toBe(400);
+    expect(readFileSync(path, 'utf8')).toBe('Original on disk.');
+    expect((await call('GET', `/api/canvas/node/${id}`, HUMAN)).body.contentRevision).toBe(current.contentRevision);
+    const saved = await update(conditional);
+    expect(saved.status).toBe(200);
+    expect(saved.body.data).toMatchObject({ content: 'Both\nnormalized.' });
+    expect(readFileSync(path, 'utf8')).toBe('Both\nnormalized.');
+    expect(saved.body.lastEditedBy).toMatchObject({ actor: 'human' });
+    expect((await update(conditional)).status).toBe(409);
+    expect(readFileSync(path, 'utf8')).toBe('Both\nnormalized.');
+
+    const outside = createTestWorkspace('pmx-save-outside-');
+    try {
+      const target = join(outside, 'private.md');
+      writeFileSync(target, 'Do not change.');
+      const link = join(workspaceRoot, 'outside.md');
+      symlinkSync(target, link);
+      const linked = await update({ data: { path: link } });
+      expect((await update({ ...conditional, expectedContentRevision: linked.body.contentRevision })).status).toBe(400);
+      expect(readFileSync(target, 'utf8')).toBe('Do not change.');
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+
+    // Imported notes can be linked to a disk copy. A provenance rejection in
+    // the card layer must not happen after persisting that copy.
+    const sdk = createCanvas();
+    const attached = sdk.attachDocument({
+      boardId: expectedBoardId!,
+      name: 'source.pdf',
+      bytes: new Uint8Array([71, 2, 99]),
+    });
+    await sdk.requestImport(attached.import.id, true, workbenchToken);
+    await sdk.submitImport(attached.import.id, [{ title: 'Imported', markdown: 'Both\nnormalized.' }], 'fixture');
+    const importedId = (await sdk.commitImport(attached.import.id, workbenchToken)).nodeIds[0]!;
+    const linked = await call('PATCH', `/api/canvas/node/${importedId}`, HUMAN, { data: { path } });
+    expect(
+      (
+        await call('PATCH', `/api/canvas/node/${importedId}`, HUMAN, {
+          ...conditional,
+          expectedContentRevision: linked.body.contentRevision,
+          content: 'Rejected provenance edit.',
+          data: { source: null },
+        })
+      ).status,
+    ).toBe(400);
+    expect(readFileSync(path, 'utf8')).toBe('Both\nnormalized.');
+    expect((await call('GET', `/api/canvas/node/${importedId}`, HUMAN)).body.data).toMatchObject({
+      content: 'Both\nnormalized.',
+      source: { attachmentId: attached.attachment.id },
+    });
   });
 
   test('graph qualifies cross-board card identities, bounds exploration and survives persisted snapshots', async () => {

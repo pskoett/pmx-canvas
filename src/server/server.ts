@@ -39,7 +39,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { isWorkbenchToken, workbenchToken } from './workbench-auth.js';
+import { isWorkbenchToken, refuseStaleWorkbenchWrite, workbenchToken } from './workbench-auth.js';
 import { withCurrentActor } from './attribution.js';
 import { existsSync, readFileSync, realpathSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -48,7 +48,7 @@ import * as marked from 'marked';
 import { renderWikiMarkdown, resolveWikiLinks, wikiReferences } from './wiki-links.js';
 import { wikiLinksFromData } from '../shared/memory-graph.js';
 import { type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
-import { boardsPayload } from './operations/ops/boards.js';
+import { boardCatalogEpoch, boardsPayload } from './operations/ops/boards.js';
 import {
   buildAxBridge,
   buildAxStateBridge,
@@ -937,6 +937,7 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
     // (including SDK writes and Undo), never on ordinary geometry broadcasts.
     const signature = JSON.stringify([
       canvasState.activeBoardId,
+      canvasState.boardGeneration,
       canvasState
         .getEdges()
         .filter((edge) => edge.toBoardId)
@@ -946,7 +947,12 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
     remoteEdgesSignature = signature;
   }
   if (event === 'canvas-layout-update' || event === 'context-pins-changed') {
-    payload = { ...payload, boardId: canvasState.activeBoardId };
+    payload = {
+      ...payload,
+      catalogEpoch: boardCatalogEpoch,
+      boardGeneration: canvasState.boardGeneration,
+      boardId: canvasState.activeBoardId,
+    };
   }
   workbenchEventSeq += 1;
   workbenchEventRing.push({ seq: workbenchEventSeq, event, payload });
@@ -2244,6 +2250,8 @@ function buildWorkbenchConnectSnapshot(
       continuity,
       path: primaryWorkbenchPath,
       theme: canvasState.theme,
+      workbenchToken,
+      catalogEpoch: boardCatalogEpoch,
       // Lets a long-lived client detect that the server was upgraded under it
       // (stale in-memory SPA — 0.4.5 report Finding W) and reload once. The
       // bundle stamp catches DEV rolls too: a rebuild+restart never bumps the
@@ -2286,6 +2294,8 @@ function buildWorkbenchConnectSnapshot(
   events.push({
     event: 'canvas-layout-update',
     payload: {
+      catalogEpoch: boardCatalogEpoch,
+      boardGeneration: canvasState.boardGeneration,
       boardId: canvasState.activeBoardId,
       layout: canvasState.getLayout(),
       sessionId: primaryWorkbenchSessionId,
@@ -2423,6 +2433,8 @@ function handleWorkbenchEvents(req: Request): Response {
 }
 
 async function handleSave(req: Request): Promise<Response> {
+  const staleWrite = refuseStaleWorkbenchWrite(req);
+  if (staleWrite) return staleWrite;
   const body = await readJson(req);
   if (body === null) return malformedJsonResponse();
   const pathLike = typeof body.path === 'string' ? body.path : '';
@@ -2442,6 +2454,9 @@ async function handleSave(req: Request): Promise<Response> {
 async function handleRender(req: Request): Promise<Response> {
   const body = await readJson(req);
   if (body === null) return malformedJsonResponse();
+  if (body.expectedBoardId !== undefined && body.expectedBoardId !== canvasState.activeBoardId) {
+    return responseJson({ ok: false, error: 'The active board changed. Refresh before retrying this action.' }, 409);
+  }
   const markdown = typeof body.markdown === 'string' ? body.markdown : '';
   const node = typeof body.nodeId === 'string' ? canvasState.getNode(body.nodeId) : undefined;
   const previous = node?.type === 'markdown' ? wikiLinksFromData(node.data) : [];
