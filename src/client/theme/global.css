@@ -4650,6 +4650,7 @@ html.is-node-resizing .ext-app-preview-catcher {
 /* MCP app iframe */
 .mcp-app-frame-stack {
   position: relative;
+  isolation: isolate;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -8766,5 +8767,343 @@ html.is-node-dragging .intent-line-layer {
     left: 8px;
     right: 8px;
     width: auto;
+  }
+}
+
+/* Home Map / Graph: neutral folder regions; workspace context is the only blue. */
+.home-shell {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+.home-view-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--c-line);
+}
+.home-view-tabs [aria-pressed="true"] {
+  background: var(--c-surface-hover);
+  font-weight: 600;
+}
+.home-shell > .home-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.home-memory {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.home-memory-filters,
+.home-memory-legend,
+.home-memory-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 16px;
+}
+.home-memory-filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.home-memory-filters input,
+.home-memory-filters select {
+  background: var(--c-panel);
+  color: var(--c-text);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-control);
+  padding: 6px;
+  max-width: 220px;
+  min-width: 0;
+  font: inherit;
+}
+.home-memory-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.home-memory-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.home-memory-world {
+  position: absolute;
+  transform-origin: 0 0;
+}
+.home-memory-region {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--c-line);
+  border-radius: var(--r-overlay);
+  padding: 10px 16px;
+  color: var(--c-muted);
+  background: color-mix(in srgb, var(--c-panel) 30%, transparent);
+  pointer-events: none;
+}
+.home-memory-links {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+.memory-edge {
+  stroke: var(--c-muted);
+  fill: none;
+  stroke-width: 1.5;
+}
+.memory-edge text {
+  fill: var(--c-muted);
+  stroke: none;
+  font-size: 12px;
+}
+.edge-member {
+  stroke-dasharray: 2 5;
+  opacity: 0.5;
+}
+.edge-previous {
+  stroke-dasharray: 8 4;
+}
+.edge-wiki {
+  stroke-dasharray: 3 3;
+}
+.edge-card {
+  stroke-width: 2.5;
+}
+.memory-edge.is-missing {
+  stroke: var(--c-warn);
+  stroke-dasharray: 5 3;
+}
+.memory-edge.is-missing text {
+  fill: var(--c-warn);
+}
+.home-memory-node {
+  position: absolute;
+  width: 190px;
+  height: 70px;
+  box-sizing: border-box;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-node);
+  background: var(--c-panel);
+}
+.home-memory-node.is-card {
+  border-radius: var(--r-control);
+  border-style: dashed;
+}
+.home-memory-node.in-context {
+  border-color: var(--c-pin);
+}
+.home-memory-node.is-selected {
+  outline: 2px solid var(--c-text);
+  outline-offset: 3px;
+}
+.home-memory-select {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px 32px 8px 12px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.home-memory-select strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.home-memory-select span {
+  font-size: 11px;
+  color: var(--c-muted);
+}
+.home-memory-node > .board-pin-btn {
+  position: absolute;
+  right: 4px;
+  top: 5px;
+}
+.home-memory-details {
+  width: 280px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 16px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  background: var(--c-panel);
+  border-left: 1px solid var(--c-line);
+}
+.home-memory-details h2 {
+  font-size: 15px;
+}
+.home-memory-details h3 {
+  font-size: 13px;
+}
+.home-memory-details ul {
+  padding-left: 16px;
+}
+.home-memory-details li {
+  margin-bottom: 10px;
+}
+.home-memory-actions {
+  padding: 0;
+}
+.home-memory-actions > .board-pin-btn {
+  position: static;
+}
+.home-memory-zoom {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--c-panel);
+  padding: 4px;
+  border-radius: var(--r-node);
+}
+.home-memory-status {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  background: var(--c-panel);
+  padding: 8px;
+}
+.home-memory-legend {
+  font-size: 11px;
+  color: var(--c-muted);
+  border-top: 1px solid var(--c-line);
+}
+.memory-context-legend {
+  color: var(--c-pin);
+}
+.home-memory-missing {
+  color: var(--c-warn);
+}
+.home-memory.is-graph .home-memory-node {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  background: var(--c-muted);
+}
+.home-memory.is-graph .home-memory-node.is-card {
+  width: 10px;
+  height: 10px;
+  border-style: solid;
+}
+.home-memory.is-graph .home-memory-node.in-context {
+  outline: 2px solid var(--c-pin);
+  outline-offset: 2px;
+}
+.home-memory.is-graph .home-memory-select {
+  padding: 0;
+  border-radius: var(--r-pill);
+}
+.home-memory.is-graph .home-memory-select strong {
+  position: absolute;
+  top: 26px;
+  left: -80px;
+  width: 180px;
+  max-width: none;
+  text-align: center;
+  color: var(--c-text);
+  background: var(--c-bg);
+  pointer-events: none;
+}
+.home-memory.is-graph .is-card .home-memory-select strong {
+  display: none;
+  top: -26px;
+}
+.home-memory.is-graph .is-card:hover .home-memory-select strong,
+.home-memory.is-graph .is-card.is-selected .home-memory-select strong,
+.home-memory.is-graph .is-card:focus-within .home-memory-select strong {
+  display: block;
+}
+.home-memory.is-graph .home-memory-select span,
+.home-memory.is-graph .home-memory-node > .board-pin-btn {
+  display: none;
+}
+.home-details-link-name {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.node-body.has-memory-links {
+  display: flex;
+  flex-direction: column;
+}
+.node-body.has-memory-links > :first-child {
+  flex: 1;
+  min-height: 0;
+}
+.node-memory-link {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-top: 1px solid var(--c-line);
+}
+.node-memory-link button {
+  border: 0;
+  background: transparent;
+  color: var(--c-text-soft);
+  font: var(--fs-ui) var(--font-ui);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.wiki-link.is-unresolved {
+  text-decoration-style: dashed;
+  color: var(--c-warn);
+}
+@media (max-width: 760px) {
+  .home-memory-body {
+    flex-direction: column;
+  }
+  .home-memory-stage {
+    min-height: 180px;
+  }
+  .home-memory-details {
+    width: 100%;
+    max-height: 40%;
+    border-left: 0;
+    border-top: 1px solid var(--c-line);
+  }
+  .home-memory-filters {
+    padding: 8px;
+    gap: 8px;
+    max-height: 180px;
+    overflow: auto;
+  }
+  .home-memory-filters input,
+  .home-memory-filters select {
+    max-width: 175px;
+  }
+  .home-memory-legend {
+    max-height: 68px;
+    overflow: auto;
+    padding: 8px;
   }
 }

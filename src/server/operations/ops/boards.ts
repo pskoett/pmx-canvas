@@ -18,6 +18,7 @@ import { canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { BRIEF_SUMMARY_LENGTH } from '../../context-brief.js';
+import { memoryGraph, boardConnections } from '../../memory-graph.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 
 /** The most cards a Home thumbnail draws (the largest first); the rest are noise at that size. */
@@ -53,19 +54,9 @@ function boardPreview(
 export function boardsPayload(): Record<string, unknown> {
   const boards = canvasState.listBoards();
   const names = new Map(boards.map((board) => [board.id, board.name]));
-  const links = new Map<string, Array<{ nodeId: string; boardId: string; title: string | null; missing: boolean }>>();
-  for (const board of boards) {
-    const nodes = canvasState.readBoard(board.id, false)?.layout.nodes ?? [];
-    links.set(
-      board.id,
-      nodes
-        .filter((node) => node.type === 'board')
-        .map((node) => {
-          const boardId = typeof node.data.boardId === 'string' ? node.data.boardId : '';
-          return { nodeId: node.id, boardId, title: names.get(boardId) ?? null, missing: !names.has(boardId) };
-        }),
-    );
-  }
+  const graph = memoryGraph();
+  const titles = new Map(graph.nodes.map((node) => [node.key, node.title]));
+  const connections = boardConnections(graph);
   return {
     activeBoardId: canvasState.activeBoardId,
     boards: boards.map((board) => {
@@ -94,12 +85,27 @@ export function boardsPayload(): Record<string, unknown> {
               }).length,
             0,
           ),
-        links: links.get(board.id) ?? [],
-        backlinks: boards.flatMap((source) =>
-          (links.get(source.id) ?? [])
-            .filter((link) => link.boardId === board.id)
-            .map((link) => ({ boardId: source.id, title: source.name, nodeId: link.nodeId })),
-        ),
+        links: connections
+          .filter((edge) => edge.source.boardId === board.id)
+          .map((edge) => ({
+            id: edge.id,
+            nodeId: edge.source.cardId ?? '',
+            boardId: edge.target.boardId,
+            ...(edge.target.cardId ? { cardId: edge.target.cardId, cardTitle: titles.get(edge.to) ?? null } : {}),
+            title: names.get(edge.target.boardId) ?? null,
+            missing: edge.missing,
+            kind: edge.kind,
+          })),
+        backlinks: connections
+          .filter((edge) => edge.target.boardId === board.id)
+          .map((edge) => ({
+            id: edge.id,
+            boardId: edge.source.boardId,
+            title: names.get(edge.source.boardId) ?? '',
+            nodeId: edge.source.cardId ?? '',
+            kind: edge.kind,
+            ...(edge.target.cardId ? { cardId: edge.target.cardId } : {}),
+          })),
       };
     }),
   };
@@ -271,6 +277,11 @@ const updateShape = {
   name: z.unknown().optional().describe('New name'),
   category: z.unknown().optional().describe('Folder path on Home; "" or null unfiles it'),
   readmeNodeId: z.unknown().optional().describe('Markdown node id to use as README; null clears it'),
+  mapPosition: z
+    .object({ x: z.number().finite(), y: z.number().finite() })
+    .nullable()
+    .optional()
+    .describe('Persist a Home Map position; null returns to the generated folder layout'),
 };
 const updateSchema = z.looseObject(updateShape);
 
@@ -297,6 +308,7 @@ const boardUpdateOperation = defineOperation<z.infer<typeof updateSchema>, Recor
     const patch = {
       ...(input.name !== undefined ? { name: boardName(input.name) } : {}),
       ...(input.category !== undefined ? { category: boardCategory(input.category) ?? null } : {}),
+      ...(input.mapPosition !== undefined ? { mapPosition: input.mapPosition } : {}),
     };
     if (input.readmeNodeId !== undefined) {
       const board = canvasState.readBoard(id, false);
@@ -359,7 +371,13 @@ const boardCreateFromOperation = defineOperation<z.infer<typeof fromSchema>, Rec
           title: typeof node.data.title === 'string' ? node.data.title : null,
           reusable: !['prompt', 'response', 'trace', 'mcp-app'].includes(node.type),
         })),
-        edges: source.layout.edges.map((edge) => ({ id: edge.id, from: edge.from, to: edge.to, type: edge.type })),
+        edges: source.layout.edges.map((edge) => ({
+          id: edge.id,
+          from: edge.from,
+          to: edge.to,
+          ...(edge.toBoardId !== undefined ? { toBoardId: edge.toBoardId } : {}),
+          type: edge.type,
+        })),
       };
     }
     const board = canvasState.createBoardFromBoard({

@@ -395,6 +395,7 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
     id: raw.id,
     from: raw.from,
     to: raw.to,
+    ...(typeof raw.toBoardId === 'string' ? { toBoardId: raw.toBoardId } : {}),
     type: raw.type,
     ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
     ...(raw.style === 'solid' || raw.style === 'dashed' || raw.style === 'dotted' ? { style: raw.style } : {}),

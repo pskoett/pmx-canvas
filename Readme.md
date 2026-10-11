@@ -54,6 +54,26 @@ search boards without switching. Home
 provides a copy-preview dialog; an open board's command palette offers a
 board-link picker. Neither depends on native browser prompts.
 
+Home also offers **Map** (neutral folder regions with draggable, saved board
+positions) and **Graph** (neutral circular board/card clusters). Folders organize
+where boards live; links independently show how they relate. Markdown saves
+bind `[[Board]]`, `[[Board#Card]]`, and `|alias` forms to durable IDs, ignoring
+code; ambiguous or missing targets stay explicit. A human can create an
+unresolved board-only link with exactly its authored name, then the source is
+re-saved with its captured board and revision. Native cross-board card
+connections appear in the source card footer and the **More** card picker.
+Copies record their previous board. Auto-arrange stays local; static exports
+show external connection evidence without remote lines.
+
+Agents explore the same summary-only projection through
+`GET /api/canvas/memory-graph`, SDK `getMemoryGraph()`, CLI `memory-graph`,
+`canvas_query { action: "graph" }`, or `canvas://graph{?focus,depth}`.
+Focus is a board ID, a JSON qualified key `[boardId,cardId|null]`, or `pins`;
+depth is 0–4 (default 2), undirected and membership-inclusive. Summaries are
+capped at 280 characters. Discovery counts links seen on their owning boards,
+without switching boards or marking full content read. Rich relationship
+kinds/reasons, provenance/staleness, and lifecycle remain wave-3 work.
+
 ## Main features
 
 ### 01 / Curate
@@ -116,14 +136,19 @@ Pin a node in the browser and the MCP server fires a
 immediately — an explicit, low-noise control over what the agent sees next.
 Each pinned node then shows whether an agent has read it since you pinned it,
 and turns amber with "changed since read" when you edit it after the agent's
-last read. Nodes an agent created or edited carry its name until you edit them,
+last read. The budgeted context brief is a map of titles, summaries and relations:
+it does not mark card content read; pulling a card's text in full does. Link visibility
+is tracked separately, so a summary can mark its relations seen without marking its text read.
+Nodes an agent created or edited carry a violet sparkle with authorship in the type icon's hint until you edit them,
 and a pin an agent made carries a violet dot with its reason on hover.
 
 After a session, its receipt lists the cards it read, pinned, created and edited.
 **See change** opens one card's stacked Before/After with changed words marked;
 **Undo this card** restores its whole pre-session content without moving it or its links.
-Cards you edited since are left alone. The receipt stays available when you visit another
-board, with a button to reopen the change's board; going Home dismisses it. In a narrow
+Excerpts may be clipped; the caption makes clear that Undo affects the whole card.
+Cards whose latest editor is human are left alone, rather than merging edits. The receipt
+stays available when you visit another board, with a button to reopen its board before
+Undo or snapshot comparison; going Home dismisses it. In a narrow
 window, click the agent's initial for live counts, **Dim untouched nodes**, and the session panel.
 
 On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
@@ -222,7 +247,7 @@ the DB so SQLite WAL data is checkpointed into the file.
 ### 07 / Any agent
 
 Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (24 tools,
-15 static canvas resources plus one context resource template, change notifications), the [CLI](docs/cli.md), the
+15 static canvas resources plus two context/graph resource templates, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
 [environment variables documented here](docs/environment.md). Works with
 Claude Code, the GitHub Copilot app and CLI, Codex, Amp, Cursor, Windsurf, or
@@ -531,8 +556,8 @@ paths, screenshots, or logs are attached automatically.
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 24 tools, 15 static canvas resources, one
-  context resource template, plus bundled
+- **[MCP reference](docs/mcp.md)** — 24 tools, 15 static canvas resources, two
+  context/graph resource templates, plus bundled
   skill resources, Skills extension, change notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native

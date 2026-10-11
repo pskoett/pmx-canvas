@@ -17,6 +17,7 @@ import {
   type AttentionTone,
 } from './attention-store';
 import { nearPins } from './near-pin-store';
+import { activeBoardId } from './boards-store';
 
 let reducer = new SemanticWatchReducer();
 let toastQueue: AttentionEntry[] = [];
@@ -145,7 +146,7 @@ function entryFromConnect(event: ConnectWatchEvent): AttentionEntry | null {
       'relationship',
       'Relationship added',
       `${quoteLabel(edge.fromTitle, edge.fromId)} linked to ${quoteLabel(edge.toTitle, edge.toId)}`,
-      [edge.fromId, edge.toId],
+      [edge.fromId, ...(!edge.toBoardId || edge.toBoardId === activeBoardId.value ? [edge.toId] : [])],
       event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
     );
   }
@@ -154,7 +155,10 @@ function entryFromConnect(event: ConnectWatchEvent): AttentionEntry | null {
     'relationship',
     'Relationships added',
     `${event.edges.length} connections changed the board structure`,
-    event.edges.flatMap((edge) => [edge.fromId, edge.toId]),
+    event.edges.flatMap((edge) => [
+      edge.fromId,
+      ...(!edge.toBoardId || edge.toBoardId === activeBoardId.value ? [edge.toId] : []),
+    ]),
     event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
   );
 }
@@ -171,7 +175,10 @@ function entryFromRemove(event: RemoveWatchEvent): AttentionEntry | null {
       'remove',
       links.length === 1 ? 'Link removed' : 'Links removed',
       summarizeNames(links),
-      event.edges.flatMap((edge) => [edge.fromId, edge.toId]),
+      event.edges.flatMap((edge) => [
+        edge.fromId,
+        ...(!edge.toBoardId || edge.toBoardId === activeBoardId.value ? [edge.toId] : []),
+      ]),
       event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
     );
   }
@@ -185,7 +192,13 @@ function entryFromRemove(event: RemoveWatchEvent): AttentionEntry | null {
     'remove',
     'Items removed',
     parts.join(' · '),
-    [...event.nodes.map((node) => node.id), ...event.edges.flatMap((edge) => [edge.fromId, edge.toId])],
+    [
+      ...event.nodes.map((node) => node.id),
+      ...event.edges.flatMap((edge) => [
+        edge.fromId,
+        ...(!edge.toBoardId || edge.toBoardId === activeBoardId.value ? [edge.toId] : []),
+      ]),
+    ],
     event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
   );
 }

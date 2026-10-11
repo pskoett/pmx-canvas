@@ -22,6 +22,7 @@ export interface SemanticWatchEdgeSummary {
   edgeType: CanvasEdge['type'];
   fromId: string;
   toId: string;
+  toBoardId?: string;
   fromTitle: string | null;
   toTitle: string | null;
 }
@@ -135,8 +136,9 @@ function summarizeEdge(edge: CanvasEdge, nodeMap: Map<string, CanvasNodeState>):
     edgeType: edge.type,
     fromId: edge.from,
     toId: edge.to,
+    ...(edge.toBoardId !== undefined ? { toBoardId: edge.toBoardId } : {}),
     fromTitle: getNodeTitle(nodeMap.get(edge.from)),
-    toTitle: getNodeTitle(nodeMap.get(edge.to)),
+    toTitle: edge.toBoardId === undefined ? getNodeTitle(nodeMap.get(edge.to)) : null,
   };
 }
 
@@ -326,6 +328,7 @@ export function formatCompactWatchEvent(event: SemanticWatchEvent): string {
 }
 
 export class SemanticWatchReducer {
+  private currentBoardId: string | null | undefined;
   private currentLayout: CanvasLayout | null = null;
   private currentPins = new Set<string>();
   private previousSpatial: SpatialContext | null = null;
@@ -339,6 +342,17 @@ export class SemanticWatchReducer {
   }
 
   handleMessage(message: SseMessage): SemanticWatchEvent[] {
+    if (message.event === 'context-pins-changed' || message.event === 'canvas-layout-update') {
+      const record = message.data && typeof message.data === 'object' ? (message.data as Record<string, unknown>) : {};
+      if (typeof record.boardId === 'string' || record.boardId === null) {
+        if (this.currentBoardId !== undefined && record.boardId !== this.currentBoardId) {
+          this.currentLayout = null;
+          this.currentPins.clear();
+          this.previousSpatial = null;
+        }
+        this.currentBoardId = record.boardId;
+      }
+    }
     if (message.event === 'context-pins-changed') {
       return this.handleContextPinsChanged(message.data);
     }

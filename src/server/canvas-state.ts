@@ -27,6 +27,8 @@ import {
 import { basename, isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
+import { resolveWikiLinks, wikiReferences, type WikiBoard } from './wiki-links.js';
+import { wikiLinksFromData, type WikiLink } from '../shared/memory-graph.js';
 import {
   openCanvasDb,
   saveStateToDB,
@@ -41,6 +43,8 @@ import {
   checkpointCanvasDb,
   createBoardInDB,
   createBoardWithStateInDB,
+  invalidateLinksInDB,
+  invalidateIncomingLinksInDB,
   readContextBriefCursor,
   advanceContextBriefCursor,
   deleteBoardFromDB,
@@ -279,6 +283,8 @@ export interface CanvasEdge {
   id: string;
   from: string;
   to: string;
+  /** Target on another board. Source and mutation ownership stay on the active board. */
+  toBoardId?: string;
   type: 'relation' | 'depends-on' | 'flow' | 'references';
   label?: string;
   style?: 'solid' | 'dashed' | 'dotted';
@@ -1024,6 +1030,7 @@ class CanvasStateManager {
         const boardId = getActiveBoardIdFromDB(this._db);
         const state = boardId ? loadStateFromDB(this._db, boardId) : null;
         if (boardId && state) {
+          this.initializePersistedWikiLinks(state, boardId);
           this.applyPersistedState(state);
           this._activeBoardId = boardId;
           return true;
@@ -1167,6 +1174,7 @@ class CanvasStateManager {
     }
     const state = loadStateFromDB(this._db, id);
     if (!state) return null;
+    this.initializePersistedWikiLinks(state, id);
     const pins = new Set(state.contextPins);
     state.nodes = state.nodes.map((node) => ({
       ...(includeBlobs ? this.resolveNodeDataBlobs(node) : node),
@@ -1256,7 +1264,10 @@ class CanvasStateManager {
     return createBoardInDB(this._db, name, category);
   }
 
-  updateBoard(id: string, patch: { name?: string; category?: string | null }): boolean {
+  updateBoard(
+    id: string,
+    patch: { name?: string; category?: string | null; mapPosition?: { x: number; y: number } | null },
+  ): boolean {
     return this._db ? updateBoardInDB(this._db, id, patch) : false;
   }
 
@@ -1380,13 +1391,13 @@ class CanvasStateManager {
       contentRevision: nodes.length + 1,
     });
     const edges = source.layout.edges
-      .filter((edge) => ids.has(edge.from) && ids.has(edge.to))
+      .filter((edge) => ids.has(edge.from) && (edge.toBoardId || ids.has(edge.to)))
       .map((source) => edgeWithoutStamp(source))
       .map((edge) => ({
         ...edge,
-        id: randomUUID(),
+        id: `${edge.id.startsWith('codegraph-') ? 'codegraph-' : edge.id.startsWith('boardmap-') ? 'boardmap-' : ''}${randomUUID()}`,
         from: ids.get(edge.from)!,
-        to: ids.get(edge.to)!,
+        to: edge.toBoardId ? edge.to : ids.get(edge.to)!,
       }));
     const state: PersistedCanvasState = {
       version: 1,
@@ -1405,7 +1416,10 @@ class CanvasStateManager {
       input.category ?? null,
       this.externalizePersistedStateBlobs(state),
       input.includeReadme && source.board.readmeNodeId ? (ids.get(source.board.readmeNodeId) ?? null) : null,
+      (boardId, nodeId) => this.invalidateRelationTarget(boardId, nodeId),
     );
+    updateBoardInDB(this._db, board.id, { previousBoardId: source.board.id });
+    board.previousBoardId = source.board.id;
     const referencedAttachmentIds = new Set<string>();
     for (const node of nodes) {
       if (typeof node.data.attachmentId === 'string') referencedAttachmentIds.add(node.data.attachmentId);
@@ -1445,7 +1459,9 @@ class CanvasStateManager {
   deleteBoard(id: string): boolean {
     if (!this._db) return false;
     if (id === this._activeBoardId && !this.switchBoard(null)) return false;
-    return deleteBoardFromDB(this._db, id);
+    // Reverse relations must include outgoing links still debounced on the open board.
+    if (this._saveTimer || this._lastPersistenceError) this.flushToDisk();
+    return deleteBoardFromDB(this._db, id, (boardId, nodeId) => this.invalidateRelationTarget(boardId, nodeId));
   }
 
   /**
@@ -1466,6 +1482,7 @@ class CanvasStateManager {
     if (id) {
       const state = loadStateFromDB(this._db, id);
       if (!state) return false;
+      this.initializePersistedWikiLinks(state, id);
       next = state;
     }
     this.applyPersistedState(next);
@@ -1863,7 +1880,15 @@ class CanvasStateManager {
       tour: resolved.state.tour,
       theme: normalizeCanvasTheme(resolved.state.theme, this._theme),
       viewport: structuredClone(resolved.state.viewport),
-      nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
+      nodes: Array.isArray(resolved.state.nodes)
+        ? resolved.state.nodes.map((node) => {
+            const cloned = structuredClone(node);
+            const current = this.nodes.get(cloned.id);
+            return cloned.type === 'markdown' && cloned.data.wikiLinks === undefined
+              ? this.bindWikiLinks(this.resolveNodeDataBlobs(cloned), current)
+              : cloned;
+          })
+        : [],
       edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
       annotations: Array.isArray(resolved.state.annotations)
         ? resolved.state.annotations.map((annotation) => structuredClone(annotation))
@@ -2031,12 +2056,18 @@ class CanvasStateManager {
       const revision = this.nextContentRevision();
       this.nodes.set(id, { ...node, lastEditedBy: currentActor(), contentRevision: revision, linksRevision });
     }
+    for (const id of new Set([...before.keys(), ...restoredIds]))
+      this.touchWikiRelations(before.get(id), this.nodes.get(id));
+    for (const id of new Set([...before.keys(), ...restoredIds])) {
+      if (before.has(id) !== restoredIds.has(id)) this.invalidateIncomingRelations(id);
+    }
     for (const old of beforeNodes) {
       if (!restoredIds.has(old.id)) this.recordDeletion(old.id);
     }
     // A link the restore added, retyped, relabelled or removed is a link change on both ends.
     // It comes back as it was saved, author included, under a new revision.
-    const relation = (edge: CanvasEdge) => `${edge.from}\0${edge.to}\0${edge.type}\0${edge.label ?? ''}`;
+    const relation = (edge: CanvasEdge) =>
+      `${edge.from}\0${edge.toBoardId ?? ''}\0${edge.to}\0${edge.type}\0${edge.label ?? ''}`;
     const edgesBefore = new Map(beforeEdges.map((edge) => [edge.id, edge]));
     for (const [id, edge] of this.edges) {
       const old = edgesBefore.get(id);
@@ -2044,6 +2075,8 @@ class CanvasStateManager {
         this.edges.set(id, { ...edgeWithoutStamp(edge), ...edgeStamp(old) });
         continue;
       }
+      if (old && (old.from !== edge.from || old.to !== edge.to || old.toBoardId !== edge.toBoardId))
+        this.touchRelations(old);
       const stamp = this.touchRelations(edge);
       this.edges.set(
         id,
@@ -2064,12 +2097,100 @@ class CanvasStateManager {
     return copy;
   }
 
+  /** A small name/ID catalog, read only when Markdown is saved, never on a drag frame. */
+  wikiCatalog(): WikiBoard[] {
+    return this.listBoards().map((board) => ({
+      id: board.id,
+      name: board.name,
+      cards: (board.id === this._activeBoardId
+        ? [...this.nodes.values()]
+        : this._db
+          ? (loadStateFromDB(this._db, board.id)?.nodes ?? [])
+          : []
+      ).map((node) => ({ id: node.id, title: typeof node.data.title === 'string' ? node.data.title : node.id })),
+    }));
+  }
+
+  /** Backfill only uninitialized live rows, not snapshots or authoritative empty/unresolved bindings. */
+  private initializePersistedWikiLinks(state: PersistedCanvasState, boardId: string): void {
+    const legacy = state.nodes.filter((node) => node.type === 'markdown' && node.data.wikiLinks === undefined);
+    if (!legacy.length || !this._db) return;
+    // Read the persisted catalog directly: readBoard would recursively initialize other boards.
+    const catalog = listBoardsFromDB(this._db).map((board) => ({
+      id: board.id,
+      name: board.name,
+      cards: (board.id === this._activeBoardId && board.id !== boardId
+        ? [...this.nodes.values()]
+        : board.id === boardId
+          ? state.nodes
+          : (loadStateFromDB(this._db!, board.id)?.nodes ?? [])
+      ).map((node) => ({ id: node.id, title: typeof node.data.title === 'string' ? node.data.title : node.id })),
+    }));
+    this._db.transaction(() => {
+      for (const node of legacy) {
+        const resolved = this.resolveNodeDataBlobs(node);
+        const content = typeof resolved.data.content === 'string' ? resolved.data.content : '';
+        node.data = { ...node.data, wikiLinks: resolveWikiLinks(content, [], catalog) };
+        this._db!.run('UPDATE nodes SET data = ? WHERE board_id = ? AND id = ?', [
+          JSON.stringify(node.data),
+          boardId,
+          node.id,
+        ]);
+      }
+    })();
+  }
+
+  private bindWikiLinks(
+    node: CanvasNodeState,
+    existing?: CanvasNodeState,
+    savedWikiLinks?: WikiLink[],
+    savingContent = false,
+  ): CanvasNodeState {
+    if (node.type !== 'markdown') return node;
+    if (savedWikiLinks !== undefined) {
+      const data = { ...node.data };
+      data.wikiLinks = structuredClone(savedWikiLinks);
+      return { ...node, data };
+    }
+    if (
+      !savingContent &&
+      existing?.type === node.type &&
+      existing.data.content === node.data.content &&
+      existing.data.wikiLinks !== undefined
+    ) {
+      const data = { ...node.data };
+      data.wikiLinks = structuredClone(existing.data.wikiLinks);
+      return { ...node, data };
+    }
+    const content = typeof node.data.content === 'string' ? node.data.content : '';
+    const previous = existing ? wikiLinksFromData(existing.data) : [];
+    const initializedRefs =
+      existing?.data.wikiLinks !== undefined && typeof existing.data.content === 'string'
+        ? wikiReferences(existing.data.content)
+        : [];
+    const refs = wikiReferences(content).filter(
+      (ref) => !initializedRefs.includes(ref) || previous.some((link) => link.ref === ref),
+    );
+    const needsResolution = refs.some(
+      (ref) => !previous.some((link) => link.ref === ref && (!savingContent || link.target)),
+    );
+    const catalog = needsResolution ? this.wikiCatalog() : [];
+    const links = refs.map((ref) => {
+      const saved = previous.find((link) => link.ref === ref);
+      return saved && (!savingContent || saved.target) ? saved : resolveWikiLinks(`[[${ref}]]`, [], catalog)[0];
+    });
+    const data = { ...node.data };
+    data.wikiLinks = links;
+    return { ...node, data };
+  }
+
   private nodeContentChanged(a: CanvasNodeState, b: CanvasNodeState): boolean {
     return a.type !== b.type || JSON.stringify(this.semanticData(a.data)) !== JSON.stringify(this.semanticData(b.data));
   }
 
   private setSemanticNode(node: CanvasNodeState): void {
     const existing = this.nodes.get(node.id);
+    node = this.bindWikiLinks(node, existing);
     if (!existing || !this.nodeContentChanged(existing, node)) {
       this.nodes.set(node.id, node);
       return;
@@ -2100,23 +2221,41 @@ class CanvasStateManager {
     return structuredClone(this._viewport);
   }
 
-  addNode(node: CanvasNodeState): void {
+  addNode(node: CanvasNodeState, savedWikiLinks?: WikiLink[]): void {
     const actor = currentActor();
     const cloned = structuredClone(
-      this.normalizeNode({
-        ...node,
-        createdBy: actor,
-        lastEditedBy: actor,
-        contentRevision: this.nextContentRevision(),
-      }),
+      this.normalizeNode(
+        this.bindWikiLinks(
+          {
+            ...node,
+            createdBy: actor,
+            lastEditedBy: actor,
+            contentRevision: this.nextContentRevision(),
+          },
+          undefined,
+          savedWikiLinks,
+        ),
+      ),
     );
     this.nodes.set(node.id, cloned);
+    this.touchWikiRelations(undefined, cloned);
+    this.invalidateIncomingRelations(node.id);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
       operationType: 'addNode',
       description: `Added ${node.type} node "${(node.data.title as string) ?? node.id}"`,
-      forward: this.suppressed(() => this.addNode(structuredClone(cloned))),
+      forward: this.suppressed(() => {
+        this.nodes.set(cloned.id, {
+          ...structuredClone(cloned),
+          contentRevision: this.nextContentRevision(),
+          lastEditedBy: currentActor(),
+        });
+        this.touchWikiRelations(undefined, this.nodes.get(cloned.id));
+        this.invalidateIncomingRelations(cloned.id);
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }),
       inverse: this.suppressed(() => this.removeNode(node.id)),
     });
   }
@@ -2129,7 +2268,8 @@ class CanvasStateManager {
     this.addNode(node);
   }
 
-  updateNode(id: string, patch: Partial<CanvasNodeState>): void {
+  // null replays a legacy snapshot using existing records before resolving new refs.
+  updateNode(id: string, patch: Partial<CanvasNodeState>, savedWikiLinks?: WikiLink[] | null): void {
     const existing = this.nodes.get(id);
     if (!existing) return;
     if (patch.data) {
@@ -2148,7 +2288,14 @@ class CanvasStateManager {
     if (existing.type === 'group' && patch.position) {
       this.translateGroupChildren(id, patch.position.x - existing.position.x, patch.position.y - existing.position.y);
     }
-    let nextNode = this.normalizeNode({ ...existing, ...patch });
+    let nextNode = this.normalizeNode(
+      this.bindWikiLinks(
+        { ...existing, ...patch },
+        existing,
+        savedWikiLinks ?? undefined,
+        savedWikiLinks !== null && !!patch.data && 'content' in patch.data,
+      ),
+    );
     if (this.nodeContentChanged(existing, nextNode)) {
       const data = { ...nextNode.data };
       const suppliedData = patch.data;
@@ -2170,6 +2317,7 @@ class CanvasStateManager {
       };
     }
     this.nodes.set(id, nextNode);
+    this.touchWikiRelations(existing, nextNode);
     const parentGroupId = existing.data.parentGroup as string | undefined;
     if (parentGroupId) {
       // Moving or resizing a grouped child re-fits the group frame but must NOT
@@ -2183,7 +2331,13 @@ class CanvasStateManager {
     this.recordMutation({
       operationType: 'updateNode',
       description: `Updated node "${(existing.data.title as string) ?? id}"`,
-      forward: this.suppressed(() => this.updateNode(id, structuredClone(patch))),
+      forward: this.suppressed(() =>
+        this.updateNode(
+          id,
+          structuredClone(patch),
+          nextNode.type === 'markdown' ? wikiLinksFromData(nextNode.data) : undefined,
+        ),
+      ),
       inverse: this.suppressed(() => {
         const restored = structuredClone(oldSnapshot);
         const current = this.nodes.get(id);
@@ -2197,6 +2351,7 @@ class CanvasStateManager {
         // Links are tracked apart: undoing a node change never rolls its links revision back.
         if (current) restored.linksRevision = current.linksRevision;
         this.nodes.set(id, restored);
+        this.touchWikiRelations(current, restored);
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
@@ -2241,6 +2396,10 @@ class CanvasStateManager {
       }
     }
 
+    if (existing) {
+      this.touchWikiRelations(existing, undefined);
+      this.invalidateIncomingRelations(id);
+    }
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this._contextPinnedNodeIds.delete(id);
@@ -2291,7 +2450,10 @@ class CanvasStateManager {
             : `Removed ${cloned.type} node "${title}"`,
         forward: this.suppressed(() => this.removeNode(id)),
         inverse: this.suppressed(() => {
-          this.addNode(structuredClone(cloned));
+          this.addNode(
+            structuredClone(cloned),
+            cloned.type === 'markdown' ? wikiLinksFromData(cloned.data) : undefined,
+          );
           const restored = this.nodes.get(id);
           if (restored) this.nodes.set(id, { ...restored, createdBy: cloned.createdBy ?? unknownActor() });
           // A restored group takes its children back; the enclosing group's membership is restored verbatim.
@@ -2354,21 +2516,70 @@ class CanvasStateManager {
    * Returns the stamp for the changed link.
    */
   private touchRelations(
-    edge: Pick<CanvasEdge, 'id' | 'from' | 'to'>,
+    edge: Pick<CanvasEdge, 'id' | 'from' | 'to' | 'toBoardId'>,
   ): Pick<CanvasEdge, 'revision' | 'changedBy' | 'changedAt'> {
     if (edge.id.startsWith('codegraph-') || edge.id.startsWith('boardmap-')) return {};
     const revision = this.nextContentRevision();
-    for (const id of [edge.from, edge.to]) {
+    for (const id of [edge.from, ...(!edge.toBoardId || edge.toBoardId === this._activeBoardId ? [edge.to] : [])]) {
       const node = this.nodes.get(id);
       if (node) this.nodes.set(id, { ...node, linksRevision: revision });
     }
+    if (edge.toBoardId && edge.toBoardId !== this._activeBoardId)
+      this.invalidateRelationTarget(edge.toBoardId, edge.to);
     return { revision, changedBy: currentActor(), changedAt: new Date().toISOString() };
   }
 
+  private invalidateRelationTarget(boardId: string, nodeId: string): void {
+    if (boardId === this._activeBoardId) {
+      const node = this.nodes.get(nodeId);
+      if (node) {
+        this.nodes.set(nodeId, { ...node, linksRevision: this.nextContentRevision() });
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }
+    } else if (this._db) invalidateLinksInDB(this._db, boardId, nodeId);
+  }
+
+  /** Saved wiki relationships have the same source/target clocks as native links. */
+  private touchWikiRelations(before?: CanvasNodeState, after?: CanvasNodeState): void {
+    const previous = before?.type === 'markdown' ? wikiLinksFromData(before.data) : [];
+    const next = after?.type === 'markdown' ? wikiLinksFromData(after.data) : [];
+    if (JSON.stringify(previous) === JSON.stringify(next)) return;
+    const source = after ?? before;
+    if (source && this._activeBoardId) this.invalidateRelationTarget(this._activeBoardId, source.id);
+    const targets = new Map(
+      [...previous, ...next].flatMap(({ target }) =>
+        target?.cardId ? [[JSON.stringify(target), target] as const] : [],
+      ),
+    );
+    for (const target of targets.values()) this.invalidateRelationTarget(target.boardId, target.cardId!);
+  }
+
+  private invalidateIncomingRelations(nodeId: string): void {
+    for (const source of this.nodes.values()) {
+      if (
+        source.type === 'markdown' &&
+        wikiLinksFromData(source.data).some(
+          ({ target }) => target?.boardId === this._activeBoardId && target.cardId === nodeId,
+        )
+      )
+        this.invalidateRelationTarget(this._activeBoardId!, source.id);
+    }
+    if (this._db && this._activeBoardId)
+      invalidateIncomingLinksInDB(this._db, this._activeBoardId, nodeId, (boardId, sourceId) =>
+        this.invalidateRelationTarget(boardId, sourceId),
+      );
+  }
+
   addEdge(edge: CanvasEdge): boolean {
-    if (edge.from === edge.to) return false;
+    if (!edge.toBoardId && edge.from === edge.to) return false;
     for (const existing of this.edges.values()) {
-      if (existing.from === edge.from && existing.to === edge.to && existing.type === edge.type) {
+      if (
+        existing.from === edge.from &&
+        existing.to === edge.to &&
+        existing.toBoardId === edge.toBoardId &&
+        existing.type === edge.type
+      ) {
         return false;
       }
     }
@@ -2406,7 +2617,13 @@ class CanvasStateManager {
     // addEdge refuses.
     if (patch.type && patch.type !== existing.type) {
       for (const other of this.edges.values()) {
-        if (other.id !== id && other.from === existing.from && other.to === existing.to && other.type === patch.type) {
+        if (
+          other.id !== id &&
+          other.from === existing.from &&
+          other.to === existing.to &&
+          other.toBoardId === existing.toBoardId &&
+          other.type === patch.type
+        ) {
           return null;
         }
       }
@@ -2480,7 +2697,10 @@ class CanvasStateManager {
 
   getEdgesForNode(nodeId: string): CanvasEdge[] {
     return Array.from(this.edges.values())
-      .filter((edge) => edge.from === nodeId || edge.to === nodeId)
+      .filter(
+        (edge) =>
+          edge.from === nodeId || ((!edge.toBoardId || edge.toBoardId === this._activeBoardId) && edge.to === nodeId),
+      )
       .map((edge) => structuredClone(edge));
   }
 
@@ -2520,7 +2740,7 @@ class CanvasStateManager {
 
   private removeEdgesForNode(nodeId: string): void {
     for (const [id, edge] of this.edges) {
-      if (edge.from === nodeId || edge.to === nodeId) {
+      if (edge.from === nodeId || ((!edge.toBoardId || edge.toBoardId === this._activeBoardId) && edge.to === nodeId)) {
         this.edges.delete(id);
         // The card on the other end lost a link.
         this.touchRelations(edge);
@@ -3034,6 +3254,9 @@ class CanvasStateManager {
   recordContextRead(input: ContextReadInput, boardId: string | null = this._activeBoardId): ContextRead | null {
     if (!this._db) return null;
     try {
+      // A graph read may mark an inactive target seen while its outgoing source
+      // edges are still debounced in memory. Never book seen before the source.
+      if (this._saveTimer || this._lastPersistenceError) this.flushToDisk();
       const { readNodes, seenLinks } = this.readRevisions(input, boardId);
       const read = appendContextReadToDB(this._db, input, boardId, readNodes, seenLinks);
       this._contextReadListener?.(boardId);
@@ -3067,7 +3290,10 @@ class CanvasStateManager {
     const seenLinks: Record<string, number> = {};
     for (const id of seenIds) {
       const node = byId.get(id);
-      if (node) seenLinks[id] = node.linksRevision ?? 0;
+      if (!node) continue;
+      const revision = input.seenLinkRevisions ? input.seenLinkRevisions[id] : (node.linksRevision ?? 0);
+      if (revision !== undefined && Number.isSafeInteger(revision) && revision >= 0)
+        seenLinks[id] = Math.min(revision, node.linksRevision ?? 0);
     }
     return { readNodes, seenLinks };
   }
@@ -3286,7 +3512,12 @@ class CanvasStateManager {
     const oldPins = Array.from(this._contextPinnedNodeIds);
     const oldAxState = this.getAxState();
     const oldViewport = { ...this._viewport };
-    for (const node of oldNodes) this.recordDeletion(node.id);
+    for (const edge of oldEdges) this.touchRelations(edge);
+    for (const node of oldNodes) {
+      this.touchWikiRelations(node, undefined);
+      this.invalidateIncomingRelations(node.id);
+      this.recordDeletion(node.id);
+    }
     this.nodes.clear();
     this.edges.clear();
     this.annotations.clear();
@@ -3306,7 +3537,8 @@ class CanvasStateManager {
       description: `Cleared canvas (was ${oldNodes.length} nodes, ${oldEdges.length} edges)`,
       forward: this.suppressed(() => this.clear()),
       inverse: this.suppressed(() => {
-        for (const n of oldNodes) this.addNode(structuredClone(n));
+        for (const n of oldNodes)
+          this.addNode(structuredClone(n), n.type === 'markdown' ? wikiLinksFromData(n.data) : undefined);
         for (const e of oldEdges) this.addEdge(structuredClone(e));
         for (const annotation of oldAnnotations) this.addAnnotation(structuredClone(annotation));
         this.setContextPins(oldPins);

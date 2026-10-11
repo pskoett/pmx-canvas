@@ -32,7 +32,11 @@ const validateGetOperation = defineOperation<z.infer<typeof validateGetSchema>, 
       content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
     }),
   },
-  handler: () => validateCanvasLayout(canvasState.getLayout()),
+  handler: () =>
+    validateCanvasLayout(
+      canvasState.getLayout(),
+      (boardId, cardId) => !!canvasState.readBoard(boardId, false)?.layout.nodes.some((node) => node.id === cardId),
+    ),
 });
 
 export const validateOperations: Operation[] = [validateGetOperation];

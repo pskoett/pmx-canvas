@@ -4,7 +4,7 @@ import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasEdge } from '../types';
 import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
-import { boardsLoaded } from './boards-store';
+import { activeBoardId, boardsLoaded } from './boards-store';
 function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
@@ -141,7 +141,7 @@ export async function vetoGhostIntent(intent: {
 }
 
 /** Fetch rendered markdown HTML from the server. */
-export async function renderMarkdown(markdown: string): Promise<string> {
+export async function renderMarkdown(markdown: string, nodeId?: string): Promise<string> {
   const data = await requestJson<{ html?: string }>(
     'renderMarkdown',
     '/api/render',
@@ -149,7 +149,7 @@ export async function renderMarkdown(markdown: string): Promise<string> {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown }),
+      body: JSON.stringify({ markdown, ...(nodeId ? { nodeId } : {}) }),
     },
   );
   return data.html ?? '';
@@ -262,7 +262,11 @@ export async function pushCanvasUpdate(
   await requestBestEffort('pushCanvasUpdate', '/api/canvas/update', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ updates, ...(options.recordHistory === false ? { recordHistory: false } : {}) }),
+    body: JSON.stringify({
+      updates,
+      ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
+      ...(options.recordHistory === false ? { recordHistory: false } : {}),
+    }),
   });
 }
 
@@ -272,6 +276,7 @@ export async function createEdgeFromClient(
   to: string,
   type: string,
   label?: string,
+  options: { toBoardId?: string; expectedBoardId?: string | null } = {},
 ): Promise<{ ok: boolean; id?: string }> {
   const epoch = canvasInteractionEpoch.value;
   const result = await requestJson<({ ok: true } & CanvasEdge) | { ok: false; error?: string }>(
@@ -281,10 +286,10 @@ export async function createEdgeFromClient(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to, type, label }),
+      body: JSON.stringify({ from, to, type, label, ...options }),
     },
   );
-  if (epoch === canvasInteractionEpoch.value && nodes.value.has(from) && nodes.value.has(to)) {
+  if (epoch === canvasInteractionEpoch.value && nodes.value.has(from) && (options.toBoardId || nodes.value.has(to))) {
     if (result.ok) {
       const { ok, ...edge } = result;
       addEdge(edge);
@@ -451,6 +456,7 @@ export async function updateViewportFromClient(
       body: JSON.stringify({
         ...viewport,
         ...clientWindowSize(),
+        ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
         ...(options.recordHistory === false ? { recordHistory: false } : {}),
       }),
     },

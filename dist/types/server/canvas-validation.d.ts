@@ -46,4 +46,4 @@ export interface CanvasValidationResult {
         sizeWarnings: number;
     };
 }
-export declare function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResult;
+export declare function validateCanvasLayout(layout: CanvasLayout, remoteEndpointExists?: (boardId: string, cardId: string) => boolean): CanvasValidationResult;

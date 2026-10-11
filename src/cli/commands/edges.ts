@@ -39,6 +39,7 @@ cmd(
       type,
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
+      ...(typeof flags['to-board'] === 'string' ? { toBoardId: flags['to-board'] } : {}),
       ...(fromSearch ? { fromSearch } : {}),
       ...(toSearch ? { toSearch } : {}),
     };

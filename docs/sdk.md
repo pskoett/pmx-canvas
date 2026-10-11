@@ -104,11 +104,19 @@ console.log(await canvas.createBoardFrom({
   sourceBoardId: board.id, name: 'Q1 follow-up', nodeIds: [intro.id], includeReadme: true, preview: true,
 }));
 console.log(await canvas.getContextBrief({ consumer: 'my-adapter:workspace', budget: 16000 }));
+// The same summary-only board/card projection as Home Graph, without switching.
+console.log(await canvas.getMemoryGraph({ focus: 'pins', depth: 2 }));
+console.log(await canvas.getMemoryGraph({ focus: JSON.stringify([board.id, intro.id]), depth: 1 }));
+console.log(await canvas.getMemoryGraph({ projection: 'boards' })); // Compact board-only summaries; default is 'full'
+// Depth defaults to 2; explicit 0 is valid, bounded to integer values 0–4.
+await canvas.updateBoard(board.id, { mapPosition: { x: 200, y: 120 } }); // null resets to generated Map placement
 await canvas.openBoard(null); // Home
 
 // Read another board without opening it; unknown board IDs throw.
 console.log(canvas.getLayout({ board: board.id }));
 console.log(canvas.getNode('node-id', { board: board.id }));
+// With a source board open, connect a local card to a remote card by qualified identity.
+// canvas.addEdge({ from: intro.id, to: remoteCardId, toBoardId: remoteBoardId, type: 'references' });
 
 // Agent-assisted document import. attachDocument requires the target board open
 // and accepts at most 20 MiB. Human request/cancel/commit also require the

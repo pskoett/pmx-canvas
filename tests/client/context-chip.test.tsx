@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { ContextChip } from '../../src/client/canvas/ContextChip.tsx';
-import { activeBoardId, type BoardSummary, boardList } from '../../src/client/state/boards-store.ts';
+import { activeBoardId, type BoardSummary, boardList, boardsLoaded } from '../../src/client/state/boards-store.ts';
 import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
 import { briefSize, pinnedBoardReads } from '../../src/client/state/context-chip-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
@@ -63,6 +63,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   resetPresence();
+  boardsLoaded.value = false;
 });
 
 describe('ContextChip', () => {
@@ -108,6 +109,7 @@ describe('ContextChip', () => {
   });
 
   test('opened: unpin, clear all and promoting a near card all go through the workbench bridge', async () => {
+    boardsLoaded.value = true;
     nodes.value = new Map([
       ['a', card('a', 0, 'Raise Team to $24?')],
       ['b', card('b', 300, 'Churn flat after last raise')],
@@ -131,6 +133,11 @@ describe('ContextChip', () => {
     expect(contextPinnedNodeIds.value.has('b')).toBe(true);
 
     await act(async () => {
+      fireEvent.click(getByRole('button', { name: 'Unpin Churn flat after last raise' }));
+    });
+    expect(contextPinnedNodeIds.value.has('b')).toBe(false);
+
+    await act(async () => {
       fireEvent.click(getByRole('button', { name: 'Unpin Tech Enabling — overview' }));
     });
     expect(calls.some((call) => call.url === '/api/canvas/boards/tech/unpin')).toBe(true);
@@ -142,6 +149,32 @@ describe('ContextChip', () => {
     const writes = calls.filter((call) => call.init?.method && call.init.method !== 'GET');
     expect(writes.length).toBeGreaterThan(0);
     for (const call of writes) expect(new Headers(call.init?.headers).get('x-pmx-workbench')).toBe('1');
+    expect(
+      calls
+        .filter((call) => call.url === '/api/canvas/context-pins')
+        .map((call) => JSON.parse(String(call.init?.body))),
+    ).toEqual([
+      { nodeIds: ['a', 'b'], mode: 'set', expectedBoardId: 'open' },
+      { nodeIds: ['a'], mode: 'set', expectedBoardId: 'open' },
+      { nodeIds: [], mode: 'set', expectedBoardId: 'open' },
+    ]);
+  });
+
+  test.each([false, true])('Clear all preserves bootstrap board scoping (boardsLoaded=%s)', async (loaded) => {
+    boardsLoaded.value = loaded;
+    nodes.value = new Map([['a', card('a', 0)]]);
+    contextPinnedNodeIds.value = new Set(['a']);
+    const { getByTestId, getByText } = render(<ContextChip />);
+    fireEvent.click(getByTestId('context-chip'));
+    await act(async () => {
+      fireEvent.click(getByText('Clear all'));
+    });
+    const write = calls.find((call) => call.url === '/api/canvas/context-pins');
+    expect(JSON.parse(String(write?.init?.body))).toEqual({
+      nodeIds: [],
+      mode: 'set',
+      ...(loaded ? { expectedBoardId: 'open' } : {}),
+    });
   });
 
   test('a pinned card whose links changed after the read lists "links changed" in neutral, not amber', () => {

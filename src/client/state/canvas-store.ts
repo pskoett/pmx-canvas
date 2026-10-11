@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { canvasArea, canvasAreaCenter, canvasFitInsets } from '../canvas/canvas-area';
+import { activeBoardId, boardsLoaded } from './boards-store';
 import { pushCanvasUpdate, requestBestEffort, requestOk, updateViewportFromClient } from './intent-bridge';
 import { isHostedWorkbench } from './workbench-transport';
 
@@ -101,6 +102,7 @@ export function getNeighborNodeIds(nodeId: string | null, edgeMap: Map<string, C
 
   const neighborIds = new Set<string>();
   for (const edge of edgeMap.values()) {
+    if (edge.toBoardId !== undefined) continue;
     if (edge.from === nodeId) neighborIds.add(edge.to);
     if (edge.to === nodeId) neighborIds.add(edge.from);
   }
@@ -149,6 +151,7 @@ export function clearSelection(): void {
 
 /** Clear transient UI state that must never follow a node id onto another board. */
 export function resetCanvasInteractionState(): void {
+  cancelViewportAnimation();
   if (expandedCloseTimer !== null) {
     clearTimeout(expandedCloseTimer);
     expandedCloseTimer = null;
@@ -414,6 +417,14 @@ export function addContextPins(ids: string[]): void {
   syncContextPinsToServer(next);
 }
 
+export function removeContextPins(ids: string[]): void {
+  const next = new Set(contextPinnedNodeIds.value);
+  for (const id of ids) next.delete(id);
+  contextPinnedNodeIds.value = next;
+  persistLayout();
+  syncContextPinsToServer(new Set(ids), 'remove');
+}
+
 export function clearContextPins(): void {
   if (contextPinnedNodeIds.value.size === 0) return;
   contextPinnedNodeIds.value = new Set();
@@ -425,13 +436,17 @@ export function replaceContextPinsFromServer(ids: string[]): void {
   contextPinnedNodeIds.value = new Set(ids);
 }
 
-function syncContextPinsToServer(ids: Set<string>): void {
+function syncContextPinsToServer(ids: Set<string>, mode: 'set' | 'remove' = 'set'): void {
   // Through the bridge so the write carries the workbench marker — a bare
   // fetch makes the human's pin look like an anonymous `api` agent.
   void requestBestEffort('syncContextPinsToServer', '/api/canvas/context-pins', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nodeIds: Array.from(ids) }),
+    body: JSON.stringify({
+      nodeIds: Array.from(ids),
+      mode,
+      ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
+    }),
   });
 }
 
@@ -535,7 +550,7 @@ export function removeEdgesForNode(nodeId: string): void {
   let changed = false;
   const next = new Map(edges.value);
   for (const [id, edge] of next) {
-    if (edge.from === nodeId || edge.to === nodeId) {
+    if (edge.from === nodeId || (edge.toBoardId === undefined && edge.to === nodeId)) {
       next.delete(id);
       changed = true;
     }
@@ -630,11 +645,22 @@ export function applyServerCanvasLayout(
   const nextNodes = new Map<string, CanvasNodeState>();
   let nextMaxZ = 1;
   for (const node of layout.nodes) {
-    nextNodes.set(node.id, node);
+    const current = nodes.value.get(node.id);
+    // A poll captured before an acknowledged edit may arrive afterwards.
+    // Accept its geometry, but not older content or attribution. The initial
+    // layout belongs to a newly opened board, where IDs/revisions may repeat.
+    nextNodes.set(
+      node.id,
+      options.applyViewport !== true && current && (current.contentRevision ?? 0) > (node.contentRevision ?? 0)
+        ? { ...node, data: current.data, contentRevision: current.contentRevision, lastEditedBy: current.lastEditedBy }
+        : node,
+    );
     if (node.zIndex >= nextMaxZ) nextMaxZ = node.zIndex + 1;
   }
 
-  const edgeSource = layout.edges.filter((edge) => nextNodes.has(edge.from) && nextNodes.has(edge.to));
+  const edgeSource = layout.edges.filter(
+    (edge) => nextNodes.has(edge.from) && (edge.toBoardId !== undefined || nextNodes.has(edge.to)),
+  );
   const nextEdges = new Map<string, CanvasEdge>();
   for (const edge of edgeSource) {
     nextEdges.set(edge.id, edge);
@@ -791,6 +817,7 @@ export function persistLayout(options: { recordHistory?: boolean } = {}): void {
         id: e.id,
         from: e.from,
         to: e.to,
+        ...(e.toBoardId !== undefined ? { toBoardId: e.toBoardId } : {}),
         type: e.type,
         label: e.label,
         style: e.style,

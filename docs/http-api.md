@@ -86,6 +86,41 @@ are trimmed. Empty segments and `.`/`..` are rejected. `null` or `""` unfiles a
 board. Folders are derived from boards, so empty folders do not persist. Moving
 a board changes its path, not its ID or content.
 
+Home offers Folders, Map, and Graph. Folders are neutral organization, independent
+of links. `PATCH /api/canvas/boards/<board-id>` accepts
+`mapPosition: { x, y }` (finite numbers) to persist a dragged Map position in
+SQLite, or `mapPosition: null` to return to the generated folder layout.
+Creating a copy records `previousBoardId` as its source board ID; it does not
+open either board.
+Board-list `links` expose qualified `boardId`/`cardId` targets; native card
+connections include `cardTitle` (null if missing), so footers need not display raw IDs.
+
+### Connected memory projection
+
+`GET /api/canvas/memory-graph?focus=<focus>&depth=2&projection=full` returns the
+connected-memory projection used by Home and discovery in the context brief. Omit
+`focus` for the library; otherwise use a board ID, a JSON qualified node key
+`["board-id","card-id"]` (or `["board-id",null]`), or `pins`. URL-encode focus.
+`depth` is an integer from 0–4, default 2: undirected hops including board/card
+membership. Explicit 0 is valid; empty depth values are rejected. An unknown focus returns 404.
+`projection` is `full` (default) or `boards` (compact board-only summaries).
+Home Map uses `boards` and loads depth-2 details when you select a board.
+Metadata edits and Map dragging do not refetch the relationship graph; use **Refresh** to reload it.
+
+The response has `nodes`, `edges`, `unresolvedLinks: [{ source, ref }]`, `focus`,
+and `depth`. Nodes have board-qualified `key`, `boardId`, optional `cardId`,
+`kind` (`board` or `card`), `title`, `summary` (at most 280 characters), `folder`,
+`inContext`, and `summaryOnly: true`. Edges have qualified `from`/`to`,
+`source`/`target`, `missing`, and kind `member`, `portal`, `wiki`, `card`, or
+`previous`. These are projection kinds, not the deferred rich relationship vocabulary.
+Graph reads mark delivered links seen on each owning board without switching
+boards; they do not count as full content reads. Card nodes carry `linksRevision`
+captured with the projection, so a later write is never acknowledged by an earlier read. In focused views,
+`linksComplete: false` means some incident relations fall outside the requested
+depth; that card's links are not acknowledged as seen. SDK: `getMemoryGraph({ focus,
+depth, projection })`; MCP: `canvas_query { action: "graph", focus, depth, projection }`.
+Cross-board briefs give incoming and outgoing connections readable board/card titles.
+
 ```bash
 # List boards (most recently opened first) and which is open (null = Home)
 curl http://localhost:4313/api/canvas/boards
@@ -358,6 +393,25 @@ workspace root returns `403`, and an unknown node id returns `404`.
 
 ## Edges
 
+Edge creation accepts optional `toBoardId` to target a card on another board;
+`from` stays on the open source board. For example:
+`{ "from": "source-card", "to": "remote-card", "toBoardId": "target-board", "type": "references" }`.
+The source footer and human More-menu card picker expose remote connections.
+Auto-arrange stays local; static export omits remote lines but preserves explicit
+external connection evidence.
+
+Markdown saves bind `[[Board]]`, `[[Board#Card]]`, and `|alias` variants to durable
+IDs in server-owned `data.wikiLinks`. IDs take precedence; names/titles must be
+unique. Existing bindings survive renames, while ambiguous or missing targets
+stay explicit and never guess or silently retarget. Rendering uses saved bindings:
+an unresolved link stays unresolved until an explicit save; Undo and restore preserve bindings.
+Rich-text editing preserves wiki references and aliases; editing a visible label changes
+the alias, not the bound target. Code spans/fences are ignored.
+The human Create dialog for an unresolved board-only link creates exactly its
+authored name and re-saves the source using its captured board/revision; a stale
+source is refused. Rich relationship kinds/reasons, provenance/staleness and
+lifecycle remain deferred wave-3 work.
+
 ```bash
 # Add an edge
 curl -X POST http://localhost:4313/api/canvas/edge \
@@ -459,6 +513,9 @@ curl http://localhost:4313/api/canvas/pinned-context
 curl 'http://localhost:4313/api/canvas/context?consumer=codex&budget=16000'
 ```
 
+At most 20 cards can be pinned at once. `remove` processes every supplied ID, even when
+a merged receipt has recorded more than 20 IDs across sessions; unrelated pins stay.
+
 `consumer` is optional. Supply a stable unique value only for a durable,
 board-scoped cursor; without `consumer` or `since`, each request starts from the
 beginning. An explicit `since` never advances a cursor. The brief is a map,
@@ -473,12 +530,23 @@ first, it does not send its full text. On a later read a changed card lists what
 e.g. `(new, by a person)`. Every item carries source board/card IDs:
 use them with the board/node read route to pull a card in full when you need it,
 rather than guessing from the summary. Reading inactive boards does not open them.
+Entries with capped or omitted relations declare `linksComplete: false` and do
+not acknowledge that card's complete links revision as seen. Near-pin, human,
+linked README and pinned-board card summaries carry no card relations. Complete
+relation entries carry their captured `linksRevision`; delivery is qualified by
+`sourceBoardId`, never by a bare card ID across boards. Single-card and layout
+reads record delivered content but do not acknowledge incident relations. Read
+a complete graph or brief relation entry for relations; pull cards separately for full content.
 
 ## AX context and focus
 
 AX context is the host-agnostic agent-experience layer. It combines existing
 context pins with a persisted focus node set that adapters can inject into
 their native prompt/context hooks.
+
+AX node excerpts declare `linksComplete: false`. AX reads, including annotation
+anchors, never acknowledge incident relations as seen; use a complete graph or
+brief relation entry for that acknowledgement.
 
 The context response includes `boardId` (`null` on Home), captured with its content
 and pins. Adapters should send that ID when recording a proxied context read, rather
@@ -561,6 +629,9 @@ curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
 # not); the server keeps those on the board and stamps their revisions. Omitted,
 # it defaults to deliveredNodeIds. seenNodeIds adds the nodes that arrived only as
 # summaries, which marks their links seen; omitted, it defaults to readNodeIds.
+# For a captured graph/brief, also pass seenLinkRevisions: {"node-1": 12} from
+# the delivered linksRevision values, not revisions fetched after delivery.
+# Only seenNodeIds with captured entries are acknowledged when this map is supplied.
 curl -X POST http://localhost:4313/api/canvas/ax/context-reads \
   -H "Content-Type: application/json" \
   -d '{"channel":"adapter","resource":"copilot:prompt-context","consumer":"copilot","pinnedNodeIds":["node-1"],"deliveredNodeIds":["node-1"],"bytes":2048}'
@@ -733,11 +804,21 @@ reopen an edited card's board; Home dismisses it. Undo and Unpin are unavailable
 on another board, and the lens and edit marks only apply to the active board's touches.
 The browser shows one stacked Before/After at a time, marking removed and added words;
 its Undo restores the whole card, not just the excerpt, and leaves cards whose latest edit is human alone.
+The caption distinguishes clipped excerpts ("undoes the whole card"), an already restored card
+("the card shows Before again"), and a protected human edit ("undo would lose your edit").
 A single session's *View diff* is `GET /api/canvas/snapshots/<id>/diff` against that
 snapshot, and restoring the snapshot undoes the session. *Undo* on one edited card is
-`POST /api/canvas/snapshots/<id>/restore-node` with `{ "nodeId": "…" }`: that card's content goes
+`POST /api/canvas/snapshots/<id>/restore-node` with `{ "nodeId": "…", "preserveHumanEdits": true }`:
+the server checks the latest editor at the write boundary, so an unseen human edit is safe even
+before polling delivers it. A skipped restore returns `{ "ok": true, "id": "…", "restored": false,
+"skipped": "human-edit" }`; a successful restore returns `restored: true`. Without
+`preserveHumanEdits`, explicit restore can replace human content. The same option is available on
+`canvas_snapshot { action: "restore-node", id, nodeId, preserveHumanEdits: true }` and
+`canvas.restoreSnapshotNode(id, nodeId, { preserveHumanEdits: true })`. That card's content goes
 back to the snapshot's, as one undoable edit; position, group, links and pins stay (file cards
-refuse, they follow their file; a card whose type changed since answers 409). Adapters should end their session
+refuse, they follow their file; a card whose type changed since answers 409).
+The receipt's Unpin removes only its recorded pins and is safe to repeat; pins added later stay.
+Adapters should end their session
 explicitly so the human gets the receipt promptly rather than after the idle
 expiry. The browser's *Start agent session* button is this same endpoint
 (`source: "browser"`, `attached: true`) — subsequent agent-less writes are
@@ -946,6 +1027,11 @@ curl -N http://localhost:4313/api/workbench/events
 
 The browser, the CLI `watch` command, and the MCP resource notifications
 all consume this stream. Auto-reconnect with exponential backoff.
+
+`canvas-layout-update` and `context-pins-changed` carry the owning `boardId`
+(null for Home). A board transition is a new baseline, not a deletion or unpin.
+Remote-edge endpoint changes also publish `boards-changed` so card titles and
+missing-target states update; ordinary geometry changes do not refresh the catalog.
 
 `agent-presence` frames carry the full presence snapshot (the same body as
 `GET /api/canvas/ax/presence`) on every change, including TTL expiry — a

@@ -63,6 +63,9 @@ export interface ContextBriefOverview {
 export interface ContextBriefEdge {
   from: string;
   to: string;
+  toBoardId?: string;
+  /** Readable qualified target title, resolved by the shared memory graph. */
+  remoteTitle?: string;
   type: string;
   label?: string | null;
   /** Board revision of the link's latest add, retype or relabel, and who made it. */
@@ -79,6 +82,8 @@ export interface ContextBriefInput {
   overview?: ContextBriefOverview;
   /** Edges on the open board, carried as each card's relations. */
   edges?: readonly ContextBriefEdge[];
+  /** Saved wiki/portal connections from the shared library projection. */
+  memoryRelations?: Readonly<Record<string, string[]>>;
   /** Why each pin was pinned, when someone said. */
   pinReasons?: Readonly<Record<string, string>>;
   nodes: readonly CanvasNodeState[];
@@ -110,6 +115,10 @@ export interface CompiledContextEntry {
   truncated?: true;
   /** A title + short summary of a card the agent may pull in full; seen, not read. */
   summaryOnly?: true;
+  /** Relations were capped or not included; do not acknowledge the complete links revision. */
+  linksComplete?: false;
+  /** Link clock of the actual delivered relations, not the later recording time. */
+  linksRevision?: number;
   /**
    * On a later read, what changed on this card since the cursor
    * (docs/design/LinksChanged.dc.html): its text, its links, or both.
@@ -186,14 +195,20 @@ function compileNode(
     defaultTextLength: BRIEF_SUMMARY_LENGTH,
     webpageTextLength: BRIEF_SUMMARY_LENGTH,
   });
+  const capped = relations.length > MAX_RELATIONS;
+  const relationLines = capped
+    ? [...relations.slice(0, MAX_RELATIONS), `… ${relations.length - MAX_RELATIONS} more relations`]
+    : relations;
   return {
     entry: {
       sourceBoardId: boardId,
       nodeId: node.id,
       reason,
       title: nodeTitle(node),
-      text: [summary, pinReason ? `Pinned because: ${pinReason}` : '', ...relations].filter(Boolean).join('\n'),
+      text: [summary, pinReason ? `Pinned because: ${pinReason}` : '', ...relationLines].filter(Boolean).join('\n'),
       summaryOnly: true,
+      linksRevision: node.linksRevision ?? 0,
+      ...(capped ? { linksComplete: false as const } : {}),
       ...(changes && changes.length > 0 ? { changes } : {}),
     },
     revision: briefRevision(node),
@@ -241,20 +256,24 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
     const lines: string[] = [];
     const marked: string[] = [];
     for (const edge of input.edges ?? []) {
-      const other = edge.from === id ? edge.to : edge.to === id ? edge.from : null;
+      const other = edge.from === id ? edge.to : !edge.toBoardId && edge.to === id ? edge.from : null;
       if (!other) continue;
-      const otherTitle = nodeById.get(other) ? nodeTitle(nodeById.get(other) as CanvasNodeState) : other;
+      const remote = edge.from === id && edge.toBoardId;
+      const otherTitle = remote
+        ? (edge.remoteTitle ?? `${edge.toBoardId} / ${other}`)
+        : nodeById.get(other)
+          ? nodeTitle(nodeById.get(other) as CanvasNodeState)
+          : other;
       const kind = `${edge.type}${edge.label ? ` "${edge.label}"` : ''}`;
       const mark = linkMark(edge);
-      // A link drawn or changed since the read leads, so the relations cap never hides it.
+      // Changed local/outgoing links lead; the cap can still omit other relations.
       (mark ? marked : lines).push(
         edge.from === id ? `→ ${kind}: ${otherTitle} (${other})${mark}` : `← ${kind}: ${otherTitle} (${other})${mark}`,
       );
     }
     lines.unshift(...marked);
-    return lines.length > MAX_RELATIONS
-      ? [...lines.slice(0, MAX_RELATIONS), `… ${lines.length - MAX_RELATIONS} more relations`]
-      : lines;
+    lines.push(...(input.memoryRelations?.[id] ?? []));
+    return lines;
   };
   // A later read marks a link drawn or changed since the cursor, and who did it.
   const linkMark = (edge: ContextBriefEdge): string => {
@@ -325,6 +344,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
           }),
           near: { pinNodeId: neighborhood.pinnedNodeId, pinTitle },
           summaryOnly: true,
+          linksComplete: false,
         },
       });
     }
@@ -348,6 +368,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
         title: entry.title,
         text: entry.text,
         provenance: importedProvenance(entry.provenance),
+        linksComplete: false,
         ...(entry.reason === 'human' ? { summaryOnly: true as const } : {}),
       },
     });
@@ -384,6 +405,7 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
           title: card.title,
           text: card.summary,
           summaryOnly: true,
+          linksComplete: false,
         },
       });
     }
@@ -413,6 +435,8 @@ export function compileContextBrief(input: ContextBriefInput): ContextBriefResul
             title: board.readme.title,
             text: board.readme.summary,
             provenance: importedProvenance(board.readme.provenance),
+            summaryOnly: true,
+            linksComplete: false,
           },
         });
       }

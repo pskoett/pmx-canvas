@@ -3,6 +3,8 @@
  * in-place delete confirm — asserted on what the human sees.
  */
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 let HUMAN: Record<string, string>;
 
@@ -54,22 +56,34 @@ test('an agent opens its new board and the connected workbench follows without a
 });
 
 test('Home clears board attention and session receipts without reporting deletions', async ({ page, request }) => {
-  await note(request, 'Navigation baseline');
+  const baseline = await note(request, 'Navigation baseline');
+  const peer = await note(request, 'Keep this relationship', 500);
+  const original = (await boards(request)).activeBoardId;
+  await request.post('/api/canvas/edge', { data: { from: baseline, to: peer, type: 'relation' } });
   await page.goto('/workbench');
-  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
   await request.post('/api/canvas/ax/presence', {
     data: { source: 'api', agentId: 'navigation-session', attached: true },
   });
-  await note(request, 'Session result', 500);
+  await request.patch(`/api/canvas/node/${baseline}`, { data: { content: 'Agent edited this note' } });
   await request.post('/api/canvas/ax/presence', {
     data: { source: 'api', agentId: 'navigation-session', attached: false },
   });
   await expect(page.getByTestId('session-receipt')).toBeVisible();
+  await page.getByTestId('session-receipt').getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator(`[data-node-id="${baseline}"] .md-card-content`)).toContainText('Navigation baseline body');
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   await expect(page.getByTestId('home-view')).toBeVisible();
   await expect(page.getByTestId('session-receipt')).toHaveCount(0);
+  // Observe through a poll cycle, not just the initially empty toast slot.
+  await page.waitForTimeout(2250);
   await expect(page.locator('.attention-toast')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Recent updates/i })).toHaveCount(0);
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: original } });
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
+  expect((await (await request.get('/api/canvas/state')).json()).edges).toEqual(
+    expect.arrayContaining([expect.objectContaining({ from: baseline, to: peer })]),
+  );
 });
 
 test('a refused browser write displays its reason and retains it in history', async ({ page, request }) => {
@@ -530,3 +544,372 @@ for (const sameBoard of [false, true]) {
     }
   });
 }
+
+test('wiki navigation and human remote-card connections survive renames and retain the source', async ({
+  page,
+  request,
+}) => {
+  const target = (await (await request.post('/api/canvas/boards', { data: { name: 'Research library' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: target.id } });
+  const evidence = await note(request, 'Interview evidence', 900, 650);
+  const source = (await (await request.post('/api/canvas/boards', { data: { name: 'Decision library' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const claim = (
+    await (
+      await request.post('/api/canvas/node', {
+        data: {
+          type: 'markdown',
+          title: 'Decision',
+          content: '[[Research library#Interview evidence|Read the evidence]] and [[New investigation]]',
+          x: 100,
+          y: 100,
+          width: 520,
+        },
+      })
+    ).json()
+  ).id;
+  await page.goto('/workbench');
+  await page.getByRole('link', { name: 'Read the evidence' }).click();
+  await expect(page.getByRole('button', { name: /^Board: Research library/ })).toBeVisible();
+  const card = page.locator(`[data-node-id="${evidence}"]`);
+  await expect(card).toBeInViewport();
+  await request.patch(`/api/canvas/boards/${target.id}`, { headers: HUMAN, data: { name: 'Renamed research' } });
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const sourceCard = page.locator(`[data-node-id="${claim}"]`);
+  await sourceCard.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const editor = page.locator('.md-reader-editable');
+  await expect(editor).toContainText('Read the evidence');
+  await editor.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' — human checked');
+  await page.keyboard.press('Control+s');
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${claim}`)).json()).data.content)
+    .toContain('[[Research library#Interview evidence|Read the evidence]]');
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${claim}`)).json()).data.content)
+    .toContain('human checked');
+  await page.keyboard.press('Escape');
+  const edited = await (await request.get(`/api/canvas/node/${claim}`)).json();
+  expect(edited.data.wikiLinks).toEqual(
+    expect.arrayContaining([
+      { ref: 'Research library#Interview evidence', target: { boardId: target.id, cardId: evidence } },
+      { ref: 'New investigation' },
+    ]),
+  );
+  await page.locator(`[data-node-id="${claim}"]`).hover();
+  await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'More actions' }).click();
+  await page.getByText('Connect to a card on another board…', { exact: true }).click();
+  const picker = page.getByRole('dialog');
+  await picker.getByLabel('Find a card to connect').fill('Interview evidence');
+  await picker.getByRole('button', { name: /Interview evidence/ }).click();
+  const footer = page.locator(`[data-node-id="${claim}"] .node-memory-link`);
+  await expect(footer).toContainText('Renamed research / Interview evidence');
+  await expect
+    .poll(() =>
+      footer.evaluate((element) => {
+        const body = element.closest('.node-body')!;
+        const rect = element.getBoundingClientRect();
+        const bounds = body.getBoundingClientRect();
+        return { scrollTop: body.scrollTop, fullyVisible: rect.top >= bounds.top && rect.bottom <= bounds.bottom + 1 };
+      }),
+    )
+    .toEqual({ scrollTop: 0, fullyVisible: true });
+  expect((await (await request.get('/api/canvas/state')).json()).edges).toEqual(
+    expect.arrayContaining([expect.objectContaining({ from: claim, to: evidence, toBoardId: target.id })]),
+  );
+  await footer.getByRole('button').click();
+  await expect(page.getByRole('button', { name: /^Board: Renamed research/ })).toBeVisible();
+  await expect(card).toBeInViewport();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await page.getByRole('link', { name: 'New investigation', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Create board', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Board: New investigation/ })).toBeVisible();
+  const created = (await boards(request)).boards.find((board) => board.name === 'New investigation')!;
+  const savedSource = await (await request.get(`/api/canvas/node/${claim}?board=${source.id}`)).json();
+  expect(savedSource.data.wikiLinks).toEqual(
+    expect.arrayContaining([{ ref: 'New investigation', target: { boardId: created.id } }]),
+  );
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await page.getByRole('link', { name: 'Read the evidence' }).click();
+  await expect(page.getByRole('button', { name: /^Board: Renamed research/ })).toBeVisible();
+  await expect(card).toBeInViewport();
+});
+
+test('relation refreshes preserve an unsaved Source draft, selection and wiki preview through Save', async ({
+  page,
+  request,
+}) => {
+  const board = (await (await request.post('/api/canvas/boards', { data: { name: 'Draft research' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+  const evidence = await note(request, 'Draft evidence', 750);
+  const original = 'Saved paragraph. [[Draft research#Draft evidence|Read evidence]]';
+  const claim = (
+    await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title: 'Draft decision', content: original, x: 100, y: 100, width: 480 },
+      })
+    ).json()
+  ).id;
+  const saved = await (await request.get(`/api/canvas/node/${claim}`)).json();
+  await page.goto('/workbench');
+  await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: '</> Source', exact: true }).click();
+  const editor = page.locator('.md-editor-expanded textarea');
+  const draft = `${original}\n\nHuman authored continuation.`;
+  await editor.fill(draft);
+  await expect(page.locator('.md-preview')).toContainText('Human authored continuation.');
+  await editor.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(6, 15));
+  const refresh = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/render');
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: { from: claim, to: evidence, type: 'references', label: 'Relation added during drafting' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await (await refresh).finished();
+  // Observe after the render response has been applied, not before the refresh.
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(editor).toHaveValue(draft);
+  expect(
+    await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd]),
+  ).toEqual([6, 15]);
+  expect((await request.delete(`/api/canvas/node/${evidence}`)).ok()).toBe(true);
+  await expect(page.locator('.md-preview a.wiki-link')).toHaveAttribute('data-wiki-missing', 'true');
+  await expect(editor).toHaveValue(draft);
+  await expect(page.locator('.md-preview')).toContainText('Human authored continuation.');
+  expect((await request.post('/api/canvas/undo')).ok()).toBe(true);
+  await expect(page.locator('.md-preview a.wiki-link')).toHaveAttribute('data-wiki-card', evidence);
+  await expect(editor).toHaveValue(draft);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${claim}`)).json()).data.content)
+    .toBe(draft);
+  const persisted = await (await request.get(`/api/canvas/node/${claim}`)).json();
+  expect(persisted.data.wikiLinks).toEqual(saved.data.wikiLinks);
+});
+
+test('a delayed file-backed draft render cannot overwrite a subsequently saved document or selection', async ({
+  page,
+  request,
+}) => {
+  const directory = mkdtempSync(join(process.cwd(), '.pmx-draft-test-'));
+  const path = join(directory, 'draft.md');
+  const saved = 'Original file text.';
+  const discarded = 'Discarded intermediate draft.';
+  writeFileSync(path, saved);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    const board = (await (await request.post('/api/canvas/boards', { data: { name: 'File draft' } })).json()).board;
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+    const evidence = await note(request, 'File evidence', 750);
+    const claim = (
+      await (
+        await request.post('/api/canvas/node', {
+          data: { type: 'markdown', title: 'File decision', x: 100, y: 100, data: { path, content: saved } },
+        })
+      ).json()
+    ).id;
+    await page.goto('/workbench');
+    await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: '</> Source', exact: true }).click();
+    const editor = page.locator('.md-editor-expanded textarea');
+    await expect(editor).toHaveValue(saved);
+    await editor.fill(discarded);
+    await expect(page.locator('.md-preview')).toContainText(discarded);
+    let waiting = false;
+    await page.route('**/api/render', async (route) => {
+      if ((route.request().postDataJSON() as { markdown: string }).markdown !== discarded) {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      waiting = true;
+      await held;
+      await route.fulfill({ response });
+    });
+    const obsoleteRender = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/render' &&
+        (response.request().postDataJSON() as { markdown: string }).markdown === discarded,
+    );
+    expect(
+      (await request.post('/api/canvas/edge', { data: { from: claim, to: evidence, type: 'references' } })).ok(),
+    ).toBe(true);
+    await expect.poll(() => waiting).toBe(true);
+    await editor.fill(saved);
+    await editor.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(2, 8));
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+    expect(readFileSync(path, 'utf8')).toBe(saved);
+    release();
+    await (await obsoleteRender).finished();
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(editor).toHaveValue(saved);
+    expect(
+      await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd]),
+    ).toEqual([2, 8]);
+    await expect(page.locator('.md-preview')).toContainText(saved);
+    expect(readFileSync(path, 'utf8')).toBe(saved);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('whole-library Graph updates card context on board pin and unpin without clearing card pins', async ({
+  page,
+  request,
+}) => {
+  const board = (await (await request.post('/api/canvas/boards', { data: { name: 'Context filter' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+  await note(request, 'Ordinary context card');
+  const pinned = await note(request, 'Individually pinned card', 520);
+  expect((await request.post('/api/canvas/context-pins', { headers: HUMAN, data: { nodeIds: [pinned] } })).ok()).toBe(
+    true,
+  );
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Graph', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Focus', exact: true })).toHaveValue('');
+  await page.getByRole('button', { name: 'board: Context filter', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'In context only', exact: true }).check();
+  const ordinary = page.getByRole('button', { name: 'card: Ordinary context card', exact: true });
+  const individual = page.getByRole('button', { name: 'card: Individually pinned card', exact: true });
+  await expect(ordinary).toHaveCount(0);
+  await expect(individual).toBeVisible();
+  const details = page.getByRole('complementary', { name: 'Selection details' });
+  await details.getByRole('button', { name: "Pin board to the agent's context", exact: true }).click();
+  await expect(ordinary).toBeVisible();
+  await expect(individual).toBeVisible();
+  await details.getByRole('button', { name: "Unpin board from the agent's context", exact: true }).click();
+  await expect(ordinary).toHaveCount(0);
+  await expect(individual).toBeVisible();
+  const graph = await (await request.get('/api/canvas/memory-graph')).json();
+  expect(
+    graph.nodes
+      .filter((node: { kind: string; inContext: boolean }) => node.kind === 'card' && node.inContext)
+      .map((node: { title: string }) => node.title),
+  ).toEqual(['Individually pinned card']);
+});
+
+test('Home Map persists human positions and Graph matches agent focus without opening a board', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { data: { name: 'Planning map', category: 'Work' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const claim = await note(request, 'A decision to explore');
+  const orphan = (await (await request.post('/api/canvas/boards', { data: { name: 'Unlinked scratchpad' } })).json())
+    .board;
+  const remote = (await (await request.post('/api/canvas/boards', { data: { name: 'Remote research' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: remote.id } });
+  const evidence = await note(request, 'Remote Map evidence', 2600, 1800);
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await request.post('/api/canvas/edge', {
+    data: { from: claim, to: evidence, toBoardId: remote.id, type: 'references' },
+  });
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  const discoveryResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/canvas/memory-graph',
+  );
+  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  const discovery = await discoveryResponse;
+  expect(new URL(discovery.url()).searchParams.get('projection')).toBe('boards');
+  expect((await discovery.json()).nodes.every((node: { kind: string }) => node.kind === 'board')).toBe(true);
+  const tile = page.getByRole('button', { name: 'board: Planning map', exact: true });
+  await expect(tile).toBeVisible();
+  await expect(page.getByRole('button', { name: 'board: Unlinked scratchpad', exact: true })).toBeVisible();
+  const initial = await tile.boundingBox();
+  if (!initial) throw new Error('Map tile missing');
+  await page.mouse.move(initial.x + 50, initial.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(initial.x + 115, initial.y + 65, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(
+      async () =>
+        (await (await request.get('/api/canvas/boards')).json()).boards.find(
+          (board: { id: string }) => board.id === source.id,
+        )?.mapPosition,
+    )
+    .toEqual({ x: 125, y: 400 });
+  await page.reload();
+  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await expect(tile).toBeVisible();
+  await expect.poll(() => tile.boundingBox()).toMatchObject({ x: initial.x + 65, y: initial.y + 35 });
+  await tile.click();
+  await page.getByRole('button', { name: 'Reset position', exact: true }).click();
+  await expect.poll(() => tile.boundingBox()).toMatchObject({ x: initial.x, y: initial.y });
+  await page.route(`**/api/canvas/boards/${source.id}`, (route) =>
+    route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 409, json: { ok: false, error: 'Map position refused for this test.' } })
+      : route.continue(),
+  );
+  const reset = await tile.boundingBox();
+  if (!reset) throw new Error('Reset tile missing');
+  await page.mouse.move(reset.x + 50, reset.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(reset.x + 115, reset.y + 65, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('.attention-toast')).toContainText('Map position refused for this test.');
+  await expect.poll(() => tile.boundingBox()).toMatchObject({ x: initial.x, y: initial.y });
+  await page.unrouteAll();
+  await page.getByRole('button', { name: "Pin board to the agent's context", exact: true }).last().click();
+  await expect(page.getByRole('button', { name: 'Remote Map evidence', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remote Map evidence', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Board: Remote research/ })).toBeVisible();
+  await expect(page.locator(`[data-node-id="${evidence}"]`)).toBeInViewport();
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Graph', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Focus', exact: true }).selectOption(source.id);
+  await page.getByRole('combobox', { name: 'Depth', exact: true }).selectOption('0');
+  await expect(page.locator('.home-memory-select')).toHaveCount(1);
+  const projected = await (
+    await request.get(`/api/canvas/memory-graph?focus=${source.id}&depth=0&consumer=wave2-e2e`)
+  ).json();
+  expect(projected.nodes.map((node: { title: string }) => node.title)).toEqual(['Planning map']);
+  expect((await boards(request)).activeBoardId).toBeNull();
+  expect(projected.nodes.some((node: { boardId: string }) => node.boardId === orphan.id)).toBe(false);
+  await page.getByRole('combobox', { name: 'Focus', exact: true }).selectOption('pins');
+  await page.getByRole('combobox', { name: 'Depth', exact: true }).selectOption('1');
+  await expect(page.getByRole('button', { name: 'card: A decision to explore', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'card: A decision to explore', exact: true }).click();
+  await page.getByRole('button', { name: 'Open card', exact: true }).click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'A decision to explore' })).toBeInViewport();
+});
+
+test('a wiki card jump waits for a delayed target layout before focusing it', async ({ page, request }) => {
+  const target = (await (await request.post('/api/canvas/boards', { data: { name: 'Slow research' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: target.id } });
+  const id = await note(request, 'Far away evidence', 2600, 1800);
+  const source = (await (await request.post('/api/canvas/boards', { data: { name: 'Slow decision' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', content: '[[Slow research#Far away evidence|Jump to evidence]]', x: 100, y: 100 },
+  });
+  await page.goto('/workbench');
+  await expect(page.getByRole('link', { name: 'Jump to evidence' })).toBeVisible();
+  let delayed = false;
+  await page.route('**/api/canvas/state?*', async (route) => {
+    const response = await route.fetch();
+    delayed = true;
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    await route.fulfill({ response });
+  });
+  await page.getByRole('link', { name: 'Jump to evidence' }).click();
+  await expect(page.getByRole('button', { name: /^Board: Slow research/ })).toBeVisible();
+  await expect(page.locator(`[data-node-id="${id}"]`)).toBeInViewport();
+  expect(delayed).toBe(true);
+  await page.unrouteAll({ behavior: 'wait' });
+});

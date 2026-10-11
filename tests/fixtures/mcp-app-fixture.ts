@@ -120,11 +120,22 @@ const html = `<!doctype html>
       let note = '';
       let restoredCheckpoint = null;
       let editorEnabled = false;
+      let renderedState = '';
 
       const render = (value) => {
         currentCount = value ?? currentCount;
         const hostWidth = Math.round(hostContext?.containerDimensions?.width ?? 0);
         const hostHeight = Math.round(hostContext?.containerDimensions?.height ?? 0);
+        const state = JSON.stringify([currentCount, note, editorEnabled, hostContext?.displayMode]);
+        if (state === renderedState) {
+          // Resize/bootstrap echoes must not replace the button mid-press.
+          const output = document.getElementById('host-dimensions');
+          output.dataset.width = String(hostWidth);
+          output.dataset.height = String(hostHeight);
+          output.textContent = hostWidth + 'x' + hostHeight;
+          return;
+        }
+        renderedState = state;
         const dimensions = '<output hidden id="host-dimensions" data-width="' + hostWidth + '" data-height="' + hostHeight + '">' + hostWidth + 'x' + hostHeight + '</output>';
         if (!editorEnabled || !hostContext || hostContext.displayMode !== 'fullscreen') {
           document.body.innerHTML = '<main><section class="card"><div>Fixture Counter</div>' + dimensions + '<div id="count" class="count">' + String(currentCount) + '</div><button id="increment" type="button">Increment</button></section></main>';
@@ -137,7 +148,7 @@ const html = `<!doctype html>
       };
 
       async function restoreCheckpoint() {
-        if (!checkpointId || restoredCheckpoint === checkpointId) return;
+        if (!editorEnabled || !checkpointId || restoredCheckpoint === checkpointId) return;
         restoredCheckpoint = checkpointId;
         const result = await app.callServerTool({
           name: 'read_checkpoint',

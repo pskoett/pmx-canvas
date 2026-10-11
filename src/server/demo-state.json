@@ -22,7 +22,8 @@
       "data": {
         "title": "① Start here",
         "content": "What the agent is doing, what context it holds, what it decided, and the tool calls behind it.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -59,7 +60,8 @@
       "data": {
         "title": "PMX Canvas — guided tour",
         "content": "# PMX Canvas\n\nAn infinite spatial canvas that agents drive over **MCP**, **HTTP** or the **Bun SDK** — and that humans steer by pinning nodes.\n\nThis board is a live catalogue. Bands ① to ④ and ⑧ run down the left, ⑤ to ⑦ down the right.\n\n| Band | Shows |\n| --- | --- |\n| ① Start here | status · context · ledger · trace |\n| ② Files & review | file · CSV table · diff · image · webpage |\n| ③ Diagrams & surfaces | mermaid · raw HTML · MCP app |\n| ④ Charts | all 12 graph types |\n| ⑤ Structured UI | json-render specs |\n| ⑥ Grouping | one group frame |\n| ⑦ HTML primitives | all 21 generated surfaces |\n| ⑧ Agent at work | a live AX flow, mid-task |\n\n> Pin a node in the browser and the agent reads it back from `canvas://pinned-context`. That is the whole collaboration loop.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -371,7 +373,8 @@
       "data": {
         "title": "② Files & review",
         "content": "Inline file text, delimited data as a table, unified diffs, images, and cached webpage snapshots.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -656,7 +659,8 @@
       "data": {
         "title": "③ Diagrams & surfaces",
         "content": "Mermaid renders from plain text; HTML and MCP App nodes are sandboxed iframes the agent authors.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -905,7 +909,8 @@
       "data": {
         "title": "④ Charts",
         "content": "Every canonical graph type, then the Tufte primitives in the compact bottom row.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -2523,7 +2528,8 @@
       "data": {
         "title": "⑤ Structured UI",
         "content": "json-render nodes: an agent posts a validated component spec and the canvas renders real UI.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -3131,7 +3137,8 @@
       "data": {
         "title": "⑥ Grouping",
         "content": "A group says \"these belong together\". One frame is enough — bands carry a board’s structure.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -3169,6 +3176,7 @@
         "title": "Sprint 41 — canvas polish",
         "content": "Three nodes, one frame. Moving the frame moves the children; ungrouping leaves them exactly where they are.\n\n- Group children keep their own positions by default\n- `childLayout` opts into auto-packing\n- The frame is stored as `data.children` on the group",
         "strictSize": true,
+        "wikiLinks": [],
         "parentGroup": "group"
       },
       "createdBy": {
@@ -3331,7 +3339,8 @@
       "data": {
         "title": "⑦ HTML primitives",
         "content": "All 21 generated communication surfaces — self-contained sandboxed documents, no build step.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -5434,7 +5443,8 @@
       "data": {
         "title": "⑧ Agent at work",
         "content": "A task caught mid-flight: one work item per step, status chips on the nodes, controls that steer the agent.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",
@@ -5474,6 +5484,7 @@
         "axFlowId": "axflow-primitive-ax-flow",
         "axFlowStep": 1,
         "axFlowSourceNodeId": "primitive-ax-flow",
+        "wikiLinks": [],
         "axWorkStatus": "done",
         "axStep": {
           "flowId": "axflow-primitive-ax-flow",
@@ -5556,6 +5567,7 @@
         "axFlowId": "axflow-primitive-ax-flow",
         "axFlowStep": 2,
         "axFlowSourceNodeId": "primitive-ax-flow",
+        "wikiLinks": [],
         "axWorkStatus": "in-progress",
         "axStep": {
           "flowId": "axflow-primitive-ax-flow",
@@ -5603,6 +5615,7 @@
         "axFlowId": "axflow-primitive-ax-flow",
         "axFlowStep": 3,
         "axFlowSourceNodeId": "primitive-ax-flow",
+        "wikiLinks": [],
         "axWorkStatus": "todo",
         "axStep": {
           "flowId": "axflow-primitive-ax-flow",
@@ -5650,6 +5663,7 @@
         "axFlowId": "axflow-primitive-ax-flow",
         "axFlowStep": 4,
         "axFlowSourceNodeId": "primitive-ax-flow",
+        "wikiLinks": [],
         "axWorkStatus": "todo",
         "axStep": {
           "flowId": "axflow-primitive-ax-flow",
@@ -5694,7 +5708,8 @@
       "data": {
         "title": "How to read this band",
         "content": "Each step is a real **AX work item**, so the chip on a step node is the\nagent’s live status — it moves as the agent works.\n\nThe buttons in each step footer steer it: **Start**, **Done** and\n**Blocked** write that step’s work item, which the agent reads back from\n`canvas://ax-work`.\n\nStep 2 is pinned, so `canvas://pinned-context` hands the agent the\nstep it is actually on.",
-        "strictSize": true
+        "strictSize": true,
+        "wikiLinks": []
       },
       "createdBy": {
         "actor": "agent",

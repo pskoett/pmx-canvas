@@ -56,7 +56,7 @@ afterAll(() => {
 
 beforeEach(() => {
   calls = [];
-  respond = () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+  respond = (url) => Response.json(url.endsWith('/restore-node') ? { ok: true, restored: true } : {});
   resetPresence();
   resetSessionStore();
   activeBoardId.value = null;

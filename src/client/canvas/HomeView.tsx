@@ -6,6 +6,7 @@ import {
   createAndOpenBoard,
   deleteBoard,
   openBoard,
+  openMemoryTarget,
   setBoardPinned,
   updateBoard,
   type BoardSummary,
@@ -14,10 +15,10 @@ import { categoryAncestors, MIGRATED_SNAPSHOT_CATEGORY, normalizeBoardCategory }
 import { askText } from './TextPrompt';
 import { BoardFolderDialog } from './BoardFolderDialog';
 import { requestJson } from '../state/intent-bridge';
-import { focusNode, nodes } from '../state/canvas-store';
 import { approxTokens } from '../state/context-chip-store';
 import { BoardCopyDialog } from './BoardCopyDialog';
 import { BoardPinButton } from './BoardPinButton';
+import { HomeMemoryView } from './HomeMemoryView';
 import { IconChevronDown, IconChevronRight, IconMore, IconPin, IconSearch } from '../icons';
 
 interface LibraryHit {
@@ -107,6 +108,7 @@ function BoardThumbnail({ board }: { board: BoardSummary }) {
  */
 export function HomeView() {
   const boards = boardList.value;
+  const [view, setView] = useState<'Folders' | 'Map' | 'Graph'>('Folders');
   const [folder, setFolder] = useState<string>(() => {
     const recent = [...boardList.value].sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))[0];
     return recent?.category ?? '';
@@ -122,7 +124,6 @@ export function HomeView() {
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
-  const openHitSequence = useRef(0);
   const moreButton = useRef<HTMLButtonElement>(null);
   const moreMenu = useRef<HTMLSpanElement>(null);
 
@@ -185,18 +186,7 @@ export function HomeView() {
     if (selectedId && !boards.some((board) => board.id === selectedId)) setSelectedId(null);
   }, [boards, selectedId]);
 
-  const openHit = async (hit: LibraryHit) => {
-    const sequence = ++openHitSequence.current;
-    await openBoard(hit.boardId);
-    for (let attempt = 0; attempt < 40; attempt++) {
-      if (sequence !== openHitSequence.current || activeBoardId.value !== hit.boardId) return;
-      if (nodes.value.has(hit.cardId)) {
-        focusNode(hit.cardId);
-        return;
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 25));
-    }
-  };
+  const openHit = (hit: LibraryHit) => openMemoryTarget(hit);
 
   const toggle = (path: string) => {
     const next = new Set(collapsed);
@@ -400,17 +390,34 @@ export function HomeView() {
         <section class="home-details-section">
           <span class="home-section-label">Links · {linkCount(selected)}</span>
           {selected.links?.map((link) => (
-            <div key={link.nodeId} class="home-details-link">
+            <div key={link.id ?? link.nodeId} class="home-details-link">
               <span class="home-details-link-dir">→</span>
-              <span class="home-details-link-name">{link.title ?? 'Missing board'}</span>
-              <span class="home-details-link-kind">portal</span>
+              <button
+                type="button"
+                disabled={link.missing}
+                class="home-details-link-name"
+                onClick={() =>
+                  void openMemoryTarget({ boardId: link.boardId, ...(link.cardId ? { cardId: link.cardId } : {}) })
+                }
+              >
+                {link.missing ? 'Missing target' : link.title}
+              </button>
+              <span class="home-details-link-kind">{link.kind ?? 'portal'}</span>
             </div>
           ))}
           {selected.backlinks?.map((link) => (
-            <div key={`${link.boardId}:${link.nodeId}`} class="home-details-link">
+            <div key={link.id ?? `${link.boardId}:${link.nodeId}`} class="home-details-link">
               <span class="home-details-link-dir">←</span>
-              <span class="home-details-link-name">{link.title}</span>
-              <span class="home-details-link-kind">portal</span>
+              <button
+                type="button"
+                class="home-details-link-name"
+                onClick={() =>
+                  void openMemoryTarget({ boardId: link.boardId, ...(link.nodeId ? { cardId: link.nodeId } : {}) })
+                }
+              >
+                {link.title}
+              </button>
+              <span class="home-details-link-kind">{link.kind ?? 'portal'}</span>
             </div>
           ))}
         </section>
@@ -503,186 +510,208 @@ export function HomeView() {
   );
 
   return (
-    <div class={`home-view${selected ? ' has-details' : ''}`} data-testid="home-view">
-      <aside class={`home-library${pickerOpen ? ' is-open' : ''}`} aria-label="Library">
-        <div class="home-library-head">
-          <span class="home-library-title">Library</span>
-          <span class="home-tree-count">{plural(boards.length, 'board')}</span>
-        </div>
-        {searchField}
-        {pinned.length > 0 && (
-          <section class="home-library-section">
-            <span class="home-section-label">Pinned boards</span>
-            {pinnedList}
-            <span class="home-pinned-cost">
-              ≈ {approxTokens(pinnedChars)} tokens · {plural(pinned.length, 'board')}
-            </span>
-          </section>
-        )}
-        <section class="home-library-section is-folders">
-          <span class="home-section-label">Folders</span>
-          {tree}
-          <button type="button" class="home-tree-new" onClick={() => void newFolder()}>
-            + New folder
+    <div class="home-shell">
+      <nav class="home-view-tabs" aria-label="Library view">
+        {(['Folders', 'Map', 'Graph'] as const).map((tab) => (
+          <button type="button" class="home-button" aria-pressed={view === tab} onClick={() => setView(tab)} key={tab}>
+            {tab}
           </button>
-        </section>
-      </aside>
+        ))}
+      </nav>
+      {view !== 'Folders' ? (
+        <HomeMemoryView key={view} mode={view} />
+      ) : (
+        <div class={`home-view${selected ? ' has-details' : ''}`} data-testid="home-view">
+          <aside class={`home-library${pickerOpen ? ' is-open' : ''}`} aria-label="Library">
+            <div class="home-library-head">
+              <span class="home-library-title">Library</span>
+              <span class="home-tree-count">{plural(boards.length, 'board')}</span>
+            </div>
+            {searchField}
+            {pinned.length > 0 && (
+              <section class="home-library-section">
+                <span class="home-section-label">Pinned boards</span>
+                {pinnedList}
+                <span class="home-pinned-cost">
+                  ≈ {approxTokens(pinnedChars)} tokens · {plural(pinned.length, 'board')}
+                </span>
+              </section>
+            )}
+            <section class="home-library-section is-folders">
+              <span class="home-section-label">Folders</span>
+              {tree}
+              <button type="button" class="home-tree-new" onClick={() => void newFolder()}>
+                + New folder
+              </button>
+            </section>
+          </aside>
 
-      <main class="home-main">
-        {/* Pane600.dc.html: at the narrow end the tree and the pins fold into these two rows. */}
-        <div class="home-narrow">
-          {searchField}
-          {pinned.length > 0 && (
-            <>
+          <main class="home-main">
+            {/* Pane600.dc.html: at the narrow end the tree and the pins fold into these two rows. */}
+            <div class="home-narrow">
+              {searchField}
+              {pinned.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    class="home-narrow-context"
+                    aria-expanded={pinsOpen}
+                    onClick={() => setPinsOpen(!pinsOpen)}
+                  >
+                    <span class="home-pin-dot" aria-hidden="true">
+                      <IconPin />
+                    </span>
+                    <span class="home-narrow-context-label">In context: {plural(pinned.length, 'board')}</span>
+                    <span class="home-narrow-context-cost">≈ {approxTokens(pinnedChars)} tokens</span>
+                    <span>{pinsOpen ? 'Hide ▴' : 'Show ▾'}</span>
+                  </button>
+                  {pinsOpen && pinnedList}
+                </>
+              )}
               <button
                 type="button"
-                class="home-narrow-context"
-                aria-expanded={pinsOpen}
-                onClick={() => setPinsOpen(!pinsOpen)}
+                class="home-narrow-picker"
+                aria-expanded={pickerOpen}
+                onClick={() => setPickerOpen(!pickerOpen)}
               >
-                <span class="home-pin-dot" aria-hidden="true">
-                  <IconPin />
+                {folder ? leaf(folder) : 'Library'}
+                <span class="home-tree-count">
+                  · {folder ? boards.filter((board) => inFolder(board, folder)).length : here.length} ▾
                 </span>
-                <span class="home-narrow-context-label">In context: {plural(pinned.length, 'board')}</span>
-                <span class="home-narrow-context-cost">≈ {approxTokens(pinnedChars)} tokens</span>
-                <span>{pinsOpen ? 'Hide ▴' : 'Show ▾'}</span>
               </button>
-              {pinsOpen && pinnedList}
-            </>
-          )}
-          <button
-            type="button"
-            class="home-narrow-picker"
-            aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen(!pickerOpen)}
-          >
-            {folder ? leaf(folder) : 'Library'}
-            <span class="home-tree-count">
-              · {folder ? boards.filter((board) => inFolder(board, folder)).length : here.length} ▾
-            </span>
-          </button>
-        </div>
+            </div>
 
-        <div class="home-main-head">
-          <div class="home-main-title">
-            <nav class="home-crumbs" aria-label="Folder path">
-              <button type="button" onClick={() => goTo('')}>
-                Library
-              </button>
-              {folder &&
-                categoryAncestors(folder).map((path) => (
-                  <span key={path}>
-                    <span class="home-crumb-sep">/</span>
-                    <button type="button" onClick={() => goTo(path)}>
-                      {leaf(path)}
-                    </button>
-                  </span>
-                ))}
-            </nav>
-            <h1 class="home-view-title">
-              {query ? `Results for “${search.trim()}”` : folder ? leaf(folder) : 'Library'}
-            </h1>
-          </div>
-          <button type="button" class="home-button is-primary" onClick={() => void promptNewBoard(folder || null)}>
-            {folder ? 'New board here' : 'New board'}
-          </button>
-        </div>
-
-        {boards.length === 0 ? (
-          <div class="home-view-empty">No boards yet. Create one, or let an agent start writing — it opens one.</div>
-        ) : query ? (
-          <>
-            {hits.length > 0 && (
-              <section class="home-main-section">
-                <span class="home-section-label">Cards · {hits.length}</span>
-                <ul class="home-hits" aria-label="Library search results">
-                  {hits.map((hit) => (
-                    <li key={`${hit.boardId}:${hit.cardId}`}>
-                      <button type="button" class="home-hit" onClick={() => void openHit(hit)}>
-                        <span class="home-card-name">{hit.title || hit.boardTitle}</span>
-                        <span class="home-card-meta">
-                          {hit.boardTitle} · {hit.snippet}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {matches.length > 0 ? (
-              <section class="home-main-section">
-                <span class="home-section-label">Boards · {matches.length}</span>
-                <ul class="home-cards">{matches.map(card)}</ul>
-              </section>
-            ) : (
-              hits.length === 0 && (
-                <div class="home-view-empty" role="status">
-                  No boards match “{search.trim()}”.
-                </div>
-              )
-            )}
-          </>
-        ) : (
-          <>
-            {subfolders.length > 0 && (
-              <section class="home-main-section">
-                <span class="home-section-label">Folders · {subfolders.length}</span>
-                <ul class="home-folders">
-                  {subfolders.map((path) => {
-                    const inside = boards.filter((board) => inFolder(board, path));
-                    const latest = inside
-                      .map((board) => board.lastOpenedAt ?? '')
-                      .sort()
-                      .at(-1);
-                    const inContext = inside.filter((board) => board.pin).length;
-                    return (
-                      <li key={path}>
-                        <button
-                          type="button"
-                          class="home-folder"
-                          data-testid="home-section"
-                          data-folder={path}
-                          onClick={() => goTo(path)}
-                        >
-                          <span class="home-folder-stack" aria-hidden="true">
-                            <span />
-                            <span />
-                            <span />
-                          </span>
-                          {inContext > 0 && <span class="home-folder-context">{inContext} in context</span>}
-                          <span class="home-folder-name">{leaf(path)}</span>
-                          <span class="home-folder-meta">
-                            {plural(inside.length, 'board')}
-                            {latest ? ` · opened ${openedAgo(latest)}` : ''}
-                          </span>
+            <div class="home-main-head">
+              <div class="home-main-title">
+                <nav class="home-crumbs" aria-label="Folder path">
+                  <button type="button" onClick={() => goTo('')}>
+                    Library
+                  </button>
+                  {folder &&
+                    categoryAncestors(folder).map((path) => (
+                      <span key={path}>
+                        <span class="home-crumb-sep">/</span>
+                        <button type="button" onClick={() => goTo(path)}>
+                          {leaf(path)}
                         </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            )}
-            <section class="home-main-section">
-              <span class="home-section-label">
-                {folder ? `Boards in ${leaf(folder)}` : 'Unfiled boards'} · {shown.length}
-              </span>
-              {shown.length > 0 ? (
-                <ul class="home-cards" aria-label={folder ? `Boards in ${folder}` : 'Unfiled boards'}>
-                  {shown.map(card)}
-                </ul>
-              ) : (
-                <div class="home-view-empty">No boards here yet.</div>
-              )}
-            </section>
-          </>
-        )}
-      </main>
+                      </span>
+                    ))}
+                </nav>
+                <h1 class="home-view-title">
+                  {query ? `Results for “${search.trim()}”` : folder ? leaf(folder) : 'Library'}
+                </h1>
+              </div>
+              <button type="button" class="home-button is-primary" onClick={() => void promptNewBoard(folder || null)}>
+                {folder ? 'New board here' : 'New board'}
+              </button>
+            </div>
 
-      {details}
-      {movingBoard && (
-        <BoardFolderDialog key={movingBoard.id} board={movingBoard} folders={folders} onClose={() => setMoving(null)} />
+            {boards.length === 0 ? (
+              <div class="home-view-empty">
+                No boards yet. Create one, or let an agent start writing — it opens one.
+              </div>
+            ) : query ? (
+              <>
+                {hits.length > 0 && (
+                  <section class="home-main-section">
+                    <span class="home-section-label">Cards · {hits.length}</span>
+                    <ul class="home-hits" aria-label="Library search results">
+                      {hits.map((hit) => (
+                        <li key={`${hit.boardId}:${hit.cardId}`}>
+                          <button type="button" class="home-hit" onClick={() => void openHit(hit)}>
+                            <span class="home-card-name">{hit.title || hit.boardTitle}</span>
+                            <span class="home-card-meta">
+                              {hit.boardTitle} · {hit.snippet}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                {matches.length > 0 ? (
+                  <section class="home-main-section">
+                    <span class="home-section-label">Boards · {matches.length}</span>
+                    <ul class="home-cards">{matches.map(card)}</ul>
+                  </section>
+                ) : (
+                  hits.length === 0 && (
+                    <div class="home-view-empty" role="status">
+                      No boards match “{search.trim()}”.
+                    </div>
+                  )
+                )}
+              </>
+            ) : (
+              <>
+                {subfolders.length > 0 && (
+                  <section class="home-main-section">
+                    <span class="home-section-label">Folders · {subfolders.length}</span>
+                    <ul class="home-folders">
+                      {subfolders.map((path) => {
+                        const inside = boards.filter((board) => inFolder(board, path));
+                        const latest = inside
+                          .map((board) => board.lastOpenedAt ?? '')
+                          .sort()
+                          .at(-1);
+                        const inContext = inside.filter((board) => board.pin).length;
+                        return (
+                          <li key={path}>
+                            <button
+                              type="button"
+                              class="home-folder"
+                              data-testid="home-section"
+                              data-folder={path}
+                              onClick={() => goTo(path)}
+                            >
+                              <span class="home-folder-stack" aria-hidden="true">
+                                <span />
+                                <span />
+                                <span />
+                              </span>
+                              {inContext > 0 && <span class="home-folder-context">{inContext} in context</span>}
+                              <span class="home-folder-name">{leaf(path)}</span>
+                              <span class="home-folder-meta">
+                                {plural(inside.length, 'board')}
+                                {latest ? ` · opened ${openedAgo(latest)}` : ''}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                )}
+                <section class="home-main-section">
+                  <span class="home-section-label">
+                    {folder ? `Boards in ${leaf(folder)}` : 'Unfiled boards'} · {shown.length}
+                  </span>
+                  {shown.length > 0 ? (
+                    <ul class="home-cards" aria-label={folder ? `Boards in ${folder}` : 'Unfiled boards'}>
+                      {shown.map(card)}
+                    </ul>
+                  ) : (
+                    <div class="home-view-empty">No boards here yet.</div>
+                  )}
+                </section>
+              </>
+            )}
+          </main>
+
+          {details}
+          {movingBoard && (
+            <BoardFolderDialog
+              key={movingBoard.id}
+              board={movingBoard}
+              folders={folders}
+              onClose={() => setMoving(null)}
+            />
+          )}
+          {copyingBoard && (
+            <BoardCopyDialog key={copyingBoard.id} board={copyingBoard} onClose={() => setCopying(null)} />
+          )}
+        </div>
       )}
-      {copyingBoard && <BoardCopyDialog key={copyingBoard.id} board={copyingBoard} onClose={() => setCopying(null)} />}
     </div>
   );
 }

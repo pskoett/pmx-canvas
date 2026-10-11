@@ -26,7 +26,7 @@ export declare function vetoGhostIntent(intent: {
     reason?: string;
 }): Promise<boolean>;
 /** Fetch rendered markdown HTML from the server. */
-export declare function renderMarkdown(markdown: string): Promise<string>;
+export declare function renderMarkdown(markdown: string, nodeId?: string): Promise<string>;
 /** Fetch file content from the server. */
 export declare function fetchFile(path: string): Promise<{
     content: string;
@@ -85,7 +85,10 @@ export declare function pushCanvasUpdate(updates: Array<{
     recordHistory?: boolean;
 }): Promise<void>;
 /** Render the server-confirmed edge immediately, without waiting for SSE/polling. */
-export declare function createEdgeFromClient(from: string, to: string, type: string, label?: string): Promise<{
+export declare function createEdgeFromClient(from: string, to: string, type: string, label?: string, options?: {
+    toBoardId?: string;
+    expectedBoardId?: string | null;
+}): Promise<{
     ok: boolean;
     id?: string;
 }>;

@@ -190,11 +190,16 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
     case 'edge.add':
       // Search-resolved endpoints (`fromSearch`/`toSearch`) cannot be checked
       // before resolution and so read as '' — refused, not bypassed.
-      return { nodeIds: [str(input.from), str(input.to)] };
+      return {
+        nodeIds:
+          input.toBoardId && input.toBoardId !== canvasState.activeBoardId
+            ? [str(input.from)]
+            : [str(input.from), str(input.to)],
+      };
     case 'edge.remove': {
       const id = str(input.id) || str(input.edge_id);
       const edge = canvasState.getEdges().find((entry) => entry.id === id);
-      return edge ? { nodeIds: [edge.from, edge.to] } : {}; // missing edge: the op 404s on its own
+      return edge ? { nodeIds: edge.toBoardId ? [edge.from] : [edge.from, edge.to] } : {}; // missing edge: the op 404s on its own
     }
     case 'group.create':
       return { nodeIds: stringList(input.childIds ?? input.children) };

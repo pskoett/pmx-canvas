@@ -12,7 +12,14 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getOperation, listOperations } from './registry.js';
 import { agentSourceLabel, type OperationInvoker } from './invoker.js';
 import { OperationError, type Operation, type OperationMcpToolHost } from './types.js';
-import { CONTEXT_READ_OPS, contextReadFromPayload, pinnedBoardReads, type ContextReadInput } from '../context-reads.js';
+import {
+  CONTEXT_READ_OPS,
+  contextReadFromPayload,
+  pinnedBoardReads,
+  graphReads,
+  type ContextReadInput,
+} from '../context-reads.js';
+import type { MemoryGraph } from '../../shared/memory-graph.js';
 import { compositeFoldedOpNames, compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';
 
 export interface OperationToolHost extends OperationMcpToolHost {
@@ -50,6 +57,14 @@ async function invokeMcpOperation(
       if (node.data === undefined && !node.content) return formatted;
     }
     try {
+      if (op.name === 'memory-graph.get') {
+        for (const read of graphReads(
+          { channel: 'operation', resource: op.name, source: agentSourceLabel('mcp'), consumer, agentId: null },
+          JSON.parse(text) as MemoryGraph,
+        ))
+          await host.recordContextRead(read);
+        return formatted;
+      }
       await host.recordContextRead(
         contextReadFromPayload(
           {

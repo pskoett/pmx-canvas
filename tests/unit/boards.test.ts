@@ -106,6 +106,243 @@ function note(id: string, title: string): CanvasNodeState {
   };
 }
 
+test('remote relations invalidate the target clock without editing its content, including clear/copy/delete', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  canvasState.addNode(note('shared', 'Source'));
+  canvasState.flushToDisk();
+  const source = canvasState.activeBoardId!;
+  const target = canvasState.createBoard('Target')!;
+  canvasState.switchBoard(target.id);
+  canvasState.addNode(note('shared', 'Target'));
+  for (let i = 0; i < 12; i++) canvasState.updateNode('shared', { data: { title: `Target ${i}` } });
+  canvasState.addNode(note('deleted', 'Deleted'));
+  canvasState.removeNode('deleted');
+  const original = canvasState.getNode('shared')!;
+  const cursor = canvasState.getContentRevision().revision;
+  const revisionState = canvasState.readBoard(target.id, false)!.state.revisionState!;
+  await executeOperation('context.get', {});
+  canvasState.switchBoard(source);
+  canvasState.addEdge({ id: 'remote', from: 'shared', to: 'shared', toBoardId: target.id, type: 'relation' });
+  const read = () => canvasState.readBoard(target.id, false)!.state.nodes.find((node) => node.id === 'shared')!;
+  expect(read().linksRevision ?? 0).toBeGreaterThan(cursor);
+  expect(read().contentRevision).toBe(original.contentRevision);
+  expect(read().data).toEqual(original.data);
+  expect(read().lastEditedBy).toEqual(original.lastEditedBy);
+  expect(canvasState.readBoard(target.id, false)!.state.revisionState!.tombstones).toEqual(revisionState.tombstones);
+  expect(canvasState.readBoard(target.id, false)!.state.revisionState!.floor).toBe(revisionState.floor);
+  canvasState.onMutation((info) => mutationHistory.record(info));
+  let revision = read().linksRevision!;
+  canvasState.updateEdge('remote', { label: 'supports' });
+  expect(read().linksRevision!).toBeGreaterThan(revision);
+  for (const change of [
+    () => mutationHistory.undo(),
+    () => mutationHistory.redo(),
+    () => canvasState.removeEdge('remote'),
+    () => mutationHistory.undo(),
+  ]) {
+    revision = read().linksRevision!;
+    change();
+    expect(read().linksRevision!).toBeGreaterThan(revision);
+  }
+  canvasState.saveSnapshot('remote');
+  canvasState.removeEdge('remote');
+  const other = canvasState.createBoard('Other target')!;
+  canvasState.switchBoard(other.id);
+  canvasState.addNode(note('shared', 'Other target'));
+  canvasState.switchBoard(source);
+  canvasState.addEdge({ id: 'remote', from: 'shared', to: 'shared', toBoardId: other.id, type: 'relation' });
+  const oldTargetRevision = canvasState.readBoard(other.id, false)!.state.nodes[0]!.linksRevision!;
+  revision = read().linksRevision!;
+  canvasState.restoreSnapshot('remote');
+  expect(read().linksRevision!).toBeGreaterThan(revision);
+  expect(canvasState.readBoard(other.id, false)!.state.nodes[0]!.linksRevision!).toBeGreaterThan(oldTargetRevision);
+  expect(canvasState.getNode('shared')!.data.wikiLinks).toEqual([]);
+  await executeOperation('memory-graph.get', {});
+  const db = new Database(canvasState.databasePath!);
+  expect(
+    db.query<{ count: number }, [string]>('SELECT count(*) AS count FROM edges WHERE board_id = ?').get(source)?.count,
+  ).toBe(1);
+  db.close();
+  canvasState.close();
+  canvasState.setWorkspaceRoot(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  expect(canvasState.getEdges()).toHaveLength(1);
+  revision = read().linksRevision!;
+  const copy = canvasState.createBoardFromBoard({ sourceBoardId: source, name: 'Copy', nodeIds: ['shared'] })!;
+  expect(read().linksRevision!).toBeGreaterThan(revision);
+  revision = read().linksRevision!;
+  canvasState.deleteBoard(copy.id);
+  expect(read().linksRevision!).toBeGreaterThan(revision);
+  revision = read().linksRevision!;
+  canvasState.clear();
+  expect(read().linksRevision!).toBeGreaterThan(revision);
+  canvasState.switchBoard(target.id);
+  expect(canvasState.getSeenLinks().shared ?? 0).toBeLessThan(canvasState.getNode('shared')!.linksRevision!);
+  const delta = (await executeOperation('context.get', { since: cursor })) as { entries: Array<{ nodeId: string }> };
+  expect(delta.entries.some((entry) => entry.nodeId === 'shared')).toBe(true);
+  expect(canvasState.getNode('shared')!.contentRevision).toBe(original.contentRevision);
+  expect(canvasState.getNode('shared')!.data).toEqual(original.data);
+  expect(canvasState.getNode('shared')!.lastEditedBy).toEqual(original.lastEditedBy);
+});
+
+test('copy/delete invalidates an active target in memory; explicit same-board endpoints share a stamp', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  canvasState.addNode(note('from', 'From'));
+  canvasState.addNode(note('to', 'To'));
+  canvasState.flushToDisk();
+  const target = canvasState.activeBoardId!;
+  canvasState.addEdge({ id: 'local', from: 'from', to: 'to', toBoardId: target, type: 'relation' });
+  expect(canvasState.getNode('to')!.linksRevision).toBe(canvasState.getNode('from')!.linksRevision);
+  const source = canvasState.createBoard('Source')!;
+  canvasState.switchBoard(source.id);
+  canvasState.addNode(note('from', 'Source'));
+  canvasState.addEdge({ id: 'remote', from: 'from', to: 'to', toBoardId: target, type: 'relation' });
+  canvasState.switchBoard(target);
+  let revision = canvasState.getNode('to')!.linksRevision!;
+  let notifiedRevision = revision;
+  const stop = canvasState.onChange((type) => {
+    if (type === 'nodes') notifiedRevision = canvasState.getNode('to')!.linksRevision!;
+  });
+  const copy = canvasState.createBoardFromBoard({ sourceBoardId: source.id, name: 'Copy', nodeIds: ['from'] })!;
+  stop();
+  expect(canvasState.getNode('to')!.linksRevision!).toBeGreaterThan(revision);
+  expect(notifiedRevision).toBe(canvasState.getNode('to')!.linksRevision!);
+  revision = canvasState.getNode('to')!.linksRevision!;
+  canvasState.deleteBoard(copy.id);
+  expect(canvasState.getNode('to')!.linksRevision!).toBeGreaterThan(revision);
+  revision = canvasState.getContentRevision().revision;
+  canvasState.addEdge({ id: 'codegraph-remote', from: 'from', to: 'to', toBoardId: target, type: 'flow' });
+  expect(canvasState.getContentRevision().revision).toBe(revision);
+  canvasState.switchBoard(source.id);
+  revision = canvasState.readBoard(target, false)!.state.revisionState!.revision;
+  canvasState.addEdge({ id: 'missing-card', from: 'from', to: 'missing', toBoardId: target, type: 'relation' });
+  canvasState.addEdge({ id: 'missing-board', from: 'from', to: 'to', toBoardId: 'absent', type: 'relation' });
+  expect(canvasState.readBoard(target, false)!.state.revisionState!.revision).toBe(revision);
+});
+
+test('remote target deletion and restoration invalidate the source without changing its content', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  canvasState.addNode(note('source', 'Source'));
+  canvasState.flushToDisk();
+  const source = canvasState.activeBoardId!;
+  const target = canvasState.createBoard('Target')!;
+  canvasState.switchBoard(target.id);
+  canvasState.addNode(note('target', 'Target'));
+  canvasState.switchBoard(source);
+  canvasState.addEdge({ id: 'remote', from: 'source', to: 'target', toBoardId: target.id, type: 'references' });
+  await executeOperation('memory-graph.get', {});
+  const original = canvasState.getNode('source')!;
+  const read = () => canvasState.readBoard(source, false)!.state.nodes.find((node) => node.id === 'source')!;
+  canvasState.switchBoard(target.id);
+  canvasState.saveSnapshot('Target present');
+  canvasState.onMutation((info) => mutationHistory.record(info));
+  for (const change of [
+    () => canvasState.removeNode('target'),
+    () => mutationHistory.undo(),
+    () => canvasState.clear(),
+    () => canvasState.restoreSnapshot('Target present'),
+    () => canvasState.deleteBoard(target.id),
+  ]) {
+    const revision = read().linksRevision!;
+    change();
+    expect(read().linksRevision!).toBeGreaterThan(revision);
+    expect(read().contentRevision).toBe(original.contentRevision);
+    expect(read().data).toEqual(original.data);
+    expect(read().lastEditedBy).toEqual(original.lastEditedBy);
+    expect(canvasState.getSeenLinks(source).source).toBeLessThan(read().linksRevision!);
+  }
+});
+
+test('failed source persistence cannot durably mark remote relations seen', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  canvasState.addNode(note('source', 'Source'));
+  canvasState.flushToDisk();
+  const source = canvasState.activeBoardId!;
+  const target = canvasState.createBoard('Target')!;
+  canvasState.switchBoard(target.id);
+  canvasState.addNode(note('target', 'Target'));
+  canvasState.switchBoard(source);
+  canvasState.addEdge({ id: 'remote', from: 'source', to: 'target', toBoardId: target.id, type: 'relation' });
+  const db = new Database(canvasState.databasePath!);
+  db.exec(
+    "CREATE TRIGGER reject_relation_save BEFORE INSERT ON edges BEGIN SELECT RAISE(FAIL, 'relation save rejected'); END",
+  );
+  try {
+    await executeOperation('memory-graph.get', {});
+    expect(canvasState.getSeenLinks(target.id)).toEqual({});
+    expect(canvasState.getSeenLinks(source)).toEqual({});
+  } finally {
+    db.exec('DROP TRIGGER reject_relation_save');
+    db.close();
+  }
+  await executeOperation('memory-graph.get', {});
+  expect(canvasState.getSeenLinks(target.id).target).toBeGreaterThan(0);
+});
+
+test('restoring identical plain Markdown preserves initialized empty wiki bindings without a content edit', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  canvasState.addNode(note('plain', 'Plain Markdown'));
+  const original = canvasState.getNode('plain')!;
+  const snapshot = canvasState.saveSnapshot('plain')!;
+  await executeOperation('snapshot.restore-node', { id: snapshot.id, nodeId: 'plain' });
+  expect(canvasState.getNode('plain')!.data).toEqual(original.data);
+  expect(canvasState.getNode('plain')!.contentRevision).toBe(original.contentRevision);
+  expect(canvasState.getNode('plain')!.lastEditedBy).toEqual(original.lastEditedBy);
+});
+
+test('legacy wiki bindings initialize once on active load and inactive read without content attribution changes', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const target = canvasState.createBoard('Legacy target')!;
+  canvasState.addNode({ ...note('legacy', 'Legacy'), data: { content: '[[Legacy target]]' } });
+  canvasState.addNode({ ...note('empty', 'Empty'), data: { content: '[[Legacy target]]' } });
+  canvasState.addNode({ ...note('unresolved', 'Unresolved'), data: { content: '[[Legacy target]]' } });
+  canvasState.flushToDisk();
+  const source = canvasState.activeBoardId!;
+  const before = canvasState.getNode('legacy')!;
+  const db = new Database(canvasState.databasePath!);
+  const strip = () =>
+    db.run("UPDATE nodes SET data = json_remove(data, '$.wikiLinks') WHERE board_id = ? AND id = 'legacy'", [source]);
+  db.run("UPDATE nodes SET data = json_set(data, '$.wikiLinks', json('[]')) WHERE board_id = ? AND id = 'empty'", [
+    source,
+  ]);
+  db.run(
+    "UPDATE nodes SET data = json_set(data, '$.wikiLinks', json('[{\"ref\":\"Legacy target\"}]')) WHERE board_id = ? AND id = 'unresolved'",
+    [source],
+  );
+  strip();
+  expect(canvasState.loadFromDisk()).toBe(true);
+  const assertBindings = (nodes: CanvasNodeState[]) => {
+    const legacy = nodes.find((node) => node.id === 'legacy')!;
+    expect(legacy.data.wikiLinks).toEqual([{ ref: 'Legacy target', target: { boardId: target.id } }]);
+    expect(legacy.contentRevision).toBe(before.contentRevision);
+    expect(legacy.lastEditedBy).toEqual(before.lastEditedBy);
+    expect(nodes.find((node) => node.id === 'empty')!.data.wikiLinks).toEqual([]);
+    expect(nodes.find((node) => node.id === 'unresolved')!.data.wikiLinks).toEqual([{ ref: 'Legacy target' }]);
+  };
+  assertBindings(canvasState.getLayout().nodes);
+  canvasState.switchBoard(target.id);
+  strip();
+  assertBindings(canvasState.readBoard(source, false)!.state.nodes);
+  const persisted = db
+    .query<{ data: string }, [string]>("SELECT data FROM nodes WHERE board_id = ? AND id = 'legacy'")
+    .get(source)!;
+  expect(JSON.parse(persisted.data).wikiLinks).toEqual([{ ref: 'Legacy target', target: { boardId: target.id } }]);
+  canvasState.updateBoard(target.id, { name: 'Renamed legacy target' });
+  canvasState.createBoard('Legacy target');
+  assertBindings(canvasState.readBoard(source, false)!.state.nodes);
+  const graph = (await executeOperation('memory-graph.get', {})) as {
+    edges: Array<{ kind: string; target: { boardId: string } }>;
+  };
+  expect(graph.edges.some((edge) => edge.kind === 'wiki' && edge.target.boardId === target.id)).toBe(true);
+  db.close();
+});
+
 beforeEach(() => {
   root = createTestWorkspace('pmx-canvas-boards-');
 });

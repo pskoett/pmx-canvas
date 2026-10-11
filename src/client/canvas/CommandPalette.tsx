@@ -18,7 +18,7 @@ import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
 import { canvasThemeScheme } from '../../shared/themes.js';
 import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
-import { activeBoardId, openBoard } from '../state/boards-store';
+import { openMemoryTarget } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
 
 import { modChord } from '../utils/platform';
@@ -341,16 +341,8 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
       indices: [],
       action: () => {
         void (async () => {
-          await openBoard(hit.boardId);
-          if (activeBoardId.value !== hit.boardId) return;
-          for (let attempt = 0; attempt < 40 && activeBoardId.value === hit.boardId; attempt++) {
-            if (nodes.value.has(hit.cardId)) {
-              focusNode(hit.cardId);
-              onClose();
-              return;
-            }
-            await new Promise((resolve) => window.setTimeout(resolve, 25));
-          }
+          await openMemoryTarget(hit);
+          onClose();
         })();
       },
     });

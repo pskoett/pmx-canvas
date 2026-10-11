@@ -160,7 +160,7 @@ for (const mode of ['src', 'srcdoc']) {
       await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
       await page.goto(`/workbench?iframe-mode=${mode}`);
       const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
-      const inline = node.frameLocator('iframe:visible');
+      const inline = node.frameLocator('iframe:not([inert])');
       await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('Initial');
       // Test runtime continuity independently of Chromium's early iframe
       // pointer hit-test race (the HTML bridge regressions use the same path).

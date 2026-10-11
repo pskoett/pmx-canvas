@@ -1,3 +1,4 @@
+import type { MemoryTarget } from '../../shared/memory-graph.js';
 /**
  * Many boards (plan 012): the workspace's boards and which one is open. The
  * server is the authority; this mirrors GET /api/canvas/boards and the
@@ -11,21 +12,33 @@ export interface BoardSummary {
     lastOpenedAt: string | null;
     nodeCount: number;
     readmeNodeId?: string | null;
+    mapPosition?: {
+        x: number;
+        y: number;
+    } | null;
+    previousBoardId?: string | null;
     summary?: string | null;
     pinnedTitles?: Array<{
         nodeId: string;
         title: string;
     }>;
     links?: Array<{
+        id?: string;
         nodeId: string;
         boardId: string;
+        cardId?: string;
+        cardTitle?: string | null;
         title: string | null;
         missing: boolean;
+        kind?: string;
     }>;
     backlinks?: Array<{
+        id?: string;
         boardId: string;
         title: string;
         nodeId: string;
+        cardId?: string;
+        kind?: string;
     }>;
     /** Home thumbnail (docs/design/Home.dc.html): cards as 0–1 rectangles of the board's extent. */
     preview?: Array<{
@@ -62,6 +75,8 @@ export declare function applyBoards(data: {
 export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */
 export declare function openBoard(id: string | null): Promise<void>;
+/** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */
+export declare function openMemoryTarget(target: MemoryTarget): Promise<void>;
 /** Create a board (filed in `category` when given) and open it. */
 export declare function createAndOpenBoard(name: string, category?: string | null): Promise<void>;
 export interface BoardCopyCard {
@@ -94,6 +109,10 @@ export declare function createBoardFrom(opts: {
 export declare function updateBoard(id: string, patch: {
     name?: string;
     category?: string | null;
+    mapPosition?: {
+        x: number;
+        y: number;
+    } | null;
 }): Promise<void>;
 /** Pin a board into the agent's working set, or unpin it. */
 export declare function setBoardPinned(id: string, pinned: boolean): Promise<void>;

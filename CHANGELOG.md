@@ -7,13 +7,17 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- Home Map and Graph show connected boards and cards alongside Folders, with saved draggable Map positions.
+- Markdown wiki links keep durable board/card targets, and a human Create dialog can turn an unresolved board link into a new board.
+- Cross-board card connections and previous-board links now appear in the same summary-only memory graph agents can explore through HTTP, SDK, CLI, and MCP.
 - Board pins: pin a whole board into the agent's working set with `canvas_board { action: "pin" }`, `POST /api/canvas/boards/<id>/pin`, `pmx-canvas board pin` or `pinBoard()`; it travels in the brief as a map (summary, links and its pinned cards) whichever board is open.
 - The SDK (`getBoardLastRead`) and CLI (`pmx-canvas ax reads status`) can now report when a board was last read, matching the HTTP API.
 - Agents can drive presentation tours: go to a stop, step next or previous, exit, and ease the camera to a node, area or viewport through `canvas_view`, the HTTP API, the SDK and `pmx-canvas tour go` / `camera move`, with reduced-motion support and no undo entries.
 
 ### Changed
 
-- Session receipts show stacked Before/After with changed words marked, one change open at a time, and per-card Undo that keeps your later edits.
+- Home Map loads compact board summaries and selected-board details separately; metadata edits and dragging no longer reload relationships, and Refresh reloads them on demand.
+- Session receipts show stacked Before/After with changed words marked, one change open at a time, and whole-card Undo that skips cards whose latest edit is yours.
 - In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.
 - One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with what they cost in tokens, and opens the details (read state, unpin, pin a near card) on click. There is no budget to fill; when a host reports its agent's token usage, the details name that count too.
 - A new or changed link now shows on the link itself: a link you draw says "not seen by" the attached agent until the agent reads either card, and a link an agent drew carries a small violet ✦ until you edit or relabel it. Hover a link's label to see who drew it and when. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
@@ -25,11 +29,24 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Saved Markdown links keep their bindings through rendering, Undo and restore; unresolved links wait for an explicit save before resolving.
+- Older Markdown cards get saved link bindings on first load, and older snapshots preserve known targets through renames.
+- Context summaries do not mark omitted relations as seen, and removed or restored remote targets invalidate the source's link mark.
+- Cross-board card footers stay visible and show readable titles rather than raw IDs.
+- Context-pin actions refuse a changed active board, and receipt pin actions require the owning board to be open.
+- Failed viewers retry once while keeping the last painted view; healthy offscreen updates wait for paint without being discarded.
+- Cross-board context briefs show readable titles for incoming and outgoing connections.
+- Connected-memory depth accepts explicit zero and rejects empty or bare values.
+- Saved Markdown checkboxes no longer roll back when an older live update arrives, including when opening the card in focus mode.
 - Receipts stay available across board switches so you can reopen a change's board to undo it; going Home still dismisses them.
+- Receipt Undo preserves a human edit from another tab even before the edit reaches your browser.
+- Receipt Unpin never re-pins a card and leaves pins added later alone.
+- Snapshot comparison asks you to reopen the receipt's board instead of comparing against another board.
+- Work Board and JSON viewer refreshes keep the previous content visible until the replacement has rendered, avoiding a blank flash during a slow handoff.
 - Picking up and dropping a card no longer changes cursor styles on every element of a large board.
 - `pmx-canvas record` realtime capture uses Chrome's screencast for smooth full-frame-rate footage, writes frames while it records, and tolerates a slow first Chrome launch.
 - On a board larger than the context budget, an agent's first `canvas://context` read now carries the pinned cards and then the rest oldest first, and pages on from there, instead of returning a single clipped card every time.
-- Agents reading `canvas://context` as an MCP resource now count as having read those cards, so read marks light up.
+- MCP context-resource reads now record delivered context, with map summaries tracking seen links separately from full card reads.
 
 ## [0.8.2] - 2026-10-06
 

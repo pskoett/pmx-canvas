@@ -163,6 +163,7 @@ interface CanvasCreateGroupInput {
 interface CanvasNodeLookupInput {
   id?: string;
   search?: string;
+  board?: string;
 }
 
 const MAX_CONTEXT_PINS = 20;
@@ -992,8 +993,12 @@ export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput):
       ok: false;
       error: string;
     } {
+  const remote = nodeRef.board ? canvasState.readBoard(nodeRef.board, true) : null;
+  if (nodeRef.board && !remote) return { ok: false, error: `Board "${nodeRef.board}" not found.` };
+  const getNode = (id: string) =>
+    remote ? remote.layout.nodes.find((node) => node.id === id) : canvasState.getNode(id);
   if (typeof nodeRef.id === 'string' && nodeRef.id.trim().length > 0) {
-    const node = canvasState.getNode(nodeRef.id.trim());
+    const node = getNode(nodeRef.id.trim());
     if (!node) {
       return { ok: false, error: `Node "${nodeRef.id}" not found.` };
     }
@@ -1002,7 +1007,7 @@ export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput):
 
   if (typeof nodeRef.search === 'string' && nodeRef.search.trim().length > 0) {
     const query = nodeRef.search.trim();
-    const layout = canvasState.getLayout();
+    const layout = remote?.layout ?? canvasState.getLayout();
     const exactTitleMatches = layout.nodes.filter((node) => {
       const title = getCanvasNodeTitle(node);
       return title !== null && title.toLowerCase() === query.toLowerCase();
@@ -1030,7 +1035,7 @@ export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput):
           .join(', ')}`,
       };
     }
-    const node = canvasState.getNode(matches[0]!.id);
+    const node = getNode(matches[0]!.id);
     if (!node) {
       return { ok: false, error: `Resolved node "${matches[0]!.id}" disappeared.` };
     }
@@ -1406,7 +1411,8 @@ export function setCanvasContextPins(
     canvasState.setContextPins(normalizePins([...current, ...normalizedNodeIds]), options);
   } else {
     const current = Array.from(canvasState.contextPinnedNodeIds);
-    canvasState.setContextPins(current.filter((id) => !normalizedNodeIds.includes(id)));
+    // Limit live pins, not a merged receipt's list of IDs to remove.
+    canvasState.setContextPins(current.filter((id) => !nodeIds.includes(id)));
   }
 
   return {
@@ -1524,6 +1530,7 @@ export function gcCanvasSnapshots(
 export function addCanvasEdge(input: {
   from?: string;
   to?: string;
+  toBoardId?: string;
   fromSearch?: string;
   toSearch?: string;
   type: CanvasEdge['type'];
@@ -1541,6 +1548,7 @@ export function addCanvasEdge(input: {
   const toResult = resolveCanvasNode({
     ...(typeof input.to === 'string' ? { id: input.to } : {}),
     ...(typeof input.toSearch === 'string' ? { search: input.toSearch } : {}),
+    ...(input.toBoardId ? { board: input.toBoardId } : {}),
   });
   if (!toResult.ok) {
     throw new Error(toResult.error);
@@ -1551,6 +1559,7 @@ export function addCanvasEdge(input: {
     id,
     from: fromResult.node.id,
     to: toResult.node.id,
+    ...(input.toBoardId && input.toBoardId !== canvasState.activeBoardId ? { toBoardId: input.toBoardId } : {}),
     type: input.type,
     ...(input.label ? { label: input.label } : {}),
     ...(input.style ? { style: input.style } : {}),

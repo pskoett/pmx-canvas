@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
+import { render as renderDom } from 'preact';
 import { RefreshingViewerFrame } from '../../src/client/nodes/McpAppNode.tsx';
 import { iframeMode } from '../../src/client/state/iframe-mode.ts';
 
@@ -35,7 +36,7 @@ describe('iframe-backed viewer refresh', () => {
     expect(frameRef.current).toBe(frames[0]);
   });
 
-  test('promotes asynchronously with a live frame ref and cancels an obsolete replacement', () => {
+  test('promotes asynchronously with a live frame ref and cancels an obsolete replacement', async () => {
     const callbacks: FrameRequestCallback[] = [];
     globalThis.requestAnimationFrame = (callback) => callbacks.push(callback);
     const flush = () =>
@@ -44,11 +45,18 @@ describe('iframe-backed viewer refresh', () => {
       });
     const loadedRef: { current: HTMLIFrameElement | null } = { current: null };
     const initialized: HTMLIFrameElement[] = [];
+    let committed!: () => void;
+    let ready = new Promise<void>((resolve) => {
+      committed = resolve;
+    });
     const viewer = (version: number) => (
       <RefreshingViewerFrame
         source={{ src: `/viewer?v=${version}` }}
         iframeRef={frameRef}
-        onDocumentLoad={(frame) => initialized.push(frame)}
+        onDocumentLoad={(frame) => {
+          initialized.push(frame);
+          return ready;
+        }}
         onLoad={() => {
           loadedRef.current = frameRef.current;
         }}
@@ -57,22 +65,49 @@ describe('iframe-backed viewer refresh', () => {
     );
     const view = render(viewer(1));
     view.rerender(viewer(2));
+    const first = view.container.querySelectorAll('iframe')[0]!;
     const pending = view.container.querySelectorAll('iframe')[1]!;
     fireEvent.load(pending);
     expect(initialized).toEqual([pending]);
     expect(loadedRef.current).toBeNull();
-    expect(pending.style.visibility).toBe('hidden');
+    expect(pending.hasAttribute('inert')).toBe(true);
+    expect(pending.getAttribute('aria-hidden')).toBe('true');
+    expect(Number(first.style.zIndex)).toBeGreaterThan(Number(pending.style.zIndex));
     expect(view.container.querySelectorAll('iframe')).toHaveLength(2);
     flush();
+    expect(loadedRef.current).toBeNull();
+    expect(frameRef.current).toBe(first);
+    await act(async () => committed());
+    act(() => callbacks.shift()!(0));
+    expect(frameRef.current).toBe(first);
+    expect(Number(first.style.zIndex)).toBeGreaterThan(Number(pending.style.zIndex));
+    act(() => callbacks.shift()!(0));
     expect(loadedRef.current).toBe(pending);
     expect(frameRef.current).toBe(pending);
+    expect(pending.hasAttribute('inert')).toBe(false);
+    expect(pending.hasAttribute('aria-hidden')).toBe(false);
 
+    ready = new Promise<void>((resolve) => {
+      committed = resolve;
+    });
     view.rerender(viewer(3));
     fireEvent.load(view.container.querySelectorAll('iframe')[1]!);
     view.rerender(viewer(2));
+    await act(async () => committed());
     flush();
     expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
     expect(view.container.querySelector('iframe')).toBe(pending);
+
+    view.rerender(viewer(3));
+    fireEvent.load(view.container.querySelectorAll('iframe')[1]!);
+    await act(async () => committed());
+    act(() => callbacks.shift()!(0));
+    // Commit a newer source without flushing passive effects, between the
+    // obsolete replacement's two parent frames.
+    renderDom(viewer(4), view.container);
+    callbacks.shift()!(0);
+    expect(frameRef.current).toBe(pending);
+    expect(loadedRef.current).toBe(pending);
   });
 
   test('retains the painted frame until the replacement has loaded', () => {
@@ -101,7 +136,8 @@ describe('iframe-backed viewer refresh', () => {
     expect(loading[0]?.getAttribute('src')).toContain('v=1');
     expect(loading[0]?.style.visibility).toBe('visible');
     expect(loading[1]?.getAttribute('src')).toContain('v=2');
-    expect(loading[1]?.style.visibility).toBe('hidden');
+    expect(loading[1]?.hasAttribute('inert')).toBe(true);
+    expect(Number(loading[0]?.style.zIndex)).toBeGreaterThan(Number(loading[1]?.style.zIndex));
 
     fireEvent.load(loading[1]!);
     const painted = Array.from(view.container.querySelectorAll('iframe'));
@@ -109,6 +145,42 @@ describe('iframe-backed viewer refresh', () => {
     expect(painted[0]?.getAttribute('src')).toContain('v=2');
     expect(painted[0]?.style.visibility).toBe('visible');
     expect(frameRef.current).toBe(painted[0]);
+  });
+
+  test('a failed readiness check retries once, retains painted content, and permits a later healthy update', async () => {
+    let ready = false;
+    const viewer = (version: number) => (
+      <RefreshingViewerFrame
+        source={{ src: `/viewer?v=${version}` }}
+        iframeRef={frameRef}
+        onDocumentLoad={() => Promise.resolve(ready)}
+        onLoad={() => {}}
+        title="viewer"
+      />
+    );
+    const view = render(viewer(1));
+    const first = view.container.querySelector('iframe');
+    view.rerender(viewer(2));
+    const failed = view.container.querySelectorAll('iframe')[1]!;
+    await act(async () => {
+      fireEvent.load(failed);
+    });
+    expect(frameRef.current).toBe(first);
+    expect(view.container.querySelectorAll('iframe')).toHaveLength(2);
+    const retry = view.container.querySelectorAll('iframe')[1]!;
+    expect(retry).not.toBe(failed);
+    await act(async () => {
+      fireEvent.load(retry);
+    });
+    expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
+    expect(frameRef.current).toBe(first);
+    ready = true;
+    view.rerender(viewer(3));
+    await act(async () => {
+      fireEvent.load(view.container.querySelectorAll('iframe')[1]!);
+    });
+    expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
+    expect(frameRef.current?.getAttribute('src')).toBe('/viewer?v=3');
   });
 
   test('preserves the theme in repeated replacement URLs', () => {

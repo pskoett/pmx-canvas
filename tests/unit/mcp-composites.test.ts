@@ -7,7 +7,19 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { fileURLToPath } from 'node:url';
-import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
+import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
+import type { ContextRead } from '../../src/server/context-reads.ts';
+import { canvasState } from '../../src/server/canvas-state.ts';
+import { diffLayouts, formatDiff } from '../../src/server/mutation-history.ts';
+import { intentRegistry } from '../../src/server/intent-registry.ts';
+import { executeOperation } from '../../src/server/operations/registry.ts';
+import {
+  createTestWorkspace,
+  getAvailablePort,
+  makeNode,
+  removeTestWorkspace,
+  resetCanvasForTests,
+} from './helpers.ts';
 
 interface TextContentItem {
   type: string;
@@ -41,12 +53,18 @@ async function trustedHumanHeaders(base: string): Promise<Record<string, string>
 
 const sessions: Array<{ transport: StdioClientTransport; workspaceRoot: string }> = [];
 
-async function createMcpSession(): Promise<{ client: Client; port: number; workspaceRoot: string }> {
+async function createMcpSession(
+  seed?: (root: string) => void,
+  app = false,
+): Promise<{ client: Client; port: number; workspaceRoot: string }> {
   const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-composites-');
+  seed?.(workspaceRoot);
   const port = await getAvailablePort();
   const transport = new StdioClientTransport({
     command: 'bun',
-    args: ['run', mcpServerPath],
+    args: app
+      ? ['run', fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)), '--mcp-app']
+      : ['run', mcpServerPath],
     cwd: workspaceRoot,
     env: { ...process.env, PMX_CANVAS_DISABLE_BROWSER_OPEN: '1', PMX_CANVAS_PORT: String(port) },
     stderr: 'pipe',
@@ -92,6 +110,184 @@ afterEach(async () => {
 });
 
 describe('MCP composite tools (plan-006)', () => {
+  test.each([false, true])('duplicate-id edges remain qualified in MCP reads (app=%s)', async (app) => {
+    let sourceBoard = '';
+    let targetBoard = '';
+    const { client, port } = await createMcpSession((root) => {
+      resetCanvasForTests(root);
+      canvasState.loadFromDisk({ clearExisting: true });
+      targetBoard = canvasState.createBoard('B')!.id;
+      canvasState.switchBoard(targetBoard);
+      canvasState.addNode(makeNode({ id: 'x', type: 'markdown', data: { title: 'Remote x', content: 'B' } }));
+      sourceBoard = canvasState.createBoard('A')!.id;
+      canvasState.switchBoard(sourceBoard);
+      for (const id of ['s', 'x'])
+        canvasState.addNode(makeNode({ id, type: 'markdown', data: { title: id, content: 'A' } }));
+      canvasState.addEdge({ id: 'remote', from: 's', to: 'x', toBoardId: targetBoard, type: 'references' });
+      canvasState.addEdge({ id: 'qualified', from: 's', to: 'x', toBoardId: sourceBoard, type: 'references' });
+      canvasState.addEdge({ id: 'local', from: 's', to: 'x', type: 'flow' });
+      canvasState.setContextPins(['s', 'x']);
+      canvasState.close();
+    }, app);
+    if (app) {
+      const read = async (id: string) =>
+        parseJsonText<{ edges: Array<{ id: string; toBoardId?: string }> }>(
+          await call(client, 'pmx_read_node', { boardId: sourceBoard, id }),
+        );
+      const source = await read('s');
+      expect(source.edges.find((edge) => edge.id === 'remote')?.toBoardId).toBe(targetBoard);
+      const target = await read('x');
+      expect(target.edges.map((edge) => edge.id).sort()).toEqual(['local', 'qualified']);
+      expect(target.edges.find((edge) => edge.id === 'qualified')?.toBoardId).toBe(sourceBoard);
+    } else {
+      const resource = await client.readResource({ uri: 'canvas://pinned-context' });
+      const item = resource.contents[0];
+      if (!item || !('text' in item)) throw new Error('Expected pinned context text');
+      const context = JSON.parse(item.text) as { edges: Array<{ id: string; toBoardId?: string }> };
+      expect(context.edges.map((edge) => edge.id).sort()).toEqual(['local', 'qualified']);
+      expect(context.edges.find((edge) => edge.id === 'qualified')?.toBoardId).toBe(sourceBoard);
+      const base = await resolveBaseUrl(port);
+      const reads = (await (await fetch(`${base}/api/canvas/ax/context-reads`)).json()) as { reads: ContextRead[] };
+      const pinnedRead = reads.reads.find((read) => read.resource === 'canvas://pinned-context');
+      expect(pinnedRead?.deliveredNodeIds.sort()).toEqual(['s', 'x']);
+      expect(pinnedRead?.seenLinks).toEqual({});
+      const ink = await fetch(`${base}/api/canvas/annotation`, {
+        method: 'POST',
+        headers: await trustedHumanHeaders(base),
+        body: JSON.stringify({
+          type: 'freehand',
+          points: [
+            { x: 110, y: 110 },
+            { x: 120, y: 120 },
+          ],
+        }),
+      });
+      expect(ink.ok).toBe(true);
+      await client.readResource({ uri: 'canvas://ax-context' });
+      await client.getPrompt({ name: 'pmx-current-context' });
+      const axReads = (await (await fetch(`${base}/api/canvas/ax/context-reads`)).json()) as { reads: ContextRead[] };
+      for (const resource of ['canvas://ax-context', 'pmx-current-context']) {
+        const read = axReads.reads.find((item) => item.resource === resource);
+        expect(read?.deliveredNodeIds.sort()).toEqual(['s', 'x']);
+        expect(read?.seenLinks).toEqual({});
+      }
+    }
+    await client.close();
+  });
+
+  test.each([
+    'diff',
+    'ghost',
+  ])('snapshot diff and automatic ghosts preserve cross-board identity (%s)', async (consumer) => {
+    const root = createTestWorkspace('pmx-edge-consumers-');
+    try {
+      resetCanvasForTests(root);
+      canvasState.loadFromDisk({ clearExisting: true });
+      const target = canvasState.createBoard('B')!.id;
+      canvasState.switchBoard(target);
+      canvasState.addNode(makeNode({ id: 'x', type: 'markdown' }));
+      const source = canvasState.createBoard('A')!.id;
+      canvasState.switchBoard(source);
+      for (const id of ['s', 'x']) canvasState.addNode(makeNode({ id, type: 'markdown' }));
+      const edge = { id: 'remote', from: 's', to: 'x', toBoardId: target, type: 'references' as const };
+      const empty = { nodes: [], edges: [] };
+      if (consumer === 'diff') {
+        expect(diffLayouts('empty', empty, { ...empty, edges: [edge] }).addedEdges).toEqual([edge]);
+        expect(diffLayouts('remote', { ...empty, edges: [edge] }, empty).removedEdges).toEqual([edge]);
+        expect(formatDiff(diffLayouts('empty', empty, { ...empty, edges: [edge] }))).toContain(`s → ${target}/x`);
+        expect(formatDiff(diffLayouts('remote', { ...empty, edges: [edge] }, empty))).toContain(`s → ${target}/x`);
+        return;
+      }
+      const emitted: string[] = [];
+      intentRegistry.setEmitter((event) => emitted.push(event));
+      for (const toBoardId of [target, source, undefined]) {
+        emitted.length = 0;
+        const added = (await executeOperation('edge.add', { from: 's', to: 'x', toBoardId, type: 'references' })) as {
+          id: string;
+        };
+        expect(emitted.includes('ax-intent')).toBe(toBoardId !== target);
+        canvasState.removeEdge(added.id);
+      }
+    } finally {
+      intentRegistry.setEmitter(null);
+      removeTestWorkspace(root);
+    }
+  });
+
+  test('canvas_query graph records the same board-qualified summary reads as HTTP and graph resources', async () => {
+    const { client, port } = await createMcpSession();
+    await call(client, 'canvas_query', { action: 'layout' }); // starts the lazy daemon
+    const base = await resolveBaseUrl(port);
+    const headers = await trustedHumanHeaders(base);
+    for (const name of ['First', 'Second']) {
+      const board = parseJsonText<{ board: { id: string } }>(
+        await call(client, 'canvas_board', { action: 'create', name }),
+      );
+      expect(
+        (
+          await fetch(`${base}/api/canvas/boards/open`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ id: board.board.id }),
+          })
+        ).ok,
+      ).toBe(true);
+      const card = parseJsonText<{ id: string }>(
+        await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: `${name} card` }),
+      );
+      const peer = parseJsonText<{ id: string }>(
+        await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: `${name} peer` }),
+      );
+      expect(
+        (await call(client, 'canvas_edge', { action: 'add', from: card.id, to: peer.id, type: 'references' })).isError,
+      ).not.toBe(true);
+    }
+    const reads = async () =>
+      ((await (await fetch(`${base}/api/canvas/ax/context-reads`, { headers })).json()) as { reads: ContextRead[] })
+        .reads;
+    const capture = async (invoke: () => Promise<unknown>) => {
+      const before = (await reads())[0]?.seq ?? 0;
+      await invoke();
+      return (await reads())
+        .filter((read) => read.seq > before)
+        .map((read) => ({
+          boardId: read.boardId,
+          readNodes: read.readNodes,
+          seenLinks: read.seenLinks,
+          pinnedNodeIds: read.pinnedNodeIds,
+          deliveredNodeIds: read.deliveredNodeIds,
+        }))
+        .sort((a, b) => String(a.boardId).localeCompare(String(b.boardId)));
+    };
+    const http = await capture(async () => {
+      expect((await fetch(`${base}/api/canvas/memory-graph`)).ok).toBe(true);
+    });
+    const resource = await capture(() => client.readResource({ uri: 'canvas://graph' }));
+    let graph!: MemoryGraph;
+    const composite = await capture(async () => {
+      const result = await call(client, 'canvas_query', { action: 'graph' });
+      expect(result.isError).not.toBe(true);
+      graph = parseJsonText<MemoryGraph>(result);
+    });
+    expect(http).toHaveLength(2);
+    expect(
+      http.every((read) => Object.keys(read.seenLinks).length === 2 && Object.keys(read.readNodes).length === 0),
+    ).toBe(true);
+    expect(resource).toEqual(http);
+    expect(composite).toEqual(http);
+    const focus = graph.nodes.find((node) => node.cardId)!.key;
+    const shallow = await capture(async () => {
+      const result = parseJsonText<MemoryGraph>(
+        await call(client, 'canvas_query', { action: 'graph', focus, depth: 0 }),
+      );
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0]?.linksComplete).toBe(false);
+    });
+    expect(shallow).toHaveLength(1);
+    expect(shallow[0]?.seenLinks).toEqual({});
+    expect(shallow[0]?.readNodes).toEqual({});
+  }, 30000);
+
   test('canvas_node transports Mermaid fit data on add and update', async () => {
     const { client, port } = await createMcpSession();
     try {

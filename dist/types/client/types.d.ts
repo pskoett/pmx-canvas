@@ -35,6 +35,7 @@ export interface CanvasEdge {
     id: string;
     from: string;
     to: string;
+    toBoardId?: string;
     type: 'relation' | 'depends-on' | 'flow' | 'references';
     label?: string;
     style?: 'solid' | 'dashed' | 'dotted';

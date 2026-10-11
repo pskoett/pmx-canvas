@@ -83,6 +83,13 @@ export interface CanvasBoard {
     nodeCount: number;
     /** Markdown node used as this board's introduction. */
     readmeNodeId: string | null;
+    /** Human-dragged position in Home Map; null uses the generated folder layout. */
+    mapPosition?: {
+        x: number;
+        y: number;
+    } | null;
+    /** The source of a recurring/template board, separate from ordinary portals. */
+    previousBoardId?: string | null;
     /** Pinned into the agent's working set (vision move 0a); null when not pinned. */
     pin: ContextPinMeta | null;
 }
@@ -97,11 +104,20 @@ export declare function updateBoardInDB(db: Database, id: string, patch: {
     name?: string;
     category?: string | null;
     readmeNodeId?: string | null;
+    mapPosition?: {
+        x: number;
+        y: number;
+    } | null;
+    previousBoardId?: string | null;
 }): boolean;
 /** Create and populate an inactive board as one SQLite transaction. */
-export declare function createBoardWithStateInDB(db: Database, name: string, category: string | null, state: PersistedCanvasState, readmeNodeId: string | null): CanvasBoard;
+export declare function createBoardWithStateInDB(db: Database, name: string, category: string | null, state: PersistedCanvasState, readmeNodeId: string | null, invalidateTarget?: (boardId: string, nodeId: string) => void): CanvasBoard;
+/** Derived incoming-link metadata only: the target owns its clock and its body. */
+export declare function invalidateLinksInDB(db: Database, boardId: string, nodeId: string): void;
+/** A target's appearance/disappearance changes its incoming saved relations on source cards. */
+export declare function invalidateIncomingLinksInDB(db: Database, boardId: string, nodeId: string | null, invalidate: (boardId: string, nodeId: string) => void): void;
 /** Deletes a board with its rows and its snapshots. */
-export declare function deleteBoardFromDB(db: Database, id: string): boolean;
+export declare function deleteBoardFromDB(db: Database, id: string, invalidateTarget?: (boardId: string, nodeId: string) => void): boolean;
 export declare function readMetaFromDB(db: Database, key: string): string | null;
 /** Write a workspace-wide meta value; null removes it. */
 export declare function writeMetaToDB(db: Database, key: string, value: string | null): void;

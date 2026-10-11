@@ -4,7 +4,8 @@ import { IconArrowLeft } from '../icons';
 import { expandNode, nodes, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
-import { activeBoard, setBoardReadme } from '../state/boards-store';
+import { activeBoard, setBoardReadme, openMemoryTarget, boardList } from '../state/boards-store';
+import { showToast } from '../state/attention-bridge';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
 import { InlineMarkdownEditor } from './InlineMarkdownEditor';
@@ -17,8 +18,10 @@ function RenderedMarkdown({
   className,
   style,
   onTaskToggle,
+  nodeId,
 }: {
   html: string;
+  nodeId: string;
   className?: string;
   style?: string | JSX.CSSProperties;
   /** Enables the GFM task checkboxes and reports which one was clicked (document order). */
@@ -49,29 +52,59 @@ function RenderedMarkdown({
     }
   }, [html]);
 
-  const handleClick = onTaskToggle
-    ? (e: MouseEvent) => {
-        const onToggle = onTaskToggleRef.current;
-        const container = containerRef.current;
-        if (!container || !onToggle) return;
-        const target = e.target as HTMLElement;
-        // The box itself, or anywhere in the row's checkbox gutter — a 15px
-        // input alone is a miserable target at zoom and in embedded panes
-        // that forward clicks imprecisely.
-        let box: HTMLInputElement | null = null;
-        if (target instanceof HTMLInputElement && target.type === 'checkbox') {
-          box = target;
+  const handleClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest<HTMLAnchorElement>('a.wiki-link');
+    if (link) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (link.dataset.wikiBoard) {
+        void openMemoryTarget({
+          boardId: link.dataset.wikiBoard,
+          ...(link.dataset.wikiCard ? { cardId: link.dataset.wikiCard } : {}),
+        });
+      } else {
+        const ref = link.dataset.wikiRef ?? '';
+        const name = ref.split('#')[0];
+        if (
+          link.dataset.wikiMissing ||
+          ref.includes('#') ||
+          boardList.value.some(
+            (board) => board.name.toLocaleLowerCase() === name.toLocaleLowerCase() || board.id === name,
+          )
+        ) {
+          showToast(
+            'remove',
+            'Link unavailable',
+            'The target is missing or ambiguous. Use a board/card ID in the wiki link to choose it explicitly.',
+          );
         } else {
-          const row = target.closest('li');
-          const rowBox = row?.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
-          if (rowBox && e.clientX <= rowBox.getBoundingClientRect().right + 6) box = rowBox;
+          window.dispatchEvent(
+            new CustomEvent('pmx-open-board-link', { detail: { sourceNodeId: nodeId, wikiRef: name } }),
+          );
         }
-        if (!box) return;
-        e.stopPropagation();
-        const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(box);
-        if (index >= 0) onToggle(index);
       }
-    : undefined;
+      return;
+    }
+    const onToggle = onTaskToggleRef.current;
+    const container = containerRef.current;
+    if (!container || !onToggle) return;
+    // The box itself, or anywhere in the row's checkbox gutter — a 15px
+    // input alone is a miserable target at zoom and in embedded panes
+    // that forward clicks imprecisely.
+    let box: HTMLInputElement | null = null;
+    if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+      box = target;
+    } else {
+      const row = target.closest('li');
+      const rowBox = row?.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
+      if (rowBox && e.clientX <= rowBox.getBoundingClientRect().right + 6) box = rowBox;
+    }
+    if (!box) return;
+    e.stopPropagation();
+    const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(box);
+    if (index >= 0) onToggle(index);
+  };
 
   return <div ref={containerRef} class={className} style={style} onClick={handleClick} />;
 }
@@ -88,6 +121,7 @@ export function toggleTaskMarker(markdown: string, index: number): string {
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const board = activeBoard();
+  const boardId = activeBoardId.value;
   const path = node.data.path as string;
   const [content, setContent] = useState('');
   const [rendered, setRendered] = useState('');
@@ -102,17 +136,23 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   const latestMdRef = useRef<string>('');
   const persistFnRef = useRef<((md: string) => Promise<void>) | null>(null);
   const dirtyRef = useRef(false);
-  const editBase = useRef({ boardId: activeBoardId.value, revision: node.contentRevision ?? 0 });
+  const editBase = useRef({ boardId, revision: node.contentRevision ?? 0 });
   const saveQueue = useRef(Promise.resolve());
   const reviewActive = node.data.reviewActive as boolean | undefined;
+  // Binding-only saves/restores and target availability changes invalidate HTML,
+  // but position-only layouts must not trigger another render request.
+  const savedWikiBindings = JSON.stringify(node.data.wikiLinks ?? []);
 
   useEffect(() => {
-    if (isHostedWorkbench() && dirtyRef.current) return;
-    editBase.current = { boardId: activeBoardId.value, revision: node.contentRevision ?? 0 };
+    const renderingDraft = dirtyRef.current;
+    if (!renderingDraft) editBase.current = { boardId, revision: node.contentRevision ?? 0 };
     let cancelled = false;
     (async () => {
       let raw: string;
-      if (path) {
+      if (renderingDraft) {
+        // Refresh link availability in the draft, never replace it with saved text.
+        raw = latestMdRef.current;
+      } else if (path) {
         const result = await fetchFile(path);
         if (cancelled) return;
         raw = result.content;
@@ -122,17 +162,28 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         setLoaded(true);
         return;
       }
-      setContent(raw);
-      const html = await renderMarkdown(raw);
-      if (cancelled || (isHostedWorkbench() && dirtyRef.current)) return;
+      const html = await renderMarkdown(raw, node.id);
+      if (
+        cancelled ||
+        (renderingDraft || dirtyRef.current
+          ? latestMdRef.current !== raw
+          : !path && nodes.value.get(node.id)?.data.content !== raw)
+      )
+        return;
       setRendered(html);
       setLoaded(true);
-      updateNodeData(node.id, { content: raw, rendered: html });
+      if (!dirtyRef.current) {
+        setContent(raw);
+        updateNodeData(node.id, { content: raw, rendered: html });
+      } else if (nodes.value.get(node.id)?.data.content === raw) {
+        // A pending save may already contain this text; cache only its HTML.
+        updateNodeData(node.id, { rendered: html });
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [path, node.id, node.data.content]);
+  }, [boardId, path, node.id, node.data.content, savedWikiBindings, node.linksRevision]);
 
   const handleInput = useCallback(async (e: Event) => {
     const value = (e.target as HTMLTextAreaElement).value;
@@ -140,7 +191,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     latestMdRef.current = value;
     setContent(value);
     setDirty(true);
-    const html = await renderMarkdown(value);
+    const html = await renderMarkdown(value, node.id);
     setRendered(html);
   }, []);
 
@@ -165,7 +216,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           if (latestMdRef.current !== newContent) return;
           dirtyRef.current = false;
           setDirty(false);
-          const html = await renderMarkdown(newContent);
+          const html = await renderMarkdown(newContent, node.id);
           setRendered(html);
           updateNodeData(node.id, { content: newContent, rendered: html });
         });
@@ -173,28 +224,59 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         return;
       }
       if (!path) {
-        const html = await renderMarkdown(newContent);
-        setRendered(html);
-        setDirty(false);
-        updateNodeData(node.id, { content: newContent, rendered: html });
-        await updateNodeFromClient(node.id, { content: newContent, data: { rendered: html } });
+        const html = await renderMarkdown(newContent, node.id);
+        if (activeBoardId.value === boardId && latestMdRef.current === newContent) {
+          setRendered(html);
+          setDirty(false);
+          updateNodeData(node.id, { content: newContent, rendered: html });
+        }
+        const result = await updateNodeFromClient(node.id, {
+          content: newContent,
+          data: { rendered: html },
+          expectedBoardId: boardId,
+        });
+        const current = nodes.value.get(node.id);
+        if (
+          result.ok &&
+          result.contentRevision !== undefined &&
+          current &&
+          activeBoardId.value === boardId &&
+          latestMdRef.current === newContent &&
+          (current.contentRevision ?? 0) <= result.contentRevision
+        ) {
+          // Reconcile the text and acknowledgement atomically: an older poll
+          // may already have replaced our optimistic content while saving.
+          nodes.value = new Map(nodes.value).set(node.id, {
+            ...current,
+            contentRevision: result.contentRevision,
+            lastEditedBy: { actor: 'human', source: 'browser' },
+            // A newer binding-aware render may already have arrived via layout.
+            // The acknowledgement owns text/revision, not pre-save preview HTML.
+            data: { ...current.data, content: newContent },
+          });
+          dirtyRef.current = false;
+          setContent(newContent);
+        }
         return;
       }
       setSaving(true);
       const result = await saveFile(path, newContent);
       setSaving(false);
       if (result.ok) {
-        const html = await renderMarkdown(newContent);
-        setRendered(html);
-        setDirty(false);
-        updateNodeData(node.id, { content: newContent, rendered: html, savedAt: result.updatedAt });
+        const html = await renderMarkdown(newContent, node.id);
+        if (latestMdRef.current === newContent) {
+          dirtyRef.current = false;
+          setRendered(html);
+          setDirty(false);
+          updateNodeData(node.id, { content: newContent, rendered: html, savedAt: result.updatedAt });
+        }
         await updateNodeFromClient(node.id, {
           content: newContent,
           data: { rendered: html, savedAt: result.updatedAt },
         });
       }
     },
-    [path, node.id],
+    [boardId, path, node.id],
   );
 
   const handleSave = useCallback(async () => {
@@ -312,7 +394,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
             <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
             <MdFormatBar textareaRef={textareaRef} />
           </div>
-          <RenderedMarkdown html={rendered} className="md-preview" />
+          <RenderedMarkdown nodeId={node.id} html={rendered} className="md-preview" />
         </div>
       </div>
     );
@@ -325,7 +407,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
           <MdFormatBar textareaRef={textareaRef} />
         </div>
-        <RenderedMarkdown html={rendered} className="md-preview" />
+        <RenderedMarkdown nodeId={node.id} html={rendered} className="md-preview" />
         <div
           style={{
             position: 'absolute',
@@ -404,6 +486,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       <div class="md-card-content">
         {reviewBanner}
         <RenderedMarkdown
+          nodeId={node.id}
           html={rendered}
           style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
           // Task checkboxes are live on the card itself — no need to expand to tick one.

@@ -329,6 +329,9 @@ node or fit the new ids — auto-placement is board-relative, not camera-relativ
 
 ## Boards
 
+Home has Folders, Map, and Graph views. Folder paths organize boards independently
+of links; dragging a board in Map persists its position in SQLite.
+
 ```bash
 pmx-canvas board list                          # most recently opened first; activeBoardId null = Home
 pmx-canvas board create "Q4 planning"          # created, not opened
@@ -351,7 +354,31 @@ is read-only context, never a write target. Deletion remains human-only. `board 
 excludes `prompt`, `response`, `trace`, and `mcp-app` cards; selected reusable
 cards get fresh IDs. `--structure` includes group frames; edges between copied
 cards are retained automatically. `--readme` carries the designated README. The new board remains inactive and
-does not inherit pins, AX state, or mutation history.
+does not inherit pins, AX state, or mutation history. Its `previousBoardId`
+records the source board.
+
+## Connected memory
+
+```bash
+pmx-canvas memory-graph
+pmx-canvas memory-graph --projection boards
+pmx-canvas memory-graph --focus pins --depth 2
+pmx-canvas memory-graph --focus '["board-id","card-id"]' --depth 1
+pmx-canvas edge add --from <source-card-id> --to <target-card-id> --to-board <target-board-id> --type references
+```
+
+Graph focus is a board ID, a JSON qualified key `[boardId,cardId|null]`, or
+`pins`; omit it for the library. Depth is an integer 0–4, default 2, counting
+undirected membership hops. Explicit `--depth 0` is valid; bare `--depth` and
+empty values are rejected. `--projection full|boards` defaults to `full`;
+`boards` returns compact board-only summaries. The projection returns `nodes`, `edges`,
+`unresolvedLinks: [{ source, ref }]`, `focus`, and `depth`; nodes are
+`summaryOnly: true` with summaries capped at 280 characters. It is the same
+projection used by Home, links/backlinks, and brief discovery. Reads mark links
+seen on their owning boards without switching or marking full content read.
+`--to-board` keeps the source on the open board and targets a remote card;
+auto-arrange stays local and static export shows external connection evidence,
+not remote lines.
 
 ## Backup and restore
 

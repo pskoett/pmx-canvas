@@ -50,11 +50,39 @@ const cases = [
   { theme: 'daylight', os: 'dark', dark: false },
 ] as const;
 
+test.beforeEach(async ({ request }) => {
+  // Clear canvas-bound work as well as nodes; work items have no DELETE route.
+  expect((await request.post('/api/canvas/clear')).ok()).toBe(true);
+});
+
 for (const { theme, os, dark } of cases) {
-  test(`workboard refresh paints no blank or white frame (${theme}, OS ${os})`, async ({ browser, request }) => {
+  test(`workboard refresh paints no blank or white frame (${theme}, OS ${os})`, async ({
+    browser,
+    request,
+  }, testInfo) => {
     test.setTimeout(60_000);
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: os });
     const page = await context.newPage();
+    // Document load is not viewer readiness: force the runtime-state handoff
+    // to arrive later than the parent's two animation frames.
+    await page.addInitScript(() => {
+      if (window === window.parent) return;
+      let delayed = false;
+      window.addEventListener('message', (event: MessageEvent) => {
+        if (
+          delayed ||
+          event.source !== window.parent ||
+          event.data?.source !== 'pmx-canvas-json-state' ||
+          event.data?.type !== 'restore'
+        )
+          return;
+        delayed = true;
+        event.stopImmediatePropagation();
+        setTimeout(() => {
+          window.dispatchEvent(new MessageEvent('message', { data: event.data, source: event.source }));
+        }, 250);
+      });
+    });
     const created = await request.post('/api/canvas/workboard', { data: { x: 40, y: 40 } });
     expect(created.ok()).toBe(true);
     const { id } = (await created.json()) as { id: string };
@@ -69,7 +97,8 @@ for (const { theme, os, dark } of cases) {
       await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
       await page.goto(`/workbench?theme=${theme}`);
       const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
-      await expect(node.locator('iframe:visible').contentFrame().getByText(`Seed ${theme} ${os}`)).toBeVisible();
+      const painted = node.locator('iframe:not([inert])').contentFrame();
+      await expect(painted.getByText(`Seed ${theme} ${os}`)).toBeVisible();
       const rect = (await node.locator('.mcp-app-frame-stack').boundingBox()) as DOMRect;
       expect(rect).not.toBeNull();
 
@@ -87,10 +116,13 @@ for (const { theme, os, dark } of cases) {
         expect((await request.patch(`/api/canvas/ax/work/${itemId}`, { data: { status: 'done' } })).ok()).toBe(true);
         await page.waitForTimeout(350);
       }
+      // A poll can start the last replacement after the loop has completed.
+      // Keep capturing until the final content is actually in the foreground.
+      await expect(painted.getByText(`Task 4 ${theme} ${os}`)).toBeVisible();
+      await expect(painted.getByText('Done (4)', { exact: true })).toBeVisible();
       await expect(node.locator('iframe')).toHaveCount(1);
       await page.waitForTimeout(300);
       await cdp.send('Page.stopScreencast');
-      await expect(node.locator('iframe:visible').contentFrame().getByText(`Task 4 ${theme} ${os}`)).toBeVisible();
 
       const decoder = await context.newPage();
       const stats = await frameStats(decoder, frames, rect);
@@ -103,10 +135,100 @@ for (const { theme, os, dark } of cases) {
         const white = stats.filter((frame) => frame.white > 0.05);
         expect(white, `white frames ${JSON.stringify(white)}`).toHaveLength(0);
       }
+      await page.screenshot({ path: testInfo.outputPath('workboard-refresh.png') });
     } finally {
-      for (const itemId of items) await request.delete(`/api/canvas/ax/work/${itemId}`);
-      await request.delete(`/api/canvas/node/${id}`);
+      await request.post('/api/canvas/clear');
       await context.close();
     }
+  });
+}
+
+for (const mode of ['src', 'srcdoc']) {
+  test(`healthy offscreen viewers keep their replacement until painted (${mode})`, async ({ page, request }) => {
+    test.setTimeout(60_000);
+    const spec = (text: string) => ({
+      root: 'text',
+      elements: { text: { type: 'Text', props: { text } } },
+    });
+    const response = await request.post('/api/canvas/json-render', {
+      data: { title: 'Offscreen refresh', x: 100, y: 100, spec: spec('Version one') },
+    });
+    expect(response.ok()).toBe(true);
+    const { id } = await response.json();
+    // This second viewer stays outside the viewport from the outset. Srcdoc
+    // loads immediately; src may stay lazy. Neither is a paint failure.
+    const initial = await request.post('/api/canvas/json-render', {
+      data: { title: 'Initially offscreen', x: 4500, y: 100, spec: spec('Initial healthy content') },
+    });
+    expect(initial.ok()).toBe(true);
+    const { id: initialId } = await initial.json();
+    await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+    await page.goto(`/workbench?iframe-mode=${mode}`);
+    const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    const painted = node.frameLocator('iframe:not([inert])');
+    await expect(painted.getByText('Version one', { exact: true })).toBeVisible();
+    await request.post('/api/canvas/viewport', { data: { x: -1700, y: 0, scale: 1 } });
+    await expect(node).not.toBeInViewport();
+    expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Version two') } })).ok()).toBe(true);
+    // Force both 10-second deadlines to elapse before returning. A polled
+    // assertion could pass early and never observe the destructive retry.
+    const toasts: string[] = [];
+    for (let second = 0; second < 25; second++) {
+      await page.waitForTimeout(1000);
+      toasts.push(...(await page.locator('.attention-toast').allTextContents()));
+    }
+    expect(toasts.join('\n')).not.toContain('Viewer could not load');
+    await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+    await expect(painted.getByText('Version two', { exact: true })).toBeVisible();
+    await expect(node.locator('iframe')).toHaveCount(1);
+    await request.post('/api/canvas/viewport', { data: { x: -4400, y: 0, scale: 1 } });
+    const initialNode = page.locator(`.canvas-node[data-node-id="${initialId}"]`);
+    await expect(initialNode.frameLocator('iframe:not([inert])').getByText('Initial healthy content')).toBeVisible();
+    await expect(page.locator('.attention-toast').filter({ hasText: 'Viewer could not load' })).toHaveCount(0);
+  });
+
+  test(`failed viewer refresh retries once, keeps painted content, and recovers (${mode})`, async ({
+    page,
+    request,
+  }, info) => {
+    test.setTimeout(60_000);
+    const spec = (text: string) => ({
+      root: 'text',
+      elements: { text: { type: 'Text', props: { text } } },
+    });
+    const response = await request.post('/api/canvas/json-render', {
+      data: { title: 'Viewer recovery', x: 100, y: 100, spec: spec('Last healthy view') },
+    });
+    expect(response.ok()).toBe(true);
+    const { id } = await response.json();
+    await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+    await page.goto(`/workbench?iframe-mode=${mode}`);
+    const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    const painted = node.frameLocator('iframe:not([inert])');
+    await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
+    let failures = 0;
+    await page.route('**/api/canvas/json-render/view?**', async (route) => {
+      if (new URL(route.request().url()).searchParams.get('nodeId') !== id) return route.continue();
+      failures++;
+      await route.fulfill({ status: 503, contentType: 'text/html', body: '<p>Temporary viewer failure</p>' });
+    });
+    expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Unavailable update') } })).ok()).toBe(
+      true,
+    );
+    await expect(page.locator('.attention-toast')).toContainText('Viewer could not load', { timeout: 30_000 });
+    await expect(page.locator('.attention-toast')).toContainText('Keeping the last view. Reload to retry.');
+    await expect(node.locator('iframe')).toHaveCount(1);
+    await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
+    // Srcdoc first fetches the failed document, then falls back to src. The
+    // replacement itself retries exactly once, never promotes the error page.
+    expect(failures).toBe(mode === 'srcdoc' ? 3 : 2);
+    await page.screenshot({ path: info.outputPath(`viewer-failed-${mode}.png`) });
+    await page.unroute('**/api/canvas/json-render/view?**');
+    expect(
+      (await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Recovered healthy view') } })).ok(),
+    ).toBe(true);
+    await expect(painted.getByText('Recovered healthy view', { exact: true })).toBeVisible();
+    await expect(node.locator('iframe')).toHaveCount(1);
+    await page.screenshot({ path: info.outputPath(`viewer-recovered-${mode}.png`) });
   });
 }

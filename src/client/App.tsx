@@ -81,6 +81,7 @@ export function App() {
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [boardLinkOpen, setBoardLinkOpen] = useState(false);
+  const [boardLinkSource, setBoardLinkSource] = useState<{ sourceNodeId?: string; wikiRef?: string }>({});
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>(null);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
@@ -106,7 +107,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const open = () => setBoardLinkOpen(true);
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<{ sourceNodeId?: string; wikiRef?: string }>).detail;
+      setBoardLinkSource(detail ?? {});
+      setBoardLinkOpen(true);
+    };
     window.addEventListener('pmx-open-board-link', open);
     return () => window.removeEventListener('pmx-open-board-link', open);
   }, []);
@@ -412,7 +417,7 @@ export function App() {
       {sessionIsActive && <SessionPanel />}
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
-      {boardLinkOpen && <BoardLinkDialog onClose={() => setBoardLinkOpen(false)} />}
+      {boardLinkOpen && <BoardLinkDialog {...boardLinkSource} onClose={() => setBoardLinkOpen(false)} />}
       {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}
     </div>
   );

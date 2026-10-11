@@ -483,6 +483,8 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
         </marker>
       </defs>
       {edgeList.map((edge) => {
+        // Remote endpoints are navigable links, never a same-ID card on this board.
+        if (edge.toBoardId) return null;
         // An endpoint hidden behind a collapsed group's chip is drawn to the chip.
         const fromNode = visibleNodeFor(edge.from);
         const toNode = visibleNodeFor(edge.to);

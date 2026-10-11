@@ -7,6 +7,8 @@
  */
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
+import type { MemoryGraph } from '../shared/memory-graph.js';
+import type { CompiledContextEntry } from './context-brief.js';
 
 export const CONTEXT_READ_RETENTION = 5000;
 const CONTEXT_READ_DEFAULT_LIMIT = 50;
@@ -25,6 +27,7 @@ export const CONTEXT_READ_OPS = new Set([
   'spatial.get',
   'layout.get',
   'context.get',
+  'memory-graph.get',
 ]);
 
 export interface ContextRead {
@@ -54,6 +57,8 @@ export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'
   readNodeIds?: string[];
   /** Ids of every node that arrived, summaries included; defaults to readNodeIds. */
   seenNodeIds?: string[];
+  /** Exact link clocks captured in the delivered projection, before asynchronous transport work. */
+  seenLinkRevisions?: Record<string, number>;
 };
 
 /** One node's read state on a board: the latest agent read that delivered its content. */
@@ -83,14 +88,12 @@ export interface ContextReadConsumerSummary {
  * title, or a clipped-off node does not count — the agent got the node's
  * name, not its content. Non-node ids (edges, intents) are dropped by the
  * caller against the board's nodes. A summary is "seen", not "read": `read`
- * holds only nodes pulled in full, `reached` adds the summaries, and `linked`
- * is `reached` minus entries the budget clipped — a brief entry's relations
- * are its tail, so a clipped one may not have carried them.
+ * holds only nodes pulled in full and `reached` adds the summaries. Content
+ * delivery alone never establishes that the card's relations were delivered.
  */
-export function deliveredIds(payloadText: string): { read: Set<string>; reached: Set<string>; linked: Set<string> } {
+export function deliveredIds(payloadText: string): { read: Set<string>; reached: Set<string> } {
   const read = new Set<string>();
   const reached = new Set<string>();
-  const linked = new Set<string>();
   const objectStarts: number[] = [];
   let inString = false;
   let escaped = false;
@@ -118,17 +121,14 @@ export function deliveredIds(payloadText: string): { read: Set<string>; reached:
             nodeId?: unknown;
             titleOnly?: unknown;
             summaryOnly?: unknown;
-            truncated?: unknown;
             text?: unknown;
           };
           if (typeof item.id === 'string') {
             read.add(item.id);
             reached.add(item.id);
-            linked.add(item.id);
           } else if (typeof item.nodeId === 'string' && item.titleOnly !== true && typeof item.text === 'string') {
             reached.add(item.nodeId);
             if (item.summaryOnly !== true) read.add(item.nodeId);
-            if (item.truncated !== true) linked.add(item.nodeId);
           }
         }
       } catch {
@@ -137,7 +137,27 @@ export function deliveredIds(payloadText: string): { read: Set<string>; reached:
     }
   }
 
-  return { read, reached, linked };
+  return { read, reached };
+}
+
+/** Only complete, board-qualified brief relations can acknowledge their captured clock. */
+function briefLinkRevisions(entries: Partial<CompiledContextEntry>[], boardId: string): Record<string, number> {
+  return Object.fromEntries(
+    entries.flatMap((entry) =>
+      entry.sourceBoardId === boardId &&
+      typeof entry.nodeId === 'string' &&
+      !entry.nodeId.startsWith('board:') &&
+      typeof entry.text === 'string' &&
+      entry.titleOnly !== true &&
+      entry.truncated !== true &&
+      entry.linksComplete !== false &&
+      typeof entry.linksRevision === 'number' &&
+      Number.isSafeInteger(entry.linksRevision) &&
+      entry.linksRevision >= 0
+        ? [[entry.nodeId, entry.linksRevision]]
+        : [],
+    ),
+  );
 }
 
 export function contextReadFromPayload(
@@ -145,13 +165,33 @@ export function contextReadFromPayload(
   payload: unknown,
 ): ContextReadInput {
   const text = typeof payload === 'string' ? payload : (JSON.stringify(payload) ?? '');
+  let delivered = text;
+  let seenLinkRevisions: Record<string, number> = {};
+  try {
+    const document = JSON.parse(text) as {
+      board?: { boardId?: string };
+      entries?: Partial<CompiledContextEntry>[];
+    };
+    if (document.board?.boardId && Array.isArray(document.entries)) {
+      // A brief carries several boards. Bare IDs from a remote README must
+      // never acknowledge a same-ID card on the open board.
+      const entries = document.entries.filter(
+        (entry) => entry.sourceBoardId === (base.boardId ?? document.board?.boardId),
+      );
+      delivered = JSON.stringify(entries);
+      seenLinkRevisions = briefLinkRevisions(entries, base.boardId ?? document.board.boardId);
+    }
+  } catch {
+    // Non-JSON and clipped payloads keep the complete-object delivery scanner.
+  }
   // Delivery (did the pins reach the agent?) counts summaries; read marks do not.
-  const { read, reached, linked } = deliveredIds(text);
+  const { read, reached } = deliveredIds(delivered);
   return {
     ...base,
     deliveredNodeIds: base.pinnedNodeIds.filter((id) => reached.has(id)),
     readNodeIds: [...read],
-    seenNodeIds: [...linked],
+    seenNodeIds: Object.keys(seenLinkRevisions),
+    seenLinkRevisions,
     bytes: Buffer.byteLength(text, 'utf-8'),
   };
 }
@@ -159,8 +199,8 @@ export function contextReadFromPayload(
 /**
  * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
  * pinned board whose map arrived, so the board shows as read. Its cards came as
- * summaries, which mark nothing read until the agent pulls them; unclipped ones
- * carried their relations, so their links count as seen on that board.
+ * summaries, which mark nothing read until the agent pulls them; only summaries
+ * with complete, unclipped relations count as links seen on that board.
  */
 export function pinnedBoardReads(
   base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>,
@@ -174,18 +214,7 @@ export function pinnedBoardReads(
       return [];
     }
   }
-  type Entry = { sourceBoardId?: string; nodeId?: string; reason?: string; text?: unknown; truncated?: unknown };
-  const entries = (document as { entries?: Entry[] } | null)?.entries ?? [];
-  const linkedOn = (boardId: string) =>
-    entries.flatMap((entry) =>
-      entry.sourceBoardId === boardId &&
-      typeof entry.nodeId === 'string' &&
-      !entry.nodeId.startsWith('board:') &&
-      typeof entry.text === 'string' &&
-      entry.truncated !== true
-        ? [entry.nodeId]
-        : [],
-    );
+  const entries = (document as { entries?: Partial<CompiledContextEntry>[] } | null)?.entries ?? [];
   return entries
     .filter(
       (entry) =>
@@ -193,15 +222,45 @@ export function pinnedBoardReads(
         typeof entry.sourceBoardId === 'string' &&
         entry.nodeId === `board:${entry.sourceBoardId}`,
     )
-    .map((entry) => ({
+    .map((entry) => {
+      const boardId = entry.sourceBoardId as string;
+      const seenLinkRevisions = briefLinkRevisions(entries, boardId);
+      return {
+        ...base,
+        boardId,
+        pinnedNodeIds: [],
+        deliveredNodeIds: [],
+        readNodeIds: [],
+        seenNodeIds: Object.keys(seenLinkRevisions),
+        seenLinkRevisions,
+        bytes: Buffer.byteLength(JSON.stringify(entry), 'utf-8'),
+      };
+    });
+}
+
+/** Graph summaries are seen on their own boards, never full-content reads or a board switch. */
+export function graphReads(
+  base: Pick<ContextReadInput, 'channel' | 'resource' | 'source' | 'consumer' | 'agentId'>,
+  graph: MemoryGraph,
+): ContextReadInput[] {
+  const boards = new Set(graph.nodes.map((node) => node.boardId));
+  return [...boards].map((boardId) => {
+    const nodes = graph.nodes.filter((node) => node.boardId === boardId);
+    return {
       ...base,
-      boardId: entry.sourceBoardId as string,
+      boardId,
       pinnedNodeIds: [],
       deliveredNodeIds: [],
       readNodeIds: [],
-      seenNodeIds: linkedOn(entry.sourceBoardId as string),
-      bytes: Buffer.byteLength(JSON.stringify(entry), 'utf-8'),
-    }));
+      seenNodeIds: nodes.flatMap((node) => (node.cardId && node.linksComplete !== false ? [node.cardId] : [])),
+      seenLinkRevisions: Object.fromEntries(
+        nodes.flatMap((node) =>
+          node.cardId && typeof node.linksRevision === 'number' ? [[node.cardId, node.linksRevision]] : [],
+        ),
+      ),
+      bytes: Buffer.byteLength(JSON.stringify(nodes), 'utf-8'),
+    };
+  });
 }
 
 export const CONTEXT_READS_SCHEMA_SQL = `

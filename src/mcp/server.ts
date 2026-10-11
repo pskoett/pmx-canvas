@@ -32,7 +32,8 @@ import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
 import { agentSourceLabel } from '../server/operations/invoker.js';
-import { contextReadFromPayload, pinnedBoardReads } from '../server/context-reads.js';
+import { contextReadFromPayload, pinnedBoardReads, graphReads } from '../server/context-reads.js';
+import type { MemoryGraph } from '../shared/memory-graph.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../shared/agent-context.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
@@ -108,6 +109,7 @@ function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-tim
     server.server.sendResourceUpdated({ uri: 'canvas://boards' });
     server.server.sendResourceUpdated({ uri: 'canvas://summary' });
     server.server.sendResourceUpdated({ uri: 'canvas://context' });
+    server.server.sendResourceUpdated({ uri: 'canvas://graph' });
     server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
     server.server.sendResourceUpdated({ uri: 'canvas://history' });
     server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
@@ -522,7 +524,9 @@ export async function startMcpServer(): Promise<void> {
       const layout = await c.getLayout(board);
 
       const pinnedNodes = layout.nodes.filter((n) => pinnedIds.has(n.id));
-      const pinnedEdges = layout.edges.filter((e) => pinnedIds.has(e.from) && pinnedIds.has(e.to));
+      const pinnedEdges = layout.edges.filter(
+        (e) => pinnedIds.has(e.from) && (!e.toBoardId || e.toBoardId === board) && pinnedIds.has(e.to),
+      );
 
       // Compute neighborhoods: for each pinned node, find nearby unpinned nodes
       const neighborhoods = findNeighborhoods(layout.nodes, pinnedIds);
@@ -549,6 +553,7 @@ export async function startMcpServer(): Promise<void> {
           id: e.id,
           from: e.from,
           to: e.to,
+          ...(e.toBoardId !== undefined ? { toBoardId: e.toBoardId } : {}),
           type: e.type,
           label: e.label ?? null,
         })),
@@ -624,6 +629,35 @@ export async function startMcpServer(): Promise<void> {
           },
         ],
       };
+    },
+  );
+
+  server.resource(
+    'memory-graph',
+    new ResourceTemplate(new ContextUriTemplate('graph', ['focus', 'depth']), { list: undefined }),
+    {
+      description:
+        'The same connected-memory projection Home draws. Focus on a board ID, qualified card key, or pins; depth 0–4. Summaries are seen, not full reads.',
+      mimeType: 'application/json',
+    },
+    async (uri) => {
+      const c = await ensureCanvas();
+      const input: Record<string, unknown> = {};
+      if (uri.searchParams.has('focus')) input.focus = uri.searchParams.get('focus');
+      if (uri.searchParams.has('depth')) input.depth = uri.searchParams.get('depth');
+      const graph = (await c.invoker().invoke('memory-graph.get', input)) as MemoryGraph;
+      for (const read of graphReads(
+        {
+          channel: 'mcp-resource',
+          resource: 'canvas://graph',
+          source: agentSourceLabel('mcp'),
+          consumer: server.server.getClientVersion()?.name ?? null,
+          agentId: null,
+        },
+        graph,
+      ))
+        await c.recordContextRead(read);
+      return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(graph) }] };
     },
   );
 

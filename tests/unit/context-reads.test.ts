@@ -311,8 +311,10 @@ describe('context reads over HTTP', () => {
         body: JSON.stringify({ type: 'markdown', title: 'SDK unread', content: 'body' }),
       })
     ).json()) as { id: string };
+    canvasState.addEdge({ id: 'sdk-unseen', from: first.id, to: second.id, type: 'references' });
     const sdk = new PmxCanvas();
     expect(sdk.getNode(first.id)?.id).toBe(first.id);
+    expect(canvasState.getSeenLinks()[first.id]).toBeUndefined();
     const status = (await (await fetch(`${baseUrl}/api/canvas/ax/context-status`)).json()) as {
       nodes: Array<{ nodeId: string; lastReadBy: string }>;
     };

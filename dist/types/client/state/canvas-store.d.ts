@@ -87,6 +87,7 @@ export declare function arrangeSelection(gap?: number): void;
 export declare function getSelectedNodes(): CanvasNodeState[];
 export declare function toggleContextPin(id: string): void;
 export declare function addContextPins(ids: string[]): void;
+export declare function removeContextPins(ids: string[]): void;
 export declare function clearContextPins(): void;
 export declare function replaceContextPinsFromServer(ids: string[]): void;
 export declare function addNode(node: CanvasNodeState): void;

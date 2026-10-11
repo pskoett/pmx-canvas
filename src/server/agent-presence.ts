@@ -62,8 +62,12 @@ export interface PresenceTouch {
 }
 
 /** Title a write's summary can name, or a type-based fallback. */
-function nodeTitle(nodeId: string | null | undefined): string | null {
-  const node = nodeId ? canvasState.getNode(nodeId) : undefined;
+function nodeTitle(nodeId: string | null | undefined, boardId?: string): string | null {
+  const node = nodeId
+    ? boardId && boardId !== canvasState.activeBoardId
+      ? canvasState.readBoard(boardId, false)?.state.nodes.find((entry) => entry.id === nodeId)
+      : canvasState.getNode(nodeId)
+    : undefined;
   if (!node) return null;
   const title = typeof node.data.title === 'string' ? node.data.title.trim() : '';
   return title || `${node.type} node`;
@@ -106,11 +110,16 @@ export function describeWrite(
       return { summary: `Updated ${quote(title, 'a node')}`, nodeId };
     case 'node.remove':
       return { summary: 'Removed a node', nodeId };
-    case 'edge.add':
+    case 'edge.add': {
+      const from = str(res.from) || str(input.from);
+      const to = str(res.to) || str(input.to);
+      const toBoardId = str(res.toBoardId) || str(input.toBoardId);
+      const foreignTarget = toBoardId && toBoardId !== canvasState.activeBoardId;
       return {
-        summary: `Connected ${quote(nodeTitle(str(input.from)), 'a node')} → ${quote(nodeTitle(str(input.to)), 'a node')}`,
-        nodeId: str(input.to) || null,
+        summary: `Connected ${quote(nodeTitle(from), 'a node')} → ${quote(nodeTitle(to, toBoardId), foreignTarget ? `a node on board ${toBoardId}` : 'a node')}`,
+        nodeId: foreignTarget ? (canvasState.getNode(from) ? from : null) : to || null,
       };
+    }
     case 'edge.remove':
       return { summary: 'Removed an edge', nodeId: null };
     case 'group.create':

@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 
 const headers = { 'x-pmx-workbench': '1' };
 async function post(request: APIRequestContext, path: string, data: object = {}) {
@@ -270,6 +271,196 @@ test('See change stacks marked words, keeps later human edits, and reopens its b
   await expect(avatar).toBeVisible();
   await expect(popover).toHaveCount(0);
   await presence(false);
+});
+
+test('receipt Undo protects an unseen human edit and repeated Unpin never adds pins', async ({ page, request }) => {
+  const { board } = await (await post(request, 'boards', { name: 'Stale receipt' })).json();
+  await post(request, 'boards/open', { id: board.id });
+  const a = await (
+    await post(request, 'node', { type: 'markdown', title: 'Agent edit', content: 'Before A', x: 100, y: 100 })
+  ).json();
+  const b = await (
+    await post(request, 'node', { type: 'markdown', title: 'Human correction', content: 'Before B', x: 500, y: 100 })
+  ).json();
+  const c = await (
+    await post(request, 'node', { type: 'markdown', title: 'Later pin', content: 'Keep pinned', x: 100, y: 600 })
+  ).json();
+  let pause = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/workbench/poll*', async (route) => {
+    const response = await route.fetch();
+    if (pause) await held;
+    await route.fulfill({ response });
+  });
+  await page.goto('/workbench?transport=poll');
+  const presence = (attached: boolean) =>
+    post(request, 'ax/presence', { source: 'api', agentId: 'stale-receipt-agent', label: 'Codex', attached });
+  await presence(true);
+  expect((await request.patch(`/api/canvas/node/${a.id}`, { data: { content: 'After A' } })).ok()).toBe(true);
+  expect((await request.patch(`/api/canvas/node/${b.id}`, { data: { content: 'After B' } })).ok()).toBe(true);
+  await post(request, 'context-pins', { nodeIds: [a.id, b.id] });
+  await presence(false);
+  const receipt = page.getByTestId('session-receipt');
+  await expect(receipt).toContainText('Human correction');
+  const html = await (await request.get('/workbench')).text();
+  const encoded = html.match(/window\.__PMX_WORKBENCH_TOKEN = ("[^"]+")/)?.[1];
+  if (!encoded) throw new Error('Missing workbench credential');
+  pause = true;
+  try {
+    expect(
+      (
+        await request.patch(`/api/canvas/node/${b.id}`, {
+          data: { content: 'Human corrected B' },
+          headers: { ...headers, 'x-pmx-workbench-token': JSON.parse(encoded) },
+        })
+      ).ok(),
+    ).toBe(true);
+    await expect(page.locator(`[data-node-id="${b.id}"]`)).toContainText('After B');
+    const settled = page.waitForResponse(
+      (response) => response.url().endsWith('/restore-node') && response.request().postDataJSON().nodeId === b.id,
+    );
+    await receipt.getByRole('button', { name: 'Undo', exact: true }).click();
+    await settled;
+    const state = await (await request.get('/api/canvas/state', { headers: { 'x-pmx-proxied-read': '1' } })).json();
+    expect(state.nodes.find((node: { id: string }) => node.id === a.id).data.content).toBe('Before A');
+    expect(state.nodes.find((node: { id: string }) => node.id === b.id).data.content).toBe('Human corrected B');
+    await expect(receipt.getByRole('button', { name: 'Kept your edits' })).toBeDisabled();
+  } finally {
+    release();
+  }
+  await expect(page.locator(`[data-node-id="${b.id}"]`)).toContainText('Human corrected B');
+  await post(request, 'context-pins', { nodeIds: [a.id], mode: 'remove' });
+  await post(request, 'context-pins', { nodeIds: [c.id], mode: 'add' });
+  await expect(page.locator(`[data-node-id="${a.id}"]`)).not.toHaveClass(/context-pinned/);
+  await expect(page.locator(`[data-node-id="${c.id}"]`)).toHaveClass(/context-pinned/);
+  const unpin = receipt.getByRole('button', { name: 'Unpin', exact: true });
+  for (let i = 0; i < 2; i++) {
+    await unpin.click();
+    await expect(page.locator('.canvas-node.context-pinned')).toHaveCount(1);
+    await expect(page.locator(`[data-node-id="${b.id}"]`)).not.toHaveClass(/context-pinned/);
+    await expect
+      .poll(async () => {
+        const response = await request.get('/api/canvas/pinned-context', { headers: { 'x-pmx-proxied-read': '1' } });
+        expect(response.ok()).toBe(true);
+        return (await response.json()).nodeIds;
+      })
+      .toEqual([c.id]);
+  }
+
+  // More than one session's pin limit can accumulate in the open receipt.
+  const recorded: string[] = [];
+  for (let i = 0; i < 21; i++) {
+    const node = await (
+      await post(request, 'node', {
+        type: 'markdown',
+        title: `Merged pin ${i}`,
+        content: 'Recorded context',
+        x: 1000 + (i % 5) * 500,
+        y: 100 + Math.floor(i / 5) * 400,
+      })
+    ).json();
+    recorded.push(node.id);
+  }
+  await presence(true);
+  await post(request, 'context-pins', { nodeIds: recorded.slice(0, 20) });
+  await presence(false);
+  await expect(receipt).toContainText('Merged pin 19');
+  await presence(true);
+  await post(request, 'context-pins', { nodeIds: [recorded[20]] });
+  await presence(false);
+  await expect(receipt).toContainText('Merged pin 20');
+  await post(request, 'context-pins', { nodeIds: [c.id], mode: 'add' });
+  await unpin.click();
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/pinned-context', { headers: { 'x-pmx-proxied-read': '1' } });
+      return (await response.json()).nodeIds;
+    })
+    .toEqual([c.id]);
+});
+
+test('receipt Unpin refuses a board switch hidden by a held poll, even with the same card ID', async ({
+  page,
+  request,
+}) => {
+  const { board: a } = await (await post(request, 'boards', { name: 'Pin race A' })).json();
+  const { board: b } = await (await post(request, 'boards', { name: 'Pin race B' })).json();
+  await post(request, 'boards/open', { id: a.id });
+  const card = await (
+    await post(request, 'node', { type: 'markdown', title: 'Shared card', content: 'Keep this', x: 100, y: 100 })
+  ).json();
+  // Seed the otherwise-uncreatable same-ID collision in the inactive board.
+  // Switching away flushes A; B must be inactive while its fixture is inserted.
+  await post(request, 'boards/open', { id: b.id });
+  await post(request, 'boards/open', { id: a.id });
+  execFileSync('bun', [
+    '-e',
+    `const { Database } = require('bun:sqlite');
+     const db = new Database(process.argv[1]);
+     db.query('INSERT INTO nodes SELECT ?, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data, attribution, content_revision, links_revision FROM nodes WHERE board_id = ? AND id = ?').run(process.argv[2], process.argv[3], process.argv[4]);
+     db.close();`,
+    process.env.PMX_PLAYWRIGHT_DB_PATH ?? 'test-results/playwright/canvas.db',
+    b.id,
+    a.id,
+    card.id,
+  ]);
+  let pause = false;
+  let release!: () => void;
+  let pollHeld!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const intercepted = new Promise<void>((resolve) => {
+    pollHeld = resolve;
+  });
+  await page.route('**/api/workbench/poll*', async (route) => {
+    if (pause) {
+      pollHeld();
+      await held;
+    }
+    await route.continue();
+  });
+  await page.goto('/workbench?transport=poll');
+  await expect(page.getByRole('button', { name: /^Board: Pin race A/ })).toBeVisible();
+  await post(request, 'ax/presence', { source: 'api', agentId: 'pin-race-agent', label: 'Codex', attached: true });
+  expect((await request.patch(`/api/canvas/node/${card.id}`, { data: { content: 'Agent changed A' } })).ok()).toBe(
+    true,
+  );
+  await post(request, 'context-pins', { nodeIds: [card.id] });
+  await post(request, 'ax/presence', { source: 'api', agentId: 'pin-race-agent', attached: false });
+  const receipt = page.getByTestId('session-receipt');
+  const unpin = receipt.getByRole('button', { name: 'Unpin', exact: true });
+  await expect(unpin).toBeEnabled();
+  pause = true;
+  await intercepted;
+  try {
+    await post(request, 'boards/open', { id: b.id });
+    await post(request, 'context-pins', { nodeIds: [card.id] });
+    const readPins = async () =>
+      (
+        await request.get('/api/canvas/pinned-context', {
+          headers: { 'x-pmx-proxied-read': '1' },
+        })
+      ).json();
+    const before = await readPins();
+    expect(before.nodeIds).toEqual([card.id]);
+    await expect(page.getByRole('button', { name: /^Board: Pin race A/ })).toBeVisible();
+    const responsePromise = page.waitForResponse((response) => response.url().endsWith('/api/canvas/context-pins'));
+    await unpin.click();
+    const response = await responsePromise;
+    expect(response.request().postDataJSON()).toEqual({ nodeIds: [card.id], mode: 'remove', expectedBoardId: a.id });
+    expect(response.status()).toBe(409);
+    expect(await readPins()).toEqual(before);
+  } finally {
+    pause = false;
+    release();
+  }
+  await expect(page.getByRole('button', { name: /^Board: Pin race B/ })).toBeVisible();
+  await expect(page.locator(`[data-node-id="${card.id}"]`)).toHaveClass(/context-pinned/);
+  await expect(unpin).toBeDisabled();
 });
 
 test('a created-only receipt reopens its snapshot board before comparing', async ({ page, request }) => {

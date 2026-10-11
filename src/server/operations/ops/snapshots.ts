@@ -24,6 +24,7 @@
  */
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
+import { wikiLinksFromData } from '../../../shared/memory-graph.js';
 import {
   deleteCanvasSnapshot,
   gcCanvasSnapshots,
@@ -338,6 +339,7 @@ const snapshotRestoreOperation = defineOperation<z.infer<typeof snapshotRestoreS
 const snapshotRestoreNodeShape = {
   id: z.string().optional().catch(undefined).describe('Snapshot ID or name holding the earlier version'),
   nodeId: z.string().optional().catch(undefined).describe('The card to put back as it was in that snapshot'),
+  preserveHumanEdits: z.boolean().optional().describe('Skip a card whose latest editor is human (receipt Undo)'),
 };
 
 const snapshotRestoreNodeSchema = z.looseObject(snapshotRestoreNodeShape);
@@ -359,7 +361,7 @@ const snapshotRestoreNodeOperation = defineOperation<
     method: 'POST',
     path: '/api/canvas/snapshots/:id/restore-node',
   },
-  handler: ({ id, nodeId }) => {
+  handler: ({ id, nodeId, preserveHumanEdits }) => {
     const snapshot = canvasState.getSnapshotData(id ?? '');
     if (!snapshot) throw new OperationError('Snapshot not found', 404);
     const current = canvasState.getNode(nodeId ?? '');
@@ -374,14 +376,31 @@ const snapshotRestoreNodeOperation = defineOperation<
         409,
       );
     }
+    // Check current ownership at the write boundary, not a browser's last poll.
+    if (preserveHumanEdits && current.lastEditedBy?.actor === 'human') {
+      return { ok: true, id: current.id, restored: false, skipped: 'human-edit' };
+    }
     // Content only: where the card sits in groups is today's, not the snapshot's.
     const data = { ...earlier.data };
     for (const key of ['parentGroup', 'children'] as const) {
       if (current.data[key] === undefined) delete data[key];
       else data[key] = current.data[key];
     }
-    canvasState.updateNode(current.id, { data });
-    return { ok: true, id: current.id, contentRevision: canvasState.getNode(current.id)?.contentRevision ?? null };
+    canvasState.updateNode(
+      current.id,
+      { data },
+      earlier.type === 'markdown'
+        ? earlier.data.wikiLinks === undefined
+          ? null
+          : wikiLinksFromData(earlier.data)
+        : undefined,
+    );
+    return {
+      ok: true,
+      id: current.id,
+      restored: true,
+      contentRevision: canvasState.getNode(current.id)?.contentRevision ?? null,
+    };
   },
 });
 

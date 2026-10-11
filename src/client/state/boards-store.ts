@@ -1,5 +1,7 @@
 import { signal } from '@preact/signals';
 import { requestJson } from './intent-bridge';
+import { focusNode, hasInitialServerLayout, nodes } from './canvas-store';
+import type { MemoryTarget } from '../../shared/memory-graph.js';
 
 /**
  * Many boards (plan 012): the workspace's boards and which one is open. The
@@ -14,10 +16,21 @@ export interface BoardSummary {
   lastOpenedAt: string | null;
   nodeCount: number;
   readmeNodeId?: string | null;
+  mapPosition?: { x: number; y: number } | null;
+  previousBoardId?: string | null;
   summary?: string | null;
   pinnedTitles?: Array<{ nodeId: string; title: string }>;
-  links?: Array<{ nodeId: string; boardId: string; title: string | null; missing: boolean }>;
-  backlinks?: Array<{ boardId: string; title: string; nodeId: string }>;
+  links?: Array<{
+    id?: string;
+    nodeId: string;
+    boardId: string;
+    cardId?: string;
+    cardTitle?: string | null;
+    title: string | null;
+    missing: boolean;
+    kind?: string;
+  }>;
+  backlinks?: Array<{ id?: string; boardId: string; title: string; nodeId: string; cardId?: string; kind?: string }>;
   /** Home thumbnail (docs/design/Home.dc.html): cards as 0–1 rectangles of the board's extent. */
   preview?: Array<{ x: number; y: number; w: number; h: number; pinned?: true }>;
   /** Roughly what this board's map costs in the brief when pinned (README + pinned card summaries). */
@@ -93,6 +106,23 @@ export async function openBoard(id: string | null): Promise<void> {
   if (sequence === openRequestSequence) applyBoards(payload);
 }
 
+let navigationSequence = 0;
+/** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */
+export async function openMemoryTarget(target: MemoryTarget): Promise<void> {
+  const sequence = ++navigationSequence;
+  await openBoard(target.boardId);
+  if (!target.cardId) return;
+  // A slow layout fetch must not turn a card jump into only a board switch.
+  for (let attempt = 0; attempt < 400; attempt++) {
+    if (sequence !== navigationSequence || activeBoardId.value !== target.boardId) return;
+    if (hasInitialServerLayout.value && nodes.value.has(target.cardId)) {
+      focusNode(target.cardId);
+      return;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 25));
+  }
+}
+
 /** Create a board (filed in `category` when given) and open it. */
 export async function createAndOpenBoard(name: string, category?: string | null): Promise<void> {
   const sequence = ++openRequestSequence;
@@ -149,7 +179,10 @@ export async function createBoardFrom(opts: {
 }
 
 /** Rename and/or re-file a board; `category: null` removes it from its category. */
-export async function updateBoard(id: string, patch: { name?: string; category?: string | null }): Promise<void> {
+export async function updateBoard(
+  id: string,
+  patch: { name?: string; category?: string | null; mapPosition?: { x: number; y: number } | null },
+): Promise<void> {
   const payload = await post('updateBoard', `/api/canvas/boards/${encodeURIComponent(id)}`, 'PATCH', {
     ...patch,
     ...(patch.category === null ? { category: '' } : {}),

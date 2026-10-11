@@ -489,6 +489,7 @@ export async function buildBoardExport(
   const edges = snapshotEdges.map((edge: CanvasEdge) => ({
     from: edge.from,
     to: edge.to,
+    ...(edge.toBoardId !== undefined ? { toBoardId: edge.toBoardId } : {}),
     label: edge.label ?? '',
     style: edge.style ?? 'solid',
   }));
@@ -537,7 +538,10 @@ function exportPage(input: {
   title: string;
   scheme: 'dark' | 'light';
   exportedAt: string;
-  board: { cards: ExportCard[]; edges: Array<{ from: string; to: string; label: string; style: string }> };
+  board: {
+    cards: ExportCard[];
+    edges: Array<{ from: string; to: string; toBoardId?: string; label: string; style: string }>;
+  };
   assets: Record<string, string>;
 }): string {
   const date = new Date(input.exportedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
@@ -670,10 +674,17 @@ for (const card of ordered) {
     el.appendChild(body(card));
     title.addEventListener('click', () => expand(card));
   }
+  for (const edge of board.edges.filter((edge) => edge.from === card.id && edge.toBoardId !== undefined)) {
+    const connection = document.createElement('div');
+    connection.className = 'card-title';
+    connection.textContent = 'External connection → ' + edge.toBoardId + '/' + edge.to + (edge.label ? ' · ' + edge.label : '');
+    el.appendChild(connection);
+  }
   world.appendChild(el);
 }
 const NS = 'http://www.w3.org/2000/svg';
 for (const edge of board.edges) {
+  if (edge.toBoardId !== undefined) continue;
   const a = byId.get(edge.from), b = byId.get(edge.to);
   if (!a || !b) continue;
   const x1 = a.x + a.w / 2, y1 = a.y + a.h / 2, x2 = b.x + b.w / 2, y2 = b.y + b.h / 2;

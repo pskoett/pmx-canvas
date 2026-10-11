@@ -282,6 +282,7 @@ export function compactLayoutPayload(layout: CanvasLayout, pinnedIds: string[]):
       id: edge.id,
       from: edge.from,
       to: edge.to,
+      ...(edge.toBoardId !== undefined ? { toBoardId: edge.toBoardId } : {}),
       type: edge.type,
       ...(edge.label ? { label: edge.label } : {}),
       ...(edge.style ? { style: edge.style } : {}),

@@ -84,8 +84,8 @@ export interface SnapshotDiffResult {
     title: string | null;
     changes: string[];
   }[];
-  addedEdges: { id: string; from: string; to: string; type: string }[];
-  removedEdges: { id: string; from: string; to: string; type: string }[];
+  addedEdges: { id: string; from: string; to: string; toBoardId?: string; type: string }[];
+  removedEdges: { id: string; from: string; to: string; toBoardId?: string; type: string }[];
 }
 
 function comparableNodeData(data: Record<string, unknown>): Record<string, unknown> {
@@ -335,12 +335,24 @@ export function diffLayouts(
 
   for (const [id, edge] of curEdges) {
     if (!snapEdges.has(id)) {
-      addedEdges.push({ id, from: edge.from, to: edge.to, type: edge.type });
+      addedEdges.push({
+        id,
+        from: edge.from,
+        to: edge.to,
+        ...(edge.toBoardId !== undefined ? { toBoardId: edge.toBoardId } : {}),
+        type: edge.type,
+      });
     }
   }
   for (const [id, edge] of snapEdges) {
     if (!curEdges.has(id)) {
-      removedEdges.push({ id, from: edge.from, to: edge.to, type: edge.type });
+      removedEdges.push({
+        id,
+        from: edge.from,
+        to: edge.to,
+        ...(edge.toBoardId !== undefined ? { toBoardId: edge.toBoardId } : {}),
+        type: edge.type,
+      });
     }
   }
 
@@ -395,7 +407,7 @@ export function formatDiff(diff: SnapshotDiffResult): string {
   if (diff.addedEdges.length > 0) {
     lines.push(`Added edges (${diff.addedEdges.length}):`);
     for (const e of diff.addedEdges) {
-      lines.push(`  + ${e.type}: ${e.from} → ${e.to}`);
+      lines.push(`  + ${e.type}: ${e.from} → ${e.toBoardId ? `${e.toBoardId}/` : ''}${e.to}`);
     }
     lines.push('');
   }
@@ -403,7 +415,7 @@ export function formatDiff(diff: SnapshotDiffResult): string {
   if (diff.removedEdges.length > 0) {
     lines.push(`Removed edges (${diff.removedEdges.length}):`);
     for (const e of diff.removedEdges) {
-      lines.push(`  - ${e.type}: ${e.from} → ${e.to}`);
+      lines.push(`  - ${e.type}: ${e.from} → ${e.toBoardId ? `${e.toBoardId}/` : ''}${e.to}`);
     }
     lines.push('');
   }

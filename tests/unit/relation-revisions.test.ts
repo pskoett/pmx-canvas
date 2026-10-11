@@ -35,6 +35,285 @@ async function twoCards(): Promise<void> {
 }
 
 describe('connection changes are tracked apart from text', () => {
+  test.each([
+    'node.get',
+    'layout.get',
+  ])('%s reads content without acknowledging omitted incoming relations', async (operation) => {
+    await twoCards();
+    const target = canvasState.activeBoardId as string;
+    const source = canvasState.createBoard('Remote source')!;
+    canvasState.switchBoard(source.id);
+    canvasState.addNode(makeNode({ id: 'source', type: 'markdown' }));
+    canvasState.addEdge({ id: 'incoming', from: 'source', to: 'plan', toBoardId: target, type: 'references' });
+    canvasState.switchBoard(target);
+    canvasState.setContextPins(['plan']);
+    expect(links('plan')).toBeGreaterThan(0);
+    await executeOperation(operation, operation === 'node.get' ? { id: 'plan' } : {});
+    const read = canvasState.getContextReads().reads.find((item) => item.resource === operation);
+    expect(read?.deliveredNodeIds).toEqual(['plan']);
+    expect(read?.readNodes.plan).toBe(content('plan'));
+    expect(read?.seenLinks).toEqual({});
+    expect(canvasState.getSeenLinks().plan).toBeUndefined();
+    await executeOperation('memory-graph.get', {});
+    expect(canvasState.getSeenLinks().plan).toBe(links('plan'));
+  });
+
+  test.each(['ax.context.get', 'ax.get'])('partial %s delivery keeps omitted relations unseen', async (operation) => {
+    await twoCards();
+    canvasState.addEdge({ id: 'omitted', from: 'plan', to: 'risk', type: 'references' });
+    canvasState.setContextPins(['plan']);
+    await executeOperation('annotation.add', {
+      type: 'freehand',
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 10 },
+      ],
+    });
+    const pending = executeOperation(operation, {});
+    canvasState.addEdge({ id: 'after-delivery', from: 'plan', to: 'risk', type: 'relation' });
+    await pending;
+    const read = canvasState.getContextReads().reads.find((item) => item.resource === operation);
+    expect(read?.deliveredNodeIds).toEqual(['plan']);
+    expect(read?.readNodes.plan).toBe(content('plan'));
+    expect(read?.seenLinks).toEqual({});
+    expect(canvasState.getSeenLinks().plan).toBeUndefined();
+    await executeOperation('memory-graph.get', {});
+    expect(canvasState.getSeenLinks().plan).toBe(links('plan'));
+  });
+
+  test('linked README summaries cannot acknowledge a same-ID local card', async () => {
+    await twoCards();
+    const source = canvasState.activeBoardId as string;
+    const target = canvasState.createBoard('Linked README');
+    expect(target).not.toBeNull();
+    canvasState.switchBoard(target!.id);
+    canvasState.addNode(
+      makeNode({ id: 'plan', type: 'markdown', data: { title: 'README', content: 'Remote summary' } }),
+    );
+    canvasState.setBoardReadme(target!.id, 'plan');
+    canvasState.switchBoard(source);
+    canvasState.addNode(makeNode({ id: 'portal', type: 'board', data: { boardId: target!.id } }));
+    const before = (await executeOperation('context.get', { consumer: 'qualified-brief', budget: 50000 })) as {
+      cursor: { next: number };
+    };
+    canvasState.addEdge({ id: 'new-link', from: 'plan', to: 'risk', type: 'relation' });
+    // A later cursor leaves only the linked README, not the local changed card.
+    const brief = (await executeOperation('context.get', {
+      since: canvasState.getContentRevision().revision,
+      budget: 50000,
+    })) as {
+      entries: Array<{ sourceBoardId: string; nodeId: string; text: string }>;
+    };
+    expect(before.cursor.next).toBeGreaterThanOrEqual(0);
+    expect(brief.entries.some((entry) => entry.sourceBoardId === target!.id && entry.nodeId === 'plan')).toBe(true);
+    expect(canvasState.getNodeReadStatus().find((item) => item.nodeId === 'plan')).toBeUndefined();
+    expect(canvasState.getSeenLinks().plan ?? -1).toBeLessThan(links('plan'));
+  });
+
+  test('a second human summary does not acknowledge capped relations omitted on the first read', async () => {
+    await twoCards();
+    canvasState.removeNode('plan');
+    withCurrentActor({ actor: 'human', source: 'browser' }, () =>
+      canvasState.addNode(
+        makeNode({ id: 'plan', type: 'markdown', data: { title: 'Human plan', content: 'Human authored' } }),
+      ),
+    );
+    for (let index = 0; index < 9; index += 1) {
+      canvasState.addNode(makeNode({ id: `relation-${index}`, type: 'markdown' }));
+      canvasState.addEdge({ id: `link-${index}`, from: 'plan', to: `relation-${index}`, type: 'relation' });
+    }
+    const first = (await executeOperation('context.get', { consumer: 'human-capped', budget: 50000 })) as {
+      entries: Array<{ nodeId: string; linksComplete?: false }>;
+    };
+    expect(first.entries.find((entry) => entry.nodeId === 'plan')?.linksComplete).toBe(false);
+    expect(canvasState.getSeenLinks().plan).toBeUndefined();
+    const second = (await executeOperation('context.get', { consumer: 'human-capped', budget: 50000 })) as {
+      entries: Array<{ nodeId: string; reason: string }>;
+    };
+    expect(second.entries.find((entry) => entry.nodeId === 'plan')?.reason).toBe('human');
+    expect(canvasState.getSeenLinks().plan).toBeUndefined();
+  });
+
+  test('a graph acknowledges the projected revision, not a relation added while its read completes', async () => {
+    await twoCards();
+    const before = links('plan');
+    const pending = executeOperation('memory-graph.get', {});
+    canvasState.addEdge({ id: 'after-projection', from: 'plan', to: 'risk', type: 'relation' });
+    const graph = (await pending) as { edges: Array<{ id: string }> };
+    expect(graph.edges.some((edge) => edge.id.endsWith(':after-projection'))).toBe(false);
+    expect(links('plan')).toBeGreaterThan(before);
+    expect(canvasState.getSeenLinks().plan).toBe(before);
+  });
+
+  test('a brief acknowledges its captured clock, while clockless relations stay unseen', async () => {
+    await twoCards();
+    const boardId = canvasState.activeBoardId as string;
+    const before = links('plan');
+    const base = {
+      channel: 'operation' as const,
+      resource: 'context.get',
+      source: 'api',
+      consumer: null,
+      agentId: null,
+    };
+    const payload = {
+      board: { boardId },
+      entries: [
+        {
+          sourceBoardId: boardId,
+          nodeId: 'plan',
+          text: 'Complete relations',
+          linksRevision: before,
+          summaryOnly: true,
+        },
+        { sourceBoardId: boardId, nodeId: 'risk', text: 'No captured clock', summaryOnly: true },
+      ],
+    };
+    const read = contextReadFromPayload({ ...base, pinnedNodeIds: ['plan'] }, payload);
+    canvasState.addEdge({ id: 'after-delivery', from: 'plan', to: 'risk', type: 'relation' });
+    canvasState.recordContextRead(read);
+    expect(canvasState.getSeenLinks().plan).toBe(before);
+    expect(canvasState.getSeenLinks().risk).toBeUndefined();
+    const pinnedRead = pinnedBoardReads(base, {
+      entries: [
+        { sourceBoardId: boardId, nodeId: `board:${boardId}`, reason: 'pinned-board', text: 'Board' },
+        payload.entries[0],
+      ],
+    })[0]!;
+    canvasState.recordContextRead(pinnedRead, boardId);
+    expect(canvasState.getSeenLinks().plan).toBe(before);
+    expect(canvasState.getSeenLinks().risk).toBeUndefined();
+  });
+
+  test('saved wiki bindings invalidate both endpoints on changes, replay and target disappearance', async () => {
+    await twoCards();
+    canvasState.onMutation((info) => mutationHistory.record(info));
+    const source = canvasState.activeBoardId as string;
+    const { board } = (await executeOperation('board.create', { name: 'Wiki target' })) as { board: { id: string } };
+    await executeOperation('board.open', { id: board.id });
+    canvasState.addNode(
+      makeNode({ id: 'plan', type: 'markdown', data: { title: 'Evidence', content: 'Remote body' } }),
+    );
+    const targetContent = content('plan');
+    await executeOperation('board.open', { id: source });
+    canvasState.updateNode('plan', { data: { title: 'Source', content: '[[Wiki target#Evidence]]' } });
+    const targetLinks = () =>
+      canvasState.readBoard(board.id, false)!.layout.nodes.find((node) => node.id === 'plan')!.linksRevision ?? 0;
+    expect(targetLinks()).toBeGreaterThan(0);
+    const beforeRemove = targetLinks();
+    canvasState.updateNode('plan', { data: { title: 'Source', content: 'No link' } });
+    expect(targetLinks()).toBeGreaterThan(beforeRemove);
+    mutationHistory.undo();
+    expect(targetLinks()).toBeGreaterThan(beforeRemove);
+    expect(canvasState.getNode('plan')!.data.wikiLinks).toEqual([
+      { ref: 'Wiki target#Evidence', target: { boardId: board.id, cardId: 'plan' } },
+    ]);
+    const sourceContent = content('plan');
+    await executeOperation('context.get', { consumer: 'wiki-reader', budget: 50000 });
+    const beforeDeletion = links('plan');
+    const localControl = links('risk');
+    await executeOperation('board.open', { id: board.id });
+    expect(content('plan')).toBe(targetContent);
+    canvasState.removeNode('plan');
+    await executeOperation('board.open', { id: source });
+    expect(links('plan')).toBeGreaterThan(beforeDeletion);
+    expect(content('plan')).toBe(sourceContent);
+    expect(links('risk')).toBe(localControl);
+    const brief = (await executeOperation('context.get', { consumer: 'wiki-reader', budget: 50000 })) as {
+      entries: Array<{ nodeId: string; changes?: string[]; text: string }>;
+    };
+    expect(brief.entries.find((entry) => entry.nodeId === 'plan')).toMatchObject({ changes: ['links'] });
+    expect(brief.entries.find((entry) => entry.nodeId === 'plan')?.text).toContain('Missing target');
+  });
+
+  test('capped relations stay unseen while a complete nearby card is acknowledged', async () => {
+    await twoCards();
+    const target = canvasState.activeBoardId as string;
+    for (let index = 0; index < 8; index += 1) {
+      canvasState.addNode(makeNode({ id: `local-${index}`, type: 'markdown' }));
+      await executeOperation('edge.add', {
+        id: `local-edge-${index}`,
+        from: 'plan',
+        to: `local-${index}`,
+        type: 'relation',
+      });
+    }
+    await executeOperation('pin.set', { nodeIds: ['plan', 'risk'] });
+    await executeOperation('context.get', { consumer: 'capped-reader', budget: 50000 });
+    const before = links('plan');
+    expect(canvasState.getSeenLinks().plan).toBe(before);
+    const { board } = (await executeOperation('board.create', { name: 'Incoming' })) as { board: { id: string } };
+    await executeOperation('board.open', { id: board.id });
+    canvasState.addNode(makeNode({ id: 'source', type: 'markdown' }));
+    await executeOperation('edge.add', {
+      from: 'source',
+      to: 'plan',
+      toBoardId: target,
+      type: 'relation',
+      label: 'NEW INCOMING',
+    });
+    await executeOperation('edge.add', {
+      from: 'source',
+      to: 'risk',
+      toBoardId: target,
+      type: 'relation',
+      label: 'CONTROL INCOMING',
+    });
+    await executeOperation('board.open', { id: target });
+    const revision = links('plan');
+    expect(revision).toBeGreaterThan(before);
+    const brief = (await executeOperation('context.get', { consumer: 'capped-reader', budget: 50000 })) as {
+      entries: Array<{ nodeId: string; text: string; linksComplete?: false }>;
+    };
+    const capped = brief.entries.find((entry) => entry.nodeId === 'plan');
+    expect(capped?.text).toContain('… 1 more relations');
+    expect(capped?.text).not.toContain('NEW INCOMING');
+    expect(capped?.linksComplete).toBe(false);
+    expect(canvasState.getSeenLinks().plan).toBe(before);
+    expect(brief.entries.find((entry) => entry.nodeId === 'risk')?.text).toContain('CONTROL INCOMING');
+    expect(canvasState.getSeenLinks().risk).toBe(links('risk'));
+
+    // A pinned-board map carries summaries, not card relations, even at a large budget.
+    await executeOperation('board.pin', { id: target });
+    await executeOperation('board.open', { id: board.id });
+    await executeOperation('context.get', { budget: 50000 });
+    await executeOperation('board.open', { id: target });
+    expect(canvasState.getSeenLinks().plan).toBe(before);
+    expect(canvasState.getNodeReadStatus().find((item) => item.nodeId === 'plan')).toBeUndefined();
+  });
+
+  test('brief resolves remote card titles in both directions without duplicating local edges', async () => {
+    await twoCards();
+    const source = canvasState.activeBoardId as string;
+    const { board } = (await executeOperation('board.create', { name: 'Remote board' })) as { board: { id: string } };
+    await executeOperation('board.open', { id: board.id });
+    canvasState.addNode(makeNode({ id: 'risk', type: 'markdown', data: { title: 'Remote risk', content: 'Target' } }));
+    await executeOperation('board.open', { id: source });
+    canvasState.updateNode('plan', { data: { title: 'Source plan' } });
+    canvasState.addEdge({ id: 'local', from: 'plan', to: 'risk', type: 'depends-on' });
+    canvasState.addEdge({
+      id: 'remote',
+      from: 'plan',
+      to: 'risk',
+      toBoardId: board.id,
+      type: 'references',
+      label: 'remote label',
+    });
+    canvasState.addEdge({ id: 'missing', from: 'plan', to: 'absent', toBoardId: board.id, type: 'flow' });
+    const read = async () =>
+      (await executeOperation('context.get', {})) as { entries: Array<{ nodeId: string; text: string }> };
+    const outgoing = (await read()).entries.find((entry) => entry.nodeId === 'plan')?.text ?? '';
+    expect(outgoing).toContain('Remote board / Remote risk');
+    expect(outgoing).toContain('remote label');
+    expect(outgoing).toContain('Missing target');
+    expect(outgoing).toContain(`${board.id} / absent`);
+    expect(outgoing.match(/→ depends-on/g)).toHaveLength(1);
+    await executeOperation('board.open', { id: board.id });
+    const incoming = (await read()).entries.find((entry) => entry.nodeId === 'risk')?.text ?? '';
+    expect(incoming).toContain('← references "remote label": Relations / Source plan');
+    expect(incoming).not.toContain('depends-on');
+  });
+
   test('add, relabel and remove advance both links revisions; text, style and auto-edges do not', async () => {
     await twoCards();
     const cursor = canvasState.getContentRevision().revision;
@@ -159,11 +438,26 @@ describe('connection changes are tracked apart from text', () => {
       agentId: null,
     };
     const brief = {
+      board: { boardId: 'a' },
       entries: [
-        { sourceBoardId: 'a', nodeId: 'whole', reason: 'pinned', text: 'Summary\n→ relation: x', summaryOnly: true },
+        {
+          sourceBoardId: 'a',
+          nodeId: 'whole',
+          reason: 'pinned',
+          text: 'Summary\n→ relation: x',
+          summaryOnly: true,
+          linksRevision: 0,
+        },
         { sourceBoardId: 'a', nodeId: 'cut', reason: 'changed', text: 'Summ', summaryOnly: true, truncated: true },
         { sourceBoardId: 'b', nodeId: 'board:b', reason: 'pinned-board', text: 'Board b' },
-        { sourceBoardId: 'b', nodeId: 'b-card', reason: 'pinned-board', text: 'Card', summaryOnly: true },
+        {
+          sourceBoardId: 'b',
+          nodeId: 'b-card',
+          reason: 'pinned-board',
+          text: 'Card',
+          summaryOnly: true,
+          linksRevision: 3,
+        },
         { sourceBoardId: 'b', nodeId: 'b-cut', reason: 'pinned-board', text: 'Ca', summaryOnly: true, truncated: true },
       ],
     };
@@ -171,7 +465,9 @@ describe('connection changes are tracked apart from text', () => {
     expect(read.deliveredNodeIds).toEqual(['cut']);
     expect(read.seenNodeIds).toContain('whole');
     expect(read.seenNodeIds).not.toContain('cut');
+    expect(read.seenLinkRevisions).toEqual({ whole: 0 });
     expect(pinnedBoardReads(base, brief).map((item) => [item.boardId, item.seenNodeIds])).toEqual([['b', ['b-card']]]);
+    expect(pinnedBoardReads(base, brief)[0]?.seenLinkRevisions).toEqual({ 'b-card': 3 });
   });
 
   test('a link keeps its author until a person changes it; undo restores it as it was (LinkAuthorship.dc.html)', async () => {

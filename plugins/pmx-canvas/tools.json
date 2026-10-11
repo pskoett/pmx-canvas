@@ -270,6 +270,10 @@
             "description": "The card to put back as it was in that snapshot",
             "type": "string"
           },
+          "preserveHumanEdits": {
+            "description": "Skip a card whose latest editor is human (receipt Undo)",
+            "type": "boolean"
+          },
           "keep": {
             "description": "Number of newest snapshots to keep (default: 20)",
             "type": "number"
@@ -347,6 +351,29 @@
             "anyOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mapPosition": {
+            "description": "Persist a Home Map position; null returns to the generated folder layout",
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
               },
               {
                 "type": "null"
@@ -924,6 +951,11 @@
             "description": "Target node ID",
             "type": "string"
           },
+          "toBoardId": {
+            "description": "Target board ID for a direct cross-board edge; source stays on the open board",
+            "type": "string",
+            "minLength": 1
+          },
           "fromSearch": {
             "description": "Resolve the source node by exact or fuzzy title/content search",
             "type": "string"
@@ -1361,7 +1393,7 @@
     },
     {
       "name": "canvas_query",
-      "description": "Read the board cheapest-first. Action \"context\" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); \"search\" finds nodes by title/content keywords; \"layout\" returns the full layout; \"validate\" checks geometry and endpoints.",
+      "description": "Read the board cheapest-first. Action \"context\" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); \"graph\" explores the library relation graph (focus: board ID, qualified node key, or pins; depth: 0–4), summaries only; \"search\" finds nodes by title/content keywords; \"layout\" returns the full layout; \"validate\" checks geometry and endpoints.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1369,11 +1401,12 @@
             "type": "string",
             "enum": [
               "context",
+              "graph",
               "search",
               "layout",
               "validate"
             ],
-            "description": "Operation to perform: context | search | layout | validate."
+            "description": "Operation to perform: context | graph | search | layout | validate."
           },
           "consumer": {
             "description": "Stable consumer id used for the durable board-scoped cursor"
@@ -1383,6 +1416,32 @@
           },
           "budget": {
             "description": "Maximum response size in UTF-16 code units"
+          },
+          "projection": {
+            "default": "full",
+            "description": "Full board/card graph, or board-only Map summaries with qualified cross-board and missing relations",
+            "type": "string",
+            "enum": [
+              "full",
+              "boards"
+            ]
+          },
+          "focus": {
+            "description": "Board ID, board-qualified graph node key, or pins; omit for the library",
+            "type": "string"
+          },
+          "depth": {
+            "default": 2,
+            "description": "Undirected hops, including membership, 0–4 (default 2)",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
+            ]
           },
           "q": {
             "description": "Search query — matches against node titles, content, and file paths"

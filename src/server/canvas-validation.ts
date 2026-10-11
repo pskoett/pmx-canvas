@@ -110,7 +110,10 @@ function containment(group: CanvasNodeState, child: CanvasNodeState): CanvasCont
   };
 }
 
-export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResult {
+export function validateCanvasLayout(
+  layout: CanvasLayout,
+  remoteEndpointExists?: (boardId: string, cardId: string) => boolean,
+): CanvasValidationResult {
   const collisions: CanvasValidationPair[] = [];
   const containments: CanvasContainmentIssue[] = [];
   const containmentViolations: CanvasContainmentIssue[] = [];
@@ -140,7 +143,11 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
 
   const nodeIds = new Set(layout.nodes.map((node) => node.id));
   const missingEdgeEndpoints = layout.edges
-    .filter((edge) => !nodeIds.has(edge.from) || !nodeIds.has(edge.to))
+    .filter(
+      (edge) =>
+        !nodeIds.has(edge.from) ||
+        (edge.toBoardId ? remoteEndpointExists?.(edge.toBoardId, edge.to) === false : !nodeIds.has(edge.to)),
+    )
     .map((edge) => ({ edgeId: edge.id, from: edge.from, to: edge.to }));
 
   // Advisory: nodes below their type's readable floor (clipped/unreadable

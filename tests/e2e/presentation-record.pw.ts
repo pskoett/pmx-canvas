@@ -1,7 +1,21 @@
-import { test, expect, chromium, type TestInfo } from '@playwright/test';
+import { test, expect, chromium, type Page, type TestInfo } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+// Orb HTML defaults to 2 s polling for the portal proxy. Keep direct-server
+// animation tests explicit; the same suite can also exercise portal polling.
+const transport = process.env.PMX_PRESENTATION_TRANSPORT ?? 'sse';
+const workbench = `/workbench?transport=${transport}`;
+
+function delivered(page: Page, event = 'canvas-tour-step'): Promise<unknown> {
+  if (transport !== 'poll') return Promise.resolve();
+  return page.waitForResponse(async (response) => {
+    if (!response.url().includes('/api/workbench/poll')) return false;
+    const body = (await response.json()) as { events: { event: string }[] };
+    return body.events.some((entry) => entry.event === event);
+  });
+}
 
 async function recordingChrome(testInfo: TestInfo): Promise<string> {
   if (process.platform !== 'linux') return chromium.executablePath();
@@ -130,8 +144,10 @@ test('presentation right-drag interrupts the tour locally and exposes an exit bu
     },
   });
   const savedViewport = (await (await request.get('/api/canvas/state')).json()).viewport;
-  await page.goto('/workbench?present=1');
+  const opening = delivered(page);
+  await page.goto(`${workbench}&present=1`);
   await page.waitForFunction(() => window.pmxCapture?.ready());
+  await opening;
   await page.waitForTimeout(300);
   const card = page.locator('.canvas-node').filter({ hasText: 'Pan this presentation' });
   await page.mouse.move(600, 400);
@@ -206,24 +222,30 @@ test('tour framing, keyboard exit, painted frames and CLI recording', async ({ p
   expect(
     (await request.post('/api/canvas/tour', { headers, data: { tour: { stops: [{ target: {} }] } } })).status(),
   ).toBe(400);
-  await page.goto('/workbench?present=1');
+  const opening = delivered(page);
+  await page.goto(`${workbench}&present=1`);
   await expect(page.locator('.app-shell')).toHaveClass(/is-presenting/);
   await expect(page.locator('.tool-rail')).toBeHidden();
   await expect(page.locator('.top-bar')).toBeHidden();
   await expect(page.locator('.minimap')).toBeHidden();
   const first = page.locator('.canvas-node').filter({ hasText: 'Tour opening' });
   const last = page.locator('.canvas-node').filter({ hasText: 'Tour conclusion' });
+  await opening;
   await page.waitForTimeout(500);
   const firstBox = await first.boundingBox();
   expect(firstBox!.x).toBeGreaterThanOrEqual(69);
   expect(firstBox!.x + firstBox!.width).toBeLessThanOrEqual(1371);
+  const forward = delivered(page);
   await page.keyboard.press('Space');
+  await forward;
   await page.waitForTimeout(600);
   const lastBox = await last.boundingBox();
   expect(lastBox!.y).toBeCloseTo(50, 0);
   expect(lastBox!.x + lastBox!.width).toBeLessThan(1440);
   await page.screenshot({ path: testInfo.outputPath('presentation.png') });
+  const backward = delivered(page);
   await page.keyboard.press('ArrowLeft');
+  await backward;
   await page.waitForTimeout(400);
   expect((await first.boundingBox())!.x).toBeCloseTo(firstBox!.x, 0);
   await page.keyboard.press('Escape');
@@ -233,14 +255,16 @@ test('tour framing, keyboard exit, painted frames and CLI recording', async ({ p
   // The capture acknowledgement is followed by a DOM-level matrix check, not
   // just an assertion on the model's tuple.
   const camera = { x: 140, y: 80, scale: 0.5 };
-  await page.goto('/workbench?present=1&capture=1');
+  await page.goto(`${workbench}&present=1&capture=1`);
   await page.waitForFunction(() => window.pmxCapture?.ready());
   await expect(page.getByRole('button', { name: 'Exit presentation', exact: true })).toBeHidden();
   await page.evaluate((camera) => window.pmxCapture!.frame(camera), camera);
   expect(await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform)).toBe(
     'matrix(0.5, 0, 0, 0.5, 140, 80)',
   );
+  const viewportUpdate = delivered(page, 'canvas-viewport-update');
   await request.post('/api/canvas/viewport', { headers, data: { x: -500, y: -500, scale: 2 } });
+  await viewportUpdate;
   await page.waitForTimeout(100);
   expect(await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform)).toBe(
     'matrix(0.5, 0, 0, 0.5, 140, 80)',
@@ -312,8 +336,10 @@ test('unsaved tours derive group order and missing saved targets remain escapabl
   const derived = await (await request.get('/api/canvas/tour')).json();
   expect(derived.derived).toBe(true);
   expect(derived.tour.stops.map((stop: { target: { nodeId: string } }) => stop.target.nodeId)).toEqual(ids.reverse());
-  await page.goto('/workbench?present=1');
+  const opening = delivered(page);
+  await page.goto(`${workbench}&present=1`);
   await page.waitForFunction(() => window.pmxCapture?.ready());
+  await opening;
   await page.waitForTimeout(1200);
   const group = page.locator('[data-node-id]').filter({ hasText: 'Opening group' }).first();
   const box = await group.boundingBox();
@@ -358,7 +384,7 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
       },
     },
   });
-  await page.goto('/workbench');
+  await page.goto(workbench);
   await page.waitForFunction(() => window.pmxCapture?.ready());
   await expect(page.locator('.top-bar')).toBeVisible();
   const world = page.locator('.canvas-world');
@@ -381,7 +407,9 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
       new Promise<number[]>((resolve) => {
         const world = document.querySelector('.canvas-world')!;
         const out: number[] = [];
-        const end = performance.now() + 1500;
+        // Include a poll interval when testing polling; still sample EVERY
+        // painted frame and require the same distinct scales and pull-back.
+        const end = performance.now() + (location.search.includes('transport=poll') ? 4000 : 1500);
         const tick = () => {
           out.push(new DOMMatrix(getComputedStyle(world).transform).a);
           if (performance.now() < end) requestAnimationFrame(tick);
@@ -426,8 +454,10 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
 
   // Reduced motion: a 3 s move lands on the next frame.
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  const move = delivered(page, 'canvas-camera-move');
   await request.post('/api/canvas/camera/move', {
     data: { rect: { x: 1700, y: -900, width: 500, height: 300 }, duration: 3 },
   });
+  await move;
   await expect.poll(() => inView('Agent stop two'), { timeout: 500 }).toBe(true);
 });

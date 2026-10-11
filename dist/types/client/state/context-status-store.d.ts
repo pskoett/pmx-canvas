@@ -65,6 +65,7 @@ export interface LinkMarks {
 export declare function linkMarks(edge: {
     from: string;
     to: string;
+    toBoardId?: string;
     revision?: number;
     changedBy?: {
         actor: string;

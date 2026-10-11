@@ -23,6 +23,11 @@ const edgeAddShape = {
     .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   from: z.string().optional().catch(undefined).describe('Source node ID'),
   to: z.string().optional().catch(undefined).describe('Target node ID'),
+  toBoardId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Target board ID for a direct cross-board edge; source stays on the open board'),
   fromSearch: z
     .string()
     .optional()
@@ -80,6 +85,7 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
                 id: body.id,
                 from: body.from,
                 to: body.to,
+                ...(body.toBoardId ? { toBoardId: body.toBoardId } : {}),
                 type: body.type,
                 label: body.label,
                 style: body.style,
@@ -110,6 +116,7 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
       return addCanvasEdge({
         ...(typeof body.from === 'string' ? { from: body.from } : {}),
         ...(typeof body.to === 'string' ? { to: body.to } : {}),
+        ...(typeof body.toBoardId === 'string' ? { toBoardId: body.toBoardId } : {}),
         ...(typeof body.fromSearch === 'string' ? { fromSearch: body.fromSearch } : {}),
         ...(typeof body.toSearch === 'string' ? { toSearch: body.toSearch } : {}),
         type: rawType as CanvasEdge['type'],

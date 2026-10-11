@@ -59,12 +59,14 @@ export interface SnapshotDiffResult {
         id: string;
         from: string;
         to: string;
+        toBoardId?: string;
         type: string;
     }[];
     removedEdges: {
         id: string;
         from: string;
         to: string;
+        toBoardId?: string;
         type: string;
     }[];
 }

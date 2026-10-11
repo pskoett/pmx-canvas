@@ -12,6 +12,7 @@ export interface SemanticWatchEdgeSummary {
     edgeType: CanvasEdge['type'];
     fromId: string;
     toId: string;
+    toBoardId?: string;
     fromTitle: string | null;
     toTitle: string | null;
 }
@@ -84,6 +85,7 @@ export interface SemanticAttentionSnapshot {
 }
 export declare function formatCompactWatchEvent(event: SemanticWatchEvent): string;
 export declare class SemanticWatchReducer {
+    private currentBoardId;
     private currentLayout;
     private currentPins;
     private previousSpatial;

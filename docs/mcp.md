@@ -1,7 +1,7 @@
 # MCP reference
 
 PMX Canvas ships an MCP stdio server with **24 tools**, **15 static canvas
-resources**, and one canvas resource template, plus per-skill resources at
+resources**, and two canvas resource templates, plus per-skill resources at
 `canvas://skills/<name>` and the `skill://{name}/{+path}` template. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -250,7 +250,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
-| `canvas_query` | `context` · `search` · `layout` · `validate` | `context` is new; the others replace `canvas_search`, `canvas_get_layout`, `canvas_validate` |
+| `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Budgeted context and summary-only connected memory; the others replace `canvas_search`, `canvas_get_layout`, `canvas_validate` |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_resize`, `canvas_evaluate` |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_build_web_artifact` |
 | `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_set_ax_policy`, `canvas_report_host_capability` |
@@ -261,6 +261,11 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
 | `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, explicit shared-workbench switching, README designation, transactional inactive copies, and board pins (the working set across boards) |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
+
+For receipt-safe single-card Undo, use `canvas_snapshot { action: "restore-node", id,
+nodeId, preserveHumanEdits: true }`. The server skips a card whose latest editor is human,
+returning `restored: false, skipped: "human-edit"`; only `restored: true` means it restored
+the content. Omitting the option permits an explicit restore over human content.
 
 Board categories are nested folder paths: `canvas_board { action: "update", id:
 "<id>", category: "Engineering/Canvas/Decisions" }`. Use `category: ""` to
@@ -281,6 +286,36 @@ clicking **README** clears it. Read-only tasks leave the board unchanged.
 first: `prompt`, `response`, `trace`, and `mcp-app` are not reusable. Creation is
 transactional and inactive, assigns fresh node/edge IDs, and copies no pins, AX
 state, or history. Groups and the designated README are opt-in.
+
+The copy records `previousBoardId` for its source. Board `update` accepts
+`mapPosition: { x, y }` or `null` to persist/reset a Home Map position.
+`canvas_edge { action: "add", from, to, toBoardId, type }` connects the open
+board's source card to a card on another board without opening the target.
+
+### Connected memory discovery
+
+`canvas_query { action: "graph", focus: "pins", depth: 2 }` and
+`canvas://graph{?focus,depth}` read connected-memory summaries for Home,
+links/backlinks, and brief discovery. The tool accepts `projection: "full" | "boards"`
+(default `full`); `boards` returns compact board-only summaries. The resource
+uses the default full projection. Omit focus for the whole library, or use
+a board ID, a JSON qualified node key `["board-id","card-id"]` (board key:
+`["board-id",null]`), or `pins`. Depth is an integer 0–4, default 2;
+traversal is undirected and includes membership hops. Explicit 0 is valid; empty
+depth values are rejected. URL-encode resource focus.
+The result has `nodes`, `edges`, `unresolvedLinks: [{ source, ref }]`, `focus`,
+and `depth`. Every node is `summaryOnly: true`, with summary at most 280
+characters. Reads count links seen on each owning board only when that node's
+incident relations are complete. A focused node with `linksComplete: false`
+does not acknowledge omitted links. Card nodes carry their captured `linksRevision`,
+so later changes are not acknowledged by an earlier delivered graph.
+`canvas://ax-context` and `pmx-current-context` deliver excerpts and annotation
+anchors, not complete incident relations; neither marks those relations seen.
+Single-card and layout reads record delivered content, not incident relations.
+Use a complete graph or brief relation entry to acknowledge those relations.
+Reads never mark full card content read or
+switch the workbench. Pull needed cards in full separately.
+No new tool is added: the tool count stays 24.
 
 Library search is `canvas_query { action: "search", query: "auth", scope:
 "library" }`. It returns board/card IDs and never switches the active board.
@@ -465,8 +500,8 @@ migrating an older integration.
 
 ## Resources
 
-There are 15 static canvas resources below and one URI-template resource,
-`canvas://context{?budget,consumer,since}`. Bundled skills add the static
+There are 15 static canvas resources below and two URI-template resources,
+`canvas://context{?budget,consumer,since}` and `canvas://graph{?focus,depth}`. Bundled skills add the static
 `canvas://skills/<name>` resources and a separate `skill://{name}/{+path}` file
 template; those dynamic package entries are not part of the core count.
 
@@ -474,6 +509,7 @@ template; those dynamic package entries are not part of the core count.
 |----------|-------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
 | `canvas://context{?budget,consumer,since}` | Budgeted cross-board brief with a durable consumer cursor |
+| `canvas://graph{?focus,depth}` | Summary-only library or focused board/card graph; undirected membership-inclusive depth 0–4 (default 2) |
 | `canvas://ax` | PMX AX state: focus, work items, approval gates, review annotations |
 | `canvas://ax-context` | Agent-readable pinned and focused AX context, plus a compact `delivery` lead block (`pendingSteering` newest-first + `totalPending`/`omittedPending` counts), timeline summary, and host capability |
 | `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations, elicitations, mode requests, and tool/prompt policy |
@@ -597,7 +633,7 @@ changes:
 - AX timeline mutations (agent-events, evidence, steering) notify
   `canvas://ax-timeline` and `canvas://ax-context`
 - All mutations notify `canvas://layout`, `canvas://summary`,
-  `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`
+  `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, and `canvas://graph`
 
 This closes the human-to-agent loop: spatial curation in the browser becomes
 an immediate signal in the agent's context.

@@ -234,7 +234,7 @@ always authoritative, independent of the installed release version.
 | `canvas_group` | `create`, `add`, `ungroup` |
 | `canvas_history` | `undo`, `redo` |
 | `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation`, `get-tour`, `set-tour`, `tour-go`, `tour-exit`, `move` |
-| `canvas_query` | `context`, `search`, `layout`, `validate` |
+| `canvas_query` | `context`, `graph`, `search`, `layout`, `validate` |
 | `canvas_webview` | `status`, `start`, `stop`, `resize`, `evaluate` |
 | `canvas_app` | `open-mcp-app`, `diagram`, `build-artifact` |
 | `canvas_ax_state` | `get`, `set-focus`, `set-policy`, `report-capability`, `presence`, `set-presence` |
@@ -270,10 +270,14 @@ v0.4.0 after their deprecated 0.3.x window.
 - Search before adding to avoid duplicate nodes.
 - Extend the current board in place; do not evict prior nodes to add new material.
 - Use groups only when the frame communicates meaningful containment.
-- Keep related nodes 40–80 px apart and separate unrelated clusters by roughly 150–250 px.
+- Space related nodes so rendered edges, labels, arrowheads and authorship marks have clear room;
+  separate unrelated clusters more visibly. No single pixel gap works for every card or zoom.
 - Use directed edges for actual relationships, not decoration.
 - Edge types: `flow`, `depends-on`, `relation`, `references`.
 - After manual or batch layout changes, run `canvas_query { action: "validate" }`.
+- Validation checks node non-overlap, not relation readability. After content settles, inspect
+  the rendered board at the intended viewing zoom; widen or reroute crowded relations as needed,
+  including after auto-arrange.
 
 ## In-View Placement & Sizing (required for user-facing nodes)
 
@@ -283,12 +287,13 @@ distant nodes, an auto-placed node lands off-camera.
 
 1. Omit `x`/`y` only on an empty or locally dense board. Otherwise place near the human's
    attention: the pinned/focused neighborhood, or explicit coordinates beside the last
-   user-facing output (gap ≥ 24–48 px).
+   user-facing output, leaving room for the settled card size and any relation labels/marks.
 2. After creating nodes the human should see, pan the camera (operating-sequence step 7b):
    `focus` for one node, `fit` with exactly the new `nodeIds` for a cluster. Use `noPan`
    (`focus --no-pan`) only when you must not steal the camera.
 3. Never fit the whole board to "show" new work — on a board with outliers that miniaturizes
-   everything. Always pass explicit `nodeIds` to `fit`.
+   everything. Always pass explicit `nodeIds` to `fit`. If body text becomes microscopic,
+   use a closer focus or tour for reading; an overview is for orientation, not detail.
 4. Never leave user-facing output at far coordinates without a focus/fit.
 5. **Do not hand-compute a whole board's coordinates.** Create the nodes (omitting x/y), then
    `canvas_view { action: "arrange", layout: "grid" | "column" | "flow" }` and finish with a
@@ -348,6 +353,12 @@ Context pins are the primary human-to-agent bridge:
 2. Agent reads `canvas://pinned-context`.
 3. The resource includes pinned nodes and nearby unpinned neighbors.
 
+The budgeted brief includes up to five unpinned neighbors within 600 world px of each pin,
+nearest first, as summaries, not full reads. A "near" mark does not make a card pinned.
+Hover, select or drag a pin to see numbered dotted tethers and its radius; a near card's
+**Show pins** reveals which pins include it. Dragging an unpinned card shows only the nearest
+pin's radius. Pin the card explicitly when it must remain in context regardless of proximity.
+
 Do not confuse context pinning with **Lock position**, which only excludes a node from auto-arrange.
 Every node type, including `status`, can be removed through `canvas_node { action: "remove" }`, the
 title-bar × control, or the **Close** context-menu action.
@@ -406,6 +417,14 @@ What the session asks of you:
   For example, after reading A, editing existing B and creating C, use **Dim untouched
   nodes** to fade an untouched D to 0.35 opacity; A/B/C remain visible. The lens changes
   presentation, not content, pin membership, approval or delivery.
+- **See change** opens one stacked, word-marked Before/After at a time. Excerpts may be clipped;
+  the caption explains when Undo restores the whole card. The receipt's per-card Undo skips a
+  card whose latest editor is human, checked on the server even before polling delivers the edit;
+  it is not a merge of human and agent edits. For agent-driven single-card Undo use
+  `canvas_snapshot { action: "restore-node", id, nodeId, preserveHumanEdits: true }` and check
+  `restored`, not just `ok`. Receipt Unpin only removes its recorded pins and is safe to repeat.
+  Receipts survive board switches, but reopen the owning board before Undo, Unpin or comparison; Home
+  dismisses the receipt. In narrow windows, click the agent's initial for counts, lens and panel.
 - **403 = outside the scope fence.** The human may fence you to a region (`policy.scope`): writes
   outside it are refused with a reason naming the node or position (a fenced group frame
   grants its members too). Read `policy.scope` in `canvas://ax-context`, ask the human to widen
@@ -567,11 +586,53 @@ Read the smallest resource that answers the question:
 
 Prefer `canvas_query { action: "search" }` over parsing the full layout.
 
+For connected-memory discovery, use `canvas_query { action: "graph", focus:
+"pins", depth: 2 }` or `canvas://graph{?focus,depth}`. HTTP:
+`GET /api/canvas/memory-graph`; SDK: `getMemoryGraph({ focus, depth })`; CLI:
+`pmx-canvas memory-graph --focus pins --depth 2`. Focus is a board ID, a JSON
+qualified node key `[boardId,cardId|null]`, or `pins`; omit for the library.
+Depth is an integer 0–4, default 2, counting undirected membership hops.
+Explicit 0 is valid; empty depth values and bare CLI `--depth` are rejected.
+HTTP, SDK and the MCP tool accept `projection: "full" | "boards"` (default `full`);
+CLI uses `--projection full|boards`. The graph resource uses the default full projection.
+Home Map uses compact `boards` summaries and loads depth-2 details on selection.
+Metadata edits and dragging do not refetch relationships; use **Refresh** to reload them.
+The result has `nodes`, `edges`, `unresolvedLinks: [{ source, ref }]`, `focus`,
+and `depth`; nodes have `summaryOnly: true` and summaries at most 280 characters.
+Connected-memory projections power Home Folders/Map/Graph, links/backlinks and brief
+discovery. Reads mark links seen only when a node's incident relations are complete;
+focused nodes with `linksComplete: false` do not acknowledge omitted links.
+Brief entries with capped or omitted relations also carry `linksComplete: false`;
+near-pin, human, linked README and pinned-board summaries do not acknowledge unseen relations.
+AX excerpts and annotation anchors never mark incident relations seen, including
+`canvas://ax-context` and `pmx-current-context`; use a complete graph or brief relation entry.
+Single-card and layout reads record content delivery, not incident relations.
+Graph cards and complete brief relations carry a captured `linksRevision`: reads
+acknowledge that version, not later changes. Brief delivery is qualified by source board.
+Reads never switch boards or mark full content read; pull needed cards in full separately. MCP remains
+24 tools and 15 static canvas resources, with two canvas templates (context/graph).
+
+Markdown saves bind `[[Board]]`, `[[Board#Card]]`, and `|alias` forms to durable
+IDs; code spans/fences are ignored. Ambiguous/missing targets never guess or
+silently retarget. The human Create dialog for an unresolved board-only link
+creates exactly its authored name and re-saves the captured source board/revision.
+Saved unresolved links resolve only on an explicit save, not on reads; legacy
+Markdown without binding metadata gets a one-time backfill.
+Rich-text edits retain the wiki reference and binding; a changed visible label
+updates its alias without changing its target.
+Native `canvas_edge { action: "add", from, to, toBoardId, type }` connects a
+source on the open board to a remote card (CLI `edge add --from <id> --to <id> --to-board <board-id>`). Humans
+use the source footer and More-menu card picker. Auto-arrange stays local;
+static export shows external connection evidence, not remote lines.
+Home folders are neutral and independent of links; Map drags persist SQLite
+`mapPosition` (board update accepts `{ x, y }` or `null` to reset). Rich kinds,
+reasons, provenance/staleness and lifecycle remain deferred to wave 3.
+
 Use `scope: "library"` to search inactive boards without switching. Board cards
 are text-only links through `data.boardId`; they are not direct cross-board card
 edges. `create-from` should be previewed first. It excludes prompt, response,
 trace, and MCP-app cards; groups and README are optional; creation assigns fresh
-IDs, copies no pins/AX/history, preserves the original, and leaves the new board
+IDs, records `previousBoardId`, copies no pins/AX/history, preserves the original, and leaves the new board
 inactive. Agents can open/switch boards; only the human deletes them. To create
 and populate a board, call `canvas_board { action: "create", name: "Planning" }`,
 then `canvas_board { action: "open", id: "<returned-board-id>" }` (CLI:
@@ -604,8 +665,8 @@ changes do not advance content revisions, while semantic edits and undo do.
   bytes; source-linked Markdown is separately gated by `includeDerivedText`,
   not `includeFiles`, even after edits. CLI export is private by default: opt in independently with
   `--include-derived-text`; `--include-files` does not imply consent to export derived text.
-- Board-map graph views, wiki-link syntax, and direct card edges across boards
-  are future work. Static exports lock board links and omit target titles.
+- Static exports lock board links and omit target titles. Cross-board card edges
+  retain qualified target IDs as external-connection evidence, not misleading local lines.
 
 - Hosted MCP-app/ext-app nodes such as Excalidraw require the in-canvas host bridge and are not
   standalone **Open as site** targets. URL-backed viewers and bundled web artifacts remain

@@ -23,6 +23,7 @@ import { setCanvasContextPins, syncCanvasRuntimeBackends } from '../../canvas-op
 import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
+import { boardConnections, memoryGraph } from '../../memory-graph.js';
 import {
   compileContextBrief,
   BRIEF_SUMMARY_LENGTH,
@@ -31,6 +32,7 @@ import {
   type ContextBriefSourceEntry,
 } from '../../context-brief.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
+import { memoryKey, type MemoryTarget } from '../../../shared/memory-graph.js';
 import { defineOperation, OperationError, type Operation, type OperationMcpToolHost } from '../types.js';
 import { buildSummaryFromLayout, isRecord } from './nodes.js';
 import { readTargetBoard } from './boards.js';
@@ -264,11 +266,51 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     const revision = canvasState.getContentRevision();
     const pinnedNodeIds = [...canvasState.contextPinnedNodeIds];
     const linkedIds = new Map<string, string[]>();
-    for (const node of layout.nodes) {
-      if (node.type !== 'board' || typeof node.data.boardId !== 'string') continue;
-      const ids = linkedIds.get(node.data.boardId) ?? [];
-      ids.push(node.id);
-      linkedIds.set(node.data.boardId, ids);
+    const graph = memoryGraph();
+    const graphNodes = new Map(graph.nodes.map((node) => [node.key, node]));
+    const qualifiedTitle = (target: MemoryTarget): string | undefined => {
+      const card = graphNodes.get(memoryKey(target));
+      const board = graphNodes.get(memoryKey({ boardId: target.boardId }));
+      return card && board ? (target.cardId ? `${board.title} / ${card.title}` : board.title) : undefined;
+    };
+    const connections = boardConnections(graph).filter((edge) => !edge.missing);
+    const memoryRelations: Record<string, string[]> = {};
+    for (const edge of graph.edges) {
+      if (edge.kind === 'member') continue;
+      // Local and outgoing card edges are compiled below with their revision marks.
+      // Only incoming cross-board card edges need the library graph here.
+      if (edge.kind === 'card' && (edge.source.boardId === edge.target.boardId || edge.target.boardId !== active.id))
+        continue;
+      for (const [source, target, direction] of [
+        [edge.source, edge.target, '→'],
+        [edge.target, edge.source, '←'],
+      ] as const) {
+        if (source.boardId !== active.id || !source.cardId) continue;
+        const other = graphNodes.get(direction === '→' ? edge.to : edge.from);
+        const kind = edge.kind === 'card' ? `${edge.type}${edge.label ? ` "${edge.label}"` : ''}` : edge.kind;
+        memoryRelations[source.cardId] ??= [];
+        memoryRelations[source.cardId].push(
+          `${direction} ${kind}: ${qualifiedTitle(target) ?? other?.title ?? 'Missing target'} (${target.boardId}${target.cardId ? ` / ${target.cardId}` : ''})`,
+        );
+      }
+    }
+    for (const link of graph.unresolvedLinks) {
+      if (link.source.boardId === active.id && link.source.cardId) {
+        memoryRelations[link.source.cardId] ??= [];
+        memoryRelations[link.source.cardId].push(`Unresolved wiki: [[${link.ref}]]`);
+      }
+    }
+    for (const edge of connections) {
+      const other =
+        edge.source.boardId === active.id
+          ? edge.target.boardId
+          : edge.target.boardId === active.id
+            ? edge.source.boardId
+            : null;
+      if (!other) continue;
+      const ids = linkedIds.get(other) ?? [];
+      if (edge.source.boardId === active.id && edge.source.cardId) ids.push(edge.source.cardId);
+      linkedIds.set(other, ids);
     }
     const libraryBoards: ContextBriefLibraryBoard[] = [];
     for (const board of canvasState.listBoards()) {
@@ -309,19 +351,15 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         defaultTextLength: BRIEF_SUMMARY_LENGTH,
         webpageTextLength: BRIEF_SUMMARY_LENGTH,
       });
-    // Links need every board's portal cards (no blobs); README summaries are read
+    // Connections come from the shared graph; README summaries are read
     // only for the open board and pinned boards, so a large library stays cheap.
     const library = canvasState.listBoards();
     const names = new Map(library.map((board) => [board.id, board.name]));
     const linksFrom = new Map<string, string[]>();
     for (const board of library) {
-      const nodes =
-        board.id === active.id ? layout.nodes : (canvasState.readBoard(board.id, false)?.layout.nodes ?? []);
       linksFrom.set(
         board.id,
-        nodes
-          .filter((node) => node.type === 'board' && typeof node.data.boardId === 'string')
-          .map((node) => node.data.boardId as string),
+        connections.filter((edge) => edge.source.boardId === board.id).map((edge) => edge.target.boardId),
       );
     }
     const readmeSummary = (boardId: string): string | null => {
@@ -421,9 +459,15 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       tombstones: canvasState.readContentDelta(sinceValue ?? 0).deleted,
       since: explicitSince ? (Number.isSafeInteger(sinceValue) ? sinceValue : Number.NaN) : sinceValue,
       overview,
+      memoryRelations,
       edges: layout.edges.map((edge) => ({
         from: edge.from,
         to: edge.to,
+        toBoardId: edge.toBoardId,
+        remoteTitle: edge.toBoardId
+          ? (qualifiedTitle({ boardId: edge.toBoardId, cardId: edge.to }) ??
+            `Missing target (${edge.toBoardId} / ${edge.to})`)
+          : undefined,
         type: edge.type,
         label: edge.label ?? null,
         revision: edge.revision,

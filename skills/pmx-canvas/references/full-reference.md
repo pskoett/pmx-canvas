@@ -386,12 +386,14 @@ draw visual attention to critical paths.
 
 Agents tend to pack boards too tightly. Give nodes room to breathe — readability beats density.
 
-- **Default spacing:** leave a clear gap between neighbors — roughly half a node's width
-  horizontally and half its height vertically. A 280×180 node reads well with ~360px between
-  column origins and ~260px between row origins.
+- **Starting spacing:** leave a clear gap between neighbors — roughly half a node's width
+  horizontally and half its height vertically. For a 280×180 node that means ~420px between
+  column origins and ~270px between row origins, not a universal minimum.
 - **When nodes are connected by edges, space them further apart** so the edge line, its arrowhead,
-  and its label are clearly visible in the gap between nodes. Crowded nodes hide the flow — this is
-  the most common cause of an unreadable board.
+  label and authorship marks are clearly visible in the gap between nodes. After content settles,
+  inspect the rendered relations at the intended viewing zoom, including after auto-arrange.
+  `validate` checks node non-overlap, not label/arrowhead clearance or relation readability;
+  widen or reroute crowded relations rather than relying on a fixed pixel gap.
 - **Inside a group, keep the same breathing room** (groups no longer auto-pack children, so the
   spacing you set is what the human sees). Edges between grouped children especially need the gap.
 - **Size a group frame larger than its children's bounding box** so the group header — including the
@@ -446,7 +448,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` | Boards, shared-workbench switching, README designation, links/backlinks, inactive copies, and board pins |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`); `restore-node` puts one card (`nodeId`) back to its content in snapshot `id` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
-| `canvas_query` | `context` · `search` · `layout` · `validate` | Read the budgeted cross-board brief, find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
+| `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Read the budgeted brief or summary-only connected memory graph, find nodes, read full layout, or **`validate`** collisions / containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | Headless Bun.WebView automation for the workbench (folds the `canvas_webview_*` / `canvas_resize` / `canvas_evaluate` tools) |
 | `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | Read AX state; set AX focus; patch tool/prompt policy (the scope fence is human-set, read-only here); report host capability; read / set agent presence (phase, cursor, focus, attached session) |
@@ -484,6 +486,77 @@ reads inactive boards without opening them. Board links are native text-only
 creation: `prompt`, `response`, `trace`, and `mcp-app` are excluded; README and
 group structure are optional; fresh IDs are allocated; pins, AX state, and
 history are not copied; the source remains unchanged and the new board inactive.
+The new board records `previousBoardId` pointing to its source.
+
+### Connected memory (wave 2)
+
+Home Folders, Map and Graph, wiki links/backlinks, and brief discovery share one
+board/card projection. Folders are neutral and independent of links. Map uses
+deterministic folder regions and saved draggable SQLite `mapPosition`; board
+update accepts `{ x, y }` or `null` to reset. Graph uses neutral circular clusters,
+not force simulation; labels are in selection details, filters in the shared
+toolbar, with no synthetic Home board, levels, or simulation sliders.
+
+Read it with `canvas_query { action: "graph", focus: "pins", depth: 2 }`,
+`canvas://graph{?focus,depth}`, `GET /api/canvas/memory-graph`, SDK
+`getMemoryGraph({ focus, depth })`, or CLI `pmx-canvas memory-graph`. Focus is
+a board ID, a JSON qualified key `["board-id","card-id"]` (or
+`["board-id",null]`), or `pins`; omitted means the library. URL-encode resource
+focus. Depth is an integer 0–4, default 2, traversing undirected links including
+membership. Explicit 0 is valid; empty depth and bare CLI `--depth` are rejected.
+HTTP, SDK and the MCP tool accept `projection: "full" | "boards"` (default `full`);
+CLI uses `--projection full|boards`. The graph resource uses the default full projection.
+Home Map uses compact `boards` summaries, loading depth-2 details on selection.
+Metadata edits and dragging do not refetch relationships; **Refresh** reloads them.
+Cross-board briefs give incoming and outgoing connections readable board/card titles.
+The result has `nodes`, `edges`, `unresolvedLinks: [{ source, ref }]`,
+`focus`, and `depth`. Nodes include qualified `key`, `boardId`, optional `cardId`,
+`kind`, `title`, `summary`, `folder`, `inContext`, and `summaryOnly: true`;
+summaries are capped at 280 characters. Edge projection kinds are `member`,
+`portal`, `wiki`, `card`, and `previous`, with qualified `from`/`to`,
+`source`/`target`, and explicit `missing`. Reads count links seen only when a node's
+incident relations are complete; focused nodes with `linksComplete: false` do
+not acknowledge omitted links. Brief entries with capped or omitted relations also
+carry `linksComplete: false`; near-pin, human, linked README and pinned-board
+summaries do not acknowledge unseen relations. Graph cards and complete brief
+relations carry their captured `linksRevision`, so later writes remain unseen;
+brief delivery is qualified by source board, never by a bare cross-board card ID.
+AX excerpts and annotation anchors, including `canvas://ax-context` and
+`pmx-current-context`, never mark incident relations seen; read a complete graph
+or brief relation entry instead.
+Single-card and layout reads record content delivery, not incident relations.
+Reads never switch boards or record full content reads. Pull cards in full
+when needed. Counts stay 24 tools, 15 static canvas resources; there are now two
+canvas templates, context and graph, besides the skill file template.
+
+Markdown save resolves `[[Board]]`, `[[Board#Card]]`, and `|alias` forms into
+server-owned `data.wikiLinks` ID bindings. IDs win; name/title matches must be
+unique. Existing bindings survive renames. Ambiguous/missing links stay explicit
+and never guess or silently retarget. Rendering follows saved bindings: unresolved
+links stay unresolved until an explicit save, and Undo/restore preserves bindings.
+Legacy Markdown without binding metadata gets a one-time persisted backfill;
+saved empty or unresolved records are not reinterpreted on reads.
+Code spans/fences are ignored. A human
+Create dialog for an unresolved board-only link creates exactly the authored
+name and re-saves its source using the captured board/revision, refusing stale
+source writes.
+
+Once the board list has loaded, all workbench context-pin writes send the captured
+`expectedBoardId`; a server-side board switch returns 409 instead of changing
+another board's pins. Receipt pin actions require reopening the owning board.
+
+Embedded JSON/graph runtime readiness waits up to 10 seconds after document load
+and retries a failed handoff once while retaining the last painted document.
+After another failure, the error toast/history say **Reload to retry**; a later
+healthy authored update can recover. This is not an overall network-load timeout.
+
+Native edge add accepts optional `toBoardId`: `from` is on the open source board,
+`to` is a card on the target board. CLI: `pmx-canvas edge add --from <source> --to <target>
+--to-board <board-id> --type references`. The human More menu offers a card
+picker and the source footer shows remote connections. Auto-arrange stays local;
+static export omits remote lines but shows explicit external connection evidence.
+Rich relationship kinds/reasons, provenance-driven staleness, and lifecycle are
+wave 3, not implemented here.
 
 Use `canvas_board { action: "open", id: "<board-id>" }` to open a created or
 existing board before authoring. Verify the returned `activeBoardId`; opening
@@ -1042,6 +1115,9 @@ what the human has set up and what they're focusing on.
 
 | Resource | What it provides |
 |----------|-----------------|
+| `canvas://context{?budget,consumer,since}` | Budgeted cross-board map brief with optional durable consumer cursor |
+| `canvas://graph{?focus,depth}` | Summary-only connected memory projection, library or focused undirected membership-inclusive exploration |
+| `canvas://boards` | Board library with README summaries, links/backlinks and previews |
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (viewport, nodes, edges) |
@@ -1165,10 +1241,16 @@ nodes.
 - **Session receipt:** attaching a session (`set-presence { attached: true }` or a
   `session-start` activity) over a non-empty board saves a `Before session · <label> · HH:MM`
   snapshot; ending it (`attached: false`, `session-end`, or idle expiry) emits one
-  `agent-session-ended` SSE frame — `{ label, endedAt, counts: { items, done, vetoed },
-  snapshot }` — which the browser shows as a receipt with *View diff* (the session's own
-  changes) and a restore path. End your session explicitly so the receipt is prompt. The
-  human's *Start agent session* button is the same attach with `source: "browser"`.
+  `agent-session-ended` SSE frame with `label`, `endedAt`, `snapshot`, `context` and counts
+  (`items`, `done`, `cancelled`, `rejected`, `held`). Changed top-level endings show a receipt;
+  worker and unchanged endings stay in History, and qualifying endings merge into an open receipt.
+  **See change** opens one stacked Before/After; whole-card Undo preserves geometry and links.
+  Receipt Undo sends `preserveHumanEdits: true` to `restore-node`, so the server skips latest-human
+  edits even when the browser is stale. Agent callers can pass that option to `canvas_snapshot`
+  too: `restored: false, skipped: "human-edit"` is not an undone card. Receipt Unpin only removes
+  its recorded pins, never re-pins them. Reopen a receipt's board before Undo or comparison;
+  Home dismisses it. End your session explicitly so the receipt is prompt. The human's
+  *Start agent session* button is the same attach with `source: "browser"`.
 - **Human collaborators / user wins:** every open workbench tab is a presence (`GET
   /api/canvas/human-presence`); a node a human is dragging is locked — an agent write to it is
   refused with 409 until release (requeue and retry), and a pending explicit intent on it is
@@ -1340,7 +1422,7 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | POST | `/api/canvas/snapshots` | Save snapshot |
 | POST | `/api/canvas/snapshots/<id>` | Restore snapshot |
 | DELETE | `/api/canvas/snapshots/<id>` | Delete snapshot |
-| POST | `/api/canvas/context-pins` | Replace pinned nodes |
+| POST | `/api/canvas/context-pins` | Set, add or remove pinned nodes (20 live pins; removal IDs are not capped) |
 | GET | `/api/canvas/pinned-context` | Get current pins with neighborhood context |
 | GET | `/api/canvas/search?q=...` | Search nodes |
 | POST | `/api/canvas/json-render` | Create a native json-render node |
@@ -1365,6 +1447,7 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | POST | `/api/canvas/redo` | Redo |
 | GET | `/api/canvas/history` | Mutation history |
 | GET | `/api/canvas/code-graph` | File dependency graph |
+| GET | `/api/canvas/memory-graph` | Summary-only board/card projection; optional focus and depth |
 | GET | `/api/workbench/events` | SSE event stream |
 
 ## Workflow Patterns

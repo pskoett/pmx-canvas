@@ -62,6 +62,9 @@ export interface ContextBriefOverview {
 export interface ContextBriefEdge {
     from: string;
     to: string;
+    toBoardId?: string;
+    /** Readable qualified target title, resolved by the shared memory graph. */
+    remoteTitle?: string;
     type: string;
     label?: string | null;
     /** Board revision of the link's latest add, retype or relabel, and who made it. */
@@ -85,6 +88,8 @@ export interface ContextBriefInput {
     overview?: ContextBriefOverview;
     /** Edges on the open board, carried as each card's relations. */
     edges?: readonly ContextBriefEdge[];
+    /** Saved wiki/portal connections from the shared library projection. */
+    memoryRelations?: Readonly<Record<string, string[]>>;
     /** Why each pin was pinned, when someone said. */
     pinReasons?: Readonly<Record<string, string>>;
     nodes: readonly CanvasNodeState[];
@@ -118,6 +123,10 @@ export interface CompiledContextEntry {
     truncated?: true;
     /** A title + short summary of a card the agent may pull in full; seen, not read. */
     summaryOnly?: true;
+    /** Relations were capped or not included; do not acknowledge the complete links revision. */
+    linksComplete?: false;
+    /** Link clock of the actual delivered relations, not the later recording time. */
+    linksRevision?: number;
     /**
      * On a later read, what changed on this card since the cursor
      * (docs/design/LinksChanged.dc.html): its text, its links, or both.

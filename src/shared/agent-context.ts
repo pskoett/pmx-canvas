@@ -10,6 +10,8 @@ export interface AgentContextNode {
   kind: string;
   title: string | null;
   content: string | null;
+  /** Context excerpts do not serialize the card's complete incident relations. */
+  linksComplete?: false;
   metadata?: Record<string, unknown>;
   position?: { x: number; y: number };
 }
@@ -421,6 +423,7 @@ export function serializeNodeForAgentContext(
     kind: getCanvasNodeKind(node),
     title: typeof node.data.title === 'string' ? node.data.title : null,
     content: summarizeNodeForAgentContext(node, options) || null,
+    linksComplete: false,
     ...(metadata ? { metadata } : {}),
     ...(options.includePosition ? { position: node.position } : {}),
   };

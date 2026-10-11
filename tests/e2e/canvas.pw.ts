@@ -1421,8 +1421,8 @@ for (const iframeMode of ['src', 'srcdoc'] as const) {
     const nodeId = ((await created.json()) as { id: string }).id;
     await page.goto(`/workbench?iframe-mode=${iframeMode}`);
     const node = page.locator('.canvas-node').filter({ hasText: `AX capability lifecycle ${iframeMode}` });
-    // During reload the hidden replacement coexists with the painted document.
-    const frame = node.frameLocator('iframe:visible');
+    // During reload the inert replacement sits behind the active document.
+    const frame = node.frameLocator('iframe:not([inert])');
     const draft = frame.getByRole('textbox', { name: 'draft' });
     await expect(draft).toBeVisible();
     const hasAxBridge = () => frame.locator('body').evaluate(() => 'PMX_AX' in window);
@@ -1810,7 +1810,7 @@ test('json-render streaming renders partial content then reloads the completed s
   const { id } = await created.json();
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Streaming compatibility' });
-  const painted = node.locator('iframe:visible');
+  const painted = node.locator('iframe:not([inert])');
   const frame = painted.contentFrame();
   await expect(frame.getByText('Receiving content', { exact: true })).toBeVisible();
   const oldSrc = await painted.getAttribute('src');
@@ -2085,7 +2085,7 @@ test.describe('viewer refresh continuity', () => {
         await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
         await page.goto(`/workbench?theme=${theme}`);
         const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
-        const visible = () => node.locator('iframe:visible').contentFrame();
+        const visible = () => node.locator('iframe:not([inert])').contentFrame();
         await expect(visible().getByText('Revision 1', { exact: true })).toBeVisible();
         // Hold each replacement response so a screenshot and DOM assertion
         // exercise the navigation window, not just the final loaded frame.
@@ -2801,6 +2801,9 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
   await frame.getByRole('button', { name: 'Add Manual Edit' }).click();
   await expect(frame.getByText('Saved manual edit')).toBeVisible();
 
+  // Either the widget's plain text or a later checkpoint tool result may be
+  // the latest model context. Both must carry the saved edit; reopening below
+  // independently checks the persisted document, not its context formatting.
   await expect
     .poll(
       async () => {
@@ -2809,7 +2812,8 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
           (node) => node.type === 'mcp-app' && node.data.title === 'Persistent Editor App',
         );
         const appModelContext = hosted?.data.appModelContext as { content?: Array<{ text?: string }> } | undefined;
-        return appModelContext?.content?.[0]?.text ?? null;
+        const text = appModelContext?.content?.[0]?.text;
+        return text?.startsWith('{') ? (JSON.parse(text) as { note?: string }).note : (text ?? null);
       },
       {
         timeout: 15000,

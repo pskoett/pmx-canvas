@@ -73,6 +73,12 @@ describe('canvas operations', () => {
     const removeResult = setCanvasContextPins([nodeIds[0]!, nodeIds[5]!, 'missing-node'], 'remove');
     expect(removeResult.nodeIds).toEqual(nodeIds.slice(1, 5).concat(nodeIds.slice(6, 20)));
     expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual(removeResult.nodeIds);
+
+    // Merged receipts can record more IDs than one session's live pin limit.
+    setCanvasContextPins([nodeIds[20]!, nodeIds[24]!], 'set');
+    const mergedRemoval = setCanvasContextPins(nodeIds.slice(0, 21), 'remove');
+    expect(mergedRemoval.nodeIds).toEqual([nodeIds[24]!]);
+    expect(mergedRemoval.count).toBe(1);
   });
 
   test('grid arrange spaces columns by the widest movable node', () => {

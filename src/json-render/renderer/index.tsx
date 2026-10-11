@@ -14,6 +14,7 @@ import {
   JSON_VIEWER_STATE_SOURCE,
 } from '../../shared/ax-surface-protocol.js';
 import { createRoot } from 'react-dom/client';
+import { useLayoutEffect } from 'react';
 import { defineRegistry, JSONUIProvider, Renderer } from '@json-render/react';
 import { shadcnComponents } from '@json-render/shadcn';
 import { catalog } from '../catalog';
@@ -173,6 +174,36 @@ function applyTheme(theme: unknown): void {
 }
 
 function App({ store }: { store: StateStore }) {
+  useLayoutEffect(() => {
+    const token = window.__PMX_CANVAS_UI_STATE_TOKEN__;
+    if (!token) return;
+    // Mount is runtime health, not paint. Offscreen frames may not run rAF;
+    // acknowledge the commit now so the parent never times out a healthy viewer.
+    window.parent.postMessage(
+      {
+        source: JSON_VIEWER_STATE_SOURCE,
+        type: 'mounted',
+        token,
+        nodeId: window.__PMX_CANVAS_JSON_RENDER_NODE_ID__,
+      },
+      '*',
+    );
+    // Let this document's rendering cycle advance after React's commit;
+    // parent animation frames alone do not advance a child frame's paint.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        window.parent.postMessage(
+          {
+            source: JSON_VIEWER_STATE_SOURCE,
+            type: 'ready',
+            token,
+            nodeId: window.__PMX_CANVAS_JSON_RENDER_NODE_ID__,
+          },
+          '*',
+        );
+      }),
+    );
+  }, []);
   const spec = window.__PMX_CANVAS_JSON_RENDER_SPEC__;
 
   if (!spec) {

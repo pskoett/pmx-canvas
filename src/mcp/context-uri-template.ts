@@ -2,8 +2,11 @@ import { UriTemplate } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
 
 /** SDK v1 matches {?a,b} as two required, ordered parameters, unlike its expansion. */
 export class ContextUriTemplate extends UriTemplate {
-  constructor() {
-    super('canvas://context{?budget,consumer,since}');
+  constructor(
+    private readonly host = 'context',
+    private readonly parameters = ['budget', 'consumer', 'since'],
+  ) {
+    super(`canvas://${host}{?${parameters.join(',')}}`);
   }
 
   override match(uri: string): Record<string, string> | null {
@@ -11,7 +14,7 @@ export class ContextUriTemplate extends UriTemplate {
     const url = new URL(uri);
     if (
       url.protocol !== 'canvas:' ||
-      url.host !== 'context' ||
+      url.host !== this.host ||
       url.pathname ||
       url.hash ||
       url.username ||
@@ -20,7 +23,7 @@ export class ContextUriTemplate extends UriTemplate {
       return null;
     const variables: Record<string, string> = {};
     for (const [key, value] of url.searchParams) {
-      if (!['budget', 'consumer', 'since'].includes(key) || key in variables) return null;
+      if (!this.parameters.includes(key) || key in variables) return null;
       variables[key] = value;
     }
     return variables;

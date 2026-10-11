@@ -45,7 +45,10 @@ import { existsSync, readFileSync, realpathSync, statSync, writeFileSync, append
 import { readFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import * as marked from 'marked';
+import { renderWikiMarkdown, resolveWikiLinks, wikiReferences } from './wiki-links.js';
+import { wikiLinksFromData } from '../shared/memory-graph.js';
 import { type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { boardsPayload } from './operations/ops/boards.js';
 import {
   buildAxBridge,
   buildAxStateBridge,
@@ -925,8 +928,26 @@ function toSseFrame(event: string, payload: PrimaryWorkbenchEventPayload): Uint8
 const WORKBENCH_EVENT_RING_MAX = 500;
 let workbenchEventSeq = 0;
 const workbenchEventRing: Array<{ seq: number; event: string; payload: PrimaryWorkbenchEventPayload }> = [];
+let remoteEdgesSignature = '';
 
 function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload): void {
+  let remoteEdgesChanged = false;
+  if (event === 'canvas-layout-update') {
+    // Remote footer titles come from the catalog. Refresh it on endpoint changes
+    // (including SDK writes and Undo), never on ordinary geometry broadcasts.
+    const signature = JSON.stringify([
+      canvasState.activeBoardId,
+      canvasState
+        .getEdges()
+        .filter((edge) => edge.toBoardId)
+        .map((edge) => [edge.id, edge.from, edge.toBoardId, edge.to]),
+    ]);
+    remoteEdgesChanged = signature !== remoteEdgesSignature;
+    remoteEdgesSignature = signature;
+  }
+  if (event === 'canvas-layout-update' || event === 'context-pins-changed') {
+    payload = { ...payload, boardId: canvasState.activeBoardId };
+  }
   workbenchEventSeq += 1;
   workbenchEventRing.push({ seq: workbenchEventSeq, event, payload });
   if (workbenchEventRing.length > WORKBENCH_EVENT_RING_MAX) {
@@ -946,6 +967,7 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
       syncCanvasBrowserOpenedFromSubscribers();
     }
   }
+  if (remoteEdgesChanged) emitPrimaryWorkbenchEvent('boards-changed', boardsPayload());
 }
 
 function setPrimaryWorkbenchPath(safePath: string, source: string): void {
@@ -2264,6 +2286,7 @@ function buildWorkbenchConnectSnapshot(
   events.push({
     event: 'canvas-layout-update',
     payload: {
+      boardId: canvasState.activeBoardId,
       layout: canvasState.getLayout(),
       sessionId: primaryWorkbenchSessionId,
       timestamp: new Date().toISOString(),
@@ -2272,6 +2295,7 @@ function buildWorkbenchConnectSnapshot(
   events.push({
     event: 'context-pins-changed',
     payload: {
+      boardId: canvasState.activeBoardId,
       count: canvasState.contextPinnedNodeIds.size,
       nodeIds: Array.from(canvasState.contextPinnedNodeIds),
       sessionId: primaryWorkbenchSessionId,
@@ -2419,11 +2443,27 @@ async function handleRender(req: Request): Promise<Response> {
   const body = await readJson(req);
   if (body === null) return malformedJsonResponse();
   const markdown = typeof body.markdown === 'string' ? body.markdown : '';
-  const html =
-    (marked.parse(normalizeMarkdownExternalUrls(markdown), {
-      gfm: true,
-      breaks: true,
-    }) as string) || '';
+  const node = typeof body.nodeId === 'string' ? canvasState.getNode(body.nodeId) : undefined;
+  const previous = node?.type === 'markdown' ? wikiLinksFromData(node.data) : [];
+  // The editor sends its draft through this same endpoint. Only changed/unsaved
+  // text may resolve titles; persisted text must replay even unresolved bindings.
+  const persisted = node?.type === 'markdown' && node.data.content === markdown;
+  const initializedRefs =
+    node?.type === 'markdown' && node.data.wikiLinks !== undefined && typeof node.data.content === 'string'
+      ? wikiReferences(node.data.content)
+      : [];
+  const refs = wikiReferences(markdown).filter(
+    (ref) => !initializedRefs.includes(ref) || previous.some((link) => link.ref === ref),
+  );
+  const needsResolution = !persisted && refs.some((ref) => !previous.some((link) => link.ref === ref && link.target));
+  const catalog = needsResolution ? canvasState.wikiCatalog() : [];
+  const links = persisted ? previous : refs.map((ref) => resolveWikiLinks(`[[${ref}]]`, previous, catalog)[0]);
+  const targets = new Map<string, ReturnType<typeof canvasState.readBoard>>();
+  const html = renderWikiMarkdown(normalizeMarkdownExternalUrls(markdown), links, (target) => {
+    if (!targets.has(target.boardId)) targets.set(target.boardId, canvasState.readBoard(target.boardId, false));
+    const board = targets.get(target.boardId);
+    return !!board && (!target.cardId || board.layout.nodes.some((card) => card.id === target.cardId));
+  });
   return responseJson({ html });
 }
 

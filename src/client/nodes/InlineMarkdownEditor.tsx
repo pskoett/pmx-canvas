@@ -15,6 +15,15 @@ function getTurndown(): TurndownService {
     bulletListMarker: '-',
   });
   td.use(gfm);
+  td.addRule('wikiLink', {
+    filter: (node) => node.nodeName === 'A' && node.hasAttribute('data-wiki-markdown'),
+    replacement: (_content, node) => {
+      const label = node.textContent ?? '';
+      return label === node.getAttribute('data-wiki-label')
+        ? node.getAttribute('data-wiki-markdown')!
+        : `[[${node.getAttribute('data-wiki-ref')}|${label}]]`;
+    },
+  });
   _turndown = td;
   return td;
 }
@@ -39,20 +48,37 @@ export function InlineMarkdownEditor({
   onSave?: (markdown: string) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  // Capture mount-time HTML — decouples us from prop identity churn under
-  // strict-mode double-invoke. Re-mount via `key` to swap documents.
-  const initialHtmlRef = useRef(initialHtml);
+  const initialized = useRef(false);
 
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    el.innerHTML = sanitizeMarkdownHtml(initialHtmlRef.current);
-    // GFM task checkboxes are live in the editor too: marked emits them
-    // `disabled`, which also swallows clicks in the expanded view.
-    for (const box of el.querySelectorAll('input[type="checkbox"][disabled]')) {
-      box.removeAttribute('disabled');
+    const html = sanitizeMarkdownHtml(initialHtml);
+    if (!initialized.current) {
+      initialized.current = true;
+      el.innerHTML = html;
+      // Marked emits disabled GFM boxes; they are editable here.
+      for (const box of el.querySelectorAll('input[type="checkbox"][disabled]')) box.removeAttribute('disabled');
+      return;
     }
-  }, []);
+    // Refresh navigation metadata only. Never replace editable children: a
+    // binding or target change must not discard a draft or move its selection.
+    const fresh = document.createElement('div');
+    fresh.innerHTML = html;
+    const links = new Map(
+      [...fresh.querySelectorAll('a[data-wiki-ref]')].map((link) => [link.getAttribute('data-wiki-ref'), link]),
+    );
+    for (const link of el.querySelectorAll('a[data-wiki-ref]')) {
+      const replacement = links.get(link.getAttribute('data-wiki-ref'));
+      if (!replacement) continue;
+      for (const attribute of ['data-wiki-board', 'data-wiki-card', 'data-wiki-missing']) {
+        const value = replacement.getAttribute(attribute);
+        if (value === null) link.removeAttribute(attribute);
+        else link.setAttribute(attribute, value);
+      }
+      link.classList.toggle('is-unresolved', replacement.classList.contains('is-unresolved'));
+    }
+  }, [initialHtml]);
 
   const serialize = useCallback((): string => {
     const el = rootRef.current;

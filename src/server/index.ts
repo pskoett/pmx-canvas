@@ -40,6 +40,7 @@ import type {
   PmxAxWorkItemStatus,
 } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
+import type { MemoryGraph } from '../shared/memory-graph.js';
 import type { Attachment, DocumentImport, ImportSection } from './document-import.js';
 import { workbenchToken } from './workbench-auth.js';
 import type { BackupFile, BackupStatus } from './backup.js';
@@ -447,6 +448,7 @@ export class PmxCanvas extends EventEmitter {
     intentId?: string;
     from?: string;
     to?: string;
+    toBoardId?: string;
     fromSearch?: string;
     toSearch?: string;
     type: CanvasEdge['type'];
@@ -454,7 +456,12 @@ export class PmxCanvas extends EventEmitter {
     style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
-    assertInsideFence('edge.add', { nodeIds: [input.from ?? '', input.to ?? ''] });
+    assertInsideFence('edge.add', {
+      nodeIds:
+        input.toBoardId && input.toBoardId !== canvasState.activeBoardId
+          ? [input.from ?? '']
+          : [input.from ?? '', input.to ?? ''],
+    });
     return this.runIntentCommit(
       input.intentId,
       ['connect'],
@@ -486,7 +493,8 @@ export class PmxCanvas extends EventEmitter {
 
   removeEdge(id: string): void {
     const edge = canvasState.getEdges().find((entry) => entry.id === id);
-    if (edge) assertInsideFence('edge.remove', { nodeIds: [edge.from, edge.to] });
+    if (edge)
+      assertInsideFence('edge.remove', { nodeIds: edge.toBoardId !== undefined ? [edge.from] : [edge.from, edge.to] });
     removeCanvasEdge(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
@@ -839,7 +847,10 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Rename a board and/or file it under a category (`category: null` removes it). */
-  async updateBoard(id: string, patch: { name?: string; category?: string | null }): Promise<void> {
+  async updateBoard(
+    id: string,
+    patch: { name?: string; category?: string | null; mapPosition?: { x: number; y: number } | null },
+  ): Promise<void> {
     await executeOperation('board.update', { id, ...patch }, { source: 'sdk' });
   }
 
@@ -873,6 +884,13 @@ export class PmxCanvas extends EventEmitter {
       string,
       unknown
     >;
+  }
+
+  /** Same projection as Home Graph. Discovery summaries never count as full-content reads. */
+  async getMemoryGraph(
+    options: { focus?: string; depth?: number; projection?: 'full' | 'boards' } = {},
+  ): Promise<MemoryGraph> {
+    return (await executeOperation('memory-graph.get', options, { source: 'sdk' })) as MemoryGraph;
   }
 
   /** Budgeted cross-board brief. Budget is measured in UTF-16 characters. */
@@ -1396,10 +1414,20 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Put one card back to its content in a snapshot (the receipt's Undo on an edit). */
-  async restoreSnapshotNode(snapshotId: string, nodeId: string): Promise<{ ok: boolean; id: string }> {
-    return (await executeOperation('snapshot.restore-node', { id: snapshotId, nodeId }, { source: 'sdk' })) as {
+  async restoreSnapshotNode(
+    snapshotId: string,
+    nodeId: string,
+    options: { preserveHumanEdits?: boolean } = {},
+  ): Promise<{ ok: boolean; id: string; restored: boolean; skipped?: 'human-edit' }> {
+    return (await executeOperation(
+      'snapshot.restore-node',
+      { id: snapshotId, nodeId, ...options },
+      { source: 'sdk' },
+    )) as {
       ok: boolean;
       id: string;
+      restored: boolean;
+      skipped?: 'human-edit';
     };
   }
 

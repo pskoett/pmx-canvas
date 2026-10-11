@@ -245,10 +245,11 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_query',
     description:
-      'Read the board cheapest-first. Action "context" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); "search" finds nodes by title/content keywords; "layout" returns the full layout; "validate" checks geometry and endpoints.',
-    actionSummary: 'context | search | layout | validate',
+      'Read the board cheapest-first. Action "context" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); "graph" explores the library relation graph (focus: board ID, qualified node key, or pins; depth: 0–4), summaries only; "search" finds nodes by title/content keywords; "layout" returns the full layout; "validate" checks geometry and endpoints.',
+    actionSummary: 'context | graph | search | layout | validate',
     actions: {
       context: 'context.get',
+      graph: 'memory-graph.get',
       search: 'search',
       layout: 'layout.get',
       validate: 'validate.get',

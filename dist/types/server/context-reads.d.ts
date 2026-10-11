@@ -6,6 +6,7 @@
  * recording never notifies (a read must not trigger more reads).
  */
 import type { Database } from 'bun:sqlite';
+import type { MemoryGraph } from '../shared/memory-graph.js';
 export declare const CONTEXT_READ_RETENTION = 5000;
 export declare const CONTEXT_READ_CHANNELS: readonly ["operation", "mcp-resource", "mcp-prompt", "adapter"];
 export type ContextReadChannel = (typeof CONTEXT_READ_CHANNELS)[number];
@@ -37,6 +38,8 @@ export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId'
     readNodeIds?: string[];
     /** Ids of every node that arrived, summaries included; defaults to readNodeIds. */
     seenNodeIds?: string[];
+    /** Exact link clocks captured in the delivered projection, before asynchronous transport work. */
+    seenLinkRevisions?: Record<string, number>;
 };
 /** One node's read state on a board: the latest agent read that delivered its content. */
 export interface NodeReadStatus {
@@ -63,23 +66,23 @@ export interface ContextReadConsumerSummary {
  * title, or a clipped-off node does not count — the agent got the node's
  * name, not its content. Non-node ids (edges, intents) are dropped by the
  * caller against the board's nodes. A summary is "seen", not "read": `read`
- * holds only nodes pulled in full, `reached` adds the summaries, and `linked`
- * is `reached` minus entries the budget clipped — a brief entry's relations
- * are its tail, so a clipped one may not have carried them.
+ * holds only nodes pulled in full and `reached` adds the summaries. Content
+ * delivery alone never establishes that the card's relations were delivered.
  */
 export declare function deliveredIds(payloadText: string): {
     read: Set<string>;
     reached: Set<string>;
-    linked: Set<string>;
 };
 export declare function contextReadFromPayload(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds'>, payload: unknown): ContextReadInput;
 /**
  * Reads a `context.get` brief made on pinned boards (vision move 0a): one per
  * pinned board whose map arrived, so the board shows as read. Its cards came as
- * summaries, which mark nothing read until the agent pulls them; unclipped ones
- * carried their relations, so their links count as seen on that board.
+ * summaries, which mark nothing read until the agent pulls them; only summaries
+ * with complete, unclipped relations count as links seen on that board.
  */
 export declare function pinnedBoardReads(base: Omit<ContextReadInput, 'deliveredNodeIds' | 'bytes' | 'readNodeIds' | 'pinnedNodeIds' | 'boardId'>, payload: unknown): ContextReadInput[];
+/** Graph summaries are seen on their own boards, never full-content reads or a board switch. */
+export declare function graphReads(base: Pick<ContextReadInput, 'channel' | 'resource' | 'source' | 'consumer' | 'agentId'>, graph: MemoryGraph): ContextReadInput[];
 export declare const CONTEXT_READS_SCHEMA_SQL = "\n  CREATE TABLE IF NOT EXISTS context_reads (\n    seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    id TEXT NOT NULL UNIQUE,\n    at TEXT NOT NULL,\n    channel TEXT NOT NULL,\n    resource TEXT NOT NULL,\n    source TEXT NOT NULL,\n    consumer TEXT,\n    agent_id TEXT,\n    pinned_node_ids TEXT NOT NULL DEFAULT '[]',\n    delivered_node_ids TEXT NOT NULL DEFAULT '[]',\n    bytes INTEGER NOT NULL DEFAULT 0,\n    board_id TEXT,\n    read_nodes TEXT NOT NULL DEFAULT '{}',\n    seen_links TEXT NOT NULL DEFAULT '{}'\n  );\n";
 export declare function appendContextReadToDB(db: Database, input: ContextReadInput, boardId: string | null, readNodes?: Record<string, number>, seenLinks?: Record<string, number>): ContextRead;
 /** Per node on a board, the latest agent read that delivered its content (newest row wins). */

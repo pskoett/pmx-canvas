@@ -230,6 +230,17 @@ canvas_render({
 `outline`. Older saved specs using `label` or status variants such as
 `success`/`warning` are normalized during validation.
 
+Replacing a JSON form's spec keeps its existing card title unless a non-empty title is
+explicitly supplied, and reloads the viewer for the new spec. The viewer uses bundled IBM
+Plex Sans and Mono fonts, including hosted viewers and offline exports.
+During embedded JSON/graph refreshes, the previous viewer stays visible until its replacement
+has restored its tab-local state and committed the new UI; document load alone is not readiness.
+After document load, runtime readiness waits up to 10 seconds and retries a failed
+handoff once, keeping the last painted document. If that retry fails, the error
+toast and history say **Reload to retry**. A later healthy authored update can recover.
+This readiness limit is not an overall network-load timeout.
+Authored spec revisions still reset drafts to the spec's initial state.
+
 Specs preserve top-level `state` and element-level `repeat`, `watch`, and
 `slots`. Use `$bindState` with JSON Pointer paths for editable form values;
 `$state` only reads a value. Nested repeats can use `statePath: { "$item": "tasks" }`
@@ -386,6 +397,10 @@ canvas_node({
 A fragment without `<html>`/`<head>` is wrapped in a full document
 automatically. Default size is 720×640.
 
+Changing a mounted HTML card's `data.axCapabilities` reboots its iframe bridge, including
+late enable and disable/re-enable. Emits from the old document are rejected; enabling AX
+still cannot exceed the HTML node's capability ceiling.
+
 Presentation mode is opt-in. Raw HTML nodes do not show the browser `Present`
 button unless callers set `presentation: true`; prefer the `presentation`
 primitive when the user explicitly asks for a PowerPoint-like deck, pitch,
@@ -524,6 +539,31 @@ canvas_group({ action: 'create', title: 'Auth Module', childIds: ['node-1', 'nod
 ## Edge types
 
 All edges support labels, styles (solid/dashed/dotted), and animation.
+
+Native edges optionally carry `toBoardId`: `from` belongs to the open source
+board and `to` identifies a card on that target board. These connections appear
+in the visible source card footer with readable board/card titles; missing
+targets are disabled. The human **More** menu opens a remote-card picker.
+Auto-arrange remains local. Static exports omit remote lines but retain explicit
+external connection evidence.
+
+Markdown saves bind `[[Board]]`, `[[Board#Card]]`, and either form with `|alias`
+to durable board/card IDs in server-owned `data.wikiLinks`. Exact IDs take
+precedence; name/title matches must be unique. Saved bindings survive renames;
+ambiguous or missing targets stay explicit and never guess or silently retarget.
+Rendering follows saved bindings: unresolved links stay unresolved until an explicit
+save, and Undo or restore preserves the binding.
+Relation and target-availability updates refresh the Markdown preview without replacing
+an unsaved document or Source draft or its selection. Saving a file-backed draft also
+rejects an older in-flight draft render.
+Legacy Markdown without a binding record gets a one-time persisted backfill;
+saved empty or unresolved records are not reinterpreted on reads.
+Code spans and fenced code are ignored. An unresolved board-only link offers a
+human Create dialog: it creates exactly the authored board name and re-saves
+the source using its captured board and revision, refusing a stale source.
+Wiki links, backlinks, portals, native edges, and create-from's `previousBoardId`
+share the Home/agent memory projection. This is discovery, not the wave-3 rich
+relationship kinds/reasons, provenance/staleness, or lifecycle system.
 
 | Type | Use case |
 |------|----------|

@@ -15,7 +15,8 @@ import { withCurrentActor } from '../attribution.js';
 import { withoutExternalMcp } from '../mcp-app-runtime.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership, describeOpTarget } from '../scope-fence.js';
-import { CONTEXT_READ_OPS, contextReadFromPayload, pinnedBoardReads } from '../context-reads.js';
+import { CONTEXT_READ_OPS, contextReadFromPayload, pinnedBoardReads, graphReads } from '../context-reads.js';
+import type { MemoryGraph } from '../../shared/memory-graph.js';
 import { openBoardForWrite } from '../canvas-operations.js';
 import { boardsPayload } from './ops/boards.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
@@ -194,6 +195,7 @@ function autoGhostInput(name: string, rawInput: unknown, kind: string): Record<s
       return typeof body.id === 'string' ? { ...base, nodeId: body.id } : null;
     case 'connect': {
       if (typeof body.from !== 'string' || typeof body.to !== 'string') return null;
+      if (body.toBoardId && body.toBoardId !== canvasState.activeBoardId) return null;
       const edgeType = typeof body.type === 'string' && AUTO_GHOST_EDGE_TYPES.has(body.type) ? body.type : 'flow';
       return { ...base, nodeType: undefined, edge: { from: body.from, to: body.to, type: edgeType } };
     }
@@ -256,7 +258,10 @@ function heldByHuman(name: string, rawInput: unknown): { nodeId: string; name: s
   const locked = humanPresence.lockedNodes();
   if (locked.size === 0) return null;
   const input = asRecord(rawInput);
-  const ids = [input.id, input.nodeId, input.groupId, input.from, input.to].filter(isString);
+  const foreignTarget = name === 'edge.add' && input.toBoardId && input.toBoardId !== canvasState.activeBoardId;
+  const ids = [input.id, input.nodeId, input.groupId, input.from, ...(foreignTarget ? [] : [input.to])].filter(
+    isString,
+  );
   if (name === 'canvas.apply-updates' || name === 'node.update') {
     // Fence and lock targets must agree, including translated children and
     // the automatic parent frames re-fitted by a child write.
@@ -426,10 +431,14 @@ export async function executeOperation(
           consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
           agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
         };
-        canvasState.recordContextRead(
-          contextReadFromPayload({ ...base, pinnedNodeIds: readPins }, result),
-          readBoardId,
-        );
+        if (name === 'memory-graph.get') {
+          for (const read of graphReads(base, result as MemoryGraph)) canvasState.recordContextRead(read, read.boardId);
+        } else {
+          canvasState.recordContextRead(
+            contextReadFromPayload({ ...base, pinnedNodeIds: readPins }, result),
+            readBoardId,
+          );
+        }
         if (name === 'context.get') {
           for (const read of pinnedBoardReads(base, result)) canvasState.recordContextRead(read, read.boardId);
         }
@@ -587,8 +596,19 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     }
   }
 
+  const beforeBoard = canvasState.activeBoardId;
+  const beforeRevision =
+    name === 'board.create-from' || name === 'board.delete' ? canvasState.getContentRevision().revision : null;
   const result = await op.execute(rawInput, operationContext);
-  if (op.mutates) emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  // Library writes can invalidate relations on the open board without being
+  // layout mutations themselves. Publish those clocks once, after the write.
+  if (
+    op.mutates ||
+    (beforeRevision !== null &&
+      beforeBoard === canvasState.activeBoardId &&
+      beforeRevision !== canvasState.getContentRevision().revision)
+  )
+    emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   notePresence(name, rawInput, meta, op, result);
   return result;
 }

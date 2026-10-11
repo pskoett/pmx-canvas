@@ -4,12 +4,15 @@ import { fireEvent } from '@testing-library/preact';
 import { render } from 'preact';
 import { EdgeHint, EdgeLayer } from '../../src/client/canvas/EdgeLayer.tsx';
 import {
+  applyServerCanvasLayout,
+  getNeighborNodeIds,
+  removeEdgesForNode,
   selectedEdgeId,
   edges as storeEdges,
   nodes as storeNodes,
   viewport,
 } from '../../src/client/state/canvas-store.ts';
-import { applyContextStatus, linksChanged } from '../../src/client/state/context-status-store.ts';
+import { applyContextStatus, linkMarks, linksChanged } from '../../src/client/state/context-status-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import type { CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
 import { type AgentPresence, HUMAN_STARTED_SESSION_LABEL } from '../../src/shared/agent-presence.ts';
@@ -215,6 +218,30 @@ describe('link marks', () => {
     fireEvent.dblClick(pill);
     expect(opened).toEqual(['e1']);
     selectedEdgeId.value = null;
+  });
+
+  test('remote edges survive layout and local target removal without contributing local neighbors', () => {
+    const remote: CanvasEdge = { id: 'remote', from: 'a', to: 'b', toBoardId: 'other', type: 'relation' };
+    applyServerCanvasLayout({ nodes: [card('a', 0)], edges: [remote] });
+    expect(storeEdges.value.get('remote')).toEqual(remote);
+    expect(getNeighborNodeIds('a', storeEdges.value).size).toBe(0);
+    expect(getNeighborNodeIds('b', storeEdges.value).size).toBe(0);
+    removeEdgesForNode('b');
+    expect(storeEdges.value.has('remote')).toBe(true);
+    removeEdgesForNode('a');
+    expect(storeEdges.value.size).toBe(0);
+  });
+
+  test('remote target ID collisions cannot clear source read marks or local removal marks', () => {
+    applyContextStatus({ links: { a: 4, b: 20 } });
+    const remote: CanvasEdge = { id: 'remote', from: 'a', to: 'b', toBoardId: 'other', type: 'relation', revision: 9 };
+    expect(linkMarks(remote).notSeen).toBe(true);
+    expect(linkMarks({ ...remote, toBoardId: undefined }).notSeen).toBe(false);
+
+    applyContextStatus({ links: { a: 4, b: 4 } });
+    storeEdges.value = new Map([[remote.id, { ...remote, changedBy: codex }]]);
+    expect(linksChanged('a', 9)).toBe(false);
+    expect(linksChanged('b', 9)).toBe(true); // its removed local link is not the remote agent link
   });
 
   test("a card's links changed after the read: a person's link or a removal counts, an agent's own link does not", () => {

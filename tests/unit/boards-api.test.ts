@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import type { CanvasBoard } from '../../src/server/canvas-db.ts';
+import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { createCanvas } from '../../src/server/index.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
@@ -232,5 +233,304 @@ describe('boards over HTTP', () => {
     expect((await boards()).activeBoardId).toBe(activeId);
     expect((await call('GET', `/api/canvas/node/${inactiveNodeId}`, AGENT)).body.title).toBe('Same id, active board');
     expect((await call('GET', '/api/canvas/state?board=missing', AGENT)).status).toBe(404);
+  });
+
+  test('wiki targets survive renames and saves; code and ambiguous names never become links', async () => {
+    const target = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Research wiki' })).body
+      .board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+    const card = String((await addNote('Evidence')).body.id);
+    const source = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Wiki source' })).body.board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: source.id });
+    for (let i = 0; i < 2; i++) await call('POST', '/api/canvas/boards', AGENT, { name: 'Ambiguous' });
+    const content =
+      '[[Research wiki]] and [[Research wiki#Evidence|read evidence]]\n`[[Code only]]`\n```md\n[[Fence only]]\n```\n[[Ambiguous]]';
+    const note = String(
+      (await call('POST', '/api/canvas/node', AGENT, { type: 'markdown', title: 'Links', content })).body.id,
+    );
+    const bindings = canvasState.getNode(note)?.data.wikiLinks;
+    expect(bindings).toEqual([
+      { ref: 'Research wiki', target: { boardId: target.id } },
+      { ref: 'Research wiki#Evidence', target: { boardId: target.id, cardId: card } },
+      { ref: 'Ambiguous' },
+    ]);
+    await call('PATCH', `/api/canvas/boards/${target.id}`, HUMAN, { name: 'Renamed research' });
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+    expect((await call('PATCH', `/api/canvas/node/${card}`, HUMAN, { title: 'Renamed evidence' })).status).toBe(200);
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: source.id });
+    expect(
+      (await call('PATCH', `/api/canvas/node/${note}`, HUMAN, { content: `${content}\nAnother paragraph.` })).status,
+    ).toBe(200);
+    expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
+    const discovery = await createCanvas().getMemoryGraph();
+    expect(discovery.unresolvedLinks).toContainEqual({
+      source: { boardId: source.id, cardId: note },
+      ref: 'Ambiguous',
+    });
+    const rendered = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+    expect(rendered.body.html).toContain(`data-wiki-board="${target.id}" data-wiki-card="${card}"`);
+    expect(rendered.body.html).toContain('>read evidence</a>');
+    expect(rendered.body.html).not.toContain('data-wiki-ref="Code only"');
+    const list = (await boards()).boards as Array<CanvasBoard & { backlinks: Array<{ nodeId: string; kind: string }> }>;
+    expect(list.find((board) => board.id === target.id)?.backlinks.filter((link) => link.nodeId === note)).toHaveLength(
+      2,
+    );
+    await call('DELETE', `/api/canvas/boards/${target.id}`, HUMAN);
+    const missing = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+    expect(missing.body.html).toContain('data-wiki-missing="true"');
+    expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
+    // Creating a target does not bind on reads; the human's explicit save binds it once.
+    const pendingContent = '[[Create me]]';
+    const pending = String(
+      (await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content: pendingContent })).body.id,
+    );
+    const created = (await call('POST', '/api/canvas/boards', HUMAN, { name: 'Create me' })).body.board as CanvasBoard;
+    expect((await call('PATCH', `/api/canvas/node/${pending}`, HUMAN, { content: pendingContent })).status).toBe(200);
+    expect(canvasState.getNode(pending)?.data.wikiLinks).toEqual([
+      { ref: 'Create me', target: { boardId: created.id } },
+    ]);
+    await call('PATCH', `/api/canvas/boards/${created.id}`, HUMAN, { name: 'Created and renamed' });
+    expect(canvasState.getNode(pending)?.data.wikiLinks).toEqual([
+      { ref: 'Create me', target: { boardId: created.id } },
+    ]);
+  });
+
+  test.each([
+    'delete',
+    'clear',
+  ])('%s Undo restores wiki identity and unresolved bindings, not replacement titles', async (operation) => {
+    const name = `Undo ${operation} research`;
+    const pending = `Undo ${operation} pending`;
+    const target = (await call('POST', '/api/canvas/boards', HUMAN, { name })).body.board as CanvasBoard;
+    const content = `[[${name}]] [[${pending}]]`;
+    const note = String((await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content })).body.id);
+    const bindings = canvasState.getNode(note)?.data.wikiLinks;
+    await call('PATCH', `/api/canvas/boards/${target.id}`, HUMAN, { name: 'Undo archive' });
+    await call('POST', '/api/canvas/boards', HUMAN, { name });
+    await call('POST', '/api/canvas/boards', HUMAN, { name: pending });
+    if (operation === 'clear') await call('POST', '/api/canvas/clear', HUMAN);
+    else await call('DELETE', `/api/canvas/node/${note}`, HUMAN);
+    await call('POST', '/api/canvas/undo', HUMAN);
+    expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
+    const rendered = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+    expect(rendered.body.html).toContain(`data-wiki-board="${target.id}"`);
+    expect(rendered.body.html).toContain(`data-wiki-ref="${pending}"`);
+  });
+
+  test('authoritative empty bindings do not resolve on render, prose edits or drags', async () => {
+    const target = canvasState.createBoard('Empty render')!;
+    const content = '[[Empty render]]';
+    const note = String((await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content })).body.id);
+    canvasState.updateNode(note, { data: { content } }, []);
+    const catalog = spyOn(canvasState, 'wikiCatalog');
+    try {
+      const rendered = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+      expect(rendered.body.html).toContain('data-wiki-ref="Empty render"');
+      expect(rendered.body.html).not.toContain(`data-wiki-board="${target.id}"`);
+      await call('POST', '/api/render', HUMAN, { markdown: `${content} draft`, nodeId: note });
+      await call('PATCH', `/api/canvas/node/${note}`, HUMAN, { content: `${content} prose edit` });
+      await call('PATCH', `/api/canvas/node/${note}`, HUMAN, { x: 200, y: 300 });
+      expect(canvasState.getNode(note)?.data.wikiLinks).toEqual([]);
+      expect(catalog).not.toHaveBeenCalled();
+    } finally {
+      catalog.mockRestore();
+    }
+  });
+
+  test('saved unresolved links stay unresolved on reads; dirty previews and explicit saves resolve', async () => {
+    const content = '[[Render pending]]';
+    const note = String((await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content })).body.id);
+    const target = (await call('POST', '/api/canvas/boards', HUMAN, { name: 'Render pending' })).body
+      .board as CanvasBoard;
+    const saved = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+    expect(saved.body.html).toContain('data-wiki-ref="Render pending"');
+    expect(saved.body.html).not.toContain('data-wiki-board=');
+    const unresolvedMap = await createCanvas().getMemoryGraph({ projection: 'boards' });
+    expect(unresolvedMap.unresolvedLinks).toContainEqual({
+      source: { boardId: canvasState.activeBoardId!, cardId: note },
+      ref: 'Render pending',
+    });
+    const draft = await call('POST', '/api/render', HUMAN, { markdown: `${content}\nDraft`, nodeId: note });
+    expect(draft.body.html).toContain(`data-wiki-board="${target.id}"`);
+    expect(canvasState.getNode(note)?.data.wikiLinks).toEqual([{ ref: 'Render pending' }]);
+    await call('PATCH', `/api/canvas/node/${note}`, HUMAN, { content });
+    expect((await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note })).body.html).toContain(
+      `data-wiki-board="${target.id}"`,
+    );
+    const fresh = await call('POST', '/api/render', HUMAN, { markdown: `[[${target.id}]]`, nodeId: note });
+    expect(fresh.body.html).toContain(`data-wiki-board="${target.id}"`);
+    const bindings = canvasState.getNode(note)?.data.wikiLinks;
+    const forged = [{ ref: 'Render pending', target: { boardId: 'forged-board' } }];
+    await call('PATCH', `/api/canvas/node/${note}`, HUMAN, { data: { wikiLinks: forged } });
+    expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
+    createCanvas().updateNode(note, { data: { ...canvasState.getNode(note)!.data, wikiLinks: forged } });
+    expect(canvasState.getNode(note)?.data.wikiLinks).toEqual(bindings);
+  });
+
+  test('graph qualifies cross-board card identities, bounds exploration and survives persisted snapshots', async () => {
+    const target = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Graph target', category: 'Research' }))
+      .body.board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+    const card = String((await addNote('Remote evidence')).body.id);
+    const template = canvasState.getNode(card)!;
+    const source = (await call('POST', '/api/canvas/boards', AGENT, { name: 'Graph source', category: 'Planning' }))
+      .body.board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: source.id });
+    canvasState.addNode({ ...template, data: { title: 'Local claim', content: 'A different body' } });
+    const beforeEdge = (await call('GET', '/api/workbench/poll', HUMAN)).body.seq;
+    const edge = await call('POST', '/api/canvas/edge', AGENT, {
+      from: card,
+      to: card,
+      toBoardId: target.id,
+      type: 'references',
+      label: 'Evidence for claim',
+    });
+    expect(edge.status).toBe(200);
+    expect(edge.body.toBoardId).toBe(target.id);
+    const published = (await call('GET', `/api/workbench/poll?since=${beforeEdge}`, HUMAN)).body.events as Array<{
+      event: string;
+      payload: { boards?: Array<CanvasBoard & { links: Array<{ cardTitle: string }> }> };
+    }>;
+    expect(published.find((event) => event.event === 'boards-changed')?.payload.boards).toContainEqual(
+      expect.objectContaining({
+        id: source.id,
+        links: expect.arrayContaining([expect.objectContaining({ cardTitle: 'Remote evidence' })]),
+      }),
+    );
+    const beforeMove = (await call('GET', '/api/workbench/poll', HUMAN)).body.seq;
+    await call('PATCH', `/api/canvas/node/${card}`, HUMAN, { x: 273, y: 119 });
+    const moved = (await call('GET', `/api/workbench/poll?since=${beforeMove}`, HUMAN)).body.events as Array<{
+      event: string;
+    }>;
+    expect(moved.some((event) => event.event === 'canvas-layout-update')).toBe(true);
+    expect(moved.some((event) => event.event === 'boards-changed')).toBe(false);
+    expect(
+      (await call('POST', '/api/canvas/edge', AGENT, { from: card, to: card, toBoardId: 'missing', type: 'relation' }))
+        .status,
+    ).toBe(400);
+    await call('PATCH', `/api/canvas/boards/${source.id}`, HUMAN, { mapPosition: { x: 673, y: -115 } });
+    await call('POST', `/api/canvas/boards/${target.id}/pin`, HUMAN, {});
+    const graph = await createCanvas().getMemoryGraph();
+    expect(
+      graph.nodes
+        .filter((node) => node.cardId === card)
+        .map((node) => node.title)
+        .sort(),
+    ).toEqual(['Local claim', 'Remote evidence']);
+    expect(graph.edges.find((entry) => entry.kind === 'card' && entry.source.boardId === source.id)).toMatchObject({
+      source: { boardId: source.id, cardId: card },
+      target: { boardId: target.id, cardId: card },
+      missing: false,
+    });
+    expect((await boards()).boards).toContainEqual(
+      expect.objectContaining({
+        id: source.id,
+        links: expect.arrayContaining([
+          expect.objectContaining({ boardId: target.id, cardId: card, cardTitle: 'Remote evidence', missing: false }),
+        ]),
+      }),
+    );
+    const compact = (await call('GET', '/api/canvas/memory-graph?projection=boards', HUMAN))
+      .body as unknown as MemoryGraph;
+    expect(compact.nodes.every((node) => node.kind === 'board')).toBe(true);
+    expect(compact.edges).toEqual(
+      graph.edges.filter(
+        (entry) => entry.kind !== 'member' && (entry.missing || entry.source.boardId !== entry.target.boardId),
+      ),
+    );
+    expect(compact.unresolvedLinks).toEqual(graph.unresolvedLinks);
+    expect(await createCanvas().getMemoryGraph({ projection: 'boards' })).toEqual(compact);
+    const details = await createCanvas().getMemoryGraph({ focus: source.id, depth: 2 });
+    expect(details.nodes.find((node) => node.boardId === target.id && node.cardId === card)?.title).toBe(
+      'Remote evidence',
+    );
+    expect(details.edges.find((entry) => entry.kind === 'card' && entry.source.boardId === source.id)?.target).toEqual({
+      boardId: target.id,
+      cardId: card,
+    });
+    const focus = graph.nodes.find((node) => node.boardId === source.id && node.cardId === card)!.key;
+    const local = (await call('GET', `/api/canvas/memory-graph?focus=${encodeURIComponent(focus)}&depth=1`, AGENT))
+      .body as unknown as MemoryGraph;
+    expect(local.nodes.map((node) => node.title).sort()).toEqual(['Graph source', 'Local claim', 'Remote evidence']);
+    const before = canvasState.getContextReads().reads[0]?.seq ?? 0;
+    const shallow = (await call('GET', `/api/canvas/memory-graph?focus=${encodeURIComponent(focus)}&depth=0`, AGENT))
+      .body as unknown as MemoryGraph;
+    expect(shallow.nodes[0]?.linksComplete).toBe(false);
+    expect(
+      canvasState
+        .getContextReads()
+        .reads.filter((read) => read.seq > before && read.resource === 'memory-graph.get')
+        .every((read) => Object.keys(read.seenLinks).length === 0),
+    ).toBe(true);
+    expect((await call('GET', '/api/canvas/memory-graph?focus=missing', AGENT)).status).toBe(404);
+    expect((await call('GET', '/api/canvas/memory-graph?depth=5', AGENT)).status).toBe(400);
+    for (const depth of ['', '%20', '-1', '1.5', 'nope']) {
+      expect((await call('GET', `/api/canvas/memory-graph?depth=${depth}`, AGENT)).status).toBe(400);
+    }
+    expect((await call('GET', '/api/canvas/memory-graph?depth=4', AGENT)).status).toBe(200);
+    expect((await call('GET', '/api/canvas/memory-graph', AGENT)).body).toEqual(
+      (await call('GET', '/api/canvas/memory-graph?depth=2', AGENT)).body,
+    );
+    const reads = canvasState.getContextReads().reads.filter((read) => read.resource === 'memory-graph.get');
+    expect(reads.some((read) => read.boardId === target.id)).toBe(true);
+    expect(reads.every((read) => Object.keys(read.readNodes).length === 0)).toBe(true);
+    expect((await boards()).activeBoardId).toBe(source.id);
+    const snapshot = canvasState.saveSnapshot('cross-board graph');
+    if (!snapshot) throw new Error('Expected a snapshot of the open board');
+    canvasState.removeEdge(String(edge.body.id));
+    expect(canvasState.restoreSnapshot(snapshot.id)).toBe(true);
+    canvasState.flushToDisk();
+    canvasState.loadFromDisk({ clearExisting: true });
+    expect(canvasState.getEdges().find((stored) => stored.id === edge.body.id)?.toBoardId).toBe(target.id);
+    expect((await boards()).boards.find((board) => board.id === source.id)?.mapPosition).toEqual({ x: 673, y: -115 });
+    const copied = (
+      await call('POST', '/api/canvas/boards/from', AGENT, {
+        sourceBoardId: source.id,
+        name: 'Next iteration',
+        nodeIds: [card],
+      })
+    ).body.board as CanvasBoard;
+    expect(copied.previousBoardId).toBe(source.id);
+    expect(canvasState.readBoard(copied.id)?.layout.edges).toContainEqual(
+      expect.objectContaining({ toBoardId: target.id, to: card }),
+    );
+    expect(
+      (await createCanvas().getMemoryGraph()).edges.find(
+        (entry) => entry.kind === 'previous' && entry.source.boardId === copied.id,
+      )?.target,
+    ).toEqual({ boardId: source.id });
+    const beforeDelete = (await call('GET', '/api/workbench/poll', HUMAN)).body.seq;
+    const beforeDeleteLinks = canvasState.getNode(card)!.linksRevision ?? 0;
+    await call('DELETE', `/api/canvas/boards/${target.id}`, HUMAN);
+    const deletionEvents = (await call('GET', `/api/workbench/poll?since=${beforeDelete}`, HUMAN)).body
+      .events as Array<{
+      event: string;
+      payload: { layout?: { nodes: Array<{ id: string; linksRevision?: number }> } };
+    }>;
+    expect(canvasState.getNode(card)!.linksRevision ?? 0).toBeGreaterThan(beforeDeleteLinks);
+    expect(
+      deletionEvents
+        .find((event) => event.event === 'canvas-layout-update')
+        ?.payload.layout?.nodes.find((node) => node.id === card)?.linksRevision,
+    ).toBe(canvasState.getNode(card)!.linksRevision);
+    expect(
+      (await createCanvas().getMemoryGraph()).edges.find(
+        (entry) => entry.source.boardId === source.id && entry.kind === 'card',
+      )?.missing,
+    ).toBe(true);
+    const missingMap = await createCanvas().getMemoryGraph({ projection: 'boards' });
+    expect(missingMap.edges.find((entry) => entry.source.boardId === source.id && entry.kind === 'card')).toMatchObject(
+      {
+        target: { boardId: target.id, cardId: card },
+        missing: true,
+      },
+    );
+    expect(
+      missingMap.edges.find((entry) => entry.kind === 'previous' && entry.source.boardId === copied.id)?.target,
+    ).toEqual({ boardId: source.id });
+    expect((await call('GET', '/api/canvas/memory-graph?projection=invalid', AGENT)).status).toBe(400);
+    // A same-ID local card is not a replacement for the deleted remote endpoint.
+    const validation = await call('GET', '/api/canvas/validate', AGENT);
+    expect(validation.body.missingEdgeEndpoints).toEqual([{ edgeId: edge.body.id, from: card, to: card }]);
   });
 });

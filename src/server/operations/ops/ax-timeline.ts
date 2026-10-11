@@ -510,6 +510,10 @@ const axReadsRecordShape = {
     .array(z.string())
     .optional()
     .describe('Ids of every node that arrived with its relations, summaries included; defaults to readNodeIds.'),
+  seenLinkRevisions: z
+    .record(z.string(), z.number().int().nonnegative())
+    .optional()
+    .describe('Exact link revisions captured in the delivered graph or brief before transport work.'),
   bytes: z.number().int().nonnegative().describe('Size of what the agent received.'),
   boardId: z.string().nullable().optional().describe('Board that was read, captured before delivery.'),
 };
@@ -537,6 +541,7 @@ const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchem
         deliveredNodeIds: input.deliveredNodeIds,
         ...(input.readNodeIds ? { readNodeIds: input.readNodeIds } : {}),
         ...(input.seenNodeIds ? { seenNodeIds: input.seenNodeIds } : {}),
+        ...(input.seenLinkRevisions ? { seenLinkRevisions: input.seenLinkRevisions } : {}),
         bytes: input.bytes,
       },
       input.boardId === undefined ? canvasState.activeBoardId : input.boardId,

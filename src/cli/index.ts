@@ -63,6 +63,7 @@ const AGENT_COMMANDS = new Set([
   'open',
   'clear',
   'code-graph',
+  'memory-graph',
   'spatial',
   'watch',
   'web-artifact',
@@ -330,6 +331,7 @@ Agent CLI (works against running server):
   web-artifact build                  Build bundled web artifacts
   clear --yes                         Clear canvas
   code-graph                          File dependencies
+  memory-graph                       Explore connected boards and cards (summary-only)
   spatial                             Spatial analysis
   watch                               Semantic watch stream
   pump                                Reactive steering loop for CLI agents (Amp, Codex CLI)

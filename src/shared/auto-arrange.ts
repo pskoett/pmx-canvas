@@ -21,6 +21,7 @@ export interface ArrangeEdge {
   id: string;
   from: string;
   to: string;
+  toBoardId?: string;
 }
 
 export interface AutoArrangeResult {
@@ -184,6 +185,7 @@ function buildUnitGraphs(
   }
 
   for (const edge of edges) {
+    if (edge.toBoardId !== undefined) continue;
     const fromUnit = nodeToUnit.get(edge.from);
     const toUnit = nodeToUnit.get(edge.to);
     if (!fromUnit || !toUnit || fromUnit === toUnit) continue;

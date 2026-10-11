@@ -1,6 +1,7 @@
 import { useEffect } from 'preact/hooks';
 import { BarHint } from './BarHint';
 import { nodes } from '../state/canvas-store';
+import { activeBoardId } from '../state/boards-store';
 import { hoveredIntentId, intents, removeIntent, type ClientIntent } from '../state/intent-store';
 import { vetoGhostIntent } from '../state/intent-bridge';
 import { getNodeIcon, IconClose } from '../icons';
@@ -191,6 +192,8 @@ function renderGhost(intent: ClientIntent) {
     }
     case 'connect': {
       if (!intent.edge) return null;
+      if ('toBoardId' in intent.edge && intent.edge.toBoardId && intent.edge.toBoardId !== activeBoardId.value)
+        return null;
       const from = getNodeRect(intent.edge.from);
       const to = getNodeRect(intent.edge.to);
       if (!from || !to) return null;
@@ -270,6 +273,8 @@ export function IntentLayer() {
         </defs>
         {list.map((intent) => {
           if (intent.kind === 'connect' && intent.edge) {
+            if ('toBoardId' in intent.edge && intent.edge.toBoardId && intent.edge.toBoardId !== activeBoardId.value)
+              return null;
             const from = getNodeRect(intent.edge.from);
             const to = getNodeRect(intent.edge.to);
             if (!from || !to) return null;

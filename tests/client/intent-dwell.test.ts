@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { createElement } from 'preact';
+import { cleanup, render } from '@testing-library/preact';
+import { IntentLayer } from '../../src/client/canvas/IntentLayer.tsx';
+import { nodes } from '../../src/client/state/canvas-store.ts';
+import { activeBoardId } from '../../src/client/state/boards-store.ts';
 import {
   MIN_FORMING_MS,
   dissolveIntent,
@@ -23,7 +28,43 @@ function ghost(id: string) {
 }
 
 afterEach(() => {
+  cleanup();
+  nodes.value = new Map();
+  activeBoardId.value = null;
   for (const id of [...intents.value.keys()]) removeIntent(id);
+});
+
+test.each([undefined, 'A', 'B'])('connect ghosts qualify duplicate target ids (%s)', (toBoardId) => {
+  activeBoardId.value = 'A';
+  nodes.value = new Map(
+    ['s', 'x'].map((id) => [
+      id,
+      {
+        id,
+        type: 'markdown' as const,
+        position: { x: id === 's' ? 0 : 500, y: 0 },
+        size: { width: 200, height: 100 },
+        zIndex: 1,
+        collapsed: false,
+        pinned: false,
+        data: { title: id },
+      },
+    ]),
+  );
+  upsertIntent({
+    ...ghost('connect'),
+    kind: 'connect',
+    edge: {
+      from: 's',
+      to: 'x',
+      type: 'references',
+      ...(toBoardId ? { toBoardId } : {}),
+    },
+  });
+  const view = render(createElement(IntentLayer, {}));
+  const count = toBoardId === 'B' ? 0 : 1;
+  expect(view.container.querySelectorAll('.intent-edge').length).toBe(count);
+  expect(view.container.querySelectorAll('.intent-ghost-connect').length).toBe(count);
 });
 
 describe('intent minimum dwell', () => {

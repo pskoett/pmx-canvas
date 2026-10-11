@@ -10,6 +10,7 @@ import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-in
 import type { PmxAxIntent } from '../shared/ax-intent.js';
 import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery, CanvasBoard } from './canvas-db.js';
+import type { MemoryGraph } from '../shared/memory-graph.js';
 import type { Attachment, DocumentImport, ImportSection } from './document-import.js';
 import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
@@ -112,6 +113,7 @@ export declare class PmxCanvas extends EventEmitter {
         intentId?: string;
         from?: string;
         to?: string;
+        toBoardId?: string;
         fromSearch?: string;
         toSearch?: string;
         type: CanvasEdge['type'];
@@ -256,6 +258,10 @@ export declare class PmxCanvas extends EventEmitter {
     updateBoard(id: string, patch: {
         name?: string;
         category?: string | null;
+        mapPosition?: {
+            x: number;
+            y: number;
+        } | null;
     }): Promise<void>;
     setBoardReadme(id: string, readmeNodeId: string | null): Promise<void>;
     /** Pin a board into the agent's working set (its README and pinned cards reach every brief). */
@@ -271,6 +277,12 @@ export declare class PmxCanvas extends EventEmitter {
         preview?: boolean;
     }): Promise<Record<string, unknown>>;
     searchLibrary(query: string, limit?: number): Promise<Record<string, unknown>>;
+    /** Same projection as Home Graph. Discovery summaries never count as full-content reads. */
+    getMemoryGraph(options?: {
+        focus?: string;
+        depth?: number;
+        projection?: 'full' | 'boards';
+    }): Promise<MemoryGraph>;
     /** Budgeted cross-board brief. Budget is measured in UTF-16 characters. */
     getContextBrief(options?: {
         consumer?: string;
@@ -551,9 +563,13 @@ export declare class PmxCanvas extends EventEmitter {
         ok: boolean;
     }>;
     /** Put one card back to its content in a snapshot (the receipt's Undo on an edit). */
-    restoreSnapshotNode(snapshotId: string, nodeId: string): Promise<{
+    restoreSnapshotNode(snapshotId: string, nodeId: string, options?: {
+        preserveHumanEdits?: boolean;
+    }): Promise<{
         ok: boolean;
         id: string;
+        restored: boolean;
+        skipped?: 'human-edit';
     }>;
     deleteSnapshot(id: string): {
         ok: boolean;

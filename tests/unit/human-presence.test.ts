@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { HumanPresenceRegistry, humanPresence } from '../../src/server/human-presence.ts';
+import { canvasState } from '../../src/server/canvas-state.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { HUMAN_GRAB_TTL_MS, HUMAN_PRESENCE_TTL_MS } from '../../src/shared/human-presence.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
@@ -63,6 +64,47 @@ describe('human presence over HTTP', () => {
   beforeEach(async () => {
     humanPresence.reset();
     await post('/api/canvas/clear', {}, { 'x-pmx-workbench': '1' });
+  });
+
+  test.each([
+    false,
+    true,
+  ])('cross-board edge ownership ignores a coincident local target (grabbed=%s)', async (grabbed) => {
+    const remoteBoard = (await (await post('/api/canvas/boards', { name: 'Remote' })).json()) as {
+      board: { id: string };
+    };
+    await post('/api/canvas/boards/open', { id: remoteBoard.board.id }, { 'x-pmx-workbench': '1' });
+    const remote = (await (await post('/api/canvas/node', { type: 'markdown', title: 'Remote evidence' })).json()) as {
+      id: string;
+    };
+    const template = canvasState.getNode(remote.id)!;
+    const localBoard = (await (await post('/api/canvas/boards', { name: 'Local' })).json()) as {
+      board: { id: string };
+    };
+    await post('/api/canvas/boards/open', { id: localBoard.board.id }, { 'x-pmx-workbench': '1' });
+    // Persisted board copies can legitimately share card IDs.
+    canvasState.addNode({ ...template, data: { title: 'Coincident local card' } });
+    const source = (await (await post('/api/canvas/node', { type: 'markdown', title: 'Local source' })).json()) as {
+      id: string;
+    };
+    if (grabbed) await post('/api/canvas/human-presence', { clientId: 'tab-a', grabbingNodeId: remote.id });
+    const edge = { from: source.id, to: remote.id, toBoardId: remoteBoard.board.id, type: 'references' };
+    const response = await post('/api/canvas/edge', edge);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject(edge);
+    const presence = (await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json()) as {
+      activity: Array<{ op: string; summary: string; nodeId: string | null }>;
+    };
+    expect(presence.activity.find((entry) => entry.op === 'edge.add')).toMatchObject({
+      summary: 'Connected “Local source” → “Remote evidence”',
+      nodeId: source.id,
+    });
+    if (grabbed) {
+      expect((await post('/api/canvas/edge', { ...edge, toBoardId: localBoard.board.id })).status).toBe(409);
+      await post('/api/canvas/human-presence', { clientId: 'tab-a', grabbingNodeId: source.id });
+      expect((await post('/api/canvas/edge', edge)).status).toBe(409);
+    }
+    expect(canvasState.activeBoardId).toBe(localBoard.board.id);
   });
 
   test('dissolving or re-grouping around a held node is refused too — the member changes hands', async () => {

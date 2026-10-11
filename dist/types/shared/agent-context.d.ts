@@ -5,6 +5,8 @@ export interface AgentContextNode {
     kind: string;
     title: string | null;
     content: string | null;
+    /** Context excerpts do not serialize the card's complete incident relations. */
+    linksComplete?: false;
     metadata?: Record<string, unknown>;
     position?: {
         x: number;

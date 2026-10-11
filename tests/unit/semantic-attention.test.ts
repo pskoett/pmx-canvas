@@ -63,6 +63,45 @@ function single<T extends SemanticWatchEvent['type']>(
 }
 
 describe('SemanticWatchReducer message routing', () => {
+  test('board and Home transitions are silent baselines; same-board deletions still notify', () => {
+    const reducer = new SemanticWatchReducer();
+    const layout = makeLayout([{ id: 'a' }, { id: 'b' }], [{ id: 'ab', from: 'a', to: 'b', type: 'relation' }]);
+    reducer.handleMessage(layoutMessage(layout, { boardId: 'source' }));
+    reducer.handleMessage(pinsMessage(['a'], { boardId: 'source' }));
+    expect(reducer.handleMessage(layoutMessage(makeLayout([]), { boardId: null }))).toEqual([]);
+    expect(reducer.handleMessage(pinsMessage([], { boardId: null }))).toEqual([]);
+    expect(reducer.handleMessage(pinsMessage(['a'], { boardId: 'source' }))).toEqual([]);
+    expect(reducer.handleMessage(layoutMessage(layout, { boardId: 'source' }))).toEqual([]);
+    const removed = single(
+      reducer.handleMessage(layoutMessage(makeLayout([{ id: 'a' }]), { boardId: 'source' })),
+      'remove',
+    );
+    expect(removed.nodes.map((node) => node.id)).toEqual(['b']);
+    expect(removed.edges.map((edge) => edge.id)).toEqual(['ab']);
+  });
+
+  test('remote edge summaries preserve board identity without borrowing a local target title', () => {
+    const reducer = new SemanticWatchReducer();
+    const nodes = [
+      { id: 'a', title: 'Source' },
+      { id: 'b', title: 'Wrong local target' },
+    ];
+    reducer.handleMessage(layoutMessage(makeLayout(nodes)));
+    const event = single(
+      reducer.handleMessage(
+        layoutMessage(
+          makeLayout(nodes, [
+            { id: 'remote', from: 'a', to: 'b', toBoardId: 'other', type: 'relation' },
+            { id: 'local', from: 'a', to: 'b', type: 'relation' },
+          ]),
+        ),
+      ),
+      'connect',
+    );
+    expect(event.edges.find((edge) => edge.id === 'remote')).toMatchObject({ toBoardId: 'other', toTitle: null });
+    expect(event.edges.find((edge) => edge.id === 'local')?.toTitle).toBe('Wrong local target');
+  });
+
   test('ignores SSE events it does not understand', () => {
     const reducer = new SemanticWatchReducer();
 

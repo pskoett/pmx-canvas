@@ -53,6 +53,10 @@ and check `$?`, then read the file.
 - Test-only changes: run `bun run test` and `bun run test:coverage` if coverage matters
 - Client/UI/browser interaction changes: run `bun run test:web-canvas`
 - Cross-stack or non-trivial changes: run `bun run test:all`
+- Bundled skill/documentation-only changes: run
+  `bun test tests/unit/bundled-skills.test.ts tests/unit/no-native-tooltips.test.ts`
+  and `git diff --check`; inspect public-contract prose against source. No client rebuild or
+  full browser suite is needed when executable behavior has not changed.
 - Before changing browser-visible behavior under `src/client/`: rebuild with `bun run build`
   Manual browser validation also requires a fresh client bundle. `bun run test:web-canvas`
   already does this for you.
@@ -146,6 +150,13 @@ Four ways a test silently stops discriminating in this repo:
   between those assertions. Separately verify a real spec revision resets to authored state,
   and that local drafts never entered the server spec. See `tests/e2e/json-render-forms.pw.ts`.
   Eval definitions are not evidence of executing this browser regression or a model benchmark.
+- For viewer refreshes, run `tests/e2e/viewer-refresh-frames.pw.ts`: it delays the runtime-state
+  restore beyond document load and checks every captured frame for blank/white flashes in
+  Harbor with light/dark OS settings and Daylight with dark OS settings. Keep the frame assertions;
+  a settled DOM check cannot prove the handoff stayed painted. Reset canvas-bound work as well as
+  nodes between cases. The inert replacement renders behind the active iframe, so select the
+  foreground with `iframe:not([inert])`, not `iframe:visible`. Keep capturing until the last
+  update is actually in the foreground; a momentary one-iframe count may precede the next poll.
 - When checking embedded frame fit manually, start from a clean seeded state, rebuild stale bundles,
   and inspect the actual iframe document in a browser. Server dimensions can look correct while the
   embedded content is still clipped.
@@ -158,6 +169,15 @@ Four ways a test silently stops discriminating in this repo:
 - User-facing creation flows must end with the new nodes visible: after the create (plus the
   skill-mandated focus/fit), a screenshot must show them without any manual pan. A `panned: true`
   API result alone is not proof — verify the frame is on-screen and unobscured.
+- Layout validation proves node non-overlap, not relation readability. After content settles,
+  inspect edge lines, labels, arrowheads and authorship marks at the intended viewing zoom,
+  including after auto-arrange; do not prescribe one universal gap.
+- Context/receipt checks must distinguish map delivery (seen links and board read status) from
+  full card-content reads. Check one-open stacked See change, clipped-excerpt captions and
+  whole-card Undo with a latest-human-edit negative control. Retain a receipt across a board
+  switch: snapshot comparison must reopen its owning board, Undo/Unpin must not affect the
+  foreign board, and lens marks must use only active-board touches. Check the narrow agent
+  initial's counts/lens/panel interaction separately. Use disposable boards for these checks.
 
 ## Failure Handling
 

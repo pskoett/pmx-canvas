@@ -20,6 +20,19 @@ function overlap(
 }
 
 describe('computeAutoArrange', () => {
+  test('remote edges do not join local cards with colliding target IDs', () => {
+    const nodes = [
+      makeNode({ id: 'source', type: 'markdown', position: { x: 0, y: 0 } }),
+      makeNode({ id: 'target', type: 'markdown', position: { x: 10000, y: 0 } }),
+    ];
+    for (const mode of ['grid', 'graph'] as const) {
+      const baseline = computeAutoArrange(nodes, [], mode);
+      const remote = computeAutoArrange(nodes, [{ id: 'e', from: 'source', to: 'target', toBoardId: 'other' }], mode);
+      expect(remote).toEqual(baseline);
+      expect(computeAutoArrange(nodes, [{ id: 'e', from: 'source', to: 'target' }], mode)).not.toEqual(baseline);
+    }
+  });
+
   test('two far-apart clusters each arrange in their own neighborhood — never interleaved (regression: the wild arrange)', () => {
     // The live board that broke: QA cards near the origin, a demo cluster
     // parked ~10k units away, a couple of edges. The old global repack

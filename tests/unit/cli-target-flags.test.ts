@@ -97,6 +97,21 @@ describe('agent CLI global target flags', () => {
     expect(JSON.parse(result.stdout.trim())).toEqual([]);
   });
 
+  test('memory-graph rejects bare and empty depth while retaining zero and default two', async () => {
+    for (const args of [['--depth'], ['--depth='], ['--depth', ' ']]) {
+      const result = await runRealCli(['memory-graph', '--server-url', baseUrl, ...args]);
+      expect(result.code).toBe(1);
+      expect(result.stdout + result.stderr).toContain('depth');
+    }
+    for (const depth of ['0', '4']) {
+      expect((await runRealCli(['memory-graph', '--server-url', baseUrl, '--depth', depth])).code).toBe(0);
+    }
+    const omitted = await runRealCli(['memory-graph', '--server-url', baseUrl]);
+    const explicit = await runRealCli(['memory-graph', '--server-url', baseUrl, '--depth', '2']);
+    expect(omitted.code).toBe(0);
+    expect(JSON.parse(omitted.stdout)).toEqual(JSON.parse(explicit.stdout));
+  });
+
   test('a leading invalid --port dies loudly via the real CLI entry (never boots a server)', async () => {
     const result = await runRealCli(['--port', 'banana', 'node', 'list']);
     expect(result.code).toBe(1);

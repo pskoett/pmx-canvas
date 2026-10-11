@@ -101,6 +101,7 @@ interface CanvasCreateGroupInput {
 interface CanvasNodeLookupInput {
     id?: string;
     search?: string;
+    board?: string;
 }
 export declare function hasStructuredNodeUpdateFields(input: Record<string, unknown>): boolean;
 export declare function buildStructuredNodeUpdate(node: CanvasNodeState, input: CanvasStructuredNodeUpdateInput): {
@@ -228,6 +229,7 @@ export declare function gcCanvasSnapshots(options?: Parameters<typeof canvasStat
 export declare function addCanvasEdge(input: {
     from?: string;
     to?: string;
+    toBoardId?: string;
     fromSearch?: string;
     toSearch?: string;
     type: CanvasEdge['type'];

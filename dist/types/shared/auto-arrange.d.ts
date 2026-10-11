@@ -18,6 +18,7 @@ export interface ArrangeEdge {
     id: string;
     from: string;
     to: string;
+    toBoardId?: string;
 }
 export interface AutoArrangeResult {
     nodePositions: Map<string, ArrangePosition>;

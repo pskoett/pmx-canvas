@@ -187,8 +187,18 @@ export function registerCanvasApp(server: McpServer, ensureCanvas: () => Promise
           position: node.position,
           size: node.size,
           edges: layout.edges
-            .filter((edge) => edge.from === node.id || edge.to === node.id)
-            .map(({ id, from, to, type, label }) => ({ id, from, to, type, label: label ?? '' })),
+            .filter(
+              (edge) =>
+                edge.from === node.id || ((!edge.toBoardId || edge.toBoardId === input.boardId) && edge.to === node.id),
+            )
+            .map(({ id, from, to, toBoardId, type, label }) => ({
+              id,
+              from,
+              to,
+              ...(toBoardId !== undefined ? { toBoardId } : {}),
+              type,
+              label: label ?? '',
+            })),
         };
         return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
       }),

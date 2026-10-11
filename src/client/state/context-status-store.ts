@@ -83,6 +83,7 @@ export interface LinkMarks {
 export function linkMarks(edge: {
   from: string;
   to: string;
+  toBoardId?: string;
   revision?: number;
   changedBy?: { actor: string; source: string; agentId?: string };
 }): LinkMarks {
@@ -91,7 +92,7 @@ export function linkMarks(edge: {
   const notSeen =
     !!edge.revision &&
     Object.keys(seen).length > 0 &&
-    edge.revision > Math.max(seen[edge.from] ?? -1, seen[edge.to] ?? -1);
+    edge.revision > Math.max(seen[edge.from] ?? -1, edge.toBoardId === undefined ? (seen[edge.to] ?? -1) : -1);
   return { agent: null, notSeen };
 }
 
@@ -105,7 +106,8 @@ export function linksChanged(nodeId: string, linksRevision: number): boolean {
   const seen = seenLinks.value[nodeId];
   if (seen === undefined || linksRevision <= seen) return false;
   const unseen = [...edges.value.values()].filter(
-    (edge) => (edge.from === nodeId || edge.to === nodeId) && (edge.revision ?? 0) > seen,
+    (edge) =>
+      (edge.from === nodeId || (edge.toBoardId === undefined && edge.to === nodeId)) && (edge.revision ?? 0) > seen,
   );
   if (unseen.some((edge) => edge.changedBy?.actor !== 'agent')) return true;
   return !unseen.some((edge) => edge.revision === linksRevision);

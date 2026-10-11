@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { BarHint } from './BarHint';
-import { nodes, toggleContextPin } from '../state/canvas-store';
+import { nodes, removeContextPins } from '../state/canvas-store';
 import { activeBoardId, boardList, openBoard } from '../state/boards-store';
 import {
   activityLens,
@@ -151,9 +151,7 @@ function ReceiptContext({
                 type="button"
                 class="session-receipt-mini"
                 disabled={context.pinned.some((node) => node.boardId && node.boardId !== activeBoardId.value)}
-                onClick={() => {
-                  for (const node of context.pinned) toggleContextPin(node.id);
-                }}
+                onClick={() => removeContextPins(context.pinned.map((node) => node.id))}
               >
                 Unpin
               </button>

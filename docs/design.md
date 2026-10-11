@@ -130,8 +130,8 @@ the same change.
 | [`SeeChange.dc.html`](design/SeeChange.dc.html) | Built locally (2026-10-10): Before above After (the receipt stays 290 px), changed words marked (removed struck through and muted, added in a violet tint), excerpts cut with “…”, Undo this card and its states (✓ Undone · You edited it since · Open its board to undo), the Edited row’s Undo (Undone · Kept your edits). Long scroll boxes start at the first changed word with context above it; the receipt uses opaque `--c-panel` so underlying marks do not bleed through. At ≤ 760 px the agent's initial has its violet ring and phase dot; clicking opens live counts, the dim-untouched switch and Open session panel (ContextChip600 wins over Pane600). Checked at 600/1024/1920 in all nine themes | 1 |
 | [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt. Built (2026-10-10) with two placements of our own: the live "Claude · this session" counts sit in the top bar's agent chip ("2 read · 1 edited", press to dim untouched cards; Pane600's wording), because the bottom of the canvas belongs to the command bar; "see change" lives on the receipt's Edited lines, not on the card, which has no meta line — its open view is now built to SeeChange. The drawing's Suggested state is dropped (maintainer, 2026-10-10: the agent changes the canvas directly; asks and suggestions go through the composer) | 1 |
 | [`BoardPins.dc.html`](design/BoardPins.dc.html) | Board pins: where you pin a board, the tiered brief, the context chip across boards; each pinned board carries its category glyph and review state (due count, the brief’s “review due” / “lifecycle unknown” lines) | 1 |
-| [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details. Built 2026-10-10 with three deviations: folders carry no colour (the 2026-10-07 decision supersedes the drawing's hues); the folder's README line waits until folders have a README; the Map and Graph tabs wait for wave 2. A card selects the board into details; Open board (or a double-click) opens it | 1 |
-| [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library | 2 |
+| [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details. Folders carry no colour (the 2026-10-07 decision supersedes the drawing's hues); the folder's README line waits until folders have a README. Map and Graph are now available. A card selects the board into details; Open board (or a double-click) opens it | 1, 2 |
+| [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library; implemented with the wave-2 deviations below | 2 |
 | [`HomeTeam.dc.html`](design/HomeTeam.dc.html) | Home on a team server: workspace and personal libraries, per-user pins, moving a board into the workspace, locked links, folder categories and due counts in both libraries (look ahead) | Later (Part 3, step 5) |
 | [`Categories.dc.html`](design/Categories.dc.html), [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Knowledge categories as a folder property (glyph + word, no colour; set here vs `↳` inherited; dashed “unknown”), folder settings, the one workspace list with lifecycle defaults and templates (org/team/personal is one option), a solo-research workspace; on cards: lifecycle override (never category), the four clocks, review outcomes with evidence, the board's review list, the brief. Review due is amber **outlined** with ⧗ as the card's bottom line, only while due; changed-since-read stays amber **filled** with △ in the header. 600 px | For review (move 13, Part 3) |
 | [`LifecycleVariants.dc.html`](design/LifecycleVariants.dc.html), [`Restore.dc.html`](design/Restore.dc.html) | Where lifecycle shows: variant A (review due on the card while due) vs B (only in the ⋯ menu, a count on the board), with the shared ⋯ → Lifecycle entry; retiring and restoring a card: dimmed in place, Retired filter, search, Restore in the Lifecycle tab, Undo toast, history with who and when | A chosen 2026-10-07; restore confirmed |
@@ -147,6 +147,16 @@ the same change.
 the canvas region, keeping Undo and History reachable. The Edited row follows individual restores
 as well as bulk Undo. On another board, View diff becomes Open <board> to compare, even when the
 session only added or removed cards; snapshot ownership checks stay unchanged.
+
+**Viewer refresh handoff (2026-10-10).** Keep the painted embedded JSON/graph viewer visible
+while its replacement loads and restores tab-local state. After React commits, the replacement
+advances its own rendering cycle through two animation frames before acknowledging readiness.
+Authenticate that acknowledgement by node ID, nonce and source window, then wait two parent
+animation frames before promotion. The replacement renders behind the old opaque iframe, inert
+and excluded from accessibility until promotion; `visibility:hidden` would suppress rendering.
+Keep the iframe stack's z-indices local. An obsolete replacement cannot promote after a newer
+source arrives.
+Standalone viewers and HTML/artifact viewers retain their existing load path; no new styling.
 
 ## Principles
 
@@ -214,14 +224,17 @@ session only added or removed cards; snapshot ownership checks stay unchanged.
 ## Build plan
 
 Each wave pairs a vision move with the design that shows it. A wave is done only
-when both halves pass its check. Status reflects 0.7.0 (see the vision's
-implementation table).
+when both halves pass its check. Wave 2 is implemented in the current checkout;
+completion still requires the checks below and the [release gates](RELEASE.md).
+Wave 3, including [knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md),
+remains deferred. This is implementation status, not a release promise or
+authorization to publish.
 
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
 | **0. Foundation** — ships alone, first | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; reference cases pass at 600, 1024 and 1920 px; demo board regenerated |
 | **1. Context made visible** — next batch, with the curation evaluation | Part 1 bet, moves 0a, 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node and per board as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board pins (`board_pins`, tiered brief, `canvas_board pin/unpin`) and Home's pinned-boards section | What the agent did with context, Nodes in context, Board pins, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
-| **2. Connected memory views** — next batch, remaining wiki/graph work | Moves 0, 14 | Board map projection (generated like the code graph), wiki links, direct cross-board card edges, previous-board chains; the same relation graph read by the agent as `canvas://graph{?focus,depth}` (one projection, two readers; the brief is its depth-1 neighbourhood) | Home Map, Home Graph | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
+| **2. Connected memory views** — implemented, verification gates apply | Moves 0, 14 | One board/card projection for Home, links/backlinks, brief discovery and `canvas://graph{?focus,depth}`; saved wiki ID bindings, direct cross-board card edges, previous-board chains, persisted Map positions | Home Map, Home Graph (deviations below) | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |
 | **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
@@ -232,6 +245,17 @@ board lives, one place); portals and links are how boards relate: a many-to-many
 navigates through links and backlinks on `canvas://boards`, and that Map and Graph draw. This
 replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
 links disagree, the Map shows it (folders as regions) rather than forcing them to match.
+
+**Wave-2 implementation deviations.** Graph uses neutral circular board/card
+clusters, not a force simulation. Map uses deterministic neutral folder regions,
+with no synthetic Home board or level hierarchy; dragging a board persists its
+`mapPosition` in SQLite. Labels live in selection details to avoid occlusion.
+Filters share the toolbar instead of the mockup sidebar; there are no simulation
+sliders. Folders remain independent of the relationship graph. Remote card
+connections use the source footer and human More-menu picker, not remote canvas
+lines; auto-arrange remains local and static export retains explicit external
+connection evidence. Rich kinds/reasons, provenance-driven staleness and
+lifecycle are wave 3, not claims of this implementation.
 
 **Context lifecycle (direction added 2026-10-07).** [Vision move 13](product-vision-2026-09.md#13-context-lifecycle-and-recipe-cards-m-then-later-classification)
 extends Wave 3's source-change warning into evidence-backed review: decay type/rate, triggers,

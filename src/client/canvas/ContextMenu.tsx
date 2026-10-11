@@ -551,9 +551,15 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
       pendingConnection.value = { from: node.id };
     },
   });
+  items.push({
+    label: 'Connect to a card on another board…',
+    action: () => window.dispatchEvent(new CustomEvent('pmx-open-board-link', { detail: { sourceNodeId: node.id } })),
+  });
 
   // Show edge count
-  const edgeCount = Array.from(edges.value.values()).filter((e) => e.from === node.id || e.to === node.id).length;
+  const edgeCount = Array.from(edges.value.values()).filter(
+    (e) => e.from === node.id || (!e.toBoardId && e.to === node.id),
+  ).length;
   if (edgeCount > 0) {
     items.push({
       label: `${edgeCount} edge${edgeCount !== 1 ? 's' : ''} connected`,

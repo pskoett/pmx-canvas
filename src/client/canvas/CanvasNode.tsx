@@ -1,4 +1,4 @@
-import { boardList } from '../state/boards-store';
+import { activeBoardId, boardList, openMemoryTarget } from '../state/boards-store';
 import { BarHint } from './BarHint';
 import { BoardPinButton } from './BoardPinButton';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
@@ -15,6 +15,7 @@ import {
   dragDropTarget,
   draggingEdge,
   endDropTracking,
+  edges,
   expandNode,
   nodes,
   persistLayout,
@@ -174,6 +175,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     node.type === 'board' && typeof node.data.boardId === 'string'
       ? (boardList.value.find((board) => board.id === node.data.boardId) ?? null)
       : null;
+  const remoteEdges = [...edges.value.values()].filter((edge) => edge.toBoardId && edge.from === node.id);
+  const sourceBoard = boardList.value.find((board) => board.id === activeBoardId.value);
   const isAttentionPulse = attentionPulseNodeIds.value.has(node.id);
   const isNeighbor = !isActive && activeNeighborNodeIds.value.has(node.id);
   const searchSet = searchHighlightIds.value;
@@ -800,7 +803,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           </div>
         )}
         {!node.collapsed && (
-          <div ref={bodyRef} class="node-body">
+          <div ref={bodyRef} class={`node-body${remoteEdges.length ? ' has-memory-links' : ''}`}>
             {children}
             {/* AX flow step controls — rendered here rather than in a node renderer
               because a materialized step can be ANY node type, and because the
@@ -808,6 +811,31 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               on a content-fitted node). Renders nothing unless the node carries a
               `data.axStep` stamp. */}
             <AxStepControls node={node} />
+            {remoteEdges.map((edge) => {
+              const targetBoard = boardList.value.find((board) => board.id === edge.toBoardId);
+              const link = sourceBoard?.links?.find(
+                (link) =>
+                  link.kind === 'card' &&
+                  link.nodeId === node.id &&
+                  link.boardId === edge.toBoardId &&
+                  link.cardId === edge.to,
+              );
+              return (
+                <div class="node-memory-link" key={edge.id}>
+                  <button
+                    type="button"
+                    disabled={!targetBoard || link?.missing === true}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void openMemoryTarget({ boardId: edge.toBoardId!, cardId: edge.to });
+                    }}
+                  >
+                    ↗ {edge.label || edge.type}: {targetBoard?.name ?? 'Missing board'} /{' '}
+                    {link?.cardTitle ?? (link?.missing ? 'Missing card' : 'Loading card…')}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

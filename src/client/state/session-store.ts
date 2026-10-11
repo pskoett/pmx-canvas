@@ -616,17 +616,18 @@ export async function undoSessionEdits(
     // A card you edited after the session keeps your edit.
     const node = nodes.value.get(nodeId);
     if (!node || node.lastEditedBy?.actor === 'human') continue;
-    const result = await requestOk(
+    const result = await requestJson<{ ok: boolean; restored: boolean }>(
       'undoSessionEdit',
       `/api/canvas/snapshots/${encodeURIComponent(snapshotId)}/restore-node`,
+      { ok: false, restored: false },
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodeId }),
+        body: JSON.stringify({ nodeId, preserveHumanEdits: true }),
       },
     );
     ok = ok && result.ok;
-    if (result.ok) restored.push(nodeId);
+    if (result.ok && result.restored) restored.push(nodeId);
   }
   return { ok, restored };
 }

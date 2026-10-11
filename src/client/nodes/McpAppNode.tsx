@@ -1,9 +1,10 @@
 import type { RefObject } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { canvasThemeScheme } from '../../shared/themes.js';
 import type { CanvasNodeState } from '../types';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
+import { showToast } from '../state/attention-bridge';
 import { iframeMode } from '../state/iframe-mode';
 import { shouldContentFitIframeNode } from '../canvas/auto-fit';
 import { ExtAppFrame } from './ExtAppFrame';
@@ -65,9 +66,9 @@ type ViewerFrameSource = { src?: string; srcdoc?: string };
 /**
  * Keep the last painted viewer in front while its replacement navigates. Viewer
  * specs are immutable documents, so updates normally change `?v=` and reload the
- * iframe; putting the new document in a hidden sibling avoids exposing Chromium's
- * white navigation paint. Two animation frames after load gives the new document
- * a composited paint before the old one is removed.
+ * iframe; putting the new document behind the old one conceals Chromium's white
+ * navigation paint without suppressing rendering. Wait for restore and render commit,
+ * then two animation frames before the old viewer is removed.
  */
 export function RefreshingViewerFrame({
   source,
@@ -83,7 +84,7 @@ export function RefreshingViewerFrame({
   source: ViewerFrameSource;
   iframeRef: RefObject<HTMLIFrameElement>;
   onLoad: () => void;
-  onDocumentLoad?: (frame: HTMLIFrameElement) => void;
+  onDocumentLoad?: (frame: HTMLIFrameElement, signal: AbortSignal) => void | Promise<boolean | void>;
   title: string;
   className?: string;
   sandbox?: string;
@@ -91,50 +92,77 @@ export function RefreshingViewerFrame({
   tabIndex?: number;
 }) {
   const sourceKey = source.src ?? source.srcdoc ?? '';
-  const [painted, setPainted] = useState({ key: sourceKey, source });
-  const [pending, setPending] = useState<{ key: string; source: ViewerFrameSource } | null>(null);
+  const [painted, setPainted] = useState({ key: sourceKey, source, attempt: 0 });
+  const [pending, setPending] = useState<{ key: string; source: ViewerFrameSource; attempt: number } | null>(null);
   const promotionRef = useRef(0);
+  const readiness = useRef(new Set<AbortController>());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     promotionRef.current += 1;
+    for (const controller of readiness.current) controller.abort();
+    readiness.current.clear();
     if (!sourceKey || sourceKey === painted.key) {
       setPending(null);
       return;
     }
     if (!painted.key) {
-      setPainted({ key: sourceKey, source });
+      setPainted({ key: sourceKey, source, attempt: 0 });
       return;
     }
-    setPending({ key: sourceKey, source });
+    setPending({ key: sourceKey, source, attempt: 0 });
   }, [sourceKey, painted.key]);
 
   useEffect(
     () => () => {
       promotionRef.current += 1;
+      for (const controller of readiness.current) controller.abort();
+      readiness.current.clear();
     },
     [],
   );
 
-  const frame = (entry: { key: string; source: ViewerFrameSource }, isPending: boolean) => (
+  const frame = (entry: { key: string; source: ViewerFrameSource; attempt: number }, isPending: boolean) => (
     <iframe
-      key={entry.key}
+      key={`${entry.key}:${entry.attempt}`}
       ref={isPending ? undefined : iframeRef}
       {...entry.source}
       class={className}
       sandbox={sandbox}
       allow={allow}
       tabIndex={tabIndex}
+      inert={isPending}
+      aria-hidden={isPending ? true : undefined}
       loading={iframeMode.value === 'srcdoc' ? undefined : 'lazy'}
-      onLoad={(event) => {
+      onLoad={async (event) => {
         // Seed runtime state while a replacement is still behind the painted
-        // frame, rather than mounting an empty viewer after promotion.
-        onDocumentLoad?.(event.currentTarget);
+        // frame, and wait until that document has committed its rendered UI.
+        const token = isPending ? ++promotionRef.current : promotionRef.current;
+        const loadedFrame = event.currentTarget;
+        const controller = new AbortController();
+        readiness.current.add(controller);
+        const ready = onDocumentLoad?.(loadedFrame, controller.signal);
+        const loaded = ready ? await ready : undefined;
+        readiness.current.delete(controller);
+        if (promotionRef.current !== token) return;
+        if (loaded === false) {
+          if (entry.attempt === 0) {
+            const retry = { ...entry, attempt: 1 };
+            if (isPending) setPending(retry);
+            else setPainted(retry);
+          } else {
+            if (isPending) setPending(null);
+            showToast(
+              'remove',
+              'Viewer could not load',
+              `${isPending ? 'Keeping the last view. ' : ''}Reload to retry.`,
+            );
+          }
+          return;
+        }
         if (!isPending) {
           onLoad();
           return;
         }
-        const token = ++promotionRef.current;
-        const loadedFrame = event.currentTarget;
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
             if (promotionRef.current !== token) return;
@@ -150,7 +178,8 @@ export function RefreshingViewerFrame({
         inset: 0,
         width: '100%',
         height: '100%',
-        visibility: isPending ? 'hidden' : 'visible',
+        visibility: 'visible',
+        zIndex: isPending ? 0 : 1,
         background: 'var(--c-panel-soft)',
       }}
       title={title}
@@ -299,8 +328,9 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
       <RefreshingViewerFrame
         source={surfaceFrame}
         iframeRef={iframeRef}
-        onDocumentLoad={(frame) => {
-          if (stateToken && frame.contentWindow) restoreViewerRuntimeState(node.id, stateToken, frame.contentWindow);
+        onDocumentLoad={(frame, signal) => {
+          if (stateToken && frame.contentWindow)
+            return restoreViewerRuntimeState(node.id, stateToken, frame.contentWindow, signal);
         }}
         onLoad={pushAxState}
         title={`MCP App: ${sourceServer}`}

@@ -42,6 +42,30 @@ cmd(
 );
 
 cmd(
+  'memory-graph',
+  'Explore the board/card relation graph (summary-only)',
+  [
+    'pmx-canvas memory-graph',
+    'pmx-canvas memory-graph --focus pins --depth 2',
+    'pmx-canvas memory-graph --projection boards',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('memory-graph');
+    if (flags.depth !== undefined && (typeof flags.depth !== 'string' || !flags.depth.trim())) {
+      die('--depth requires an integer from 0 to 4.');
+    }
+    output(
+      await invokeOperation('memory-graph.get', {
+        ...(typeof flags.focus === 'string' ? { focus: flags.focus } : {}),
+        ...(flags.depth !== undefined ? { depth: Number(flags.depth) } : {}),
+        ...(flags.projection !== undefined ? { projection: flags.projection } : {}),
+      }),
+    );
+  },
+);
+
+cmd(
   'context',
   'Read the budgeted cross-board context brief',
   ['pmx-canvas context --consumer codex --budget 16000'],

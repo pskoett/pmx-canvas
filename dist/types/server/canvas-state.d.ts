@@ -12,6 +12,8 @@
  * the one-shot boot migration into SQLite was retired.
  */
 import { type Tour } from '../shared/tour.js';
+import { type WikiBoard } from './wiki-links.js';
+import { type WikiLink } from '../shared/memory-graph.js';
 import { type CanvasBoard, type ContextPinMeta, type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type DocumentImport, type DocumentImportStatus, type ImportSection, type Attachment } from './document-import.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
@@ -103,6 +105,8 @@ export interface CanvasEdge {
     id: string;
     from: string;
     to: string;
+    /** Target on another board. Source and mutation ownership stay on the active board. */
+    toBoardId?: string;
     type: 'relation' | 'depends-on' | 'flow' | 'references';
     label?: string;
     style?: 'solid' | 'dashed' | 'dotted';
@@ -319,6 +323,10 @@ declare class CanvasStateManager {
     updateBoard(id: string, patch: {
         name?: string;
         category?: string | null;
+        mapPosition?: {
+            x: number;
+            y: number;
+        } | null;
     }): boolean;
     setBoardReadme(id: string, nodeId: string | null): boolean;
     /**
@@ -396,14 +404,19 @@ declare class CanvasStateManager {
     clearAllSnapshots(): void;
     private restampRestoredContent;
     private semanticData;
+    /** A small name/ID catalog, read only when Markdown is saved, never on a drag frame. */
+    wikiCatalog(): WikiBoard[];
+    /** Backfill only uninitialized live rows, not snapshots or authoritative empty/unresolved bindings. */
+    private initializePersistedWikiLinks;
+    private bindWikiLinks;
     private nodeContentChanged;
     private setSemanticNode;
     private recordDeletion;
     get viewport(): ViewportState;
-    addNode(node: CanvasNodeState): void;
+    addNode(node: CanvasNodeState, savedWikiLinks?: WikiLink[]): void;
     addJsonRenderNode(node: CanvasNodeState): void;
     addGraphNode(node: CanvasNodeState): void;
-    updateNode(id: string, patch: Partial<CanvasNodeState>): void;
+    updateNode(id: string, patch: Partial<CanvasNodeState>, savedWikiLinks?: WikiLink[] | null): void;
     removeNode(id: string): void;
     getNode(id: string): CanvasNodeState | undefined;
     /** Who made and last edited each card, and its content revision — no content, no copies. */
@@ -418,6 +431,10 @@ declare class CanvasStateManager {
      * Returns the stamp for the changed link.
      */
     private touchRelations;
+    private invalidateRelationTarget;
+    /** Saved wiki relationships have the same source/target clocks as native links. */
+    private touchWikiRelations;
+    private invalidateIncomingRelations;
     addEdge(edge: CanvasEdge): boolean;
     updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
     /**
