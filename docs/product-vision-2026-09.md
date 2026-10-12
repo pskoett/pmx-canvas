@@ -1,14 +1,14 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10
+**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-12
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
 
 ## Current plan
 
-*One page; the rest of this document is the reasoning and the detail. Updated 2026-09-28. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
+*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-12. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
 
 **The promise.** One board is both the human's durable workspace and the agent's working memory. Agents write boards, humans shape them, boards last, link into a wiki, travel as files and links, and what the human curates is what the agent reads next.
 
@@ -16,29 +16,52 @@
 
 **Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the workbench is built and checked for any size, from a narrow side pane to a full browser window, checked in Chromium at 600, 1024 and 1920 px, replacing the 2026-09-24 single 600 px reference (2026-10-05); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Board pins are the working set across boards (2026-10-05, move 0a). A hosted team server separates workspace and personal libraries (2026-10-05, Part 3). Folders are the one browsing hierarchy and links stay a graph for relations (2026-10-06, move 0). Undecided: generated surfaces (6b).
 
-**Knowledge direction, 2026-10-07:** Part 3 extends the workspace/personal split to user-defined knowledge scopes (org → team → personal is one example template), with categories as a property of folders. Move 13 adopts evidence-backed context lifecycle from the context-decay framework. Both are model-independent; Jev-style classification is optional longer-term assistance. These are planned additions, not shipped features or new Wave 1 prerequisites.
+**Knowledge direction, 2026-10-07:** Part 3 extends the workspace/personal split to user-defined knowledge scopes (org → team → personal is one example template), with categories as a property of folders. Move 13 adopts evidence-backed context lifecycle from the context-decay framework. Local folder categories and card lifecycle are now implemented in Wave 3. Shared/private knowledge scopes remain future work; Jev-style classification is optional longer-term assistance. These later stages are not prerequisites for the model-independent local features or Wave 1.
 
 **Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible with the curation evaluation, the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
 
 **Wave 1 status, 2026-10-10 — context made visible: built on `main`, not released.** From the board alone a person can now see what is in the agent's context and whether its copy is current: read / not read / changed marks on pinned cards; near-a-pin (the brief carries neighbours, the dotted chip, tethers and the 600 px radius, the moment a card arrives or leaves); links that changed since a read, on the link and in the brief ("new, by codex"); board pins and Home as a library (folder tree, board cards, details, the in-context switch); the session receipt (what the agent did, per-edit descriptions with "See change", Tell <agent>, Undo per card via `snapshot.restore-node`) and the live session lens in the agent chip. Remaining: the curation evaluation, deferred until the maintainer tests a version; building to the new [SeeChange](design/SeeChange.dc.html) drawing (2026-10-10); the pickup/drop pauses of a drag on large boards (per-frame cost fixed 2026-10-10). Handoff detail in plan 016. **Dropped 2026-10-10:** Suggested cards — the agent changes the canvas directly, and an ask or a suggestion already goes through the composer. Detail and deviations: [plan 016](plans/plan-016-context-made-visible-wave-1.md), [design.md](design.md).
 
-**Stabilization update, 2026-10-11 (supersedes the remaining-work list above):** See change now
+**Implementation and stabilization, 2026-10-12 (supersedes the remaining-work list above):** See change now
 matches its drawing, and the measured page-wide pickup/drop style cost is removed; occasional
 long drag tasks remain. The maintainer's real-agent curation evaluation is still deferred.
-[Wave 2](plans/plan-018-connected-memory-wave-2.md) is implemented and stabilized: Home Map/Graph,
-saved wiki bindings, qualified cross-board card edges and graph reads. The
-[Wave 3 foundation](plans/plan-017-knowledge-categories-and-lifecycle.md) has board folders and
-audited category/lifecycle data; richer relations, provenance, lifecycle qualification/UI and
-the due engine remain to be built. The combined local gates pass 1,437 unit, 302 client and
-266 headed browser cases, with live human/agent checks. Nothing in this batch is released.
-The maintainer requires Waves 2 and 3 before considering 0.9.0 and has withheld release approval.
+
+- **Wave 2 implemented scope:** saved wiki bindings, qualified cross-board card edges and graph
+  reads, plus live Home Map/force-directed Graph with counted filters, focus and navigation
+  preserved across agent board switches. Map keeps dragged positions and neutral folder regions.
+- **Wave 3 implemented scope:** richer relations with per-board vocabularies, source/use queries
+  and provenance; folder categories and inherited card lifecycle; source-driven review, the due
+  engine, evidence-backed review UI, retirement/restore and inert recipe handoff. Acceptance fixes
+  include navigation-first Home, safe unused-category deletion, simple Review, conditional nearby
+  rings, wrapped relation legends and smooth hover handoff.
+- **Delivered on `main`:** the [combined implementation](https://github.com/pskoett/pmx-canvas/commit/11dc311732d8c12acc86dda12b269539df8fa5b3)
+  and [stabilization follow-up](https://github.com/pskoett/pmx-canvas/commit/fd63c3c611e680864d444532ca3ef7bb79cd171e)
+  are pushed. Final local gates pass 1,444 unit, 306 client and 276 headed browser tests,
+  plus 20 repeated save-race cases, fresh headed CLI E2E, live human gestures and real CLI/stdio
+  MCP checks. Independent board vocabularies persist across switching/reload. All five
+  [CI jobs](https://github.com/pskoett/pmx-canvas/actions/runs/38218734543) pass, including macOS
+  and Windows; the startup-only WAL retry resolves their concurrent-open failures.
+
+**Still open:** the owner's acceptance of everything since 0.8.2 and the real-agent curation
+evaluation. Full Relations/Flows/Uses sketch parity is not implemented: inline edge editing,
+amber lineage strokes, pair/cycle/affected badges and lineage actions remain; see
+[the design contract](design.md#build-plan). Dense Fit labels still need selection/local focus
+for detail. The actual Amp embedded context-pill opening, native Copilot/WebKit, native Windows
+UI and registry-installed execution remain unverified. Frame-host consolidation, larger-library
+scaling, board-move/audit semantics and the journal/runtime boundaries remain staged maintenance
+checkpoints, not claims of a debt-free codebase. Evidence and deviations are recorded in
+[plan 017](plans/plan-017-knowledge-categories-and-lifecycle.md) and
+[plan 018](plans/plan-018-connected-memory-wave-2.md).
+
+**Release status:** still 0.8.2. No release, tag, publication, deployment or version bump is
+authorized; implementation and green CI do not substitute for the owner's acceptance.
 
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
 | Release scope | Content | Acceptance target (not a completion claim) |
 |---|---|---|
 | 0.7.0 — persistent boards and connected memory | Many boards, nested folders, backups, static export, README/link cards, library search, shared card text, attribution/revisions, selective copies, bounded cross-board context, agent-assisted document import, trust fixes and the 600 px gate | Release checks, installed-package smoke, browser workflows and live board checks pass; document conversion limitations and migration are explicit |
-| Next batch — scope/version to be agreed | Remaining wiki/graph work and real-agent curation evaluation; cheap-tool surface and binary distribution remain candidates, not completed work | A focused plan with its own acceptance checks; no automatic carry-over of the old 0.8 bundle |
+| Next batch — scope/version to be agreed | Owner acceptance of Waves 1–3, remaining sketch parity and real-agent curation evaluation; later moves remain staged, not completed work | A focused plan with its own acceptance checks and explicit release approval; no automatic carry-over of the old 0.8 bundle |
 
 **Release decision, 2026-09-29:** package the completed batch as **0.7.0**, not
 0.8. Static export and the connected-memory features move into this release;

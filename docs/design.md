@@ -1,6 +1,6 @@
 # Design: the system and when it gets built
 
-*Updated 2026-10-04. Companion to [the vision](product-vision-2026-09.md): the vision
+*Updated 2026-10-12. Companion to [the vision](product-vision-2026-09.md): the vision
 says what the product does and in what order; this file says how it looks and which
 design work ships with which part of that order. Design never ships ahead of the
 function that produces its data, and function never ships with today's styling when
@@ -224,16 +224,29 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
 ## Build plan
 
 Each wave pairs a vision move with the design that shows it. A wave is done only
-when both halves pass its check. Wave 2 passed its original local checkpoint
-(1,418 unit, 276 client and 248 headed browser tests, plus live human/agent checks).
-The later [combined stabilization](plans/plan-018-connected-memory-wave-2.md#combined-stabilization)
-with the Wave 3 foundation passes 1,437 unit, 302 client and 266 headed browser tests,
-plus live human/agent checks and the final focused Oracle review.
-Wave 3 now implements relations, source-driven review and the user-facing
+when both halves pass its check. **Current progress, 2026-10-12:** the implemented
+Wave 2/3 scope and acceptance fixes are pushed in the
+[combined implementation](https://github.com/pskoett/pmx-canvas/commit/11dc311732d8c12acc86dda12b269539df8fa5b3)
+and [stabilization follow-up](https://github.com/pskoett/pmx-canvas/commit/fd63c3c611e680864d444532ca3ef7bb79cd171e).
+Home Map/Graph now have live updates, counted filters and selection details; Graph
+uses a force layout with working controls. Explicit library browsing survives agent
+board switches, preserving camera, selection and gestures until the human opens a target.
+Wave 3 implements per-board relation vocabularies, provenance, source-driven review and
 [knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md).
-The remaining-wave stabilization record is in that plan. The [release gates](RELEASE.md)
-still apply before a release. The owner has not authorized a release or version bump.
-This is implementation status, not a release promise or authorization to publish.
+The final [stabilization record](plans/plan-018-connected-memory-wave-2.md#delivered-checkpoint-2026-10-12)
+has 1,444 unit, 306 client and 276 headed browser tests, 20 repeated save-race cases,
+fresh headed CLI E2E and live human/real-agent transport checks. Widths and all nine themes
+were inspected; independent board vocabularies persist across switching/reload. All five
+[CI jobs](https://github.com/pskoett/pmx-canvas/actions/runs/38218734543) pass. These gates
+do not establish complete drawing parity or replace the owner's acceptance.
+
+**Remaining acceptance:** the real-agent curation evaluation and the owner's test pass since
+0.8.2 remain open. The actual Amp embedded context-pill opening, native Copilot/WebKit,
+native Windows UI and registry-installed execution remain unverified. Dense Fit labels need
+selection/local focus for detail, not a claim of large-library readability. The sketch gaps
+below remain implementation work. The [release gates](RELEASE.md) still apply before a release;
+the owner has not authorized one. Version remains 0.8.2, with no release, tag, publication,
+deployment or version bump. This is implementation status, not release approval.
 
 **Sketch parity, clarified 2026-10-11.** `Relations`, `Flows` and `Uses` remain the
 vision's target designs, not screenshots of the shipped workbench. The Wave-3

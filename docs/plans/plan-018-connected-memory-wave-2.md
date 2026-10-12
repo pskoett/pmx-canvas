@@ -247,3 +247,26 @@ no browser retries in either local full run. Evidence is retained in
 `/tmp/pmx-canvas-e2e.dfySJW`. The client bundle did not change in this follow-up; the combined
 human, real-transport and inspected visual evidence above remains applicable. Native-platform
 CI is still a separate gate, not implied by these Linux results. No release or version change.
+
+### Delivered checkpoint, 2026-10-12
+
+The [stabilization follow-up](https://github.com/pskoett/pmx-canvas/commit/fd63c3c611e680864d444532ca3ef7bb79cd171e)
+is pushed on top of the combined implementation. Its
+[CI run](https://github.com/pskoett/pmx-canvas/actions/runs/38218734543) completed successfully
+across all five jobs: Linux, macOS, Windows, browser E2E and CLI E2E. macOS reports
+1,444 passes and zero failures; Windows reports 1,423 passes, 21 existing skips and zero
+failures. The unchanged concurrent/contended-open regression passes on both platforms.
+Browser CI reports 276 passes with no flaky/retry report. This closes the native-platform
+startup gate above; it does not erase the initial failed runs or their red/green evidence.
+
+A focused read-only Oracle review of the follow-up found no blockers in the startup-only
+retry or save-test synchronization. The owner portal runs this build, with all 11 boards
+preserved; restart checks retain the active board, card contents/geometry, edges and camera.
+The owner's step-by-step acceptance guide now records the delivered build and green CI,
+without marking manual tests passed or replacing the owner's notes.
+
+This is ready for owner acceptance, not a claim of full sketch parity or release approval.
+The embedded Amp pill-opening, dense Fit-label limits, Relations/Flows/Uses gaps and native
+host/UI/registry-install boundaries above remain explicit. Version is still 0.8.2; no release,
+tag, publication, deployment or version bump was performed. Staged maintenance remains in
+the vision and debt backlog.
