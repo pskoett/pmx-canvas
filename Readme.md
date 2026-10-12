@@ -328,7 +328,9 @@ surfaces (the core never imports a host SDK).
   embeds for the thread). Zero configuration: orbs set `AMP_ORB` in the
   service environment, and the canvas auto-adapts to the portal's constraints
   — it defaults straight to the proxy-safe polling transport (the portal
-  proxy buffers the live event stream), and renders HTML, graph, json-render,
+  proxy buffers the live event stream). Direct HTTP polls wait for new events
+  instead of pausing two seconds between reads, keeping guest cursors responsive.
+  It renders HTML, graph, json-render,
   and app surfaces inline via `srcdoc` because the nested-iframe embed blocks
   `src`-URL child iframes (`?transport=sse` and `?iframe-mode=src` override
   either behavior when diagnosing). Non-orb buffering proxies get the same

@@ -663,6 +663,7 @@ test('rich relation kind and reason survive live edits and reload; a human can d
     })
   ).json()) as { id: string };
 
+  await page.clock.install();
   await page.goto('/workbench');
   const path = page.locator(`path#edge-path-${edge.id}`);
   await expect(path).toHaveCount(1);
@@ -695,18 +696,24 @@ test('rich relation kind and reason survive live edits and reload; a human can d
     .toBeCloseTo(0.35, 2);
   const aBox = (await page.locator(`[data-node-id="${a.id}"]`).boundingBox())!;
   const bBox = (await page.locator(`[data-node-id="${b.id}"]`).boundingBox())!;
-  for (const id of [a.id, b.id, a.id, b.id]) {
-    // Cross real blank canvas between related cards. A handoff must not briefly light up the whole board.
-    await page.mouse.move((aBox.x + aBox.width + bBox.x) / 2, bBox.y + 50);
-    await page.evaluate(
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    );
-    expect(await dimmedCard.getAttribute('class')).toMatch(/relation-dimmed/);
-    await page.locator(`[data-node-id="${id}"] .node-body`).hover();
-    expect(await dimmedCard.evaluate((element) => Number(getComputedStyle(element).opacity))).toBeLessThan(0.4);
+  // Drive real pointer events, but control elapsed time: two animation frames
+  // plus test-protocol latency can exceed the short hover grace on a loaded host.
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  try {
+    for (const box of [aBox, bBox, aBox, bBox]) {
+      await page.mouse.move((aBox.x + aBox.width + bBox.x) / 2, bBox.y + 50);
+      await page.clock.runFor(50);
+      expect(await dimmedCard.getAttribute('class')).toMatch(/relation-dimmed/);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.clock.runFor(50);
+      expect(await dimmedCard.evaluate((element) => Number(getComputedStyle(element).opacity))).toBeLessThan(0.4);
+    }
+    await page.mouse.move(60, 760);
+    await page.clock.runFor(500);
+    await expect(dimmedCard).not.toHaveClass(/relation-dimmed/);
+  } finally {
+    await page.clock.resume();
   }
-  await page.mouse.move(60, 760);
-  await expect(dimmedCard).not.toHaveClass(/relation-dimmed/);
   await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
   const pill = page.locator('.edge-pill').filter({ hasText: 'supports' });
   await pill.hover();
@@ -1298,7 +1305,7 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
 });
 
 test('semantic attention layer shows focus and interpretation history', async ({ page, request }) => {
-  await request.post('/api/canvas/node', {
+  const bugResponse = await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
       title: 'Bug report',
@@ -1307,6 +1314,7 @@ test('semantic attention layer shows focus and interpretation history', async ({
       y: 220,
     },
   });
+  const bugNode = (await bugResponse.json()) as { id: string };
   const authResponse = await request.post('/api/canvas/node', {
     data: {
       type: 'file',
@@ -1318,27 +1326,55 @@ test('semantic attention layer shows focus and interpretation history', async ({
   });
   const authNode = (await authResponse.json()) as { id: string };
 
-  await page.goto('/workbench');
-
-  const bugReport = page.locator('.canvas-node').filter({ hasText: 'Bug report' });
-  const authTs = page.locator('.canvas-node').filter({ hasText: 'auth.ts' });
-  await expect(bugReport).toHaveCount(1);
-  await expect(authTs).toHaveCount(1);
-
-  await bugReport.locator('.ctx-pin-btn').click();
-
-  await expect(page.locator('.attention-toast')).toContainText('Context updated');
-  await page.getByRole('button', { name: /recent updates/i }).click();
-  await expect(page.locator('.attention-history')).toContainText('Context updated');
-  await expect(bugReport).toHaveClass(/context-pinned/);
-
-  await request.patch(`/api/canvas/node/${authNode.id}`, {
-    data: {
-      position: { x: 700, y: 240 },
-    },
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let captured!: () => void;
+  const pinEcho = new Promise<void>((resolve) => (captured = resolve));
+  let held = false;
+  await page.route('**/api/workbench/poll?**', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as {
+      events: Array<{ event: string; payload: { nodeIds?: string[] } }>;
+    };
+    if (
+      !held &&
+      body.events.some((entry) => entry.event === 'context-pins-changed' && entry.payload.nodeIds?.includes(bugNode.id))
+    ) {
+      held = true;
+      captured();
+      await gate;
+    }
+    await route.fulfill({ response });
   });
+  try {
+    await page.goto('/workbench?transport=poll');
 
-  await expect(page.locator('.attention-history')).toContainText('“auth.ts” is now near “Bug report”');
+    const bugReport = page.locator('.canvas-node').filter({ hasText: 'Bug report' });
+    const authTs = page.locator('.canvas-node').filter({ hasText: 'auth.ts' });
+    await expect(bugReport).toHaveCount(1);
+    await expect(authTs).toHaveCount(1);
+
+    await bugReport.locator('.ctx-pin-btn').click();
+    await pinEcho;
+
+    // Canonical reconciliation must update attention even while the echo is held.
+    await expect(page.locator('.attention-toast')).toContainText('Context updated');
+    release();
+    await page.getByRole('button', { name: /recent updates/i }).click();
+    await expect(page.locator('.attention-history')).toContainText('Context updated');
+    await expect(bugReport).toHaveClass(/context-pinned/);
+
+    await request.patch(`/api/canvas/node/${authNode.id}`, {
+      data: {
+        position: { x: 700, y: 240 },
+      },
+    });
+
+    await expect(page.locator('.attention-history')).toContainText('“auth.ts” is now near “Bug report”');
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });
 
 test('renders webpage node preview content from cached server fetch data', async ({ page, request }) => {
@@ -2127,6 +2163,7 @@ test.describe('viewer refresh continuity', () => {
           viewport: { width: 1280, height: 720 },
           recordVideo: { dir: testInfo.outputPath('recording'), size: { width: 1280, height: 720 } },
         });
+        strayContexts.push(context);
         const page = await context.newPage();
         const content = (version: number) =>
           type === 'html'
@@ -2164,6 +2201,18 @@ test.describe('viewer refresh continuity', () => {
         await expect(visible().getByText('Revision 1', { exact: true })).toBeVisible();
         // Hold each replacement response so a screenshot and DOM assertion
         // exercise the navigation window, not just the final loaded frame.
+        // Keep interception installed: toggling Chromium Fetch interception
+        // between revisions can strand an unrelated in-flight poll request.
+        const pattern = type === 'html' ? `**/api/canvas/surface/${id}?**` : '**/api/canvas/json-render/view?**';
+        let holdReplacement: { received: () => void; gate: Promise<void> } | null = null;
+        await page.route(pattern, async (route) => {
+          const hold = holdReplacement;
+          if (hold) {
+            hold.received();
+            await hold.gate;
+          }
+          await route.continue();
+        });
         for (let version = 2; version <= 6; version++) {
           let release!: () => void;
           const gate = new Promise<void>((resolve) => {
@@ -2173,12 +2222,7 @@ test.describe('viewer refresh continuity', () => {
           const requested = new Promise<void>((resolve) => {
             intercepted = resolve;
           });
-          const pattern = type === 'html' ? `**/api/canvas/surface/${id}?**` : '**/api/canvas/json-render/view?**';
-          await page.route(pattern, async (route) => {
-            intercepted();
-            await gate;
-            await route.continue();
-          });
+          holdReplacement = { received: intercepted, gate };
           try {
             expect((await request.patch(`/api/canvas/node/${id}`, { data: content(version) })).ok()).toBe(true);
             await requested;
@@ -2186,14 +2230,13 @@ test.describe('viewer refresh continuity', () => {
             await expect(visible().getByText(`Revision ${version - 1}`, { exact: true })).toBeVisible();
             await node.screenshot({ path: testInfo.outputPath(`revision-${version}-loading.png`) });
           } finally {
+            holdReplacement = null;
             release();
           }
           await expect(visible().getByText(`Revision ${version}`, { exact: true })).toBeVisible();
           await expect(node.locator('iframe')).toHaveCount(1);
           await node.screenshot({ path: testInfo.outputPath(`revision-${version}-painted.png`) });
-          await page.unroute(pattern);
         }
-        await context.close();
       });
     }
   }
@@ -4105,6 +4148,55 @@ test('authoritative viewport updates from the server override browser startup st
     .toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
 });
 
+test('a delayed own camera echo cannot cancel a newer zoom; peers and agent cameras still apply', async ({
+  browser,
+  page,
+  request,
+}) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Camera echo', width: 200, height: 180, strictSize: true },
+  });
+  const peer = await (await trackedContext(browser)).newPage();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let captured!: () => void;
+  const firstEcho = new Promise<void>((resolve) => (captured = resolve));
+  let held = false;
+  await page.route('**/api/workbench/poll*', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { events: Array<{ event: string }> };
+    if (!held && body.events.some((event) => event.event === 'canvas-viewport-update')) {
+      held = true;
+      captured();
+      await gate;
+    }
+    await route.fulfill({ response });
+  });
+  try {
+    await page.goto('/workbench?transport=poll');
+    await peer.goto('/workbench?transport=poll');
+    const card = page.locator('.canvas-node');
+    const peerCard = peer.locator('.canvas-node');
+    await expect.poll(async () => (await card.boundingBox())?.width).toBe(200);
+    await expect.poll(async () => (await peerCard.boundingBox())?.width).toBe(200);
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await firstEcho;
+    await expect.poll(async () => (await peerCard.boundingBox())?.width).toBe(250);
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    release();
+    await expect.poll(async () => (await card.boundingBox())?.width).toBe(312.5);
+    await expect.poll(async () => (await peerCard.boundingBox())?.width).toBe(312.5);
+    // An agent command must still override both tabs, including the original writer.
+    expect((await request.post('/api/canvas/viewport', { data: { x: 70, y: 110, scale: 0.8 } })).ok()).toBe(true);
+    await expect.poll(async () => (await card.boundingBox())?.width).toBe(160);
+    await expect.poll(async () => (await peerCard.boundingBox())?.width).toBe(160);
+  } finally {
+    release();
+    // Drain the bounded long poll before the fixture closes its page.
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
 test('ghost intents are interactive, reconnect-safe, vetoable, and settle into linked mutations', async ({
   page,
   request,
@@ -4187,7 +4279,9 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
         let bestPositionDelta = Number.POSITIVE_INFINITY;
         let bestSizeDelta = Number.POSITIVE_INFINITY;
         const startedAt = Date.now();
+        let frame = 0;
         const sample = () => {
+          cancelAnimationFrame(frame);
           const ghost = document.querySelector(`[data-intent-id="${settleId}"].is-settling`);
           const node = Array.from(document.querySelectorAll('.canvas-node')).find(
             (candidate) => candidate.querySelector('.node-title')?.textContent === 'Settled through intent',
@@ -4206,12 +4300,16 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
           }
           // Deadline covers the minimum-dwell floor (~650ms) + the settle morph.
           if ((!ghost && Number.isFinite(bestPositionDelta)) || Date.now() - startedAt > 2500) {
+            document.removeEventListener('animationend', sample, true);
             resolve({ positionDelta: bestPositionDelta, sizeDelta: bestSizeDelta });
             return;
           }
-          requestAnimationFrame(sample);
+          frame = requestAnimationFrame(sample);
         };
-        requestAnimationFrame(sample);
+        // Capture the endpoint before the layer's bubbling handler removes it.
+        // A loaded browser can skip the last near-target rAF sample entirely.
+        document.addEventListener('animationend', sample, true);
+        frame = requestAnimationFrame(sample);
       }),
     settleId,
   );
@@ -5389,6 +5487,62 @@ test('keyboard: arrow keys traverse nodes spatially, Enter opens, overlays trap 
   await expect(c).toBeFocused();
 });
 
+test('polling collaborators follow cursor motion promptly in both directions with an embedded peer', async ({
+  browser,
+  page,
+  request,
+}) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Cursor cadence', content: 'Shared canvas', x: 80, y: 80 },
+  });
+  const peerContext = await trackedContext(browser);
+  const host = await peerContext.newPage();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await host.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/workbench?transport=poll&name=motion-sender');
+  // An inert same-origin document hosts the iframe, without mounting another app.
+  await host.goto('/health');
+  await host.setContent(
+    `<iframe src="${new URL('/workbench?transport=poll&name=motion-peer', page.url())}" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`,
+  );
+  const peer = host.frameLocator('iframe');
+  await page.locator('.canvas-node').waitFor();
+  await peer.locator('.canvas-node').waitFor();
+  await page.getByRole('button', { name: 'Reset view', exact: true }).click();
+  await peer.getByRole('button', { name: 'Reset view', exact: true }).click();
+  await page.mouse.move(600, 450);
+  await host.mouse.move(750, 500);
+  const senderCursor = peer.locator('.human-cursor').filter({ hasText: 'motion-sender' });
+  const peerCursor = page.locator('.human-cursor').filter({ hasText: 'motion-peer' });
+  await expect(senderCursor).toBeVisible();
+  await expect(peerCursor).toBeVisible();
+  for (const [sender, cursor] of [
+    [page, senderCursor],
+    [host, peerCursor],
+  ] as const) {
+    for (const point of [
+      { x: 580, y: 490 },
+      { x: 820, y: 420 },
+      { x: 660, y: 550 },
+    ]) {
+      await sender.mouse.move(point.x, point.y);
+      await expect
+        .poll(
+          async () => {
+            const box = await cursor.boundingBox();
+            return !!box && Math.abs(box.x - point.x) < 2 && Math.abs(box.y - point.y) < 2;
+          },
+          { timeout: 650, intervals: [16, 32, 50] },
+        )
+        .toBe(true);
+    }
+  }
+  await expect(page.locator('.human-cursor').filter({ hasText: 'motion-sender' })).toHaveCount(0);
+  await expect(peer.locator('.human-cursor').filter({ hasText: 'motion-peer' })).toHaveCount(0);
+  await page.mouse.move(20, 400);
+  await expect(senderCursor).toHaveCount(0, { timeout: 650 });
+});
+
 test('human presence: two tabs see each other’s cursors, a grab locks the node for agents and yields an agent intent', async ({
   browser,
   request,
@@ -5405,8 +5559,8 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
   const sam = await trackedContext(browser);
   const miaPage = await mia.newPage();
   const samPage = await sam.newPage();
-  await miaPage.goto('/workbench?name=mia');
-  await samPage.goto('/workbench?name=sam');
+  await miaPage.goto('/workbench?transport=sse&name=mia');
+  await samPage.goto('/workbench?transport=sse&name=sam');
   await expect(miaPage.locator('.canvas-node').filter({ hasText: 'Shared note' })).toHaveCount(1);
   await expect(samPage.locator('.canvas-node').filter({ hasText: 'Shared note' })).toHaveCount(1);
 

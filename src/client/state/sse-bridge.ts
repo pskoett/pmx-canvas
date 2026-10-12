@@ -16,6 +16,9 @@ import {
   commitViewport,
   canvasTheme,
   connectionStatus,
+  contextPinsRevision,
+  contextPinsPendingWrites,
+  refreshContextPins,
   replaceContextPinsFromServer,
   edges,
   focusNode,
@@ -54,7 +57,7 @@ import {
   tabAgentKey,
 } from './intent-bridge';
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
-import { applyHumanSnapshot, startHumanPresence } from './human-store';
+import { applyHumanSnapshot, humanClientId, startHumanPresence } from './human-store';
 import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
 import { activityLens, applySessionReceipt, dismissSessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
@@ -77,14 +80,17 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 // "opens" (headers pass through) but no event ever arrives. Fallback: if the
 // stream produces no event at all within the watchdog window, switch to
 // polling GET /api/workbench/poll, which returns buffered events (or a full
-// connect snapshot) as a normal response every couple of seconds. The same
+// connect snapshot) as a completed response as soon as an event arrives. The same
 // EVENT_HANDLERS map serves both transports. `?transport=poll` forces polling
 // from the start; `?transport=sse` disables the fallback.
 const SSE_FIRST_EVENT_WATCHDOG_MS = 3000;
 const POLL_INTERVAL_MS = 2000;
+const POLL_WAIT_MS = 1000;
+const POLL_LIVE_INTERVAL_MS = 80;
 const POLL_ERROR_INTERVAL_MS = 5000;
 let pollingMode = false;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
+let pollAbort: AbortController | null = null;
 let pollSeq: number | null = null;
 let pollGeneration = 0;
 let sseFirstEventWatchdog: ReturnType<typeof setTimeout> | null = null;
@@ -496,7 +502,6 @@ function handleAgentSessionEnded(data: Record<string, unknown>): void {
 let stopHumanPresence: (() => void) | null = null;
 let boardResyncGeneration = 0;
 let layoutRevision = 0;
-let pinsRevision = 0;
 let pendingBoardLayout: Record<string, unknown> | null = null;
 
 function handleHumanPresence(data: Record<string, unknown>): void {
@@ -534,13 +539,13 @@ function resyncForBoardSwitch(initial: boolean): void {
   axSurfaceState.value = null;
   void refreshAxSurface();
   const layoutAtRequest = layoutRevision;
-  const pinsAtRequest = pinsRevision;
+  const pinsAtRequest = contextPinsRevision;
   void fetchCanvasState(boardId).then((layout) => {
     if (generation === boardResyncGeneration && layoutAtRequest === layoutRevision)
       handleCanvasLayoutUpdate({ layout, boardId });
   });
   void requestJson<{ nodeIds?: unknown }>('fetchPinnedContext', '/api/canvas/pinned-context', {}).then((data) => {
-    if (generation === boardResyncGeneration && pinsAtRequest === pinsRevision)
+    if (generation === boardResyncGeneration && pinsAtRequest === contextPinsRevision)
       handleContextPinsChanged({ nodeIds: data.nodeIds });
   });
 }
@@ -1080,7 +1085,8 @@ function handleCanvasFocusNode(data: Record<string, unknown>): void {
 }
 
 function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
-  if (ownsCamera()) return;
+  // A delayed echo of this tab's earlier commit must not cancel its newer gesture.
+  if (ownsCamera() || data.clientId === humanClientId) return;
   const viewport = data.viewport as Record<string, unknown> | undefined;
   if (!viewport) return;
   const x = typeof viewport.x === 'number' ? viewport.x : 0;
@@ -1150,9 +1156,8 @@ function handleThemeChanged(data: Record<string, unknown>): void {
 
 function handleContextPinsChanged(data: Record<string, unknown>): void {
   memoryGraphRevision.value++;
-  pinsRevision += 1;
   const nodeIds = Array.isArray(data.nodeIds) ? data.nodeIds.filter((id): id is string => typeof id === 'string') : [];
-  replaceContextPinsFromServer(nodeIds);
+  if (contextPinsPendingWrites === 0) replaceContextPinsFromServer(nodeIds);
   syncAttentionFromSse({ event: 'context-pins-changed', data });
   void refreshContextStatus();
   refreshContextChip();
@@ -1292,6 +1297,12 @@ function startPollingTransport(): () => void {
   pollingMode = true;
   pollGeneration += 1;
   const generation = pollGeneration;
+  pollAbort?.abort();
+  const controller = new AbortController();
+  pollAbort = controller;
+  // MCP-app polls are host tool calls, not direct HTTP requests. Keep their
+  // existing cadence; HTTP clients can park one request until an event arrives.
+  const longPolling = !isHostedWorkbench();
   connectionStatus.value = 'connecting';
   // Server-run identity from the last poll response. The event seq counter
   // restarts at 0 on every server boot, so a cursor from a previous run can
@@ -1303,11 +1314,18 @@ function startPollingTransport(): () => void {
     if (generation !== pollGeneration) return;
     try {
       const params = new URLSearchParams();
-      if (pollSeq !== null) params.set('since', String(pollSeq));
+      if (pollSeq !== null) {
+        params.set('since', String(pollSeq));
+        if (longPolling) params.set('waitMs', String(POLL_WAIT_MS));
+      }
       const sid = sessionId.value;
       if (sid) params.set('session', sid);
       const query = params.toString();
-      const response = await workbenchFetch(`/api/workbench/poll${query ? `?${query}` : ''}`);
+      const pinsAtRequest = contextPinsRevision;
+      const response = await workbenchFetch(
+        `/api/workbench/poll${query ? `?${query}` : ''}`,
+        longPolling ? { signal: controller.signal } : undefined,
+      );
       if (generation !== pollGeneration) return;
       if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
       const body = (await response.json()) as {
@@ -1340,13 +1358,30 @@ function startPollingTransport(): () => void {
         resetIntents();
         responseToThreadMap.clear();
       }
-      for (const entry of body.events) dispatchWorkbenchEvent(entry.event, entry.payload);
+      // A poll may have captured pins before a newer human click or write acknowledgement.
+      // Skip only those pin frames, then read the canonical set so peer changes and server
+      // normalization still arrive even though the event cursor advances past the old batch.
+      const acceptPins = pinsAtRequest === contextPinsRevision && contextPinsPendingWrites === 0;
+      let skippedPins = false;
+      for (const entry of body.events) {
+        if (entry.event === 'context-pins-changed' && !acceptPins) {
+          skippedPins = true;
+          continue;
+        }
+        dispatchWorkbenchEvent(entry.event, entry.payload);
+      }
+      if (skippedPins) {
+        void refreshContextPins();
+        void refreshContextStatus();
+        refreshContextChip();
+      }
       dispatchedOnce = true;
       pollSeq = body.seq;
       reconnectAttempt.value = 0;
       reconnectDelay.value = 0;
       connectionStatus.value = 'connected';
-      pollTimer = setTimeout(() => void pollOnce(), POLL_INTERVAL_MS);
+      // Bound busy-stream request rate without imposing a two-second cursor gap.
+      pollTimer = setTimeout(() => void pollOnce(), longPolling ? POLL_LIVE_INTERVAL_MS : POLL_INTERVAL_MS);
     } catch (err) {
       if (generation !== pollGeneration) return;
       console.warn('[sse-bridge] poll transport error:', err);
@@ -1362,6 +1397,8 @@ function startPollingTransport(): () => void {
     pollGeneration += 1;
     pollingMode = false;
     pollSeq = null;
+    controller.abort();
+    if (pollAbort === controller) pollAbort = null;
     if (pollTimer) {
       clearTimeout(pollTimer);
       pollTimer = null;
@@ -1469,6 +1506,8 @@ export function connectSSE(): () => void {
       pollGeneration += 1;
       pollingMode = false;
       pollSeq = null;
+      pollAbort?.abort();
+      pollAbort = null;
       if (pollTimer) {
         clearTimeout(pollTimer);
         pollTimer = null;

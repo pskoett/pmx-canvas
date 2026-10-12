@@ -391,6 +391,123 @@ test('the real workbench fits a narrow host without optional context', async ({ 
   await capture(page, 'workbench-app-narrow.png');
 });
 
+test('pin reconciliation preserves retired membership without exposing it in the agent brief', async ({
+  page,
+  request,
+}) => {
+  await board(request, 'Retired pin membership');
+  const id = await note(request, 'Retired source');
+  expect(
+    (
+      await request.post(`/api/canvas/node/${id}/review`, {
+        data: { outcome: 'retire', evidence: 'Archived source', applied: true },
+      })
+    ).ok(),
+  ).toBe(true);
+  const app = await mount(page);
+  const card = app.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(card).toHaveClass(/lifecycle-retired/);
+  const pin = card.locator('.ctx-pin-btn');
+  await pin.click();
+  // The first optimistic paint alone would miss reconciliation dropping the pin.
+  expect(
+    await pin.evaluate(
+      (element) =>
+        new Promise<boolean>((resolve) => {
+          const end = performance.now() + 1200;
+          const sample = () => {
+            if (!element.classList.contains('ctx-pin-active')) return resolve(false);
+            if (performance.now() >= end) return resolve(true);
+            requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    ),
+  ).toBe(true);
+  expect((await (await request.get('/api/canvas/pinned-context')).json()).nodeIds).toEqual([]);
+  const pins = (await (await request.get('/api/workbench/poll')).json()).events.find(
+    (entry: { event: string }) => entry.event === 'context-pins-changed',
+  );
+  expect(pins.payload.nodeIds).toEqual([id]);
+  await pin.click();
+  await expect
+    .poll(async () => {
+      const snapshot = await (await request.get('/api/workbench/poll')).json();
+      return snapshot.events.find((entry: { event: string }) => entry.event === 'context-pins-changed').payload.nodeIds;
+    })
+    .toEqual([]);
+});
+
+for (const snapshot of [false, true]) {
+  test(`Clear all survives an older hosted ${snapshot ? 'snapshot' : 'incremental poll'}`, async ({
+    page,
+    request,
+  }) => {
+    await board(request, 'Ordered hosted pins');
+    const id = await note(request, 'Human pin');
+    const peerId = await note(request, 'Agent pin', 500);
+    const app = await mount(page);
+    const pin = app.locator(`.canvas-node[data-node-id="${id}"] .ctx-pin-btn`);
+    await expect(pin).toBeVisible();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let captured = false;
+    await page.route('**/test-tool', async (route) => {
+      const input = route.request().postDataJSON() as { name: string; arguments?: Record<string, unknown> };
+      const isPoll = String(input.arguments?.path).startsWith('/api/workbench/poll?');
+      const result = await client.callTool(
+        snapshot && isPoll && !captured
+          ? { ...input, arguments: { ...input.arguments, path: '/api/workbench/poll' } }
+          : input,
+      );
+      const response = result._meta?.response as { body?: string } | undefined;
+      const body = JSON.parse(response?.body ?? '{}') as {
+        events?: Array<{ event: string; payload: { nodeIds?: string[] } }>;
+      };
+      if (
+        isPoll &&
+        !captured &&
+        body.events?.some((entry) => entry.event === 'context-pins-changed' && entry.payload.nodeIds?.includes(id))
+      ) {
+        captured = true;
+        await held;
+      }
+      await route.fulfill({ json: result });
+    });
+    await pin.click();
+    await expect.poll(() => captured).toBe(true);
+    const chip = app.getByTestId('context-chip');
+    await chip.click();
+    await app.getByRole('button', { name: 'Clear all' }).click();
+    await expect.poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds).toEqual([]);
+    // Observe the whole replay window, not an optimistic sample before the old reply lands.
+    const staysClear = chip.evaluate(
+      (element) =>
+        new Promise<boolean>((resolve) => {
+          const end = performance.now() + 700;
+          const sample = () => {
+            if (!element.textContent?.includes('Nothing in context')) return resolve(false);
+            if (performance.now() >= end) return resolve(true);
+            requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    release();
+    expect(await staysClear).toBe(true);
+    await page.keyboard.press('Escape');
+    await pin.click();
+    await expect
+      .poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds)
+      .toEqual([id]);
+    await request.post('/api/canvas/context-pins', { data: { nodeIds: [peerId], mode: 'set' } });
+    await expect(app.locator(`.canvas-node[data-node-id="${peerId}"] .ctx-pin-btn`)).toHaveClass(/ctx-pin-active/);
+    await expect(pin).not.toHaveClass(/ctx-pin-active/);
+  });
+}
+
 test('curated structured notes and AX focus reach the host context', async ({ page, request }) => {
   await board(request, 'Structured host context');
   const status = await (

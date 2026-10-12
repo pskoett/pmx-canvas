@@ -31,8 +31,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Session receipts show stacked Before/After with changed words marked, one change open at a time, and whole-card Undo that skips cards whose latest edit is yours.
 - In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.
 - One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with what they cost in tokens, and opens the details (read state, unpin, pin a near card) on click. There is no budget to fill; when a host reports its agent's token usage, the details name that count too.
-- A new or changed link now shows on the link itself: a link you draw says "not seen by" the attached agent until the agent reads either card, and a link an agent drew carries a small violet ✦ until you edit or relabel it. Hover a link's label to see who drew it and when. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
-- Card titles keep their room: a card an agent wrote shows a small violet sparkle on its type icon instead of a "by <agent>" chip, and a near or read chip shrinks to its icon, then moves into the icon's hint, before a title gets cut short. Hover the type icon for the full title and everything folded into it.
+- A link you draw says "not seen by" the attached agent until the agent reads either card; hover its label or line to see who drew it and when, without extra agent stars. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
+- Card titles keep their room: authorship lives in the type icon's hint without an extra star or chip, and a near or read chip shrinks to its icon, then moves into the hint, before a title gets cut short. Hover the type icon for the full title and everything folded into it.
 - The left rail fits a short window: theme, snapshots, minimap, keyboard shortcuts, trace and feedback moved into one Settings menu at the bottom of the rail.
 - Every hint in the workbench now uses the styled tooltip, so hints also show in the embedded panes of Claude, Copilot and Codex, where browser tooltips never appeared.
 - On narrow windows the top bar folds Export, Present, zoom and fit into a ⋯ More menu so the context summary always stays visible.
@@ -40,6 +40,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Guest cursors follow promptly through buffering portals instead of jumping every two seconds.
+- An older camera update from your tab no longer interrupts a newer zoom or Fit.
+- The keyboard shortcut reference closes with Escape immediately after opening.
+- Delayed pin updates no longer undo Clear all, and pins reconcile correctly across board switches.
 - Brief SQLite startup lock contention no longer immediately refuses to open a library.
 - The library's context summary includes the active board when it is pinned.
 - MCP can create board portals using the advertised node type.

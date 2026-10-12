@@ -270,3 +270,198 @@ The embedded Amp pill-opening, dense Fit-label limits, Relations/Flows/Uses gaps
 host/UI/registry-install boundaries above remain explicit. Version is still 0.8.2; no release,
 tag, publication, deployment or version bump was performed. Staged maintenance remains in
 the vision and debt backlog.
+
+### Guest cursor polling latency, 2026-10-12
+
+The owner's slow guest-cursor report exposed a PMX transport delay: orb pages select the
+proxy-safe polling path, but that path paused two seconds after every response. Human cursor
+POSTs already throttle at 80 ms and server presence emits coalesce at 16 ms. Neither the
+cursor styling nor the shared board database needed to change.
+
+Direct HTTP clients now request a bounded long poll on the existing event ring. A caught-up
+request waits at most 1000 ms, wakes when an event arrives, and cleans up on timeout, abort
+or server stop. An 80 ms client pause bounds busy-stream request rate. Snapshot/ring recovery
+and SSE are preserved; hosted MCP-app tool polling retains its two-second cadence. No new
+presence channel or host-specific styling was added. Self-review covered event ordering,
+waiter cleanup, client generations and the hosted/direct transport distinction.
+
+The starting checkout contains the requested
+[docs baseline](https://github.com/pskoett/pmx-canvas/commit/175031013ef6bc31b94cec16d5def56661e866b6)
+and the newer docs-only
+[checkpoint](https://github.com/pskoett/pmx-canvas/commit/3b7a570a98bd6f32b8a50386c04bfc81db2a76e6).
+The same two headed Chromium clients moved the pointer through the real orb portal in both
+directions, one workbench inside a cross-origin iframe, on a disposable one-card board.
+Three 100-point sweeps per direction and build produced:
+
+| Observed measure | Unchanged baseline | Fixed build |
+| --- | --- | --- |
+| Remote target updates during movement | 0.47–0.48/s | 11.24–11.54/s |
+| Median target-update gap | 1999–2001 ms | 84 ms |
+| Estimated median rendered lag, including interpolation | 848–934 ms | 213–217 ms |
+| Estimated p95 rendered lag | 1898–2000 ms | 262–266 ms |
+| Receiver animation cadence | about 60 frames/s | about 60 frames/s |
+| Own-cursor count | 0 | 0 |
+
+Lag estimates match rendered cursor x positions to a monotonic input sweep, not a network
+round-trip measurement. The final fixed idle client completed eight polls over six seconds.
+Before/after recordings were inspected. An earlier fixed capture needed dense 100 ms frame
+samples and decoded positions to contradict a coarse automated description of pauses.
+The final-build capture also shows continuous movement rather than the baseline's two-second
+jumps. Two final recording attempts at 60 and 30 fps overloaded the encoder and were retained
+as failures; the inspected recording uses 15 fps. Final recordings are
+`.amp/in/artifacts/cursor-latency/before-final.webm` and `after-final.webm`.
+
+The public HTTP long-poll regression and two-client rendered-coordinate regression both
+failed on unchanged code, then passed with the fix. The existing two-tab grab/lock/yield
+case also passed with SSE forced as a control. Red evidence is retained under
+`/tmp/pmx-cursor-red.RjuzlZ`; focused green build/typecheck, HTTP and headed evidence under
+`/tmp/pmx-cursor-green.GqytFB`. Repeated portal measurements, served-bundle hashes, input and
+render samples and video-frame analysis are in `/tmp/pmx-cursor-comparison.oZBHTD`.
+Earlier failed recordings/navigation and invalid duplicate-tab or throttled measurements
+were retained separately, not counted as successful runs. The final measurement harness
+selects the agent-browser-owned targets, closes extra test tabs and rejects low frame/input
+cadence or duplicate own cursors.
+
+The first full headed run passed 276 cases but timed out in dark HTML refresh continuity.
+Its trace places the stranded poll at 296926.670 ms, between disabling interception at
+296924.232 ms and reenabling it at 296938.877 ms. Ten unchanged focused reruns passed;
+those did not explain or erase the failure. A standalone headed Chromium + Node HTTP
+probe, with no PMX code, reproduced the interception failure: toggling an unrelated route
+stranded fetch 22 before it reached the server (21 requests received and completed).
+Keeping the route installed let completions progress from 234 to 279 over the final
+observation window. The test now installs its route once, preserves every per-revision
+hold, painted-content assertion and screenshot, and uses the existing context cleanup.
+All 12 repeated HTML/JSON-render dark/light cases passed after that harness correction.
+No viewer or product timeout workaround was added. The initial full-run trace/video is
+retained in `/tmp/pmx-cursor-gates.qGwgtE`; the isolated reproduction and unchanged reruns
+are in `/tmp/pmx-cursor-refresh-investigation.SJzGeg`.
+
+The next full headed run passed 276 cases and failed one receipt Undo/Unpin assertion in
+strict mode: bare `[data-node-id]` matched both the card and a transient command-bar chip.
+The card still showed the expected `After B` text. Five card assertions in that case now
+explicitly target `.canvas-node`; the unseen-human-edit and pin-set checks are unchanged.
+Ten consecutive headed repetitions passed. This second failed run, including the DOM trace
+and screenshot, remains in `/tmp/pmx-cursor-final-gates.T08vva`.
+
+The third full headed run passed 276 cases and failed the rich-relation hover handoff
+assertion. The trace shows 184 ms between starting the blank-canvas pointer move and reading
+the class, beyond the intentional 120 ms hover grace; the two requested animation frames
+alone took 115 ms. That test now drives real pointer events with controlled 50 ms crossings
+and a 500 ms blank-canvas control, then resumes normal time. Three repetitions passed,
+removing the grace in a test-only served bundle failed at the short-crossing assertion,
+and three more repetitions passed after removing the mutation. The probe asserted a unique
+bundle replacement and a loaded runtime marker; no mutation code remains in the tests.
+No hover/store/CSS production code changed. The real-time cursor measurements above use no
+controlled clock. The third failed run is retained in `/tmp/pmx-cursor-delivery-gates.ozvSAA`;
+hover red/green evidence is in `/tmp/pmx-cursor-hover-clock.Z1UYwU`.
+
+The fourth full run passed 274 cases and exposed two product races plus a ghost-test sampling
+gap, retained in `/tmp/pmx-cursor-final-browser.7Mdqdq`:
+
+- A painted shortcut overlay could miss immediate Escape while the App keyboard effect still
+  closed over its previous state. The keyboard subscription now updates at layout commit.
+- An earlier same-tab Fit camera echo arrived during a newer Fit animation and cancelled it.
+  Viewport writes now carry the existing tab identity; only the originating tab ignores that
+  echo. Peer tabs and explicit agent commands still apply the camera. This is echo metadata,
+  not an authorization mechanism.
+- The ghost test's best rAF sample was 30.5px from the target, and it did not observe the
+  `animationend` endpoint before removal. It now also samples that endpoint in capture phase.
+  Position/size thresholds and normal frame samples remain; no ghost rendering or timing changed.
+
+The keyboard and camera interleavings both failed deterministically before their fixes. The
+camera case rendered a 250px card instead of completing the newer zoom to 312.5px. Afterwards,
+18 headed checks passed: three each of the two regressions, original Graph and attachment
+cases, ghost settling and two-client cursor motion. The camera regression also checks a peer
+receives both zooms and an agent command still overrides both tabs. Evidence is retained in
+`/tmp/pmx-cursor-races.S1FpCT`.
+
+An intermediate measurement repeated the sweeps after the keyboard/camera fixes.
+Its portal-served bundle hash matched that built bundle; six sweeps and an additional recording
+control maintained about 60 receiver frames/s. Those measurements, hash and failed encodes are
+also in `/tmp/pmx-cursor-races.S1FpCT`.
+
+The next serial gates in `/tmp/pmx-cursor-stabilized.T2t2MW` passed build/typecheck, lint
+(0 errors, existing 63 warnings/12 infos), 1,445 unit tests, 306 client tests, coverage
+(64.69% lines / 72.29% functions, both floors met) and fresh-workspace headed CLI E2E
+(`/tmp/pmx-canvas-e2e.bf3lLB`). The full headed browser gate finished **278 passed, 1 failed**.
+The failure was `canvas-app.pw.ts`'s curated structured notes / AX host-context case, so that
+run did **not** establish stability.
+
+Its trace confirmed a hosted pin-ordering race: poll `since=1378` starts at
+187162 ms, before Clear all's POST at 187168 ms. The poll returns old pin event 1380, restoring
+the cleared pin in the UI; the intended re-pin at 189205 ms consequently submits `nodeIds:[]`.
+Focus reaches the host, but the pinned card is absent. Pin code and hosted two-second polling
+were not changed here; this was not reproduced against a separate baseline build and is not
+claimed conclusively pre-existing. The trace, failure screenshot and video remain with that
+run; the blocker was reported to the parent orb before further changes.
+
+The pin revision fence now covers local writes as well as incoming frames. Poll replies that
+cross a local write or a newer authoritative read skip only their stale pin frames, then read
+the canonical server pin set from the existing event snapshot, without replaying its other
+frames. This costs a snapshot read on pin reconciliation rather than adding a new endpoint.
+The agent-facing pinned-context brief is not authoritative for membership: it filters retired
+cards. Pending writes reconcile after completion, including refused and normalized requests.
+Board changes invalidate old-board continuations. This adds no
+server clock, changes no 20-pin limit and does not suppress later peer or agent writes.
+Both delayed incremental-poll and snapshot regressions failed before the fix
+(`/tmp/pmx-pin-order-red.ahE6cW`), then passed alongside the original hosted-context and restore
+cases (`/tmp/pmx-pin-order-green.K53uol`, four headed passes). Self-review also reproduced and
+fixed an old-board pending-write leak (`/tmp/pmx-pin-board-red.1q5kkz`): a previous board's
+late acknowledgement must not block canonical normalization or release the new board's
+pending Clear all. No test timeout or pin assertion was relaxed.
+
+The following full run (`/tmp/pmx-cursor-pin-gates.h4HfvL`) finished 280 passed / 1 failed:
+the camera regression completed both tabs' zoom and agent-override assertions, then its
+`route.fetch` was closed during fixture teardown. The route now drains with
+`unrouteAll({behavior:'wait'})` before the fixture closes; errors are not suppressed.
+During that run, self-review found the filtered-brief/raw-membership distinction above.
+Its built bundles and pre-correction patch are retained separately from the end-of-run
+source. The retired-pin regression failed against that intermediate bundle
+(`/tmp/pmx-pin-retired-red.Qm0kPq`), so that run is not counted as final-build verification.
+
+**Final serial gates passed** in `/tmp/pmx-cursor-delivery-final.mwP76f`: build/typecheck,
+lint (0 errors, existing 63 warnings/12 infos), 1,445 unit, 307 client, coverage (64.64% lines /
+72.25% functions), fresh-workspace headed CLI E2E (`/tmp/pmx-canvas-e2e.5XOntZ`), 12 repeated
+headed pin/camera regressions and all **282 headed browser cases**, including 600/1024/1920
+reference widths. These execute real HTTP and stdio MCP paths as well as human UI gestures.
+The table's final six portal sweeps, idle control and served hash are in
+`/tmp/pmx-cursor-live-final.gi4axw`; the served index SHA256 matches the final build
+`a5f5a1c1f73d43c3254c79601cc9e303c63d839983e1f569f82f0d45c95b229d`.
+The inspected final clip shows continuous movement, without blanking or two-second stalls.
+A live-check setup attempt used the wrong supervised port and inconsistent browser launch
+flags, leaving blank tabs; it was corrected before these measurements, not counted as a run.
+
+This demonstrates the PMX-side delay and its fix through an orb portal, not the exact Amp
+embedded container. Native Copilot/WebKit, Windows UI and registry installation were not
+exercised for this batch. The owner's live SQLite content was not used or modified. The
+owner subsequently authorized a combined commit/push from the parent orb after validation;
+this orb hands back source and evidence only. No release, tag or version change is authorized.
+
+### Combined acceptance follow-up, 2026-10-12
+
+The parent orb integrated that frozen patch with the owner's card/relation star removal.
+Authorship remains in hints, including bare lines; pins, read marks and the session lens
+are unchanged. Star regressions failed before the removal and passed afterwards. Headed
+600/1024/1440/1920 width and nine-theme inspections retained the hints. Card corner resizing
+persisted after reload in a disposable database; test 01 means resizing the browser or pane,
+not the card. The live acceptance board has a focused agent review card and relation.
+
+The first combined full headed run passed 281 cases and failed attention history. Its trace
+shows pin POST at 231783 ms, an incremental pin frame captured at 231792 ms, and canonical
+snapshot reads at 231796/231817 ms. Revision fencing skipped the older frame correctly but
+canonical reconciliation did not update the semantic attention reducer, so the card stayed
+pinned while its Context updated notice/history disappeared. This is a product regression,
+not a weakened selector or timeout. Feeding only the accepted canonical pin frame into the
+existing attention reducer fixes it without replaying other snapshot frames. The extended
+existing attention test holds the incremental frame: it failed before the fix, then passed
+five consecutive headed repetitions, including later near-pin history. First-failure evidence
+is retained in `/tmp/pmx-combined-acceptance-final`, red proof in `/tmp/pmx-attention-red`,
+and focused green in `/tmp/pmx-attention-green`.
+
+Final combined serial gates passed in `/tmp/pmx-combined-acceptance-corrected`: build,
+typecheck, lint (0 errors, 63 existing warnings/12 infos), 1,445 unit, 307 client,
+coverage (64.67% lines/72.25% functions), fresh headed CLI E2E with real HTTP/stdio MCP,
+and all 282 headed browser cases. Agent-skill mirror validation skipped absent trees;
+that skip is not a validation claim. The preceding 281-pass/1-fail run remains recorded.
+The initial CLI invocation used the wrong headed environment key; its successful result is
+not counted as headed proof. The final invocation uses `PMX_E2E_HEADED=1` explicitly.

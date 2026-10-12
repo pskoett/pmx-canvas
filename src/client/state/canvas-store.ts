@@ -11,8 +11,9 @@ import {
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { canvasArea, canvasAreaCenter, canvasFitInsets } from '../canvas/canvas-area';
 import { activeBoardId, boardsLoaded } from './boards-store';
-import { pushCanvasUpdate, requestBestEffort, requestOk, updateViewportFromClient } from './intent-bridge';
+import { pushCanvasUpdate, requestBestEffort, requestJson, requestOk, updateViewportFromClient } from './intent-bridge';
 import { isHostedWorkbench } from './workbench-transport';
+import { syncAttentionFromSse } from './attention-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
   console.error(`[canvas-store] ${action} failed`, error);
@@ -158,6 +159,8 @@ export function resetCanvasInteractionState(): void {
   }
   batch(() => {
     canvasInteractionEpoch.value += 1;
+    contextPinsRevision++;
+    contextPinsPendingWrites = 0;
     activeNodeId.value = null;
     expandedNodeId.value = null;
     pendingExpandedNodeCloseId.value = null;
@@ -397,6 +400,10 @@ export function getSelectedNodes(): CanvasNodeState[] {
 }
 
 // ── Context pin actions ──────────────────────────────────────
+// Fence reads against both local writes and newer authoritative pin frames.
+export let contextPinsRevision = 0;
+export let contextPinsPendingWrites = 0;
+
 export function toggleContextPin(id: string): void {
   const next = new Set(contextPinnedNodeIds.value);
   if (next.has(id)) {
@@ -433,10 +440,36 @@ export function clearContextPins(): void {
 }
 
 export function replaceContextPinsFromServer(ids: string[]): void {
+  contextPinsRevision++;
   contextPinnedNodeIds.value = new Set(ids);
 }
 
+/** Reconcile dropped frames and refused/normalized writes without replaying old pins. */
+export async function refreshContextPins(): Promise<void> {
+  if (contextPinsPendingWrites > 0) return;
+  const revision = contextPinsRevision;
+  const epoch = canvasInteractionEpoch.value;
+  // The agent brief filters retired cards. Only the raw event snapshot is authoritative
+  // for membership; consume its pin frame without replaying the rest of the snapshot.
+  const data = await requestJson<{
+    events?: Array<{ event: string; payload: { nodeIds?: string[]; boardId?: string | null } }>;
+  }>('refreshContextPins', '/api/workbench/poll', {});
+  const pins = data.events?.find((entry) => entry.event === 'context-pins-changed')?.payload;
+  if (
+    revision === contextPinsRevision &&
+    epoch === canvasInteractionEpoch.value &&
+    pins?.boardId === activeBoardId.value &&
+    Array.isArray(pins.nodeIds)
+  ) {
+    replaceContextPinsFromServer(pins.nodeIds);
+    syncAttentionFromSse({ event: 'context-pins-changed', data: pins });
+  }
+}
+
 function syncContextPinsToServer(ids: Set<string>, mode: 'set' | 'remove' = 'set'): void {
+  contextPinsRevision++;
+  contextPinsPendingWrites++;
+  const epoch = canvasInteractionEpoch.value;
   // Through the bridge so the write carries the workbench marker — a bare
   // fetch makes the human's pin look like an anonymous `api` agent.
   void requestBestEffort('syncContextPinsToServer', '/api/canvas/context-pins', {
@@ -447,6 +480,11 @@ function syncContextPinsToServer(ids: Set<string>, mode: 'set' | 'remove' = 'set
       mode,
       ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
     }),
+  }).then(() => {
+    if (epoch !== canvasInteractionEpoch.value) return;
+    contextPinsPendingWrites--;
+    contextPinsRevision++;
+    void refreshContextPins();
   });
 }
 

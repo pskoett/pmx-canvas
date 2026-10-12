@@ -42,6 +42,20 @@ long drag tasks remain. The maintainer's real-agent curation evaluation is still
   [CI jobs](https://github.com/pskoett/pmx-canvas/actions/runs/38218734543) pass, including macOS
   and Windows; the startup-only WAL retry resolves their concurrent-open failures.
 
+**Acceptance follow-up, 2026-10-12:** card and relation authorship now lives in hints,
+without redundant violet stars; bare relation lines retain their author hints. Read-state
+marks, pins and the session lens remain independent. Direct HTTP portal polling now wakes
+on events instead of pausing two seconds between replies. Disposable two-client portal
+checks measured about 11 updates/s instead of 0.48/s; the exact authenticated Amp container
+remains a separate owner check. Hosted MCP-app polling remains at two seconds, and SSE is
+unchanged. The same batch fixes older same-tab camera echoes interrupting newer gestures,
+immediate Escape on the shortcut reference, and stale pin replay after Clear all, with
+canonical server reconciliation, retained attention history and board-switch isolation.
+Evidence and failed-run investigations are recorded in [plan 018](plans/plan-018-connected-memory-wave-2.md).
+Final combined local gates pass 1,445 unit, 307 client and 282 headed browser cases, plus
+fresh headed CLI/stdio MCP. The CI link above verifies the preceding delivery, not this
+follow-up; native-platform CI and the owner's acceptance remain separate checks.
+
 **Still open:** the owner's acceptance of everything since 0.8.2 and the real-agent curation
 evaluation. Full Relations/Flows/Uses sketch parity is not implemented: inline edge editing,
 amber lineage strokes, pair/cycle/affected badges and lineage actions remain; see

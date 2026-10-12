@@ -886,6 +886,34 @@ test('whole-library Graph updates card context on board pin and unpin without cl
   ).toEqual(['Individually pinned card']);
 });
 
+test('the shortcut reference accepts Escape immediately on a board and Home', async ({ page, request }) => {
+  await note(request, 'Keyboard reference');
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  for (const surface of ['board', 'home']) {
+    if (surface === 'home') await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    // Send Escape at the first committed overlay, before a deferred effect can
+    // catch up. A painted dialog must not depend on a later keyboard subscription.
+    const opened = page.evaluate(
+      () =>
+        new Promise<string | null>((resolve) => {
+          const observer = new MutationObserver(() => {
+            const overlay = document.querySelector('.shortcut-overlay');
+            if (!overlay) return;
+            observer.disconnect();
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            resolve(overlay.textContent);
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+        }),
+    );
+    await page.getByRole('menuitem', { name: 'Keyboard shortcuts ?' }).click();
+    expect(await opened).toContain('Keyboard Shortcuts');
+    await expect(page.locator('.shortcut-overlay')).toHaveCount(0);
+  }
+});
+
 test('Graph stays live through agent board switches without losing camera, selection or dragged nodes', async ({
   page,
   request,

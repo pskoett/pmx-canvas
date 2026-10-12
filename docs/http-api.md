@@ -596,6 +596,11 @@ inspection or screenshots when the drawn shape matters.
 
 ## Viewport
 
+Workbench camera writes include an optional `clientId` (1–128 characters), echoed
+in `canvas-viewport-update`. The originating tab ignores that echo so an older
+Fit or zoom cannot cancel a newer local gesture. Other tabs and agent camera
+commands still update the view. The identifier is echo metadata, not authorization.
+
 ```bash
 # Set the camera transform (screen = world * scale + {x,y})
 curl -X POST http://localhost:4313/api/canvas/viewport \
@@ -1212,12 +1217,24 @@ through any proxy:
 # current cursor. With `since=<seq>`: only events after that cursor.
 curl "http://localhost:4313/api/workbench/poll"
 curl "http://localhost:4313/api/workbench/poll?since=42"
+# Optional long poll: return when an event arrives, or after at most 1000 ms.
+curl "http://localhost:4313/api/workbench/poll?since=42&waitMs=1000"
 ```
 
-Responses are `{ ok, transport: "poll", snapshot, seq, events }` — poll again
-with `since=<seq>` every couple of seconds. A `since` from a previous server
-run or one that fell off the bounded event ring recovers with a fresh
-snapshot. The browser client uses this automatically: if the SSE stream
+Responses are `{ ok, transport: "poll", snapshot, seq, sessionId, events }`.
+Poll again with `since=<seq>`. Without `waitMs`, the response is immediate;
+with it, a caught-up cursor waits for the next event. The wait is clamped to
+0–1000 ms and ends on request cancellation or server shutdown. A cursor with
+pending events or needing a full snapshot never waits. The direct HTTP browser
+client requests a 1000 ms wait and pauses 80 ms between completed requests:
+cursor movement arrives promptly without fast empty polling while idle.
+Hosted MCP-app tool polling retains its two-second cadence; SSE is unchanged.
+
+A cursor that fell off the bounded event ring recovers with a fresh snapshot.
+After a server restart, an out-of-range cursor receives a snapshot; if the old
+cursor happens to fit the new ring, the browser detects the changed `sessionId`
+and requests a new snapshot without `since`. The browser client uses polling
+automatically: if the SSE stream
 produces no event within 3 seconds of connecting, it switches to polling (and
 tells the boot screen to wait for the fallback instead of alarming). Pages
 served by an Amp orb (`AMP_ORB` set — the same stamp that drives srcdoc mode)

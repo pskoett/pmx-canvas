@@ -922,12 +922,13 @@ function toSseFrame(event: string, payload: PrimaryWorkbenchEventPayload): Uint8
 // open and never flush it to the browser, so an EventSource client behind one
 // receives nothing and the canvas never boots. Every broadcast event is also
 // recorded here with a monotonic seq; GET /api/workbench/poll replays them as
-// a normal, immediately-closed JSON response that any proxy delivers. Bounded:
+// a normal, completed JSON response that any proxy delivers. Bounded:
 // a client whose `since` fell off the ring gets a fresh connect snapshot,
 // which fully rebuilds client state (same events an SSE connect sends).
 const WORKBENCH_EVENT_RING_MAX = 500;
 let workbenchEventSeq = 0;
 const workbenchEventRing: Array<{ seq: number; event: string; payload: PrimaryWorkbenchEventPayload }> = [];
+const workbenchPollWaiters = new Set<() => void>();
 let remoteEdgesSignature = '';
 
 function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload): void {
@@ -959,6 +960,7 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
   if (workbenchEventRing.length > WORKBENCH_EVENT_RING_MAX) {
     workbenchEventRing.splice(0, workbenchEventRing.length - WORKBENCH_EVENT_RING_MAX);
   }
+  for (const wake of workbenchPollWaiters) wake();
   const frame = toSseFrame(event, payload);
   for (const [subscriberId, controller] of workbenchSubscribers.entries()) {
     try {
@@ -2349,15 +2351,32 @@ function buildWorkbenchConnectSnapshot(
  * Proxy-safe transport (Amp orb portals and any proxy that buffers streaming
  * responses): returns the buffered events after `since` — or the full connect
  * snapshot when `since` is absent, from a previous server run, or already
- * evicted from the ring — as a normal JSON response that closes immediately.
- * The client polls every couple of seconds; each response flushes through any
- * proxy. `seq` is the cursor for the next poll.
+ * evicted from the ring — as a normal JSON response. A caught-up client may
+ * wait up to one second for an event instead of leaving a gap between reads.
+ * Each response closes so buffering proxies flush it. `seq` is the next cursor.
  */
-function handleWorkbenchPoll(url: URL): Response {
+async function handleWorkbenchPoll(req: Request, url: URL): Promise<Response> {
   rotatePrimaryWorkbenchSessionIfNeeded();
   const requestedSessionId = url.searchParams.get('session')?.trim() ?? '';
   const sinceRaw = url.searchParams.get('since');
   const since = sinceRaw === null ? Number.NaN : Number(sinceRaw);
+  const waitMs = Math.min(1000, Math.max(0, Number(url.searchParams.get('waitMs')) || 0));
+  if (waitMs > 0 && since === workbenchEventSeq && !req.signal.aborted) {
+    await new Promise<void>((resolve) => {
+      const finish = (): void => {
+        if (!workbenchPollWaiters.delete(finish)) return;
+        clearTimeout(timer);
+        req.signal.removeEventListener('abort', finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, waitMs);
+      workbenchPollWaiters.add(finish);
+      req.signal.addEventListener('abort', finish, { once: true });
+      if (req.signal.aborted) finish();
+    });
+  }
+  if (req.signal.aborted || !server) return new Response(null, { status: 204 });
+  // Recheck retention after waiting: an event burst can evict this cursor.
   const ringHeadSeq =
     workbenchEventRing.length > 0 ? (workbenchEventRing[0] as { seq: number }).seq : workbenchEventSeq + 1;
   const usableSince = Number.isInteger(since) && since >= 0 && since <= workbenchEventSeq && since + 1 >= ringHeadSeq;
@@ -3595,7 +3614,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname === '/api/workbench/poll' && req.method === 'GET') {
-            return handleWorkbenchPoll(url);
+            return handleWorkbenchPoll(req, url);
           }
 
           if (url.pathname === '/api/workbench/intent' && req.method === 'POST') {
@@ -3755,6 +3774,7 @@ export function stopCanvasServer(): void {
     server.stop(true);
     server = null;
   }
+  for (const wake of workbenchPollWaiters) wake();
 }
 
 export function getCanvasServerPort(): number | null {

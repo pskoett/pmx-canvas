@@ -698,20 +698,6 @@ body,
   color: var(--c-muted);
   flex-shrink: 0;
 }
-/* Written by an agent (docs/design/HeaderMarks.dc.html): authorship, not state —
-   a violet sparkle on the type icon, ringed in the panel colour, never a chip. */
-.canvas-node .node-type-spark {
-  position: absolute;
-  top: calc(-5px * var(--node-chrome-scale, 1));
-  right: calc(-5px * var(--node-chrome-scale, 1));
-  width: calc(10px * var(--node-chrome-scale, 1));
-  height: calc(10px * var(--node-chrome-scale, 1));
-  fill: var(--c-agent);
-  stroke: var(--c-panel);
-  stroke-width: 3;
-  paint-order: stroke;
-  overflow: visible;
-}
 
 .canvas-node .node-type-badge {
   font-size: calc(10px * var(--node-chrome-scale, 1));
@@ -4427,15 +4413,10 @@ html.is-node-resizing .ext-app-preview-catcher {
   stroke-width: calc(0.5 * var(--edge-label-scale, 1));
 }
 
-/* A link's pill (docs/design/LinkAuthorship.dc.html): a violet ✦ when an agent
-   drew it (stays until a person changes the link), and a muted "not seen by
-   <agent>" on a person's new link until the agent's next read. */
+/* Authorship lives in the hint. A person's new link keeps its muted
+   "not seen by <agent>" state until the agent's next read. */
 .edge-pill {
   pointer-events: visiblePainted;
-}
-
-.edge-link-spark {
-  fill: var(--c-agent);
 }
 
 .edge-link-mark {

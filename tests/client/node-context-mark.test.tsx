@@ -89,8 +89,7 @@ describe('pinned nodes: read, not read, changed since read', () => {
   });
 });
 
-// docs/design/HeaderMarks.dc.html: authorship is not state. The byline never
-// takes a chip; it is a violet sparkle on the type icon, its words in the hint.
+// Authorship is not state. It lives in the type icon's hint, not a star or chip.
 function iconOf(target: CanvasNodeState, fold: 'word' | 'glyph' | 'hidden' = 'word', pinned = false) {
   const { container } = render(
     <NodeTypeIcon node={target} pinned={pinned} title="Release plan" fold={fold}>
@@ -105,22 +104,27 @@ function iconOf(target: CanvasNodeState, fold: 'word' | 'glyph' | 'hidden' = 'wo
   return result;
 }
 
-describe('the agent byline: a sparkle on the type icon until a person edits', () => {
-  test('written by an agent: sparkle, "Written by <agent>" in the icon hint, and never a chip', () => {
+describe('the agent byline: hint only, until a person edits', () => {
+  test('written by an agent: named in the icon hint, without a star or chip', () => {
     const written = node({ createdBy: agent, lastEditedBy: agent });
-    expect(iconOf(written)).toEqual({ spark: true, hint: 'Release plan✦ Written by claude · MD' });
+    expect(iconOf(written)).toEqual({ spark: false, hint: 'Release planWritten by claude · MD' });
     expect(markOf({ node: written, pinned: false })).toBeNull();
-    expect(iconOf(node({ createdBy: agent, lastEditedBy: human })).spark).toBe(false);
+    expect(iconOf(node({ createdBy: agent, lastEditedBy: human })).hint).not.toContain('Written by');
   });
 
-  test('a person-made node an agent edited says "Edited by <agent>"; person-only has no sparkle', () => {
-    expect(iconOf(node({ createdBy: human, lastEditedBy: agent })).hint).toContain('✦ Edited by claude');
-    expect(iconOf(node({ createdBy: human, lastEditedBy: human })).spark).toBe(false);
+  test('a person-made node an agent edited names the editor; person-only has no agent byline', () => {
+    expect(iconOf(node({ createdBy: human, lastEditedBy: agent }))).toEqual({
+      spark: false,
+      hint: 'Release planEdited by claude · MD',
+    });
+    expect(iconOf(node({ createdBy: human, lastEditedBy: human })).hint).not.toContain('Edited by');
   });
 
-  test('pinned and written by an agent: the sparkle stays beside the read chip', () => {
+  test('pinned and written by an agent: the byline stays in the hint beside the independent read chip', () => {
     applyContextStatus({ pins: { n1: { pinnedBy: human, pinnedAt: '2026-10-05T10:00:00.000Z' } } });
-    expect(iconOf(node({ createdBy: agent, lastEditedBy: agent }), 'word', true).spark).toBe(true);
+    const written = node({ createdBy: agent, lastEditedBy: agent });
+    expect(iconOf(written, 'word', true)).toEqual({ spark: false, hint: 'Release planWritten by claude · MD' });
+    expect(markOf({ node: written, pinned: true })).toBe('not read');
   });
 });
 

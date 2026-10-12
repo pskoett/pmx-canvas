@@ -106,7 +106,7 @@ function who(actor: NonNullable<CanvasEdge['changedBy']>): string {
 }
 
 /**
- * Who drew the link and when (docs/design/LinkAuthorship.dc.html): "✦ Drawn by
+ * Who drew the link and when (docs/design/LinkAuthorship.dc.html): "Drawn by
  * Codex · 14:06", or, once someone else changed it, "You relabelled it · 14:20
  * (drawn by Codex · 14:06)". A folded "not seen" state joins it.
  */
@@ -114,11 +114,10 @@ function linkHint(edge: CanvasEdge, notSeen: boolean): string | null {
   // A link from before authorship was recorded names no one: "you" could be false.
   if (edge.changedBy?.actor !== 'agent' && edge.changedBy?.actor !== 'human') return null;
   const by = who(edge.changedBy);
-  const agent = edge.changedBy.actor === 'agent';
   const takenOver = !!edge.createdBy && who(edge.createdBy) !== by;
   const lead = takenOver
-    ? `${agent ? '✦ ' : ''}${by === 'you' ? 'You' : by} relabelled it${clock(edge.changedAt)} (drawn by ${edge.createdBy ? who(edge.createdBy) : ''}${clock(edge.createdAt)})`
-    : `${agent ? '✦ ' : ''}${by === 'you' ? 'You drew it' : `Drawn by ${by}`}${clock(edge.createdAt ?? edge.changedAt)}`;
+    ? `${by === 'you' ? 'You' : by} relabelled it${clock(edge.changedAt)} (drawn by ${edge.createdBy ? who(edge.createdBy) : ''}${clock(edge.createdAt)})`
+    : `${by === 'you' ? 'You drew it' : `Drawn by ${by}`}${clock(edge.createdAt ?? edge.changedAt)}`;
   return notSeen ? `${lead} · not seen by ${agentName()} yet` : lead;
 }
 
@@ -143,7 +142,6 @@ export function EdgeHint() {
 // Connection-change glyphs (docs/design/LinksOptions.dc.html, option C), 24-unit paths.
 const LINK_MARK_EYE_OFF =
   'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.6 6.6C3.8 8.3 2 12 2 12s3.5 6 10 6a9.6 9.6 0 0 0 4.4-1';
-const LINK_MARK_SPARK = 'M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z';
 
 /**
  * Edges are drawn in world space, so a 1.5px stroke renders as 0.4 screen px at
@@ -307,29 +305,20 @@ function EdgePath({
   // Reasons belong in the hint/inspector, not a long pill covering both endpoints.
   const label = edge.label ?? edge.kind;
   const showLabel = !!label && zoom >= 0.35;
-  // Pill layout in label units (× labelScale): ✦, the label, then a hairline and
+  // Pill layout in label units (× labelScale): the label, then a hairline and
   // "not seen by …", which keeps only its glyph on a short line or below 60% zoom.
   const pad = showLabel ? 9 : 5;
-  const sparkWidth = marks.agent ? 12 : 0;
   const labelWidth = showLabel ? (label?.length ?? 0) * 7 : 0;
   const notSeenText = `not seen by ${agentName()}`;
   const wordedNotSeenWidth = 12 + notSeenText.length * 6.2 + 4;
-  const fullWidth =
-    pad * 2 +
-    sparkWidth +
-    (sparkWidth && labelWidth ? 5 : 0) +
-    labelWidth +
-    (marks.notSeen ? (sparkWidth || labelWidth ? 12 : 0) + wordedNotSeenWidth : 0);
+  const fullWidth = pad * 2 + labelWidth + (marks.notSeen ? (labelWidth ? 12 : 0) + wordedNotSeenWidth : 0);
   // A short line: the full pill plus some line on either side would not fit.
   const notSeenWords = marks.notSeen && zoom >= 0.6 && dist >= (fullWidth + 60) * labelScale;
-  const notSeenWidth = marks.notSeen
-    ? (sparkWidth || labelWidth ? 12 : 0) + (notSeenWords ? wordedNotSeenWidth : 12)
-    : 0;
-  const pillWidth = pad * 2 + sparkWidth + (sparkWidth && labelWidth ? 5 : 0) + labelWidth + notSeenWidth;
-  const left = -pillWidth / 2 + pad;
-  const labelX = left + sparkWidth + (sparkWidth && labelWidth ? 5 : 0);
-  const notSeenX = labelX + labelWidth + (sparkWidth || labelWidth ? 12 : 0);
-  const hasPill = showLabel || !!marks.agent || marks.notSeen;
+  const notSeenWidth = marks.notSeen ? (labelWidth ? 12 : 0) + (notSeenWords ? wordedNotSeenWidth : 12) : 0;
+  const pillWidth = pad * 2 + labelWidth + notSeenWidth;
+  const labelX = -pillWidth / 2 + pad;
+  const notSeenX = labelX + labelWidth + (labelWidth ? 12 : 0);
+  const hasPill = showLabel || marks.notSeen;
   const mid = hasPill ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
 
   const pathId = `edge-path-${edge.id}`;
@@ -338,6 +327,26 @@ function EdgePath({
     // that LANDED on an edge must not immediately undo itself.
     e.stopPropagation();
     selectedEdgeId.value = edge.id;
+  };
+  const showHint = (anchor: Element, point?: { x: number; y: number }) => {
+    const text = [
+      `${String(fromNode.data.title ?? fromNode.id)} → ${String(toNode.data.title ?? toNode.id)}`,
+      relationText(edge),
+      linkHint(edge, marks.notSeen),
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const rect = anchor.getBoundingClientRect();
+    edgeHint.value = {
+      x: point?.x ?? rect.left + rect.width / 2,
+      y: (point?.y ?? rect.bottom) + 8,
+      text,
+      edgeId: edge.id,
+      view: viewport.value,
+    };
+  };
+  const hideHint = () => {
+    edgeHint.value = null;
   };
 
   if (part === 'pills') {
@@ -350,26 +359,8 @@ function EdgePath({
         opacity={dimmed && !selected ? 0.35 : 1}
         onClick={select}
         onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
-        onPointerEnter={(e) => {
-          const text = [
-            `${String(fromNode.data.title ?? fromNode.id)} → ${String(toNode.data.title ?? toNode.id)}`,
-            relationText(edge),
-            linkHint(edge, marks.notSeen),
-          ]
-            .filter(Boolean)
-            .join('\n');
-          const rect = (e.currentTarget as SVGGElement).getBoundingClientRect();
-          edgeHint.value = {
-            x: rect.left + rect.width / 2,
-            y: rect.bottom + 8,
-            text,
-            edgeId: edge.id,
-            view: viewport.value,
-          };
-        }}
-        onPointerLeave={() => {
-          edgeHint.value = null;
-        }}
+        onPointerEnter={(e) => showHint(e.currentTarget)}
+        onPointerLeave={hideHint}
       >
         <rect
           class="edge-label-bg"
@@ -379,14 +370,6 @@ function EdgePath({
           height={20 * labelScale}
           rx={10 * labelScale}
         />
-        {marks.agent && (
-          <path
-            class="edge-link-spark"
-            data-testid="edge-link-agent"
-            transform={`translate(${left * labelScale}, ${-6 * labelScale}) scale(${(12 / 24) * labelScale})`}
-            d={LINK_MARK_SPARK}
-          />
-        )}
         {showLabel && (
           <text
             class="edge-label"
@@ -400,7 +383,7 @@ function EdgePath({
         )}
         {marks.notSeen && (
           <g class="edge-link-mark is-not-seen" data-testid="edge-link-mark">
-            {(sparkWidth > 0 || labelWidth > 0) && (
+            {labelWidth > 0 && (
               <line
                 x1={(notSeenX - 6) * labelScale}
                 x2={(notSeenX - 6) * labelScale}
@@ -449,6 +432,8 @@ function EdgePath({
         style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
         onClick={select}
         onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
+        onPointerEnter={(e) => showHint(e.currentTarget, { x: e.clientX, y: e.clientY })}
+        onPointerLeave={hideHint}
       />
 
       {/* Visible edge — the `edge-arrow` marker uses the default

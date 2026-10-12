@@ -85,11 +85,15 @@ export declare function distributeSelection(): void;
 /** Grid the selection in reading order from its own top-left corner. */
 export declare function arrangeSelection(gap?: number): void;
 export declare function getSelectedNodes(): CanvasNodeState[];
+export declare let contextPinsRevision: number;
+export declare let contextPinsPendingWrites: number;
 export declare function toggleContextPin(id: string): void;
 export declare function addContextPins(ids: string[]): void;
 export declare function removeContextPins(ids: string[]): void;
 export declare function clearContextPins(): void;
 export declare function replaceContextPinsFromServer(ids: string[]): void;
+/** Reconcile dropped frames and refused/normalized writes without replaying old pins. */
+export declare function refreshContextPins(): Promise<void>;
 export declare function addNode(node: CanvasNodeState): void;
 export declare function updateNode(id: string, patch: Partial<CanvasNodeState>): void;
 export declare function updateNodeData(id: string, dataPatch: Record<string, unknown>): void;

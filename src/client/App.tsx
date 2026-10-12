@@ -1,5 +1,5 @@
 import { computed } from '@preact/signals';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Presentation } from './canvas/Presentation';
 import { presenting } from './state/presentation';
 import { AttentionHistory } from './canvas/AttentionHistory';
@@ -138,7 +138,8 @@ export function App() {
     };
   }, []);
 
-  useEffect(() => {
+  // Keyboard ownership must match the committed UI before another key can arrive.
+  useLayoutEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // AltGr on European Windows layouts reports Ctrl+Alt — never treat it
       // as the shortcut modifier, or AltGr+Z (ż, ź…) fires undo.

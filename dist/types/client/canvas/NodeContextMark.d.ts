@@ -8,9 +8,8 @@ export declare const GLYPHS: {
     readonly warn: "M12 4l9 16H3zM12 10v4M12 17v.5";
 };
 /**
- * The agent's byline (docs/design/HeaderMarks.dc.html): authorship, not state,
- * so it never takes a chip — a violet sparkle on the type icon, its words in
- * the icon's hint. A person's edit ends it (decided 2026-10-05).
+ * Authorship lives only in the type icon's hint, not a star or state chip.
+ * A person's edit ends the agent byline.
  */
 export declare function bylineFor(node: CanvasNodeState): string | null;
 /** How a header chip shows: its word, only its glyph, or folded into the type icon's hint. */
@@ -31,8 +30,7 @@ export declare function NodeContextMark({ node, pinned, fold, }: {
     fold?: ChipFold;
 }): import("preact").JSX.Element | null;
 /**
- * The type icon, with the agent's sparkle when an agent wrote the node, and
- * one hint that holds the full title, the byline and any folded chip.
+ * The type icon's hint holds the full title, the byline and any folded chip.
  */
 export declare function NodeTypeIcon({ node, pinned, title, fold, children, }: {
     node: CanvasNodeState;

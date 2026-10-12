@@ -242,6 +242,7 @@ const viewportSetShape = {
     .optional()
     .describe('World point {x, y} to centre in the canvas area (instead of x/y); uses scale or the current zoom'),
   recordHistory: z.unknown().optional().describe('Pass false to skip the undo-history entry'),
+  clientId: z.string().min(1).max(128).optional().describe('Originating workbench tab; echoed with camera updates'),
   clientWidth: z.unknown().optional().describe("The reporting client's window width in CSS pixels"),
   clientHeight: z.unknown().optional().describe("The reporting client's window height in CSS pixels"),
   clientInsets: z
@@ -297,7 +298,10 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
     } else {
       canvasState.setViewport(next);
     }
-    ctx.emit('canvas-viewport-update', { viewport: canvasState.viewport });
+    ctx.emit('canvas-viewport-update', {
+      viewport: canvasState.viewport,
+      ...(input.clientId ? { clientId: input.clientId } : {}),
+    });
     return { ok: true, viewport: canvasState.viewport };
   },
 });

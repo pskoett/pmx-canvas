@@ -74,9 +74,8 @@ function markFor(node: CanvasNodeState, pinned: boolean): Mark | null {
 }
 
 /**
- * The agent's byline (docs/design/HeaderMarks.dc.html): authorship, not state,
- * so it never takes a chip — a violet sparkle on the type icon, its words in
- * the icon's hint. A person's edit ends it (decided 2026-10-05).
+ * Authorship lives only in the type icon's hint, not a star or state chip.
+ * A person's edit ends the agent byline.
  */
 export function bylineFor(node: CanvasNodeState): string | null {
   if (node.lastEditedBy?.actor === 'human') return null;
@@ -133,8 +132,7 @@ export function NodeContextMark({
 }
 
 /**
- * The type icon, with the agent's sparkle when an agent wrote the node, and
- * one hint that holds the full title, the byline and any folded chip.
+ * The type icon's hint holds the full title, the byline and any folded chip.
  */
 export function NodeTypeIcon({
   node,
@@ -151,18 +149,11 @@ export function NodeTypeIcon({
 }) {
   const byline = bylineFor(node);
   const chip = fold === 'hidden' ? headerChip(node, pinned) : null;
-  const body = [byline ? `✦ ${byline}` : '', chip && !chip.amber ? chip.folded : '', TYPE_LABELS[node.type]]
-    .filter(Boolean)
-    .join(' · ');
+  const body = [byline, chip && !chip.amber ? chip.folded : '', TYPE_LABELS[node.type]].filter(Boolean).join(' · ');
   return (
     <BarHint label={title} body={body} align="start" fitWithin=".node-content" tapToOpen>
       <span class="node-type-icon" data-byline={byline ?? undefined}>
         {children}
-        {byline && (
-          <svg class="node-type-spark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d={GLYPHS.spark} />
-          </svg>
-        )}
       </span>
     </BarHint>
   );

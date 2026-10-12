@@ -17,9 +17,8 @@ import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/pre
 import type { CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
 import { type AgentPresence, HUMAN_STARTED_SESSION_LABEL } from '../../src/shared/agent-presence.ts';
 
-// Link marks (docs/design/LinkAuthorship.dc.html): who drew the link (a violet ✦
-// for an agent, until a person changes it) and whether the agent has seen a
-// person's new link (until the next read carries it), both on the link's pill.
+// Authorship stays in the link hint. The pill carries only its label and the
+// independent not-seen state until the next read carries a person's new link.
 
 function card(id: string, x: number): CanvasNodeState {
   return {
@@ -88,7 +87,7 @@ afterEach(() => {
 });
 
 describe('link marks', () => {
-  test('an agent-drawn link keeps its ✦ whether or not a read has carried it; it is never "not seen"', () => {
+  test('an agent-drawn link has no star, preserves its author hint across reads and is never "not seen"', () => {
     const agentLink: CanvasEdge = {
       id: 'e1',
       from: 'a',
@@ -98,12 +97,35 @@ describe('link marks', () => {
       revision: 9,
       changedBy: codex,
     };
-    expect(spark(draw([agentLink]))).toBe(1);
+    storeEdges.value = new Map([[agentLink.id, agentLink]]);
+    const hintHost = document.createElement('div');
+    document.body.appendChild(hintHost);
+    render(<EdgeHint />, hintHost);
+    const before = draw([agentLink]);
+    expect(spark(before)).toBe(0);
+    fireEvent.pointerEnter(before.querySelector('[data-testid="edge-pill"]') as Element);
+    expect(hintHost.textContent).toContain('Drawn by codex');
+    expect(hintHost.textContent).not.toContain('✦');
+    fireEvent.pointerLeave(before.querySelector('[data-testid="edge-pill"]') as Element);
     document.body.innerHTML = '';
     applyContextStatus({ links: { a: 12, b: 12 } });
+    document.body.appendChild(hintHost);
+    render(<EdgeHint />, hintHost);
     const host = draw([agentLink]);
-    expect(spark(host)).toBe(1);
+    expect(spark(host)).toBe(0);
     expect(notSeen(host)).toEqual([]);
+    fireEvent.pointerEnter(host.querySelector('[data-testid="edge-pill"]') as Element);
+    expect(hintHost.textContent).toContain('Drawn by codex');
+    fireEvent.pointerLeave(host.querySelector('[data-testid="edge-pill"]') as Element);
+
+    // Without a label there is no authorship-only pill; the line still has its hint.
+    const bare = draw([{ ...agentLink, label: undefined }]);
+    expect(bare.querySelector('[data-testid="edge-pill"]')).toBeNull();
+    const line = bare.querySelector('path[stroke="transparent"]') as Element;
+    fireEvent.pointerEnter(line);
+    expect(hintHost.textContent).toContain('Drawn by codex');
+    fireEvent.pointerLeave(line);
+    storeEdges.value = new Map();
   });
 
   test("a person's new link says which agent has not seen it, until a read carries it; old links are quiet", () => {
@@ -146,7 +168,8 @@ describe('link marks', () => {
     viewport.value = { x: 0, y: 0, scale: 0.3 };
     host = draw(list);
     expect(host.querySelectorAll('.edge-label').length).toBe(0);
-    expect(spark(host)).toBe(1);
+    expect(spark(host)).toBe(0);
+    expect(host.querySelectorAll('[data-testid="edge-pill"]').length).toBe(1);
     expect(host.querySelectorAll('[data-testid="edge-link-mark"]').length).toBe(1);
   });
 

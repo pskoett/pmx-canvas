@@ -143,6 +143,14 @@ the same change.
 | [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
+**Authorship simplification (owner decision, 2026-10-12).** Remove the violet stars from
+card type icons and relation pills. The type-icon hint still names who wrote or edited the
+card; the relation hint still names who drew it and when, including later takeover.
+Bare lines also expose that hint, so removing an unlabelled link's star does not remove its
+authorship information. This supersedes the star treatment in HeaderMarks, LinkAuthorship
+and LinksChanged above. Blue context pins, violet read-state marks and the agent's activity
+lens remain separate and unchanged.
+
 **See change runtime bounds (2026-10-10).** In short windows the whole receipt scrolls inside
 the canvas region, keeping Undo and History reachable. The Edited row follows individual restores
 as well as bulk Undo. On another board, View diff becomes Open <board> to compare, even when the

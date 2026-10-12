@@ -2596,6 +2596,51 @@ describe('canvas server HTTP API', () => {
     expect(garbage.snapshot).toBe(true);
   });
 
+  test('workbench long polls wake for human movement and bound idle waits', async () => {
+    // Let reset-time coalescers settle before observing a caught-up cursor.
+    await Bun.sleep(100);
+    const first = await jsonRequest<{ seq: number }>('/api/workbench/poll');
+    const waiting = jsonRequest<{
+      seq: number;
+      events: Array<{
+        event: string;
+        payload: { humans?: Array<{ clientId: string; cursor: { x: number; y: number } }> };
+      }>;
+    }>(`/api/workbench/poll?since=${first.seq}&waitMs=1000`);
+    await Bun.sleep(40);
+    await jsonRequest('/api/canvas/human-presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ clientId: 'poll-wakeup', cursor: { x: 237, y: 519 } }),
+    });
+    const update = await waiting;
+    expect(update.seq).toBeGreaterThan(first.seq);
+    expect(update.events.find((entry) => entry.event === 'human-presence')?.payload.humans).toContainEqual(
+      expect.objectContaining({ clientId: 'poll-wakeup', cursor: { x: 237, y: 519 } }),
+    );
+
+    const started = performance.now();
+    const idle = await jsonRequest<{ seq: number; events: unknown[] }>(
+      `/api/workbench/poll?since=${update.seq}&waitMs=60000`,
+    );
+    expect(idle.seq).toBe(update.seq);
+    expect(idle.events).toEqual([]);
+    expect(performance.now() - started).toBeGreaterThanOrEqual(900);
+    expect(performance.now() - started).toBeLessThan(3000);
+
+    const controller = new AbortController();
+    const aborted = fetch(`${baseUrl}/api/workbench/poll?since=${idle.seq}&waitMs=1000`, { signal: controller.signal });
+    await Bun.sleep(40);
+    controller.abort();
+    await expect(aborted).rejects.toThrow();
+    expect((await jsonRequest<{ ok: boolean }>('/api/workbench/poll')).ok).toBe(true);
+    await jsonRequest('/api/canvas/human-presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ clientId: 'poll-wakeup', left: true }),
+    });
+  });
+
   test('surface route 404s for unknown node and non-openable types', async () => {
     const missing = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`);
     expect(missing.status).toBe(404);

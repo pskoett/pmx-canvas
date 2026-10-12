@@ -5,6 +5,7 @@ import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
 import { activeBoardId, boardsLoaded } from './boards-store';
+import { humanClientId } from './human-store';
 function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
@@ -451,6 +452,7 @@ export async function updateViewportFromClient(
       body: JSON.stringify({
         ...viewport,
         ...clientWindowSize(),
+        clientId: humanClientId,
         ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
         ...(options.recordHistory === false ? { recordHistory: false } : {}),
       }),

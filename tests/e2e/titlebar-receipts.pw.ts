@@ -318,7 +318,7 @@ test('receipt Undo protects an unseen human edit and repeated Unpin never adds p
         })
       ).ok(),
     ).toBe(true);
-    await expect(page.locator(`[data-node-id="${b.id}"]`)).toContainText('After B');
+    await expect(page.locator(`.canvas-node[data-node-id="${b.id}"]`)).toContainText('After B');
     const settled = page.waitForResponse(
       (response) => response.url().endsWith('/restore-node') && response.request().postDataJSON().nodeId === b.id,
     );
@@ -331,16 +331,16 @@ test('receipt Undo protects an unseen human edit and repeated Unpin never adds p
   } finally {
     release();
   }
-  await expect(page.locator(`[data-node-id="${b.id}"]`)).toContainText('Human corrected B');
+  await expect(page.locator(`.canvas-node[data-node-id="${b.id}"]`)).toContainText('Human corrected B');
   await post(request, 'context-pins', { nodeIds: [a.id], mode: 'remove' });
   await post(request, 'context-pins', { nodeIds: [c.id], mode: 'add' });
-  await expect(page.locator(`[data-node-id="${a.id}"]`)).not.toHaveClass(/context-pinned/);
-  await expect(page.locator(`[data-node-id="${c.id}"]`)).toHaveClass(/context-pinned/);
+  await expect(page.locator(`.canvas-node[data-node-id="${a.id}"]`)).not.toHaveClass(/context-pinned/);
+  await expect(page.locator(`.canvas-node[data-node-id="${c.id}"]`)).toHaveClass(/context-pinned/);
   const unpin = receipt.getByRole('button', { name: 'Unpin', exact: true });
   for (let i = 0; i < 2; i++) {
     await unpin.click();
     await expect(page.locator('.canvas-node.context-pinned')).toHaveCount(1);
-    await expect(page.locator(`[data-node-id="${b.id}"]`)).not.toHaveClass(/context-pinned/);
+    await expect(page.locator(`.canvas-node[data-node-id="${b.id}"]`)).not.toHaveClass(/context-pinned/);
     await expect
       .poll(async () => {
         const response = await request.get('/api/canvas/pinned-context', { headers: { 'x-pmx-proxied-read': '1' } });

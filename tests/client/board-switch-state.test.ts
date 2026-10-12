@@ -12,7 +12,9 @@ import {
 } from '../../src/client/state/boards-store.ts';
 import {
   activeNodeId,
+  addContextPins,
   axSurfaceState,
+  clearContextPins,
   contextPinnedNodeIds,
   edges,
   expandedNodeId,
@@ -218,6 +220,41 @@ describe('board switch client state', () => {
     await Bun.sleep(0);
     expect([...nodes.value.keys()]).toEqual([surface === 'pins' ? 'old-B' : 'new-B']);
     expect([...contextPinnedNodeIds.value]).toEqual([surface === 'both' ? 'new-B' : 'old-B']);
+  });
+
+  test('pending pins from the previous board do not block canonical pins or later clears', async () => {
+    const writes: DeferredResponse[] = [];
+    let canonical: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/canvas/context-pins' && init?.method === 'POST') {
+        const write = deferredResponse();
+        writes.push(write);
+        return write.promise;
+      }
+      if (String(input) === '/api/workbench/poll')
+        return json({ events: [{ event: 'context-pins-changed', payload: { nodeIds: canonical, boardId: 'B' } }] });
+      return json(String(input) === '/api/canvas/pinned-context' ? { nodeIds: canonical } : {});
+    }) as unknown as typeof fetch;
+    addContextPins(['A-card']);
+    applyBoards(boardPayload('B'));
+    await Bun.sleep(0);
+    const requested = Array.from({ length: 21 }, (_, index) => `B-${index}`);
+    addContextPins(requested);
+    canonical = requested.slice(0, 20);
+    writes[1]!.resolve(json({ ok: true, count: 20 }));
+    await Bun.sleep(0);
+    expect([...contextPinnedNodeIds.value]).toEqual(canonical);
+    clearContextPins();
+    // The old board's acknowledgement must not release the new board's pending write.
+    writes[0]!.resolve(json({ ok: true, count: 1 }));
+    await Bun.sleep(0);
+    EVENT_HANDLERS['context-pins-changed']({ nodeIds: ['B-stale'] });
+    expect([...contextPinnedNodeIds.value]).toEqual([]);
+    canonical = [];
+    writes[2]!.resolve(json({ ok: true, count: 0 }));
+    await Bun.sleep(0);
+    EVENT_HANDLERS['context-pins-changed']({ nodeIds: ['B-agent'] });
+    expect([...contextPinnedNodeIds.value]).toEqual(['B-agent']);
   });
 
   test('shared ids do not preserve interaction state across boards', () => {
