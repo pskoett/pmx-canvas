@@ -201,3 +201,49 @@ ran before Home's asynchronous navigation finished; waiting for Library view bef
 completed normally. The inspected final Graph has 114 nodes at DPR 2 with no body horizontal
 overflow; its long sidebar scrolls to the force controls. Board captures retain the existing
 camera, so Fit is still needed when a stored card sits under floating controls.
+
+### Cross-platform startup finding after the combined push
+
+The combined commit was pushed as
+[11dc3117](https://github.com/pskoett/pmx-canvas/commit/11dc311732d8c12acc86dda12b269539df8fa5b3).
+[Its CI run](https://github.com/pskoett/pmx-canvas/actions/runs/38213111457) passed Linux,
+CLI E2E and browser E2E, but both macOS and Windows failed the same concurrent pre-folder
+opening test at `openCanvasDb`'s `PRAGMA journal_mode=WAL`: an immediate `SQLITE_BUSY`
+despite `busy_timeout=5000`. macOS reported 1,443 passes and one failure; Windows reported
+1,422 passes, 21 existing skips and one failure. Full failed job logs remain in
+`/tmp/pmx-combined-ci.fLBUAO/{macos,windows}-failed.log`.
+
+SQLite documents both [busy-handler bypass](https://www.sqlite.org/c3ref/busy_handler.html)
+and [WAL open/close contention](https://www.sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
+The fix retries only journal negotiation within the existing five-second budget, restores
+the usual busy timeout after success, and closes the connection on terminal initialization
+failure. Other errors still propagate immediately; arbitrary content writes are not retried.
+No test assertion, platform skip or CI retry policy is weakened.
+
+Thirty natural Linux repetitions passed before and after, so they are not claimed as a local
+reproduction of the platform race. A disposable fault-injection probe of the exact immediate
+BUSY fails before (`/tmp/pmx-wal-probe-red.QJ9JfP`) and passes after
+(`/tmp/pmx-wal-probe-green.UwfjJ3`). Its negative controls retain a bounded permanent-BUSY
+failure (about five seconds) and immediate corruption failure. The real concurrent/contended
+open regression remains unchanged in the permanent suite; the injected probe is validation
+evidence, not a mock-based replacement for the native-platform gate.
+
+The follow-up headed run also exposed a synchronization race in the file-backed suspended-save
+test. Its trace shows the canonical-content poll arriving at 140508.771 ms, before the test
+registered `waitForResponse` at 140536.895 ms; subsequent incremental polls correctly omitted
+the already-delivered change. The listener now registers before the peer save. The 409 refusal,
+preserved draft, unchanged canonical file and deliberate subsequent-save assertions are intact.
+The failed trace, videos and screenshots remain under
+`/tmp/pmx-wal-final-gates.vWZ0g3/results/boards.pw.ts-save-and-boar-33e76-its-draft-file-backed-true--desktop`.
+
+Final local follow-up gates ran serially: build/typecheck, lint (0 errors, 63 warnings,
+12 infos), 1,444 unit tests, 306 client tests, unit coverage at 64.70% lines / 72.23%
+functions, and fresh-workspace headed CLI E2E all passed. That first browser attempt finished
+with 275 passes and the one listener failure above. After the test correction, typecheck and
+lint passed again, both suspended-save variants passed ten repetitions each (20 cases), and
+the fresh full headed run passed all 276 cases at the configured reference widths. There were
+no browser retries in either local full run. Evidence is retained in
+`/tmp/pmx-wal-final-gates.vWZ0g3`, `/tmp/pmx-wal-corrected-gates.UL7xSE`, and the CLI workspace
+`/tmp/pmx-canvas-e2e.dfySJW`. The client bundle did not change in this follow-up; the combined
+human, real-transport and inspected visual evidence above remains applicable. Native-platform
+CI is still a separate gate, not implied by these Linux results. No release or version change.

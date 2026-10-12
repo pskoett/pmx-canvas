@@ -40,6 +40,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Brief SQLite startup lock contention no longer immediately refuses to open a library.
 - The library's context summary includes the active board when it is pinned.
 - MCP can create board portals using the advertised node type.
 - Moving between related cards no longer briefly clears the board's focus dimming.

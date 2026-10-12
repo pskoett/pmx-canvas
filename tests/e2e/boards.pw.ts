@@ -1363,12 +1363,14 @@ test.describe('save and board ownership boundaries', () => {
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         await expect.poll(() => captured).toBe(true);
         await peer.locator('.md-editor-expanded textarea').fill(newer);
+        // Arm before the write: the incremental poll may arrive before Saved paints.
+        const newerPoll = page.waitForResponse(
+          async (response) => response.url().includes('/api/workbench/poll') && (await response.text()).includes(newer),
+        );
         await peer.getByRole('button', { name: 'Save', exact: true }).click();
         await expect(peer.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
         // Observe a real poll containing the newer canonical body, without editing this draft.
-        await page.waitForResponse(
-          async (response) => response.url().includes('/api/workbench/poll') && (await response.text()).includes(newer),
-        );
+        await newerPoll;
         await expect(editor).toHaveValue(draft);
         const patch = page.waitForResponse(
           (response) => response.url().endsWith(`/api/canvas/node/${id}`) && response.request().method() === 'PATCH',

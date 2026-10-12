@@ -428,9 +428,29 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
   const db = new Database(dbPath);
-  // Concurrent openers may contend even while negotiating the journal mode.
+  // Journal negotiation can return SQLITE_BUSY without invoking SQLite's busy
+  // handler (including WAL cleanup by a closing connection). Retry only this
+  // startup step within the same five-second budget, not arbitrary writes.
+  const journalDeadline = performance.now() + 5000;
+  while (true) {
+    try {
+      db.exec(`PRAGMA busy_timeout=${Math.max(1, Math.ceil(journalDeadline - performance.now()))}`);
+      db.exec('PRAGMA journal_mode=WAL');
+      break;
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        error.code !== 'SQLITE_BUSY' ||
+        performance.now() >= journalDeadline
+      ) {
+        db.close();
+        throw error;
+      }
+      Bun.sleepSync(10);
+    }
+  }
   db.exec('PRAGMA busy_timeout=5000');
-  db.exec('PRAGMA journal_mode=WAL');
   // FULL, not NORMAL: under WAL, NORMAL lets a host/OS-level crash lose the most
   // recent commits (a clean process exit loses nothing either way). The reporter of
   // issue #22 declined FULL specifically because a save rewrote the whole board, so
