@@ -53,6 +53,17 @@ checkpoints, not claims of a debt-free codebase. Evidence and deviations are rec
 [plan 017](plans/plan-017-knowledge-categories-and-lifecycle.md) and
 [plan 018](plans/plan-018-connected-memory-wave-2.md).
 
+**MCP work relative to this checkpoint (2026-10-12).** The improvements below are
+planned, not part of the delivered Waves 1–3 or new prerequisites for their acceptance.
+Keep owner acceptance, remaining sketch parity and the real-agent curation evaluation
+as the current focus. After that acceptance checkpoint, scope a separate MCP hardening
+batch: structured results and accurate tool annotations first, then cancellation/progress
+and subscription-aware context delivery (moves 6a and 1). Reuse the existing board,
+revision and context-read contracts; a concrete delivery bug found during acceptance
+can be fixed narrowly without pulling the whole batch forward. ChatGPT native-composer
+validation and SDK v2 evaluation stay in Part 4, after Part 3's team/access foundations;
+the optional PMX session connection stays a Part 5 decision. No release number is assigned.
+
 **Release status:** still 0.8.2. No release, tag, publication, deployment or version bump is
 authorized; implementation and green CI do not substitute for the owner's acceptance.
 
@@ -249,6 +260,17 @@ account separately for source revisions, cadence boundaries, session use and ret
 The measured baseline and remaining costs are in
 [the Wave 3 debt review](plans/plan-009-tech-debt-backlog.md#wave-3-maintainability-review-2026-10-11).
 
+**MCP context delivery, staged after current acceptance (2026-10-12).** This is
+follow-up hardening of the implemented context/read-accounting path, not unfinished
+Wave 1 or Wave 3 functionality. Complete resource subscriptions for hosts that
+support them: advertise the capability, track subscribed URIs per connection
+and notify only the relevant subscribers. The current MCP server emits resource
+updates without that subscription bookkeeping. An update means context may be
+stale, not that the host reread it or the model used it. Preserve explicit context
+reads for hosts without subscriptions. Verify subscribe, unsubscribe and connection
+isolation; measure actual reads separately from notifications. This is available
+on SDK v1 and does not depend on the later SDK migration.
+
 **Live-library maintenance checkpoint (2026-10-11).** Map/Graph now preserve local navigation
 while agents change the server's active board. Before stage-2 concurrent board editing, replace
 that narrow browsing flag with explicit per-tab navigation and board-qualified editor ownership;
@@ -309,13 +331,39 @@ shared AX bridge. Preserve authored drafts, input state, offscreen replacements 
 painted-refresh handoff in the current browser cases. Chromium passes do not establish native
 Copilot/WebKit paint; keep that limitation explicit until separately exercised.
 
-### 6a. Make the tool surface cheap (S) — ready to ship
+### 6a. Make the tool surface cheap (S) — staged follow-up
+
+**Current status, 2026-10-12:** direction accepted, not implemented or a gate for
+Waves 1–3 acceptance. Scope the MCP hardening below as a separate follow-up before
+hosted work; the broader cheap-tool proposals remain candidates, not automatic
+batch scope. The schema-size figures and savings below are historical estimates;
+remeasure today's expanded operations before committing to a tool redesign.
 
 Measured on this tree, `tools/list` is 49,222 bytes across 22 tools, about 12,300 tokens that every agent pays on every session before it does anything. Two tools account for a fifth of it: one advertises 51 optional properties, another 49, because a composite flattens four actions' fields into one schema. Per-action requirements exist only in prose, so a call missing a required field passes validation and fails in the handler.
 
 Nothing structural is needed to fix most of that. Ship per-action schemas where hosts support them and a `canvas_help { op }` that returns one operation's schema on demand, so an agent loads what it uses instead of the whole surface. Add `session.start`, returning workspace, brief and inbox in one round trip, so a useful first session is about five calls. Fix the two live descriptions that are wrong today, and add the test that an action summary always equals its own action list. Bound every agent read by a page size, which is Part 1's one read.
 
 This is the half the maintainer has already endorsed in direction. It removes no capability, renames nothing, and is worth roughly 10,000 tokens per session per agent.
+
+**MCP contract and request reliability (2026-10-12).** Extend the existing tool
+surface before changing SDK generations or undertaking 6b. General tools mostly
+return JSON encoded as text; the Apps profile already has structured summaries
+and safety annotations. These improvements are supported by the current SDK v1:
+
+- Add validated `outputSchema` and `structuredContent` for stable result contracts,
+  including IDs, revisions and mutation outcomes. Keep model-facing content compact;
+  retain full UI-only payloads in `_meta` where the Apps host supports it.
+- Advertise accurate read-only, destructive, idempotency and external-access hints.
+  A composite containing writes cannot be labelled read-only. Annotations inform
+  the host; permissions and revision checks remain server-enforced.
+- Carry request cancellation through the operation layer into waits and cancellable
+  I/O. Report progress for lengthy operations when the host supports it. Stopping
+  remaining work does not roll back completed edits; report partial outcomes honestly.
+
+**Acceptance:** validate representative read and mutation results against their
+advertised schemas, audit mixed-action annotations, and cancel an in-flight wait
+without leaving it subscribed until timeout. Keep local stdio behavior working.
+These are incremental contract improvements, not a new composer or session layer.
 
 ### 6b. Generate every surface from the registry (L, two releases) — pending the maintainer's decision
 
@@ -508,6 +556,18 @@ This hosted foundation enables full development and release of the **ChatGPT
 plugin**, the first distribution channel for reaching users and testing whether
 PMX becomes part of their work. Validate the ChatGPT experience and adoption
 before investing in the full standalone hosted service in Part 5.
+
+**Native composer and board context (2026-10-12).** The plugin uses ChatGPT's
+native composer, not a second PMX chat box. PMX supplies board tools and context.
+This acceptance belongs to the hosted pilot after Part 3, not the current local
+Waves 1–3 checkpoint or renewed full-plugin work on the private tunnel preview.
+The existing Apps bridge already sends selection, pins and board context through
+capability-gated `updateModelContext`, with acknowledgment and retry; keep this
+separate from resource-update notifications. In the actual ChatGPT surface, change
+the selection, edit a pinned card and switch boards, then verify the next response
+uses the intended context and current revisions. A bridge acknowledgment alone is
+not proof of model use. If the host lacks the bridge capability, use explicit board
+reads and document the limitation rather than promising automatic context delivery.
 
 Other agents should eventually be able to connect directly to the same hosted
 MCP endpoint through **OAuth using the user's OpenAI login**. Both paths act
@@ -739,6 +799,25 @@ runtime, not just uploading the browser bundle.
 - **Assets and builds:** prebuild the canvas and viewers; serve protected documents and uploaded objects by durable IDs. Local file watching, desktop open/reveal, subprocess MCP servers, Bun.WebView screenshots and runtime package builds do not transfer unchanged. A local bridge or external builder would be a separate integration.
 - **MCP and the plugin UI:** Sites' documented tool endpoint is the starting contract. Verify PMX's resources, resource templates, notifications and MCP Apps UI embedding separately; a successful tool call does not prove that `canvas://pinned-context`, the embedded workbench or nested app frames work. Existing `isHostedWorkbench()` means an MCP App host transport is installed, not that Sites deployment is supported ([transport source](../src/client/state/workbench-transport.ts)).
 
+**SDK v2 evaluation belongs to hosted-runtime work (2026-10-12).** SDK generation
+and MCP protocol revision are separate choices. The current lockfile resolves SDK
+1.28.0; [SDK v2.3.1](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/v2.3.1)
+offers split server/client packages and a fetch-native
+[`createMcpHandler`](https://github.com/modelcontextprotocol/typescript-sdk/blob/v2.3.1/docs/serving/http.md)
+suited to Workers and Bun. Evaluate it against Sites' actual endpoint contract;
+do not require it merely for the v1-capable improvements in moves 1 and 6a. Carry
+the evaluation into Part 5 if Sites does not need or support that serving model.
+
+Migration must cover SDK-consuming dependencies together: installed MCP Apps
+[1.3.1 declares an SDK v1 peer](https://github.com/modelcontextprotocol/ext-apps/blob/v1.3.1/package.json),
+so replacing core imports alone is not a compatibility plan. Verify local stdio,
+hosted tool calls and Apps rendering/context delivery with compatible dependencies
+and the target hosts before switching. A stateless MCP handler does not supply
+board persistence, authorization or user isolation; preserve those PMX contracts
+and make retried mutations safe. Do not add sampling or background-task machinery
+just to use SDK features. Adopt them only for a concrete workflow with verified host
+support; durable jobs would still need PMX-owned persistence and recovery.
+
 ### Hosted pilot operating requirements
 
 **Documented platform limits, checked 2026-10-10:** D1 is limited to 10 GB per
@@ -870,6 +949,34 @@ and credentials differ. Check the 600/1024/1920 px surfaces and nine themes from
 the design gate. Record unsupported integrations explicitly. External-client
 OAuth, full MCP resource/UI support and third-party app hosting each need their
 own passing evidence before the complete hosted promise is met.
+
+### Before standalone hosting: does PMX keep its session UI?
+
+**Conditional direction, 2026-10-12.** Explicit agent-session integration is
+not a requirement for the ChatGPT plugin: ChatGPT owns the conversation, and
+PMX connects the board through the supported MCP surface. Before the later
+standalone hosted version, decide whether the session part of the canvas stays.
+If sessions remain in the agent host rather than in PMX's UI, an authenticated
+MCP connection may be enough; do not build a second session layer by default.
+
+If PMX keeps its session UI, retain PMX's session experience and consider a
+clearer connection to the external harness:
+
+- Bind the PMX session explicitly to the host conversation, agent identity and
+  target board. Presence reports liveness, not session identity; browsing another
+  board must not silently retarget the agent.
+- Show actual adapter capabilities and delivery state: connected is not the
+  same as able to wake an agent, and queued steering is not yet acknowledged.
+- Let agents identify the cards or artifacts to reveal, while the human controls
+  whether the canvas follows. Keep durable results and receipts separate from
+  temporary cursors, activity and partial output; reconcile safely on reconnect.
+
+[OpenHands Agent Canvas's UI/runtime separation](https://github.com/OpenHands/OpenHands/blob/ed77be9cfa46bc5f44031d52b9830dbd1dff95fc/docs/architecture.md)
+and its small [result-reveal tool](https://github.com/OpenHands/OpenHands/blob/ed77be9cfa46bc5f44031d52b9830dbd1dff95fc/src/api/canvas-ui-client-tool.ts)
+are inspiration, not a dependency or a spatial-canvas design to copy. Agent
+execution and tool permissions stay with the harness. This is a later product
+decision, not approval to implement session integration or a blocker for the
+ChatGPT pilot.
 
 ## Part 5: Further out — full PMX Canvas hosted on Cloudflare
 
