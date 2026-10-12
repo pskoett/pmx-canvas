@@ -244,6 +244,10 @@ const viewportSetShape = {
   recordHistory: z.unknown().optional().describe('Pass false to skip the undo-history entry'),
   clientWidth: z.unknown().optional().describe("The reporting client's window width in CSS pixels"),
   clientHeight: z.unknown().optional().describe("The reporting client's window height in CSS pixels"),
+  clientInsets: z
+    .object({ top: z.number().finite().nonnegative(), bottom: z.number().finite().nonnegative() })
+    .optional()
+    .describe('Measured floating chrome above and below the canvas, in CSS pixels'),
 };
 
 const viewportSetSchema = z.looseObject(viewportSetShape);
@@ -263,7 +267,7 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
     // The browser piggybacks its real window size here so a later agent `fit`
     // sizes to the human's actual window instead of a hardcoded 1440x900
     // (0.4.6 orb feedback #2).
-    setClientViewportSize(body.clientWidth, body.clientHeight);
+    setClientViewportSize(body.clientWidth, body.clientHeight, input.clientInsets);
     // A size-only report is not a camera command. Echoing the stored camera
     // here would cancel an in-flight browser focus with its stale fallback.
     const center = body.center;

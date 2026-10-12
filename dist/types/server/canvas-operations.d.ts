@@ -309,7 +309,10 @@ export declare function createCanvasGraphNode(input: GraphNodeInput): {
     node: CanvasNodeState;
     sizeAdjustment?: CanvasSizeAdjustment;
 };
-export declare function setClientViewportSize(width: unknown, height: unknown): void;
+export declare function setClientViewportSize(width: unknown, height: unknown, insets?: {
+    top: number;
+    bottom: number;
+}): void;
 export declare function getClientViewportSize(): {
     width: number;
     height: number;

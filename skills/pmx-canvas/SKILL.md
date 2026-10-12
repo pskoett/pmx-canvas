@@ -22,6 +22,7 @@ File a board with `canvas_board { action: "update", id: "<board-id>", folder:
 
 Knowledge lifecycle data is explicit, never classified automatically. `canvas_board` actions
 `knowledge-list`, `category-set` (`category`: id/name/glyph/decayType/rate/triggers/revalidationMethod),
+`category-remove` (`id`: unused only; explicit folder assignments, including empty folders, refuse deletion),
 and `folder-set` (`path`, nullable `categoryId`, nullable `lifecycleOverride`) work on Home without
 opening a board. `canvas_node` actions `lifecycle-get`, `lifecycle-set`, `review`, and
 `lifecycle-restore` take `id`; reads may specify `board`, writes should carry `expectedBoardId`.
@@ -41,6 +42,9 @@ Never copy new tokens onto old evidence. Brief `lifecycle` snapshots are indepen
 cursor: replace cached qualification when `complete: true`; recheck cached cards before reuse when
 `complete: false`. Unknown is not expiry. Medium uses only explicit `cadenceDays`, fast checks at
 session use, slow at resume, durable has no passive expiry. Presets are editable, never classification.
+Human review: Home's Review needed count leads to boards and their affected cards; More → Review
+asks for a short note and Checked, still correct. Not now writes nothing. Settings and history
+holds policies, clocks and advanced outcomes. No review policy is informational, not a review task.
 
 At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
@@ -268,7 +272,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads`, `read-status` |
 | `canvas_ax_delivery` | `claim`, `mark` |
-| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `folder-set` |
+| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `category-remove`, `folder-set` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `restore-node`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 
@@ -296,14 +300,18 @@ v0.4.0 after their deprecated 0.3.x window.
 - Search before adding to avoid duplicate nodes.
 - Extend the current board in place; do not evict prior nodes to add new material.
 - Use groups only when the frame communicates meaningful containment.
-- Space related nodes so rendered edges, labels, arrowheads and authorship marks have clear room;
-  separate unrelated clusters more visibly. No single pixel gap works for every card or zoom.
+- Keep unconnected notes and walkthroughs compact; do not reserve empty relation channels
+  where no relation is drawn. Size cards for their content, not an oversized uniform frame.
+- For connected cards, leave only the channel the rendered line, label, arrowhead and
+  authorship marks need; separate unrelated clusters more visibly. Neither a fixed wide gap
+  nor a half-card-width gap is a universal rule.
 - Use directed edges for actual relationships, not decoration.
 - Edge types: `flow`, `depends-on`, `relation`, `references`.
 - After manual or batch layout changes, run `canvas_query { action: "validate" }`.
 - Validation checks node non-overlap, not relation readability. After content settles, inspect
   the rendered board at the intended viewing zoom; widen or reroute crowded relations as needed,
-  including after auto-arrange.
+  including after auto-arrange. Also close excessive blank gaps left by cards shrinking after
+  rendering. Inspect a readable cluster and a tour/detail state, not only a whole-board overview.
 
 ## In-View Placement & Sizing (required for user-facing nodes)
 
@@ -321,9 +329,10 @@ distant nodes, an auto-placed node lands off-camera.
    everything. Always pass explicit `nodeIds` to `fit`. If body text becomes microscopic,
    use a closer focus or tour for reading; an overview is for orientation, not detail.
 4. Never leave user-facing output at far coordinates without a focus/fit.
-5. **Do not hand-compute a whole board's coordinates.** Create the nodes (omitting x/y), then
-   `canvas_view { action: "arrange", layout: "grid" | "column" | "flow" }` and finish with a
-   `fit` over the new ids. Manual pixel math is what produces long-line, unbalanced boards.
+5. Prefer `canvas_view { action: "arrange", layout: "grid" | "column" | "flow" }` once content
+   sizes settle, then inspect and focus a readable cluster. Use a custom layout only when it
+   serves an explicit reading order or relation route the available arrangement does not preserve.
+   Recheck actual rendered sizes, compactness and label clearance before claiming it is ready.
 6. `fit` sizes itself to the connected browser window (0.4.6+) — you do not need to guess
    `width`/`height`. Pass them only to fit for a window other than the human's.
 7. **Every node is a canvas card.** Nodes render on the canvas where you put them — there is
@@ -381,9 +390,11 @@ Context pins are the primary human-to-agent bridge:
 
 The budgeted brief includes up to five unpinned neighbors within 600 world px of each pin,
 nearest first, as summaries, not full reads. A "near" mark does not make a card pinned.
-Hover, select or drag a pin to see numbered dotted tethers and its radius; a near card's
+Hover, select or drag a pin to see numbered dotted tethers and an unlabeled radius, only
+when another card's center is within range (including another pin). A near card's
 **Show pins** reveals which pins include it. Dragging an unpinned card shows only the nearest
-pin's radius. Pin the card explicitly when it must remain in context regardless of proximity.
+pin's radius, under the same within-range condition. Pin the card explicitly when it must
+remain in context regardless of proximity.
 
 Do not confuse context pinning with **Lock position**, which only excludes a node from auto-arrange.
 Every node type, including `status`, can be removed through `canvas_node { action: "remove" }`, the
@@ -634,7 +645,17 @@ Explicit 0 is valid; empty depth values and bare CLI `--depth` are rejected.
 HTTP, SDK and the MCP tool accept `projection: "full" | "boards"` (default `full`);
 CLI uses `--projection full|boards`. The graph resource uses the default full projection.
 Home Map uses compact `boards` summaries and loads depth-2 details on selection.
-Metadata edits and dragging do not refetch relationships; use **Refresh** to reload them.
+Map/Graph coalesce live board, layout, pin and reconnect updates without resetting the
+human's camera or selection. Failed reads keep the previous view with **Retry**.
+The human can remain in Map/Graph while an agent opens or edits a board; the server's
+active board still controls agent writes. Explicit **Open board/card** returns the human
+to that board. Do not infer the agent's active board from the human's visible library.
+Library context controls show workspace board pins, not controls for the hidden active
+board's cards. Create a portal on the source board with `canvas_node { action: "add",
+type: "board", data: { boardId: "<target-board-id>" } }`.
+Graph forces and dragged particles are view-local; only Map positions persist. Filters
+change the display, not the projection's data or context pins. Overview aggregates links;
+selection/details expose individual relations and their direction/reasons.
 The result has `nodes`, `edges`, `unresolvedLinks: [{ source, ref }]`, `focus`,
 and `depth`; nodes have `summaryOnly: true` and summaries at most 280 characters.
 Connected-memory projections power Home Folders/Map/Graph, links/backlinks and brief

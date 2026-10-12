@@ -18,12 +18,13 @@ cmd(
   'Workspace knowledge actions with a JSON payload',
   [
     'pmx-canvas board knowledge list',
+    'pmx-canvas board knowledge category-remove \'{"id":"unused-category"}\'',
     'pmx-canvas board knowledge folder-set \'{"path":"A","categoryId":null,"lifecycleOverride":null}\'',
   ],
   async (args) => {
     const [action, payload = '{}'] = args;
-    if (!['list', 'category-set', 'folder-set'].includes(action ?? ''))
-      die('Expected list, category-set or folder-set.');
+    if (!['list', 'category-set', 'category-remove', 'folder-set'].includes(action ?? ''))
+      die('Expected list, category-set, category-remove or folder-set.');
     output(await invokeOperation(`knowledge.${action}`, JSON.parse(payload)));
   },
 );

@@ -58,6 +58,24 @@ export const lifecycleOperations: Operation[] = [
     },
   }),
   defineOperation({
+    name: 'knowledge.category-remove',
+    mutates: false,
+    input: z.object({ id: z.string().trim().min(1) }),
+    inputShape: { id: z.string().trim().min(1) },
+    http: { method: 'DELETE', path: '/api/canvas/knowledge/category/:id' },
+    mcp: {
+      toolName: 'canvas_knowledge_category_remove',
+      description:
+        'Delete an unused workspace category by id. Explicit folder assignments, including empty folders, refuse deletion.',
+      formatResult: jsonResult,
+    },
+    handler: (input, ctx) => {
+      const id = canvasState.knowledge.removeCategory(input.id);
+      ctx.emit('knowledge-changed', canvasState.knowledge.list());
+      return { ok: true, id };
+    },
+  }),
+  defineOperation({
     name: 'knowledge.folder-set',
     mutates: false,
     input: z.object({

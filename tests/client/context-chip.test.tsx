@@ -1,7 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { ContextChip } from '../../src/client/canvas/ContextChip.tsx';
-import { activeBoardId, type BoardSummary, boardList, boardsLoaded } from '../../src/client/state/boards-store.ts';
+import {
+  activeBoardId,
+  type BoardSummary,
+  boardList,
+  boardsLoaded,
+  browsingMemory,
+} from '../../src/client/state/boards-store.ts';
 import { contextPinnedNodeIds, nodes } from '../../src/client/state/canvas-store.ts';
 import { briefSize, pinnedBoardReads } from '../../src/client/state/context-chip-store.ts';
 import { applyContextStatus } from '../../src/client/state/context-status-store.ts';
@@ -52,6 +58,7 @@ const agent = { actor: 'agent' as const, source: 'mcp', agentId: 'claude' };
 
 beforeEach(() => {
   calls.length = 0;
+  browsingMemory.value = false;
   activeBoardId.value = 'open';
   boardList.value = [board('open', 'Pricing research')];
   nodes.value = new Map();
@@ -64,6 +71,7 @@ afterEach(() => {
   cleanup();
   resetPresence();
   boardsLoaded.value = false;
+  browsingMemory.value = false;
 });
 
 describe('ContextChip', () => {
@@ -73,6 +81,23 @@ describe('ContextChip', () => {
     expect(getByTestId('context-chip').className).toContain('is-empty');
     fireEvent.click(getByTestId('context-chip'));
     expect(getByText(/Nothing is pinned/)).toBeTruthy();
+  });
+
+  test('library browsing shows every board pin without exposing the hidden active board card controls', async () => {
+    browsingMemory.value = true;
+    boardList.value = [board('open', 'Pricing research', { pinnedBy: human, pinnedAt: '2026-10-07T00:00:00.000Z' })];
+    nodes.value = new Map([['a', card('a', 0, 'Hidden board card')]]);
+    contextPinnedNodeIds.value = new Set(['a']);
+    const { getByTestId, getByRole, queryByRole } = render(<ContextChip />);
+    expect(getByTestId('context-chip').querySelector('.context-chip-wide')?.textContent).toBe('1 board');
+    fireEvent.click(getByTestId('context-chip'));
+    expect(getByRole('button', { name: 'Unpin Pricing research' })).toBeTruthy();
+    expect(queryByRole('button', { name: 'Unpin Hidden board card' })).toBeNull();
+    expect(queryByRole('button', { name: 'Clear all' })).toBeNull();
+    await act(() => {
+      activeBoardId.value = null;
+    });
+    expect(getByTestId('context-chip').querySelector('.context-chip-wide')?.textContent).toBe('1 board');
   });
 
   test('counts cards, near and boards in brief order, with the token cost', () => {

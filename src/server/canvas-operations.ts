@@ -1910,16 +1910,21 @@ export function createCanvasGraphNode(input: GraphNodeInput): {
  * fit call still win. In-memory only (a live client fact, never persisted);
  * with several clients connected, the most recent reporter wins.
  */
-let lastClientViewportSize: { width: number; height: number } | null = null;
+let lastClientViewportSize: {
+  width: number;
+  height: number;
+  boardId: string | null;
+  insets?: { top: number; bottom: number };
+} | null = null;
 
-export function setClientViewportSize(width: unknown, height: unknown): void {
+export function setClientViewportSize(width: unknown, height: unknown, insets?: { top: number; bottom: number }): void {
   if (typeof width !== 'number' || typeof height !== 'number') return;
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
-  lastClientViewportSize = { width, height };
+  lastClientViewportSize = { width, height, boardId: canvasState.activeBoardId, insets };
 }
 
 export function getClientViewportSize(): { width: number; height: number } | null {
-  return lastClientViewportSize ? { ...lastClientViewportSize } : null;
+  return lastClientViewportSize ? { width: lastClientViewportSize.width, height: lastClientViewportSize.height } : null;
 }
 
 export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitViewResult {
@@ -1951,11 +1956,16 @@ export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitView
   // Screen-space fit (architecture rule 9): `padding` and the chrome reserve
   // are SCREEN pixels — world-space padding shrank with the fit zoom and
   // parked nodes under the command bar and minimap (0.5.0 Amp report,
-  // finding A). The server cannot measure the client's chrome, so it reserves
-  // nominal bottom space: the minimap is always there; the command bar only
-  // while a session is attached.
-  const bottomReserve = agentPresence.snapshot().sessionActive ? 128 : 96;
-  const topReserve = Math.max(padding, layout.edges.length ? 90 : 48);
+  // finding A). The workbench reports its measured chrome with its size;
+  // without a matching board and viewport size, retain nominal chrome reserves.
+  const insets =
+    lastClientViewportSize?.boardId === canvasState.activeBoardId &&
+    lastClientViewportSize.width === width &&
+    lastClientViewportSize.height === height
+      ? lastClientViewportSize.insets
+      : undefined;
+  const bottomReserve = insets?.bottom ?? (agentPresence.snapshot().sessionActive ? 128 : 96);
+  const topReserve = Math.max(padding, insets?.top ?? (layout.edges.length ? 90 : 48));
   const usableWidth = Math.max(80, width - padding * 2);
   const usableHeight = Math.max(80, height - topReserve - bottomReserve);
   const worldWidth = Math.max(1, bounds.width);

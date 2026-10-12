@@ -67,7 +67,6 @@ Price page copy — Draft copy for the Pro plan page: headline, three benefits, 
 <path d="{{tether.b}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
 <path d="{{tether.c}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
 </svg>
-<span style="position: absolute; left: 640px; top: 392px; font-size: 11px; color: rgba(75,188,255,0.7)">600 px from Release runbook</span>
 <sc-for list="{{hover}}" as="n" hint-placeholder-count="6">
 <div style="{{n.box}}">
 <div style="{{n.head}}"><svg width="14" height="14" viewBox="0 0 24 24" style="{{s.kind}}"><path d="{{i.note}}"></path></svg><span style="{{s.title}}">{{n.title}}</span>
@@ -80,7 +79,7 @@ Price page copy — Draft copy for the Pro plan page: headline, three benefits, 
 </sc-for>
 <sc-for list="{{nums}}" as="m" hint-placeholder-count="3"><span style="position: absolute; left: {{m.x}}px; top: {{m.y}}px; width: 20px; height: 20px; border-radius: 999px; background: #081524; border: 1px dotted #4BBCFF; color: #4BBCFF; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px">{{m.n}}</span></sc-for>
 </div>
-<span style="font-size: 12px; color: #8ea3bd">Dotted tethers, numbered nearest first, and the 600 px radius while the pin is hovered or selected. Tethers are drawn in screen space, so they still join a pin and its neighbours at fit zoom. Other nodes are untouched.</span>
+<span style="font-size: 12px; color: #8ea3bd">Dotted tethers, numbered nearest first, and an unlabeled 600 px radius while the pin is hovered or selected, only when another card's centre is within range. Tethers are drawn in screen space, so they still join a pin and its neighbours at fit zoom. Other nodes are untouched.</span>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 12px">

@@ -20,7 +20,7 @@ import { BoardCopyDialog } from './BoardCopyDialog';
 import { BoardPinButton } from './BoardPinButton';
 import { HomeMemoryView } from './HomeMemoryView';
 import { KnowledgeDialog } from './KnowledgeDialog';
-import { knowledge } from '../state/knowledge-store';
+import { knowledge, lifecycleFilter } from '../state/knowledge-store';
 import type { LifecycleQualification } from '../../shared/lifecycle-status.js';
 import { IconChevronDown, IconChevronRight, IconMore, IconPin, IconSearch } from '../icons';
 
@@ -124,6 +124,7 @@ export function HomeView() {
   const [moving, setMoving] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [reviewOnly, setReviewOnly] = useState(false);
   const [hits, setHits] = useState<LibraryHit[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -154,10 +155,35 @@ export function HomeView() {
   const matches = query
     ? boards.filter((board) => `${board.name} ${board.folder ?? ''}`.toLocaleLowerCase().includes(query))
     : [];
-  const shown = query ? matches : here;
   const selected = boards.find((board) => board.id === selectedId) ?? null;
   const movingBoard = boards.find((board) => board.id === moving);
   const copyingBoard = boards.find((board) => board.id === copying);
+  const reviewBoardIds = new Set(boards.filter((board) => !folder || inFolder(board, folder)).map((board) => board.id));
+  const reviewCards = Object.entries(knowledge.value?.cards ?? {})
+    .filter(([key]) => reviewBoardIds.has((JSON.parse(key) as [string, string])[0]))
+    .map(([, status]) => status);
+  const reviewNeeded = reviewCards.filter((status) => !status.retired && (status.due || status.sources.length)).length;
+  const withoutPolicy = reviewCards.filter((status) => status.unknown).length;
+  const folderCategory = knowledge.value?.resolvedFolders[folder]?.category;
+  const reviewTargets = new Map<string, string[]>();
+  for (const [key, status] of Object.entries(knowledge.value?.cards ?? {})) {
+    if (status.retired || !(status.due || status.sources.length)) continue;
+    const [boardId, nodeId] = JSON.parse(key) as [string, string];
+    const targets = reviewTargets.get(boardId) ?? [];
+    targets.push(nodeId);
+    reviewTargets.set(boardId, targets);
+  }
+  const shown = query
+    ? matches
+    : reviewOnly
+      ? boards.filter((board) => reviewBoardIds.has(board.id) && reviewTargets.has(board.id))
+      : here;
+  const reviewBoard = async (id: string) => {
+    const cardId = reviewTargets.get(id)?.[0];
+    if (!cardId) return;
+    await openMemoryTarget({ boardId: id, cardId });
+    if (activeBoardId.value === id) lifecycleFilter.value = 'To review';
+  };
 
   useEffect(() => {
     const q = search.trim();
@@ -204,6 +230,7 @@ export function HomeView() {
   const goTo = (path: string) => {
     setFolder(path);
     setSearch('');
+    setReviewOnly(false);
     setSelectedId(null);
     setPickerOpen(false);
   };
@@ -239,13 +266,6 @@ export function HomeView() {
     const open = !collapsed.has(path);
     const count = boards.filter((board) => inFolder(board, path)).length;
     const hasPin = boards.some((board) => board.pin && inFolder(board, path));
-    const resolved = knowledge.value?.resolvedFolders[path];
-    const boardIds = new Set(boards.filter((board) => inFolder(board, path)).map((board) => board.id));
-    const cards = Object.entries(knowledge.value?.cards ?? {})
-      .filter(([key]) => boardIds.has((JSON.parse(key) as [string, string])[0]))
-      .map(([, status]) => status);
-    const due = cards.filter((status) => !status.retired && (status.due || status.sources.length)).length;
-    const unknown = cards.filter((status) => status.unknown).length;
     return (
       <li key={path}>
         <div class={`home-tree-row${folder === path && !query ? ' is-selected' : ''}`} data-folder={path}>
@@ -268,17 +288,6 @@ export function HomeView() {
           </button>
           {hasPin && <span class="home-tree-pin" aria-label="Has a board in the agent's context" />}
           <span class="home-tree-count">{count}</span>
-          {knowledge.value && (
-            <span class="home-folder-qualification">
-              <span class={resolved?.category ? 'category-tag' : 'category-tag is-unknown'}>
-                {resolved?.category
-                  ? `${resolved.categorySourceFolder === path ? '' : '↳ '}${resolved.category.glyph} ${resolved.category.name}`
-                  : 'unknown'}
-              </span>
-              {due > 0 && <span class="lifecycle-warning">⧗ {due} due</span>}
-              {unknown > 0 && <span>{unknown} unknown</span>}
-            </span>
-          )}
         </div>
         {open && kids.length > 0 && <ul class="home-tree">{kids.map((kid) => treeRow(kid, depth + 1))}</ul>}
       </li>
@@ -295,20 +304,6 @@ export function HomeView() {
             Unfiled
           </button>
           <span class="home-tree-count">{boards.filter((board) => !board.folder).length}</span>
-          {knowledge.value && (
-            <span class="home-folder-qualification">
-              <span class="category-tag is-unknown">unknown</span>
-              <span>
-                {
-                  Object.entries(knowledge.value.cards).filter(
-                    ([key, status]) =>
-                      status.unknown && boards.some((board) => !board.folder && board.id === JSON.parse(key)[0]),
-                  ).length
-                }{' '}
-                unknown
-              </span>
-            </span>
-          )}
         </div>
       </li>
     </ul>
@@ -369,6 +364,16 @@ export function HomeView() {
             </span>
           </span>
         </button>
+        {reviewTargets.has(board.id) && (
+          <button
+            type="button"
+            class="home-card-review"
+            aria-label={`Review ${board.name}`}
+            onClick={() => void reviewBoard(board.id)}
+          >
+            ⧗ Review {plural(reviewTargets.get(board.id)!.length, 'card')}
+          </button>
+        )}
         <BoardPinButton board={board} />
       </article>
     </li>
@@ -386,15 +391,6 @@ export function HomeView() {
           <span class="home-details-context-label">
             {selected.pin ? "In the agent's context" : "Not in the agent's context"}
           </span>
-          <span class="home-details-context-meta">
-            {[
-              selected.summary ? 'README' : '',
-              selected.pinnedTitles?.length ? plural(selected.pinnedTitles.length, 'pinned card') : '',
-            ]
-              .filter(Boolean)
-              .join(' + ') || 'Nothing pinned yet'}
-            {selected.mapChars ? ` · ≈ ${approxTokens(selected.mapChars)} tokens` : ''}
-          </span>
         </span>
         <button
           type="button"
@@ -407,58 +403,6 @@ export function HomeView() {
           <span class="home-switch-knob" />
         </button>
       </div>
-      {selected.summary && (
-        <section class="home-details-section">
-          <span class="home-section-label">README</span>
-          <p class="home-details-readme">{selected.summary}</p>
-        </section>
-      )}
-      {(selected.pinnedTitles?.length ?? 0) > 0 && (
-        <section class="home-details-section">
-          <span class="home-section-label">Pinned cards · {selected.pinnedTitles?.length}</span>
-          {selected.pinnedTitles?.map((pin) => (
-            <div key={pin.nodeId} class="home-details-pinned">
-              {pin.title}
-            </div>
-          ))}
-        </section>
-      )}
-      {linkCount(selected) > 0 && (
-        <section class="home-details-section">
-          <span class="home-section-label">Links · {linkCount(selected)}</span>
-          {selected.links?.map((link) => (
-            <div key={link.id ?? link.nodeId} class="home-details-link">
-              <span class="home-details-link-dir">→</span>
-              <button
-                type="button"
-                disabled={link.missing}
-                class="home-details-link-name"
-                onClick={() =>
-                  void openMemoryTarget({ boardId: link.boardId, ...(link.cardId ? { cardId: link.cardId } : {}) })
-                }
-              >
-                {link.missing ? 'Missing target' : link.title}
-              </button>
-              <span class="home-details-link-kind">{link.kind ?? 'portal'}</span>
-            </div>
-          ))}
-          {selected.backlinks?.map((link) => (
-            <div key={link.id ?? `${link.boardId}:${link.nodeId}`} class="home-details-link">
-              <span class="home-details-link-dir">←</span>
-              <button
-                type="button"
-                class="home-details-link-name"
-                onClick={() =>
-                  void openMemoryTarget({ boardId: link.boardId, ...(link.nodeId ? { cardId: link.nodeId } : {}) })
-                }
-              >
-                {link.title}
-              </button>
-              <span class="home-details-link-kind">{link.kind ?? 'portal'}</span>
-            </div>
-          ))}
-        </section>
-      )}
       {confirmingDelete ? (
         <div class="home-details-confirm" role="alert">
           <span>
@@ -486,6 +430,11 @@ export function HomeView() {
           <button type="button" class="home-button is-primary" onClick={() => void openBoard(selected.id)}>
             Open board
           </button>
+          {reviewTargets.has(selected.id) && (
+            <button type="button" class="home-button" onClick={() => void reviewBoard(selected.id)}>
+              Review cards
+            </button>
+          )}
           <span class="home-more">
             <button
               ref={moreButton}
@@ -657,6 +606,30 @@ export function HomeView() {
               </button>
             </div>
 
+            {knowledge.value && !query && (
+              <section class="home-main-section" aria-label="Folder review summary">
+                <span class="home-section-label">
+                  Card review · {folder ? 'In this folder and subfolders' : 'Across the library'}
+                </span>
+                <div class="home-card-meta">
+                  {folderCategory && (
+                    <span>
+                      Category: {folderCategory.glyph} {folderCategory.name}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    class={`home-review-link${reviewNeeded ? ' has-review' : ''}`}
+                    aria-pressed={reviewOnly}
+                    onClick={() => setReviewOnly(!reviewOnly)}
+                  >
+                    Review needed: {plural(reviewNeeded, 'card')}
+                  </button>
+                  <span>No review policy: {plural(withoutPolicy, 'card')}</span>
+                </div>
+              </section>
+            )}
+
             {boards.length === 0 ? (
               <div class="home-view-empty">
                 No boards yet. Create one, or let an agent start writing — it opens one.
@@ -696,7 +669,7 @@ export function HomeView() {
               </>
             ) : (
               <>
-                {subfolders.length > 0 && (
+                {!reviewOnly && subfolders.length > 0 && (
                   <section class="home-main-section">
                     <span class="home-section-label">Folders · {subfolders.length}</span>
                     <ul class="home-folders">
@@ -736,14 +709,22 @@ export function HomeView() {
                 )}
                 <section class="home-main-section">
                   <span class="home-section-label">
-                    {folder ? `Boards in ${leaf(folder)}` : 'Unfiled boards'} · {shown.length}
+                    {reviewOnly ? 'Boards needing review' : folder ? `Boards in ${leaf(folder)}` : 'Unfiled boards'} ·{' '}
+                    {shown.length}
                   </span>
                   {shown.length > 0 ? (
-                    <ul class="home-cards" aria-label={folder ? `Boards in ${folder}` : 'Unfiled boards'}>
+                    <ul
+                      class="home-cards"
+                      aria-label={
+                        reviewOnly ? 'Boards needing review' : folder ? `Boards in ${folder}` : 'Unfiled boards'
+                      }
+                    >
                       {shown.map(card)}
                     </ul>
                   ) : (
-                    <div class="home-view-empty">No boards here yet.</div>
+                    <div class="home-view-empty">
+                      {reviewOnly ? 'No cards currently need review in this scope.' : 'No boards here yet.'}
+                    </div>
                   )}
                 </section>
               </>

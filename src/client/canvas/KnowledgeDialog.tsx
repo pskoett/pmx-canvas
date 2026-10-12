@@ -5,6 +5,7 @@ import { knowledge, refreshKnowledge } from '../state/knowledge-store';
 import { requestJson } from '../state/intent-bridge';
 import { cleanLifecycle, DEFAULT_LIFECYCLE, LifecycleFields } from './LifecycleFields';
 import { useFocusTrap } from './use-focus-trap';
+import { ChoiceMenu } from './ChoiceMenu';
 
 export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -17,7 +18,12 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
   const [policy, setPolicy] = useState<Lifecycle>(
     properties?.lifecycleOverride ?? effective?.lifecycle ?? DEFAULT_LIFECYCLE,
   );
-  const [editing, setEditing] = useState<KnowledgeCategory | null>(null);
+  const [editing, setEditing] = useState<KnowledgeCategory | null>(() =>
+    catalog?.categories[0] ? structuredClone(catalog.categories[0]) : null,
+  );
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const existing = catalog?.categories.find((category) => category.id === editing?.id);
+  const assignedFolders = catalog?.folders.filter((item) => item.categoryId === editing?.id) ?? [];
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const write = async (path: string, body: unknown) => {
@@ -72,7 +78,10 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
         aria-label={folder ? 'Folder settings' : 'Categories'}
       >
         <header>
-          <h2>{folder ? `${folder} · Folder settings` : 'Workspace categories'}</h2>
+          <div class="knowledge-dialog-title">
+            <h2>{folder ? `${folder.split('/').at(-1)} · Folder settings` : 'Workspace categories'}</h2>
+            {folder && <span class="knowledge-folder-path">{folder}</span>}
+          </div>
           <button type="button" aria-label="Close settings" onClick={onClose}>
             ×
           </button>
@@ -97,17 +106,21 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
               else setMessage('Folder settings were not saved. Retry.');
             }}
           >
-            <label>
-              Category
-              <select value={categoryId} onChange={(event) => setCategoryId(event.currentTarget.value)}>
-                <option value="">Use the parent’s</option>
-                {catalog.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.glyph} {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div class="knowledge-field">
+              <span>Category</span>
+              <ChoiceMenu
+                label="Category"
+                value={categoryId}
+                onChange={setCategoryId}
+                options={[
+                  { value: '', label: 'Use the parent’s' },
+                  ...catalog.categories.map((category) => ({
+                    value: category.id,
+                    label: `${category.glyph} ${category.name}`,
+                  })),
+                ]}
+              />
+            </div>
             <p>
               Currently{' '}
               {effective?.category
@@ -149,27 +162,35 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                 <h3>{catalog.categories.length} categories</h3>
                 <button
                   type="button"
-                  onClick={() => setEditing({ ...DEFAULT_LIFECYCLE, id: crypto.randomUUID(), name: '', glyph: '◇' })}
+                  onClick={() => {
+                    setConfirmDelete(null);
+                    setEditing({ ...DEFAULT_LIFECYCLE, id: crypto.randomUUID(), name: '', glyph: '◇' });
+                  }}
                 >
                   Add category
                 </button>
-                {catalog.categories.map((category) => (
-                  <button
-                    type="button"
-                    class="category-choice"
-                    key={category.id}
-                    aria-pressed={editing?.id === category.id}
-                    onClick={() => setEditing(structuredClone(category))}
-                  >
-                    <strong>
-                      {category.glyph} {category.name}
-                    </strong>
-                    <span>
-                      {category.decayType} · {category.rate}
-                      {category.rate === 'medium' && category.cadenceDays ? ` · ${category.cadenceDays} days` : ''}
-                    </span>
-                  </button>
-                ))}
+                <div class="category-library" role="group" aria-label="Workspace categories">
+                  {catalog.categories.map((category) => (
+                    <button
+                      type="button"
+                      class="category-choice"
+                      key={category.id}
+                      aria-pressed={editing?.id === category.id}
+                      onClick={() => {
+                        setConfirmDelete(null);
+                        setEditing(structuredClone(category));
+                      }}
+                    >
+                      <strong>
+                        {category.glyph} {category.name}
+                      </strong>
+                      <span>
+                        {category.decayType} · {category.rate}
+                        {category.rate === 'medium' && category.cadenceDays ? ` · ${category.cadenceDays} days` : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
                 <p>Folders with no category above them stay unknown. Categories carry no colour.</p>
               </section>
               {editing && (
@@ -188,6 +209,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                     );
                   }}
                 >
+                  <h3>{existing ? 'Edit category defaults' : 'New category'}</h3>
                   <label>
                     Name
                     <input
@@ -208,6 +230,53 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                   <button type="submit" disabled={busy}>
                     Save category
                   </button>
+                  {existing &&
+                    (assignedFolders.length > 0 ? (
+                      <p>
+                        Cannot delete: assigned to {assignedFolders.map((item) => item.path).join(', ')}. Reassign or
+                        clear those folder categories first. Empty folders also count.
+                      </p>
+                    ) : confirmDelete === existing.id ? (
+                      <div role="group" aria-label="Confirm category deletion">
+                        <p>Delete {existing.name}? This removes the category from this workspace.</p>
+                        <button type="button" disabled={busy} onClick={() => setConfirmDelete(null)}>
+                          Cancel deletion
+                        </button>
+                        <button
+                          type="button"
+                          class="is-danger"
+                          disabled={busy}
+                          onClick={async () => {
+                            if (busy) return;
+                            setBusy(true);
+                            const result = await requestJson<{ ok: boolean; error?: string } | null>(
+                              'knowledgeRemove',
+                              `/api/canvas/knowledge/category/${encodeURIComponent(existing.id)}`,
+                              null,
+                              { method: 'DELETE' },
+                            );
+                            await refreshKnowledge();
+                            setBusy(false);
+                            setConfirmDelete(null);
+                            if (result?.ok) setEditing(null);
+                            setMessage(
+                              result?.ok ? 'Category deleted.' : (result?.error ?? 'Category was not deleted. Retry.'),
+                            );
+                          }}
+                        >
+                          Confirm deletion
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        class="is-danger"
+                        disabled={busy}
+                        onClick={() => setConfirmDelete(existing.id)}
+                      >
+                        Delete category
+                      </button>
+                    ))}
                 </form>
               )}
             </div>

@@ -27,7 +27,7 @@ import {
 import { importFiles } from './import-files';
 import { canvasArea } from './canvas-area';
 import { saveCanvasTheme } from '../state/intent-bridge';
-import { openBoard } from '../state/boards-store';
+import { browsingMemory, openBoard } from '../state/boards-store';
 import { createNodeInView } from './create-in-view';
 import { askText } from './TextPrompt';
 import { FeedbackDialog } from './FeedbackDialog';
@@ -252,128 +252,136 @@ export function ToolRail({
           </span>
         </RailButton>
 
-        <div class="rail-divider" />
+        {!browsingMemory.value && (
+          <>
+            <div class="rail-divider" />
 
-        <RailButton
-          label="Select"
-          shortcut="V"
-          active={tool === 'select'}
-          onClick={() => (canvasTool.value = 'select')}
-        >
-          <IconCursorTool />
-        </RailButton>
-        <RailButton label="Pan" shortcut="Space" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
-          <IconHandTool />
-        </RailButton>
-        <RailButton
-          label="Connect"
-          shortcut="C"
-          active={tool === 'connect'}
-          onClick={() => (canvasTool.value = 'connect')}
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            aria-hidden="true"
+            <RailButton
+              label="Select"
+              shortcut="V"
+              active={tool === 'select'}
+              onClick={() => (canvasTool.value = 'select')}
+            >
+              <IconCursorTool />
+            </RailButton>
+            <RailButton label="Pan" shortcut="Space" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
+              <IconHandTool />
+            </RailButton>
+            <RailButton
+              label="Connect"
+              shortcut="C"
+              active={tool === 'connect'}
+              onClick={() => (canvasTool.value = 'connect')}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="4" cy="4" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5" />
+              </svg>
+            </RailButton>
+
+            <div class="rail-divider" />
+
+            <RailButton
+              label="Markdown note"
+              shortcut="M"
+              onClick={() =>
+                void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
+                  logRailError('create markdown', error),
+                )
+              }
+            >
+              <IconNodeMarkdown size={15} />
+            </RailButton>
+            <RailButton
+              label="Attach files"
+              ariaLabel="Attach files"
+              detail="Images (PNG, JPEG, SVG…), Markdown and text/code files. PDF, Word, Excel, PowerPoint and OpenDocument use agent import with review."
+              onClick={() => fileInput.current?.click()}
+            >
+              <IconUpload size={15} />
+            </RailButton>
+            <input
+              ref={fileInput}
+              type="file"
+              hidden
+              multiple
+              aria-label="Attach files"
+              onChange={(event) => {
+                const area = canvasArea();
+                const view = viewport.value;
+                void importFiles(
+                  Array.from(event.currentTarget.files ?? []),
+                  (area.width / 2 - view.x) / view.scale,
+                  (area.height / 2 - view.y) / view.scale,
+                );
+                event.currentTarget.value = '';
+              }}
+            />
+            <RailButton label="Webpage" shortcut="W" onClick={() => promptedCreate('webpage')}>
+              <IconNodeWebpage size={15} />
+            </RailButton>
+            <RailButton
+              label="Group"
+              shortcut="G"
+              onClick={() =>
+                void createNodeInView({ type: 'group', title: 'Group' }).catch((error) =>
+                  logRailError('create group', error),
+                )
+              }
+            >
+              <IconNodeGroup size={15} />
+            </RailButton>
+            <RailButton
+              label="Draw"
+              shortcut="A"
+              active={annotationTool === 'pen'}
+              onClick={() => onSetAnnotationTool(annotationTool === 'pen' ? null : 'pen')}
+            >
+              <IconPen />
+            </RailButton>
+            <RailButton
+              label="Text note"
+              active={annotationTool === 'text'}
+              onClick={() => onSetAnnotationTool(annotationTool === 'text' ? null : 'text')}
+            >
+              <IconTextAnnotation />
+            </RailButton>
+            <RailButton
+              label="Eraser"
+              active={annotationTool === 'eraser'}
+              onClick={() => onSetAnnotationTool(annotationTool === 'eraser' ? null : 'eraser')}
+            >
+              <IconEraser />
+            </RailButton>
+
+            <div class="rail-divider" />
+          </>
+        )}
+
+        {!browsingMemory.value && (
+          <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
+            <IconSearch />
+          </RailButton>
+        )}
+        {!browsingMemory.value && (
+          <RailButton
+            label="Arrange"
+            detail={edgeCount > 0 ? 'graph-aware' : 'grid'}
+            onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
           >
-            <circle cx="4" cy="4" r="2" />
-            <circle cx="12" cy="12" r="2" />
-            <path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5" />
-          </svg>
-        </RailButton>
-
-        <div class="rail-divider" />
-
-        <RailButton
-          label="Markdown note"
-          shortcut="M"
-          onClick={() =>
-            void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
-              logRailError('create markdown', error),
-            )
-          }
-        >
-          <IconNodeMarkdown size={15} />
-        </RailButton>
-        <RailButton
-          label="Attach files"
-          ariaLabel="Attach files"
-          detail="Images (PNG, JPEG, SVG…), Markdown and text/code files. PDF, Word, Excel, PowerPoint and OpenDocument use agent import with review."
-          onClick={() => fileInput.current?.click()}
-        >
-          <IconUpload size={15} />
-        </RailButton>
-        <input
-          ref={fileInput}
-          type="file"
-          hidden
-          multiple
-          aria-label="Attach files"
-          onChange={(event) => {
-            const area = canvasArea();
-            const view = viewport.value;
-            void importFiles(
-              Array.from(event.currentTarget.files ?? []),
-              (area.width / 2 - view.x) / view.scale,
-              (area.height / 2 - view.y) / view.scale,
-            );
-            event.currentTarget.value = '';
-          }}
-        />
-        <RailButton label="Webpage" shortcut="W" onClick={() => promptedCreate('webpage')}>
-          <IconNodeWebpage size={15} />
-        </RailButton>
-        <RailButton
-          label="Group"
-          shortcut="G"
-          onClick={() =>
-            void createNodeInView({ type: 'group', title: 'Group' }).catch((error) =>
-              logRailError('create group', error),
-            )
-          }
-        >
-          <IconNodeGroup size={15} />
-        </RailButton>
-        <RailButton
-          label="Draw"
-          shortcut="A"
-          active={annotationTool === 'pen'}
-          onClick={() => onSetAnnotationTool(annotationTool === 'pen' ? null : 'pen')}
-        >
-          <IconPen />
-        </RailButton>
-        <RailButton
-          label="Text note"
-          active={annotationTool === 'text'}
-          onClick={() => onSetAnnotationTool(annotationTool === 'text' ? null : 'text')}
-        >
-          <IconTextAnnotation />
-        </RailButton>
-        <RailButton
-          label="Eraser"
-          active={annotationTool === 'eraser'}
-          onClick={() => onSetAnnotationTool(annotationTool === 'eraser' ? null : 'eraser')}
-        >
-          <IconEraser />
-        </RailButton>
-
-        <div class="rail-divider" />
-
-        <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
-          <IconSearch />
-        </RailButton>
-        <RailButton
-          label="Arrange"
-          detail={edgeCount > 0 ? 'graph-aware' : 'grid'}
-          onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
-        >
-          <IconArrange />
-        </RailButton>
+            <IconArrange />
+          </RailButton>
+        )}
         <div class="rail-spacer" />
         <span class="toolbar-menu-anchor">
           <RailButton
@@ -405,25 +413,29 @@ export function ToolRail({
                 <span>Theme</span>
                 <span class="toolbar-menu-hint">{CANVAS_THEME_META[activeTheme].label} ›</span>
               </button>
-              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onToggleSnapshot)}>
-                <span>Snapshots</span>
-              </button>
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={minimapVisible}
-                class="toolbar-menu-item"
-                onClick={choose(onToggleMinimap)}
-              >
-                <span>Minimap</span>
-                <span class="toolbar-menu-hint">{minimapVisible ? 'On' : 'Off'}</span>
-              </button>
+              {!browsingMemory.value && (
+                <>
+                  <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onToggleSnapshot)}>
+                    <span>Snapshots</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={minimapVisible}
+                    class="toolbar-menu-item"
+                    onClick={choose(onToggleMinimap)}
+                  >
+                    <span>Minimap</span>
+                    <span class="toolbar-menu-hint">{minimapVisible ? 'On' : 'Off'}</span>
+                  </button>
+                </>
+              )}
               <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onOpenShortcuts)}>
                 <span>Keyboard shortcuts</span>
                 <kbd class="toolbar-menu-hint">?</kbd>
               </button>
               <div class="toolbar-menu-divider" role="separator" />
-              {!isHostedWorkbench() && (
+              {!isHostedWorkbench() && !browsingMemory.value && (
                 <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('trace')}>
                   <span>Trace</span>
                   <span class="toolbar-menu-hint">{isTraceOn ? 'On' : 'Off'} ›</span>

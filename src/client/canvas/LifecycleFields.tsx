@@ -1,4 +1,5 @@
 import type { Lifecycle } from '../../server/knowledge-lifecycle.js';
+import { ChoiceMenu } from './ChoiceMenu';
 
 export const DEFAULT_LIFECYCLE: Lifecycle = {
   decayType: 'reality',
@@ -11,30 +12,34 @@ export const DEFAULT_LIFECYCLE: Lifecycle = {
 export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChange: (value: Lifecycle) => void }) {
   return (
     <div class="lifecycle-fields">
-      <label>
-        Decays when
-        <select
+      <div class="knowledge-field">
+        <span>Decays when</span>
+        <ChoiceMenu
+          label="Decays when"
           value={value.decayType}
-          onChange={(event) => onChange({ ...value, decayType: event.currentTarget.value as Lifecycle['decayType'] })}
-        >
-          <option value="reality">Reality · facts change</option>
-          <option value="decision">Decision · superseded</option>
-          <option value="dependency">Dependency · prerequisites change</option>
-          <option value="relevance">Relevance · task changes</option>
-        </select>
-      </label>
-      <label>
-        Check
-        <select
+          onChange={(decayType) => onChange({ ...value, decayType: decayType as Lifecycle['decayType'] })}
+          options={[
+            { value: 'reality', label: 'Reality · facts change' },
+            { value: 'decision', label: 'Decision · superseded' },
+            { value: 'dependency', label: 'Dependency · prerequisites change' },
+            { value: 'relevance', label: 'Relevance · task changes' },
+          ]}
+        />
+      </div>
+      <div class="knowledge-field">
+        <span>Check</span>
+        <ChoiceMenu
+          label="Check"
           value={value.rate}
-          onChange={(event) => onChange({ ...value, rate: event.currentTarget.value as Lifecycle['rate'] })}
-        >
-          <option value="fast">Fast · at use</option>
-          <option value="medium">Medium · on a cadence</option>
-          <option value="slow">Slow · on resume</option>
-          <option value="durable">Durable · no passive expiry</option>
-        </select>
-      </label>
+          onChange={(rate) => onChange({ ...value, rate: rate as Lifecycle['rate'] })}
+          options={[
+            { value: 'fast', label: 'Fast · at use' },
+            { value: 'medium', label: 'Medium · on a cadence' },
+            { value: 'slow', label: 'Slow · on resume' },
+            { value: 'durable', label: 'Durable · no passive expiry' },
+          ]}
+        />
+      </div>
       {value.rate === 'medium' && (
         <label>
           Cadence in days

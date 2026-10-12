@@ -1,7 +1,7 @@
 import { BoardPinButton } from './BoardPinButton';
 import { BarPortal } from './BarHint';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { activeBoard, activeBoardId, boardList, boardsLoaded, openBoard } from '../state/boards-store';
+import { activeBoard, activeBoardId, boardList, boardsLoaded, browsingMemory, openBoard } from '../state/boards-store';
 import { IconLogo, IconArrange, IconChevronDown, IconPlus } from '../icons';
 import { promptNewBoard } from './HomeView';
 
@@ -41,8 +41,10 @@ export function BoardSwitcher({ fallbackName }: { fallbackName: string }) {
   }, [open]);
 
   const board = activeBoard();
-  const label = !boardsLoaded.value ? fallbackName : board ? board.name : 'Home';
-  const recent = boardList.value.filter((entry) => entry.id !== activeBoardId.value).slice(0, RECENT_LIMIT);
+  const label = !boardsLoaded.value ? fallbackName : board && !browsingMemory.value ? board.name : 'Home';
+  const recent = boardList.value
+    .filter((entry) => browsingMemory.value || entry.id !== activeBoardId.value)
+    .slice(0, RECENT_LIMIT);
   const anchor = buttonRef.current?.getBoundingClientRect();
 
   const choose = (id: string | null) => {

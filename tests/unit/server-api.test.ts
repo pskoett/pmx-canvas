@@ -4851,6 +4851,22 @@ describe('canvas server HTTP API', () => {
 
     const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(state.viewport).toEqual(fitted.viewport);
+
+    await jsonRequest('/api/canvas/viewport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientWidth: 1200, clientHeight: 800, clientInsets: { top: 300, bottom: 128 } }),
+    });
+    // An explicit smaller output is not the browser that reported those reserves.
+    const smaller = await jsonRequest<typeof fitted>('/api/canvas/fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ width: 600, height: 240, padding: 24 }),
+    });
+    expect(smaller.bounds!.y * smaller.viewport.scale + smaller.viewport.y).toBeGreaterThanOrEqual(24);
+    expect((smaller.bounds!.y + smaller.bounds!.height) * smaller.viewport.scale + smaller.viewport.y).toBeLessThan(
+      240,
+    );
   });
 
   test('keeps file node cache metadata authoritative after file reload-style patching', async () => {

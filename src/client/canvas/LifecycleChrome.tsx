@@ -22,9 +22,6 @@ export function KnowledgeSync() {
     return () => clearTimeout(timer);
   }, [board, boards, cards, links]);
   useEffect(() => {
-    lifecycleFilter.value = 'All';
-  }, [board]);
-  useEffect(() => {
     const timer = setInterval(() => void refreshKnowledge(), 60000);
     return () => clearInterval(timer);
   }, []);

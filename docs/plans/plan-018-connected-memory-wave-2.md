@@ -129,3 +129,75 @@ These are Chromium/source and local-packed-consumer checks, not native Copilot/W
 Windows or registry-install verification. No tag, publish, deploy or version bump is authorized.
 After push, the owner still needs to E2E-test the complete change since 0.8.2 from the updated
 checkout. Running the unchanged registry package at 0.8.2 does not exercise these changes.
+
+## Home acceptance integration (2026-10-12)
+
+The combined batch starts from `0fbc593ac99a7ba34ed6cc59ccc0c49e14ccc606`, with the requested
+foundation verified as an ancestor. The frozen parent source patch was integrated exactly
+(SHA256 `2046aaa21b8e4f326e7da5c99dd7d9042f8ff7802bd871d9dc432b5cc74428f5`), preserving the
+separately owned HomeMemory/layout/live-update changes. Generated bundles, declarations and
+tool catalogs are rebuilt here. The unrelated SDLC artifact is not part of delivery.
+
+Graph now uses live view-local forces, folder outlines and board/card clusters, with counted
+filters, focus/depth, display controls and individual connection reasons. Map preserves saved
+board positions inside collapsible folder regions. Agent edits refresh the projection without
+resetting the human's camera, selection or dragged particles. Board-only controls and native
+paste are unavailable while browsing memory. The parent acceptance fixes add navigation-only
+folder trees, actionable review summaries, safe unused-category deletion, compact settings,
+one-note reviews and ring/hover/legend/Fit corrections. Read, content, validation and relevance
+remain separate clocks.
+
+Adversarial self-review and live transport checks found two additional bugs: the advertised
+MCP board-portal type was rejected by a duplicated enum, and the library context chip omitted
+the pinned active board. Both have red/green regressions, retained in
+`/tmp/pmx-combined-portal-{red.89FSEL,green.OSHgsr}` and
+`/tmp/pmx-combined-chip-{red.jZHY9I,green.805Bqn}`. The earlier library/paste regressions are
+retained in `/tmp/pmx-home-live-red.hjJURq` and `/tmp/pmx-home-paste-red.2qNf8V`.
+The [integration debt review](plan-009-tech-debt-backlog.md#home-acceptance-integration-review-2026-10-12)
+and vision record explicit per-tab editor ownership and measured scaling as future checkpoints.
+
+Live human gestures on disposable data include Graph drag, force controls and pinning, Map
+collapse, Open board, source editing/Save, review confirmation and Not now, and category
+creation/deletion. Real stdio MCP reads the human's board pin, edits a card, and creates portal
+and wiki connections while Graph stays open with the same camera/selection. The observed DOM
+contains both new link kinds and the updated title (`/tmp/pmx-combined-mcp-observed.kO6Ywo`).
+Review evidence records actor human with content/reviewed revision 24. An aborted graph read
+shows Retry; a successful retry restores 114 board/card nodes. The first scratch selector wait
+timed out, but the inspected error capture and the actual Retry click/recovery succeeded.
+
+Inspected renders in `.amp/in/artifacts/combined-acceptance/` include Map/Graph at 600, 1024
+and 1920 px in all nine themes, narrow selected details, collapsed Map, graph failure, category
+scrolling, folder settings and Review. All 54 matrix captures have DPR 2 and no body horizontal
+overflow. Two agent-browser motion recordings failed encoder backlog; their failed files remain
+in `/tmp/pmx-combined-recording-failed*.webm`, not presented as successful video evidence.
+
+This is not full Relations/Flows/Uses sketch parity: the inline edge editor, amber lineage
+strokes, pair/cycle badges and lineage actions remain unimplemented as documented in design.md.
+Dense fit-zoom Graph labels still need selection/local focus for detail; this fixture is not a
+large-library capacity claim. The owner's Amp embedded-portal pill-opening report is unverified,
+distinct from the fixed pin count and from the passing Chromium test-host interaction. Native
+Copilot/WebKit, native Windows UI and registry-installed execution remain unverified. Portal
+creation was exercised through MCP/HTTP, not an expansion of generic CLI/typed-SDK add data.
+No release, tag, publish, deployment or version bump is authorized; the owner still needs to
+test the complete changes since 0.8.2 after the approved commit/push.
+
+Final serial local gates: `bun run test` passes 1,444; `bun run test:client` passes 306;
+coverage passes at 64.71% lines / 72.23% functions. Build, typecheck, bundled-skill checks,
+guidance-twin comparison and diff-check pass. Lint has zero errors, 63 warnings and 12 infos.
+Absent agent-skill mirrors explicitly skip. The demo generator leaves its fixture unchanged.
+`DISPLAY=:88 PMX_PLAYWRIGHT_DB_PATH=<fresh-db> bash scripts/run-playwright.sh --headed`
+passes all 276 cases. `DISPLAY=:88 PMX_E2E_HEADED=1 PMX_CANVAS_E2E_KEEP_WORKDIR=1 bun run test:e2e-cli`
+passes in `/tmp/pmx-canvas-e2e.bQukul`. Logs are in `/tmp/pmx-combined-final-gates.ijVDni`,
+`/tmp/pmx-combined-final-headed.nIX7dJ` and `/tmp/pmx-combined-delivery-gates.VFWQ4K`.
+After the full browser run, only tool-description prose changed; regenerated catalogs/build,
+typecheck/lint and 47 focused MCP/skill checks passed again before the CLI gate.
+
+The additional live two-board vocabulary control sets Platform overview to Dependencies and
+Research index to Flow through the UI. Both retain their own selection after switching and
+reloading; the other 11 boards' vocabularies remain unchanged. Evidence is in
+`/tmp/pmx-combined-vocabulary.SSw0oL` and the inspected vocabulary captures. The full-browser
+context pill opens, but that is not an Amp embedded-portal verification. A scratch Graph click
+ran before Home's asynchronous navigation finished; waiting for Library view before clicking
+completed normally. The inspected final Graph has 114 nodes at DPR 2 with no body horizontal
+overflow; its long sidebar scrolls to the force controls. Board captures retain the existing
+camera, so Fit is still needed when a stored card sits under floating controls.

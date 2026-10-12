@@ -1,5 +1,5 @@
 import { exportDialogOpen } from './ExportDialog';
-import { activeBoard, activeBoardId } from '../state/boards-store';
+import { activeBoard, activeBoardId, browsingMemory } from '../state/boards-store';
 import { BoardSwitcher } from './BoardSwitcher';
 import { BoardPinButton } from './BoardPinButton';
 import { ContextChip } from './ContextChip';
@@ -417,9 +417,9 @@ export function TopBar() {
         <span class={`connection-dot ${degraded ?? status}`} aria-label={`Canvas status: ${statusTitle}`} />
       </BarHint>
       <BoardSwitcher fallbackName={workspaceName || 'PMX Canvas'} />
-      {pinTarget && <BoardPinButton board={pinTarget} />}
+      {pinTarget && !browsingMemory.value && <BoardPinButton board={pinTarget} />}
       <span class="top-bar-meta hud-collapsible-text">{sessionId.value ? sessionId.value.slice(0, 12) : '…'}</span>
-      <span class="top-bar-meta hud-collapsible-text">{countsLabel}</span>
+      {!browsingMemory.value && <span class="top-bar-meta hud-collapsible-text">{countsLabel}</span>}
 
       <span class="top-bar-spacer" />
 
@@ -433,64 +433,71 @@ export function TopBar() {
         <ExternalWriterIndicator />
         {!isHostedWorkbench() && <StartSessionButton />}
 
-        <div class="top-bar-sep" />
-        <div class="top-bar-actions">
-          {activeBoardId.value && (
-            <BarHint label="Export board" body="One HTML file of this board that anyone can open, no install needed.">
-              <button
-                type="button"
-                class="present-button"
-                onClick={() => {
-                  exportDialogOpen.value = true;
-                }}
-              >
-                Export
-              </button>
-            </BarHint>
-          )}
-          {activeBoardId.value && (
-            <BarHint
-              label="Present board"
-              body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
-            >
-              <button
-                type="button"
-                class="present-button"
-                onClick={() => {
-                  void startPresentation();
-                }}
-              >
-                Present
-              </button>
-            </BarHint>
-          )}
-          <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
-            <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
-              <IconZoomOut />
-            </button>
-          </BarHint>
-          <BarHint label="Reset zoom" shortcut={modChord('0')}>
-            <button
-              type="button"
-              class="top-bar-zoom-label"
-              onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
-              aria-label="Reset view"
-            >
-              {Math.round(v.scale * 100)}%
-            </button>
-          </BarHint>
-          <BarHint label="Zoom in" shortcut={modChord('+')}>
-            <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
-              <IconZoomIn />
-            </button>
-          </BarHint>
-          <BarHint label="Fit all" shortcut="F" align="end">
-            <button type="button" class="top-bar-btn" onClick={handleFit} aria-label="Fit canvas">
-              <IconFitAll />
-            </button>
-          </BarHint>
-        </div>
-        <TopBarMore boardOpen={!!activeBoardId.value} onFit={handleFit} />
+        {!browsingMemory.value && (
+          <>
+            <div class="top-bar-sep" />
+            <div class="top-bar-actions">
+              {activeBoardId.value && (
+                <BarHint
+                  label="Export board"
+                  body="One HTML file of this board that anyone can open, no install needed."
+                >
+                  <button
+                    type="button"
+                    class="present-button"
+                    onClick={() => {
+                      exportDialogOpen.value = true;
+                    }}
+                  >
+                    Export
+                  </button>
+                </BarHint>
+              )}
+              {activeBoardId.value && (
+                <BarHint
+                  label="Present board"
+                  body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
+                >
+                  <button
+                    type="button"
+                    class="present-button"
+                    onClick={() => {
+                      void startPresentation();
+                    }}
+                  >
+                    Present
+                  </button>
+                </BarHint>
+              )}
+              <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
+                <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
+                  <IconZoomOut />
+                </button>
+              </BarHint>
+              <BarHint label="Reset zoom" shortcut={modChord('0')}>
+                <button
+                  type="button"
+                  class="top-bar-zoom-label"
+                  onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
+                  aria-label="Reset view"
+                >
+                  {Math.round(v.scale * 100)}%
+                </button>
+              </BarHint>
+              <BarHint label="Zoom in" shortcut={modChord('+')}>
+                <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
+                  <IconZoomIn />
+                </button>
+              </BarHint>
+              <BarHint label="Fit all" shortcut="F" align="end">
+                <button type="button" class="top-bar-btn" onClick={handleFit} aria-label="Fit canvas">
+                  <IconFitAll />
+                </button>
+              </BarHint>
+            </div>
+            <TopBarMore boardOpen={!!activeBoardId.value} onFit={handleFit} />
+          </>
+        )}
       </div>
     </div>
   );

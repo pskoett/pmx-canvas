@@ -1,7 +1,7 @@
 import { age } from '../utils/time-ago';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { IconPin } from '../icons';
-import { activeBoardId, boardList, setBoardPinned } from '../state/boards-store';
+import { activeBoardId, boardList, browsingMemory, setBoardPinned } from '../state/boards-store';
 import { clearContextPins, contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
 import {
   approxTokens,
@@ -56,11 +56,13 @@ export function ContextChip() {
     };
   }, [open]);
 
-  if (!boardId) return null;
+  const library = browsingMemory.value;
+  if (!boardId && !library) return null;
 
-  const cardIds = [...contextPinnedNodeIds.value];
-  const near = [...nearPins.value.entries()];
-  const boards = boardList.value.filter((board) => board.pin && board.id !== boardId);
+  // Library curation must not expose controls for the agent's hidden active cards.
+  const cardIds = library ? [] : [...contextPinnedNodeIds.value];
+  const near = library ? [] : [...nearPins.value.entries()];
+  const boards = boardList.value.filter((board) => board.pin && (library || board.id !== boardId));
   const empty = cardIds.length === 0 && boards.length === 0;
   const pinners = [
     ...cardIds.map((id) => contextPinMeta.value[id]?.pinnedBy),

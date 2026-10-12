@@ -866,7 +866,7 @@ test('whole-library Graph updates card context on board pin and unpin without cl
   await page.getByRole('button', { name: 'Graph', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Focus', exact: true })).toHaveValue('');
   await page.getByRole('button', { name: 'board: Context filter', exact: true }).click();
-  await page.getByRole('checkbox', { name: 'In context only', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Only in context', exact: true }).check();
   const ordinary = page.getByRole('button', { name: 'card: Ordinary context card', exact: true });
   const individual = page.getByRole('button', { name: 'card: Individually pinned card', exact: true });
   await expect(ordinary).toHaveCount(0);
@@ -886,12 +886,105 @@ test('whole-library Graph updates card context on board pin and unpin without cl
   ).toEqual(['Individually pinned card']);
 });
 
+test('Graph stays live through agent board switches without losing camera, selection or dragged nodes', async ({
+  page,
+  request,
+}) => {
+  const { board } = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Live library', folder: 'Research/Pricing' } })
+  ).json();
+  await request.post('/api/canvas/boards/open', { data: { id: board.id } });
+  const source = await note(request, 'Live source');
+  const target = await note(request, 'Live conclusion', 520);
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Graph', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'board: Live library', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause layout', exact: true }).click();
+  const sourceNode = page.getByRole('button', { name: 'card: Live source', exact: true });
+  await sourceNode.click();
+  const box = await sourceNode.boundingBox();
+  if (!box) throw new Error('Source node missing');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 72, box.y + box.height / 2 + 38, { steps: 8 });
+  await page.mouse.up();
+  const dragged = await sourceNode.boundingBox();
+  expect(dragged!.x).toBeCloseTo(box.x + 72, 0);
+  expect(dragged!.y).toBeCloseTo(box.y + 38, 0);
+  const camera = await page.locator('.home-memory-world').getAttribute('style');
+  // Real agent writes reopen a board from Home. The human's library view must stay mounted.
+  expect((await request.post('/api/canvas/boards/open', { data: { id: board.id } })).ok()).toBe(true);
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${source}`, {
+        data: { title: 'Live source updated', content: 'New source facts' },
+      })
+    ).ok(),
+  ).toBe(true);
+  const updated = page.getByRole('button', { name: 'card: Live source updated', exact: true });
+  await expect(updated).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Board: Home. Switch board', exact: true })).toBeVisible();
+  await expect(page.locator('.home-memory-world')).toHaveAttribute('style', camera!);
+  await expect.poll(() => updated.boundingBox()).toMatchObject({ x: dragged!.x, y: dragged!.y });
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: { from: source, to: target, type: 'references', kind: 'supports', reason: 'Live evidence' },
+      })
+    ).ok(),
+  ).toBe(true);
+  const details = page.getByRole('complementary', { name: 'Selection details' });
+  await expect(details).toContainText('supports (why: Live evidence)');
+  expect((await request.post('/api/canvas/context-pins', { data: { nodeIds: [source] } })).ok()).toBe(true);
+  await expect(details).toContainText('⌖ In context');
+  await expect(updated.locator('..')).toHaveClass(/in-context/);
+  // The node-size control changes rendered size. Labels and forces are not decorative controls.
+  const size = page.getByRole('slider', { name: 'Node size', exact: true });
+  await size.focus();
+  await size.press('End');
+  await expect.poll(async () => (await updated.boundingBox())!.width).toBeGreaterThan(dragged!.width);
+  await page.getByRole('checkbox', { name: 'Cards', exact: true }).uncheck();
+  await expect(updated).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Cards', exact: true }).check();
+  await expect(updated).toBeVisible();
+  await page.locator('.home-memory-toolbar').click();
+  await page.keyboard.press('m');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.evaluate(() => navigator.clipboard.writeText('https://example.com/not-a-hidden-board-card'));
+  await page.keyboard.press('Control+v');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Keyboard shortcuts ?' }).click();
+  await expect(page.locator('.shortcut-overlay')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.shortcut-overlay')).toHaveCount(0);
+  expect((await (await request.get('/api/canvas/state')).json()).nodes).toHaveLength(2);
+  await details.getByRole('button', { name: 'Focus here', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Depth', exact: true }).selectOption('0');
+  await expect(page.locator('.home-memory-node')).toHaveCount(1);
+  // A card-only focus still belongs to a board and must retain its folder filter.
+  const folder = page.getByRole('checkbox', { name: 'Research', exact: true });
+  await expect(folder).toBeChecked();
+  await folder.uncheck();
+  await expect(updated).toHaveCount(0);
+  await folder.check();
+  await expect(updated).toBeVisible();
+  await details.getByRole('button', { name: 'Open card', exact: true }).click();
+  await expect(page.locator(`[data-node-id="${source}"]`)).toBeInViewport();
+  await expect(page.getByRole('button', { name: /^Board: Live library/ })).toBeVisible();
+  // The same native clipboard gesture still creates a visible card once the board is open.
+  await page.locator('.canvas-viewport').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('Control+v');
+  await expect(page.locator('.canvas-node[data-node-type="webpage"]')).toBeInViewport();
+  expect((await (await request.get('/api/canvas/state')).json()).nodes).toHaveLength(3);
+});
+
 test('Home Map persists human positions and Graph matches agent focus without opening a board', async ({
   page,
   request,
 }) => {
   const source = (
-    await (await request.post('/api/canvas/boards', { data: { name: 'Planning map', folder: 'Work' } })).json()
+    await (await request.post('/api/canvas/boards', { data: { name: 'Planning map', folder: 'Work/Projects' } })).json()
   ).board;
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
   const claim = await note(request, 'A decision to explore');
@@ -916,6 +1009,21 @@ test('Home Map persists human positions and Graph matches agent focus without op
   const tile = page.getByRole('button', { name: 'board: Planning map', exact: true });
   await expect(tile).toBeVisible();
   await expect(page.getByRole('button', { name: 'board: Unlinked scratchpad', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /▾ Work 1 boards/ }).click();
+  await expect(tile).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'board: Unlinked scratchpad', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /▸ Work 1 boards/ }).click();
+  await expect(page.getByRole('button', { name: /▾ Projects 1 boards/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Fit view', exact: true }).click();
+  const mapOrigin = () =>
+    tile.evaluate((button) => {
+      const node = button.parentElement!;
+      return { x: node.offsetLeft - node.offsetWidth / 2, y: node.offsetTop - node.offsetHeight / 2 };
+    });
+  const originalPosition = await mapOrigin();
+  const scale = await page
+    .locator('.home-memory-world')
+    .evaluate((world) => new DOMMatrix(getComputedStyle(world).transform).a);
   const initial = await tile.boundingBox();
   if (!initial) throw new Error('Map tile missing');
   await page.mouse.move(initial.x + 50, initial.y + 30);
@@ -929,14 +1037,21 @@ test('Home Map persists human positions and Graph matches agent focus without op
           (board: { id: string }) => board.id === source.id,
         )?.mapPosition,
     )
-    .toEqual({ x: 125, y: 400 });
+    .toEqual({
+      x: expect.closeTo(originalPosition.x + 65 / scale, 3),
+      y: expect.closeTo(originalPosition.y + 35 / scale, 3),
+    });
+  const saved = await mapOrigin();
+  const dragged = await tile.boundingBox();
+  expect(dragged!.x).toBeCloseTo(initial.x + 65, 0);
+  expect(dragged!.y).toBeCloseTo(initial.y + 35, 0);
   await page.reload();
   await page.getByRole('button', { name: 'Map', exact: true }).click();
   await expect(tile).toBeVisible();
-  await expect.poll(() => tile.boundingBox()).toMatchObject({ x: initial.x + 65, y: initial.y + 35 });
+  await expect.poll(mapOrigin).toEqual(saved);
   await tile.click();
   await page.getByRole('button', { name: 'Reset position', exact: true }).click();
-  await expect.poll(() => tile.boundingBox()).toMatchObject({ x: initial.x, y: initial.y });
+  await expect.poll(mapOrigin).toEqual(originalPosition);
   await page.route(`**/api/canvas/boards/${source.id}`, (route) =>
     route.request().method() === 'PATCH'
       ? route.fulfill({ status: 409, json: { ok: false, error: 'Map position refused for this test.' } })
@@ -949,7 +1064,7 @@ test('Home Map persists human positions and Graph matches agent focus without op
   await page.mouse.move(reset.x + 115, reset.y + 65, { steps: 8 });
   await page.mouse.up();
   await expect(page.locator('.attention-toast')).toContainText('Map position refused for this test.');
-  await expect.poll(() => tile.boundingBox()).toMatchObject({ x: initial.x, y: initial.y });
+  await expect.poll(mapOrigin).toEqual(originalPosition);
   await page.unrouteAll();
   await page.getByRole('button', { name: "Pin board to the agent's context", exact: true }).last().click();
   await expect(page.getByRole('button', { name: 'Remote Map evidence', exact: true })).toBeVisible();

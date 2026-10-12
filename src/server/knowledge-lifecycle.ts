@@ -41,6 +41,7 @@ export interface ReviewRecord {
 export type KnowledgeInput =
   | { action: 'list' }
   | { action: 'category-set'; category: KnowledgeCategory }
+  | { action: 'category-remove'; id: string }
   | ({ action: 'folder-set' } & FolderProperties);
 export interface KnowledgeResults {
   list: {
@@ -51,6 +52,7 @@ export interface KnowledgeResults {
     resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
   };
   'category-set': { ok: true; category: KnowledgeCategory };
+  'category-remove': { ok: true; id: string };
   'folder-set': { ok: true; folder: FolderProperties };
 }
 export type LifecycleInput =
@@ -110,6 +112,21 @@ export class KnowledgeLifecycle {
       .run(category.id, JSON.stringify(category));
     this.changed();
     return category;
+  }
+
+  removeCategory(id: string): string {
+    const catalog = this.list();
+    if (!catalog.categories.some((category) => category.id === id))
+      throw new OperationError(`Unknown knowledge category: ${id}.`, 404);
+    const folders = catalog.folders.filter((folder) => folder.categoryId === id);
+    if (folders.length)
+      throw new OperationError(
+        `Category is assigned to folders: ${folders.map((folder) => folder.path).join(', ')}. Reassign or clear these folder categories before deleting it. Empty folders also count.`,
+        409,
+      );
+    this.db().query('DELETE FROM knowledge_categories WHERE id = ?').run(id);
+    this.changed();
+    return id;
   }
 
   setFolder(value: FolderProperties): FolderProperties {

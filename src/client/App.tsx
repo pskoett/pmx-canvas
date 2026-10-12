@@ -16,7 +16,7 @@ import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { EmptyState } from './canvas/EmptyState';
 import { HomeView } from './canvas/HomeView';
 import { ExportDialog } from './canvas/ExportDialog';
-import { activeBoardId, boardsLoaded } from './state/boards-store';
+import { activeBoardId, boardsLoaded, browsingMemory } from './state/boards-store';
 import { createNodeInView } from './canvas/create-in-view';
 import { undoFromKeyboard } from './state/session-store';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
@@ -89,7 +89,7 @@ export function App() {
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openNodeMenu, openCanvasMenu, openEdgeMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
-  const onHome = boardsLoaded.value && activeBoardId.value === null;
+  const onHome = boardsLoaded.value && (activeBoardId.value === null || browsingMemory.value);
   // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
   // as a data attribute so styling and tests can key on it; the quiet board
   // (no attached session) must stay byte-clean of agent chrome.
@@ -144,6 +144,16 @@ export function App() {
       // as the shortcut modifier, or AltGr+Z (ż, ź…) fires undo.
       const mod = (e.metaKey || e.ctrlKey) && !e.altKey;
 
+      // The shortcut reference is available on Home too.
+      if (shortcutsOpen && (e.key === 'Escape' || e.key === '?' || (e.key === '/' && e.shiftKey))) {
+        e.preventDefault();
+        setShortcutsOpen(false);
+        return;
+      }
+
+      // The library owns its keyboard. Never edit the agent's hidden active board.
+      if (browsingMemory.value) return;
+
       // Cmd/Ctrl+K toggles command palette (works from anywhere, including inputs)
       if (mod && e.key === 'k') {
         e.preventDefault();
@@ -169,13 +179,6 @@ export function App() {
       if (e.key === 'Escape' && paletteOpen) {
         e.preventDefault();
         setPaletteOpen(false);
-        return;
-      }
-
-      // Esc closes shortcut overlay
-      if (e.key === 'Escape' && shortcutsOpen) {
-        e.preventDefault();
-        setShortcutsOpen(false);
         return;
       }
 
@@ -379,13 +382,15 @@ export function App() {
         <TopBar />
         <ConnectionBanner />
         <div class="canvas-region" ref={(el) => registerCanvasArea(el)}>
-          <CanvasViewport
-            onNodeContextMenu={openNodeMenu}
-            onCanvasContextMenu={openCanvasMenu}
-            onEdgeContextMenu={openEdgeMenu}
-            annotationMode={annotationTool !== null}
-            annotationTool={annotationTool}
-          />
+          {!browsingMemory.value && (
+            <CanvasViewport
+              onNodeContextMenu={openNodeMenu}
+              onCanvasContextMenu={openCanvasMenu}
+              onEdgeContextMenu={openEdgeMenu}
+              annotationMode={annotationTool !== null}
+              annotationTool={annotationTool}
+            />
+          )}
           <AttentionToast />
           <KnowledgeSync />
           {!onHome && <LifecycleFilters />}
@@ -400,13 +405,17 @@ export function App() {
             boardIsEmpty.value &&
             intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
           )}
-          {selectedNodeIds.value.size > 0 && <SelectionBar />}
-          {sessionIsActive && !isHostedWorkbench() && <CommandBar />}
-          <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
+          {!onHome && selectedNodeIds.value.size > 0 && <SelectionBar />}
+          {!onHome && sessionIsActive && !isHostedWorkbench() && <CommandBar />}
+          {!onHome && <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />}
           <TextPrompt />
-          <ExportDialog />
-          {expandedNodeId.value && <ExpandedNodeOverlay />}
-          <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
+          {!browsingMemory.value && <ExportDialog />}
+          {!onHome && expandedNodeId.value && <ExpandedNodeOverlay />}
+          <SnapshotPanel
+            open={snapshotOpen && !browsingMemory.value}
+            onClose={handleCloseSnapshot}
+            anchorRef={snapshotBtnRef}
+          />
           {minimapVisible && !onHome && (
             <Minimap
               viewport={viewport}
@@ -421,9 +430,13 @@ export function App() {
       </div>
       {sessionIsActive && <SessionPanel />}
       <LifecyclePanel />
-      {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
-      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
-      {boardLinkOpen && <BoardLinkDialog {...boardLinkSource} onClose={() => setBoardLinkOpen(false)} />}
+      {!browsingMemory.value && menu && <ContextMenu menu={menu} onClose={closeMenu} />}
+      {!browsingMemory.value && paletteOpen && (
+        <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />
+      )}
+      {!browsingMemory.value && boardLinkOpen && (
+        <BoardLinkDialog {...boardLinkSource} onClose={() => setBoardLinkOpen(false)} />
+      )}
       {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}
     </div>
   );

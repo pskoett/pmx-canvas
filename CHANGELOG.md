@@ -12,6 +12,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Added
 
 - Knowledge category and lifecycle data tools provide inherited folder settings and auditable card reviews and restores.
+- Relations carry named kinds and reasons, with board-specific vocabularies and Research, Dependencies, Decision and Flow presets.
+- Review warnings follow source changes and explicit lifecycle policies; retired cards stay stored but leave active agent briefs.
 - Home Map and Graph show connected boards and cards alongside Folders, with saved draggable Map positions.
 - Markdown wiki links keep durable board/card targets, and a human Create dialog can turn an unresolved board link into a new board.
 - Cross-board card connections and previous-board links now appear in the same summary-only memory graph agents can explore through HTTP, SDK, CLI, and MCP.
@@ -21,7 +23,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
-- Home Map loads compact board summaries and selected-board details separately; metadata edits and dragging no longer reload relationships, and Refresh reloads them on demand.
+- Home keeps folders for navigation and opens affected cards from Review needed; card review starts with one note and one confirmation.
+- Category and folder dialogs use compact themed controls, and unused categories can be deleted with inline confirmation.
+- Proximity rings have no distance caption and appear only when another card's center is within range.
+- Home Map groups boards in collapsible folders; Graph has live clusters, connection details, filters and layout controls.
+- Map and Graph update as agents work without moving your camera or taking you out of the library.
 - Session receipts show stacked Before/After with changed words marked, one change open at a time, and whole-card Undo that skips cards whose latest edit is yours.
 - In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.
 - One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with what they cost in tokens, and opens the details (read state, unpin, pin a near card) on click. There is no budget to fill; when a host reports its agent's token usage, the details name that count too.
@@ -34,6 +40,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- The library's context summary includes the active board when it is pinned.
+- MCP can create board portals using the advertised node type.
+- Moving between related cards no longer briefly clears the board's focus dimming.
+- Relation categories wrap onto visible rows instead of hiding behind a horizontal scrollbar.
 - Markdown drafts survive refused saves, close/reopen and board switches, and delayed saves cannot replace newer text.
 - Reconnecting after a daemon restart preserves open drafts and records retried workbench saves as human edits.
 - Delayed board updates no longer undo a card jump's camera, and old save acknowledgements cannot replace restored content.

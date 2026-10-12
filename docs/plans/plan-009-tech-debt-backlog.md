@@ -126,3 +126,29 @@ The earlier gate-resolution question is superseded by vision move 7 and plan 010
 approvals are attributed coordination, not a human-only security boundary. Tour cleanup
 remains explicitly deferred in vision move 12. Neither is reopened in this batch.
 The codebase supports continued staged vision work; this review is not release approval.
+
+### Home acceptance integration review (2026-10-12)
+
+The combined Home and acceptance review keeps one server graph projection and one set of
+board-qualified writes. `memory-layout.ts` owns Map geometry and D3 view particles; the
+simulation never changes saved board coordinates, content or validation. D3 is now a direct
+dependency rather than an accidental transitive one. Live reads coalesce while a request is
+running, discard responses from superseded views and preserve camera/selection. Library
+browsing unmounts the canvas and gates board controls so a paste or shortcut cannot mutate
+the agent's hidden active board.
+
+Real transport review found the MCP node-type enum duplicated the canonical list and omitted
+board portals. Both now use `NODE_TYPES`, with a discriminating MCP regression. Live visual
+review also caught the library context chip omitting a pinned active board; it now lists all
+board pins without exposing hidden-board card controls. Neither finding justifies another
+adapter or graph store. Category deletion refuses explicit assignments even to empty folders;
+the simplified review form retains captured content/source revision guards.
+
+The live-library checkpoint in the vision records the next boundaries: explicit per-tab
+editor ownership before concurrent board editing, and measured fetch/force/paint costs before
+workers or culling. The 13-board/101-card browser fixture is acceptance evidence, not a large
+library capacity claim. `HomeMemoryView` remains a substantial UI module; split a measured
+responsibility when it grows, not a generic abstraction around every control. The codebase is
+healthy enough for staged vision work with these constraints, not debt-free or fully validated
+in native hosts. The reported Amp embedded-portal context-pill opening failure is still
+unverified and distinct from the fixed pin count.

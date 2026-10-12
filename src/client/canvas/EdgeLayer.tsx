@@ -1,6 +1,6 @@
 import { type Signal, signal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
 import {
-  activeNodeId,
   draggingEdge,
   edges,
   searchHighlightIds,
@@ -12,7 +12,7 @@ import { linkMarks, writerName } from '../state/context-status-store';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
 import { activeBoard, updateBoard } from '../state/boards-store';
-import { hoveredNodeId } from '../state/near-pin-store';
+import { reportClientViewportSize } from '../state/intent-bridge';
 import {
   RELATION_PRESETS,
   relationDefinition,
@@ -21,17 +21,30 @@ import {
   relationText,
 } from '../../shared/relations.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
-import { relationFilter, relationHighlight } from '../state/relation-store';
+import { relationFilter, relationFocus, relationHighlight } from '../state/relation-store';
 
 /** Vocabulary and counts live with the edges, independent of the folder tree. */
 export function RelationLegend() {
   const board = activeBoard();
   const list = [...edges.value.values()];
+  const legendRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const legend = legendRef.current;
+    if (!legend) return;
+    const observer = new ResizeObserver(() => void reportClientViewportSize());
+    observer.observe(legend);
+    return () => observer.disconnect();
+  }, [board?.id, list.length > 0]);
   if (!board || list.length === 0) return null;
   const kinds = [...new Set(list.map(relationKind))];
   const selected = relationFilter.value?.boardId === board.id ? relationFilter.value.kind : null;
   return (
-    <div class="relation-legend" aria-label="Relation legend" onPointerDown={(event) => event.stopPropagation()}>
+    <div
+      ref={legendRef}
+      class="relation-legend"
+      aria-label="Relation legend"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       <select
         aria-label="Board relation preset"
         value={relationPreset(board.relationVocabulary) ?? ''}
@@ -443,14 +456,14 @@ function EdgePath({
       <path
         id={pathId}
         d={d}
-        class={selected ? 'edge-selected' : undefined}
+        class={selected ? 'edge-line edge-selected' : 'edge-line'}
         fill="none"
         stroke={color}
         stroke-width={(selected ? 3 : focused ? 2.5 : 1.5) * scale}
         stroke-dasharray={dash}
         marker-end={directed ? 'url(#edge-arrow)' : undefined}
         opacity={selected ? 1 : dimmed ? 0.2 : focused ? 1 : 0.85}
-        style={{ color, transition: 'opacity 0.2s, stroke-width 0.2s' }}
+        style={{ color }}
       />
 
       {/* Animated pulse dot */}
@@ -476,7 +489,7 @@ interface EdgeLayerProps {
 export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerProps) {
   const nodeMap = nodes.value;
   const edgeList = Array.from(edges.value.values());
-  const focusId = hoveredNodeId.value ?? activeNodeId.value;
+  const focusId = relationFocus.value;
   const hasFocus = focusId !== null;
   const searchSet = searchHighlightIds.value;
   const hasSearch = searchSet !== null;

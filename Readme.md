@@ -61,9 +61,12 @@ search boards without switching. Home
 provides a copy-preview dialog; an open board's command palette offers a
 board-link picker. Neither depends on native browser prompts.
 
-Home also offers **Map** (neutral folder regions with draggable, saved board
-positions) and **Graph** (neutral circular board/card clusters). Folders organize
-where boards live; links independently show how they relate. Markdown saves
+Home also offers **Map** (nested, collapsible folder regions with draggable, saved board
+positions) and **Graph** (live board/card clusters with focus, filters and force controls).
+Select a board or card for its connections, context status and Open action. Graph's overview
+groups cross-board links; selection reveals exact endpoints. Both views update as agents work,
+without losing your camera or selection. Folders organize where boards live; links independently
+show how they relate. Markdown saves
 bind `[[Board]]`, `[[Board#Card]]`, and `|alias` forms to durable IDs, ignoring
 code; ambiguous or missing targets stay explicit. A human can create an
 unresolved board-only link with exactly its authored name, then the source is
@@ -82,8 +85,12 @@ without switching boards or marking full content read. Rich kinds and reasons tr
 relations. Source changes flag explicitly dependent conclusions, not unrelated navigation.
 
 Open **Categories** on Home to edit workspace categories or apply an editable preset, and use
-folder settings to assign or inherit one. On a card, **More → Lifecycle** shows its effective
-defaults, four clocks and review history. Applied evidence-backed retain/revise/externalize
+folder settings to assign or inherit one. Delete an unused category there; assigned categories
+name the folders to clear or reassign first. Home's **Review needed** count lists the affected
+boards; **Review** opens the next affected card. On a card, **More → Review** asks for a short
+note and **Checked, still correct**. **Not now** closes without changing its review state.
+**Settings and history** holds its defaults, four clocks and advanced outcomes.
+Applied evidence-backed retain/revise/externalize
 validates the version checked. Retire removes the card from active briefs, not from the board
 or search; Restore (or the retirement Undo toast) is audited and does not validate it.
 The board's **All / To review / Retired** filter dims other cards. Unknown lifecycle is counted

@@ -689,6 +689,25 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   await page.getByRole('button', { name: 'supports 1', exact: true }).click();
   await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
   await expect(page.locator(`[data-node-id="${unrelated.id}"]`)).toHaveClass(/relation-dimmed/);
+  const dimmedCard = page.locator(`[data-node-id="${unrelated.id}"]`);
+  await expect
+    .poll(() => dimmedCard.evaluate((element) => Number(getComputedStyle(element).opacity)))
+    .toBeCloseTo(0.35, 2);
+  const aBox = (await page.locator(`[data-node-id="${a.id}"]`).boundingBox())!;
+  const bBox = (await page.locator(`[data-node-id="${b.id}"]`).boundingBox())!;
+  for (const id of [a.id, b.id, a.id, b.id]) {
+    // Cross real blank canvas between related cards. A handoff must not briefly light up the whole board.
+    await page.mouse.move((aBox.x + aBox.width + bBox.x) / 2, bBox.y + 50);
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
+    expect(await dimmedCard.getAttribute('class')).toMatch(/relation-dimmed/);
+    await page.locator(`[data-node-id="${id}"] .node-body`).hover();
+    expect(await dimmedCard.evaluate((element) => Number(getComputedStyle(element).opacity))).toBeLessThan(0.4);
+  }
+  await page.mouse.move(60, 760);
+  await expect(dimmedCard).not.toHaveClass(/relation-dimmed/);
+  await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
   const pill = page.locator('.edge-pill').filter({ hasText: 'supports' });
   await pill.hover();
   await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText('Measured throughput supports this choice.');
@@ -6107,18 +6126,21 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   const card = page.locator(`[data-node-id="${id}"]`);
   await card.hover();
   await card.getByRole('button', { name: 'More actions' }).click();
-  await page.locator('.context-menu').getByRole('button', { name: 'Lifecycle', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Lifecycle', exact: true });
+  await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Review card', exact: true });
+  await dialog.getByText('Settings and history', { exact: true }).click();
   await expect(dialog.getByText('No evidence-backed validation')).toBeVisible();
   await dialog.getByLabel('Set a card lifecycle override').check();
-  await dialog.getByRole('combobox', { name: 'Check', exact: true }).selectOption('fast');
+  await dialog.getByRole('button', { name: 'Check', exact: true }).click();
+  await dialog.getByRole('menuitemradio', { name: 'Fast · at use', exact: true }).click();
   await dialog.getByLabel('Revalidate by').fill('Compare with the source dashboard.');
   await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
-  await expect(dialog.locator('.lifecycle-warning').first()).toContainText('Fast: check at use');
-  await dialog.getByRole('button', { name: 'Close lifecycle' }).click();
+  await expect(dialog.locator('.lifecycle-advanced .lifecycle-warning').first()).toContainText('Fast: check at use');
+  await dialog.getByRole('button', { name: 'Close review' }).click();
   const dueFooter = card.getByRole('button', { name: /review due/ });
   await expect(dueFooter).toBeInViewport({ ratio: 1 });
   await dueFooter.click();
+  await dialog.getByText('Settings and history', { exact: true }).click();
   await dialog.getByLabel('Evidence · a link or a note').fill('Observed 99% in the dashboard.');
   await dialog.getByLabel('I applied this outcome').check();
   // A human keeps typing while another writer changes the content. The old draft must not validate it.
@@ -6144,7 +6166,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
   await expect(dialog.getByRole('button', { name: 'Undo retirement' })).toBeVisible();
   await expect(card).toHaveClass(/lifecycle-retired/);
-  await dialog.getByRole('button', { name: 'Close lifecycle' }).click();
+  await dialog.getByRole('button', { name: 'Close review' }).click();
   await page.locator('.retirement-toast').getByRole('button', { name: 'Undo retirement' }).click();
   await expect(card).not.toHaveClass(/lifecycle-retired/);
   const restored = (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()) as typeof validated;
@@ -6152,9 +6174,10 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await page.reload();
   await expect(card.locator('.node-lifecycle-warning')).toHaveCount(0);
   await card.getByRole('button', { name: 'Expand (focus mode)' }).click();
-  await page.getByRole('button', { name: 'Lifecycle', exact: true }).click();
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await dialog.getByText('Settings and history', { exact: true }).click();
   await dialog.getByRole('button', { name: 'Reload lifecycle and source revisions' }).click();
-  await dialog.getByRole('button', { name: 'Close lifecycle' }).click();
+  await dialog.getByRole('button', { name: 'Close review' }).click();
   await expect(dialog).toHaveCount(0);
 });
 
@@ -6185,4 +6208,79 @@ test('human adopts and edits category defaults without a preset overwriting thei
     'Compare both supporting and conflicting source evidence.',
   );
   expect(catalog.resolvedFolders['Projects/Findings'].category.name).toBe('Reviewed finding');
+  await dialog.locator('.category-choice').filter({ hasText: 'Reviewed finding' }).click();
+  await expect(dialog.getByText(/Cannot delete: assigned to Projects\/Findings/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Delete category' })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Add category', exact: true }).click();
+  await dialog.getByLabel('Name', { exact: true }).fill('Disposable category');
+  await dialog.getByLabel('Revalidate by').fill('Check the source.');
+  await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Category saved');
+  await dialog.getByRole('button', { name: 'Delete category' }).click();
+  await dialog.getByRole('button', { name: 'Cancel deletion' }).click();
+  await expect(dialog.locator('.category-choice').filter({ hasText: 'Disposable category' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Delete category' }).click();
+  await dialog.getByRole('button', { name: 'Confirm deletion' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Category deleted');
+  await expect(dialog.locator('.category-choice').filter({ hasText: 'Disposable category' })).toHaveCount(0);
+  expect(
+    (await (await request.get('/api/canvas/knowledge')).json()).categories.some(
+      (item: { name: string }) => item.name === 'Disposable category',
+    ),
+  ).toBe(false);
+});
+
+test('a delayed review does not dismiss a reopened review or discard its new note', async ({ page, request }) => {
+  const { id } = await (
+    await request.post('/api/canvas/node', {
+      headers: { 'x-pmx-workbench': '1' },
+      data: { type: 'markdown', title: 'Review race', content: 'A source-backed value.', x: 200, y: 160 },
+    })
+  ).json();
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  const open = async () => {
+    await card.hover();
+    await card.getByRole('button', { name: 'More actions' }).click();
+    await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+  };
+  await open();
+  const dialog = page.getByRole('dialog', { name: 'Review card' });
+  await dialog.getByLabel('What did you check?').fill('First source observation.');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let captured = false;
+  await page.route(`**/api/canvas/node/${id}/review`, async (route) => {
+    const response = await route.fetch();
+    captured = true;
+    await gate;
+    await route.fulfill({ response });
+  });
+  try {
+    await dialog.getByRole('button', { name: 'Checked, still correct' }).click();
+    await expect.poll(() => captured).toBe(true);
+    await dialog.getByRole('button', { name: 'Close review' }).click();
+    await open();
+    await dialog.getByLabel('What did you check?').fill('Keep this second observation.');
+    const completed = page.waitForResponse((response) => response.url().endsWith(`/node/${id}/review`));
+    release();
+    expect((await completed).ok()).toBe(true);
+    // Observe the post-response window, not just the first sample before the old continuation runs.
+    const frames = await page.evaluate(async () => {
+      const notes: Array<string | null> = [];
+      for (let frame = 0; frame < 20; frame++) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        notes.push(document.querySelector<HTMLTextAreaElement>('.lifecycle-quick-review textarea')?.value ?? null);
+      }
+      return notes;
+    });
+    expect(frames).toEqual(Array(20).fill('Keep this second observation.'));
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel('What did you check?')).toHaveValue('Keep this second observation.');
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });

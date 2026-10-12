@@ -19,6 +19,7 @@ A category is the same fields plus stable `id`, editable `name` and `glyph` (non
 |---|---|
 | `GET /api/canvas/knowledge` | `{ok, categories, folders, cards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
 | `POST /api/canvas/knowledge/category` | `{category}` creates or replaces by id; returns `{ok, category}` |
+| `DELETE /api/canvas/knowledge/category/:id` | Deletes an unused category; returns `{ok:true, id}`. Unknown id: 404; blank id: invalid input (400); omitted path id: no matching route (404). Explicit folder assignments, including empty folders, refuse deletion (409) and name the folders to reassign or clear first. Never clears folders or inherited policies. |
 | `POST /api/canvas/knowledge/folder` | `{path, categoryId: string|null, lifecycleOverride: Lifecycle|null}` replaces folder properties; returns `{ok, folder}` |
 | `GET /api/canvas/node/:id/lifecycle?board=<board-id>` | Effective category/lifecycle and history, without opening that board |
 | `POST /api/canvas/node/:id/lifecycle` | `{lifecycleOverride: Lifecycle|null, expectedBoardId?}`; returns `{ok:true}` |
@@ -65,7 +66,8 @@ refreshing and restoration never validate. No synthetic content-change date is a
 Generic node PATCH/SDK `updateNode` rejects `data.lifecycleOverride`; use the dedicated lifecycle
 setter (including to clear an override) so metadata cannot replay the body or resolve wiki links.
 
-SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"folder-set", ...payload})`
+SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"category-remove"|"folder-set", ...payload})`
+(`category-remove` takes `id`)
 and `canvas.lifecycle({action:"get"|"set"|"review"|"restore", id, ...payload})` use these
 same inputs/results. `get` accepts `board`; writes accept `expectedBoardId`, and validating
 reviews require `expectedContentRevision` and the matching `expectedSources` when dependencies exist.
@@ -222,14 +224,16 @@ connected-memory projection used by Home and discovery in the context brief. Omi
 membership. Explicit 0 is valid; empty depth values are rejected. An unknown focus returns 404.
 `projection` is `full` (default) or `boards` (compact board-only summaries).
 Home Map uses `boards` and loads depth-2 details when you select a board.
-Metadata edits and Map dragging do not refetch the relationship graph; use **Refresh** to reload it.
+Map/Graph coalesce live catalog, layout, pin and reconnect updates. Failed reads preserve
+the last graph with **Retry**. Neither a refresh nor an agent board switch resets the
+human's library camera or selection; explicit Open board/card leaves the library.
 
 The response has `nodes`, `edges`, `unresolvedLinks: [{ source, ref }]`, `focus`,
 and `depth`. Nodes have board-qualified `key`, `boardId`, optional `cardId`,
 `kind` (`board` or `card`), `title`, `summary` (at most 280 characters), `folder`,
 `inContext`, and `summaryOnly: true`. Edges have qualified `from`/`to`,
 `source`/`target`, `missing`, and kind `member`, `portal`, `wiki`, `card`, or
-`previous`. These are projection kinds, not the deferred rich relationship vocabulary.
+`previous`. These projection kinds are separate from a card edge's rich `relationKind` and `reason`.
 Graph reads mark delivered links seen on each owning board without switching
 boards; they do not count as full content reads. Card nodes carry `linksRevision`
 captured with the projection, so a later write is never acknowledged by an earlier read. In focused views,

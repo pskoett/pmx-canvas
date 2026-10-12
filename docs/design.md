@@ -200,13 +200,13 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
 - **Retire is reversible** (confirmed 2026-10-07). "Retire from active context" only takes
   a card out of the brief; the card and its history stay. A retired card is dimmed in
   place, found by the board's Retired filter and by search, and restored from its
-  Lifecycle tab; the restore is recorded with who and when, and is not a validation.
+  Review dialog; the restore is recorded with who and when, and is not a validation.
 - **Lifecycle lives in menus; only "review due" reaches the card** (decided with the
   maintainer 2026-10-07, variant A in `LifecycleVariants.dc.html`). While a review is due a
   card shows one bottom line, `⧗ review due` (amber, outlined) with a short reason; a healthy
   card shows no lifecycle line. Rate, decay type, inherited or set, the four clocks and the
-  outcome history live in the card's ⋯ → Lifecycle tab, folder settings and Home.
-  "Unknown" appears only on Home folders, never on a card. Why: the brief tells the agent
+  outcome history live under ⋯ → Review → Settings and history, folder settings and Home.
+  "No review policy" appears in Home's selected-folder summary, never on a card. Why: the brief tells the agent
   to doubt a due card, so the human sees that on the card too.
 - **A portal's pin is its board's pin** (decided with the maintainer 2026-10-07). On a
   portal card the header pin, in the usual place, pins the linked board into the agent's
@@ -235,6 +235,20 @@ The remaining-wave stabilization record is in that plan. The [release gates](REL
 still apply before a release. The owner has not authorized a release or version bump.
 This is implementation status, not a release promise or authorization to publish.
 
+**Sketch parity, clarified 2026-10-11.** `Relations`, `Flows` and `Uses` remain the
+vision's target designs, not screenshots of the shipped workbench. The Wave-3
+foundation does not implement every interaction pictured in them. It provides
+per-board vocabularies, semantic inks, separate endpoint slots, authored reasons,
+evidence/source/use queries, downstream review qualification and view-only
+highlights. Parallel-pair count badges, cycle/affected counts, the compact inline
+edge editor, amber stale-lineage strokes and the Show lineage / Show on canvas
+actions are not implemented. The current editor is a context menu with text
+dialogs; source changes appear as review-due card footers, not recoloured edges.
+Group drill-in with breadcrumbs and outside endpoint stubs belongs to Wave 5.
+The sketches' suggested-link Accept/Dismiss treatment was superseded by the
+2026-10-10 direct-edit decision recorded above; it is not a pending acceptance
+workflow. A demo of existing features must not be used to claim full sketch parity.
+
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
 | **0. Foundation** — ships alone, first | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; reference cases pass at 600, 1024 and 1920 px; demo board regenerated |
@@ -251,23 +265,38 @@ navigates through links and backlinks on `canvas://boards`, and that Map and Gra
 replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
 links disagree, the Map shows it (folders as regions) rather than forcing them to match.
 
-**Wave-2 implementation deviations.** Graph uses neutral circular board/card
-clusters, not a force simulation. Map uses deterministic neutral folder regions,
-with no synthetic Home board or level hierarchy; dragging a board persists its
-`mapPosition` in SQLite. Labels live in selection details to avoid occlusion.
-Filters share the toolbar instead of the mockup sidebar; there are no simulation
-sliders. Folders remain independent of the relationship graph. Remote card
+**Home Map/Graph acceptance revision (2026-10-11).** The initial static clusters and
+toolbar-only filters did not meet the HomeMap/HomeGraph drawings. Graph now has a live
+force layout, folder outlines, board-sized hubs, smaller card dots, readable board labels,
+and a sidebar for counted filters, focus/depth, label fade, node size, repel and link distance.
+Overview aggregates cross-board links; hover/selection reveals exact endpoints and dims
+unrelated nodes. Selection details expose direction, reasons, context and Open board/card.
+Pause stops motion, Rearrange releases dragged nodes, and reduced motion starts paused.
+Map nests and collapses neutral folder regions; dragging persists top-left `mapPosition`
+in SQLite and a refused write rolls back. Both views update from the shared projection
+without resetting the camera or selection. An agent opening a board does not eject a human
+browsing Map/Graph; explicit Open board/card returns to the board. Board-edit shortcuts and
+controls are unavailable while that library view is active. Its context chip lists all
+workspace board pins, including the agent's active board, without hidden-board card controls.
+
+**Remaining drawing deviations.** No synthetic Home board, portal-derived hierarchy, or
+category hues: later folder/meaning-colour decisions override those marks. Map board tiles
+use consistent dimensions rather than count-based sizes, and no unqualified age fading or
+token estimate is shown. The sidebar overlays the view at 600 px; selection scrolls its
+details into view, keeping visual and keyboard order aligned. Graph positions/force settings
+are view-local, not saved board coordinates. Folders remain independent of links. Remote card
 connections use the source footer and human More-menu picker, not remote canvas
 lines; auto-arrange remains local and static export retains explicit external
-connection evidence. Rich kinds/reasons, provenance-driven staleness and
-lifecycle are wave 3, not claims of this implementation.
+connection evidence.
 
 **Wave-3 implementation decisions and deviations.** The relation legend uses the six fixed
 inks, open kinds and per-board Research/Dependencies/Decision/Flow presets. The selector keeps
 the matching preset name, or “Custom vocabulary” after edits. Its 24 px control and rounded
 count chips follow `Uses`; the initial resetting selector and separate highlight menu were
 corrected after owner feedback. The legend stays below the lifecycle filters, outside the
-scrollable canvas, and Fit reserves both rows. Parallel links
+scrollable canvas. Relation categories wrap instead of using a horizontal scrollbar, including
+long custom names; Fit reserves the legend's rendered height as well as the lifecycle filters.
+Parallel links
 receive separate endpoint slots. Hover explains endpoints, kind and reason; the expanded
 card's Relations view uses the same qualified graph as agents, with navigable targets and a
 vocabulary editor. Connections are grouped into Evidence for/against, Sources, Used by and
@@ -277,13 +306,23 @@ option/if/chosen links backward from the selected outcome; Flow reads existing A
 Custom vocabularies use the local neighborhood. These are view-only, not a decision or execution engine. Remote cards
 remain footer links, not long lines across boards.
 
-Lifecycle uses a focus-trapped dialog reachable from More or the expanded-card Lifecycle
-button, rather than replacing the expanded content with a tab. This also works for card types
-without an expanded view. Four clock tiles stay separate; only read delivery is violet. New
+Lifecycle uses a focus-trapped **Review** dialog reachable from More, a due footer or the
+expanded-card Review button, rather than replacing the expanded content with a tab. This also
+works for card types without an expanded view. Acceptance correction (2026-10-11): the default
+dialog asks for one short check note and offers **Checked, still correct** or **Not now**.
+Not now writes nothing and leaves the current review state alone. **Settings and history**
+discloses the policy, four clocks, advanced outcomes, recipes and retirement controls.
+Four clock tiles stay separate; only read delivery is violet. New
 review metadata clears the evidence draft and applied checkbox. Retire/Restore are audited;
 the post-retirement toast offers Undo. Filters dim nonmatches rather than deleting their spatial
 context. Due footers use variant A, including collapsed cards; healthy cards gain no badge.
-Home reports category/inheritance and due/unknown counts. Presets add only missing starter
+Home's tree is navigation only. The selected-folder summary reports category and actionable
+**Review needed** counts, explicitly including descendants; **No review policy** is informational,
+not a task. Review opens the next qualified card with the To review filter and a readable camera.
+Board details prioritize Open board; agent README and link dumps belong in agent reads or Map/Graph,
+not the human's opening flow. Categories and folder settings reuse themed ChoiceMenus and compact
+controls; unused category deletion is confirmed inline, assigned categories name blocking folders.
+Presets add only missing starter
 entries and never overwrite edits. Medium cadence is an explicit optional day count, never
 inferred from the category name. Unknown stays unknown.
 

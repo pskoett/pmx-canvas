@@ -13,18 +13,18 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 600px; height: 1470px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
+<div style="width: 600px; min-height: 1470px; box-sizing: border-box; padding: 24px 16px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 18px">
 
 <div>
 <h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 28px">At 600 px — categories and lifecycle</h1>
-<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Same marks, stacked. On Home: the category word, “unknown” and the due count. On a card: only “changed” and, while due, the review line; the rest is in ⋯ → Lifecycle.</p>
+<p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Acceptance correction 2026-10-11: the folder tree is navigation. Review needed leads to affected boards and cards. A card's Review dialog starts simple; policies and clocks live under Settings and history.</p>
 </div>
 
 <section style="display: flex; flex-direction: column; gap: 8px">
 <span style="{{s.label}}">Home · library</span>
 <div style="{{s.panel}} padding: 10px 8px; gap: 2px">
 <sc-for list="{{tree}}" as="r" hint-placeholder-count="10">
-<div style="{{r.row}}"><span style="{{r.ind}}"></span><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.folder}}"></path></svg><span style="{{s.name}}">{{r.name}}</span><span style="{{r.tagSt}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{r.icon}}"></path></svg>{{r.tag}}</span><sc-if value="{{r.hasDue}}" hint-placeholder-val="{{ true }}"><span style="{{s.reviewChip}}"><svg width="10" height="10" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.glass}}"></path></svg>{{r.due}}</span></sc-if></div>
+<div style="{{r.row}}"><span style="{{r.ind}}"></span><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.folder}}"></path></svg><span style="{{s.name}}">{{r.name}}</span></div>
 </sc-for>
 </div>
 </section>
@@ -42,7 +42,20 @@ body{margin:0}
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 8px">
-<span style="{{s.label}}">Lifecycle tab — expanded card</span>
+<span style="{{s.label}}">Review card — default</span>
+<div style="width: 480px; max-width: 100%; align-self: center; box-sizing: border-box; border: 1px solid #1b2c44; border-radius: 14px; padding: 16px; background: #0f1d31; display: flex; flex-direction: column; gap: 12px">
+<strong style="font-size: 15px">Churn by month · Review</strong>
+<span style="color: #f4c542; border: 1px solid #f4c542; padding: 4px 7px; border-radius: 6px">⧗ This card needs a fresh check.</span>
+<span>Check the card and its sources before confirming.</span>
+<span style="font-size: 12px">What did you check?</span>
+<div style="min-height: 64px; border: 1px solid #2a4566; border-radius: 6px; background: #081524; padding: 7px 10px; color: #8ea3bd">A short note or source link</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><span style="background: #4BBCFF; color: #081524; border-radius: 6px; padding: 5px 10px">Checked, still correct</span><span style="border: 1px solid #1b2c44; border-radius: 6px; padding: 5px 10px">Not now</span></div>
+<span style="color: #8ea3bd; border-top: 1px solid #1b2c44; padding-top: 12px">▸ Settings and history</span>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="{{s.label}}">Settings and history — disclosed</span>
 <div style="{{s.panel}} padding: 14px; gap: 14px">
 <div style="{{s.kv}}"><svg width="13" height="13" viewBox="0 0 24 24" style="{{s.ic}}"><path d="{{i.strategy}}"></path></svg><span style="flex: 1">↳ Strategy · from the board</span><svg width="12" height="12" viewBox="0 0 24 24" style="{{s.icDim}}"><path d="{{i.lock}}"></path></svg></div>
 <div style="display: flex; padding: 2px; border-radius: 8px; border: 1px solid #1b2c44; background: #081524"><span style="{{s.segOff}}">Inherit · slow</span><span style="{{s.segOn}}">Set: reality · fast</span></div>

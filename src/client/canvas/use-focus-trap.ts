@@ -1,7 +1,7 @@
 import { useEffect } from 'preact/hooks';
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 /**
  * Focus trap for modal overlays (rail-chrome-v2 item 18): while `active`, Tab
@@ -20,7 +20,17 @@ export function useFocusTrap(
     if (!root) return;
     const previous = document.activeElement as HTMLElement | null;
     const restoreTo = options.restoreTo;
-    const focusables = () => Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE));
+    const focusables = () =>
+      Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((item) => {
+        if (item.closest('[hidden], [inert]')) return false;
+        for (let parent: HTMLElement | null = item; parent && parent !== root; parent = parent.parentElement) {
+          if (getComputedStyle(parent).display === 'none' || getComputedStyle(parent).visibility === 'hidden')
+            return false;
+          if (parent.matches('details:not([open])') && !parent.querySelector(':scope > summary')?.contains(item))
+            return false;
+        }
+        return true;
+      });
     const initial = options.initial?.current ?? focusables()[0];
     if (initial && !root.contains(document.activeElement)) initial.focus();
     const onKey = (e: KeyboardEvent) => {

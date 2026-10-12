@@ -226,6 +226,14 @@ account separately for source revisions, cadence boundaries, session use and ret
 The measured baseline and remaining costs are in
 [the Wave 3 debt review](plans/plan-009-tech-debt-backlog.md#wave-3-maintainability-review-2026-10-11).
 
+**Live-library maintenance checkpoint (2026-10-11).** Map/Graph now preserve local navigation
+while agents change the server's active board. Before stage-2 concurrent board editing, replace
+that narrow browsing flag with explicit per-tab navigation and board-qualified editor ownership;
+do not broaden the singleton's write authority. Before targeting large libraries, measure graph
+fetch size, force settling and DOM paint with dense cross-board links. Keep the shared projection
+authoritative and the simulation view-local; add a worker or viewport culling only from those
+measurements, not a second relationship store.
+
 ### 2. The session projects itself onto the board (M)
 
 Above. Objection: none raised; the panel missed it. Risk: noise. Mitigation: the projection lands in its own lane at low rank; the compiler's tiers keep it out of the brief unless pinned or recent.

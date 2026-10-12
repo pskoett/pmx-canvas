@@ -255,6 +255,7 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
     hoveredNodeId.value = 'pin-a';
     const { container } = render(<NearPinLayer />);
     expect(container.querySelector('[data-pin-id="pin-a"] .near-pin-radius')?.getAttribute('r')).toBe('600');
+    expect(container.textContent).not.toContain('px from');
     const tethers = [...container.querySelectorAll('.near-pin-tether')].map((tether) => [
       (tether as HTMLElement).dataset.nearNode,
       tether.querySelector('.near-pin-number-label')?.textContent,
@@ -263,6 +264,27 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
       ['close', '1'],
       ['farther', '2'],
     ]);
+  });
+
+  test('a radius appears only with another node within range, including pins and dragged nodes', () => {
+    const pin = node({ id: 'pin' });
+    for (const scene of [
+      { distance: null, pinned: false, dragging: false, ring: false },
+      { distance: 601, pinned: false, dragging: false, ring: false },
+      { distance: 600, pinned: false, dragging: false, ring: true },
+      { distance: 599, pinned: true, dragging: false, ring: true },
+      { distance: 601, pinned: false, dragging: true, ring: false },
+      { distance: 599, pinned: false, dragging: true, ring: true },
+    ]) {
+      const neighbor = node({ id: 'other', position: { x: scene.distance ?? 0, y: 0 } });
+      nodes.value = new Map((scene.distance === null ? [pin] : [pin, neighbor]).map((entry) => [entry.id, entry]));
+      contextPinnedNodeIds.value = new Set(scene.pinned ? ['pin', 'other'] : ['pin']);
+      selectedNodeIds.value = new Set(['pin']);
+      grabbingNodeId.value = scene.dragging ? 'other' : null;
+      const { container } = render(<NearPinLayer />);
+      expect(container.querySelector('.near-pin-radius') !== null).toBe(scene.ring);
+      cleanup();
+    }
   });
 
   test('nothing is drawn while no pin is hovered, selected, dragged or shown', () => {

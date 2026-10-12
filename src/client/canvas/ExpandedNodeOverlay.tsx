@@ -311,7 +311,7 @@ export function ExpandedNodeOverlay() {
           <span class="expanded-spacer" />
           <div class="expanded-actions">
             <button type="button" class="expanded-action-btn" onClick={() => openLifecycle(node.id)}>
-              Lifecycle
+              Review
             </button>
             <button
               type="button"

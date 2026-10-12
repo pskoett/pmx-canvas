@@ -2,11 +2,15 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { BoardSwitcher } from '../../src/client/canvas/BoardSwitcher.tsx';
 import { HomeView } from '../../src/client/canvas/HomeView.tsx';
+import { KnowledgeDialog } from '../../src/client/canvas/KnowledgeDialog.tsx';
 import { memoryKey, type MemoryGraph } from '../../src/shared/memory-graph.ts';
+import type { LifecycleQualification } from '../../src/shared/lifecycle-status.ts';
+import { knowledge } from '../../src/client/state/knowledge-store.ts';
 import {
   activeBoardId,
   boardList,
   boardsLoaded,
+  browsingMemory,
   connectBoardCatalog,
   type BoardSummary,
 } from '../../src/client/state/boards-store.ts';
@@ -29,6 +33,11 @@ const board = (id: string, name: string, nodeCount: number, folder: string | nul
 beforeAll(() => {
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
+    if (url === '/api/canvas/knowledge') return Response.json(knowledge.value);
+    if (url.startsWith('/api/canvas/knowledge/category/') && init?.method === 'DELETE') {
+      if (knowledge.value) knowledge.value = { ...knowledge.value, categories: [] };
+      return Response.json({ ok: true });
+    }
     if (url.startsWith('/api/canvas/memory-graph')) {
       const params = new URL(url, 'http://test').searchParams;
       return Response.json(
@@ -69,6 +78,7 @@ beforeEach(() => {
   calls.length = 0;
   fixtureEpoch++;
   fixtureRevision = 0;
+  knowledge.value = null;
   connectBoardCatalog(`home-${fixtureEpoch}`);
   boardList.value = [board('b-okr', 'C4 OKR planning', 26), board('b-disc', 'Discovery', 17)];
   memoryGraph = {
@@ -114,7 +124,10 @@ beforeEach(() => {
   activeBoardId.value = null;
   boardsLoaded.value = true;
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  browsingMemory.value = false;
+});
 
 describe('Home memory views', () => {
   test('Map keeps unlinked boards and explicitly exposes broken targets', async () => {
@@ -129,7 +142,7 @@ describe('Home memory views', () => {
     await waitFor(() => expect(calls.some((call) => call.url === '/api/canvas/boards/open')).toBe(true));
   });
 
-  test('Map uses compact discovery, loads real qualified card details, and metadata does not reload relations', async () => {
+  test('Map uses compact discovery and retains qualified details during a failed live update, then retries', async () => {
     memoryGraph!.edges.push({
       id: 'remote',
       kind: 'card',
@@ -151,8 +164,7 @@ describe('Home memory views', () => {
     fireEvent.click(getByRole('button', { name: 'board: C4 OKR planning' }));
     await waitFor(() => expect(getByRole('button', { name: 'Evidence', exact: true })).toBeTruthy());
     expect(calls.some((call) => call.url.includes('focus=') && !call.url.includes('projection='))).toBe(true);
-    // If metadata accidentally reloads discovery or details, this unavailable endpoint
-    // will replace the existing view with an error, rather than retain its relationships.
+    const previousGraph = memoryGraph;
     memoryGraph = null;
     await act(async () => {
       boardList.value = boardList.value.map((entry) =>
@@ -172,12 +184,12 @@ describe('Home memory views', () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });
     const renamed = getByRole('button', { name: 'board: Renamed' });
-    expect(renamed.parentElement!.style.left).toBe('777px');
     expect(renamed.textContent).toContain('In context');
     expect(getByRole('button', { name: 'Evidence', exact: true })).toBeTruthy();
-    expect(queryByText('Memory could not be loaded. Try Refresh.')).toBeNull();
-    fireEvent.click(getByRole('button', { name: 'Refresh', exact: true }));
-    await waitFor(() => expect(queryByText('Memory could not be loaded. Try Refresh.')).toBeTruthy());
+    await waitFor(() => expect(getByRole('button', { name: 'Retry', exact: true })).toBeTruthy());
+    memoryGraph = previousGraph;
+    fireEvent.click(getByRole('button', { name: 'Retry', exact: true }));
+    await waitFor(() => expect(queryByText('Memory update failed.') === null).toBe(true));
   });
 
   test('Graph requests qualified local focus and pins depth through the human bridge; filters cards', async () => {
@@ -200,7 +212,7 @@ describe('Home memory views', () => {
     await waitFor(() => expect(calls.some((call) => call.url.includes('depth=0&focus=pins'))).toBe(true));
     const request = calls.find((call) => call.url.includes('depth=0&focus=pins'))!;
     expect(new Headers(request.init?.headers).get('X-PMX-Workbench')).toBe('1');
-    fireEvent.change(getByLabelText('Type'), { target: { value: 'markdown' } });
+    fireEvent.click(getByLabelText('Boards'));
     expect(queryByRole('button', { name: 'board: Discovery' })).toBeNull();
     expect(getByRole('button', { name: 'card: Evidence' })).toBeTruthy();
   });
@@ -213,6 +225,7 @@ describe('Home memory views', () => {
     const before = node.parentElement!.style;
     const x = parseFloat(before.left),
       y = parseFloat(before.top);
+    fireEvent.click(node);
     memoryGraph = null;
     Object.defineProperty(node, 'setPointerCapture', { value: () => {} });
     fireEvent.pointerDown(node, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
@@ -220,13 +233,12 @@ describe('Home memory views', () => {
     fireEvent.pointerUp(node, { pointerId: 1 });
     await waitFor(() => expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(true));
     const saved = calls.find((call) => call.init?.method === 'PATCH')!;
-    expect(JSON.parse(String(saved.init?.body))).toEqual({ mapPosition: { x: x + 40, y: y + 20 } });
+    expect(JSON.parse(String(saved.init?.body))).toEqual({ mapPosition: { x: x + 40 - 110, y: y + 20 - 46 } });
     expect(new Headers(saved.init?.headers).get('X-PMX-Workbench')).toBe('1');
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });
     expect(getByRole('button', { name: 'board: Discovery' }).parentElement!.style.left).toBe(`${x + 40}px`);
-    fireEvent.click(node);
     fireEvent.click(getByRole('button', { name: 'Reset position' }));
     await waitFor(() => expect(calls.filter((call) => call.init?.method === 'PATCH').length).toBe(2));
     expect(JSON.parse(String(calls.filter((call) => call.init?.method === 'PATCH')[1]!.init?.body))).toEqual({
@@ -241,12 +253,33 @@ describe('Home memory views', () => {
 
 describe('Home (docs/design/Home.dc.html)', () => {
   test('a card selects the board into details; Open board opens it as the human', async () => {
+    boardList.value = boardList.value.map((entry) =>
+      entry.id !== 'b-disc'
+        ? entry
+        : {
+            ...entry,
+            summary: '# Agent README **raw Markdown**',
+            pinnedTitles: [{ nodeId: 'context', title: 'Agent-only context dump' }],
+            links: Array.from({ length: 34 }, (_, index) => ({
+              id: `wiki-${index}`,
+              nodeId: `note-${index}`,
+              boardId: 'b-okr',
+              title: 'Repeated target',
+              missing: false,
+            })),
+          },
+    );
     const { getByRole, getByTestId, getByText } = render(<HomeView />);
     expect(getByText('C4 OKR planning')).toBeTruthy();
     expect(getByText('17 cards')).toBeTruthy();
 
     fireEvent.click(getByRole('button', { name: 'Discovery' }));
-    expect(getByTestId('home-details').textContent).toContain('Discovery');
+    const details = getByTestId('home-details');
+    expect(details.textContent).toContain('Discovery');
+    expect(details.textContent).not.toContain('Agent README');
+    expect(details.textContent).not.toContain('Agent-only context dump');
+    expect(details.textContent).not.toContain('Repeated target');
+    expect(getByRole('switch', { name: "In the agent's context" })).toBeTruthy();
     await act(async () => {
       fireEvent.click(getByRole('button', { name: 'Open board' }));
     });
@@ -315,6 +348,32 @@ describe('Home folders', () => {
       { ...board('b-loose', 'Scratch', 2), lastOpenedAt: '2026-09-21T00:00:00.000Z' },
       board('b-old', 'Before session · Copilot · 14:00', 9, 'From old snapshots/Copilot'),
     ];
+    const due: LifecycleQualification = {
+      retired: false,
+      unknown: false,
+      due: true,
+      reasons: ['Review cadence elapsed'],
+      changedSinceRead: false,
+      lastReadAt: null,
+      lastValidatedAt: null,
+      contentRevision: 1,
+      contentChangedAt: null,
+      observations: {},
+      sources: [],
+      relevance: 'not-selected',
+    };
+    knowledge.value = {
+      ok: true,
+      categories: [],
+      folders: [],
+      resolvedFolders: {},
+      cards: {
+        [memoryKey({ boardId: 'b-okr', cardId: 'due' })]: due,
+        [memoryKey({ boardId: 'b-okr', cardId: 'unclassified' })]: { ...due, due: false, unknown: true },
+        [memoryKey({ boardId: 'b-okr', cardId: 'retired' })]: { ...due, retired: true },
+        [memoryKey({ boardId: 'b-loose', cardId: 'other' })]: due,
+      },
+    };
     const { getByLabelText, getByRole, queryByText } = render(<HomeView />);
     const tree = getByLabelText('Folders');
     const rows = () => [...tree.querySelectorAll('.home-tree-name')].map((row) => row.textContent);
@@ -323,12 +382,26 @@ describe('Home folders', () => {
     fireEvent.click(getByRole('button', { name: 'Unfold From old snapshots' }));
     expect(rows()).toEqual(['From old snapshots', 'Copilot', 'Planning', 'Quarterly', 'Unfiled']);
     expect(queryByText('Back up now')).toBeNull();
+    expect(tree.textContent).not.toContain('due');
+    expect(tree.textContent).not.toContain('unknown');
+    expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain('Across the library');
+    expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain('Review needed: 2 cards');
 
     // Unfiled is the starting folder here (the most recently opened board is unfiled).
     expect(getByRole('list', { name: 'Unfiled boards' }).textContent).toContain('Scratch');
     fireEvent.click(getByRole('button', { name: 'Planning' }));
     expect(getByRole('heading', { level: 1 }).textContent).toBe('Planning');
     expect(document.querySelector('[data-testid="home-section"][data-folder="Planning/Quarterly"]')).toBeTruthy();
+    expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain(
+      'In this folder and subfolders',
+    );
+    expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain('Review needed: 1 card');
+    expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain('No review policy: 1 card');
+    fireEvent.click(getByRole('button', { name: 'Review needed: 1 card' }));
+    const toReview = getByRole('list', { name: 'Boards needing review' });
+    expect(toReview.textContent).toContain('C4 OKR planning');
+    expect(toReview.textContent).not.toContain('Scratch');
+    expect(getByRole('button', { name: 'Review C4 OKR planning' })).toBeTruthy();
 
     // Move Scratch into a new child under an implicit parent folder.
     fireEvent.click(getByRole('button', { name: 'Unfiled' }));
@@ -378,6 +451,44 @@ describe('board switcher', () => {
     await waitFor(() => {
       expect(JSON.parse(String(lastOpen()?.init?.body))).toEqual({ id: null });
     });
+  });
+
+  test.each([false, true])('category deletion is in-app and refuses assigned empty folders (used=%s)', async (used) => {
+    const category = {
+      id: 'unused',
+      name: 'Unused',
+      glyph: 'U',
+      decayType: 'reality' as const,
+      rate: 'durable' as const,
+      triggers: [],
+      revalidationMethod: 'check',
+    };
+    knowledge.value = {
+      ok: true,
+      categories: [category],
+      folders: used ? [{ path: 'Empty', categoryId: category.id, lifecycleOverride: null }] : [],
+      cards: {},
+      resolvedFolders: {},
+    };
+    const { getByRole, queryByRole, getByText } = render(<KnowledgeDialog onClose={() => {}} />);
+    fireEvent.click(getByRole('button', { name: /U Unused/ }));
+    if (used) {
+      expect(getByText(/Cannot delete: assigned to Empty/)).toBeTruthy();
+      expect(queryByRole('button', { name: 'Delete category' })).toBeNull();
+      return;
+    }
+    fireEvent.click(getByRole('button', { name: 'Delete category' }));
+    expect(getByRole('group', { name: 'Confirm category deletion' })).toBeTruthy();
+    expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(false);
+    fireEvent.click(getByRole('button', { name: 'Cancel deletion' }));
+    expect(queryByRole('group', { name: 'Confirm category deletion' })).toBeNull();
+    fireEvent.click(getByRole('button', { name: 'Delete category' }));
+    fireEvent.click(getByRole('button', { name: 'Confirm deletion' }));
+    await waitFor(() => expect(getByText('Category deleted.')).toBeTruthy());
+    const deletion = calls.find((call) => call.init?.method === 'DELETE');
+    expect(deletion?.url).toBe('/api/canvas/knowledge/category/unused');
+    expect(new Headers(deletion?.init?.headers).get('X-PMX-Workbench')).toBe('1');
+    expect(queryByRole('button', { name: 'Save category' })).toBeNull();
   });
 
   test('shows the workspace name until the board list arrives', () => {

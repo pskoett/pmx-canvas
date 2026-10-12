@@ -1,4 +1,4 @@
-import { canvasArea } from '../canvas/canvas-area';
+import { canvasArea, canvasFitInsets } from '../canvas/canvas-area';
 import { showToast } from './attention-bridge';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
@@ -463,7 +463,13 @@ export async function updateViewportFromClient(
  * `fit` computes against the human's REAL window instead of a hardcoded
  * 1440x900 (0.4.6 orb feedback #2: fit clipped nodes on both sides).
  */
-function clientWindowSize(): { clientWidth: number; clientHeight: number } | Record<string, never> {
+function clientWindowSize():
+  | {
+      clientWidth: number;
+      clientHeight: number;
+      clientInsets: { top: number; bottom: number };
+    }
+  | Record<string, never> {
   if (typeof window === 'undefined') return {};
   // The CANVAS REGION, not the window — with the rail + top-bar shell a
   // window-sized fit would hide nodes under the chrome.
@@ -471,7 +477,8 @@ function clientWindowSize(): { clientWidth: number; clientHeight: number } | Rec
   const clientWidth = Math.round(area.width);
   const clientHeight = Math.round(area.height);
   if (!clientWidth || !clientHeight) return {};
-  return { clientWidth, clientHeight };
+  const { top, bottom } = canvasFitInsets();
+  return { clientWidth, clientHeight, clientInsets: { top, bottom } };
 }
 
 /**
@@ -489,7 +496,11 @@ export async function reportClientViewportSize(): Promise<void> {
   await requestBestEffort('reportClientViewportSize', '/api/canvas/viewport', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...size, recordHistory: false }),
+    body: JSON.stringify({
+      ...size,
+      ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
+      recordHistory: false,
+    }),
   });
 }
 

@@ -823,25 +823,9 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
   mcp: {
     toolName: 'canvas_add_node',
     description:
-      'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, diff, mermaid, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
+      'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, board (data.boardId is the target), status, context, ledger, trace, file, diff, mermaid, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
     extraShape: {
-      type: z
-        .enum([
-          'markdown',
-          'status',
-          'context',
-          'ledger',
-          'trace',
-          'file',
-          'diff',
-          'mermaid',
-          'image',
-          'webpage',
-          'mcp-app',
-          'html',
-          'group',
-        ])
-        .describe('Node type (prefer canvas_group {action:"create"} for groups)'),
+      type: z.enum(NODE_TYPES).describe('Node type (prefer canvas_group {action:"create"} for groups)'),
       children: z
         .array(z.string())
         .optional()

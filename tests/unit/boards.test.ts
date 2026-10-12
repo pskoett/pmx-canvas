@@ -405,6 +405,47 @@ test('knowledge inheritance resets at explicit child categories, clears override
   expect(await read()).toMatchObject({ category: { name: 'Renamed' }, lifecycle: { rate: 'slow' } });
 });
 
+test('category removal refuses empty-folder assignments, validates ids and persists unused deletion on Home', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const category = {
+    id: 'unused',
+    name: 'Unused',
+    glyph: 'U',
+    decayType: 'reality',
+    rate: 'durable',
+    triggers: [],
+    revalidationMethod: 'check',
+  };
+  await executeOperation('knowledge.category-set', { category });
+  await executeOperation('knowledge.folder-set', {
+    path: 'Empty/Child',
+    categoryId: category.id,
+    lifecycleOverride: null,
+  });
+  const before = await executeOperation('knowledge.list', {});
+  await expect(executeOperation('knowledge.category-remove', { id: category.id })).rejects.toThrow('Empty/Child');
+  expect(await executeOperation('knowledge.list', {})).toEqual(before);
+  await expect(executeOperation('knowledge.category-remove', { id: 'missing' })).rejects.toThrow(
+    'Unknown knowledge category',
+  );
+  await expect(executeOperation('knowledge.category-remove', {})).rejects.toThrow();
+  await expect(executeOperation('knowledge.category-remove', { id: ' ' })).rejects.toThrow();
+  await executeOperation('knowledge.folder-set', { path: 'Empty/Child', categoryId: null, lifecycleOverride: null });
+  expect(await executeOperation('knowledge.category-remove', { id: category.id }, { fromWorkbench: true })).toEqual({
+    ok: true,
+    id: category.id,
+  });
+  expect(canvasState.activeBoardId).toBeNull();
+  canvasState.close();
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  expect(await executeOperation('knowledge.list', {})).toMatchObject({
+    categories: [],
+    folders: [{ path: 'Empty/Child', categoryId: null }],
+  });
+});
+
 test('audited reviews separate application, evidence, retirement, restoration and duplicate card identities', async () => {
   resetCanvasForTests(root);
   canvasState.loadFromDisk({ clearExisting: true });

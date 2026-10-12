@@ -4,8 +4,9 @@
 
 `pmx-canvas board knowledge list` reads workspace categories/folders.
 `pmx-canvas board knowledge category-set '<JSON>'` accepts `{category: {...}}`;
+`pmx-canvas board knowledge category-remove '{"id":"unused-category"}'` deletes an unused category. Explicit folder assignments (even empty folders) refuse deletion and name the folders to reassign or clear first. Unknown IDs are 404; missing/blank IDs are invalid input. No folder settings or inherited policies are silently cleared.
 `board knowledge folder-set '<JSON>'` accepts `{path, categoryId, lifecycleOverride}`.
-Neither workspace write opens a board; scope fences refuse agent workspace writes.
+No workspace write opens a board; scope fences refuse agent workspace writes.
 Moving/unfiling a board also checks its stored global scope or writer territory alongside
 the active scope, without opening it. Home or an unfenced board does not bypass that policy.
 `pmx-canvas board lifecycle get|set|review|restore '<JSON>'` uses `id` and the

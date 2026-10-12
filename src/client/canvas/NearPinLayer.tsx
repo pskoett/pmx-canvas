@@ -32,14 +32,11 @@ function edgePoint(from: Point, box: { left: number; top: number; width: number;
   return t >= 1 ? to : { x: to.x + dx * t, y: to.y + dy * t };
 }
 
-function titleOf(node: CanvasNodeState): string {
-  return typeof node.data.title === 'string' && node.data.title.trim() ? node.data.title : node.type;
-}
-
 /**
  * Which pin? (docs/design/NearPin.dc.html §2): for a hovered, selected or
  * dragged pin — or the pins a near chip asked to show — dotted tethers to its
- * neighbours, numbered nearest first, and the 600 px radius. Drawn in screen
+ * neighbours, numbered nearest first, and an unlabeled radius only when
+ * another node is within range. Drawn in screen
  * space (architecture rule 9) so they stay legible at fit zoom; while an
  * unpinned node is dragged only the nearest pin's radius shows (§3).
  */
@@ -56,6 +53,9 @@ export function NearPinLayer() {
       {focus.pinIds.map((pinId) => {
         const pin = all.get(pinId);
         if (!pin) return null;
+        if (![...all.values()].some((node) => node.id !== pinId && centerDistance(node, pin) <= NEAR_RADIUS)) {
+          return null;
+        }
         const pinTopLeft = toScreen(pin.position.x, pin.position.y);
         const pinBox = {
           left: pinTopLeft.x,
@@ -74,9 +74,6 @@ export function NearPinLayer() {
         return (
           <g key={pinId} data-pin-id={pinId}>
             <circle class="near-pin-radius" cx={c.x} cy={c.y} r={r} />
-            <text class="near-pin-radius-label" x={c.x + r * 0.72} y={c.y + r * 0.72}>
-              {NEAR_RADIUS} px from {titleOf(pin)}
-            </text>
             {neighbours.map((node, index) => {
               const topLeft = toScreen(node.position.x, node.position.y);
               const box = {

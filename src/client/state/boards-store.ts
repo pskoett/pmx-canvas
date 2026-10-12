@@ -7,7 +7,8 @@ import type { RelationDefinition } from '../../shared/relations.js';
 /**
  * Many boards (plan 012): the workspace's boards and which one is open. The
  * server is the authority; this mirrors GET /api/canvas/boards and the
- * `boards-changed` SSE frame. `activeBoardId === null` is Home.
+ * `boards-changed` SSE frame. Null means no server board is open; browsingMemory
+ * separately keeps a human in the library while agents open boards.
  */
 export interface BoardSummary {
   id: string;
@@ -52,6 +53,10 @@ interface BoardsPayload {
 
 export const boardList = signal<BoardSummary[]>([]);
 export const activeBoardId = signal<string | null>(null);
+/** An explicitly opened library view stays visible while agents switch boards. */
+export const browsingMemory = signal(false);
+/** Layout/pin/reconnect invalidation for the library's shared graph projection. */
+export const memoryGraphRevision = signal(0);
 /** False until the first list arrives — Home must not flash before the server answers. */
 export const boardsLoaded = signal(false);
 
@@ -152,7 +157,12 @@ export async function openBoard(id: string | null): Promise<void> {
   });
   openRequestQueue = request.catch(() => undefined);
   await request;
-  if (sequence === openRequestSequence && epoch === catalogEpoch) applyBoards(payload);
+  if (sequence === openRequestSequence && epoch === catalogEpoch && payload) {
+    batch(() => {
+      applyBoards(payload);
+      if (id !== null) browsingMemory.value = false;
+    });
+  }
 }
 
 /** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */

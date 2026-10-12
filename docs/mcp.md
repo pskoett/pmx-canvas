@@ -18,9 +18,9 @@ nodes in the browser, agents are notified immediately.
 
 ## Knowledge lifecycle data
 
-`canvas_board` adds `knowledge-list`, `category-set` (`category`), and `folder-set`
+`canvas_board` adds `knowledge-list`, `category-set` (`category`), `category-remove` (`id`), and `folder-set`
 (`path`, nullable `categoryId`, nullable `lifecycleOverride`). These workspace actions never
-open a board. `canvas_node` adds `lifecycle-get` (`id`, optional `board`), `lifecycle-set`
+open a board. Category removal refuses explicit folder assignments (including empty folders), naming the folders to reassign or clear first; it never clears inherited policies. Unknown IDs are 404; missing/blank IDs are invalid input. `canvas_node` adds `lifecycle-get` (`id`, optional `board`), `lifecycle-set`
 (`id`, nullable `lifecycleOverride`), `review` (`id`, `outcome`, `evidence`, `applied`), and
 `lifecycle-restore` (`id`, `evidence`). Writes accept `expectedBoardId` and obey scope/edit locks.
 See [the canonical fields and semantics](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
@@ -44,6 +44,9 @@ Use `derived-from`, `contradicts`, `supersedes` source → dependent, and `depen
 dependent → prerequisite. Other relations and wiki/portal links do not imply validation dependencies.
 Provenance may record source revision/observation separately from retrieval time, plus an inert
 recipe for a human-requested refresh. Reading or regenerating never validates.
+
+Create a board portal with `canvas_node { action: "add", type: "board", data: { boardId: "<target-board-id>" } }`
+on its source board. It appears as a `portal` edge in `canvas://graph`, independently of folder membership.
 
 ## Board tours
 
@@ -288,7 +291,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` · `read-status` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is the context read log; `read-status` is per node: last read, by whom, at which content revision) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `folder-set` | Boards and explicit workspace category/folder data |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` | Boards and explicit workspace category/folder data |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 For receipt-safe single-card Undo, use `canvas_snapshot { action: "restore-node", id,

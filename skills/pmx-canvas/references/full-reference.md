@@ -384,18 +384,23 @@ draw visual attention to critical paths.
 
 ### Layout: spacing and groups
 
-Agents tend to pack boards too tightly. Give nodes room to breathe — readability beats density.
+Use the smallest clear gap that serves the content and its relationships. Both crowded labels
+and oversized empty channels make a board harder to use.
 
-- **Starting spacing:** leave a clear gap between neighbors — roughly half a node's width
-  horizontally and half its height vertically. For a 280×180 node that means ~420px between
-  column origins and ~270px between row origins, not a universal minimum.
-- **When nodes are connected by edges, space them further apart** so the edge line, its arrowhead,
-  label and authorship marks are clearly visible in the gap between nodes. After content settles,
+- **Unconnected notes and walkthroughs:** start compact, often a 40–80px clear gap. For a
+  280×180 node with a 40px gap, origins are 320px apart horizontally and 220px vertically.
+  This is an unconnected-card example, not a minimum for connected cards. Do not reserve
+  half a card's width or a large uniform channel where there is no edge.
+- **Connected cards:** provide enough room for the rendered edge line, arrowhead, label and
+  authorship marks. Short flow labels may need less room than long explanations. After content settles,
   inspect the rendered relations at the intended viewing zoom, including after auto-arrange.
   `validate` checks node non-overlap, not label/arrowhead clearance or relation readability;
   widen or reroute crowded relations rather than relying on a fixed pixel gap.
-- **Inside a group, keep the same breathing room** (groups no longer auto-pack children, so the
-  spacing you set is what the human sees). Edges between grouped children especially need the gap.
+- **After rendering:** use settled card sizes, not just the requested creation heights. Close
+  gaps left by automatic shrinking, check the numbered reading order, and frame a readable
+  cluster or tour stop. A whole-board fit is orientation, not proof that body text is readable.
+- **Inside a group, apply the same distinction** between compact notes and clear relation
+  channels. Groups no longer auto-pack children, so the spacing you set is what the human sees.
 - **Size a group frame larger than its children's bounding box** so the group header — including the
   node-count badge — stays visible and isn't hidden under the top-left child. For an explicit
   (manual) group frame, add margin on every side (≈56px) plus room at the top for the header rather
@@ -445,7 +450,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `folder-set` | Boards and workspace knowledge categories/folder properties; knowledge writes never open a board |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` | Boards and workspace knowledge categories/folder properties; knowledge writes never open a board. `category-remove` takes `id` and refuses explicit folder assignments, including empty folders; reassign or clear them first. |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`); `restore-node` puts one card (`nodeId`) back to its content in snapshot `id` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
 | `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Read the budgeted brief or summary-only connected memory graph, find nodes, read full layout, or **`validate`** collisions / containment / dangling edges |
@@ -564,6 +569,10 @@ requires `expectedSources` from the evidence checked, plus `expectedContentRevis
 unavailable sources refuse. Retired cards leave briefs/pinned context but remain marked in search
 and direct reads. Brief `lifecycle.complete: false` requires rechecking cached cards before reuse;
 empty incomplete lists are not a health claim. Recipe metadata is inert and refresh never validates.
+For human review, Home's Review needed count filters to affected boards, and each Review button
+opens an affected card. More → Review offers one short note and Checked, still correct; Not now
+writes nothing. Settings and history discloses clocks, policies and advanced outcomes. The folder
+tree is navigation, and No review policy is informational rather than an outstanding task.
 
 Use `canvas_board { action: "open", id: "<board-id>" }` to open a created or
 existing board before authoring. Verify the returned `activeBoardId`; opening

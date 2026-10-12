@@ -3,7 +3,8 @@ import type { RelationDefinition } from '../../shared/relations.js';
 /**
  * Many boards (plan 012): the workspace's boards and which one is open. The
  * server is the authority; this mirrors GET /api/canvas/boards and the
- * `boards-changed` SSE frame. `activeBoardId === null` is Home.
+ * `boards-changed` SSE frame. Null means no server board is open; browsingMemory
+ * separately keeps a human in the library while agents open boards.
  */
 export interface BoardSummary {
     id: string;
@@ -65,6 +66,10 @@ export interface BoardSummary {
 }
 export declare const boardList: import("@preact/signals-core").Signal<BoardSummary[]>;
 export declare const activeBoardId: import("@preact/signals-core").Signal<string | null>;
+/** An explicitly opened library view stays visible while agents switch boards. */
+export declare const browsingMemory: import("@preact/signals-core").Signal<boolean>;
+/** Layout/pin/reconnect invalidation for the library's shared graph projection. */
+export declare const memoryGraphRevision: import("@preact/signals-core").Signal<number>;
 /** False until the first list arrives — Home must not flash before the server answers. */
 export declare const boardsLoaded: import("@preact/signals-core").Signal<boolean>;
 export declare let catalogEpoch: string | null;

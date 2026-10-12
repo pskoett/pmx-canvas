@@ -40,6 +40,7 @@ import {
   catalogEpoch,
   connectBoardCatalog,
   loadBoards,
+  memoryGraphRevision,
   setBoardSwitchHandler,
 } from './boards-store';
 import { applyContextStatus, refreshContextStatus } from './context-status-store';
@@ -546,6 +547,7 @@ function resyncForBoardSwitch(initial: boolean): void {
 setBoardSwitchHandler(resyncForBoardSwitch);
 
 function handleConnected(data: Record<string, unknown>): void {
+  memoryGraphRevision.value++;
   // A current connection authorizes catalogs from this server run. Old HTTP
   // continuations and buffered layouts cannot cross the snapshot boundary.
   boardResyncGeneration++;
@@ -992,6 +994,9 @@ function handleCanvasResponseComplete(data: Record<string, unknown>): void {
 // ── Agent canvas tool events ──────────────────────────────────
 
 function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
+  // Even an inactive board can affect library links. This invalidates a read;
+  // the ownership guards below still control applying the canvas snapshot.
+  memoryGraphRevision.value++;
   const layout = data.layout as
     | {
         nodes?: Array<Record<string, unknown>>;
@@ -1144,6 +1149,7 @@ function handleThemeChanged(data: Record<string, unknown>): void {
 }
 
 function handleContextPinsChanged(data: Record<string, unknown>): void {
+  memoryGraphRevision.value++;
   pinsRevision += 1;
   const nodeIds = Array.isArray(data.nodeIds) ? data.nodeIds.filter((id): id is string => typeof id === 'string') : [];
   replaceContextPinsFromServer(nodeIds);

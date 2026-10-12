@@ -64,6 +64,9 @@ export type KnowledgeInput = {
 } | {
     action: 'category-set';
     category: KnowledgeCategory;
+} | {
+    action: 'category-remove';
+    id: string;
 } | ({
     action: 'folder-set';
 } & FolderProperties);
@@ -78,6 +81,10 @@ export interface KnowledgeResults {
     'category-set': {
         ok: true;
         category: KnowledgeCategory;
+    };
+    'category-remove': {
+        ok: true;
+        id: string;
     };
     'folder-set': {
         ok: true;
@@ -141,6 +148,7 @@ export declare class KnowledgeLifecycle {
         folders: FolderProperties[];
     };
     setCategory(value: KnowledgeCategory): KnowledgeCategory;
+    removeCategory(id: string): string;
     setFolder(value: FolderProperties): FolderProperties;
     resolve(folderPath: string | null, override?: Lifecycle | null, catalog?: {
         categories: KnowledgeCategory[];

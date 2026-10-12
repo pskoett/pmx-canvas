@@ -514,7 +514,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   const items: MenuItem[] = [];
   const localPath = getNodeLocalPath(node);
 
-  items.push({ label: 'Lifecycle', action: () => openLifecycle(node.id) });
+  items.push({ label: 'Review', action: () => openLifecycle(node.id) });
 
   // S2: Delegate to focusNode() which centers, brings to front, and persists
   items.push({

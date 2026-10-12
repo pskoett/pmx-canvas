@@ -1,4 +1,4 @@
-import { signal } from '@preact/signals';
+import { effect, signal } from '@preact/signals';
 import type { KnowledgeResults } from '../../server/knowledge-lifecycle.js';
 import { memoryKey } from '../../shared/memory-graph.js';
 import { activeBoardId, boardIncarnation } from './boards-store';
@@ -7,6 +7,10 @@ import { requestJson } from './intent-bridge';
 export const knowledge = signal<KnowledgeResults['list'] | null>(null);
 export const knowledgeUnavailable = signal(false);
 export const lifecycleFilter = signal<'All' | 'To review' | 'Retired'>('All');
+effect(() => {
+  activeBoardId.value;
+  lifecycleFilter.value = 'All';
+});
 export const lifecycleTarget = signal<{ boardId: string; nodeId: string; incarnation: number } | null>(null);
 export const retirementUndo = signal<{ boardId: string; nodeId: string; incarnation: number } | null>(null);
 let sequence = 0;

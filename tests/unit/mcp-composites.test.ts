@@ -133,6 +133,51 @@ describe('MCP composite tools (plan-006)', () => {
       ).not.toBe(true);
       const list = parseJsonText(await call(client, 'canvas_board', { action: 'knowledge-list' }));
       expect(list).toEqual(await (await fetch(`${base}/api/canvas/knowledge`)).json());
+      expect((await call(client, 'canvas_board', { action: 'category-remove', id: 'decisions' })).isError).toBe(true);
+      const refused = await fetch(`${base}/api/canvas/knowledge/category/decisions`, { method: 'DELETE' });
+      expect(refused.status).toBe(409);
+      expect((await refused.json()).error).toContain('A/B');
+      await call(client, 'canvas_board', {
+        action: 'category-set',
+        category: { ...lifecycle, id: 'unused', name: 'Unused', glyph: 'U' },
+      });
+      expect(
+        parseJsonText<{ ok: boolean; id: string }>(
+          await call(client, 'canvas_board', { action: 'category-remove', id: 'unused' }),
+        ),
+      ).toEqual({
+        ok: true,
+        id: 'unused',
+      });
+      await call(client, 'canvas_board', {
+        action: 'category-set',
+        category: { ...lifecycle, id: 'unused', name: 'Unused', glyph: 'U' },
+      });
+      const removed = await fetch(`${base}/api/canvas/knowledge/category/unused`, { method: 'DELETE' });
+      expect(removed.status).toBe(200);
+      expect(await removed.json()).toEqual({ ok: true, id: 'unused' });
+      await call(client, 'canvas_board', {
+        action: 'category-set',
+        category: { ...lifecycle, id: 'unused', name: 'Unused', glyph: 'U' },
+      });
+      const removalCli = Bun.spawn(
+        [
+          'bun',
+          'run',
+          fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)),
+          'board',
+          'knowledge',
+          'category-remove',
+          '{"id":"unused"}',
+          '--server-url',
+          base,
+        ],
+        { stdout: 'pipe', stderr: 'pipe' },
+      );
+      const removalOutput = await new Response(removalCli.stdout).text();
+      expect(await removalCli.exited).toBe(0);
+      expect(JSON.parse(removalOutput)).toEqual({ ok: true, id: 'unused' });
+      expect(await (await fetch(`${base}/api/canvas/boards`)).json()).toMatchObject({ activeBoardId: null });
       const board = parseJsonText<{ board: { id: string } }>(
         await call(client, 'canvas_board', { action: 'create', name: 'Lifecycle', folder: 'A/B' }),
       ).board;
@@ -374,6 +419,26 @@ describe('MCP composite tools (plan-006)', () => {
     expect(shallow).toHaveLength(1);
     expect(shallow[0]?.seenLinks).toEqual({});
     expect(shallow[0]?.readNodes).toEqual({});
+
+    const destination = graph.nodes.find((node) => node.kind === 'board' && node.title === 'First')!;
+    const source = graph.nodes.find((node) => node.kind === 'board' && node.title === 'Second')!;
+    const portal = await call(client, 'canvas_node', {
+      action: 'add',
+      type: 'board',
+      title: 'First board portal',
+      data: { boardId: destination.boardId },
+    });
+    expect(portal.isError).not.toBe(true);
+    const portalId = parseJsonText<{ id: string }>(portal).id;
+    const linked = parseJsonText<MemoryGraph>(await call(client, 'canvas_query', { action: 'graph' }));
+    expect(linked.edges).toContainEqual(
+      expect.objectContaining({
+        kind: 'portal',
+        source: { boardId: source.boardId, cardId: portalId },
+        target: { boardId: destination.boardId },
+        missing: false,
+      }),
+    );
   }, 30000);
 
   test('canvas_node transports Mermaid fit data on add and update', async () => {

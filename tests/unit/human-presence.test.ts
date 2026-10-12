@@ -112,7 +112,13 @@ describe('human presence over HTTP', () => {
     };
     const boardId = canvasState.activeBoardId!;
     await sdk.knowledge({ action: 'category-set', category: { ...lifecycleOverride, id: 'a', name: 'A', glyph: 'A' } });
+    await sdk.knowledge({
+      action: 'category-set',
+      category: { ...lifecycleOverride, id: 'unused', name: 'Unused', glyph: 'U' },
+    });
+    expect(await sdk.knowledge({ action: 'category-remove', id: 'unused' })).toEqual({ ok: true, id: 'unused' });
     await sdk.knowledge({ action: 'folder-set', path: 'A', categoryId: 'a', lifecycleOverride: null });
+    await expect(sdk.knowledge({ action: 'category-remove', id: 'a' })).rejects.toThrow('assigned to folders: A');
     await sdk.updateBoard(boardId, { folder: 'A' });
     expect(await read()).toMatchObject({ category: { id: 'a' }, categorySourceFolder: 'A' });
     canvasState.setPolicy({ scope: { nodeIds: [other.id] } });
@@ -122,6 +128,7 @@ describe('human presence over HTTP', () => {
     await expect(
       sdk.knowledge({ action: 'category-set', category: { ...lifecycleOverride, id: 'a', name: 'A', glyph: 'A' } }),
     ).rejects.toThrow('Outside the agent scope');
+    await expect(sdk.knowledge({ action: 'category-remove', id: 'a' })).rejects.toThrow('Outside the agent scope');
     expect(
       (await post('/api/canvas/knowledge/folder', { path: 'A', categoryId: null, lifecycleOverride: null })).status,
     ).toBe(403);

@@ -435,7 +435,7 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 4. **Add the type to `isCanvasNodeType` in `src/client/state/sse-bridge.ts`** — this runtime
    guard silently DROPS unknown types during layout apply, so a missed entry renders nothing
    in the live workbench even though every unit/client test passes
-5. Add to `NODE_TYPES` + the MCP `extraShape` enum in `src/server/operations/ops/nodes.ts`
+5. Add to `NODE_TYPES` in `src/server/operations/ops/nodes.ts` (MCP uses that same enum)
    and a `defaultNodeSize` case
 6. Update `SKILL.md`, `readme.md`, and `docs/node-types.md` with the new type
 7. Regenerate the demo board (`bun run scripts/generate-demo-board.ts`) and add the type to it —
