@@ -314,10 +314,15 @@ connection evidence.
 agent names/counts fill a wider bar: fold actions into More before compacting sessions to
 their existing initials and popovers. More owns keyboard focus as soon as it opens and
 stays reachable through resize or count changes until it closes.
-At narrow widths, retained Updates sits below the Map/Graph toolbar, not over Filters &
-details; while filters are open it compacts to an icon beside the sidebar rather than covering
-search. The open session drawer sits above retained canvas receipts so its controls remain
-reachable. Expanded Markdown uses the same wiki navigation as the card preview. Medium
+External writers follow the same compact step, keeping their avatars, activity button and
+accessible identity while giving the context summary room. At narrow widths, retained Updates
+tracks the measured bottom of the Map/Graph toolbar, including wrapped tabs/counts, not a
+fixed offset. It stays clear of Filters & details in both sidebar states; while filters are
+open it compacts to an icon beside the sidebar rather than covering search.
+The open session drawer sits above retained canvas receipts so its controls remain
+reachable. Expanded Markdown uses the same wiki navigation as the card preview, after its
+rich-editor blur save finishes. Missing-board creation captures that saved source; later peer
+changes still refuse binding rather than overwrite the source. Medium
 review policies require an explicit cadence; whitespace alone is not a revalidation method.
 HTML viewer replacements acknowledge mount and paint before replacing the healthy document,
 matching the existing JSON/graph handoff without changing the sandbox permissions.

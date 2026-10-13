@@ -61,6 +61,7 @@ export function ExternalWriterIndicator() {
         type="button"
         class="external-indicator"
         data-testid="external-indicator"
+        aria-label={`${label} external activity, ${ops} operation${ops === 1 ? '' : 's'}`}
         aria-expanded={open}
         onClick={() => {
           activityFeedOpen.value = !open;

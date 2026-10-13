@@ -87,6 +87,26 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
   useLayoutEffect(() => {
     browsingMemory.value = true;
   }, []);
+  useLayoutEffect(() => {
+    const stage = viewport.current;
+    const region = stage?.closest<HTMLElement>('.canvas-region');
+    if (!stage || !region) return;
+    // Tabs and counts can wrap independently. Updates follows their actual
+    // bottom edge, including after a resize, rather than a fixed header height.
+    const measure = () => {
+      region.style.setProperty(
+        '--home-memory-content-top',
+        `${stage.getBoundingClientRect().top - region.getBoundingClientRect().top}px`,
+      );
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    measure();
+    return () => {
+      observer.disconnect();
+      region.style.removeProperty('--home-memory-content-top');
+    };
+  }, []);
   useEffect(() => {
     if (selectedKey) sidebarElement.current?.querySelector('.home-memory-details')?.scrollIntoView({ block: 'start' });
   }, [selectedKey]);

@@ -1089,12 +1089,24 @@ body,
 .top-bar.is-folded .top-bar-more {
   display: inline-flex;
 }
+.top-bar.is-compact {
+  gap: 8px;
+}
 .top-bar.is-compact .agent-chip {
   padding: 0;
   border: none;
   background: none;
 }
+.top-bar.is-compact .start-session-btn {
+  padding: 5px 6px;
+}
+.top-bar.is-compact .external-indicator {
+  gap: 4px;
+  padding: 4px 6px;
+}
 .top-bar.is-compact .agent-chip > :not(.agent-chip-initial),
+.top-bar.is-compact .external-indicator-label,
+.top-bar.is-compact .external-indicator-ops,
 .top-bar.is-compact .start-session-label,
 .top-bar.is-compact .start-session-btn .beta-tag,
 .top-bar.is-compact .context-chip-cost {
@@ -9236,7 +9248,7 @@ html.is-node-dragging .intent-line-layer {
   .home-memory-toolbar { padding: 8px; gap: 8px; }
   .canvas-region:has(.home-memory) > .attention-history-tab,
   .canvas-region:has(.home-memory) > .attention-history {
-    top: 112px;
+    top: calc(var(--home-memory-content-top) + 8px);
   }
   .canvas-region:has(.home-memory.sidebar-open) > .attention-history-tab {
     left: 8px;

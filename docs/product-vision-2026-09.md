@@ -69,9 +69,18 @@ or their connections. On a board, the dropdown is only **All relations + kinds a
 present**, with counts; there is no Custom vocabulary status. Folder categories and card
 lifecycle remain separate from relation kinds. The acceptance guide follows this distinction
 and retains the owner's results and notes. This is still unreleased 0.8.2, not release approval.
-The current follow-up's combined local gates pass 1,446 unit, 307 client and all 289 headed
+The shared-Home-presets delivery passed 1,446 unit, 307 client and all 289 headed
 browser cases, plus build/typecheck/lint, coverage and fresh headed CLI/stdio MCP.
-Its exact-commit CI and the requested fresh numbered rehearsal are separate checks.
+Its [exact-commit CI](https://github.com/pskoett/pmx-canvas/actions/runs/38408653667) passed all
+five jobs, including Windows. The fresh numbered rehearsal remains separate: it reproduced
+an expanded-document blur save racing missing-board link creation. That isolated follow-up
+waits for the save before capturing the source; stale-source protection is retained. Its
+verification and integration state are recorded in [plan 018](plans/plan-018-connected-memory-wave-2.md).
+The same rehearsal's extra 390 px check exposed wrapped Graph chrome blocking the filter
+toggle and an external-writer badge crowding the context summary. The follow-up measures
+the toolbar's actual extent and compacts writer text, keeping filtering, activity and context
+reachable without changing their meaning. This does not replace the three reference-width
+gate or establish native-host acceptance.
 
 **Still open:** the owner's acceptance of everything since 0.8.2 and the real-agent curation
 evaluation. Full Relations/Flows/Uses sketch parity is not implemented: inline edge editing,

@@ -525,3 +525,70 @@ browser cases**, including 600/1024/1920 reference widths. The final full run in
 worktree match byte-for-byte; generated bundles/catalogs are copied from that tested build.
 The preceding CI run passed four jobs but Windows was cancelled. CI for this delivery and
 the owner's requested fresh numbered rehearsal remain separate from these local gates.
+
+### Fresh rehearsal 07: document save before wiki creation, 2026-10-13
+
+The exact `f5032c5` delivery subsequently passed all five jobs in
+[CI 38408653667](https://github.com/pskoett/pmx-canvas/actions/runs/38408653667).
+Fresh manual rehearsal still reproduced a wiki-creation failure twice: expanded Source Save,
+Back to document, click an unresolved link, then Create. Rich-editor blur normalized the
+Markdown and PATCHed revision 23; the dialog's captured pre-normalization content then PATCHed
+the same revision 23. The first write advanced the revision, so the second correctly refused
+binding after creating the board. Waiting in Document did not prevent a later blur save.
+
+The parent regression reproduces that refusal on unchanged product code. The narrow fix
+finishes the expanded document's blur save queue before opening a wiki dialog or navigating.
+It stops if the board incarnation changes or the save leaves a dirty/refused draft. The
+dialog's source capture and server revision guard are unchanged; a real peer write after
+the dialog opens remains refused and its content is preserved.
+
+Local follow-up gates pass in `/tmp/pmx-wiki-blur-gates`: build/typecheck/lint (0 errors,
+63 existing warnings/12 infos), 1,446 unit, 307 client, all 40 boards/Markdown sanitize and
+native Save/ACK/ABA cases, two inline Markdown cases and five repeated wiki cases. The
+unchanged-product red trace and inspected before/after media are in
+`.amp/in/artifacts/wiki-blur/`. A separate headed real-pointer flow created and opened the
+new board; an independent API read confirmed the source's durable board-ID binding. The
+clip holds the last captured frame for two seconds so the actual destination is readable.
+
+At this checkpoint the follow-up is local/uncommitted, with tested index SHA256
+`3c003e08ebd8782c28db46c2cd5c2e777cae1cc23be0afbd9a7138799aa2c233`.
+The owner daemon remains on `f5032c5` while the medium orb completes its full numbered pass.
+Source-only retest handoff precedes combined integration, commit/push and live refresh;
+no current owner results, notes or live database were changed by this isolated validation.
+The medium orb's corrected 390 px evidence establishes the Updates/filter overlap with the
+sidebar **open**, not closed. Two pinned boards and one external writer also push the context
+chip's right edge to 429.09 px in a 390 px viewport. Required 600/1024 controls pass separately.
+
+The extended existing browser regression reproduces both defects: an ordinary filter click
+is intercepted by Updates, and with only the positioning fix the context edge remains
+429.09 px. The local follow-up positions Updates from the measured memory-stage top, so
+wrapped tabs and counts cannot invalidate a fixed header offset. The existing content-based
+compact step now includes external-writer text, preserving avatars, activity access and an
+accessible label. No owner daemon refresh or guide-result reset accompanies these tests.
+First-failure traces and logs are retained in `/tmp/pmx-responsive-gates`.
+
+Final same-source serial gates pass in `/tmp/pmx-responsive-gates`: build/typecheck/lint
+(0 errors, existing 63 warnings/12 infos), **1,446 unit**, **307 client**, coverage
+(64.66% lines / 72.31% functions), and all **289 headed browser cases**, including the
+600/1024/1920 reference projects. The fresh CLI/HTTP/stdio MCP gate also passes with explicit
+`DISPLAY=:88 PMX_E2E_HEADED=1 bash scripts/e2e-cli-coverage.sh`. An earlier invocation omitted
+that flag; its log is retained separately and is not the headed proof.
+
+Inspected final media in `.amp/in/artifacts/narrow-chrome/` shows open/closed populated Graph
+at 390 px, all nine themes, and 600/1024/1920 layouts. Real-pointer recording exercises
+filter open/close, search, context, external activity and Updates. Executed measurements keep
+the context chip inside the viewport (right edge 376 px), and the collapsed Updates trigger
+below Filters and clear of search. Open overlay panels intentionally cover the canvas;
+the narrow graph remains cramped with its sidebar open, and dense Fit labels need local
+focus. These checks do not establish touch, native-host or full sketch-parity acceptance.
+
+The medium orb independently built the frozen five-file source/test patch against clean
+`f5032c5` in a disposable checkout. Its served index matches the parent tested build:
+SHA256 `a42b09b475b9dad7afda0fc68f0cdec49dd43c9bd57d54b381a1efa2525ac2e0`.
+Manual retests pass trailing-newline creation with durable source binding, refusal after a
+genuine peer edit, and populated Graph interactions at 390/600/760/390. Its read-only live
+preservation comparison confirms unchanged layouts for all 11 boards (96 cards, 63 edges),
+including guide results/notes, pins, cameras and tours. Categories, folders and shared presets
+also match. Read inspection advanced `lastReadAt` on three guide cards, not their content or
+evidence validation. No further check depends on the old live bundle. Disposable cleanup and
+the qualified numbered report remain separate; no owner acceptance results are inferred.

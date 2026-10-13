@@ -42,8 +42,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Fixed
 
 - Populated agent sessions fold the top bar before controls run offscreen, and retained receipts no longer cover the narrow session drawer.
-- Wiki links navigate from the expanded Markdown document as well as the card preview.
-- Narrow Graph filters remain reachable beside retained Updates.
+- Wiki links navigate from the expanded Markdown document as well as the card preview, and missing-board creation waits for the document save before binding the link.
+- Narrow Graph filters remain reachable beside retained Updates even when the toolbar wraps, and external activity no longer crowds the context summary offscreen.
 - Medium review policies require an explicit cadence, and blank revalidation methods are refused.
 - Graph data and spec changes refresh the viewer, and failed HTML replacements keep the last healthy view.
 - Guest cursors follow promptly through buffering portals instead of jumping every two seconds.

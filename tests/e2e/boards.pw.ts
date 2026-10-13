@@ -719,7 +719,21 @@ test('wiki navigation and human remote-card connections survive renames and reta
   await expect(page.getByRole('button', { name: /^Board: Renamed research/ })).toBeVisible();
   await expect(card).toBeInViewport();
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
-  await page.getByRole('link', { name: 'New investigation', exact: true }).click();
+  await sourceCard.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await page.getByRole('button', { name: '</> Source', exact: true }).click();
+  const rawSource = page.locator('.md-editor-expanded textarea');
+  // Document serialization drops this final newline on blur. Creating a wiki
+  // board must bind the saved document, not the pre-blur source snapshot.
+  await rawSource.fill(`${edited.data.content}\n`);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to document', exact: true }).click();
+  await editor.focus();
+  const blurSaved = page.waitForResponse(
+    (response) => response.url().endsWith(`/api/canvas/node/${claim}`) && response.request().method() === 'PATCH',
+  );
+  await editor.getByRole('link', { name: 'New investigation', exact: true }).click();
+  await blurSaved;
   await page.getByRole('dialog').getByRole('button', { name: 'Create board', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Board: New investigation/ })).toBeVisible();
   const created = (await boards(request)).boards.find((board) => board.name === 'New investigation')!;
@@ -731,10 +745,26 @@ test('wiki navigation and human remote-card connections survive renames and reta
   await page.getByRole('link', { name: 'Read the evidence' }).click();
   await expect(page.getByRole('button', { name: /^Board: Renamed research/ })).toBeVisible();
   await expect(card).toBeInViewport();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await request.patch(`/api/canvas/node/${claim}`, {
+    data: { content: `${savedSource.data.content}\n\n[[Conflicted investigation]]` },
+  });
+  await page.getByRole('link', { name: 'Conflicted investigation', exact: true }).click();
+  const peerContent = 'A peer changed this source while its link dialog was open.';
+  await request.patch(`/api/canvas/node/${claim}`, { data: { content: peerContent } });
+  await page.getByRole('dialog').getByRole('button', { name: 'Create board', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Board created, but the source changed');
+  expect((await (await request.get(`/api/canvas/node/${claim}`)).json()).data.content).toBe(peerContent);
+  expect((await boards(request)).activeBoardId).toBe(source.id);
 });
 
 test('narrow library filters remain reachable alongside retained Updates', async ({ page, request }) => {
   const id = await note(request, 'Retained update probe');
+  const original = (await boards(request)).activeBoardId!;
+  const second = (await (await request.post('/api/canvas/boards', { data: { name: 'Context peer' } })).json()).board;
+  for (const boardId of [original, second.id]) {
+    expect((await request.post(`/api/canvas/boards/${boardId}/pin`, { headers: HUMAN })).ok()).toBe(true);
+  }
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto('/workbench');
   await page.route(`**/api/canvas/node/${id}`, async (route) => {
@@ -766,8 +796,15 @@ test('narrow library filters remain reachable alongside retained Updates', async
   await filters.click();
   await expect(filters).toHaveAttribute('aria-expanded', 'true');
   const search = page.getByRole('searchbox', { name: 'Find boards and cards', exact: true });
-  for (const width of [390, 600, 760]) {
+  for (const width of [390, 600, 760, 390]) {
     await page.setViewportSize({ width, height: 900 });
+    const a = (await updates.boundingBox())!;
+    const b = (await filters.boundingBox())!;
+    expect(a.y >= b.y + b.height || b.y >= a.y + a.height || a.x >= b.x + b.width || b.x >= a.x + a.width).toBe(true);
+    await filters.click();
+    await expect(filters).toHaveAttribute('aria-expanded', 'false');
+    await filters.click();
+    await expect(filters).toHaveAttribute('aria-expanded', 'true');
     const tab = (await updates.boundingBox())!;
     const field = (await search.boundingBox())!;
     expect(tab.x + tab.width <= field.x || tab.y + tab.height <= field.y).toBe(true);
@@ -775,6 +812,15 @@ test('narrow library filters remain reachable alongside retained Updates', async
     await search.fill('Search still reachable');
     await expect(search).toHaveValue('Search still reachable');
     await search.fill('');
+    const context = page.getByTestId('context-chip');
+    const chip = (await context.boundingBox())!;
+    expect(chip.x + chip.width).toBeLessThanOrEqual(width);
+    await context.click();
+    await expect(page.getByRole('dialog', { name: "In the agent's context" })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.getByTestId('external-indicator').click();
+    await expect(page.getByTestId('activity-feed')).toBeVisible();
+    await page.keyboard.press('Escape');
   }
   await updates.click();
   await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toBeVisible();

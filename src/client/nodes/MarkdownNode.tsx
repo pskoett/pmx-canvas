@@ -569,7 +569,22 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
 
   if (expanded) {
     return (
-      <div style={{ height: '100%', position: 'relative' }} onClick={(event) => handleWikiClick(event, node.id)}>
+      <div
+        style={{ height: '100%', position: 'relative' }}
+        onClick={async (event) => {
+          if (!(event.target as HTMLElement).closest('a.wiki-link')) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const incarnation = boardIncarnation;
+          const focused = document.activeElement;
+          // Blur serializes the rich document. Finish that save before the
+          // link dialog captures its source or navigation changes boards.
+          if (focused instanceof HTMLElement && event.currentTarget.contains(focused)) focused.blur();
+          await saveQueue.current;
+          if (incarnation !== boardIncarnation || activeBoardId.value !== boardId || draft.dirty.value) return;
+          handleWikiClick(event, node.id);
+        }}
+      >
         {reviewBanner}
         <div class="md-reader">
           {loaded ? (
