@@ -20,6 +20,7 @@ import { BoardCopyDialog } from './BoardCopyDialog';
 import { BoardPinButton } from './BoardPinButton';
 import { HomeMemoryView } from './HomeMemoryView';
 import { KnowledgeDialog } from './KnowledgeDialog';
+import { RelationPresetsDialog } from './RelationPresetsDialog';
 import { knowledge, lifecycleFilter } from '../state/knowledge-store';
 import type { LifecycleQualification } from '../../shared/lifecycle-status.js';
 import { IconChevronDown, IconChevronRight, IconMore, IconPin, IconSearch } from '../icons';
@@ -118,6 +119,7 @@ export function HomeView() {
   });
   const [extraFolders, setExtraFolders] = useState<string[]>([]);
   const [knowledgeDialog, setKnowledgeDialog] = useState<string | null>(null);
+  const [relationPresetsOpen, setRelationPresetsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -504,12 +506,16 @@ export function HomeView() {
           onClose={() => setKnowledgeDialog(null)}
         />
       )}
+      {relationPresetsOpen && <RelationPresetsDialog onClose={() => setRelationPresetsOpen(false)} />}
       <nav class="home-view-tabs" aria-label="Library view">
         {(['Folders', 'Map', 'Graph'] as const).map((tab) => (
           <button type="button" class="home-button" aria-pressed={view === tab} onClick={() => setView(tab)} key={tab}>
             {tab}
           </button>
         ))}
+        <button type="button" class="home-button" onClick={() => setRelationPresetsOpen(true)}>
+          Relation presets
+        </button>
       </nav>
       {view !== 'Folders' ? (
         <HomeMemoryView key={view} mode={view} />

@@ -2,6 +2,7 @@ import type { Database } from 'bun:sqlite';
 import { z } from 'zod';
 import { type ActorAttribution } from './attribution.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
+import { type RelationPreset } from '../shared/relations.js';
 export declare const lifecycleSchema: z.ZodObject<{
     decayType: z.ZodEnum<{
         reality: "reality";
@@ -67,6 +68,12 @@ export type KnowledgeInput = {
 } | {
     action: 'category-remove';
     id: string;
+} | {
+    action: 'relation-preset-set';
+    preset: RelationPreset;
+} | {
+    action: 'relation-preset-remove';
+    id: string;
 } | ({
     action: 'folder-set';
 } & FolderProperties);
@@ -75,6 +82,7 @@ export interface KnowledgeResults {
         ok: true;
         categories: KnowledgeCategory[];
         folders: FolderProperties[];
+        relationPresets: RelationPreset[];
         cards: Record<string, LifecycleQualification>;
         resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
     };
@@ -83,6 +91,14 @@ export interface KnowledgeResults {
         category: KnowledgeCategory;
     };
     'category-remove': {
+        ok: true;
+        id: string;
+    };
+    'relation-preset-set': {
+        ok: true;
+        preset: RelationPreset;
+    };
+    'relation-preset-remove': {
         ok: true;
         id: string;
     };
@@ -146,13 +162,17 @@ export declare class KnowledgeLifecycle {
     list(): {
         categories: KnowledgeCategory[];
         folders: FolderProperties[];
+        relationPresets: RelationPreset[];
     };
+    setRelationPreset(value: RelationPreset): RelationPreset;
+    removeRelationPreset(id: string): string;
     setCategory(value: KnowledgeCategory): KnowledgeCategory;
     removeCategory(id: string): string;
     setFolder(value: FolderProperties): FolderProperties;
     resolve(folderPath: string | null, override?: Lifecycle | null, catalog?: {
         categories: KnowledgeCategory[];
         folders: FolderProperties[];
+        relationPresets: RelationPreset[];
     }): {
         category: {
             decayType: "reality" | "decision" | "dependency" | "relevance";

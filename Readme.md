@@ -1,7 +1,9 @@
 # pmx-canvas
 
 **Relationships and knowledge lifecycle:** explain connections with kinds and reasons, use
-per-board vocabularies, and inspect evidence and downstream impact. Folder categories supply
+shared editable relation templates in Home, explicitly apply them to boards, and inspect evidence
+and downstream impact. Board dropdowns filter only relation kinds actually present, not presets.
+Folder categories supply
 explicit lifecycle defaults. Review due reasons, separate read/content/validation clocks,
 evidence-backed outcomes and reversible retirement appear in the workbench and agent context.
 Nothing classifies cards automatically or treats reading as validation.

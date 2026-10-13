@@ -4,15 +4,21 @@ import { normalizeBoardFolder } from '../shared/boards.js';
 import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
+import { RELATION_PRESETS, relationPresetSchema, type RelationPreset } from '../shared/relations.js';
 
-export const lifecycleSchema = z.strictObject({
-  decayType: z.enum(['reality', 'decision', 'dependency', 'relevance']),
-  rate: z.enum(['fast', 'medium', 'slow', 'durable']),
-  triggers: z.array(z.string().trim().min(1)),
-  revalidationMethod: z.string().trim().min(1),
-  cadenceDays: z.number().int().min(1).max(36500).optional(),
-});
-export const categorySchema = lifecycleSchema.extend({
+export const lifecycleSchema = z
+  .strictObject({
+    decayType: z.enum(['reality', 'decision', 'dependency', 'relevance']),
+    rate: z.enum(['fast', 'medium', 'slow', 'durable']),
+    triggers: z.array(z.string().trim().min(1)),
+    revalidationMethod: z.string().trim().min(1),
+    cadenceDays: z.number().int().min(1).max(36500).optional(),
+  })
+  .refine((value) => value.rate !== 'medium' || value.cadenceDays !== undefined, {
+    path: ['cadenceDays'],
+    message: 'Medium lifecycle requires a cadence in days.',
+  });
+export const categorySchema = lifecycleSchema.safeExtend({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
   glyph: z.string().trim().min(1),
@@ -42,17 +48,22 @@ export type KnowledgeInput =
   | { action: 'list' }
   | { action: 'category-set'; category: KnowledgeCategory }
   | { action: 'category-remove'; id: string }
+  | { action: 'relation-preset-set'; preset: RelationPreset }
+  | { action: 'relation-preset-remove'; id: string }
   | ({ action: 'folder-set' } & FolderProperties);
 export interface KnowledgeResults {
   list: {
     ok: true;
     categories: KnowledgeCategory[];
     folders: FolderProperties[];
+    relationPresets: RelationPreset[];
     cards: Record<string, LifecycleQualification>;
     resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
   };
   'category-set': { ok: true; category: KnowledgeCategory };
   'category-remove': { ok: true; id: string };
+  'relation-preset-set': { ok: true; preset: RelationPreset };
+  'relation-preset-remove': { ok: true; id: string };
   'folder-set': { ok: true; folder: FolderProperties };
 }
 export type LifecycleInput =
@@ -98,11 +109,44 @@ export class KnowledgeLifecycle {
     return db;
   }
 
-  list(): { categories: KnowledgeCategory[]; folders: FolderProperties[] } {
+  list(): { categories: KnowledgeCategory[]; folders: FolderProperties[]; relationPresets: RelationPreset[] } {
     const db = this.db();
     const read = <T>(table: string): T[] =>
       (db.query(`SELECT value FROM ${table} ORDER BY 1`).all() as { value: string }[]).map((r) => JSON.parse(r.value));
-    return { categories: read('knowledge_categories'), folders: read('folder_properties') };
+    const stored = db.query("SELECT value FROM meta WHERE key = 'relation-presets'").get() as { value: string } | null;
+    const relationPresets: RelationPreset[] = stored
+      ? JSON.parse(stored.value)
+      : Object.entries(RELATION_PRESETS).map(([name, vocabulary]) => ({
+          id: name,
+          name,
+          vocabulary: structuredClone(vocabulary),
+        }));
+    return { categories: read('knowledge_categories'), folders: read('folder_properties'), relationPresets };
+  }
+
+  setRelationPreset(value: RelationPreset): RelationPreset {
+    const preset = relationPresetSchema.parse(value);
+    const presets = this.list().relationPresets;
+    if (presets.some((item) => item.id !== preset.id && item.name === preset.name))
+      throw new OperationError('Relation preset names must be unique.', 409);
+    const index = presets.findIndex((item) => item.id === preset.id);
+    if (index < 0) presets.push(preset);
+    else presets[index] = preset;
+    this.db()
+      .query('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
+      .run('relation-presets', JSON.stringify(presets));
+    this.changed();
+    return preset;
+  }
+
+  removeRelationPreset(id: string): string {
+    const presets = this.list().relationPresets;
+    if (!presets.some((preset) => preset.id === id)) throw new OperationError('Unknown relation preset.', 404);
+    this.db()
+      .query('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
+      .run('relation-presets', JSON.stringify(presets.filter((preset) => preset.id !== id)));
+    this.changed();
+    return id;
   }
 
   setCategory(value: KnowledgeCategory): KnowledgeCategory {

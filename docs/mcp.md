@@ -20,7 +20,9 @@ nodes in the browser, agents are notified immediately.
 
 `canvas_board` adds `knowledge-list`, `category-set` (`category`), `category-remove` (`id`), and `folder-set`
 (`path`, nullable `categoryId`, nullable `lifecycleOverride`). These workspace actions never
-open a board. Category removal refuses explicit folder assignments (including empty folders), naming the folders to reassign or clear first; it never clears inherited policies. Unknown IDs are 404; missing/blank IDs are invalid input. `canvas_node` adds `lifecycle-get` (`id`, optional `board`), `lifecycle-set`
+open a board. `relation-preset-set` (`preset: {id, name, vocabulary}`) and `relation-preset-remove`
+(`id`) manage the shared Home template library without rewriting boards or connection kinds.
+Category removal refuses explicit folder assignments (including empty folders), naming the folders to reassign or clear first; it never clears inherited policies. Unknown IDs are 404; missing/blank IDs are invalid input. `canvas_node` adds `lifecycle-get` (`id`, optional `board`), `lifecycle-set`
 (`id`, nullable `lifecycleOverride`), `review` (`id`, `outcome`, `evidence`, `applied`), and
 `lifecycle-restore` (`id`, `evidence`). Writes accept `expectedBoardId` and obey scope/edit locks.
 See [the canonical fields and semantics](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
@@ -291,7 +293,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` · `read-status` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is the context read log; `read-status` is per node: last read, by whom, at which content revision) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` | Boards and explicit workspace category/folder data |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and explicit workspace category/folder/shared-preset data |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 For receipt-safe single-card Undo, use `canvas_snapshot { action: "restore-node", id,

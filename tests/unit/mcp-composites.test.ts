@@ -121,6 +121,38 @@ describe('MCP composite tools (plan-006)', () => {
       expect(result.isError).not.toBe(true);
       const base = await resolveBaseUrl(port);
       expect(await (await fetch(`${base}/api/canvas/boards`)).json()).toMatchObject({ activeBoardId: null });
+      const preset = {
+        id: 'verification',
+        name: 'Verification',
+        vocabulary: [{ kind: 'qualifies', ink: 'informs', directed: true }],
+      };
+      expect(
+        parseJsonText<{ ok: boolean; preset: typeof preset }>(
+          await call(client, 'canvas_board', { action: 'relation-preset-set', preset }),
+        ),
+      ).toEqual({
+        ok: true,
+        preset,
+      });
+      const shared = (await (await fetch(`${base}/api/canvas/knowledge`)).json()) as { relationPresets: unknown[] };
+      expect(shared.relationPresets).toContainEqual(preset);
+      const presetCli = Bun.spawn(
+        [
+          'bun',
+          'run',
+          fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url)),
+          'board',
+          'knowledge',
+          'relation-preset-remove',
+          JSON.stringify({ id: preset.id }),
+          '--server-url',
+          base,
+        ],
+        { stdout: 'pipe', stderr: 'pipe' },
+      );
+      const presetOutput = await new Response(presetCli.stdout).text();
+      expect(await presetCli.exited).toBe(0);
+      expect(JSON.parse(presetOutput)).toEqual({ ok: true, id: preset.id });
       expect(
         (
           await call(client, 'canvas_board', {

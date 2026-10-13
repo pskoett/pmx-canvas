@@ -47,6 +47,7 @@ export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChang
             type="number"
             min="1"
             max="36500"
+            required
             value={value.cadenceDays ?? ''}
             onInput={(event) =>
               onChange({
@@ -68,6 +69,7 @@ export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChang
         Revalidate by
         <input
           required
+          pattern={'.*\\S.*'}
           value={value.revalidationMethod}
           onInput={(event) => onChange({ ...value, revalidationMethod: event.currentTarget.value })}
         />

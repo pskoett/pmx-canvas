@@ -121,6 +121,37 @@ export function HtmlNode({
     return () => window.clearTimeout(id);
   }, [autoFocus, surfaceSrc]);
 
+  const handleDocumentLoad = (frame: HTMLIFrameElement, signal: AbortSignal): Promise<boolean> => {
+    if (signal.aborted) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const finish = (ready: boolean) => {
+        clearTimeout(timer);
+        window.removeEventListener('message', receive);
+        signal.removeEventListener('abort', cancel);
+        resolve(ready);
+      };
+      const cancel = () => finish(false);
+      const receive = (event: MessageEvent) => {
+        if (
+          event.source !== frame.contentWindow ||
+          event.data?.source !== HTML_SURFACE_PUSH_SOURCE ||
+          event.data?.token !== themeToken
+        )
+          return;
+        // A healthy offscreen frame can wait for paint without a deadline.
+        if (event.data.type === 'mounted') clearTimeout(timer);
+        if (event.data.type === 'ready') finish(true);
+      };
+      const timer = setTimeout(cancel, 10_000);
+      window.addEventListener('message', receive);
+      signal.addEventListener('abort', cancel, { once: true });
+      frame.contentWindow?.postMessage(
+        { source: HTML_SURFACE_PUSH_SOURCE, type: 'check-ready', token: themeToken },
+        '*',
+      );
+    });
+  };
+
   const handleFrameLoad = () => {
     iframeRef.current?.contentWindow?.postMessage(
       {
@@ -174,6 +205,7 @@ export function HtmlNode({
       allow=""
       tabIndex={autoFocus ? 0 : undefined}
       onLoad={handleFrameLoad}
+      onDocumentLoad={handleDocumentLoad}
     />
   );
 }

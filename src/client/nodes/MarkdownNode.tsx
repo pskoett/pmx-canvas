@@ -14,6 +14,36 @@ import { isHostedWorkbench } from '../state/workbench-transport';
 import { activeBoardId, boardIncarnation } from '../state/boards-store';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
+function handleWikiClick(e: MouseEvent, nodeId: string): boolean {
+  const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a.wiki-link');
+  if (!link) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  if (link.dataset.wikiBoard) {
+    void openMemoryTarget({
+      boardId: link.dataset.wikiBoard,
+      ...(link.dataset.wikiCard ? { cardId: link.dataset.wikiCard } : {}),
+    });
+  } else {
+    const ref = link.dataset.wikiRef ?? '';
+    const name = ref.split('#')[0];
+    if (
+      link.dataset.wikiMissing ||
+      ref.includes('#') ||
+      boardList.value.some((board) => board.name.toLocaleLowerCase() === name.toLocaleLowerCase() || board.id === name)
+    ) {
+      showToast(
+        'remove',
+        'Link unavailable',
+        'The target is missing or ambiguous. Use a board/card ID in the wiki link to choose it explicitly.',
+      );
+    } else {
+      window.dispatchEvent(new CustomEvent('pmx-open-board-link', { detail: { sourceNodeId: nodeId, wikiRef: name } }));
+    }
+  }
+  return true;
+}
+
 function RenderedMarkdown({
   html,
   className,
@@ -54,39 +84,8 @@ function RenderedMarkdown({
   }, [html]);
 
   const handleClick = (e: MouseEvent) => {
+    if (handleWikiClick(e, nodeId)) return;
     const target = e.target as HTMLElement;
-    const link = target.closest<HTMLAnchorElement>('a.wiki-link');
-    if (link) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (link.dataset.wikiBoard) {
-        void openMemoryTarget({
-          boardId: link.dataset.wikiBoard,
-          ...(link.dataset.wikiCard ? { cardId: link.dataset.wikiCard } : {}),
-        });
-      } else {
-        const ref = link.dataset.wikiRef ?? '';
-        const name = ref.split('#')[0];
-        if (
-          link.dataset.wikiMissing ||
-          ref.includes('#') ||
-          boardList.value.some(
-            (board) => board.name.toLocaleLowerCase() === name.toLocaleLowerCase() || board.id === name,
-          )
-        ) {
-          showToast(
-            'remove',
-            'Link unavailable',
-            'The target is missing or ambiguous. Use a board/card ID in the wiki link to choose it explicitly.',
-          );
-        } else {
-          window.dispatchEvent(
-            new CustomEvent('pmx-open-board-link', { detail: { sourceNodeId: nodeId, wikiRef: name } }),
-          );
-        }
-      }
-      return;
-    }
     const onToggle = onTaskToggleRef.current;
     const container = containerRef.current;
     if (!container || !onToggle) return;
@@ -570,7 +569,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
 
   if (expanded) {
     return (
-      <div style={{ height: '100%', position: 'relative' }}>
+      <div style={{ height: '100%', position: 'relative' }} onClick={(event) => handleWikiClick(event, node.id)}>
         {reviewBanner}
         <div class="md-reader">
           {loaded ? (

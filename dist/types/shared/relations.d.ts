@@ -26,6 +26,23 @@ export declare const relationVocabularySchema: z.ZodArray<z.ZodObject<{
     directed: z.ZodBoolean;
 }, z.core.$strict>>;
 export type RelationDefinition = z.infer<typeof relationDefinitionSchema>;
+export declare const relationPresetSchema: z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    vocabulary: z.ZodArray<z.ZodObject<{
+        kind: z.ZodString;
+        ink: z.ZodEnum<{
+            supports: "supports";
+            contradicts: "contradicts";
+            cites: "cites";
+            derived: "derived";
+            informs: "informs";
+            related: "related";
+        }>;
+        directed: z.ZodBoolean;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export type RelationPreset = z.infer<typeof relationPresetSchema>;
 export declare const RELATION_KINDS: RelationDefinition[];
 export declare const RELATION_PRESETS: Record<string, RelationDefinition[]>;
 export declare function relationPreset(vocabulary?: RelationDefinition[]): string | null;

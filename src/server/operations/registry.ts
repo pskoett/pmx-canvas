@@ -515,6 +515,8 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
       op.mutates ||
       name === 'knowledge.category-set' ||
       name === 'knowledge.category-remove' ||
+      name === 'knowledge.relation-preset-set' ||
+      name === 'knowledge.relation-preset-remove' ||
       name === 'knowledge.folder-set' ||
       (name === 'board.update' &&
         ['folder', 'relationVocabulary'].some((key) => Object.hasOwn(asRecord(rawInput), key)))

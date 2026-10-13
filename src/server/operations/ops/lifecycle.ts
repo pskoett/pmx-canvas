@@ -6,6 +6,7 @@ import { readTargetBoard } from './boards.js';
 import { lifecycleQualifications } from '../../lifecycle-status.js';
 import { memoryKey } from '../../../shared/memory-graph.js';
 import { folderAncestors } from '../../../shared/boards.js';
+import { relationPresetSchema } from '../../../shared/relations.js';
 
 const jsonResult = (result: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -71,6 +72,40 @@ export const lifecycleOperations: Operation[] = [
     },
     handler: (input, ctx) => {
       const id = canvasState.knowledge.removeCategory(input.id);
+      ctx.emit('knowledge-changed', canvasState.knowledge.list());
+      return { ok: true, id };
+    },
+  }),
+  defineOperation({
+    name: 'knowledge.relation-preset-set',
+    mutates: false,
+    input: z.object({ preset: relationPresetSchema }),
+    inputShape: { preset: relationPresetSchema },
+    http: { method: 'POST', path: '/api/canvas/knowledge/relation-preset' },
+    mcp: {
+      toolName: 'canvas_knowledge_relation_preset_set',
+      description: 'Save one shared workspace relation preset. Existing boards and connections are unchanged.',
+      formatResult: jsonResult,
+    },
+    handler: (input, ctx) => {
+      const preset = canvasState.knowledge.setRelationPreset(input.preset);
+      ctx.emit('knowledge-changed', canvasState.knowledge.list());
+      return { ok: true, preset };
+    },
+  }),
+  defineOperation({
+    name: 'knowledge.relation-preset-remove',
+    mutates: false,
+    input: z.object({ id: z.string().trim().min(1) }),
+    inputShape: { id: z.string().trim().min(1) },
+    http: { method: 'DELETE', path: '/api/canvas/knowledge/relation-preset/:id' },
+    mcp: {
+      toolName: 'canvas_knowledge_relation_preset_remove',
+      description: 'Delete a shared relation preset without changing vocabularies already applied to boards.',
+      formatResult: jsonResult,
+    },
+    handler: (input, ctx) => {
+      const id = canvasState.knowledge.removeRelationPreset(input.id);
       ctx.emit('knowledge-changed', canvasState.knowledge.list());
       return { ok: true, id };
     },

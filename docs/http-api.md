@@ -9,18 +9,21 @@ The slice-1 data contract now also drives the workbench, due engine and qualifie
 Categories remain explicit; nothing classifies cards automatically.
 `Lifecycle` is `{ decayType: "reality"|"decision"|"dependency"|"relevance",
 rate: "fast"|"medium"|"slow"|"durable", triggers: string[], revalidationMethod: string, cadenceDays?: number }`.
-Strings in triggers and the method must be nonempty. Optional `cadenceDays` is an integer, 1–36500.
-Medium uses that explicit cadence; omitting it adds no guessed expiry. Fast checks at use in a
+Strings in triggers and the method must be nonempty after trimming. `cadenceDays` is an integer,
+1–36500, required for Medium and optional for other rates. Category, folder and card policy writes
+refuse Medium without a cadence rather than saving a policy with no expiry. Fast checks at use in a
 new session, slow on resumed work, durable has no passive expiry. The latest attached session
 is the boundary, falling back to the active board's last-open time, then process start.
 A category is the same fields plus stable `id`, editable `name` and `glyph` (nonempty strings).
 
 | Route | Input / result |
 |---|---|
-| `GET /api/canvas/knowledge` | `{ok, categories, folders, cards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
+| `GET /api/canvas/knowledge` | `{ok, categories, folders, relationPresets, cards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
 | `POST /api/canvas/knowledge/category` | `{category}` creates or replaces by id; returns `{ok, category}` |
 | `DELETE /api/canvas/knowledge/category/:id` | Deletes an unused category; returns `{ok:true, id}`. Unknown id: 404; blank id: invalid input (400); omitted path id: no matching route (404). Explicit folder assignments, including empty folders, refuse deletion (409) and name the folders to reassign or clear first. Never clears folders or inherited policies. |
 | `POST /api/canvas/knowledge/folder` | `{path, categoryId: string|null, lifecycleOverride: Lifecycle|null}` replaces folder properties; returns `{ok, folder}` |
+| `POST /api/canvas/knowledge/relation-preset` | `{preset: {id, name, vocabulary: [{kind, ink, directed}]}}` creates or replaces a shared template; returns `{ok, preset}`. Duplicate names: 409. |
+| `DELETE /api/canvas/knowledge/relation-preset/:id` | Deletes the shared template; returns `{ok:true, id}`. Unknown id: 404. Existing board vocabularies and connections remain unchanged. |
 | `GET /api/canvas/node/:id/lifecycle?board=<board-id>` | Effective category/lifecycle and history, without opening that board |
 | `POST /api/canvas/node/:id/lifecycle` | `{lifecycleOverride: Lifecycle|null, expectedBoardId?}`; returns `{ok:true}` |
 | `POST /api/canvas/node/:id/review` | `{outcome, evidence: string, applied: boolean, expectedBoardId?, expectedContentRevision?, expectedSources?}`; returns `{ok, record}` |
@@ -66,7 +69,13 @@ refreshing and restoration never validate. No synthetic content-change date is a
 Generic node PATCH/SDK `updateNode` rejects `data.lifecycleOverride`; use the dedicated lifecycle
 setter (including to clear an override) so metadata cannot replay the body or resolve wiki links.
 
-SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"category-remove"|"folder-set", ...payload})`
+Shared relation presets live in Home alongside Categories, not in per-board settings.
+Research, Dependencies, Decision and Flow are initial editable templates. Applying a saved
+preset explicitly copies its vocabulary through the existing board update contract; editing
+or deleting a template never silently rewrites boards. The canvas dropdown filters only the
+relation kinds actually present on that board, plus All relations, without a Custom vocabulary state.
+
+SDK (Bun): `canvas.knowledge({action:"list"|"category-set"|"category-remove"|"folder-set"|"relation-preset-set"|"relation-preset-remove", ...payload})`
 (`category-remove` takes `id`)
 and `canvas.lifecycle({action:"get"|"set"|"review"|"restore", id, ...payload})` use these
 same inputs/results. `get` accepts `board`; writes accept `expectedBoardId`, and validating

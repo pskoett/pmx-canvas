@@ -366,6 +366,7 @@ describe('Home folders', () => {
       ok: true,
       categories: [],
       folders: [],
+      relationPresets: [],
       resolvedFolders: {},
       cards: {
         [memoryKey({ boardId: 'b-okr', cardId: 'due' })]: due,
@@ -467,6 +468,7 @@ describe('board switcher', () => {
       ok: true,
       categories: [category],
       folders: used ? [{ path: 'Empty', categoryId: category.id, lifecycleOverride: null }] : [],
+      relationPresets: [],
       cards: {},
       resolvedFolders: {},
     };

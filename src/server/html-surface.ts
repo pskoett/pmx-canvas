@@ -60,7 +60,14 @@ function buildThemeBridge(themeToken: string): string {
 const PMX_CANVAS_THEME_TOKEN = ${token};
 window.addEventListener('message', (event) => {
   const message = event.data;
-  if (!message || message.source !== '${HTML_SURFACE_PUSH_SOURCE}' || message.type !== 'theme-update' || message.token !== PMX_CANVAS_THEME_TOKEN) return;
+  if (event.source !== window.parent || !message || message.source !== '${HTML_SURFACE_PUSH_SOURCE}' || message.token !== PMX_CANVAS_THEME_TOKEN) return;
+  if (message.type === 'check-ready') {
+    const reply = (type) => window.parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type, token: PMX_CANVAS_THEME_TOKEN }, '*');
+    reply('mounted');
+    requestAnimationFrame(() => requestAnimationFrame(() => reply('ready')));
+    return;
+  }
+  if (message.type !== 'theme-update') return;
   if (typeof message.theme !== 'string') return;
   document.documentElement.setAttribute('data-pmx-canvas-theme', message.theme);
   document.documentElement.setAttribute('data-theme', message.theme);

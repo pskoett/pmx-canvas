@@ -2,6 +2,7 @@ export declare const knowledge: import("@preact/signals-core").Signal<{
     ok: true;
     categories: import("../../server/knowledge-lifecycle.js").KnowledgeCategory[];
     folders: import("../../server/knowledge-lifecycle.js").FolderProperties[];
+    relationPresets: import("../../shared/relations.js").RelationPreset[];
     cards: Record<string, import("../../shared/lifecycle-status.js").LifecycleQualification>;
     resolvedFolders: Record<string, ReturnType<import("../../server/knowledge-lifecycle.js").KnowledgeLifecycle["resolve"]>>;
 } | null>;

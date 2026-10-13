@@ -30,7 +30,9 @@ export function lifecycleQualifications(
   const policies = new Map<string, Lifecycle | null>();
   const used = new Set<string>();
   const reads = canvasState.listBoards().map((board) => ({ board, read: canvasState.readBoard(board.id, false) }));
-  const catalog = canvasState.databasePath ? canvasState.knowledge.list() : { categories: [], folders: [] };
+  const catalog = canvasState.databasePath
+    ? canvasState.knowledge.list()
+    : { categories: [], folders: [], relationPresets: [] };
   const session =
     agentPresence.reviewSessionStartedAt() ??
     Date.parse(

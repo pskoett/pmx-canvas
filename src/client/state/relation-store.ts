@@ -6,6 +6,16 @@ import { hoveredNodeId } from './near-pin-store';
 
 export const relationFilter = signal<{ boardId: string; kind: string } | null>(null);
 
+effect(() => {
+  const filter = relationFilter.value;
+  if (
+    filter?.boardId === activeBoardId.value &&
+    ![...edges.value.values()].some((edge) => relationKind(edge) === filter.kind)
+  ) {
+    relationFilter.value = null;
+  }
+});
+
 // Keep the neighborhood lit while the pointer crosses a short gap between cards.
 // A new card takes over immediately; resting on blank canvas clears the hover.
 const relationHover = signal<string | null>(null);

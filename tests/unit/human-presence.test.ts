@@ -129,6 +129,12 @@ describe('human presence over HTTP', () => {
       sdk.knowledge({ action: 'category-set', category: { ...lifecycleOverride, id: 'a', name: 'A', glyph: 'A' } }),
     ).rejects.toThrow('Outside the agent scope');
     await expect(sdk.knowledge({ action: 'category-remove', id: 'a' })).rejects.toThrow('Outside the agent scope');
+    await expect(
+      sdk.knowledge({ action: 'relation-preset-set', preset: { id: 'fenced', name: 'Fenced', vocabulary: [] } }),
+    ).rejects.toThrow('Outside the agent scope');
+    await expect(sdk.knowledge({ action: 'relation-preset-remove', id: 'Research' })).rejects.toThrow(
+      'Outside the agent scope',
+    );
     expect(
       (await post('/api/canvas/knowledge/folder', { path: 'A', categoryId: null, lifecycleOverride: null })).status,
     ).toBe(403);

@@ -5,7 +5,19 @@
 **Scope:** An independent review of the long-term direction set by [`product-vision-2026-09.md`](product-vision-2026-09.md) and [`product-context-vision-2026-09.md`](product-context-vision-2026-09.md), checked against what has shipped since and against the real board in use today, plus a design sketch for boards as the wiki. Written against `main` `561e6ec5` (v0.6.3, clean tree, equal to `origin/main`).
 **Method:** Read all three September documents (review, vision, context vision) and the 0.6.0–0.6.3 changelog; re-checked the review's trust findings in current source; read the live board the globally installed MCP server writes to, read-only, titles and counts only. No code was run and no board was modified.
 
-## Where things stand
+## Current delivery alignment, 2026-10-13
+
+This is the September review, not a current defect inventory. Waves 1–3 and their acceptance
+follow-ups have implemented the local board/wiki, context, relations and lifecycle scope;
+see [the main vision's authoritative progress](product-vision-2026-09.md#current-plan).
+Owner feedback separates shared Home relation templates from each board's actual-kind filter,
+and keeps categories/lifecycle independent of relations. Manual rehearsal exposed five guide
+failures now corrected in the acceptance follow-up. Combined verification is tracked in
+[plan 018](plans/plan-018-connected-memory-wave-2.md), not inferred from this historical review.
+Owner acceptance, real-agent curation evaluation, remaining sketch parity and native-host
+checks are still open. No release or version bump is implied.
+
+## Where things stood at the September review
 
 - **Three vision documents in September; none of their 0.6 plan has shipped.** The vision's 0.6 was many boards, trust, the cheap tool surface, frame-host consolidation and a binary, in 2–3 weeks. Seventeen days and three releases later, 0.6.0–0.6.3 carried the Bun 1.4.2 upgrade, field-report fixes, the MCP Skills extension and json-render updates.
 - **The afternoon-sized trust defects are all still present.** `ax.approval.resolve` never checks the caller, so an agent can approve its own gate. `requestJson` never reads `res.ok`, so a human's failed write is silent. The webpage fetcher uses `redirect: 'follow'` with no host filter. There is no boards table.

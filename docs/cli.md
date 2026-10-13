@@ -2,10 +2,15 @@
 
 ## Knowledge lifecycle data
 
-`pmx-canvas board knowledge list` reads workspace categories/folders.
+`pmx-canvas board knowledge list` reads workspace categories/folders and shared relation presets.
 `pmx-canvas board knowledge category-set '<JSON>'` accepts `{category: {...}}`;
 `pmx-canvas board knowledge category-remove '{"id":"unused-category"}'` deletes an unused category. Explicit folder assignments (even empty folders) refuse deletion and name the folders to reassign or clear first. Unknown IDs are 404; missing/blank IDs are invalid input. No folder settings or inherited policies are silently cleared.
 `board knowledge folder-set '<JSON>'` accepts `{path, categoryId, lifecycleOverride}`.
+`board knowledge relation-preset-set '<JSON>'` accepts `{preset: {id, name, vocabulary}}`;
+`board knowledge relation-preset-remove '{"id":"preset-id"}'` deletes a shared template.
+Vocabulary entries are `{kind, ink, directed}`. These templates are managed in Home;
+editing/deleting one does not rewrite boards. Applying a saved template explicitly copies
+its vocabulary to a selected board. The canvas dropdown only filters existing relation kinds.
 No workspace write opens a board; scope fences refuse agent workspace writes.
 Moving/unfiling a board also checks its stored global scope or writer territory alongside
 the active scope, without opening it. Home or an unfenced board does not bypass that policy.

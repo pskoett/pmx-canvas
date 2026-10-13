@@ -465,3 +465,63 @@ and all 282 headed browser cases. Agent-skill mirror validation skipped absent t
 that skip is not a validation claim. The preceding 281-pass/1-fail run remains recorded.
 The initial CLI invocation used the wrong headed environment key; its successful result is
 not counted as headed proof. The final invocation uses `PMX_E2E_HEADED=1` explicitly.
+
+### Owner rehearsal fixes and shared Home relation presets, 2026-10-13
+
+The medium rehearsal orb found five numbered failures: 01 toolbar crowding with two sessions;
+07 inert expanded Markdown wiki links; 11 narrow Graph Updates/filter/search overlap;
+14 blank Medium cadence acceptance; and 19 HTML replacement errors displacing healthy paint
+and graph data/spec updates leaving stale charts. Its frozen 15-file patch fixes those
+contracts. It passed 1,445 unit and 307 client cases, headed CLI and 288 headed browser cases
+before the final localized Graph-search CSS correction; nine targeted width/chrome cases
+verify that final worker state. Those counts do not certify the parent's combined changes.
+Intermittent Plex loading and a Flow Start failure passed unchanged focused repetitions and
+the quiet full run, but their causes remain unconfirmed, not diagnosed away.
+
+The owner's clarification moves editable relation templates into Home, shared like Categories.
+Explicit application copies a saved template onto a selected board without rewriting edges;
+later template edits/deletion do not retroactively change existing boards. The board dropdown
+filters All relations plus kinds actually present, not preset names or Custom vocabulary.
+The obsolete per-board editor is removed. The same public registry exposes template CRUD
+through HTTP, SDK, CLI and MCP; existing scope fences protect workspace writes. The catalog
+persists in the workspace database's existing meta store, including deleted starter templates.
+
+The kept public-operation regression failed before the new operations and passed afterwards.
+It verifies restart persistence without changing cards/connections. Existing transport/fence
+tests now cover the two actions. The browser contract covers Home creation, reload, application,
+deletion, two asymmetric boards, unchanged edges and clearing a vanished kind filter.
+Its first run reached all feature assertions but failed test cleanup on an invented DELETE
+edge URL; the trace proves 404. Cleanup now uses the documented DELETE body. This was a test
+error, not a product refusal, and the failed attempt remains in
+`/tmp/pmx-home-relations-gates/first-focused-failure`.
+
+Rendered inspection caught Home's new button clipping at 390 px (right edge 394.17).
+The same executed boundary check failed before toolbar wrapping and passed afterwards
+(right edge 187.61). The browser contract retains that width boundary. Narrow dialog controls
+fit horizontally and remain reachable by scrolling; screenshots are inspected in
+`.amp/in/artifacts/home-relations/`. The owner portal's old bundle stays unchanged while the
+combined tree is built and tested in an isolated local worktree with a separate database.
+
+The main vision, context extension, historical review, design contract, public API references
+and acceptance instructions are aligned with this model. Owner results/notes and the live
+review fixture are preserved, not reset. Owner acceptance, curation evaluation, full sketch
+parity and native-host checks remain separate. No release/tag/publish or version bump.
+
+The first parent combined full headed gate passed 288 cases and failed JSON-viewer recovery
+in srcdoc mode. Its trace shows interception removed at 886609.9 ms, a poll started at
+886612.1 ms without completion, and an accepted recovery PATCH at 886615.6 ms. This matches
+the independently reproduced Chromium/Playwright interception-lifetime stall documented
+above. Both HTML/JSON recovery tests now install one route before navigation and toggle
+replacement failure without removing that route; exact retry counts, healthy-paint and
+recovery assertions remain unchanged. The first failure is retained in
+`/tmp/pmx-home-relations-gates/first-full-failure`, not counted as a pass.
+
+Final combined serial gates pass in `/tmp/pmx-home-relations-gates`: build/typecheck,
+lint (0 errors, existing 63 warnings/12 infos), **1,446 unit**, **307 client**, coverage
+(64.68% lines / 72.31% functions), fresh headed CLI E2E with real HTTP/stdio MCP,
+72 focused server/transport/fence cases, five final focused UI cases, and all **289 headed
+browser cases**, including 600/1024/1920 reference widths. The final full run includes the
+390 px Home wrapping and final Graph-sidebar correction. Main source and the tested isolated
+worktree match byte-for-byte; generated bundles/catalogs are copied from that tested build.
+The preceding CI run passed four jobs but Windows was cancelled. CI for this delivery and
+the owner's requested fresh numbered rehearsal remain separate from these local gates.

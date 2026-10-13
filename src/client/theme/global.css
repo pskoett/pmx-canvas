@@ -1082,6 +1082,35 @@ body,
   position: relative;
   display: none;
 }
+.top-bar.is-folded .top-bar-actions,
+.top-bar.is-folded > .hud-collapsible-text {
+  display: none;
+}
+.top-bar.is-folded .top-bar-more {
+  display: inline-flex;
+}
+.top-bar.is-compact .agent-chip {
+  padding: 0;
+  border: none;
+  background: none;
+}
+.top-bar.is-compact .agent-chip > :not(.agent-chip-initial),
+.top-bar.is-compact .start-session-label,
+.top-bar.is-compact .start-session-btn .beta-tag,
+.top-bar.is-compact .context-chip-cost {
+  display: none;
+}
+.top-bar.is-compact .agent-chip-initial {
+  display: inline-flex;
+}
+.top-bar.is-compact .agent-chip-initial .agent-chip-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 2px var(--c-panel);
+}
 .top-bar-more-menu {
   position: absolute;
   top: calc(100% + 8px);
@@ -2933,7 +2962,7 @@ body,
   width: 290px;
   max-height: calc(100% - 28px);
   overflow-y: auto;
-  z-index: 9998;
+  z-index: 9996; /* Retained evidence stays below the session drawer and toolbar menus. */
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--c-line);
@@ -3608,6 +3637,11 @@ body,
   border: 1px solid var(--c-line);
   border-radius: var(--radius);
   box-shadow: 0 18px 48px var(--c-shadow-heavy);
+}
+
+.toolbar-menu.top-bar-more-menu {
+  /* The top bar's backdrop root prevents this menu from blurring the drawer. */
+  background: var(--c-panel);
 }
 
 .toolbar-menu-item {
@@ -8770,6 +8804,7 @@ html.is-node-dragging .intent-line-layer {
 }
 .home-view-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--c-line);
@@ -9199,6 +9234,19 @@ html.is-node-dragging .intent-line-layer {
     box-shadow: -6px 0 20px color-mix(in srgb, var(--c-bg) 50%, transparent);
   }
   .home-memory-toolbar { padding: 8px; gap: 8px; }
+  .canvas-region:has(.home-memory) > .attention-history-tab,
+  .canvas-region:has(.home-memory) > .attention-history {
+    top: 112px;
+  }
+  .canvas-region:has(.home-memory.sidebar-open) > .attention-history-tab {
+    left: 8px;
+    right: auto;
+    border-right: 1px solid var(--c-line);
+    border-radius: 14px;
+  }
+  .canvas-region:has(.home-memory.sidebar-open) > .attention-history-tab .attention-history-tab-label {
+    display: none;
+  }
   .home-memory-legend {
     max-height: 68px;
     overflow: auto;

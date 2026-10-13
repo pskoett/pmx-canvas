@@ -310,17 +310,32 @@ connections use the source footer and human More-menu picker, not remote canvas
 lines; auto-arrange remains local and static export retains explicit external
 connection evidence.
 
+**Acceptance follow-up (2026-10-13).** ContextChip600's collapse order also applies when
+agent names/counts fill a wider bar: fold actions into More before compacting sessions to
+their existing initials and popovers. More owns keyboard focus as soon as it opens and
+stays reachable through resize or count changes until it closes.
+At narrow widths, retained Updates sits below the Map/Graph toolbar, not over Filters &
+details; while filters are open it compacts to an icon beside the sidebar rather than covering
+search. The open session drawer sits above retained canvas receipts so its controls remain
+reachable. Expanded Markdown uses the same wiki navigation as the card preview. Medium
+review policies require an explicit cadence; whitespace alone is not a revalidation method.
+HTML viewer replacements acknowledge mount and paint before replacing the healthy document,
+matching the existing JSON/graph handoff without changing the sandbox permissions.
+
 **Wave-3 implementation decisions and deviations.** The relation legend uses the six fixed
-inks, open kinds and per-board Research/Dependencies/Decision/Flow presets. The selector keeps
-the matching preset name, or “Custom vocabulary” after edits. Its 24 px control and rounded
-count chips follow `Uses`; the initial resetting selector and separate highlight menu were
-corrected after owner feedback. The legend stays below the lifecycle filters, outside the
+inks and open kinds. Owner clarification (2026-10-13) moves editable Research/Dependencies/
+Decision/Flow templates into **Home → Relation presets**, shared across the workspace like
+Categories. Applying a saved preset explicitly copies its vocabulary to a selected board;
+later template edits/deletion do not rewrite existing boards or connections. The board's
+24 px dropdown is now a view-only filter: All relations plus kinds actually on that board,
+with counts, never a preset name or “Custom vocabulary”. Rounded count chips remain.
+The legend stays below the lifecycle filters, outside the
 scrollable canvas. Relation categories wrap instead of using a horizontal scrollbar, including
 long custom names; Fit reserves the legend's rendered height as well as the lifecycle filters.
 Parallel links
 receive separate endpoint slots. Hover explains endpoints, kind and reason; the expanded
 card's Relations view uses the same qualified graph as agents, with navigable targets and a
-vocabulary editor. Connections are grouped into Evidence for/against, Sources, Used by and
+pointer to shared Home settings. Connections are grouped into Evidence for/against, Sources, Used by and
 other Connections. Reasons stay in the hint/inspector, not long pills covering both endpoints.
 Research highlights evidence; Dependencies follows explicit downstream impact; Decision traces
 option/if/chosen links backward from the selected outcome; Flow reads existing AX step status.

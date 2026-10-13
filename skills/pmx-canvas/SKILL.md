@@ -24,7 +24,10 @@ Knowledge lifecycle data is explicit, never classified automatically. `canvas_bo
 `knowledge-list`, `category-set` (`category`: id/name/glyph/decayType/rate/triggers/revalidationMethod),
 `category-remove` (`id`: unused only; explicit folder assignments, including empty folders, refuse deletion),
 and `folder-set` (`path`, nullable `categoryId`, nullable `lifecycleOverride`) work on Home without
-opening a board. `canvas_node` actions `lifecycle-get`, `lifecycle-set`, `review`, and
+opening a board. `relation-preset-set` (`preset`: id/name/vocabulary) and `relation-preset-remove`
+(`id`) manage shared Home relation templates; editing/deleting never rewrites boards or connections.
+Apply explicitly with `canvas_board { action: "update", id, relationVocabulary }`. The board
+dropdown only filters existing relation kinds, not presets. `canvas_node` actions `lifecycle-get`, `lifecycle-set`, `review`, and
 `lifecycle-restore` take `id`; reads may specify `board`, writes should carry `expectedBoardId`.
 Lifecycle overrides are full decayType/rate/triggers/revalidationMethod objects or null to inherit.
 New child categories reset ancestor lifecycle defaults; cards never override category.
@@ -272,7 +275,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads`, `read-status` |
 | `canvas_ax_delivery` | `claim`, `mark` |
-| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `category-remove`, `folder-set` |
+| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `category-remove`, `folder-set`, `relation-preset-set`, `relation-preset-remove` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `restore-node`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 

@@ -15,6 +15,12 @@ export const relationVocabularySchema = z
     'Relation kinds must be unique.',
   );
 export type RelationDefinition = z.infer<typeof relationDefinitionSchema>;
+export const relationPresetSchema = z.strictObject({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(80),
+  vocabulary: relationVocabularySchema,
+});
+export type RelationPreset = z.infer<typeof relationPresetSchema>;
 
 export const RELATION_KINDS: RelationDefinition[] = [
   { kind: 'supports', ink: 'supports', directed: true },

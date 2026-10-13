@@ -650,6 +650,19 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   const a = await mk('Edge A', 100);
   const b = await mk('Edge B', 700);
   const unrelated = await mk('Unrelated', 1100);
+  const { activeBoardId } = await (await request.get('/api/canvas/boards')).json();
+  await request.patch(`/api/canvas/boards/${activeBoardId}`, {
+    headers: { 'x-pmx-workbench': '1' },
+    data: {
+      relationVocabulary: [
+        { kind: 'supports', ink: 'supports', directed: true },
+        { kind: 'contradicts', ink: 'contradicts', directed: true },
+        { kind: 'cites', ink: 'cites', directed: true },
+        { kind: 'derived-from', ink: 'derived', directed: true },
+        { kind: 'related', ink: 'related', directed: false },
+      ],
+    },
+  });
   const edge = (await (
     await request.post('/api/canvas/edge', {
       data: {
@@ -678,12 +691,10 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   expect(focusedLegend!.x).toBeGreaterThanOrEqual(canvasArea!.x);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
-  for (const preset of ['Dependencies', 'Decision', 'Flow', 'Research']) {
-    await page.getByLabel('Board relation preset').selectOption(preset);
-    await expect(page.getByLabel('Board relation preset')).toHaveValue(preset);
-    await page.reload();
-    await expect(page.getByLabel('Board relation preset')).toHaveValue(preset);
-  }
+  await expect(page.getByLabel('Filter board relations').locator('option')).toHaveText([
+    'All relations',
+    'supports · 1',
+  ]);
   await page.getByRole('button', { name: 'supports 1', exact: true }).click();
   await expect(page.locator(`[data-node-id="${unrelated.id}"]`)).toHaveClass(/relation-dimmed/);
   await expect(page.locator(`[data-node-id="${a.id}"]`)).not.toHaveClass(/relation-dimmed/);
@@ -736,11 +747,9 @@ test('rich relation kind and reason survive live edits and reload; a human can d
     'A second measurement contradicts the assumption.',
   );
   await expect(page.getByRole('heading', { name: 'Evidence against', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Board vocabulary', exact: true }).click();
-  await page.getByLabel('Kind 1', { exact: true }).fill('backs');
-  await page.getByRole('button', { name: 'Save vocabulary', exact: true }).click();
-  await expect(page.getByLabel('Board relation preset')).toHaveValue('');
-  await expect(page.getByLabel('Board relation preset').locator('option:checked')).toHaveText('Custom vocabulary');
+  await expect(page.getByRole('complementary', { name: 'Relations' })).toContainText(
+    'Manage shared relation presets in Home.',
+  );
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await revised.dblclick();
   await page.getByText('Delete edge').click();
@@ -4508,6 +4517,83 @@ test('narrow screens keep the rail chrome fully usable with meta collapsed', asy
   await expect(page.locator('.toolbar-menu')).toHaveCount(0);
 });
 
+test('populated multi-agent bars keep view controls reachable after resizing', async ({ page, request }) => {
+  const ids: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    ids.push(
+      (
+        await (
+          await request.post('/api/canvas/node', {
+            data: {
+              type: 'markdown',
+              title: `Toolbar probe ${i}`,
+              content: 'Counted session touch',
+              x: 120 + i * 380,
+              y: 100,
+            },
+          })
+        ).json()
+      ).id,
+    );
+  }
+  for (const agentId of ['Toolbar Alpha', 'Toolbar Beta']) {
+    await request.post('/api/canvas/ax/presence', { data: { source: 'api', agentId, attached: true } });
+    for (const id of ids) {
+      await request.get(`/api/canvas/node/${id}`, { headers: { 'x-pmx-agent-id': agentId } });
+      await request.patch(`/api/canvas/node/${id}`, {
+        headers: { 'x-pmx-agent-id': agentId },
+        data: { content: `Edited by ${agentId}` },
+      });
+    }
+  }
+  await page.goto('/workbench');
+  for (const width of [1280, 1024, 600, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const more = page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true });
+    const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
+    await expect
+      .poll(async () => {
+        const control = (await more.isVisible()) ? more : fit;
+        const bounds = await control.boundingBox();
+        return bounds !== null && bounds.x >= 0 && bounds.x + bounds.width <= width;
+      })
+      .toBe(true);
+    if (await more.isVisible()) {
+      await more.click();
+      await expect(page.getByRole('menuitem', { name: /Export/ })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(more).toHaveAttribute('aria-expanded', 'false');
+    } else {
+      const exported = page.getByRole('button', { name: 'Export', exact: true });
+      const bounds = (await exported.boundingBox())!;
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      await fit.click();
+    }
+  }
+  await page.setViewportSize({ width: 600, height: 900 });
+  await request.post('/api/canvas/ax/presence', {
+    data: { source: 'api', agentId: 'Toolbar Alpha', attached: false },
+  });
+  await expect(page.getByTestId('session-receipt')).toBeVisible();
+  await page.getByLabel('Expand session panel').click();
+  const more = page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true });
+  await more.click();
+  await page.getByRole('menuitem', { name: 'Zoom in', exact: true }).click();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await page.getByLabel('Collapse session panel').click();
+  await expect(page.getByLabel('Expand session panel')).toBeVisible();
+  await expect(page.getByTestId('session-receipt')).toBeVisible();
+  await more.click();
+  await page.getByRole('menuitem', { name: 'Zoom in', exact: true }).click();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  // An open menu must not disappear when a resize makes the full toolbar fit.
+  await more.click();
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await expect(page.getByRole('menuitem', { name: 'Fit all', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Fit canvas', exact: true })).toBeVisible();
+});
+
 test('desktop theme picker lists every registered theme and applies one', async ({ page }) => {
   await page.goto('/workbench');
   await openSettingsItem(page, 'Theme');
@@ -6285,6 +6371,15 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await dialog.getByText('Settings and history', { exact: true }).click();
   await expect(dialog.getByText('No evidence-backed validation')).toBeVisible();
   await dialog.getByLabel('Set a card lifecycle override').check();
+  await dialog.getByLabel('Cadence in days').fill('');
+  await dialog.getByLabel('Revalidate by').fill('Compare with the source dashboard.');
+  await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
+  expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle).toBeNull();
+  await dialog.getByLabel('Cadence in days').fill('7');
+  await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle?.cadenceDays)
+    .toBe(7);
   await dialog.getByRole('button', { name: 'Check', exact: true }).click();
   await dialog.getByRole('menuitemradio', { name: 'Fast · at use', exact: true }).click();
   await dialog.getByLabel('Revalidate by').fill('Compare with the source dashboard.');

@@ -23,6 +23,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
+- Relation presets move to Home as an editable workspace-wide library alongside Categories. Explicit application copies a saved template to a selected board; edits/deletion do not rewrite boards or connections. The board dropdown now filters only existing relation kinds and All relations, without Custom vocabulary.
 - Home keeps folders for navigation and opens affected cards from Review needed; card review starts with one note and one confirmation.
 - Category and folder dialogs use compact themed controls, and unused categories can be deleted with inline confirmation.
 - Proximity rings have no distance caption and appear only when another card's center is within range.
@@ -40,6 +41,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Populated agent sessions fold the top bar before controls run offscreen, and retained receipts no longer cover the narrow session drawer.
+- Wiki links navigate from the expanded Markdown document as well as the card preview.
+- Narrow Graph filters remain reachable beside retained Updates.
+- Medium review policies require an explicit cadence, and blank revalidation methods are refused.
+- Graph data and spec changes refresh the viewer, and failed HTML replacements keep the last healthy view.
 - Guest cursors follow promptly through buffering portals instead of jumping every two seconds.
 - An older camera update from your tab no longer interrupts a newer zoom or Fit.
 - The keyboard shortcut reference closes with Escape immediately after opening.

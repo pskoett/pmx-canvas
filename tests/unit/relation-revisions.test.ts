@@ -4,7 +4,7 @@ import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state
 import { contextReadFromPayload, pinnedBoardReads } from '../../src/server/context-reads.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { executeOperation } from '../../src/server/operations/registry.ts';
-import type { LifecycleResults } from '../../src/server/knowledge-lifecycle.ts';
+import type { KnowledgeResults, LifecycleResults } from '../../src/server/knowledge-lifecycle.ts';
 import { lifecycleQualifications } from '../../src/server/lifecycle-status.ts';
 import { agentPresence } from '../../src/server/agent-presence.ts';
 import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
@@ -83,6 +83,30 @@ describe('connection changes are tracked apart from text', () => {
       triggers: [],
       revalidationMethod: 'Compare primary evidence',
     };
+    for (const cadenceDays of [undefined, 0, 0.5, 36501]) {
+      const invalid = { ...policy, cadenceDays };
+      await expect(
+        executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: invalid }),
+      ).rejects.toThrow();
+      await expect(
+        executeOperation('knowledge.folder-set', {
+          path: 'Invalid cadence',
+          categoryId: null,
+          lifecycleOverride: invalid,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        executeOperation('knowledge.category-set', {
+          category: { ...invalid, id: 'invalid', name: 'Invalid', glyph: '◇' },
+        }),
+      ).rejects.toThrow();
+    }
+    await expect(
+      executeOperation('node.lifecycle-set', {
+        id: 'plan',
+        lifecycleOverride: { ...policy, revalidationMethod: '   ' },
+      }),
+    ).rejects.toThrow();
     await executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: policy });
     await executeOperation('node.review', {
       id: 'plan',
@@ -335,6 +359,42 @@ describe('connection changes are tracked apart from text', () => {
     expect(edge(first.id)?.kind).toBe('supports');
     expect(edge(first.id)?.reason).toBe('Six interviews agree.');
     expect(canvasState.listBoards().find((board) => board.id === boardId)?.relationVocabulary).toEqual(vocabulary);
+  });
+
+  test('shared relation presets survive restart without changing boards or connections', async () => {
+    await twoCards();
+    const boardId = canvasState.activeBoardId;
+    await executeOperation('edge.add', { from: 'plan', to: 'risk', type: 'relation', kind: 'supports' });
+    const before = canvasState.getLayout();
+    const list = async () => (await executeOperation('knowledge.list', {})) as KnowledgeResults['list'];
+    expect((await list()).relationPresets.map((preset) => preset.name)).toEqual([
+      'Research',
+      'Dependencies',
+      'Decision',
+      'Flow',
+    ]);
+    const preset = {
+      id: 'verification',
+      name: 'Verification',
+      vocabulary: [{ kind: 'qualifies', ink: 'informs' as const, directed: true }],
+    };
+    await executeOperation('knowledge.relation-preset-set', { preset });
+    await executeOperation('knowledge.relation-preset-remove', { id: 'Research' });
+    await executeOperation('board.open', { id: null });
+    expect((await list()).relationPresets).toContainEqual(preset);
+    expect(canvasState.activeBoardId).toBeNull();
+    canvasState.flushToDisk();
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+    const restored = await list();
+    expect(restored.relationPresets).toContainEqual(preset);
+    expect(restored.relationPresets.some((entry) => entry.id === 'Research')).toBe(false);
+    await executeOperation('board.open', { id: boardId });
+    expect(canvasState.getLayout().nodes).toEqual(before.nodes);
+    expect(canvasState.getLayout().edges).toEqual(before.edges);
+    await executeOperation('knowledge.relation-preset-remove', { id: preset.id });
+    expect((await list()).relationPresets.some((entry) => entry.id === preset.id)).toBe(false);
   });
 
   test.each([

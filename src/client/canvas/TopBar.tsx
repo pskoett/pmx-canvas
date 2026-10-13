@@ -6,7 +6,7 @@ import { ContextChip } from './ContextChip';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import type { ComponentChildren } from 'preact';
 import { startPresentation } from '../state/presentation';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { IconFitAll, IconZoomIn, IconZoomOut, IconClose } from '../icons';
 import {
   animateViewport,
@@ -357,6 +357,32 @@ function StartSessionButton() {
  * below 1180px, and nothing ever wraps to a second row.
  */
 export function TopBar() {
+  const barRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const controls = bar?.querySelector<HTMLElement>('.top-bar-right');
+    if (!bar || !controls) return;
+    // Fold by actual content, not only window width: session counts and agent
+    // names can fill a wide pane too. Re-evaluate from the full layout so a
+    // resize or ended session can unfold it again.
+    const fit = () => {
+      const menuOpen = bar.querySelector('.top-bar-more [aria-expanded="true"]');
+      bar.classList.remove('is-folded', 'is-compact');
+      const overflow = () => controls.getBoundingClientRect().right > bar.getBoundingClientRect().right - 14;
+      // A resize or updated count must not hide the menu under its pointer.
+      if (menuOpen || overflow()) bar.classList.add('is-folded');
+      if (overflow()) bar.classList.add('is-compact');
+    };
+    const resize = new ResizeObserver(fit);
+    resize.observe(bar);
+    const content = new MutationObserver(fit);
+    content.observe(bar, { childList: true, characterData: true, subtree: true });
+    fit();
+    return () => {
+      resize.disconnect();
+      content.disconnect();
+    };
+  }, []);
   const status = connectionStatus.value;
   const hasSynced = hasInitialServerLayout.value;
   const v = viewport.value;
@@ -407,7 +433,7 @@ export function TopBar() {
   };
 
   return (
-    <div class="top-bar">
+    <div class="top-bar" ref={barRef}>
       <BarHint
         label={`Canvas status: ${statusTitle}`}
         tapToOpen
@@ -423,9 +449,8 @@ export function TopBar() {
 
       <span class="top-bar-spacer" />
 
-      {/* The right-hand group never shrinks, so the context summary stays
-          top-right at every width; the controls collapse by step instead
-          (docs/design/ContextChip600.dc.html). */}
+      {/* Keep the context summary; fold controls before compacting sessions
+          when the actual content fills the bar (ContextChip600.dc.html). */}
       <div class="top-bar-right">
         <AgentChip />
         <GateBadge />
@@ -508,7 +533,7 @@ function TopBarMore({ boardOpen, onFit }: { boardOpen: boolean; onFit: () => voi
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
     items()[0]?.focus();

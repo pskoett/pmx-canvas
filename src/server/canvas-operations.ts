@@ -426,6 +426,7 @@ export function buildGraphNodeUpdate(
   const source = isGraphPayloadLike(input.spec)
     ? input.spec
     : Object.fromEntries(Object.entries(input).filter(([key, value]) => key !== 'spec' && value !== undefined));
+  const specVersion = (typeof node.data.specVersion === 'number' ? node.data.specVersion : 0) + 1;
 
   if (input.spec !== undefined && !isGraphPayloadLike(input.spec)) {
     const spec = normalizeAndValidateJsonRenderSpec(input.spec);
@@ -438,6 +439,7 @@ export function buildGraphNodeUpdate(
         ...createJsonRenderNodeData(node.id, title, spec, {
           viewerType: 'graph',
           graphConfig: currentConfig,
+          specVersion,
         }),
       },
     };
@@ -455,6 +457,7 @@ export function buildGraphNodeUpdate(
       ...createJsonRenderNodeData(node.id, title, spec, {
         viewerType: 'graph',
         graphConfig,
+        specVersion,
       }),
     },
   };

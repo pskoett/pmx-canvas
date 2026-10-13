@@ -11,19 +11,13 @@ import {
 import { linkMarks, writerName } from '../state/context-status-store';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
-import { activeBoard, updateBoard } from '../state/boards-store';
+import { activeBoard } from '../state/boards-store';
 import { reportClientViewportSize } from '../state/intent-bridge';
-import {
-  RELATION_PRESETS,
-  relationDefinition,
-  relationKind,
-  relationPreset,
-  relationText,
-} from '../../shared/relations.js';
+import { relationDefinition, relationKind, relationText } from '../../shared/relations.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 import { relationFilter, relationFocus, relationHighlight } from '../state/relation-store';
 
-/** Vocabulary and counts live with the edges, independent of the folder tree. */
+/** Filter only the kinds on this board; shared presets are managed in Home. */
 export function RelationLegend() {
   const board = activeBoard();
   const list = [...edges.value.values()];
@@ -46,21 +40,18 @@ export function RelationLegend() {
       onPointerDown={(event) => event.stopPropagation()}
     >
       <select
-        aria-label="Board relation preset"
-        value={relationPreset(board.relationVocabulary) ?? ''}
+        aria-label="Filter board relations"
+        value={selected ?? ''}
         onChange={(event) => {
-          const preset = RELATION_PRESETS[event.currentTarget.value];
-          if (preset) {
-            relationFilter.value = null;
-            void updateBoard(board.id, { relationVocabulary: preset });
-          }
+          const kind = event.currentTarget.value;
+          relationFilter.value = kind ? { boardId: board.id, kind } : null;
         }}
       >
-        <option value="" disabled>
-          Custom vocabulary
-        </option>
-        {Object.keys(RELATION_PRESETS).map((name) => (
-          <option key={name}>{name}</option>
+        <option value="">All relations</option>
+        {kinds.map((kind) => (
+          <option key={kind} value={kind}>
+            {kind} · {list.filter((edge) => relationKind(edge) === kind).length}
+          </option>
         ))}
       </select>
       {kinds.map((kind) => {

@@ -23,8 +23,17 @@ cmd(
   ],
   async (args) => {
     const [action, payload = '{}'] = args;
-    if (!['list', 'category-set', 'category-remove', 'folder-set'].includes(action ?? ''))
-      die('Expected list, category-set, category-remove or folder-set.');
+    if (
+      ![
+        'list',
+        'category-set',
+        'category-remove',
+        'folder-set',
+        'relation-preset-set',
+        'relation-preset-remove',
+      ].includes(action ?? '')
+    )
+      die('Expected list, category-set, category-remove, folder-set, relation-preset-set or relation-preset-remove.');
     output(await invokeOperation(`knowledge.${action}`, JSON.parse(payload)));
   },
 );

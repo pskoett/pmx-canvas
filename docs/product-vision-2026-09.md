@@ -1,14 +1,14 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-12
+**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-13
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
 
 ## Current plan
 
-*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-12. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
+*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-13. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
 
 **The promise.** One board is both the human's durable workspace and the agent's working memory. Agents write boards, humans shape them, boards last, link into a wiki, travel as files and links, and what the human curates is what the agent reads next.
 
@@ -53,8 +53,25 @@ immediate Escape on the shortcut reference, and stale pin replay after Clear all
 canonical server reconciliation, retained attention history and board-switch isolation.
 Evidence and failed-run investigations are recorded in [plan 018](plans/plan-018-connected-memory-wave-2.md).
 Final combined local gates pass 1,445 unit, 307 client and 282 headed browser cases, plus
-fresh headed CLI/stdio MCP. The CI link above verifies the preceding delivery, not this
-follow-up; native-platform CI and the owner's acceptance remain separate checks.
+fresh headed CLI/stdio MCP. Its [CI run](https://github.com/pskoett/pmx-canvas/actions/runs/38302301010)
+passed Linux, macOS, browser E2E and CLI E2E; Windows was cancelled, so this batch is not
+claimed fully cross-platform green. The earlier all-five-jobs CI verifies the preceding delivery.
+
+**Owner acceptance alignment, 2026-10-13:** the step-by-step rehearsal exposed toolbar
+crowding with multiple sessions, inert expanded wiki links, narrow Graph control overlap,
+missing Medium cadence validation and stale HTML/graph replacements. The follow-up corrects
+these contracts without treating a manual rehearsal as owner acceptance. Failed attempts and
+the final combined verification belong in [plan 018](plans/plan-018-connected-memory-wave-2.md).
+Relation presets are shared workspace templates in **Home → Relation presets**, alongside
+Categories, not per-board settings. Applying a saved preset copies meaning ink/direction to
+one explicitly chosen board; editing or deleting a template never silently rewrites boards
+or their connections. On a board, the dropdown is only **All relations + kinds actually
+present**, with counts; there is no Custom vocabulary status. Folder categories and card
+lifecycle remain separate from relation kinds. The acceptance guide follows this distinction
+and retains the owner's results and notes. This is still unreleased 0.8.2, not release approval.
+The current follow-up's combined local gates pass 1,446 unit, 307 client and all 289 headed
+browser cases, plus build/typecheck/lint, coverage and fresh headed CLI/stdio MCP.
+Its exact-commit CI and the requested fresh numbered rehearsal are separate checks.
 
 **Still open:** the owner's acceptance of everything since 0.8.2 and the real-agent curation
 evaluation. Full Relations/Flows/Uses sketch parity is not implemented: inline edge editing,
@@ -236,6 +253,13 @@ The move the evidence demands before any other. A workspace holds many named boa
 - **The board map is a board.** A generated board of boards and links, built like the code graph (`boardmap-` auto-edges, out of history, debounced), with positions the human drags kept. Pinning a board on the map pulls it into the brief (Part 1, item 1). Map pins are workspace-level: they belong to the library, not to the map board, so they feed the brief whichever board is active. It is called the board map to avoid confusion with the `graph` chart node type.
 - **A changed connection is marked on the connection (decided with the maintainer 2026-10-08, option C of [LinksOptions](design/LinksOptions.dc.html)).** Text and links are tracked apart per card. A link a person adds or edits says "not seen by <agent>" on its pill until a brief carries either end; a link an agent drew says "by <agent>". The agent is whichever agent is attached (Claude, Codex, Copilot or any other), never a fixed name. Cards keep their read marks; only a text change is amber ("changed"), and the context panel lists "links changed" in neutral. A link change still reaches the next brief through the card's links revision.
 - **One relation graph, two readers (decided with the maintainer 2026-10-07).** The canvas is the agent's extended memory across cards and boards, so the relations are one projection with two readers. Its nodes are boards and cards; its edges are portals and `[[links]]`, card edges and cross-board card links, with folder membership for grouping. Home's Graph view ([HomeGraph](design/HomeGraph.dc.html)) draws it for the human, with what is in the agent's context marked and a "local graph, depth N" around the focus. The agent reads the same projection as `canvas://graph{?focus,depth}`: the local graph around a board, a card or the pins, each node with its title, short summary and in-context mark, and ids that `canvas_node`/`canvas_board` pull in full. The brief (Part 1, item 1) is this graph's depth-1 neighbourhood of the open board and its pins; the agent walks further through `canvas://graph` and decides what to read. One projection, built like the code graph, so what the human sees and what the agent navigates cannot drift. Ships with wave 2's Map and Graph.
+
+  **Shared settings, local filters (decided 2026-10-13).** Relation presets belong to the
+  workspace's Home library, like Categories. They are editable templates, not classifications
+  assigned to cards and not board filter options. Explicit application copies a template's
+  vocabulary onto a chosen board without changing existing relation kinds or reasons. Each
+  board's dropdown lists its actual relation kinds and only changes the view. Unclassified
+  lifecycle stays unknown; it does not create a Custom vocabulary category or badge.
 - **Growth by gesture.** "Make board" turns a group into a board and leaves a portal; "Inline board" reverses it. Group, board and board of boards are one scale.
   **Wave 5 maintenance checkpoint (2026-10-11):** define how board-qualified relations,
   provenance and review records move before implementing these gestures. Moving a card must
@@ -450,6 +474,8 @@ Every knowledge document has a lifecycle, including Markdown cards derived from 
 
 - **What can decay.** Reality (facts change), decisions (superseded choices), dependencies (versions, owners or prerequisites change), and relevance (the task changes). A document can contain several claims with different authorities and review triggers; reviewing one never validates them all.
 - **When to check.** Fast means check at use; medium means source-appropriate cadence plus event triggers; slow means maintenance or resumed work; durable means no passive expiry. Contradictions, superseding decisions and dependency changes trigger review regardless of age. Each category can supply defaults, with explicit document or claim overrides; unclassified context stays visibly unknown rather than receiving an invented expiry date.
+  Medium requires an explicit positive cadence in days; a blank cadence or whitespace-only
+  revalidation method cannot save. Relation presets do not supply lifecycle or classify cards.
 - **Separate the clocks.** Last delivered/read by an agent, last content change, last evidence validation, and relevance to the current task are distinct signals. Reading, quoting, editing or running maintenance does not renew validation. Wave 1's read marks measure delivery and revision currency, not comprehension or truth.
 - **Record the evidence.** Keep stable document/claim identity, authority, owner, decay type/rate, revalidation method and triggers, last validated time and evidence, review outcome, and whether that outcome has been applied. Unavailable evidence leaves the review unresolved and preserves the previous validation record.
 - **Review outcomes.** Retain, revise, externalize to a maintained source, retire from active context, or leave unresolved. These are review dispositions, not an automatic age-driven state machine. Preserve sources and history; low use alone never retires a rare safeguard. Amber means “needs review,” not “false.” The brief carries that qualification rather than silently presenting stale context as validated.

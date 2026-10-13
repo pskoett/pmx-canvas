@@ -40,6 +40,94 @@ async function note(request: APIRequestContext, title: string, x = 120, y = 120)
   return ((await response.json()) as { id: string }).id;
 }
 
+test('Home manages shared relation presets while board filters show only existing connections', async ({
+  page,
+  request,
+}) => {
+  const first = await note(request, 'Evidence');
+  const second = await note(request, 'Claim', 600);
+  const boardA = (await boards(request)).activeBoardId!;
+  for (const kind of ['supports', 'qualifies']) {
+    expect(
+      (
+        await request.post('/api/canvas/edge', {
+          headers: HUMAN,
+          data: { from: first, to: second, type: 'relation', kind, reason: `Why ${kind}` },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
+  const originalEdges = (await (await request.get('/api/canvas/state', { headers: HUMAN })).json()).edges;
+  const { board: boardB } = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Citations only' } })
+  ).json();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: boardB.id } });
+  const source = await note(request, 'Source');
+  const target = await note(request, 'Citation', 600);
+  await request.post('/api/canvas/edge', {
+    headers: HUMAN,
+    data: { from: source, to: target, type: 'relation', kind: 'cites' },
+  });
+  const originalB = (await (await request.get('/api/canvas/boards')).json()).boards.find(
+    (board: { id: string }) => board.id === boardB.id,
+  );
+  await page.goto('/workbench');
+  await expect(page.getByLabel('Filter board relations').locator('option')).toHaveText(['All relations', 'cites · 1']);
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.setViewportSize({ width: 390, height: 900 });
+  const homePresetButton = page.getByRole('button', { name: 'Relation presets', exact: true });
+  const homePresetBounds = (await homePresetButton.boundingBox())!;
+  expect(homePresetBounds.x + homePresetBounds.width).toBeLessThanOrEqual(390);
+  await page.getByRole('button', { name: 'Relation presets', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Workspace relation presets' });
+  await dialog.getByRole('button', { name: 'Add preset', exact: true }).click();
+  await dialog.getByLabel('Name', { exact: true }).fill('Verification');
+  await dialog.getByRole('button', { name: 'Add kind', exact: true }).click();
+  await dialog.getByLabel('Kind 1', { exact: true }).fill('assesses');
+  await dialog.getByLabel('Ink 1', { exact: true }).selectOption('derived');
+  await dialog.getByLabel('Arrow', { exact: true }).uncheck();
+  await dialog.getByRole('button', { name: 'Save preset', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Preset saved for the workspace');
+  await page.reload();
+  await page.getByRole('button', { name: 'Relation presets', exact: true }).click();
+  await dialog
+    .getByRole('group', { name: 'Workspace relation presets' })
+    .getByRole('button', { name: /^Verification/ })
+    .click();
+  await expect(dialog.getByLabel('Kind 1', { exact: true })).toHaveValue('assesses');
+  await expect(dialog.getByLabel('Arrow', { exact: true })).not.toBeChecked();
+  await dialog.getByLabel('Apply saved preset to board').selectOption(boardA);
+  await dialog.getByRole('button', { name: 'Apply saved preset', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Preset applied');
+  await dialog.getByRole('button', { name: 'Delete preset', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm deletion', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Preset deleted');
+  await expect(
+    dialog.getByRole('group', { name: 'Workspace relation presets' }).getByRole('button', { name: /^Verification/ }),
+  ).toHaveCount(0);
+  const catalog = (await (await request.get('/api/canvas/boards')).json()).boards;
+  expect(catalog.find((board: { id: string }) => board.id === boardB.id)).toEqual(originalB);
+  expect(catalog.find((board: { id: string }) => board.id === boardA).relationVocabulary).toEqual([
+    { kind: 'assesses', ink: 'derived', directed: false },
+  ]);
+  await dialog.getByRole('button', { name: 'Close relation presets' }).click();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: boardA } });
+  await expect(page.getByLabel('Filter board relations').locator('option')).toHaveText([
+    'All relations',
+    'supports · 1',
+    'qualifies · 1',
+  ]);
+  await page.getByLabel('Filter board relations').selectOption('qualifies');
+  await expect(page.getByRole('button', { name: 'qualifies 1', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect((await (await request.get('/api/canvas/state', { headers: HUMAN })).json()).edges).toEqual(originalEdges);
+  const filtered = originalEdges.find((edge: { kind: string }) => edge.kind === 'qualifies');
+  expect((await request.delete('/api/canvas/edge', { headers: HUMAN, data: { id: filtered.id } })).ok()).toBe(true);
+  await expect(page.getByLabel('Filter board relations')).toHaveValue('');
+  const remaining = originalEdges.find((edge: { kind: string }) => edge.kind === 'supports');
+  expect((await request.delete('/api/canvas/edge', { headers: HUMAN, data: { id: remaining.id } })).ok()).toBe(true);
+  await expect(page.getByLabel('Filter board relations')).toHaveCount(0);
+});
+
 test('an agent opens its new board and the connected workbench follows without a reload', async ({ page, request }) => {
   const originalNode = await note(request, 'Keep this on the original board');
   const original = (await boards(request)).activeBoardId;
@@ -601,6 +689,11 @@ test('wiki navigation and human remote-card connections survive renames and reta
       { ref: 'New investigation' },
     ]),
   );
+  await sourceCard.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await editor.getByRole('link', { name: 'Read the evidence' }).click();
+  await expect(page.getByRole('button', { name: /^Board: Renamed research/ })).toBeVisible();
+  await expect(card).toBeInViewport();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
   await page.locator(`[data-node-id="${claim}"]`).hover();
   await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'More actions' }).click();
   await page.getByText('Connect to a card on another board…', { exact: true }).click();
@@ -638,6 +731,53 @@ test('wiki navigation and human remote-card connections survive renames and reta
   await page.getByRole('link', { name: 'Read the evidence' }).click();
   await expect(page.getByRole('button', { name: /^Board: Renamed research/ })).toBeVisible();
   await expect(card).toBeInViewport();
+});
+
+test('narrow library filters remain reachable alongside retained Updates', async ({ page, request }) => {
+  const id = await note(request, 'Retained update probe');
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto('/workbench');
+  await page.route(`**/api/canvas/node/${id}`, async (route) => {
+    if (route.request().method() !== 'DELETE') return route.continue();
+    await route.fulfill({ status: 409, json: { ok: false, error: 'Keep this review note.' } });
+  });
+  await page.locator(`[data-node-id="${id}"] .node-title`).click();
+  await page.keyboard.press('Delete');
+  await expect(page.getByRole('button', { name: /Recent updates/i })).toBeVisible();
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  // Home intentionally clears board attention. A refused write while browsing
+  // the library supplies a real retained notice, rather than injecting UI state.
+  await page.getByRole('button', { name: 'Graph', exact: true }).click();
+  await page.route('**/api/canvas/boards', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await route.fulfill({ status: 409, json: { ok: false, error: 'Library is temporarily read-only.' } });
+  });
+  await page.getByRole('button', { name: /Board:/ }).click();
+  await page.getByRole('menuitem', { name: 'New board…', exact: true }).click();
+  await page.getByRole('dialog').getByRole('textbox').fill('Refused library board');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
+  await page.keyboard.press('Escape');
+  const updates = page.getByRole('button', { name: /Recent updates/i });
+  await expect(updates).toBeVisible();
+  const filters = page.getByRole('button', { name: 'Filters & details', exact: true });
+  const a = (await updates.boundingBox())!;
+  const b = (await filters.boundingBox())!;
+  expect(a.y >= b.y + b.height || b.y >= a.y + a.height || a.x >= b.x + b.width || b.x >= a.x + a.width).toBe(true);
+  await filters.click();
+  await expect(filters).toHaveAttribute('aria-expanded', 'true');
+  const search = page.getByRole('searchbox', { name: 'Find boards and cards', exact: true });
+  for (const width of [390, 600, 760]) {
+    await page.setViewportSize({ width, height: 900 });
+    const tab = (await updates.boundingBox())!;
+    const field = (await search.boundingBox())!;
+    expect(tab.x + tab.width <= field.x || tab.y + tab.height <= field.y).toBe(true);
+    expect(tab.x).toBeGreaterThanOrEqual(0);
+    await search.fill('Search still reachable');
+    await expect(search).toHaveValue('Search still reachable');
+    await search.fill('');
+  }
+  await updates.click();
+  await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toBeVisible();
 });
 
 test('relation refreshes preserve an unsaved Source draft, selection and wiki preview through Save', async ({

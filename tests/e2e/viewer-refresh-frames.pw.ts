@@ -144,6 +144,96 @@ for (const { theme, os, dark } of cases) {
 }
 
 for (const mode of ['src', 'srcdoc']) {
+  test(`graph data and spec patches refresh the painted viewer (${mode})`, async ({ page, request }) => {
+    const { id } = await (
+      await request.post('/api/canvas/graph', {
+        data: {
+          title: 'Initial graph',
+          graphType: 'bar',
+          data: [
+            { category: 'A', value: 7 },
+            { category: 'B', value: 23 },
+          ],
+          xKey: 'category',
+          yKey: 'value',
+          x: 100,
+          y: 100,
+        },
+      })
+    ).json();
+    await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+    await page.goto(`/workbench?iframe-mode=${mode}`);
+    const painted = page.locator(`[data-node-id="${id}"]`).frameLocator('iframe:not([inert])');
+    await expect(painted.getByText('Initial graph', { exact: true })).toBeVisible();
+    expect(
+      (
+        await request.patch(`/api/canvas/node/${id}`, {
+          data: {
+            title: 'Changed graph',
+            data: [
+              { category: 'C', value: 3 },
+              { category: 'D', value: 41 },
+            ],
+          },
+        })
+      ).ok(),
+    ).toBe(true);
+    await expect(painted.getByText('Changed graph', { exact: true })).toBeVisible();
+    await expect(painted.getByText('C', { exact: true })).toBeVisible();
+    expect(
+      (
+        await request.patch(`/api/canvas/node/${id}`, {
+          data: { spec: { root: 'text', elements: { text: { type: 'Text', props: { text: 'Replacement spec' } } } } },
+        })
+      ).ok(),
+    ).toBe(true);
+    await expect(painted.getByText('Replacement spec', { exact: true })).toBeVisible();
+  });
+
+  test(`failed HTML refresh retries once, keeps painted content, and recovers (${mode})`, async ({ page, request }) => {
+    test.setTimeout(60_000);
+    const html = (text: string) => `<main><h1>${text}</h1></main>`;
+    const response = await request.post('/api/canvas/node', {
+      data: {
+        type: 'html',
+        title: 'HTML recovery',
+        html: html('Last healthy HTML'),
+        x: 100,
+        y: 100,
+        width: 500,
+        height: 300,
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const { id } = await response.json();
+    await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+    let failures = 0;
+    let failReplacement = false;
+    await page.route(`**/api/canvas/surface/${id}?**`, async (route) => {
+      if (!failReplacement) return route.continue();
+      failures++;
+      await route.fulfill({ status: 503, contentType: 'text/html', body: '<p>Temporary HTML failure</p>' });
+    });
+    await page.goto(`/workbench?iframe-mode=${mode}`);
+    const node = page.locator(`[data-node-id="${id}"]`);
+    const painted = node.frameLocator('iframe:not([inert])');
+    await expect(painted.getByText('Last healthy HTML', { exact: true })).toBeVisible();
+    failReplacement = true;
+    expect((await request.patch(`/api/canvas/node/${id}`, { data: { html: html('Unavailable HTML') } })).ok()).toBe(
+      true,
+    );
+    await expect(page.locator('.attention-toast')).toContainText('Keeping the last view. Reload to retry.', {
+      timeout: 30_000,
+    });
+    await expect(node.locator('iframe')).toHaveCount(1);
+    await expect(painted.getByText('Last healthy HTML', { exact: true })).toBeVisible();
+    expect(failures).toBe(mode === 'srcdoc' ? 3 : 2);
+    failReplacement = false;
+    expect((await request.patch(`/api/canvas/node/${id}`, { data: { html: html('Recovered HTML') } })).ok()).toBe(true);
+    await expect(painted.getByText('Recovered HTML', { exact: true })).toBeVisible();
+    await expect(node.locator('iframe')).toHaveCount(1);
+  });
+
   test(`healthy offscreen viewers keep their replacement until painted (${mode})`, async ({ page, request }) => {
     test.setTimeout(60_000);
     const spec = (text: string) => ({
@@ -202,16 +292,18 @@ for (const mode of ['src', 'srcdoc']) {
     expect(response.ok()).toBe(true);
     const { id } = await response.json();
     await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+    let failures = 0;
+    let failReplacement = false;
+    await page.route('**/api/canvas/json-render/view?**', async (route) => {
+      if (!failReplacement || new URL(route.request().url()).searchParams.get('nodeId') !== id) return route.continue();
+      failures++;
+      await route.fulfill({ status: 503, contentType: 'text/html', body: '<p>Temporary viewer failure</p>' });
+    });
     await page.goto(`/workbench?iframe-mode=${mode}`);
     const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
     const painted = node.frameLocator('iframe:not([inert])');
     await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
-    let failures = 0;
-    await page.route('**/api/canvas/json-render/view?**', async (route) => {
-      if (new URL(route.request().url()).searchParams.get('nodeId') !== id) return route.continue();
-      failures++;
-      await route.fulfill({ status: 503, contentType: 'text/html', body: '<p>Temporary viewer failure</p>' });
-    });
+    failReplacement = true;
     expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Unavailable update') } })).ok()).toBe(
       true,
     );
@@ -223,7 +315,7 @@ for (const mode of ['src', 'srcdoc']) {
     // replacement itself retries exactly once, never promotes the error page.
     expect(failures).toBe(mode === 'srcdoc' ? 3 : 2);
     await page.screenshot({ path: info.outputPath(`viewer-failed-${mode}.png`) });
-    await page.unroute('**/api/canvas/json-render/view?**');
+    failReplacement = false;
     expect(
       (await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Recovered healthy view') } })).ok(),
     ).toBe(true);

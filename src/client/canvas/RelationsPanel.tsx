@@ -1,19 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { memoryKey, type MemoryGraph } from '../../shared/memory-graph.js';
-import {
-  RELATION_KINDS,
-  relationDefinition,
-  relationSourceEnd,
-  type RelationDefinition,
-} from '../../shared/relations.js';
-import {
-  activeBoard,
-  activeBoardId,
-  boardList,
-  boardIncarnation,
-  openMemoryTarget,
-  updateBoard,
-} from '../state/boards-store';
+import { relationDefinition, relationSourceEnd } from '../../shared/relations.js';
+import { activeBoardId, boardList, openMemoryTarget } from '../state/boards-store';
 import { edges, nodes } from '../state/canvas-store';
 import { requestJson } from '../state/intent-bridge';
 
@@ -21,9 +9,6 @@ import { requestJson } from '../state/intent-bridge';
 export function RelationsPanel({ nodeId }: { nodeId: string }) {
   const boardId = activeBoardId.value;
   const [graph, setGraph] = useState<MemoryGraph | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [vocabulary, setVocabulary] = useState<RelationDefinition[]>([]);
-  const [error, setError] = useState('');
   const [unavailable, setUnavailable] = useState(false);
   const currentEdges = edges.value;
   const currentNodes = nodes.value;
@@ -91,102 +76,7 @@ export function RelationsPanel({ nodeId }: { nodeId: string }) {
           </div>
         );
       })}
-      <button
-        type="button"
-        class="home-button"
-        onClick={() => {
-          setVocabulary(structuredClone(activeBoard()?.relationVocabulary ?? RELATION_KINDS));
-          setEditing(!editing);
-          setError('');
-        }}
-      >
-        Board vocabulary
-      </button>
-      {editing && (
-        <form
-          class="relation-vocabulary"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!boardId || activeBoardId.value !== boardId) return;
-            if (
-              vocabulary.some((item) => !item.kind.trim()) ||
-              new Set(vocabulary.map((item) => item.kind.trim())).size !== vocabulary.length
-            ) {
-              setError('Give each kind a unique name.');
-              return;
-            }
-            const incarnation = boardIncarnation;
-            const saved = await updateBoard(boardId, { relationVocabulary: vocabulary });
-            if (incarnation !== boardIncarnation) return;
-            if (saved) setEditing(false);
-            else setError('Vocabulary was not saved. Try again.');
-          }}
-        >
-          <p>Kinds stay open. Inks use the six relation meanings, never pin, agent or warning colours.</p>
-          {vocabulary.map((item, index) => (
-            <div class="vocabulary-row" key={index}>
-              <input
-                aria-label={`Kind ${index + 1}`}
-                value={item.kind}
-                maxLength={80}
-                onInput={(event) =>
-                  setVocabulary(
-                    vocabulary.map((old, i) => (i === index ? { ...old, kind: event.currentTarget.value } : old)),
-                  )
-                }
-              />
-              <select
-                aria-label={`Ink ${index + 1}`}
-                value={item.ink}
-                onChange={(event) =>
-                  setVocabulary(
-                    vocabulary.map((old, i) =>
-                      i === index ? { ...old, ink: event.currentTarget.value as RelationDefinition['ink'] } : old,
-                    ),
-                  )
-                }
-              >
-                {['supports', 'contradicts', 'cites', 'derived', 'informs', 'related'].map((ink) => (
-                  <option key={ink}>{ink}</option>
-                ))}
-              </select>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={item.directed}
-                  onChange={(event) =>
-                    setVocabulary(
-                      vocabulary.map((old, i) =>
-                        i === index ? { ...old, directed: event.currentTarget.checked } : old,
-                      ),
-                    )
-                  }
-                />{' '}
-                Arrow
-              </label>
-              <button
-                type="button"
-                aria-label={`Remove kind ${index + 1}`}
-                onClick={() => setVocabulary(vocabulary.filter((_, i) => i !== index))}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          {error && <p role="alert">{error}</p>}
-          <button
-            type="button"
-            class="home-button"
-            disabled={vocabulary.length >= 64}
-            onClick={() => setVocabulary([...vocabulary, { kind: '', ink: 'related', directed: true }])}
-          >
-            Add kind
-          </button>
-          <button type="submit" class="home-button">
-            Save vocabulary
-          </button>
-        </form>
-      )}
+      <p>Manage shared relation presets in Home.</p>
     </aside>
   );
 }

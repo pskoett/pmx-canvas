@@ -6,6 +6,20 @@
 **Request:** Review the existing vision and explore hosted users building their own wiki by describing their work, with their boards contributing context, and cross-cutting organizational context shared within a workspace. Reuse the logic of the personal/context-frame projects inside pmx-canvas's own store rather than depend on an external wiki.
 **Method:** Read both documents and current canvas context/provenance/caller contracts; research threads inspected both actual reference projects after user-authorized local-file transfers. The shared snapshot matched the previously inspected files; the personal transfer superseded its initially empty checkout. Reconsulted the oracle on private maintenance versus confirmation/publication using those findings. Static source analysis only: no reference services, onboarding, or promotion jobs were executed, and earlier audit tests/adoption measurements were not rerun. The public example is no longer the basis for this proposal.
 
+## Current delivery alignment, 2026-10-13
+
+Linked boards, Home Folders/Map/Graph, explicit relation kinds/reasons, folder categories,
+inherited card lifecycle and evidence-backed review/retirement are implemented locally;
+the [main vision's current plan](product-vision-2026-09.md#current-plan) and
+[plan 018](plans/plan-018-connected-memory-wave-2.md) own progress and verification.
+Shared relation templates now live in Home alongside Categories. They are workspace settings,
+not card classifications: applying a saved template is explicit, existing boards keep their
+copied vocabulary, and each board filters only relation kinds actually present. Unclassified
+lifecycle remains unknown. This local shared-settings library does not implement shared-audience
+access, organizational authority, autonomous wiki maintenance or the curation evaluation.
+The owner's acceptance and release approval remain separate from rehearsals and passing tests.
+The proposal below remains historical where its header marks it superseded.
+
 ## Position
 
 **Work visually with your agents, build understanding as you go, and bring the right knowledge into whatever comes next.**
