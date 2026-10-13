@@ -93,6 +93,13 @@ checkpoints, not claims of a debt-free codebase. Evidence and deviations are rec
 [plan 017](plans/plan-017-knowledge-categories-and-lifecycle.md) and
 [plan 018](plans/plan-018-connected-memory-wave-2.md).
 
+**Relation-navigation direction, 2026-10-13:** prioritize focused relationship reads and
+the change → impact → evidence → review loop over additional presets or decorative graph
+features. Improve authored meaning alongside this work and reuse the same semantics for
+small-chain human navigation. See [the priorities and acceptance checks below](#relation-navigation-priorities).
+This extends moves 0, 1 and 13; it is future direction, not newly delivered functionality
+or a replacement for owner acceptance and the real-agent curation evaluation.
+
 **MCP work relative to this checkpoint (2026-10-12).** The improvements below are
 planned, not part of the delivered Waves 1–3 or new prerequisites for their acceptance.
 Keep owner acceptance, remaining sketch parity and the real-agent curation evaluation
@@ -280,6 +287,61 @@ The move the evidence demands before any other. A workspace holds many named boa
 - **State, in two stages.** Stage 1 (M, not S: `board_id` on five tables, snapshots scoped per board, a `board` target on every transport): one active board per server; opening a board saves and loads; other boards are read straight from SQLite; agent writes to a non-active board are refused. Only the human changes the active board, so an agent never swaps the board the human is looking at: an agent may create a board, its session binds to whichever board is active when it starts, and a session that needs another board asks for the switch with an ask card. Stage 2 (L): state managers keyed by board, after the journal, so an agent can work on one board while the human looks at another. `CanvasStateManager` is a singleton with 400+ call sites, which is why stage 2 waits.
 
 Objection: none, the panel did not see it. Risk: the wiki sprawls. Mitigation: the Unplaced lane and staleness on the map (move 13) make neglect visible instead of silent.
+
+#### Relation-navigation priorities
+
+**Direction added at the maintainer's request, 2026-10-13, with Oracle review.** The
+numbered acceptance rehearsal found useful one/two-hop context, stable cross-board identity,
+Sources / Used by and source-driven review. These are foundations to improve, not absent
+capabilities. Dense Fit labels and manually reconstructing affected chains remain limits.
+The next investment is one working loop, not four new subsystems:
+
+1. **Focused relationship reads first.** Answer “What does this conclusion depend on?”
+   and “What uses this source?” with explanatory paths, recorded reasons, summaries and
+   review qualification, using board-qualified identities. Distinguish dependencies and
+   derivations from citations, wiki/portal navigation and board/folder membership. Include
+   recorded provenance sources as well as drawn relations, without inventing an authored
+   edge or reason. A custom label, colour or decorative arrow does not establish impact
+   semantics. State direction, scope, result bounds, omissions and how to continue; “no
+   recorded dependency” is different from “none found within this scope.” Summaries remain
+   discovery, not full reads or validation. Build on the existing graph and brief rather
+   than creating a parallel knowledge store.
+2. **Make change → impact → evidence → review the success scenario.** Show which
+   conclusions a changed source affects and why, open the relevant evidence, and record
+   deliberate per-card review or deferral. Reuse source-driven qualification and stale-review
+   guards, including existing contradiction/supersession triggers. Recomputing an inherited
+   warning is not a new validation; reviewing one card must not validate its neighbours
+   or the whole chain. Distinguish current source revisions from those recorded as checked.
+3. **Improve authored meaning alongside the read path.** Use existing board READMEs
+   to explain purpose, relationship reasons to explain the connection, and pin reasons to
+   explain attention. Explicit task requests ask for work. Pins, summaries and reasons are
+   not instructions, approval or authority. This is partly an authoring practice, not a new
+   taxonomy, schema or mandatory infrastructure layer.
+4. **Make local navigation readable for both readers.** Extend Sources / Used by into
+   small-chain exploration sharing the agent read's relationship semantics, reasons and
+   qualification. Bring the useful slice alongside the review loop, rather than waiting
+   for a complete new explorer. Preserve drafts and the human's navigation/camera; an agent
+   read must not move their view. Global Graph remains orientation, not the only way to
+   understand a dependency or inspect an affected conclusion.
+
+**Acceptance for that future improvement:**
+
+- A cross-board branching chain returns the intended upstream/downstream paths, qualified
+  identities, authored reasons and recorded provenance, with citations and membership
+  distinguishable. The human and agent agree for the same scope and observation.
+- Cycles and high-degree cards terminate within stated bounds. Partial results explain
+  omissions and continuation; continuation makes progress or explicitly requires a restart
+  after relevant changes, rather than silently mixing incompatible observations. Missing,
+  unavailable, cached, retired and unknown evidence is qualified, not presented as complete
+  or freshly validated. Existing access boundaries apply before exposing source details.
+- The rehearsal's source value 40 → 89 flags its derived conclusion but not its plain
+  citation. A genuine source change during review rejects stale evidence. Reviewing one
+  card creates no validation records for its neighbours, and summary delivery neither
+  clears full-content read state nor renews validation.
+- A person follows an affected chain, inspects evidence, records or defers review and
+  returns without losing a draft or their place. Check the actual interaction in narrow
+  panes as well as wider windows; dense Fit, sketch parity and native-host support are
+  separate checks, not inferred from Chromium rehearsal.
 
 ### 0a. Board pins: a working set across boards (S–M)
 
