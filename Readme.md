@@ -92,7 +92,7 @@ use a plugin or configure MCP directly. You don't need both for the same agent.
 ### Plugins
 
 The [PMX Canvas plugin](docs/agent-plugin.md) follows the open
-[Agent Plugins 1.0 standard](https://agent-plugins.org/). Use it in any client
+Agent Plugins 1.0 standard. Use it in any client
 that supports the standard's MCP stdio connections. Bun must be installed;
 a global PMX Canvas installation isn't required.
 
@@ -109,9 +109,8 @@ no longer accepts it, use the MCP setup below.
 Enable it, start a new project session, and open **PMX Canvas**. Copilot also
 gets a native canvas panel; that panel is not part of the portable standard.
 
-Other apps have their own plugin install commands or UI. See the official
-[compatible clients and setup guides](https://agent-plugins.org/compatible-clients)
-and the [PMX plugin guide](docs/agent-plugin.md). There is no single install command
+Other apps have their own plugin install commands or UI. See the
+[PMX plugin guide](docs/agent-plugin.md). There is no single install command
 for every client.
 
 ### MCP setup
