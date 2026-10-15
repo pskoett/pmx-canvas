@@ -47,7 +47,8 @@ own tab when you need more space.
 
 ### With your agent (recommended)
 
-Install the PMX Canvas skill and choose your agent when prompted:
+Install [Node.js](https://nodejs.org/) (LTS), which includes npm and `npx`.
+Then install the PMX Canvas skill and choose your agent if prompted:
 
 ```bash
 npx skills add pskoett/pmx-canvas/skills/pmx-canvas
@@ -100,6 +101,10 @@ a global PMX Canvas installation isn't required.
 ```bash
 copilot plugin install pskoett/pmx-canvas:plugins/pmx-canvas
 ```
+
+Copilot currently accepts this command, but warns that direct GitHub installs
+are deprecated and a future release will require a marketplace. If your version
+no longer accepts it, use the MCP setup below.
 
 Enable it, start a new project session, and open **PMX Canvas**. Copilot also
 gets a native canvas panel; that panel is not part of the portable standard.
