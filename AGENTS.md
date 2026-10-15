@@ -16,6 +16,7 @@ Don't assume. Don't hide confusion. Surface tradeoffs.
 - **Push back when warranted** — If a simpler approach exists, say so
 - **Stop when confused** — Name what's unclear and ask for clarification
 - **Attack the premise.** If two fixes based on the same assumption fail the same check, write down that assumption and test it directly before trying another fix. Use the smallest experiment that can disprove it; this is not permission for an unrelated redesign.
+- **Redesign from first principles.** When a new requirement exposes a mismatch in the existing design, consider how you would model it if that requirement had existed from the start. Prefer that design within the affected scope, without rewriting unrelated code.
 
 ### 2. Simplicity First
 Minimum code that solves the problem. Nothing speculative.
