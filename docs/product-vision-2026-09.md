@@ -1182,6 +1182,9 @@ standalone hosted version. Confirm the package
 boundaries during implementation; this is not a request to reorganise the
 repository before the ChatGPT validation needs it.
 
+The decision, tradeoffs and rejected alternatives are recorded in
+[ADR-002: Shared product core, separate runtime editions](adr-002-shared-product-separate-runtimes.md).
+
 - **Shared product:** the board model, mutation rules, context compilation, node renderers and canvas UI should be reused across distributions. Keep runtime dependencies out of this shared code.
 - **Local runtime:** retain the Bun server, local SQLite store, filesystem access/watchers, local MCP entry point and existing CLI/SDK workflows. Local PMX must remain usable without a cloud account, hosted service or network connection for its local features.
 - **ChatGPT version / Sites runtime:** adapt the shared product to Sites' identity, storage and MCP contracts for the first validation and plugin distribution. Keep this experience working as the product grows; it is a supported delivery surface, not a disposable prototype.

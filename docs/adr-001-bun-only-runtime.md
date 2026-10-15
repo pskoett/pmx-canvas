@@ -5,7 +5,8 @@
 **Context for:** v0.2 stability release (docs/tech-debt-assessment-2026-06.md, Phase 2)
 
 **Scope clarified, 2026-10-15:** this decision applies to the local distribution and its
-Bun SDK. The [vision's separate-runtime direction](product-vision-2026-09.md#likely-repository-structure-shared-product-separate-runtimes)
+Bun SDK. [ADR-002](adr-002-shared-product-separate-runtimes.md) records this narrowing and the
+[vision's separate-runtime direction](product-vision-2026-09.md#likely-repository-structure-shared-product-separate-runtimes)
 allows runtime-neutral shared product code and distinct Sites/Cloudflare adapters. It does
 not require a Node dual-build, compatibility shims or a cloud dependency for local use.
 
@@ -21,7 +22,7 @@ The decisive observation: nobody integrates with pmx-canvas by importing it. Age
 
 ## Decision
 
-pmx-canvas stays Bun-only for the SDK and runtime.
+The local pmx-canvas distribution stays Bun-only for the SDK and runtime.
 
 1. MCP (stdio) and the HTTP API are the universal integration surfaces. They are runtime-agnostic by construction: any client that can spawn a process or open a socket can use them.
 2. No Node dual-build (ESM + CJS dist of the server/SDK) will be produced. The package continues to ship TypeScript source executed by Bun.
