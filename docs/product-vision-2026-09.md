@@ -1,14 +1,14 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-13
+**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-13; architecture direction clarified 2026-10-15
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
 
 ## Current plan
 
-*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-13. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
+*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-15. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
 
 **The promise.** One board is both the human's durable workspace and the agent's working memory. Agents write boards, humans shape them, boards last, link into a wiki, travel as files and links, and what the human curates is what the agent reads next.
 
@@ -113,6 +113,14 @@ the optional PMX session connection stays a Part 5 decision. No release number i
 
 **Release status:** still 0.8.2. No release, tag, publication, deployment or version bump is
 authorized; implementation and green CI do not substitute for the owner's acceptance.
+
+**Architecture clarification, 2026-10-15:** the architecture reviews strengthen the existing
+shared-product/separate-runtime direction, not a microservice split. Moves 4, 6 and 7 now
+spell out commit guarantees, writer-policy parity and authenticated authority; the
+[runtime direction](#likely-repository-structure-shared-product-separate-runtimes) defines
+ownership and shared contracts. These are future requirements, not implemented guarantees.
+Owner acceptance and the curation evaluation remain first; fix demonstrated defects narrowly,
+then prove the boundaries through a complete slice before moving packages or porting broadly.
 
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
 
@@ -422,6 +430,28 @@ distinct from undoable content history: replay, Undo and snapshot restore must n
 validation or silently erase retirement. Preserve the separate read, content, validation and
 relevance clocks through the transition and test restart/replay against those invariants.
 
+**Commit and replay guarantees (2026-10-15).** The journal supports synchronization; it
+does not establish correctness on its own. Before second-writer or hosted write guarantees:
+
+- A successful committed write means its state change, change record and retry outcome are
+  durable together. Any earlier accepted/pending response is explicitly not that acknowledgment.
+  Publish committed changes, and recover missed notifications through authorized replay.
+- Check relevant revisions at commit, including layout and cross-board effects. Content
+  revisions keep their semantic meaning; do not reuse them as geometry versions. Conflicts
+  are rejected or deliberately resolved, not automatically merged by compare-and-set.
+- Retrying the same scoped request must not duplicate its effects, including a successful
+  prefix of a partial batch. Define each command's atomic scope and batch failure behavior;
+  a batch is not implicitly a transaction. Files and object storage need explicit recovery
+  across their separate commit boundaries.
+- Specify snapshot/cursor continuity and expired-cursor recovery, and recheck permissions
+  on replay. Record effects without rerunning external actions; Undo is a new checked write,
+  not permission to overwrite intervening edits or renew validation.
+
+Transactional state plus a change journal can deliver this before full event-sourced
+reconstruction. Today's polling cursor and snapshot fallback remain useful, but are not
+durable replay. This work does not block the current curation evaluation or require completing
+the journal before a read-only share link.
+
 ### 5. Keep every node type; unify how they render (M)
 
 The maintainer's rule, and it is the right one: his own usage is not evidence that a node type is unused, and a node that renders any MCP app belongs in the product. So no node type is removed, and the generic `mcp-app` node stays generic. What changes is the machinery under the iframe-backed kinds (`html`, `mcp-app`, `json-render`, `graph`, `webpage`, `mermaid`), which today is spread over six components with three copies of the AX bridge and one 1,591-line frame component whose recovery ladder has produced ten rounds of black tiles (0.6.2 ships the latest as a known limitation).
@@ -476,7 +506,7 @@ These are incremental contract improvements, not a new composer or session layer
 
 ### 6b. Generate every surface from the registry (L, two releases) — pending the maintainer's decision
 
-**Status: undecided as of 2026-09-06.** The maintainer likes the simplification and the token saving, and wants more time on the restructuring. Nothing below should start before that decision.
+**Status: undecided as of 2026-09-06.** The maintainer likes the simplification and the token saving, and wants more time on the restructuring. The generated-surface redesign must not start before that decision. The shared-writer policy clarification below is independent of that redesign.
 
 The proposal: `listOperations()` becomes the single published vocabulary. Five MCP tools (`canvas_read`, `canvas_write` taking a list so batch is just a longer list, `canvas_ask`, `canvas_inbox`, `canvas_help`) replace the 22 (23 once `canvas_board` lands). The CLI becomes one generic dispatcher over operation names plus eight human commands, and the SDK becomes a typed facade over the same invoker. The API document is rendered from the registry, replacing 23,000 words of hand-written prose that has drifted at least seven times.
 
@@ -484,7 +514,17 @@ The case for it: four naming conventions for one operation (`set-focus`, `ax foc
 
 The case against, which is why it is worth thinking about: 22 named tools are self-documenting in a way that five generic ones are not, a host that renders tool names to the user shows something meaningful today, and a single write tool keyed on operation names needs a discriminated union to catch wrong-field arguments, which not every host supports yet. Generated CLI help is also usually worse than hand-written help.
 
-If the answer is no, 6a still stands on its own, and the one piece worth taking regardless is routing the SDK through the registry, since that is a trust fix rather than a surface change: the SDK makes 87 direct state calls today and 4 registry calls, so an SDK write skips the human edit lock, the scope fence and the activity feed.
+If the answer is no, 6a still stands on its own, and the piece worth taking regardless is one mutation policy and commit boundary for every supported writer. The original 87 direct SDK state calls versus 4 registry calls are historical counts, not a current inventory; the SDK now has fence and presence handling, but its direct node-update path still bypasses the registry's human edit lock.
+
+**SDK direction clarified, 2026-10-15.** Sharing policy does not require making every SDK
+method asynchronous: synchronous checks can protect both the local SDK and registry paths.
+This supersedes [plan 009's](plans/plan-009-tech-debt-backlog.md#decision-analysis-2026-07-08-maintainer-approved)
+conclusion that no further convergence is needed, not its decision to retain a synchronous
+local convenience API. All writers, including autonomous system writes, must share the
+relevant policy and commit guarantees. Cross-runtime operations with asynchronous storage
+need an explicit durable-completion contract; a Promise alone does not provide one.
+Any public API change needs its own scoped, versioned decision. This does not authorize
+compatibility shims, a second permanent command implementation or the undecided tool redesign.
 
 Objection (feasibility, refuted as bundled): the previous registry campaign took four pull requests plus a month of follow-up slices, so five refactors in six weeks will not land. Accepted: two releases, SDK first. Objection (evidence): "41 operations unreachable from MCP" is a field-count artifact; the real gap is about 14. Accepted.
 
@@ -499,6 +539,16 @@ The workbench marker is a plain header any agent with `curl` can set, so "human-
 Then: file nodes are confined by default to the workspace plus explicit allow-roots (persistence hygiene, since every host already gives the agent `cat`); the webpage fetcher follows redirects by hand and refuses any hop that moves a public fetch onto a loopback or private address, and refuses link-local (cloud metadata) addresses on every hop, while a URL the caller points at a local dev server on purpose still loads; the client bridge checks `res.ok` and shows the toast on a refused write. One reservation I am not settled on: the real boards carry file nodes for documents (weekly prioritization reports) that may live outside any repository, and default confinement would have refused them; the default should probably be a per-board allow-root list that includes the folders a PM board actually reads, not the workspace alone.
 
 The same mechanism gives the product its own remote story, without relying on anything external. A loopback-only server means Claude Code cloud, Codex cloud and the Copilot coding agent, the agents that run longest unattended, cannot reach the board at all. With per-writer tokens minted by the server (human tokens served only to the workbench, agent tokens issued per session), the server can bind beyond loopback deliberately (`--listen` plus a token), and a remote agent is just another authenticated writer. No relay, no sync service, no version-control detour. The same tokens carry the read-only share link, the second step of the sharing path in Part 3; the first step, static export (move 11), needs none of this.
+
+**Authority across editions (2026-10-15).** Shared and hosted access uses an authenticated
+principal (the caller and its grants), supplied by the edition's identity adapter, and one
+product permission model. Self-asserted workbench markers, `agentId` and `clientId` are
+cooperative signals, not authorization. Changing a label cannot change a caller's rights or
+assigned territory. Scope requests explicitly to workspace, board and caller independently
+of human navigation. Filter readable sources before computing titles, graph links, briefs,
+lifecycle reasons or exports; scope live events and replay to authorized subscribers too.
+This strengthens sharing, not a claim that the local boot token proves human intent, and
+does not change the decision that permitted writers may answer attributed approval gates.
 
 Correction to my own review: a human's write cannot hit the 403 fence or the 409 lock, both sit behind `if (!meta.fromWorkbench)`; the silent-failure defect is real but smaller than I wrote.
 
@@ -633,7 +683,7 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 | 4. Second writer | Another human writes to a shared board, with their own agent | the journal (move 4), concurrent boards (move 0, stage 2) |
 | 5. Accounts | Per-board roles (read, comment, write, answer asks), single-tenant; org, team and personal knowledge scopes | a team using step 4 |
 
-**What Part 2 already buys.** The journal (move 4) is the sync model: an ordered log with sequence numbers, per-consumer cursors and inverse patches is exactly what multiple clients need, and node-granular edits with compare-and-set on the node version resolve concurrent human edits without operational transforms or CRDTs. Per-writer tokens (move 7) become per-user credentials; author on every node (Part 1) becomes attribution; presence is already multi-writer with identity colors; the ask node with an attributed answer becomes an ask addressed to a person or a role.
+**What Part 2 already buys.** The journal (move 4) provides ordered changes and replay for synchronization, subject to its commit, retry and authorization guarantees. Compare-and-set detects concurrent conflicts; the app must reject or deliberately resolve them, including layout and multi-card changes. Operational transforms or CRDTs are not prerequisites for this conflict-rejecting model. Per-writer tokens (move 7) become per-user credentials; author on every node (Part 1) becomes attribution; presence is already multi-writer with identity colors; the ask node with an attributed answer becomes an ask addressed to a person or a role. Existing presence labels alone do not establish authenticated users or isolated sessions.
 
 **Sharing is per board.** Sharing a board never shares what it links to. A portal to a board the viewer cannot see renders as a locked card with no title, and the viewer's brief never reaches past what they can see. This is where the [context vision's](product-context-vision-2026-09.md) publication and audience rules apply: an automatic derivative's audience cannot exceed its inputs', and publication is an explicit act, not a side effect of summarizing.
 
@@ -1137,6 +1187,41 @@ repository before the ChatGPT validation needs it.
 - **ChatGPT version / Sites runtime:** adapt the shared product to Sites' identity, storage and MCP contracts for the first validation and plugin distribution. Keep this experience working as the product grows; it is a supported delivery surface, not a disposable prototype.
 - **Cloudflare runtime:** later compose the same product into the full hosted service, with deployment, identity, storage and live-state integrations under PMX's control. Reuse suitable Sites work without making the standalone service depend on Sites.
 
+**Runtime boundaries (2026-10-15).** Keep one modular product, with explicit construction
+and shutdown for each edition. Shared code does not acquire concrete storage, install global
+listeners or start local services merely by being imported. Enforce dependency direction:
+contracts and product rules do not depend on runtime entrypoints; remote clients do not
+import local execution machinery. The boundaries include:
+
+- **Identity and permissions:** edition-specific authentication supplies the principal;
+  shared rules enforce grants across reads, writes, derived metadata and event delivery.
+- **Durable and temporary state:** boards, work items, gate deadlines and audit records
+  outlive a process; presence, connections, waits and timers have explicit owners and recovery
+  behavior. A viewer's current board is not another caller's write target.
+- **External capabilities:** filesystem access, network fetches, subprocess MCP, builds and
+  WebView automation belong to runtime adapters. Document supported behavior per edition,
+  including expiry and live-session behavior; absent capabilities are explicit, not silent
+  substitutes. Reusing a renderer does not make its sandbox or host protocol interchangeable.
+
+Package boundaries are not service boundaries. Keep board, context and relation consistency
+together initially; extract a deployed service only for a concrete security, execution-lifetime,
+scaling or failure-isolation need. [ADR-001](adr-001-bun-only-runtime.md) remains the local
+Bun runtime/SDK decision, not a ban on runtime-neutral product code or the hosted editions.
+This does not introduce a Node dual-build or cloud dependency for local users.
+
+**Three shared contracts:** operation requests/results, the workbench's request/event/asset
+protocol, and the editable board archive. Define and test the supported portions of each
+across editions. MCP is a host adapter over those product operations; a common registration
+module does not prove that Sites supports every local resource, subscription or embedded app.
+
+**Extraction gate:** after the current acceptance checkpoint, establish these boundaries
+through one complete read/edit/commit/reconnect slice, not a broad folder move. Exercise a
+browser and agent conflict, lost-response retry, persistence failure, runtime restart,
+independent board navigation and an unreadable linked source. Preserve local offline behavior;
+a simulated async runtime does not validate Sites or Cloudflare. Recheck platform support
+and prove the slice there before expanding the port. Package names, interfaces, storage
+mechanisms and the extraction sequence belong in a scoped implementation plan.
+
 **Shared-runtime maintenance checkpoint (2026-10-11).** The current lifecycle evaluator
 acquires data from the local `canvasState` singleton. When a second runtime needs it, separate
 runtime acquisition from qualification so the same rules consume an authorized board snapshot.
@@ -1170,6 +1255,13 @@ metadata needed for the selected boards, not the whole workspace taxonomy or
 private neighbouring boards. Export review shows what metadata and evidence
 will leave with the content. This portable archive is additional to today's
 read-only HTML export.
+
+**Archive version policy:** version the interchange format and decide the supported import
+versions and explicit upgrade path before users depend on it. Reject unsupported archives
+before changing destination data; never silently discard content to fit a newer format.
+This is a user-data contract, not automatic authorization for legacy API shims or indefinite
+format support. The implementation plan must resolve that policy explicitly alongside local
+data continuity rather than infer it from the repository's no-backwards-compatibility rule.
 
 **Identity and relations.** Import creates a new board by default, assigning
 destination IDs to copied boards, cards and assets while retaining their origin

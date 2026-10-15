@@ -8,6 +8,12 @@ Each item is tagged by shape: **project** (multi-day, own plan/PR), **decision**
 
 ## Decision analysis (2026-07-08, maintainer-approved)
 
+**SDK clarification, 2026-10-15:** the historical "no further collapse" conclusion below is
+superseded by [vision move 6b](../product-vision-2026-09.md#6b-generate-every-surface-from-the-registry-l-two-releases--pending-the-maintainers-decision).
+The local SDK may remain synchronous while sharing mutation-policy checks. All supported
+writers must converge on the relevant policy and commit guarantees; asynchronous durable
+completion is a separate contract decision, not a prerequisite for fixing lock parity.
+
 The remaining items were re-analyzed with pros/cons and tiered; the maintainer approved this ordering:
 
 - **Tier 1 (do):** CLI raw fetches → operation invoker **together with** the H3 parser/module split (same file, one project); H7 test coverage **as a prerequisite** for any client refactor; M2 AX-bridge dedup (first client task after H7); the M8 flake subset (mock the Excalidraw network tests, share `getAvailablePort`, Playwright `retries`/`forbidOnly`, `e2e-cli` into CI). *C1b done (2026-07-08):* all 60 raw `api()` calls migrated onto the invoker (9-agent verified mapping; `webartifact.build` gained `errorBodyAsResult`; batch failure prints the envelope + exits 1; the `api()` helper is deleted; two deliberate raw `fetch` sites remain — binary screenshot, SSE watch). *H3 module split done (2026-07-09):* `agent.ts` is a 227-line entry over `src/cli/shared.ts` (cycle-free core: registry, parser, transport) + 11 `src/cli/commands/*` domain modules, moved byte-identically; ax-parity reads the whole cli tree. **Parser sub-item reshaped:** `parseFlags`/`BOOL_FLAGS` is now single-sited in shared.ts; `index.ts` keeps its intentionally tiny fixed-flag launcher reader (different domain — server launch, not agent commands). The spec-driven per-command flag parser (`defineCommand`) remains the ideal but is a redesign of all 83 command surfaces — deferred to a future CLI UX change, not worth manufactured churn now.
