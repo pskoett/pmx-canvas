@@ -275,6 +275,19 @@ deep technical exposition, no exhaustive migration tables. Per release:
 Example bullet: "Added a `/rename` slash command to rename the current session
 directly from the composer."
 
+## README changes require approval
+
+Do not change `Readme.md` or replace its screenshots or demo video unless the user
+explicitly asks for that change or approves it first. A feature, fix, or release is
+not permission to update the README. This rule overrides any checklist below that
+asks for a README update.
+
+Keep the README a short product introduction and getting-started guide. Put detailed
+feature behavior, API contracts, and release notes in the relevant docs or changelog.
+Use fictional content and data in README screenshots and demos, never real work boards.
+Keep agent-skill setup as the recommended starting point; reserve repository cloning
+for development, not the main installation instructions.
+
 ## Testing Conventions
 
 Use the `pmx-canvas-testing` skill for the repo-standard verification ladder, test command

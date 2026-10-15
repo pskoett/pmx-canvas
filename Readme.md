@@ -1,406 +1,119 @@
 # pmx-canvas
 
-**Relationships and knowledge lifecycle:** explain connections with kinds and reasons, use
-shared editable relation templates in Home, explicitly apply them to boards, and inspect evidence
-and downstream impact. Board dropdowns filter only relation kinds actually present, not presets.
-Folder categories supply
-explicit lifecycle defaults. Review due reasons, separate read/content/validation clocks,
-evidence-backed outcomes and reversible retirement appear in the workbench and agent context.
-Nothing classifies cards automatically or treats reading as validation.
-See the [contract and examples](docs/http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
+PMX Canvas is a shared visual workspace for you and your AI agents. You both
+add and edit material on the same board, in real time. Keep research, files,
+charts, diagrams, and interactive views together as you think, plan, and work.
 
-pmx-canvas is a visual workspace for planning, discovery, analysis, coordination,
-and orchestrating work with agents—from exploring an idea to directing its
-execution and carrying the learning forward.
+## Your extended memory
 
-**The board is your extended memory and your agent's working memory.** Use it
-to research, analyze, work with dashboards, and start or plan coding and other
-knowledge work—not just to prepare context for an agent. In the [long-term vision](docs/product-vision-2026-09.md#the-one-line-vision)
-your boards link into a wiki you can see as a map, bringing useful understanding
-back into whatever you do next, and any board can be shared or presented.
+When work is spread across chats and files, you keep explaining the same
+background and piecing together earlier decisions. The board is your extended
+memory and your agent's working memory. Keep what you've learned, connect it
+to its sources, and return to it in the next session.
 
-**A moldable canvas for agent-assisted thinking.** An infinite 2D surface
-where files, plans, status, charts, fetched web pages, annotations, code
-diffs, and diagrams live side by side. Every node carries its own renderer; agents
-(and you) build new views in the middle of a session — even streaming a
-structured panel into place as they generate it — not as a separate tooling
-project. Pin what matters and the agent reads your spatial curation as
-structured context.
+You choose what goes into the agent's context by pinning cards and boards.
+See what the agent has read, what has changed since, and what it added or
+edited. Boards save locally and link to one another, so you can build a
+library of knowledge alongside your ongoing work.
 
-**The board is the presentation.** Click **Present** to step through a saved tour
-(or groups in reading order), with chrome hidden and smooth camera moves.
-Optionally capture that same tour with
-`pmx-canvas record --mode deterministic --present --output tour.mp4`. See the
-[tour model and CLI walkthrough](docs/cli.md#tour-and-presentation).
+![Harbor dark theme: a fictional bicycle-library board with research, charts, interactive views, files, and labeled relationships](docs/screenshots/workbench-live-dark.png)
 
-<p align="center">
-  <img src="docs/screenshots/workbench-live-dark.png" alt="Live multi-agent workbench — dark theme: two agents on the board, review cards, an architecture diagram, and the writers pill" width="49%" />
-  <img src="docs/screenshots/workbench-live-light.png" alt="Live multi-agent workbench — light theme" width="49%" />
-</p>
-<p align="center"><sub>A real working board: two agents attached (the writers pill, top right), review cards they co-wrote, and a mermaid architecture diagram — dark and light themes.</sub></p>
+*Harbor, the dark theme.*
 
-<p align="center">
-  <img src="docs/screenshots/demo-workbench-dark.png" alt="Structured workbench demo — dark theme" width="49%" />
-  <img src="docs/screenshots/demo-workbench-light.png" alt="Structured workbench demo — light theme" width="49%" />
-</p>
+![Daylight light theme: the same fictional board with varied card types and sizes](docs/screenshots/workbench-live-light.png)
 
-PMX Canvas is a collaborative spatial workspace that humans and agents share
-in real time. Either side adds material; the human curates spatial structure
-(grouping, positioning, pinning); the agent reads that curation through
-`canvas://pinned-context` and acts on it. Spatial arrangement is
-communication — proximity means relatedness, pinning means *focus here*.
+*Daylight, the light theme. Both screenshots show the working app with fictional
+content and data.*
 
-The database holds many named boards. **Home is the library view, not a board**:
-a folder tree with the boards pinned into the agent's context, the open folder's
-subfolders and board cards (a thumbnail, the README line, cards and links), and
-a details pane for the selected board (in-context switch, README, pinned cards,
-links, Open board). Boards use nested folder paths (up to eight 60-character
-segments); a new folder exists once a board is filed beneath it. Agents can explicitly open/switch boards; deletion
-remains human-only. Creating a board or a copy from reusable cards leaves it
-inactive. Agents open its returned ID before writing; this also switches the
-shared workbench the human sees. Agents may list, read, rename, file into folders, and
-search boards without switching. Home
-provides a copy-preview dialog; an open board's command palette offers a
-board-link picker. Neither depends on native browser prompts.
+## A moldable canvas
 
-Home also offers **Map** (nested, collapsible folder regions with draggable, saved board
-positions) and **Graph** (live board/card clusters with focus, filters and force controls).
-Select a board or card for its connections, context status and Open action. Graph's overview
-groups cross-board links; selection reveals exact endpoints. Both views update as agents work,
-without losing your camera or selection. Folders organize where boards live; links independently
-show how they relate. Markdown saves
-bind `[[Board]]`, `[[Board#Card]]`, and `|alias` forms to durable IDs, ignoring
-code; ambiguous or missing targets stay explicit. A human can create an
-unresolved board-only link with exactly its authored name, then the source is
-re-saved with its captured board and revision. Native cross-board card
-connections appear in the source card footer and the **More** card picker.
-Copies record their previous board. Auto-arrange stays local; static exports
-show external connection evidence without remote lines.
+Put notes, files, web pages, images, charts, code diffs, and diagrams side by
+side on an infinite canvas. Ask your agent to build a dashboard, comparison,
+or interactive view on the board as you work. You can open a rich view in its
+own tab when you need more space.
 
-Agents explore the same summary-only projection through
-`GET /api/canvas/memory-graph`, SDK `getMemoryGraph()`, CLI `memory-graph`,
-`canvas_query { action: "graph" }`, or `canvas://graph{?focus,depth}`.
-Focus is a board ID, a JSON qualified key `[boardId,cardId|null]`, or `pins`;
-depth is 0–4 (default 2), undirected and membership-inclusive. Summaries are
-capped at 280 characters. Discovery counts links seen on their owning boards,
-without switching boards or marking full content read. Rich kinds and reasons travel with
-relations. Source changes flag explicitly dependent conclusions, not unrelated navigation.
+- **Organize your work.** Move and group cards, draw annotations, and connect
+  ideas with labeled links. Use folders, search, and the board map to find
+  earlier work.
+- **Work with agents.** Ask one or several agents to add material, track
+  tasks, and update the board. Review their changes and send instructions
+  from the canvas when your agent connection supports it.
+- **Keep knowledge useful.** Link conclusions to evidence, set review dates,
+  and see which dependent cards need checking when a source changes.
+- **Save and share.** Use undo, snapshots, and backups. Present a board as a
+  tour or export it as a self-contained HTML file.
 
-Open **Categories** on Home to edit workspace categories or apply an editable preset, and use
-folder settings to assign or inherit one. Delete an unused category there; assigned categories
-name the folders to clear or reassign first. Home's **Review needed** count lists the affected
-boards; **Review** opens the next affected card. On a card, **More → Review** asks for a short
-note and **Checked, still correct**. **Not now** closes without changing its review state.
-**Settings and history** holds its defaults, four clocks and advanced outcomes.
-Applied evidence-backed retain/revise/externalize
-validates the version checked. Retire removes the card from active briefs, not from the board
-or search; Restore (or the retirement Undo toast) is audited and does not validate it.
-The board's **All / To review / Retired** filter dims other cards. Unknown lifecycle is counted
-on Home and never silently assigned an expiry. Refresh recipes ask an agent to act, never run tools.
+## Install and start
 
-## Main features
+### With your agent (recommended)
 
-### 01 / Curate
-
-Drag, group, arrange, and **pin** nodes spatially. Connect nodes with typed
-edges — flow, depends-on, relation, references — drawn as smooth curves that
-leave each card perpendicular to its border and bend toward their target.
-Edges stay editable in place: double-click one to relabel, retype, restyle, or
-delete it, or click it and press Delete. Curation is the channel
-from human intent to agent context — the agent reads `canvas://pinned-context`
-and `canvas://spatial-context` (proximity clusters, reading order, pinned
-neighborhoods) and uses your layout to ground its next action.
-
-### 02 / Mix any data source
-
-Files, web pages, screenshots, structured panels, charts, diagrams, embedded
-MCP Apps, and bundled web artifacts all live on the same surface. A file node
-follows the file on disk as the agent edits it — source with line numbers, a
-CSV or TSV as a real table, a PDF inline — and can be re-pointed at another
-file (patch its `path`) without losing its edges, pins, or position. Anything else binary shows its name
-and size rather than decoded gibberish, and a very large text file renders
-truncated with a note saying so. Code review has its own node: a unified
-diff with per-file headers and colored added and removed lines. Diagrams can
-be drawn by hand in Excalidraw or written as plain mermaid text and rendered
-on the spot. Context cards, execution ledgers, and agent trace pills round out
-the set. Any rich surface — HTML, mermaid, json-render, graph, webpage, or a
-web artifact — can be **opened as a site**, full-page in its own browser tab
-with one click; the canvas and the tab render the same document. The reach of
-the canvas is the union of its [built-in node types](docs/node-types.md) and
-**whatever your agent's harness already has access to** — MCP servers, CLIs,
-file reads, web fetch, anything on its toolbelt.
-
-Dropping a PDF or Office document attaches the original (up to 20 MiB). It does
-not bundle a converter or automatically launch an agent. Clicking **Ask agent to
-import** also authorizes processing by the connected host's tools/model provider;
-there is no separate consent confirmation. The agent returns Markdown sections
-with references and warnings for review. Multi-card imports are placed together
-in a free area, in a group named after the source file. Remote hosts may require
-manual transfer; OCR, charts, and host format support are not guaranteed.
-
-JSON-render panels support bound form state, nested repeats, watchers, and Card
-header/footer slots. Form edits remain viewer-local until explicitly submitted;
-see [JSON-render nodes](docs/node-types.md#json-render-nodes). Authored iframe cards
-can grow with their content and move clear of neighbors, with human-grab deferral
-and undoable relocation. This is grow-only height fitting, not shrink-to-content
-or camera zoom; see [sizing limits](docs/node-types.md#automatic-sizing-of-authored-iframe-cards).
-
-### 03 / Annotate
-
-Draw freehand marks directly on the canvas to circle, underline, connect, or
-call out what matters without turning the markup into another node. Annotations
-persist with state and snapshots, can be erased in the browser, and appear to
-agents as compact spatial context: target, bounds, and nearby canvas content.
-
-### 04 / Control your context
-
-Steer the agent and see its work, without prompt engineering or copy-paste.
-Pin a node in the browser and the MCP server fires a
-`notifications/resources/updated` event the agent's harness picks up
-immediately — an explicit, low-noise control over what the agent sees next.
-Each pinned node then shows whether an agent has read it since you pinned it,
-and turns amber with "changed since read" when you edit it after the agent's
-last read. The budgeted context brief is a map of titles, summaries and relations:
-it does not mark card content read; pulling a card's text in full does. Link visibility
-is tracked separately, so a summary can mark its relations seen without marking its text read.
-Nodes an agent created or edited carry a violet sparkle with authorship in the type icon's hint until you edit them,
-and a pin an agent made carries a violet dot with its reason on hover.
-
-After a session, its receipt lists the cards it read, pinned, created and edited.
-**See change** opens one card's stacked Before/After with changed words marked;
-**Undo this card** restores its whole pre-session content without moving it or its links.
-Excerpts may be clipped; the caption makes clear that Undo affects the whole card.
-Cards whose latest editor is human are left alone, rather than merging edits. The receipt
-stays available when you visit another board, with a button to reopen its board before
-Undo or snapshot comparison; going Home dismisses it. In a narrow
-window, click the agent's initial for live counts, **Dim untouched nodes**, and the session panel.
-
-On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
-canvas into a shared workspace between you and the agent:
-
-- **Agent-native nodes** — most node types can act as interactive controls for
-  the agent out of the box: a node can focus context, create or update work,
-  add evidence, request input or approval, or send steering without leaving the
-  board. The sandboxed surfaces — HTML nodes and MCP apps — stay off until a
-  node opts in, since their content is author-supplied.
-- **Focus** — promote nodes into the agent's active context without moving the viewport.
-- **Work items & approval gates** — track visible tasks tied to nodes, and gate
-  high-impact actions behind a human `pending → approved/rejected` decision. A
-  linked node shows its work item's status on the title bar, and a live work
-  board lays the whole queue out by status and keeps itself current — useful
-  when several agents are working at once.
-- **Steering messages & agent-event timeline** — send instructions to the
-  active session, and read a normalized, bounded timeline of prompts, tool
-  runs, evidence (logs/diffs/screenshots/test-output), and failures.
-- **Node interactions** — eligible nodes emit one capability-gated, validated
-  interaction envelope from native controls, the sandboxed HTML / MCP-app
-  bridges (`window.PMX_AX.emit`), or json-render spec actions. The server is the
-  single trust boundary and clamps sandboxed surfaces to their own node.
-- **Elicitations, mode requests, commands & policy** — request structured human
-  input, propose a plan/execute/autonomous mode transition, invoke registry
-  commands (`pmx.plan`, `pmx.review`, …), and read a tool/prompt policy.
-- **Host capability** — adapters report what the host can do, for diagnostics.
-
-Recent additions in this layer: a **composer** steers directly from the board
-(with a target picker when several agents are connected); the **session panel**
-shows work items, approval gates, and a filterable timeline where every row
-names its writer; a shared **undo stack** knows whether the human or the agent
-made each edit, and undoing an agent's edit tells the agent as steering; a
-**scope fence** confines an agent's writes to selected nodes; and grabbing a
-node in the browser locks it against agent edits while you hold it. Dialogs,
-prompts, and tooltips are all in-canvas — every flow works identically in
-embedded browser panes (Copilot, Codex, Claude Code desktop) where native
-browser UI doesn't exist.
-
-Canvas-bound state (focus, work items, approvals, review annotations,
-elicitations, mode requests, policy) rides canvas snapshots and restore; the
-timeline persists for continuity but is retention-bounded and never restored by a
-snapshot. Every primitive is reachable from MCP, the HTTP API, the SDK, and
-`pmx-canvas ax …`. The core never depends on any host SDK, so adapters (e.g. the
-GitHub Copilot app) map onto the same neutral surfaces without making PMX Canvas
-vendor-specific.
-
-### 05 / Run several agents on one board
-
-The canvas is built for more than one writer. Every connected agent is named on
-its cursor, its top-bar session chip, and its activity rows, all in the agent
-violet (subagents in their own fuchsia) — you always see who is where. Workers roll up under their
-orchestrator's chip (`+2 workers`), each session chip has its own End button,
-and an idle board with no writers stays byte-clean.
-
-<p align="center">
-  <img src="docs/screenshots/multi-agent-live.png" alt="Two agent sessions and three rolled-up workers live on one board — named agent cursors on the cards, per-chip End buttons, the attributed session timeline, and the all-agents composer" width="100%" />
-</p>
-<p align="center"><sub>Two agent sessions (Claude Code +3 workers, GitHub Copilot) and their cursors live on one board, with the writer-attributed timeline and the all-agents composer.</sub></p>
-
-Steering is **addressed and reliable**: the composer's picker lists every
-connected writer with live pump health (`· polling`, `· 2 queued`), an
-addressed steer waits in that agent's delivery queue until the agent claims
-and marks it, and broadcasts age out instead of greeting every future
-consumer. Each host wakes its own way — the GitHub Copilot extension pumps
-steers into real Copilot turns, Codex picks them up through its app-native
-heartbeat, and any CLI agent becomes reactive with one command:
+Install the PMX Canvas skill and choose your agent when prompted:
 
 ```bash
-pmx-canvas pump --consumer amp --exec 'amp -x {message}'
+npx skills add pskoett/pmx-canvas/skills/pmx-canvas
 ```
 
-A failed hand-off is never silently swallowed: the steer stays pending and the
-pump exits non-zero. Presence is honest too — "thinking" settles to idle after
-silence, tool calls never clobber an explicit phase, and an attached writer
-that has never made a spatial write still parks its cursor at its last
-activity so it cannot be invisible. Agents coordinate with each other over the
-same steering queue (agent-to-agent hand-offs, reviews, and territory splits),
-and the `pmx-canvas-orchestration` skill documents the choreography.
+Then ask your agent:
 
-### 06 / Save
+> Use the pmx-canvas skill to install and set up PMX Canvas for this project.
+> Start the canvas, check that you can connect to it, and give me the link to open it.
 
-Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
-git-committable, shareable across machines, and survives both browser
-refresh and server restart. Autosave is not a backup: `pmx-canvas backup` and
-its optional server-run schedule copy the whole board library, while restore
-keeps the replaced database. Backup and scheduling are backend/CLI operations;
-there is no Home backup button. A board can also be exported as a self-contained
-HTML file. Export previews what is included, omits local file contents unless
-explicitly requested, and locks board-link cards because an exported file has
-no live target library (the target title is not embedded). Named [snapshots](docs/mcp.md), full
-undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
-the canvas durable rather than throwaway. Stop the server before committing
-the DB so SQLite WAL data is checkpointed into the file.
+The skill gives your agent instructions for installing PMX Canvas, connecting
+to it, and working on boards. It doesn't install the app by itself; your agent
+walks you through setup and any permissions it needs. No repository clone is needed.
 
-### 07 / Any agent
+### Run it yourself
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (24 tools,
-15 static canvas resources plus two context/graph resource templates, change notifications), the [CLI](docs/cli.md), the
-[HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
-[environment variables documented here](docs/environment.md). Works with
-Claude Code, the GitHub Copilot app and CLI, Codex, Amp, Cursor, Windsurf, or
-any agent that can spawn an MCP stdio server, call a CLI, or hit an HTTP
-endpoint.
-
-### 08 / Native app adapters
-
-PMX Canvas doesn't just run in a browser tab — it embeds **natively inside the
-agent apps you already use**, as a thin adapter layer over the same neutral AX
-surfaces (the core never imports a host SDK).
-
-<p align="center">
-  <img src="docs/screenshots/github-copilot-app.png" alt="PMX Canvas as a native canvas panel in the GitHub Copilot app" width="100%" />
-</p>
-<p align="center"><sub>PMX Canvas as a native canvas panel in the GitHub Copilot app.</sub></p>
-
-<p align="center">
-  <img src="docs/screenshots/codex-app.png" alt="PMX Canvas workbench in the Codex in-app Browser" width="100%" />
-</p>
-<p align="center"><sub>The live PMX workbench in the Codex in-app Browser.</sub></p>
-
-<p align="center">
-  <img src="docs/screenshots/claude-code-desktop.png" alt="PMX Canvas in the Claude Code desktop app's built-in browser pane, driven over MCP" width="100%" />
-</p>
-<p align="center"><sub>Claude Code desktop: the workbench in the built-in browser pane, mutated live over MCP.</sub></p>
-
-<p align="center">
-  <img src="docs/screenshots/amp-orb-portal.png" alt="PMX Canvas running as an Amp orb service, viewed through the Amp portal in the Volt theme" width="100%" />
-</p>
-<p align="center"><sub>AMPCode: the canvas as an orb service through the Amp portal (Volt theme).</sub></p>
-
-- **GitHub Copilot app** — a committed project canvas extension
-  (`.github/extensions/pmx-canvas/`) opens the live PMX workbench in a native
-  Copilot panel (light-themed by default to match the app, via the `?theme=`
-  session override), wakes Copilot when the board sends a steer, injects
-  pinned/focused AX context on prompt submission, and exposes actions for focus,
-  work items, approval gates, review annotations, the AX timeline, and
-  host-capability reporting. Actions stay bound to the server shown by their
-  panel and are withheld if that server no longer matches the panel workspace.
-  Install it into any repo with
-  `pmx-canvas copilot install-extension` (`--dry-run` to preview).
-- **Codex app** — native through the Codex in-app Browser (opened to
-  `/workbench`) plus the PMX MCP server: agents read `canvas://ax-context` /
-  `canvas_ax_state { action: "get" }` and label Codex-originated focus with
-  `source: "codex"`. No extension API needed — Codex's two native surfaces
-  (MCP + in-app Browser) are exactly what the canvas requires.
-- **Claude Code desktop app** — the workbench runs in the desktop app's
-  built-in browser pane alongside the PMX MCP server, same zero-adapter recipe
-  as Codex: open `http://localhost:4313/workbench?theme=daylight` (or
-  `?theme=auto` to follow the app's appearance) in the app's browser and the
-  live board, pins, and Ghost Cursor all work in-panel — themed to match the
-  pane without changing what other clients see.
-- **AMPCode orbs + portal** — run the canvas as an orb service and view the
-  live workbench through the Amp portal (the `*.onamp.dev` URL ampcode.com
-  embeds for the thread). Zero configuration: orbs set `AMP_ORB` in the
-  service environment, and the canvas auto-adapts to the portal's constraints
-  — it defaults straight to the proxy-safe polling transport (the portal
-  proxy buffers the live event stream). Direct HTTP polls wait for new events
-  instead of pausing two seconds between reads, keeping guest cursors responsive.
-  It renders HTML, graph, json-render,
-  and app surfaces inline via `srcdoc` because the nested-iframe embed blocks
-  `src`-URL child iframes (`?transport=sse` and `?iframe-mode=src` override
-  either behavior when diagnosing). Non-orb buffering proxies get the same
-  protections via runtime detection: an SSE watchdog that falls back to
-  polling, and the boot-time iframe probe.
-
-Any other app browser (the ChatGPT desktop app, an IDE webview, …) works the
-same zero-adapter way: open the workbench URL, and add `?theme=<name|auto>` to
-give that panel its own session-local default theme.
-
-The contract is host-agnostic, so a new host plugs in the same way: map its
-hooks, canvas, and session APIs onto PMX's AX primitives — no core changes.
-
-## Prerequisites
-
-- [Bun](https://bun.sh) >= 1.4.2
-
-The published SDK entrypoint is Bun-first. Node.js consumers should use the
-CLI, MCP server, or HTTP API.
-
-## Install
+Install [Bun](https://bun.sh) 1.4.2 or newer, then run this command from the
+folder where you want to keep your boards:
 
 ```bash
-bunx pmx-canvas              # Run without installing (recommended for one-off use)
-bun add -g pmx-canvas        # Install globally — exposes the `pmx-canvas` command
-bun add pmx-canvas           # Install into a project (needed for the Bun SDK)
-npm install -g pmx-canvas    # npm works too — still requires Bun on PATH to run
+bunx pmx-canvas
 ```
 
-`pmx-canvas` is Bun-first: the CLI is a TypeScript file with a `#!/usr/bin/env bun`
-shebang, so Bun must be installed even when you fetch the package via npm or pnpm.
+The command starts the canvas and opens it in your browser. To explore a
+sample board first, run `bunx pmx-canvas --demo` in an empty folder.
 
-To work on the canvas itself, clone the repo — see [Development](#development).
-
-## Quick start
-
-### Run the canvas
+For a permanent installation:
 
 ```bash
-bunx pmx-canvas              # Start canvas, open browser
-bunx pmx-canvas --demo       # Start with the showcase demo board
-bunx pmx-canvas --no-open    # Headless (good for daemons / CI)
-bunx pmx-canvas --theme=volt # Pick a theme (nine ship; PMX_CANVAS_THEME works too)
-bunx pmx-canvas --mcp        # Run as MCP server (stdio)
-bunx pmx-canvas --help       # All commands
+bun add -g pmx-canvas
+pmx-canvas
 ```
 
-For the experimental ChatGPT/MCP Apps integration, use the separate
-[`--mcp-app` profile](docs/mcp.md#private-mcp-app-preview). It embeds the real
-PMX workbench with selection/pin context; prompts stay in ChatGPT's own composer.
-Host iframe policy and trusted-human restrictions still apply; this is not
-yet a published plugin or a natively verified ChatGPT integration.
+## Connect your agent
 
-Themes are a tool-rail picker away too, and any one panel can override the
-shared theme for itself with `?theme=<name|auto>`.
+PMX Canvas works with Claude Code, Codex, GitHub Copilot, Amp, and other agents
+through MCP, the protocol agents use to call tools. If your agent handled setup
+above, you're ready to make your first board. Otherwise,
+use a plugin or configure MCP directly. You don't need both for the same agent.
 
-Press `?` on the board for the full keyboard map. Shortcuts follow the
-platform — `⌘` on a Mac, `Ctrl` on Windows and Linux, where `Ctrl+Y` also
-redoes and `Backspace`/`Delete` both delete the selection.
+### Plugins
 
-The canvas opens at `http://localhost:4313`. Try `--demo` first — it seeds a
-showcase board with every node type on it: notes and status, files, a diff, a
-CSV table, charts of every kind, mermaid diagrams, the HTML primitives,
-structured panels, a grouped cluster, labeled edges, and context pins.
+The [PMX Canvas plugin](docs/agent-plugin.md) follows the open
+[Agent Plugins 1.0 standard](https://agent-plugins.org/). Use it in any client
+that supports the standard's MCP stdio connections. Bun must be installed;
+a global PMX Canvas installation isn't required.
 
-### Connect your agent (MCP)
+**In GitHub Copilot**, you can install directly from GitHub:
 
-Add to your agent's MCP config:
+```bash
+copilot plugin install pskoett/pmx-canvas:plugins/pmx-canvas
+```
+
+Enable it, start a new project session, and open **PMX Canvas**. Copilot also
+gets a native canvas panel; that panel is not part of the portable standard.
+
+Other apps have their own plugin install commands or UI. See the official
+[compatible clients and setup guides](https://agent-plugins.org/compatible-clients)
+and the [PMX plugin guide](docs/agent-plugin.md). There is no single install command
+for every client.
+
+### MCP setup
+
+Without a plugin, add a server to your agent's MCP settings with command
+`bunx` and arguments `pmx-canvas`, `--mcp`. Clients that use an `mcpServers`
+configuration accept:
 
 ```json
 {
@@ -413,240 +126,56 @@ Add to your agent's MCP config:
 }
 ```
 
-The canvas auto-starts on first tool call. Keep the config portable: commit it
-to the repo and let the workspace default to the launch directory — hard-coding
-an absolute `PMX_CANVAS_WORKSPACE_ROOT` breaks other checkouts and machines.
-Set that env var only when your host spawns the MCP server from an incidental
-directory (e.g. `~/.copilot`) instead of the project root.
+Start your agent in the same project folder as the canvas, then enable or
+approve the connection in your agent app. The MCP server can also start the
+canvas on its first tool call.
 
-Verify any environment in one command against a running server:
+Settings differ by app. Follow the [setup guide](skills/pmx-canvas/references/installing-pmx-canvas.md)
+for your client, including [Amp and orbs](skills/pmx-canvas/references/installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal).
 
-```bash
-bunx pmx-canvas smoke
-```
+## Make your first board
 
-It checks server health + workspace, CLI/server version skew, the MCP stdio
-initialize handshake, a temp-node create/search/remove round-trip, and board
-validation — JSON report, exit 1 on failure.
+Ask your connected agent:
 
-### Use inside the GitHub Copilot app
+> Create a PMX Canvas board with an overview of the recent projects and
+> threads we've been working on together. Group related work, summarize the
+> decisions and open questions, and link back to the threads and files you
+> can access. Show what's in progress and what we could pick up next. Tell
+> me if you're missing context rather than guessing.
 
-The standalone [agent plugin](docs/agent-plugin.md) in `plugins/pmx-canvas/` bundles PMX's
-MCP tools and native Copilot canvas. It uses the Agent Plugins 1.0 format: other compatible
-clients get the MCP tools and browser workbench, not Copilot's native side panel.
+Open the board, move related cards together, and pin the ones you want the
+agent to use. Then ask it to read the pinned cards and help you continue the work.
+You can also add notes and files yourself. Press `?` on the board for keyboard
+shortcuts.
 
-This repository includes a project canvas extension:
+Boards auto-save in `.pmx-canvas/canvas.db` inside your project folder.
+Use the same folder when you return. Autosave isn't a backup; see the
+[backup commands](docs/cli.md#backup-and-restore) to keep a separate copy.
 
-```text
-.github/extensions/pmx-canvas/extension.mjs
-```
+PMX Canvas runs locally and has no built-in multi-user accounts. Connected
+agents share the same open board. Content you ask an agent to read goes
+through that agent's tools and model provider; web content and hosted apps
+also use their external services.
 
-When loaded by the Copilot app, it opens the PMX workbench natively, starts a
-matching local PMX server when needed, and injects `AX` pinned/focused context
-as hidden per-turn context. The adapter is thin: PMX state still lives in
-`.pmx-canvas/canvas.db`, and the same HTTP, MCP, CLI, and SDK surfaces remain
-available to non-GitHub agents. See
-[`github-copilot-app-adapter.md`](skills/pmx-canvas/references/github-copilot-app-adapter.md)
-for the full setup and live-test checklist.
+## Documentation and development
 
-### Use inside the Codex app
+- [Setup guide](skills/pmx-canvas/references/installing-pmx-canvas.md) and [plugin guide](docs/agent-plugin.md)
+- [Cards and views](docs/node-types.md)
+- [CLI](docs/cli.md), [MCP](docs/mcp.md), [HTTP API](docs/http-api.md), and [Bun SDK](docs/sdk.md)
+- [Environment settings](docs/environment.md) and [changelog](CHANGELOG.md)
 
-Codex needs no extension — its two native surfaces are exactly what the canvas
-requires. Add the PMX MCP server to the Codex workspace config (same snippet as
-[Connect your agent](#connect-your-agent-mcp)), then open the returned
-`/workbench` URL in the **Codex in-app Browser** so you can see mutations live.
-Agents read pinned/focused context from `canvas://ax-context` /
-`canvas_ax_state { action: "get" }` and label Codex-originated focus with
-`source: "codex"`. See
-[`codex-app-adapter.md`](skills/pmx-canvas/references/codex-app-adapter.md) for
-the full workflow and live-test checklist.
-
-### Use inside AMPCode orbs and the Amp portal
-
-The portal and the agent's MCP connection are separate. For native Canvas tools,
-merge this into the workspace's `.amp/settings.json` (not `.mcp.json`):
-
-```json
-{
-  "amp.mcpServers": {
-    "canvas": {
-      "command": "bunx",
-      "args": ["pmx-canvas@0.8.2", "--mcp"],
-      "includeTools": ["canvas_*"],
-      "env": {
-        "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
-        "PMX_CANVAS_PORT": "14313",
-        "PMX_CANVAS_URL": "",
-        "PMX_CANVAS_AGENT_SOURCE": "amp"
-      }
-    }
-  }
-}
-```
-
-Replace the root and example port with the portal service's actual workspace and local
-listening port, including an orb-assigned port. Configure this inside the orb/runner;
-settings on your laptop are not automatically available there.
-In the PMX product checkout, use `"command": "bun"` and
-`"args": ["run", "src/mcp/server.ts"]` to test the checked-out source instead.
-Run `amp mcp doctor` in that workspace. If it reports `awaiting approval`, the user
-must review the command and run `amp mcp approve canvas` there; the agent must not
-self-approve or bypass workspace trust. Then reload MCP connections and confirm
-`connected`, Canvas tool discovery, and matching `/health.workspace`, version and
-active board before writes. An open portal or standalone MCP handshake does not prove
-native discovery. PMX ships no dedicated Amp lifecycle adapter: an active agent can
-poll steering, but MCP setup alone does not wake an idle thread or activate skills.
-See the bundled [Amp setup and verification guide](skills/pmx-canvas/references/installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal)
-and [Amp MCP configuration](https://ampcode.com/docs/customize/mcp).
-
-For the visible workbench, run `pmx-canvas` as an orb service (the orb sets
-`AMP_ORB` in the environment automatically) and open the workbench through the
-thread's portal URL. A consumer-workspace service recipe:
-
-```yaml
-# .amp/services.yaml — supervised portal service
-services:
-  pmx-canvas:
-    command: pmx-canvas --no-open
-    portal: true
-    health: /health
-```
-
-```bash
-# .agents/setup — install the CLI (pin the exact version: a fresh orb running
-# @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.8.2
-```
-
-The server binds the portal-assigned `$PORT` automatically (gated on the
-`AMP_ORB` env the orb always sets, so a stray `PORT` elsewhere never changes
-the default), restores `.pmx-canvas/canvas.db`, and the portal manifest picks
-it up — no port flags or `$PORT` interpolation in the service command. The
-orb image needs Bun >= 1.4.2; WebView automation (`pmx-canvas screenshot`)
-also needs a working Chrome installation. The canvas detects the orb and the portal's nested-iframe
-embed on its own: live updates arrive over the proxy-safe polling transport,
-and iframe-backed nodes (HTML, mermaid, graph, json-render, web artifacts)
-render inline via `srcdoc` with their theme styling included. Two things can't
-be inlined and stay blocked by the portal embed: cross-origin hosted apps (e.g.
-the hosted Excalidraw MCP app), and PDF file nodes — a PDF node offers an
-"Open PDF" link there instead of a preview.
-Debug overrides: `/workbench?transport=poll|sse` and
-`?iframe-mode=srcdoc|src`. After verifying the workspace, `pmx-canvas smoke --port=<actual-port>`
-checks health, versions, a standalone MCP handshake, node lifecycle and validation.
-Use a disposable board: it performs temporary writes and leaves history. This does
-not verify native Amp discovery or browser rendering.
-
-### Install the agent skill (recommended)
-
-The fastest way to get a working canvas is to install the `pmx-canvas` agent
-skill. It teaches the agent how to install the package, start the server, and
-drive every node type, group, snapshot, and search the canvas exposes.
-
-```bash
-# 1. GitHub CLI extension (gh >= 2.90)
-gh skill install pskoett/pmx-canvas pmx-canvas
-
-# 2. Agent Skills CLI (runtime-agnostic)
-npx skills add pskoett/pmx-canvas/skills/pmx-canvas
-
-# 3. Manual clone + copy
-git clone https://github.com/pskoett/pmx-canvas.git
-cp -r pmx-canvas/skills/pmx-canvas <your-agent-skills-dir>
-```
-
-Common harness skill directories: `.claude/skills/` (Claude Code),
-`.github/skills/` or `.copilot/skills/` (Copilot CLI),
-`.agents/skills/` (cross-harness convention). Once the canvas is running,
-the agent can read `canvas://skills` and pull in companion skills
-(`pmx-canvas-orchestration` for running several agents on one board,
-`control-session-orchestrator`, `web-artifacts-builder`, `json-render-*`,
-`pmx-canvas-testing`, `playwright-cli`, etc.) as the work demands.
-
-The MCP server also supports the [Skills extension](docs/mcp.md#skills-extension-sep-2640):
-compatible hosts discover skills through `skills/list` and read instructions, references,
-scripts, and assets at `skill://<name>/<path>`. Files come from the running MCP package;
-restart MCP after an upgrade. Host support determines automatic skill loading, and reading
-a skill never grants permission to execute its scripts. Filesystem installation remains available.
-
-## Bugs, feature requests, and feedback
-
-Click the small bug icon below the logo in the left toolbar (**Bug and feedback**).
-Choose Bug report, Feature request, or General feedback, then enter a title and
-description. **Continue on GitHub** opens a prefilled issue in this repository;
-sign in to GitHub, review it, and submit. Issues are public. No board data, workspace
-paths, screenshots, or logs are attached automatically.
-
-## Documentation
-
-- **[Node types](docs/node-types.md)** — every node type, edge types, and
-  the three-tier visual matrix (json-render → html → web-artifact)
-- **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
-  watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 24 tools, 15 static canvas resources, two
-  context/graph resource templates, plus bundled
-  skill resources, Skills extension, change notifications, node-type routing
-- **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
-- **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native
-  host adapters connect context, steering, activity, and human gates
-- **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun
-- **[Release process](docs/RELEASE.md)** — maintainer-only
-
-## Scope
-
-- **Single-machine, today.** One canvas per `bunx pmx-canvas` instance, on
-  one machine. No built-in multi-user auth — collaboration means humans and
-  agents on the same machine: every browser tab and every connected agent
-  pointed at the same `localhost:4313` shares one live board, with per-writer
-  presence (cursors, chips, minimap dots) for all of them. To share across
-  machines, commit `.pmx-canvas/canvas.db`.
-- **What leaves your machine.** The core canvas runs entirely on
-  `localhost`. Network egress only happens for explicit, opt-in flows:
-  `webpage` nodes and remote-URL `image` nodes fetch the address you give
-  them; `mcp-app` / `canvas_app { action: "diagram" }` calls go to whatever
-  MCP server URL you configure (the Excalidraw preset uses
-  `https://mcp.excalidraw.com/mcp`); building a web artifact runs a package
-  manager, which fetches a React/Tailwind toolchain plus that artifact's declared dependencies (and, if neither pnpm nor bun is present, installs pnpm globally) from the npm
-  registry; and `bunx` itself reads the registry on first install. Nothing
-  else phones home.
-
-## Tech stack
-
-- **Runtime:** [Bun](https://bun.sh)
-- **UI:** [Preact](https://preactjs.com) + [@preact/signals](https://github.com/preactjs/signals);
-  the json-render/graph viewer bundle is React + [recharts](https://recharts.org),
-  and mermaid nodes render with [mermaid](https://mermaid.js.org)
-- **Styling:** CSS custom properties + Tailwind (json-render bundle only)
-- **Server:** Bun.serve (HTTP + SSE)
-- **MCP:** [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) (stdio)
-
-## Development
+To run from source:
 
 ```bash
 git clone https://github.com/pskoett/pmx-canvas.git
 cd pmx-canvas
 bun install
 bun run build
-bun run dev            # Start + open browser
-bun run dev:demo       # Start with the showcase demo board
-bun run test           # Unit tests
-bun run test:e2e       # Playwright end-to-end tests
-bun run test:all       # Unit tests + browser smoke
+bun run dev
 ```
 
-For developer flows on the `pmx-canvas` repo itself (release process,
-contribution gates, agent-skill mirroring) see
-[`AGENTS.md`](AGENTS.md) and [`docs/RELEASE.md`](docs/RELEASE.md).
+See [AGENTS.md](AGENTS.md) for contributor guidance. Report bugs or suggest
+features in [GitHub issues](https://github.com/pskoett/pmx-canvas/issues), or
+use **Bug and feedback** in the canvas toolbar.
 
-## Contributing
-
-Contributions welcome. Please open an issue first to discuss what you'd like
-to change.
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/my-change`)
-3. Run `bun run test:all` before submitting
-4. Open a pull request
-
-## License
-
-[MIT](LICENSE)
+[MIT license](LICENSE).
