@@ -15,6 +15,8 @@ Don't assume. Don't hide confusion. Surface tradeoffs.
 - **Present multiple interpretations** — Don't pick silently when ambiguity exists
 - **Push back when warranted** — If a simpler approach exists, say so
 - **Stop when confused** — Name what's unclear and ask for clarification
+- **Attack the premise.** If two fixes based on the same assumption fail the same check, write down that assumption and test it directly before trying another fix. Use the smallest experiment that can disprove it; this is not permission for an unrelated redesign.
+- **Redesign from first principles.** When a new requirement exposes a mismatch in the existing design, consider how you would model it if that requirement had existed from the start. Prefer that design within the affected scope, without rewriting unrelated code.
 
 ### 2. Simplicity First
 Minimum code that solves the problem. Nothing speculative.
@@ -68,9 +70,23 @@ Strong success criteria let the agent loop independently. Weak criteria ("make i
 Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
 - After ANY correction from the user: log the lesson
-- Write rules for yourself that prevent the same mistake
+- Prefer encoding recurring lessons in types, lint rules, boundary checks, or regression tests over adding more prose. Use the smallest mechanism that catches the actual failure; do not add speculative guards.
 - Log to `.learnings/ERRORS.md`, `LEARNINGS.md`, or `FEATURE_REQUESTS.md`
-- Promote broadly applicable learnings to `CLAUDE.md` and `AGENTS.md`
+- Promote broadly applicable learnings to `CLAUDE.md` and `AGENTS.md` when automated enforcement cannot capture them; avoid duplicating what a check already enforces.
+
+### 6. Design for Retries and Concurrent Writers
+Apply this when the operation being changed can be retried, interrupted, or run concurrently.
+
+- **Make retries idempotent.** Retrying the same logical operation should converge on the intended state without duplicating side effects. Where repetition is intentional, distinguish a new operation from a retry. Verify interruption and retry at the relevant failure boundary.
+- **Separate before serializing.** Before adding a lock or queue, check whether writers can own separate files, keys, or state. Preserve genuinely shared state and its existing owner, including `CanvasStateManager`; serialize through that owner when separation would violate the domain.
+- Keep these changes within the requested operation. Do not introduce a general retry framework or repartition unrelated state.
+
+### 7. Explain Measured Numbers
+Before reporting or acting on a performance or evaluation result:
+
+- State what was measured, the baseline, workload, and conditions. Compare equivalent work and verify that outputs remain correct.
+- Identify what limits the result and check for confounders such as caching, warm-up, skipped work, or measurement overhead. Repeat enough to distinguish a real change from noise.
+- Keep a reproducible command or script. Report uncertainty and separate measured results from explanations that remain hypotheses; do not claim a speedup from a proxy that misses the user's workload.
 
 ## TypeScript Guardrails
 
