@@ -50,11 +50,11 @@ body{margin:0}
 <sc-for list="{{settings}}" as="m" hint-placeholder-count="8">
 <sc-if value="{{m.sep}}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: #1b2c44"></div></sc-if>
 <sc-if value="{{m.btn}}" hint-placeholder-val="{{ true }}"><button role="menuitem" aria-description="{{m.tip}}" style="display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left">{{m.label}}<span style="font-size: 11px; color: #6b7d94">{{m.hint}}</span></button></sc-if>
-<sc-if value="{{m.toggle}}" hint-placeholder-val="{{ false }}"><button role="menuitemcheckbox" aria-checked="false" aria-description="{{m.tip}}" style="display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left"><span>{{m.label}} <span style="font-size: 10px; color: #8ea3bd">Beta</span></span><span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8ea3bd">Off <span aria-hidden="true" style="display: inline-flex; align-items: center; width: 24px; height: 14px; padding: 2px; box-sizing: border-box; border: 1px solid #6b7d94; border-radius: 999px; background: #081524"><span style="width: 8px; height: 8px; border-radius: 50%; background: #8ea3bd"></span></span></span></button></sc-if>
+<sc-if value="{{m.toggle}}" hint-placeholder-val="{{ false }}"><button role="menuitemcheckbox" aria-checked="false" aria-description="{{m.tip}}" style="display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left"><span>{{m.label}} <sc-if value="{{m.beta}}" hint-placeholder-val="{{ true }}"><span style="font-size: 10px; color: #8ea3bd">Beta</span></sc-if></span><span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8ea3bd">Off <span aria-hidden="true" style="display: inline-flex; align-items: center; width: 24px; height: 14px; padding: 2px; box-sizing: border-box; border: 1px solid #6b7d94; border-radius: 999px; background: #081524"><span style="width: 8px; height: 8px; border-radius: 50%; background: #8ea3bd"></span></span></span></button></sc-if>
 </sc-for>
 </div>
 </div>
-<span style="font-size: 11px; color: #8ea3bd">13 tools, then Settings. Both Beta switches default Off and persist library-wide, never in board snapshots. Every main item explains itself on hover and keyboard focus through a nonnative, viewport-contained overlay outside the scrolling menu (preview above). Saving disables the action with aria-disabled while retaining focus on the switch; Tab and board shortcuts never act on the canvas behind the menu. Theme and Trace open in place with “‹ Settings”, not a side flyout. Eraser stays beside Text note.</span>
+<span style="font-size: 11px; color: #8ea3bd">13 tools, then Settings. Both Beta switches default Off and persist library-wide, never in board snapshots. Every main item explains itself on hover and keyboard focus through a nonnative, viewport-contained overlay outside the scrolling menu (preview above). Saving disables the action with aria-disabled while retaining focus on the switch; Tab and board shortcuts never act on the canvas behind the menu. Trace toggles inline with the same switch, without a Beta label; Clear trace appears separately while capture is on or trace cards remain. Theme opens in place with “‹ Settings”, not a side flyout. Eraser stays beside Text note.</span>
 <span style="font-size: 11px; color: #8ea3bd">Sessions Off: no chips, start, timeline, work items, composer or receipts; attached agents, writer visibility, approvals, scope, edit locks and veto remain. Lifecycle Off: no Review, policy/category management, filters or due/retired marks; saved records and suspended drafts remain. Folders, boards, pins and relations stay. UI opt-ins only, not API/security disables; retired context stays excluded.</span>
 </div>
 
@@ -206,7 +206,7 @@ class Component extends DCLogic {
     function m(label, hint, active) { return { btn: true, sep: false, label: label, hint: hint, bg: active ? '#1b2c44' : 'transparent' }; }
     var msep = { btn: false, sep: true };
     function setting(label, hint, tip) { return Object.assign(m(label, hint), { tip: tip, toggle: false }); }
-    function optIn(label, tip, active) { return { btn: false, sep: false, toggle: true, label: label, tip: tip, bg: active ? '#1b2c44' : 'transparent' }; }
+    function optIn(label, tip, active, beta = true) { return { btn: false, sep: false, toggle: true, beta: beta, label: label, tip: tip, bg: active ? '#1b2c44' : 'transparent' }; }
     var settings = [
       setting('Theme', 'Harbor ›', 'Choose the workspace appearance.'),
       setting('Snapshots', '', 'Save or restore this board; workspace opt-ins are not included.'),
@@ -214,7 +214,7 @@ class Component extends DCLogic {
       setting('Keyboard shortcuts', '?', 'See the available keyboard commands.'), msep,
       optIn('Agent sessions', 'Show session tools for this workspace. Off hides the tools, not attached agents or their protections.', true),
       optIn('Knowledge lifecycle', 'Show Review, policies, categories and lifecycle marks. Off retains saved records and suspends drafts; retired context stays excluded.'), msep,
-      setting('Trace', 'Off ›', 'Choose trace controls for inspecting canvas activity.'),
+      optIn('Trace', 'Show execution traces. Turning off keeps existing traces and never starts an agent.', false, false),
       setting('Send feedback', '', 'Share feedback about PMX Canvas.')
     ];
     var nodeMenu = [m('Focus', ''), m('Rename…', ''), m('Collapse', ''), m('Open in new tab', '', true), msep, m('Delete', '⌫')];

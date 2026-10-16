@@ -697,6 +697,22 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   const filters = await page.getByRole('group', { name: 'Lifecycle filter' }).boundingBox();
   const legend = await page.getByLabel('Relation legend').boundingBox();
   expect(legend!.y).toBeGreaterThanOrEqual(filters!.y + filters!.height);
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const agentSessions of [false, true]) {
+      await setWorkspaceFeatures(request, { agentSessions, knowledgeLifecycle: false });
+      await expect(page.getByRole('group', { name: 'Lifecycle filter' })).toBeHidden();
+      const area = (await page.locator('.canvas-region').boundingBox())!;
+      await expect.poll(async () => (await page.getByLabel('Relation legend').boundingBox())!.y - area.y).toBe(8);
+      await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+      await expect(page.getByRole('group', { name: 'Lifecycle filter' })).toBeVisible();
+      const lifecycle = (await page.getByRole('group', { name: 'Lifecycle filter' }).boundingBox())!;
+      await expect
+        .poll(async () => (await page.getByLabel('Relation legend').boundingBox())!.y)
+        .toBeGreaterThanOrEqual(lifecycle.y + lifecycle.height);
+    }
+  }
+  await setWorkspaceFeatures(request, { agentSessions: false });
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.locator(`[data-node-id="${unrelated.id}"]`).getByRole('button', { name: 'Expand (focus mode)' }).focus();
   const focusedLegend = await page.getByLabel('Relation legend').boundingBox();
@@ -758,6 +774,41 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   expect(state.edges.some((entry) => entry.id === edge.id)).toBe(false);
   for (const id of [a.id, b.id, unrelated.id])
     await request.delete(`/api/canvas/node/${id}`, { headers: { 'x-pmx-workbench': '1' } });
+});
+
+test('Settings toggles Trace inline without losing focus and keeps Clear trace available', async ({
+  page,
+  request,
+}) => {
+  await request.post('/api/workbench/intent', { data: { type: 'trace-toggle', payload: { enabled: false } } });
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const menu = page.getByRole('menu', { name: 'Settings', exact: true });
+  const trace = menu.getByRole('menuitemcheckbox', { name: 'Trace', exact: true });
+  await expect(trace).toHaveAttribute('aria-checked', 'false');
+  await expect(trace.locator('.settings-switch')).toBeVisible();
+  await trace.click();
+  await expect(trace).toHaveAttribute('aria-checked', 'true');
+  await expect(trace).toBeFocused();
+  await expect(menu).toBeVisible();
+  await request.post('/api/canvas/node', {
+    headers: { 'x-pmx-workbench': '1' },
+    data: { type: 'trace', title: 'Sample trace', content: 'Tool activity' },
+  });
+  await expect(page.locator('.canvas-node[data-node-type="trace"]')).toHaveCount(1);
+  await trace.press('Space');
+  await expect(trace).toHaveAttribute('aria-checked', 'false');
+  await expect(trace).toBeFocused();
+  await expect(page.locator('.canvas-node[data-node-type="trace"]')).toHaveCount(1);
+  await menu.getByRole('menuitem', { name: 'Clear trace', exact: true }).click();
+  await expect(page.locator('.canvas-node[data-node-type="trace"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await trace.press('Enter');
+  await expect(trace).toHaveAttribute('aria-checked', 'true');
+  await trace.press('Space');
+  await expect(trace).toHaveAttribute('aria-checked', 'false');
+  await expect(trace).toBeFocused();
+  await expect(menu.getByRole('menuitem', { name: 'Clear trace', exact: true })).toBeHidden();
 });
 
 test('selecting a group keeps its nested cards and their relations readable without hover focus', async ({

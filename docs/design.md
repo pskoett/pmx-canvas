@@ -158,6 +158,10 @@ use native `title` tooltips; associate the explanation with its control for assi
 Keep the menu scrollable in short windows and all items keyboard-reachable. Saving a switch
 uses `aria-disabled` with an action guard, not native disabling that drops keyboard focus;
 the focused switch announces its new state, and board shortcuts never own menu keys.
+Trace uses the same inline switch, without a Beta label or submenu. Clear trace stays a
+separate Settings action while capture is enabled or recorded trace cards remain.
+Relation filters sit 8 px below the canvas top when lifecycle is off, regardless of the
+session opt-in. Reserve the lifecycle row's space only while its filters are visible.
 
 - **Agent sessions OFF** hides session chips, Start agent session, timeline, work items,
   composer and receipts. It does not end or detach attached agents. Normal writer visibility

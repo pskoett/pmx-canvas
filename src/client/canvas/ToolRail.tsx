@@ -147,6 +147,7 @@ function SettingsItem({
   description,
   hint,
   beta,
+  toggle = beta,
   checked,
   disabled,
   onClick,
@@ -155,6 +156,7 @@ function SettingsItem({
   description: string;
   hint?: string;
   beta?: boolean;
+  toggle?: boolean;
   checked?: boolean;
   disabled?: boolean;
   onClick: () => void;
@@ -186,7 +188,7 @@ function SettingsItem({
         <span class="settings-item-label">
           {label} {beta && <span class="beta-tag">Beta</span>}
         </span>
-        {beta ? (
+        {toggle ? (
           <span class={`settings-switch${checked ? ' is-on' : ''}`} aria-hidden="true" />
         ) : hint ? (
           <span class="toolbar-menu-hint">{hint}</span>
@@ -272,7 +274,7 @@ export function ToolRail({
     }
   };
   // The Settings menu (docs/design/Chrome.dc.html §7) and the view it shows.
-  const [openMenu, setOpenMenu] = useState<null | 'settings' | 'theme' | 'trace'>(null);
+  const [openMenu, setOpenMenu] = useState<null | 'settings' | 'theme'>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ bottom: number; right: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -583,12 +585,22 @@ export function ToolRail({
                 )}
               <div class="toolbar-menu-divider" role="separator" />
               {!isHostedWorkbench() && !browsingMemory.value && (
-                <SettingsItem
-                  label="Trace"
-                  description="Show or clear execution traces sent by connected tools. This does not start an agent."
-                  hint={`${isTraceOn ? 'On' : 'Off'} ›`}
-                  onClick={() => setOpenMenu('trace')}
-                />
+                <>
+                  <SettingsItem
+                    label="Trace"
+                    description="Show execution traces sent by connected tools. Turning off keeps existing traces. This does not start an agent."
+                    toggle
+                    checked={isTraceOn}
+                    onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
+                  />
+                  {(isTraceOn || traceNodeCount > 0) && (
+                    <SettingsItem
+                      label="Clear trace"
+                      description="Remove recorded execution traces from this board without changing whether trace capture is enabled."
+                      onClick={choose(() => sendIntent('trace-clear'))}
+                    />
+                  )}
+                </>
               )}
               <SettingsItem
                 label="Send feedback"
@@ -622,31 +634,6 @@ export function ToolRail({
                   )}
                 </button>
               ))}
-            </div>
-          )}
-          {openMenu === 'trace' && (
-            <div class="toolbar-menu" style={sideMenuStyle} role="menu" aria-label="Trace">
-              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('settings')}>
-                <span>‹ Settings</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                class="toolbar-menu-item"
-                onClick={choose(() => sendIntent('trace-toggle', { enabled: !isTraceOn }))}
-              >
-                <span>{isTraceOn ? 'Disable trace' : 'Enable trace'}</span>
-              </button>
-              {(isTraceOn || traceNodeCount > 0) && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="toolbar-menu-item"
-                  onClick={choose(() => sendIntent('trace-clear'))}
-                >
-                  <span>Clear trace</span>
-                </button>
-              )}
             </div>
           )}
         </span>
