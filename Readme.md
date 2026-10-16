@@ -43,13 +43,6 @@ own tab when you need more space.
 - **Save and share.** Use undo, snapshots, and backups. Present a board as a
   tour or export it as a self-contained HTML file.
 
-## See it in action
-
-[Watch the demo (2 min 49 sec)](docs/demos/pmx-canvas-demo.mp4)
-
-Start with an empty board and watch an agent add notes, charts, interactive
-views, and connections. The project and data are fictional.
-
 ## Install and start
 
 ### With your agent (recommended)
