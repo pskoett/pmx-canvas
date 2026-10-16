@@ -45,7 +45,7 @@ own tab when you need more space.
 
 ## See it in action
 
-[Watch the demo (3 min 38 sec)](docs/demos/pmx-canvas-demo.mp4)
+[Watch the demo (2 min 49 sec)](docs/demos/pmx-canvas-demo.mp4)
 
 Start with an empty board and watch an agent add notes, charts, interactive
 views, and connections. The project and data are fictional.
