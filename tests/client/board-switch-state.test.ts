@@ -32,6 +32,8 @@ import { resetAttentionBridge } from '../../src/client/state/attention-bridge.ts
 import { attentionHistory } from '../../src/client/state/attention-store.ts';
 import { applySessionReceipt, dismissSessionReceipt, sessionReceipt } from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
+import { effectiveLifecycleFilter, lifecycleFilter, openLifecycle } from '../../src/client/state/knowledge-store.ts';
 
 const originalFetch = globalThis.fetch;
 let fixtureEpoch = 0;
@@ -88,6 +90,7 @@ function layout(id: string): {
 }
 
 beforeEach(() => {
+  workspaceSettings.value = null;
   boardsLoaded.value = false;
   fixtureEpoch++;
   fixtureRevision = 0;
@@ -326,6 +329,7 @@ describe('board switch client state', () => {
   });
 
   test('review navigation cannot target a reused card ID after a later board choice', async () => {
+    workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: true };
     globalThis.fetch = ((input, init) => {
       if (String(input) === '/api/canvas/boards/open') {
         return Promise.resolve(json(boardPayload(JSON.parse(String(init?.body)).id)));
@@ -346,6 +350,47 @@ describe('board switch client state', () => {
     expect(await currentReview).toBe(true);
     expect(lifecycleTarget.value).toMatchObject({ boardId: 'B', nodeId: 'shared' });
     await openBoard('A');
+    expect(lifecycleTarget.value).toBeNull();
+  });
+
+  test('lifecycle off neutralizes retained filters and blocks review actions without blocking plain card jumps', async () => {
+    let opens = 0;
+    globalThis.fetch = ((input, init) => {
+      if (String(input) === '/api/canvas/boards/open') {
+        opens++;
+        return Promise.resolve(json(boardPayload(JSON.parse(String(init?.body)).id)));
+      }
+      return new Promise<Response>(() => {});
+    }) as typeof fetch;
+    lifecycleFilter.value = 'Retired';
+    expect(effectiveLifecycleFilter.value).toBe('All');
+    openLifecycle('shared');
+    expect(lifecycleTarget.value).toBeNull();
+    expect(await openMemoryTarget({ boardId: 'B', cardId: 'shared' }, { review: true })).toBe(false);
+    expect(opens).toBe(0);
+    const plainJump = openMemoryTarget({ boardId: 'B', cardId: 'shared' });
+    await Bun.sleep(0);
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'B', layout: layout('shared') });
+    expect(await plainJump).toBe(true);
+    expect(lifecycleTarget.value).toBeNull();
+  });
+
+  test.each([
+    false,
+    true,
+  ])('a pending review cannot reopen after lifecycle suspension (reenable=%s)', async (reenable) => {
+    workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: true };
+    const response = deferredResponse();
+    globalThis.fetch = ((input) =>
+      String(input) === '/api/canvas/boards/open' ? response.promise : new Promise<Response>(() => {})) as typeof fetch;
+    const opening = openMemoryTarget({ boardId: 'B', cardId: 'shared' }, { review: true });
+    await Bun.sleep(0);
+    workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: false };
+    if (reenable) workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: true };
+    response.resolve(json(boardPayload('B')));
+    await Bun.sleep(0);
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'B', layout: layout('shared') });
+    expect(await opening).toBe(false);
     expect(lifecycleTarget.value).toBeNull();
   });
 

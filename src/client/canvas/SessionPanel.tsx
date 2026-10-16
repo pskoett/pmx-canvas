@@ -5,7 +5,7 @@ import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 import { focusNode, selectedNodeIds } from '../state/canvas-store';
-import { activeSession, agentPresences, writerColor } from '../state/presence-store';
+import { activeSession, agentPresences, attachedSessions, writerColor } from '../state/presence-store';
 import {
   type ApprovalGateView,
   endSession,
@@ -296,6 +296,52 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
         {undone && <div class="session-timeline-undone">undone · steering sent</div>}
       </div>
     </li>
+  );
+}
+
+/** Approvals and write scope are safety controls, not an optional beta. */
+export function AgentControls() {
+  const gates = pendingGates.value;
+  const now = useNow();
+  if (!sessionPanelOpened.value && gates.length === 0) return null;
+  return (
+    <aside class="session-panel" aria-label="Agent controls">
+      <header class="session-panel-header">
+        <span class="session-panel-title">Agent controls</span>
+        <span class="top-bar-spacer" />
+        <button
+          type="button"
+          class="session-collapse"
+          aria-label="Collapse agent controls"
+          onClick={() => (sessionPanelOpened.value = false)}
+          disabled={gates.length > 0}
+        >
+          <IconChevronRight />
+        </button>
+      </header>
+      <ScopeRow />
+      <div class="session-panel-scroll">
+        <ul class="session-list" aria-label="Approvals">
+          {gates.map((gate) => (
+            <GateRow key={gate.id} gate={gate} now={now} />
+          ))}
+          {heldGates.value.map((gate) => (
+            <HeldGateRow key={gate.id} gate={gate} />
+          ))}
+          {resolvedGates.value.map((gate) => (
+            <ResolvedGateRow key={gate.id} gate={gate} />
+          ))}
+        </ul>
+        {attachedSessions.value.map((session) => (
+          <div key={session.sessionId} class="session-item">
+            <span class="session-item-main">{session.label}</span>
+            <button type="button" class="session-end" onClick={() => void endSession(session)}>
+              End attachment
+            </button>
+          </div>
+        ))}
+      </div>
+    </aside>
   );
 }
 

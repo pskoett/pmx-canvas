@@ -22,7 +22,7 @@ export function restoreViewerRuntimeState(
   token: string,
   source: Window,
   signal?: AbortSignal,
-): Promise<boolean> {
+): Promise<boolean | 'cancelled'> {
   if (!listening) {
     listening = true;
     effect(() => {
@@ -73,7 +73,7 @@ export function restoreViewerRuntimeState(
     });
   }
   const node = nodes.value.get(nodeId);
-  if (!node || signal?.aborted) return Promise.resolve(false);
+  if (!node || signal?.aborted) return Promise.resolve('cancelled');
   const snapshot: Snapshot = snapshots.get(nodeId) ?? {
     epoch: canvasInteractionEpoch.value,
     version: node.data.specVersion,
@@ -82,11 +82,11 @@ export function restoreViewerRuntimeState(
     owners: [],
   };
   snapshots.set(nodeId, snapshot);
-  const ready = new Promise<boolean>((resolve) => {
-    const finish = (loaded: boolean) => {
+  const ready = new Promise<boolean | 'cancelled'>((resolve) => {
+    const finish = (loaded: boolean | 'cancelled') => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', owner.cancel);
-      if (!loaded) snapshot.owners = snapshot.owners.filter((entry) => entry !== owner);
+      if (loaded !== true) snapshot.owners = snapshot.owners.filter((entry) => entry !== owner);
       resolve(loaded);
     };
     const owner = {
@@ -94,12 +94,12 @@ export function restoreViewerRuntimeState(
       source,
       mounted: () => clearTimeout(timer),
       ready: () => finish(true),
-      cancel: () => finish(false),
+      cancel: () => finish('cancelled'),
     };
     // A missing runtime fails, but a healthy offscreen document can wait for
     // paint indefinitely. Its synchronous mount acknowledgement ends the deadline;
     // only the later frame-gated ready message may promote it.
-    const timer = setTimeout(owner.cancel, 10_000);
+    const timer = setTimeout(() => finish(false), 10_000);
     for (const previous of snapshot.owners.filter((entry) => entry.source === source)) previous.cancel();
     while (snapshot.owners.length > 1) snapshot.owners[0]!.cancel();
     snapshot.owners.push(owner);

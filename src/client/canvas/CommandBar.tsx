@@ -1,11 +1,14 @@
 import { useState } from 'preact/hooks';
 import { BarHint } from './BarHint';
 import { IconSteer, IconClose } from '../icons';
-import { contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
+import { nodes, toggleContextPin } from '../state/canvas-store';
+import { activeContextPinnedNodeIds } from '../state/knowledge-store';
 import { steerableAgents } from '../state/presence-store';
 import { sendSteering } from '../state/session-store';
 import { modChord } from '../utils/platform';
 import { ChoiceMenu } from './ChoiceMenu';
+import { agentSessionsEnabled } from '../state/workspace-settings';
+import { useChromeHeight } from './use-chrome-height';
 
 /**
  * Command bar (rail-chrome-v2 phase 5): the human's steering surface while a
@@ -16,7 +19,8 @@ import { ChoiceMenu } from './ChoiceMenu';
  * context is summarised in the top bar's context chip (`ContextChip`).
  */
 export function CommandBar() {
-  const pinnedIds = [...contextPinnedNodeIds.value];
+  const barRef = useChromeHeight('--command-bar-height');
+  const pinnedIds = [...activeContextPinnedNodeIds.value];
   const nodeMap = nodes.value;
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -43,7 +47,7 @@ export function CommandBar() {
 
   const submit = async () => {
     const message = draft.trim();
-    if (!message || sending) return;
+    if (!agentSessionsEnabled.value || !message || sending) return;
     setSending(true);
     const ok = await sendSteering(message, effectiveTarget);
     setSending(false);
@@ -51,7 +55,13 @@ export function CommandBar() {
   };
 
   return (
-    <div class="command-bar" data-testid="command-bar">
+    <div
+      ref={barRef}
+      class="command-bar"
+      data-testid="command-bar"
+      hidden={!agentSessionsEnabled.value}
+      style={!agentSessionsEnabled.value ? { display: 'none' } : undefined}
+    >
       {pinnedIds.length > 0 && (
         <div class="command-bar-chips" aria-label="Pinned context">
           {pinnedIds.map((id) => {

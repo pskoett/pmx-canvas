@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { activeBoardId, boardList, boardIncarnation } from '../state/boards-store';
 import { nodes, edges } from '../state/canvas-store';
 import { requestJson } from '../state/intent-bridge';
@@ -17,10 +18,11 @@ export function KnowledgeSync() {
   const boards = boardList.value;
   const cards = nodes.value;
   const links = edges.value;
+  const enabled = knowledgeLifecycleEnabled.value;
   useEffect(() => {
     const timer = setTimeout(() => void refreshKnowledge(), 100);
     return () => clearTimeout(timer);
-  }, [board, boards, cards, links]);
+  }, [board, boards, cards, links, enabled]);
   useEffect(() => {
     const timer = setInterval(() => void refreshKnowledge(), 60000);
     return () => clearInterval(timer);
@@ -29,6 +31,7 @@ export function KnowledgeSync() {
 }
 
 export function LifecycleFilters() {
+  if (!knowledgeLifecycleEnabled.value) return null;
   const counts = [...nodes.value.keys()].map(cardQualification);
   return (
     <>
@@ -39,6 +42,7 @@ export function LifecycleFilters() {
             key={filter}
             aria-pressed={lifecycleFilter.value === filter}
             onClick={() => {
+              if (!knowledgeLifecycleEnabled.value) return;
               lifecycleFilter.value = filter;
             }}
           >
@@ -59,6 +63,7 @@ function RetirementToast() {
   const target = retirementUndo.value;
   const [busy, setBusy] = useState(false);
   if (
+    !knowledgeLifecycleEnabled.value ||
     !target ||
     target.boardId !== activeBoardId.value ||
     target.incarnation !== boardIncarnation ||
@@ -73,7 +78,7 @@ function RetirementToast() {
         type="button"
         disabled={busy}
         onClick={async () => {
-          if (busy) return;
+          if (busy || !knowledgeLifecycleEnabled.value) return;
           setBusy(true);
           const result = await requestJson<{ ok: boolean } | null>(
             'restore',
@@ -108,6 +113,7 @@ function RetirementToast() {
 }
 
 export function LifecycleFooter({ nodeId }: { nodeId: string }) {
+  if (!knowledgeLifecycleEnabled.value) return null;
   const status = cardQualification(nodeId);
   if (!status || status.retired || (!status.due && status.sources.length === 0)) return null;
   const source = status.sources[0];

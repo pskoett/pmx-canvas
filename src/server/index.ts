@@ -1372,6 +1372,10 @@ export class PmxCanvas extends EventEmitter {
     if (!entry) return { ok: false, description: 'Nothing to undo' };
     await syncCanvasRuntimeBackends();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    emitPrimaryWorkbenchEvent('context-pins-changed', {
+      count: canvasState.contextPinnedNodeIds.size,
+      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
+    });
     // Undo can reverse an AX mutation (work item, focus, …); nudge AX surfaces to
     // re-fetch so a live board reflects the reversal (debounced client-side).
     emitPrimaryWorkbenchEvent('ax-state-changed', {});
@@ -1383,6 +1387,10 @@ export class PmxCanvas extends EventEmitter {
     if (!entry) return { ok: false, description: 'Nothing to redo' };
     await syncCanvasRuntimeBackends();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    emitPrimaryWorkbenchEvent('context-pins-changed', {
+      count: canvasState.contextPinnedNodeIds.size,
+      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
+    });
     emitPrimaryWorkbenchEvent('ax-state-changed', {});
     return { ok: true, description: `Redid: ${entry.description}` };
   }

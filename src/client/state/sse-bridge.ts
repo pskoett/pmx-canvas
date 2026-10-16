@@ -1,5 +1,6 @@
 import { findOpenCanvasPosition } from '../utils/placement.js';
 import { refreshKnowledge } from './knowledge-store';
+import { applyWorkspaceSettings } from './workspace-settings';
 import { cameraSchema, tourStopSchema } from '../../shared/tour.js';
 import { ownsCamera, playStop, presentationError, presenting, presentStop, recordingCamera } from './presentation';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
@@ -567,6 +568,7 @@ function handleConnected(data: Record<string, unknown>): void {
     (window as Window & { __PMX_WORKBENCH_TOKEN?: string }).__PMX_WORKBENCH_TOKEN = data.workbenchToken;
   }
   sessionId.value = (data.sessionId as string) || '';
+  applyWorkspaceSettings(data.workspaceSettings);
   connectionStatus.value = 'connected';
   // Hosted writes capture the active board. Load its identity before reporting
   // the viewport, rather than sending a spurious Home precondition on boot.
@@ -1258,6 +1260,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'context-usage': handleContextUsage,
   'trace-state': handleTraceState,
   'theme-changed': handleThemeChanged,
+  'settings-changed': (data) => applyWorkspaceSettings(data.workspaceSettings),
   'canvas-prompt-created': handleCanvasPromptCreated,
   'canvas-prompt-status': handleCanvasPromptStatus,
   'canvas-response-start': handleCanvasResponseStart,

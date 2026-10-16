@@ -16,6 +16,7 @@ import {
 import { IconClose, IconPin } from '../icons';
 import { GLYPHS } from './NodeContextMark';
 import { workbenchFetch } from '../state/workbench-transport';
+import { agentSessionsEnabled } from '../state/workspace-settings';
 
 /**
  * Session receipt (rail-chrome-v2 phase 5, design item 2): a dismissible card
@@ -370,7 +371,7 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
   const [loadingDiff, setLoadingDiff] = useState(false);
   // A new or merged receipt: the old diff no longer describes it.
   useEffect(() => setDiff(null), [receipt]);
-  if (!receipt) return null;
+  if (!agentSessionsEnabled.value || !receipt) return null;
 
   const onSnapshotBoard = receipt.snapshot?.boardId === activeBoardId.value;
   const snapshotBoard = boardList.value.find((board) => board.id === receipt.snapshot?.boardId);

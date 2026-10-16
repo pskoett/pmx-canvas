@@ -321,6 +321,7 @@ function touchedNodeId(rawInput: unknown, result: unknown): string | null {
  * and re-touching after a `session-end` would resurrect the writer).
  */
 const PRESENCE_EXEMPT_OPS = new Set([
+  'settings.set',
   'ax.presence.set',
   'ax.presence.get',
   'ax.activity.ingest',
@@ -448,8 +449,8 @@ export async function executeOperation(
   );
 }
 
-/** Board deletion and import review actions require the human in the workbench. */
-const HUMAN_ONLY_OPS = new Set(['board.delete', 'import.request', 'import.cancel', 'import.commit']);
+/** Workspace preferences, board deletion and import review require the human workbench. */
+const HUMAN_ONLY_OPS = new Set(['settings.set', 'board.delete', 'import.request', 'import.cancel', 'import.commit']);
 const TRUSTED_HUMAN_ONLY_OPS = new Set(['board.delete', 'import.request', 'import.cancel', 'import.commit']);
 
 /**

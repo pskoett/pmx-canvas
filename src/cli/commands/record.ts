@@ -251,9 +251,28 @@ cmd(
         // Each tick writes the newest painted frame, so frames land while recording.
         let latest: Buffer | undefined;
         let written: Buffer | undefined;
+        let captureError: unknown;
         let cdpQueue: Promise<unknown> = Promise.resolve();
         const send = (method: string, params?: Record<string, unknown>) => {
-          cdpQueue = cdpQueue.then(() => view.cdp(method, params));
+          cdpQueue = cdpQueue
+            .then(() => {
+              if (!captureError) return view.cdp(method, params);
+            })
+            .catch((error: unknown) => {
+              // Terminal Ctrl+C reaches Chrome's foreground process group too.
+              // Only its closed-view error AFTER an intended signal stop is
+              // harmless. Keep earlier/unrelated failures and handle ACK
+              // rejections immediately, rather than leaving them unobserved.
+              if (
+                stopping &&
+                error instanceof Error &&
+                'code' in error &&
+                error.code === 'ERR_INVALID_STATE' &&
+                error.message === 'Invalid state: WebView.cdp: view is closed'
+              )
+                return;
+              captureError ??= error;
+            });
           return cdpQueue;
         };
         view.addEventListener('Page.screencastFrame', (event) => {
@@ -267,12 +286,21 @@ cmd(
         );
         const firstDeadline = Date.now() + 10_000;
         while (!latest) {
+          if (captureError) throw captureError;
           if (Date.now() > firstDeadline) throw new Error('Chrome sent no screencast frames');
           await Bun.sleep(10);
         }
         const started = performance.now();
         const interval = 1000 / options.fps;
+        let nextConnectionCheck = started;
         while (!stopping && (!options.duration || count < Math.ceil(options.duration * options.fps))) {
+          // A static page may never paint/ACK again. Detect capture loss even
+          // then, rather than duplicating its last frame until a later Ctrl+C.
+          if (performance.now() >= nextConnectionCheck) {
+            await timed(send('Runtime.evaluate', { expression: '0' }), 'checking the capture connection');
+            nextConnectionCheck = performance.now() + 1000;
+          }
+          if (captureError) throw captureError;
           if (latest === written) duplicated++;
           written = latest;
           await Bun.write(frameName(count++), latest);
@@ -280,6 +308,7 @@ cmd(
           if (wait > 0) await Bun.sleep(wait);
         }
         await timed(send('Page.stopScreencast'), 'stopping the screencast');
+        if (captureError) throw captureError;
       }
       await Bun.write(
         join(framesPath, 'recording.json'),

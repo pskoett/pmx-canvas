@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { memoryKey } from '../../shared/memory-graph.js';
 import { boardList, openMemoryTarget } from '../state/boards-store';
 import { knowledge, knowledgeUnavailable, refreshKnowledge } from '../state/knowledge-store';
@@ -18,11 +19,13 @@ export function HomeReviewView({
   const [sourcesOnly, setSourcesOnly] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const enabled = knowledgeLifecycleEnabled.value;
   useEffect(() => {
-    void refreshKnowledge();
-  }, []);
+    if (enabled) void refreshKnowledge();
+  }, [enabled]);
   useLayoutEffect(() => {
     const cancel = (event: KeyboardEvent) => {
+      if (!knowledgeLifecycleEnabled.value) return;
       if (!isSelectionEscape(event)) return;
       event.preventDefault();
       setSearch('');
@@ -50,6 +53,7 @@ export function HomeReviewView({
   const unknown = Object.entries(catalog?.cards ?? {}).filter(
     ([key, status]) => !status.retired && status.unknown && scopedBoards.has((JSON.parse(key) as [string, string])[0]),
   ).length;
+  if (!enabled) return null;
   return (
     <section class="home-review-view" aria-label="Card review queue">
       <div class="home-main-head">
@@ -132,6 +136,7 @@ export function HomeReviewView({
                         disabled={opening === key}
                         aria-label={`Open review: ${card.title} on ${card.boardTitle}`}
                         onClick={async () => {
+                          if (!knowledgeLifecycleEnabled.value) return;
                           setOpening(key);
                           setError('');
                           const ok = await openMemoryTarget(card, { review: true });

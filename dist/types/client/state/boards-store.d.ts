@@ -74,6 +74,7 @@ export declare const lifecycleTarget: import("@preact/signals-core").Signal<{
     nodeId: string;
     incarnation: number;
 } | null>;
+export declare const lifecycleFilter: import("@preact/signals-core").Signal<"All" | "To review" | "Retired">;
 /** Layout/pin/reconnect invalidation for the library's shared graph projection. */
 export declare const memoryGraphRevision: import("@preact/signals-core").Signal<number>;
 /** False until the first list arrives — Home must not flash before the server answers. */
@@ -82,6 +83,8 @@ export declare let catalogEpoch: string | null;
 export declare let boardGeneration: number | null;
 /** Invalidates suspended writes when the canonical board/library is replaced. */
 export declare let boardIncarnation: number;
+/** Invalidates lifecycle UI work across suspension, including an off/on round trip. */
+export declare let lifecycleUiGeneration: number;
 /** Only the current transport's connected handshake may replace the server epoch. */
 export declare function connectBoardCatalog(epoch: string): void;
 /** The SSE bridge resyncs the canvas when the open board changes under it. */

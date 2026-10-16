@@ -7,6 +7,7 @@ import { axSurfaceState, nodes } from './canvas-store';
 import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
 import { agentActivity, agentPresences } from './presence-store';
 import { activeBoardId } from './boards-store';
+import { agentSessionsEnabled } from './workspace-settings';
 
 /** Explicit panel expansion, shared by the panel handle and the agent popover. */
 export const sessionPanelOpened = signal(false);
@@ -362,6 +363,7 @@ export async function sendSteering(message: string, target?: string | null): Pro
 
 /** Attach a human-started session; the agent's writes are attributed to it. */
 export async function startSession(): Promise<boolean> {
+  if (!agentSessionsEnabled.value) return false;
   const result = await requestOk('startSession', '/api/canvas/ax/presence', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -461,6 +463,7 @@ const touchedIds = (lists: Array<Array<{ id: string } | string>>): Set<string> =
   new Set(lists.flat().map((entry) => (typeof entry === 'string' ? entry : entry.id)));
 
 export const activityLensNodeIds = computed<Set<string> | null>(() => {
+  if (!agentSessionsEnabled.value) return null;
   const lens = activityLens.value;
   if (lens?.kind === 'live') {
     const touches = agentPresences.value.find(

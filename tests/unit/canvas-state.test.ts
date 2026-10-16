@@ -35,6 +35,12 @@ describe('canvas state manager', () => {
     removeTestWorkspace(workspaceRoot);
   });
 
+  test('workspace settings refuse writes without a database', () => {
+    canvasState.close();
+    expect(() => canvasState.updateWorkspaceSettings({ agentSessions: true })).toThrow('workspace database');
+    expect(canvasState.getWorkspaceSettings()).toEqual({ agentSessions: false, knowledgeLifecycle: false });
+  });
+
   test('a context node lands on the canvas where it was created, expanded', () => {
     // 0.4.6 orb feedback #1: context nodes used to auto-dock to a collapsed
     // right-hand pill, so an agent-created context node existed in the API and

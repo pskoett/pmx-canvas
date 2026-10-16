@@ -2,7 +2,7 @@
  * Many boards in the workbench (plan 012): the top-bar switcher, Home, and the
  * in-place delete confirm — asserted on what the human sees.
  */
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, setWorkspaceFeatures, type APIRequestContext } from './workspace-fixture.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -186,6 +186,7 @@ test('Home manages shared relation presets while board filters show only existin
   await expect(page.getByRole('button', { name: 'qualifies 1', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
   await expect(page.getByLabel('Filter board relations')).toHaveValue('');
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   for (const filter of ['To review', 'Retired']) {
     const button = page.getByRole('button', { name: new RegExp(`^${filter} ·`) });
     await button.click();
@@ -211,6 +212,7 @@ test('category glyph choices preserve custom glyphs and policy with clear search
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const category = {
     id: 'glyph-picker',
     name: 'Glyph example',
@@ -269,10 +271,61 @@ test('category glyph choices preserve custom glyphs and policy with clear search
   expect(await savedCategory()).toEqual({ ...category, glyph: 'Ж' });
 });
 
+test('Home board action labels stay on one line alongside review and more controls', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Needs review' } })).json();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+  const cardId = await note(request, 'Evidence to review');
+  expect(
+    (
+      await request.post(`/api/canvas/node/${cardId}/lifecycle`, {
+        headers: HUMAN,
+        data: {
+          lifecycleOverride: {
+            decayType: 'reality',
+            rate: 'medium',
+            cadenceDays: 7,
+            triggers: [],
+            revalidationMethod: 'Read the evidence',
+          },
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByTestId('home-board').getByRole('button', { name: 'Needs review', exact: true }).click();
+  const details = page.getByRole('complementary', { name: 'Board details' });
+  await expect(details.getByRole('button', { name: 'Review cards', exact: true })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  for (const width of [1280, 1024, 600, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const bounds = (await details.boundingBox())!;
+    for (const name of ['Open board', 'Review cards', 'More: move, rename, create from, delete']) {
+      const button = details.getByRole('button', { name, exact: true });
+      await expect(button).toBeInViewport({ ratio: 1 });
+      const buttonBounds = (await button.boundingBox())!;
+      expect(buttonBounds.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(buttonBounds.x + buttonBounds.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    }
+    expect(
+      await details.getByRole('button', { name: 'Open board', exact: true }).evaluate((button) => {
+        const text = document.createRange();
+        text.selectNodeContents(button);
+        return text.getClientRects().length;
+      }),
+    ).toBe(1);
+  }
+  await details.getByRole('button', { name: 'Open board', exact: true }).click();
+  await expect(page.getByTestId('home-view')).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Evidence to review' })).toBeInViewport();
+});
+
 test('Home Review scopes individual cards, reveals grouped content and docks without validating unsaved edits', async ({
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const { board: scoped } = await (
     await request.post('/api/canvas/boards', {
       data: { name: 'Scoped evidence', folder: 'Projects/Child/Long descendant folder' },
@@ -417,6 +470,7 @@ test('an agent opens its new board and the connected workbench follows without a
 });
 
 test('Home clears board attention and session receipts without reporting deletions', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const baseline = await note(request, 'Navigation baseline');
   const peer = await note(request, 'Keep this relationship', 500);
   const original = (await boards(request)).activeBoardId;
@@ -472,6 +526,7 @@ test('a refused browser write displays its reason and retains it in history', as
 });
 
 test('board switching refreshes approval labels and discards stale approval reads', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const ids: string[] = [];
   for (const name of ['Approvals A', 'Approvals B']) {
     const { board } = await (await request.post('/api/canvas/boards', { data: { name } })).json();
@@ -1364,7 +1419,7 @@ test('the shortcut reference accepts Escape immediately on a board and Home', as
           observer.observe(document.body, { childList: true, subtree: true });
         }),
     );
-    await page.getByRole('menuitem', { name: 'Keyboard shortcuts ?' }).click();
+    await page.getByRole('menuitem', { name: 'Keyboard shortcuts', exact: true }).click();
     expect(await opened).toContain('Keyboard Shortcuts');
     await expect(page.locator('.shortcut-overlay')).toHaveCount(0);
   }
@@ -1468,7 +1523,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   await page.evaluate(() => navigator.clipboard.writeText('https://example.com/not-a-hidden-board-card'));
   await page.keyboard.press('Control+v');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Keyboard shortcuts ?' }).click();
+  await page.getByRole('menuitem', { name: 'Keyboard shortcuts', exact: true }).click();
   await expect(page.locator('.shortcut-overlay')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('.shortcut-overlay')).toHaveCount(0);

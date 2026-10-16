@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, setWorkspaceFeatures } from './workspace-fixture.js';
 
 test('feedback rail button opens a private draft and hands only entered fields to GitHub', async ({
   page,
@@ -75,6 +75,7 @@ for (const [theme, width] of [
   ['daylight', 390],
 ] as const) {
   test(`feedback and agent menus use the ${theme} theme at ${width}px`, async ({ browser, request }, testInfo) => {
+    await setWorkspaceFeatures(request, { agentSessions: true });
     await request.post('/api/canvas/theme', { data: { theme } });
     for (const source of ['menu-author', 'menu-reviewer']) {
       await request.post('/api/canvas/ax/presence', { data: { source, attached: true } });

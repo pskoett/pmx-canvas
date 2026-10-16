@@ -1263,6 +1263,34 @@ skip SSE entirely and default straight to polling. Force a transport with
 `/workbench?transport=poll` (or `transport=sse` to disable the fallback /
 override the orb default).
 
+## Workspace UI beta settings
+
+`GET /api/canvas/settings` returns `{ ok: true, workspaceSettings: {
+agentSessions: false, knowledgeLifecycle: false } }`. Both switches default to
+false, including existing libraries with no saved settings.
+
+`POST /api/canvas/settings` accepts a partial object such as
+`{ "agentSessions": true }`. Values must be booleans (not strings, numbers,
+or null); omitted switches are preserved. Success returns the full canonical
+`workspaceSettings` only after SQLite persistence; writes without a workspace
+database fail. Settings are workspace-wide SQLite metadata, independent of
+boards and snapshots, and included in whole-library backups/restores.
+
+The HTTP-only operations `settings.get` / `settings.set` are UI preferences,
+not agent MCP tools or restrictions on session/knowledge APIs. Writes never
+create a board or attribute agent activity. POST requires the workbench's
+`X-PMX-Workbench: 1` UI marker; unmarked API writes receive 403. The hosted
+app-only bridge supplies that marker for this preferences operation alone,
+without forwarding the daemon's human-author token or exempting subsequent
+canvas edits from agent protections. The marker is a UI-policy convention,
+not authentication against a caller deliberately forging HTTP headers; hosted
+UI isolation relies on the host honoring app-only tool visibility.
+
+`settings-changed` carries `{ workspaceSettings: { agentSessions,
+knowledgeLifecycle } }`, including after a full-library restore. The `connected`
+snapshot includes `workspaceSettings` for SSE reconnect and polling recovery.
+Clients use these ordered events/snapshots as canonical, not late POST replies.
+
 ## Session theme override (host-default theming)
 
 `/workbench?theme=<name>` gives that browser session its own theme without

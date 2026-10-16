@@ -6,7 +6,8 @@ import {
   type BrowserContext,
   type Locator,
   type Page,
-} from '@playwright/test';
+  setWorkspaceFeatures,
+} from './workspace-fixture.js';
 import { fileURLToPath } from 'node:url';
 import { RELATION_PRESETS } from '../../src/shared/relations.js';
 
@@ -651,6 +652,7 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const mk = async (title: string, x: number) =>
     (await (
       await request.post('/api/canvas/node', {
@@ -4200,6 +4202,7 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
 });
 
 test('server-side focus updates the browser viewport', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   await page.setViewportSize({ width: 1280, height: 800 });
   const createResponse = await request.post('/api/canvas/node', {
     data: {
@@ -4641,6 +4644,7 @@ test('narrow screens keep the rail chrome fully usable with meta collapsed', asy
 });
 
 test('populated multi-agent bars keep view controls reachable after resizing', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const pinnedBoard = await (
     await request.post('/api/canvas/boards', { data: { name: 'Toolbar pinned reference' } })
   ).json();
@@ -4683,12 +4687,16 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
     const more = page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true });
     const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
     await expect
-      .poll(async () => {
-        const control = (await more.isVisible()) ? more : fit;
-        const bounds = await control.boundingBox();
-        const bar = (await page.locator('.top-bar').boundingBox())!;
-        return bounds !== null && bounds.x >= bar.x && bounds.x + bounds.width <= bar.x + bar.width;
-      })
+      .poll(() =>
+        more.or(fit).evaluateAll((controls) =>
+          controls.some((control) => {
+            // Resize can replace More with Fit; sample the current DOM in one frame.
+            const bounds = control.getBoundingClientRect();
+            const bar = control.closest('.top-bar')!.getBoundingClientRect();
+            return bounds.width > 0 && bounds.x >= bar.x && bounds.right <= bar.right;
+          }),
+        ),
+      )
       .toBe(true);
     if (await more.isVisible()) {
       await more.click();
@@ -4916,6 +4924,7 @@ test('agent presence reaches the browser: sessionActive flips on attach and back
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   await page.goto('/workbench');
   const shell = page.locator('.app-shell');
   await expect(shell).toHaveAttribute('data-session-active', 'false');
@@ -4944,6 +4953,7 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const created = await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Presence target', content: 'watch me', x: 200, y: 160, width: 360, height: 200 },
   });
@@ -5055,6 +5065,7 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
   page,
   request,
 }, info) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const created = await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Gate target', content: 'ship it', x: 160, y: 140, width: 360, height: 200 },
   });
@@ -5153,6 +5164,7 @@ test('unattended approval: countdown, auto-hold with a policy entry, reopen from
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const created = await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'TTL target', content: 'x', x: 160, y: 140, width: 320, height: 180 },
   });
@@ -5197,6 +5209,7 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const a = (await (
     await request.post('/api/canvas/node', {
       data: { type: 'markdown', title: 'Fence A', content: 'a', x: 120, y: 120, width: 260, height: 140 },
@@ -5291,6 +5304,7 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
 });
 
 test('Copilot adapter and task-named MCP attach share one polling steering recipient', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   await request.post('/api/canvas/node', { data: { type: 'markdown', title: 'Presence fixture', content: 'Ready' } });
   for (const data of [
     { source: 'copilot', label: 'GitHub Copilot', attached: true },
@@ -5325,6 +5339,7 @@ test('addressed steering: the composer lists connected agents, the picked one al
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   // Three connected agents: two sessions and one live writer.
   for (const [label, attached] of [
     ['claude-code', true],
@@ -5500,6 +5515,7 @@ test('human-started session: start from the quiet board, steer from the command 
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   // rail-chrome-v2 phase 5: the whole loop without an adapter — the human
   // attaches a session, the board flips to a Focus Session, agent writes are
   // attributed to it, steering goes out from the command bar, and ending it
@@ -5612,6 +5628,7 @@ test('shared undo: the panel undoes the agent’s latest edit and tells it; Ctrl
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   // rail-chrome-v2 phase 7, item 10.
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Human note', content: 'mine', x: 120, y: 120, width: 300, height: 160 },
@@ -5651,7 +5668,7 @@ test('shared undo: the panel undoes the agent’s latest edit and tells it; Ctrl
   });
   await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(1);
   await expect(page.locator('[data-testid="timeline-undo"]')).toHaveCount(0);
-  await page.locator('.canvas-viewport').click({ position: { x: 900, y: 700 } });
+  await page.locator('.canvas-viewport').click({ position: { x: 16, y: 16 } });
   await page.keyboard.press('ControlOrMeta+z');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(0);
   await page.keyboard.press('ControlOrMeta+Shift+z');
@@ -5701,6 +5718,15 @@ test('keyboard: arrow keys traverse nodes spatially, Enter opens, overlays trap 
   await expect(overlay.locator(':focus')).toHaveCount(1);
   for (let i = 0; i < 12; i += 1) await page.keyboard.press('Tab');
   await expect(overlay.locator(':focus')).toHaveCount(1);
+  const pin = overlay.locator('.expanded-pin');
+  await pin.click();
+  await expect(pin).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(pin).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Control+y');
+  await expect(pin).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(pin).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('Escape');
   await expect(overlay).toHaveCount(0);
   await expect(c).toBeFocused();
@@ -6331,6 +6357,7 @@ test('external steering: indicator + activity feed + writers sheet for session-l
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   // rail-chrome-v2 phase 6. Two external writers (an identified MCP agent and
   // a plain HTTP caller) write with no session attached. Unattached writers
   // from earlier tests may still be live (in-memory, 90 s TTL), so the
@@ -6484,6 +6511,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const { id } = (await (
     await request.post('/api/canvas/node', {
       data: {
@@ -6511,10 +6539,17 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
   expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle).toBeNull();
   await dialog.getByLabel('Cadence in days').fill('7');
-  await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
+  const saveLifecycle = dialog.getByRole('button', { name: 'Save lifecycle', exact: true });
+  await saveLifecycle.focus();
+  await page.keyboard.press('Enter');
   await expect
     .poll(async () => (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle?.cadenceDays)
     .toBe(7);
+  await expect(saveLifecycle).toBeFocused();
+  await expect(dialog.locator('.lifecycle-advanced')).toHaveJSProperty('open', true);
+  await page.keyboard.press('Backspace');
+  await expect(card).toBeVisible();
+  expect((await request.get(`/api/canvas/node/${id}`)).ok()).toBe(true);
   await dialog.getByRole('button', { name: 'Review frequency', exact: true }).click();
   await dialog.getByRole('menuitemradio', { name: 'Fast · at use', exact: true }).click();
   await dialog.getByLabel('How to check').fill('Compare with the source dashboard.');
@@ -6569,6 +6604,7 @@ test('human adopts and edits category defaults without a preset overwriting thei
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   await page.goto('/workbench');
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   await page.getByRole('button', { name: 'Categories', exact: true }).first().click();
@@ -6623,6 +6659,7 @@ test('human adopts and edits category defaults without a preset overwriting thei
 });
 
 test('a delayed review does not dismiss a reopened review or discard its new note', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const { id } = await (
     await request.post('/api/canvas/node', {
       headers: { 'x-pmx-workbench': '1' },
@@ -6675,4 +6712,384 @@ test('a delayed review does not dismiss a reopened review or discard its new not
     release();
     await page.unrouteAll({ behavior: 'wait' });
   }
+});
+
+test.describe('workspace beta settings', () => {
+  const sessions = 'Agent sessions (Beta)';
+  const lifecycle = 'Knowledge lifecycle (Beta)';
+  const toggle = (page: Page, name: string) => page.getByRole('menuitemcheckbox', { name, exact: true });
+  const open = async (page: Page) => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(toggle(page, sessions)).toBeEnabled();
+  };
+
+  test('sessions off restores the bottom context pill without the composer', async ({ page, request }) => {
+    await page.goto('/workbench');
+    const pill = page.getByRole('region', { name: 'Pinned context', exact: true });
+    await expect(pill).toBeHidden();
+    const ids: string[] = [];
+    for (const title of ['Pinned source', 'Pinned conclusion']) {
+      const { id } = await (
+        await request.post('/api/canvas/node', {
+          headers: { 'x-pmx-workbench': '1' },
+          data: {
+            type: 'markdown',
+            title,
+            content: 'Context remains useful without a session.',
+            x: ids.length * 600,
+            y: 100,
+          },
+        })
+      ).json();
+      ids.push(id);
+    }
+    await request.post('/api/canvas/context-pins', { data: { nodeIds: ids } });
+    await expect(pill).toContainText('2 nodes in context');
+    await expect(page.getByLabel('Steer the agent', { exact: true })).toBeHidden();
+    await request.post('/api/canvas/ax/presence', {
+      data: { source: 'context-pill-test', agentId: 'context-pill-agent', attached: true },
+    });
+    for (const knowledgeLifecycle of [true, false]) {
+      await setWorkspaceFeatures(request, { knowledgeLifecycle });
+      await expect(pill).toBeVisible();
+      await setWorkspaceFeatures(request, { agentSessions: true });
+      await expect(pill).toBeHidden();
+      await expect(page.getByLabel('Steer the agent', { exact: true })).toBeVisible();
+      await setWorkspaceFeatures(request, { agentSessions: false });
+      await expect(pill).toContainText('2 nodes in context');
+      await expect(page.getByLabel('Steer the agent', { exact: true })).toBeHidden();
+    }
+    await fitCanvas(page);
+    for (const id of ids) await page.locator(`[data-node-id="${id}"] .md-card-content`).click({ modifiers: ['Shift'] });
+    await expect(page.locator('.selection-bar')).toContainText('2 nodes selected');
+    for (const width of [1920, 1280, 1024, 900, 761, 600, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      );
+      const bounds = await pill.boundingBox();
+      const canvas = await page.locator('.canvas-region').boundingBox();
+      const selection = await page.locator('.selection-bar').boundingBox();
+      const minimap = await page.locator('.minimap').boundingBox();
+      if (!bounds || !canvas || !selection || !minimap) throw new Error('Canvas footer controls not rendered');
+      expect(bounds.x).toBeGreaterThanOrEqual(canvas.x);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(canvas.y + canvas.height);
+      expect(selection.x).toBeGreaterThanOrEqual(canvas.x);
+      expect(selection.x + selection.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+      expect(selection.y + selection.height).toBeLessThan(bounds.y);
+      if (canvas.width <= 1200) expect(minimap.y + minimap.height).toBeLessThan(selection.y);
+    }
+    await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await expect(page.getByRole('button', { name: 'Fit canvas', exact: true })).toBeVisible();
+    await fitCanvas(page);
+    const card = page.locator(`[data-node-id="${ids[0]}"]`);
+    await card.locator('.md-card-content').click({ modifiers: ['Shift'] });
+    await expect(page.locator('.selection-bar')).toBeVisible();
+    const selection = await page.locator('.selection-bar').boundingBox();
+    const footer = await pill.boundingBox();
+    if (!selection || !footer) throw new Error('Selection or context footer not rendered');
+    expect(selection.y + selection.height).toBeLessThan(footer.y);
+    await pill.getByRole('button', { name: 'Clear all context pins', exact: true }).click();
+    await expect(pill).toBeHidden();
+    expect((await (await request.get('/api/canvas/pinned-context')).json()).nodeIds).toEqual([]);
+    await request.post('/api/canvas/context-pins', { data: { nodeIds: [ids[0]] } });
+    await expect(pill).toContainText('1 node in context');
+    await page.getByRole('button', { name: /PMX Canvas.*Home/ }).click();
+    await expect(page.getByTestId('home-view')).toBeVisible();
+    await expect(pill).toBeHidden();
+  });
+
+  test('off by default; independent toggles persist on reload and synchronize a peer tab', async ({
+    page,
+    context,
+    request,
+  }) => {
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        headers: { 'x-pmx-workbench': '1' },
+        data: { type: 'markdown', title: 'Default-off card', content: 'Ordinary canvas content' },
+      })
+    ).json();
+    const { activeBoardId } = await (await request.get('/api/canvas/boards')).json();
+    await page.goto('/workbench');
+    await expect(page.getByRole('button', { name: 'Start agent session beta', exact: true })).toBeHidden();
+    await expect(page.getByLabel('Steer the agent', { exact: true })).toBeHidden();
+    await expect(page.getByTestId('session-receipt')).toBeHidden();
+    const card = page.locator(`[data-node-id="${id}"]`);
+    await card.hover();
+    await card.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true })).toBeHidden();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+    await expect(page.getByRole('button', { name: 'Categories', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Review', exact: true })).toBeHidden();
+    await request.post('/api/canvas/boards/open', { data: { id: activeBoardId } });
+    await open(page);
+    await expect(toggle(page, sessions)).toHaveAttribute('aria-checked', 'false');
+    await expect(toggle(page, lifecycle)).toHaveAttribute('aria-checked', 'false');
+    const peer = await context.newPage();
+    await peer.goto('/workbench');
+    await open(peer);
+    const checkPeerFeatures = async (sessionsOn: boolean, lifecycleOn: boolean) => {
+      await peer.bringToFront();
+      await peer.keyboard.press('Escape');
+      const start = peer.getByRole('button', { name: 'Start agent session beta', exact: true });
+      if (sessionsOn) await expect(start).toBeVisible();
+      else await expect(start).toBeHidden();
+      const peerCard = peer.locator(`[data-node-id="${id}"]`);
+      await peerCard.hover();
+      await peerCard.getByRole('button', { name: 'More actions' }).click();
+      const review = peer.locator('.context-menu').getByRole('button', { name: 'Review', exact: true });
+      if (lifecycleOn) await expect(review).toBeVisible();
+      else await expect(review).toBeHidden();
+      await peer.keyboard.press('Escape');
+      await open(peer);
+    };
+    await checkPeerFeatures(false, false);
+
+    await toggle(page, sessions).click();
+    await expect(toggle(peer, sessions)).toHaveAttribute('aria-checked', 'true');
+    await expect(toggle(peer, lifecycle)).toHaveAttribute('aria-checked', 'false');
+    await checkPeerFeatures(true, false);
+    await toggle(peer, lifecycle).click();
+    await expect(toggle(page, lifecycle)).toHaveAttribute('aria-checked', 'true');
+    await checkPeerFeatures(true, true);
+    await page.reload();
+    await open(page);
+    await expect(toggle(page, sessions)).toHaveAttribute('aria-checked', 'true');
+    await expect(toggle(page, lifecycle)).toHaveAttribute('aria-checked', 'true');
+    await toggle(page, sessions).click();
+    await expect(toggle(peer, sessions)).toHaveAttribute('aria-checked', 'false');
+    await expect(toggle(peer, lifecycle)).toHaveAttribute('aria-checked', 'true');
+    await checkPeerFeatures(false, true);
+    await toggle(peer, lifecycle).click();
+    await expect(toggle(page, lifecycle)).toHaveAttribute('aria-checked', 'false');
+    await checkPeerFeatures(false, false);
+    expect((await (await request.get('/api/canvas/settings')).json()).workspaceSettings).toEqual({
+      agentSessions: false,
+      knowledgeLifecycle: false,
+    });
+  });
+
+  test('every main Settings item describes itself on pointer hover and keyboard focus outside the menu', async ({
+    page,
+    request,
+  }) => {
+    // Include the conditional safety controls, without enabling session chrome.
+    await request.post('/api/canvas/node', {
+      headers: { 'x-pmx-workbench': '1' },
+      data: { type: 'markdown', title: 'Settings descriptions' },
+    });
+    await request.post('/api/canvas/ax/presence', { data: { source: 'settings-tips', attached: true } });
+    await page.goto('/workbench');
+    await open(page);
+    const menu = page.getByRole('menu', { name: 'Settings', exact: true });
+    const items = menu.locator('[role^="menuitem"]');
+    await expect(menu.getByRole('menuitem', { name: 'Agent controls', exact: true })).toBeVisible();
+    for (const item of await items.all()) {
+      await page.getByRole('button', { name: 'Settings', exact: true }).focus();
+      await item.hover();
+      await expect(item).toHaveAttribute('aria-describedby', /.+/);
+      const id = await item.getAttribute('aria-describedby');
+      expect(id).toBeTruthy();
+      const tip = page.locator('.settings-tooltip[role="tooltip"]');
+      await expect(tip).toBeVisible();
+      await expect(tip).toHaveAttribute('id', id!);
+      await expect(item).toHaveAccessibleDescription(/\S.{20,}/);
+      expect(await tip.evaluate((el) => el.closest('[role="menu"]') === null)).toBe(true);
+      await page.mouse.move(1000, 50);
+      await expect(item).not.toHaveAttribute('aria-describedby');
+      await item.focus();
+      await expect(item).toBeFocused();
+      await expect(tip).toBeVisible();
+      await expect(item).toHaveAccessibleDescription(/\S.{20,}/);
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(item).toBeFocused();
+      await expect(tip).toBeVisible();
+    }
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 390, height: 600 });
+    await open(page);
+    const last = menu.getByRole('menuitem', { name: 'Send feedback', exact: true });
+    await last.focus();
+    await expect(last).toBeFocused();
+    const bounds = (await menu.boundingBox())!;
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(600);
+    const lastBounds = (await last.boundingBox())!;
+    expect(lastBounds.y + lastBounds.height).toBeLessThanOrEqual(600);
+    await menu.getByRole('menuitem', { name: 'Agent controls', exact: true }).click();
+    await expect(page.getByRole('complementary', { name: 'Agent controls', exact: true })).toBeVisible();
+    await expect(page.getByTestId('session-scope')).toBeVisible();
+    await request.post('/api/canvas/ax/approval', {
+      data: { title: 'Approval without session beta', source: 'settings-tips' },
+    });
+    await expect(page.getByRole('list', { name: 'Approvals', exact: true })).toContainText(
+      'Approval without session beta',
+    );
+    await expect(page.getByLabel('Steer the agent', { exact: true })).toBeHidden();
+  });
+
+  test('disabling hides but preserves a steering draft, review draft and attached agent', async ({ page, request }) => {
+    await setWorkspaceFeatures(request, { agentSessions: true, knowledgeLifecycle: true });
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        headers: { 'x-pmx-workbench': '1' },
+        data: { type: 'markdown', title: 'Retained review', content: 'Source evidence', x: 200, y: 160 },
+      })
+    ).json();
+    await request.post('/api/canvas/ax/presence', {
+      data: { source: 'settings-draft', agentId: 'retained-agent', attached: true },
+    });
+    await page.goto('/workbench');
+    const composer = page.getByLabel('Steer the agent', { exact: true });
+    await composer.fill('Keep this unsent instruction');
+    const card = page.locator(`[data-node-id="${id}"]`);
+    await card.hover();
+    await card.getByRole('button', { name: 'More actions' }).click();
+    await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+    const review = page.getByRole('dialog', { name: 'Review card', exact: true });
+    await review.getByLabel('What did you check?').fill('Keep this unsaved observation');
+    // Review narrows the canvas independently of the window breakpoint.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await request.post('/api/canvas/context-pins', { data: { nodeIds: [id] } });
+    await expect(page.locator('.command-bar-chips')).toBeVisible();
+    await page.locator('.minimap').hover();
+    await page.waitForTimeout(200); // complete the minimap's hover magnification
+    const commandBounds = await page.locator('.command-bar').boundingBox();
+    const mapBounds = await page.locator('.minimap').boundingBox();
+    if (!commandBounds || !mapBounds) throw new Error('Composer or minimap not rendered');
+    expect(mapBounds.y + mapBounds.height).toBeLessThan(commandBounds.y);
+    await composer.focus();
+    // A peer's partial settings saves must not reset this tab's mounted drafts.
+    await setWorkspaceFeatures(request, { agentSessions: false });
+    await expect(composer).toBeHidden();
+    await expect(review).toBeVisible();
+    await setWorkspaceFeatures(request, { knowledgeLifecycle: false });
+    await expect(review).toBeHidden();
+    await expect(page.locator('.agent-chip')).toBeHidden();
+    await expect(page.getByTestId('session-receipt')).toBeHidden();
+    const presence = await (await request.get('/api/canvas/ax/presence')).json();
+    expect(presence.presences).toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: 'retained-agent', attached: true })]),
+    );
+    await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+    await expect(review.getByLabel('What did you check?')).toHaveValue('Keep this unsaved observation');
+    // A same-tab save disables its focused toggle, temporarily moving focus to body.
+    await open(page);
+    await toggle(page, lifecycle).click();
+    await expect(review).toBeHidden();
+    await expect(toggle(page, lifecycle)).toBeEnabled();
+    await toggle(page, lifecycle).click();
+    await expect(review).toBeVisible();
+    await expect(toggle(page, lifecycle)).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Settings', exact: true })).toBeHidden();
+    await expect(review).toBeVisible();
+    await expect(review.getByLabel('What did you check?')).toHaveValue('Keep this unsaved observation');
+    await review.getByRole('button', { name: 'Close review' }).click();
+    await setWorkspaceFeatures(request, { agentSessions: true });
+    await expect(composer).toBeVisible();
+    await expect(composer).toHaveValue('Keep this unsent instruction');
+    expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).records).toHaveLength(0);
+  });
+
+  for (const outcome of ['retain', 'retire'] as const) {
+    test(`an accepted ${outcome} review is acknowledged across beta suspension`, async ({ page, request }) => {
+      await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+      const { id } = await (
+        await request.post('/api/canvas/node', {
+          data: { type: 'markdown', title: 'Suspended save', content: 'Checked source', x: 100, y: 100 },
+        })
+      ).json();
+      await page.goto('/workbench');
+      const card = page.locator(`[data-node-id="${id}"]`);
+      await card.hover();
+      await card.getByRole('button', { name: 'More actions' }).click();
+      await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+      const review = page.getByRole('dialog', { name: 'Review card', exact: true });
+      await review.getByLabel('What did you check?').fill('One deliberate human check');
+      await review.getByText('Settings and history', { exact: true }).click();
+      await review.getByRole('combobox', { name: 'Outcome', exact: true }).selectOption(outcome);
+      await review.getByLabel('I applied this outcome and checked the content and sources').check();
+      let signalSaved!: () => void;
+      const saved = new Promise<void>((resolve) => {
+        signalSaved = resolve;
+      });
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(`**/api/canvas/node/${id}/review`, async (route) => {
+        const response = await route.fetch();
+        signalSaved();
+        await released;
+        await route.fulfill({ response });
+      });
+      try {
+        await review.getByRole('button', { name: 'Record review', exact: true }).click();
+        await saved;
+        await setWorkspaceFeatures(request, { knowledgeLifecycle: false });
+        await expect(review).toBeHidden();
+        if (outcome === 'retain') await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+        release();
+        await page.unrouteAll({ behavior: 'wait' });
+        if (outcome === 'retire') await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+        if (outcome === 'retain') {
+          await expect(review.getByLabel('What did you check?')).toHaveValue('');
+          await expect(review.getByRole('button', { name: 'Checked, still correct', exact: true })).toBeDisabled();
+          await expect(review).not.toContainText('Last checked: Unknown');
+        } else {
+          await review.getByRole('button', { name: 'Close review', exact: true }).click();
+          await expect(page.getByRole('button', { name: 'Undo retirement', exact: true })).toBeVisible();
+        }
+        const detail = await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json();
+        expect(detail.records).toEqual([
+          expect.objectContaining({ outcome, applied: true, evidence: 'One deliberate human check' }),
+        ]);
+        if (outcome === 'retire') {
+          await page.getByRole('button', { name: 'Undo retirement', exact: true }).click();
+          await expect
+            .poll(async () => (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).retired)
+            .toBe(false);
+        }
+      } finally {
+        release();
+      }
+    });
+  }
+
+  test('a failed settings save reports failure without falsely toggling either feature', async ({ page, request }) => {
+    await page.goto('/workbench');
+    await open(page);
+    await page.route('**/api/canvas/settings', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      await route.fulfill({ status: 500, json: { error: 'Settings storage unavailable' } });
+    });
+    for (const name of [sessions, lifecycle]) {
+      await toggle(page, name).click();
+      await expect(page.getByRole('alert')).toContainText('Could not save settings');
+      await expect(toggle(page, sessions)).toHaveAttribute('aria-checked', 'false');
+      await expect(toggle(page, lifecycle)).toHaveAttribute('aria-checked', 'false');
+      await expect(toggle(page, name)).toBeFocused();
+    }
+    expect((await (await request.get('/api/canvas/settings')).json()).workspaceSettings).toEqual({
+      agentSessions: false,
+      knowledgeLifecycle: false,
+    });
+    await page.unroute('**/api/canvas/settings');
+    await toggle(page, lifecycle).click();
+    await expect(toggle(page, lifecycle)).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('alert')).toBeHidden();
+    await expect(toggle(page, lifecycle)).toBeFocused();
+    await page.keyboard.press('Tab');
+    expect(
+      await page
+        .getByRole('menu', { name: 'Settings', exact: true })
+        .evaluate((menu) => menu.contains(document.activeElement)),
+    ).toBe(true);
+  });
 });

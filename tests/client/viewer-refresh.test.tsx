@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { render as renderDom } from 'preact';
 import { RefreshingViewerFrame } from '../../src/client/nodes/McpAppNode.tsx';
+import { resetAttentionBridge } from '../../src/client/state/attention-bridge.ts';
 import { iframeMode } from '../../src/client/state/iframe-mode.ts';
 
 const frameRef: { current: HTMLIFrameElement | null } = { current: null };
@@ -18,6 +19,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  resetAttentionBridge();
   iframeMode.value = null;
   globalThis.requestAnimationFrame = originalAnimationFrame;
 });

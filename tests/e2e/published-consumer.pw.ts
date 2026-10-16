@@ -90,8 +90,12 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
 
   // The seeded workspace is larger than the initial camera. Bring lazy viewers
   // into the actual canvas instead of relying on native scrolling beneath it.
-  await page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Fit all', exact: true }).click();
+  const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
+  if (await fit.isVisible()) await fit.click();
+  else {
+    await page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Fit all', exact: true }).click();
+  }
 
   const artifactFrame = page.frameLocator(
     '.canvas-node:has(.node-title:text-is("SDLC Control Room Artifact")) iframe.mcp-app-frame',

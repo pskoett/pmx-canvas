@@ -477,7 +477,7 @@ grep -q "recharts" "${CONTROL_PATH}"
 PLAYWRIGHT_MODULE="${ROOT_DIR}/node_modules/@playwright/test/index.mjs"
 if [[ -f "${PLAYWRIGHT_MODULE}" ]]; then
   cat > verify-artifacts.mjs <<'MJS'
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE);
+const { chromium, expect } = await import(process.env.PLAYWRIGHT_MODULE);
 
 const baseUrl = process.env.PMX_CANVAS_URL;
 const controlNodeId = process.env.CONTROL_NODE_ID;
@@ -487,8 +487,13 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto(`${baseUrl}/workbench`);
 
-  const controlNode = page.locator('.canvas-node').filter({ hasText: 'Atlas Release Control Room' });
+  const controlNode = page.locator(`.canvas-node[data-node-id="${controlNodeId}"]`);
   await controlNode.waitFor({ state: 'visible', timeout: 15000 });
+  // The CLI fixture contains enough cards to place this lazy-loaded viewer
+  // below the initial camera. Focus it before asserting its rendered content.
+  const focus = await page.request.post(`${baseUrl}/api/canvas/focus`, { data: { id: controlNodeId } });
+  if (!focus.ok()) throw new Error(`Artifact focus failed: HTTP ${focus.status()}`);
+  await expect(controlNode).toBeInViewport();
   const controlFrame = controlNode.frameLocator('iframe');
   await controlFrame.getByText('Atlas Release Control Room').waitFor({ state: 'visible', timeout: 15000 });
   await controlFrame.getByRole('heading', { name: 'Payment Retry Storm' }).waitFor({ state: 'visible', timeout: 15000 });

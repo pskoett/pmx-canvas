@@ -16,7 +16,7 @@ export declare function RefreshingViewerFrame({ source, iframeRef, onLoad, onDoc
     source: ViewerFrameSource;
     iframeRef: RefObject<HTMLIFrameElement>;
     onLoad: () => void;
-    onDocumentLoad?: (frame: HTMLIFrameElement, signal: AbortSignal) => void | Promise<boolean | void>;
+    onDocumentLoad?: (frame: HTMLIFrameElement, signal: AbortSignal) => void | Promise<boolean | 'cancelled' | void>;
     title: string;
     className?: string;
     sandbox?: string;

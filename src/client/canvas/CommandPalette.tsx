@@ -13,6 +13,7 @@ import { saveCanvasTheme } from '../state/intent-bridge';
 import { createNodeInView } from './create-in-view';
 import { sessionActive } from '../state/presence-store';
 import { startSession } from '../state/session-store';
+import { agentSessionsEnabled } from '../state/workspace-settings';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
@@ -219,7 +220,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
           onClose();
         },
       },
-      ...(sessionActive.value
+      ...(!agentSessionsEnabled.value || sessionActive.value
         ? []
         : [
             {

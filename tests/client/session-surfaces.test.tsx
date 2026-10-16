@@ -21,6 +21,7 @@ import {
   sessionReceipt,
 } from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 
 // rail-chrome-v2 phase 5: the human's steering surface while a session is
 // attached (command bar) and the receipt once it ends.
@@ -55,6 +56,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
   calls = [];
   respond = (url) => Response.json(url.endsWith('/restore-node') ? { ok: true, restored: true } : {});
   resetPresence();
@@ -67,7 +69,10 @@ beforeEach(() => {
     ['n2', makeNode('n2')],
   ]);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  workspaceSettings.value = null;
+});
 
 describe('session panel disclosure', () => {
   const attached = {

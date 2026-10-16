@@ -6,7 +6,7 @@ import {
   agentPresences,
   mutatingNodeIds,
   presenceWorldPosition,
-  sessionActive,
+  sessionChromeActive,
   writerColor,
 } from '../state/presence-store';
 import { scopeFence } from '../state/session-store';
@@ -146,7 +146,7 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
 
   const selected = selectedNodeIds.value;
   const pinned = contextPinnedNodeIds.value;
-  const agentAtWork = sessionActive.value ? mutatingNodeIds.value : new Set<string>();
+  const agentAtWork = sessionChromeActive.value ? mutatingNodeIds.value : new Set<string>();
   const fence = scopeFence.value;
   const fenceRect = fence
     ? fenceRectFromNodes(

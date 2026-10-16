@@ -1,8 +1,10 @@
 import { age } from '../utils/time-ago';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { IconPin } from '../icons';
+import { IconClose, IconPin } from '../icons';
+import { attentionHistoryOpen } from '../state/attention-store';
 import { activeBoardId, boardList, browsingMemory, setBoardPinned } from '../state/boards-store';
-import { clearContextPins, contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
+import { clearContextPins, nodes, toggleContextPin } from '../state/canvas-store';
+import { activeContextPinnedNodeIds } from '../state/knowledge-store';
 import {
   approxTokens,
   briefSize,
@@ -13,7 +15,26 @@ import {
 import { contextPinMeta, linksChanged, pinnedReadState, writerName } from '../state/context-status-store';
 import { nearPins } from '../state/near-pin-store';
 import { activeSession } from '../state/presence-store';
+import { BarHint } from './BarHint';
 import { GLYPHS } from './NodeContextMark';
+
+/** The quiet footer when Agent sessions is off; pins still curate agent context. */
+export function ContextPinBar() {
+  const count = activeContextPinnedNodeIds.value.size;
+  if (count === 0 || attentionHistoryOpen.value) return null;
+
+  return (
+    <div class="context-pin-bar" role="region" aria-label="Pinned context">
+      <IconPin size={14} />
+      <span>{plural(count, 'node')} in context</span>
+      <BarHint label="Clear all context pins" side="up" align="end">
+        <button type="button" aria-label="Clear all context pins" onClick={clearContextPins}>
+          <IconClose size={12} />
+        </button>
+      </BarHint>
+    </div>
+  );
+}
 
 /**
  * One context chip (docs/design/ContextChip.dc.html): everything in the agent's
@@ -60,7 +81,7 @@ export function ContextChip() {
   if (!boardId && !library) return null;
 
   // Library curation must not expose controls for the agent's hidden active cards.
-  const cardIds = library ? [] : [...contextPinnedNodeIds.value];
+  const cardIds = library ? [] : [...activeContextPinnedNodeIds.value];
   const near = library ? [] : [...nearPins.value.entries()];
   const boards = boardList.value.filter((board) => board.pin && (library || board.id !== boardId));
   const empty = cardIds.length === 0 && boards.length === 0;

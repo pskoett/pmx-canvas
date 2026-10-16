@@ -12,6 +12,7 @@ import {
 import { createEdgeFromClient, createGroupFromClient, removeNodeFromClient } from '../state/intent-bridge';
 import { sessionActive } from '../state/presence-store';
 import { BarHint } from './BarHint';
+import { useChromeHeight } from './use-chrome-height';
 
 /**
  * Floating bottom-center bar for a multi-selection (rail-chrome-v2 phase 7,
@@ -21,6 +22,7 @@ import { BarHint } from './BarHint';
  */
 export function SelectionBar() {
   const count = selectedNodeIds.value.size;
+  const barRef = useChromeHeight('--selection-bar-height');
 
   const handlePinContext = useCallback(() => {
     const ids = Array.from(selectedNodeIds.value);
@@ -57,7 +59,7 @@ export function SelectionBar() {
   if (count === 0) return null;
   const many = count >= 2;
   return (
-    <div class="selection-bar" role="toolbar" aria-label="Selection">
+    <div class="selection-bar" role="toolbar" aria-label="Selection" ref={barRef}>
       <span class="selection-bar-count">
         {count} node{count !== 1 ? 's' : ''} selected
       </span>

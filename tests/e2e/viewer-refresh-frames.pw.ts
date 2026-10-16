@@ -282,6 +282,23 @@ for (const mode of ['src', 'srcdoc']) {
     request,
   }, info) => {
     test.setTimeout(60_000);
+    if (mode === 'srcdoc') {
+      // Visible content can precede the runtime's ready acknowledgement. Hold
+      // that acknowledgement so an update deterministically cancels the handoff.
+      await page.addInitScript(() => {
+        if (window !== window.parent) return;
+        window.addEventListener('message', (event) => {
+          if (
+            event.data?.source === 'pmx-canvas-json-state' &&
+            event.data?.type === 'ready' &&
+            !document.documentElement.dataset.readyHeld
+          ) {
+            event.stopImmediatePropagation();
+            document.documentElement.dataset.readyHeld = 'true';
+          }
+        });
+      });
+    }
     const spec = (text: string) => ({
       root: 'text',
       elements: { text: { type: 'Text', props: { text } } },
@@ -294,8 +311,20 @@ for (const mode of ['src', 'srcdoc']) {
     await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
     let failures = 0;
     let failReplacement = false;
+    let replacementStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      replacementStarted = resolve;
+    });
+    let releaseReplacement!: () => void;
+    const released = new Promise<void>((resolve) => {
+      releaseReplacement = resolve;
+    });
     await page.route('**/api/canvas/json-render/view?**', async (route) => {
       if (!failReplacement || new URL(route.request().url()).searchParams.get('nodeId') !== id) return route.continue();
+      if (mode === 'srcdoc' && route.request().url().includes('inline-assets=1')) {
+        replacementStarted();
+        await released;
+      }
       failures++;
       await route.fulfill({ status: 503, contentType: 'text/html', body: '<p>Temporary viewer failure</p>' });
     });
@@ -303,10 +332,26 @@ for (const mode of ['src', 'srcdoc']) {
     const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
     const painted = node.frameLocator('iframe:not([inert])');
     await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
+    const original = await node.locator('iframe:not([inert])').elementHandle();
+    if (mode === 'srcdoc') await expect(page.locator('html')).toHaveAttribute('data-ready-held', 'true');
     failReplacement = true;
     expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Unavailable update') } })).ok()).toBe(
       true,
     );
+    if (mode === 'srcdoc') {
+      try {
+        await started;
+        await page.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
+        // Cancellation is not a failed load: even before the replacement
+        // responds, the original painted document must remain connected.
+        expect(await original!.evaluate((frame) => frame.isConnected)).toBe(true);
+        await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
+      } finally {
+        releaseReplacement();
+      }
+    }
     await expect(page.locator('.attention-toast')).toContainText('Viewer could not load', { timeout: 30_000 });
     await expect(page.locator('.attention-toast')).toContainText('Keeping the last view. Reload to retry.');
     await expect(node.locator('iframe')).toHaveCount(1);

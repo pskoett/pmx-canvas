@@ -442,6 +442,11 @@ test('workbench transport preserves guards and authority, keeps hydration privat
   const descriptor = (await client.listTools()).tools.find((tool) => tool.name === 'pmx_workbench_request')!;
   expect(descriptor._meta?.ui).toEqual({ visibility: ['app'] });
   expect(descriptor.annotations?.openWorldHint).toBe(true);
+  const settings = await request('/api/canvas/settings', 'POST', { agentSessions: true });
+  expect(settings.status).toBe(200);
+  expect(JSON.parse(settings.body).workspaceSettings).toEqual({ agentSessions: true, knowledgeLifecycle: false });
+  const settingsRead = await request('/api/canvas/settings');
+  expect(JSON.parse(settingsRead.body).workspaceSettings).toEqual({ agentSessions: true, knowledgeLifecycle: false });
   const created = await request('/api/canvas/node', 'POST', {
     type: 'markdown',
     title: 'Transport',
@@ -808,6 +813,13 @@ test('both app profiles leave flow materialization local-only, preserving fenced
       payload: { title: 'Flow', steps: [{ title: 'Original step' }] },
     };
     await post('/api/canvas/ax/policy', { scope: { nodeIds: [source.id], padding: 0 } }, human);
+    const settings = (await (await fetch(`${base}/api/canvas/settings`)).json()).workspaceSettings;
+    const patch = { agentSessions: !settings.agentSessions };
+    const saved = await appRequest(app, board.id, '/api/canvas/settings', patch);
+    expect(saved.status).toBe(200);
+    expect(JSON.parse(saved.body).workspaceSettings).toEqual({ ...settings, ...patch });
+    expect((await appRequest(app, 'stale-board', '/api/canvas/settings', settings)).status).toBe(409);
+    // A hosted preference save must not lend its UI marker to later canvas writes.
     expect((await appRequest(app, board.id, '/api/canvas/ax/interaction', flow)).status).toBe(403);
     expect((await (await fetch(`${base}/api/canvas/state`)).json()).nodes).toHaveLength(1);
     // Local materialization is unchanged, even when its output lies outside the fence.

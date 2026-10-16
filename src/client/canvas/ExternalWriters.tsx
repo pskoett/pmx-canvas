@@ -11,11 +11,12 @@ import {
   agentPresences,
   externalWriterPresences,
   relativeAge,
-  sessionActive,
+  sessionChromeActive,
   writerColor,
   writerInitial,
   writersSheetOpen,
 } from '../state/presence-store';
+import { agentSessionsEnabled } from '../state/workspace-settings';
 import { scopeFence, pendingGates, startSession } from '../state/session-store';
 import { sessionId } from '../state/canvas-store';
 import { useFocusTrap } from './use-focus-trap';
@@ -47,7 +48,7 @@ function Avatar({ presence, size = 18 }: { presence: Pick<AgentPresence, 'sessio
 /** Top-bar indicator: avatar cluster, "3 writers", op count, pulsing dot. */
 export function ExternalWriterIndicator() {
   const writers = externalWriterPresences.value;
-  if (sessionActive.value || writers.length === 0) return null;
+  if (sessionChromeActive.value || writers.length === 0) return null;
   const ops = writers.reduce((sum, writer) => sum + writer.opCount, 0);
   const label = writers.length === 1 ? writers[0]!.label : `${writers.length} writers`;
   const open = activityFeedOpen.value;
@@ -118,7 +119,7 @@ export function ActivityFeed() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
-  if (!open || sessionActive.value || writers.length === 0) return null;
+  if (!open || sessionChromeActive.value || writers.length === 0) return null;
 
   const filter = activityFilter.value;
   const proposals = pendingProposals().filter((intent) => !filter || (intent.source ?? '') === filter);
@@ -147,7 +148,7 @@ export function ActivityFeed() {
           </div>
           <div class="activity-feed-sub">
             {writers.reduce((sum, writer) => sum + writer.opCount, 0)} writes · last{' '}
-            {relativeAge(latestWrite(writers), now)} · no session attached
+            {relativeAge(latestWrite(writers), now)} · live writers
           </div>
         </div>
         <button
@@ -227,16 +228,18 @@ export function ActivityFeed() {
         >
           Writers
         </button>
-        <button
-          type="button"
-          class="activity-feed-link is-accent"
-          onClick={() => {
-            activityFeedOpen.value = false;
-            void startSession();
-          }}
-        >
-          Start session <IconExternalLink size={14} />
-        </button>
+        {agentSessionsEnabled.value && (
+          <button
+            type="button"
+            class="activity-feed-link is-accent"
+            onClick={() => {
+              activityFeedOpen.value = false;
+              void startSession();
+            }}
+          >
+            Start session <IconExternalLink size={14} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -256,8 +259,8 @@ export function WritersSheet() {
   const sheetRef = useRef<HTMLDivElement>(null);
   useFocusTrap(sheetRef, open);
   if (!open) return null;
-  const sessions = agentPresences.value.filter((presence) => presence.attached);
-  const external = agentPresences.value.filter((presence) => !presence.attached);
+  const sessions = agentSessionsEnabled.value ? agentPresences.value.filter((presence) => presence.attached) : [];
+  const external = externalWriterPresences.value;
   const close = () => {
     writersSheetOpen.value = false;
   };
@@ -280,8 +283,12 @@ export function WritersSheet() {
           </button>
         </div>
         <div class="writers-body">
-          <div class="writers-section">Agent sessions</div>
-          {sessions.length === 0 && <div class="writers-empty">None attached — start one from the top bar.</div>}
+          {agentSessionsEnabled.value && (
+            <>
+              <div class="writers-section">Agent sessions</div>
+              {sessions.length === 0 && <div class="writers-empty">None attached — start one from the top bar.</div>}
+            </>
+          )}
           {sessions.map((presence) => (
             <div key={presence.sessionId} class="writers-row">
               <Avatar presence={presence} size={20} />
@@ -289,7 +296,7 @@ export function WritersSheet() {
               <span class="writers-config">{sessionConfig()}</span>
             </div>
           ))}
-          <div class="writers-section">External writers · MCP</div>
+          <div class="writers-section">{agentSessionsEnabled.value ? 'External writers · MCP' : 'Live writers'}</div>
           {external.length === 0 && <div class="writers-empty">No external writers right now.</div>}
           {external.map((presence) => (
             <div key={presence.sessionId} class="writers-row">

@@ -1,1 +1,1 @@
-export declare function LifecyclePanel(): import("preact/jsx-runtime").JSX.Element | null;
+export declare function LifecyclePanel(): import("preact/src").JSX.Element | null;

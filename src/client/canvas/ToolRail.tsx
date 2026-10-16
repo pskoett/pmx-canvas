@@ -1,4 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { BarPortal } from './BarHint';
+import { agentSessionsEnabled, knowledgeLifecycleEnabled, workspaceSettings } from '../state/workspace-settings';
+import type { WorkspaceSettings } from '../../shared/workspace-settings.js';
+import { attachedSessions } from '../state/presence-store';
+import { heldGates, pendingGates, scopeFence, sessionPanelOpened } from '../state/session-store';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import {
   IconArrange,
@@ -26,7 +31,7 @@ import {
 } from '../state/canvas-store';
 import { importFiles } from './import-files';
 import { canvasArea } from './canvas-area';
-import { saveCanvasTheme } from '../state/intent-bridge';
+import { requestJson, saveCanvasTheme } from '../state/intent-bridge';
 import { browsingMemory, openBoard } from '../state/boards-store';
 import { createNodeInView } from './create-in-view';
 import { askText } from './TextPrompt';
@@ -136,6 +141,82 @@ function RailButton({
   );
 }
 
+/** Menu descriptions escape its scrolling container and also work with keyboard focus. */
+function SettingsItem({
+  label,
+  description,
+  hint,
+  beta,
+  checked,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  hint?: string;
+  beta?: boolean;
+  checked?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const id = useId();
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const show = (event: Event) => setAnchor((event.currentTarget as HTMLElement).getBoundingClientRect());
+  const hide = () => setAnchor(null);
+  return (
+    <>
+      <button
+        type="button"
+        role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+        aria-label={beta ? `${label} (Beta)` : label}
+        aria-checked={checked}
+        aria-describedby={anchor ? id : undefined}
+        class="toolbar-menu-item"
+        aria-disabled={disabled || undefined}
+        onPointerEnter={show}
+        onPointerLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        onClick={() => {
+          if (disabled) return;
+          hide();
+          onClick();
+        }}
+      >
+        <span class="settings-item-label">
+          {label} {beta && <span class="beta-tag">Beta</span>}
+        </span>
+        {beta ? (
+          <span class={`settings-switch${checked ? ' is-on' : ''}`} aria-hidden="true" />
+        ) : hint ? (
+          <span class="toolbar-menu-hint">{hint}</span>
+        ) : null}
+      </button>
+      {anchor && (
+        <BarPortal>
+          <span
+            id={id}
+            class="toolbar-tooltip settings-tooltip"
+            role="tooltip"
+            ref={(tip) => {
+              if (!tip) return;
+              const beside = window.innerWidth - anchor.right >= tip.offsetWidth + 20;
+              tip.style.left = `${beside ? anchor.right + 10 : Math.max(12, Math.min(anchor.left, window.innerWidth - tip.offsetWidth - 12))}px`;
+              tip.style.top = `${Math.max(12, Math.min(beside ? anchor.top : anchor.top - tip.offsetHeight - 8, window.innerHeight - tip.offsetHeight - 12))}px`;
+            }}
+          >
+            <span class="toolbar-tooltip-label">
+              {label}
+              {beta ? ' (Beta)' : ''}
+            </span>
+            <span class="toolbar-tooltip-body">{description}</span>
+          </span>
+        </BarPortal>
+      )}
+    </>
+  );
+}
+
 /**
  * The persistent 52px left tool rail (rail-chrome-v2 phase 1): brand → tools →
  * node palette → utilities. Every button shows a hover/focus tooltip with its
@@ -167,6 +248,29 @@ export function ToolRail({
   const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
   const edgeCount = edges.value.size;
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState(false);
+  const setBeta = async (key: keyof WorkspaceSettings) => {
+    if (savingSettings || !workspaceSettings.value) return;
+    setSavingSettings(true);
+    setSettingsError(false);
+    try {
+      const result = await requestJson<{ ok: boolean }>(
+        'saveWorkspaceSettings',
+        '/api/canvas/settings',
+        { ok: false },
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [key]: !workspaceSettings.value[key] }),
+        },
+      );
+      // Ordered SSE/poll frames, never a late POST acknowledgement, own the switches.
+      setSettingsError(result.ok !== true);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
   // The Settings menu (docs/design/Chrome.dc.html §7) and the view it shows.
   const [openMenu, setOpenMenu] = useState<null | 'settings' | 'theme' | 'trace'>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ bottom: number; right: number } | null>(null);
@@ -196,7 +300,7 @@ export function ToolRail({
     ? {
         position: 'fixed' as const,
         left: `${menuAnchor.right + 8}px`,
-        bottom: `${window.innerHeight - menuAnchor.bottom}px`,
+        bottom: `${Math.max(10, window.innerHeight - menuAnchor.bottom)}px`,
         top: 'auto',
         right: 'auto',
       }
@@ -210,14 +314,17 @@ export function ToolRail({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         setOpenMenu(null);
+        snapshotBtnRef.current?.focus({ preventScroll: true });
       }
     };
     document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
+    // Own Escape even when a saving toggle has temporarily moved focus to body.
+    document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keydown', onKeyDown, true);
     };
   }, [openMenu]);
 
@@ -389,7 +496,7 @@ export function ToolRail({
         <span class="toolbar-menu-anchor">
           <RailButton
             label="Settings"
-            detail="Theme, snapshots, minimap, shortcuts, trace, feedback"
+            detail="Appearance, board tools, beta features, and feedback"
             ariaLabel="Settings"
             menuOpen={openMenu !== null}
             active={openMenu !== null || snapshotOpen}
@@ -412,46 +519,82 @@ export function ToolRail({
           </RailButton>
           {openMenu === 'settings' && (
             <div class="toolbar-menu rail-settings-menu" style={sideMenuStyle} role="menu" aria-label="Settings">
-              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('theme')}>
-                <span>Theme</span>
-                <span class="toolbar-menu-hint">{CANVAS_THEME_META[activeTheme].label} ›</span>
-              </button>
+              <SettingsItem
+                label="Theme"
+                description="Choose the canvas appearance. Your choice is saved with the board."
+                hint={`${CANVAS_THEME_META[activeTheme].label} ›`}
+                onClick={() => setOpenMenu('theme')}
+              />
               {!browsingMemory.value && (
                 <>
-                  <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onToggleSnapshot)}>
-                    <span>Snapshots</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={minimapVisible}
-                    class="toolbar-menu-item"
+                  <SettingsItem
+                    label="Snapshots"
+                    description="Save a board checkpoint, compare changes, or restore an earlier version."
+                    onClick={choose(onToggleSnapshot)}
+                  />
+                  <SettingsItem
+                    label="Minimap"
+                    description="Show a small overview of the board. Drag its viewport to move around the canvas."
+                    checked={minimapVisible}
+                    hint={minimapVisible ? 'On' : 'Off'}
                     onClick={choose(onToggleMinimap)}
-                  >
-                    <span>Minimap</span>
-                    <span class="toolbar-menu-hint">{minimapVisible ? 'On' : 'Off'}</span>
-                  </button>
+                  />
                 </>
               )}
-              <button type="button" role="menuitem" class="toolbar-menu-item" onClick={choose(onOpenShortcuts)}>
-                <span>Keyboard shortcuts</span>
-                <kbd class="toolbar-menu-hint">?</kbd>
-              </button>
+              <SettingsItem
+                label="Keyboard shortcuts"
+                description="See shortcuts for creating cards, selecting, navigating, and editing the canvas."
+                hint="?"
+                onClick={choose(onOpenShortcuts)}
+              />
+              <div class="toolbar-menu-divider" role="separator" />
+              <span class="settings-caption">Beta features · workspace-wide · off by default</span>
+              <SettingsItem
+                label="Agent sessions"
+                beta
+                checked={agentSessionsEnabled.value}
+                disabled={!workspaceSettings.value || savingSettings}
+                description="Show session chips, tasks, timeline, steering composer, and receipts. Turning off hides these without ending attached agents. Approvals and edit protections remain available. Saved for this workspace."
+                onClick={() => void setBeta('agentSessions')}
+              />
+              <SettingsItem
+                label="Knowledge lifecycle"
+                beta
+                checked={knowledgeLifecycleEnabled.value}
+                disabled={!workspaceSettings.value || savingSettings}
+                description="Show Review, review policies, categories, and due or retired indicators. Turning off hides lifecycle tools without deleting their data or drafts. Saved for this workspace."
+                onClick={() => void setBeta('knowledgeLifecycle')}
+              />
+              {settingsError && (
+                <p class="settings-error" role="alert">
+                  Could not save settings. Try again.
+                </p>
+              )}
+              {!agentSessionsEnabled.value &&
+                (attachedSessions.value.length > 0 ||
+                  pendingGates.value.length > 0 ||
+                  heldGates.value.length > 0 ||
+                  scopeFence.value) && (
+                  <SettingsItem
+                    label="Agent controls"
+                    description="Review pending approvals, inspect or clear the write scope, or end an existing attachment without enabling the session beta."
+                    onClick={choose(() => (sessionPanelOpened.value = true))}
+                  />
+                )}
               <div class="toolbar-menu-divider" role="separator" />
               {!isHostedWorkbench() && !browsingMemory.value && (
-                <button type="button" role="menuitem" class="toolbar-menu-item" onClick={() => setOpenMenu('trace')}>
-                  <span>Trace</span>
-                  <span class="toolbar-menu-hint">{isTraceOn ? 'On' : 'Off'} ›</span>
-                </button>
+                <SettingsItem
+                  label="Trace"
+                  description="Show or clear execution traces sent by connected tools. This does not start an agent."
+                  hint={`${isTraceOn ? 'On' : 'Off'} ›`}
+                  onClick={() => setOpenMenu('trace')}
+                />
               )}
-              <button
-                type="button"
-                role="menuitem"
-                class="toolbar-menu-item"
+              <SettingsItem
+                label="Send feedback"
+                description="Report a problem or suggestion. Review the feedback before sending."
                 onClick={choose(() => setFeedbackOpen(true))}
-              >
-                <span>Send feedback</span>
-              </button>
+              />
             </div>
           )}
           {openMenu === 'theme' && (

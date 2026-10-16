@@ -2,18 +2,17 @@
  * Slice 3 operations (plan-005, migration item 4): pin.set / search /
  * history.get / canvas.undo / canvas.redo / spatial.get / summary.get.
  *
- * Event notes (matching the legacy HTTP handlers exactly):
+ * Event notes:
  * - pin.set: legacy POST /api/canvas/context-pins emitted ONLY
  *   context-pins-changed (no canvas-layout-update), so mutates: false with a
  *   manual ctx.emit. The injected emitter adds the sessionId/timestamp fields
  *   the legacy handler set explicitly. (The SDK's setContextPins emits the
  *   same context-pins-changed event — its old layout-update drift was erased
  *   in v0.3.0.)
- * - canvas.undo / canvas.redo: legacy handlers emitted canvas-viewport-update
- *   then canvas-layout-update only after an entry was actually undone/redone,
- *   so mutates: false with conditional manual emits. (The SDK's undo/redo also
- *   emit ax-state-changed; that was never part of the HTTP wire and the SDK
- *   methods are untouched.)
+ * - canvas.undo / canvas.redo: successful replay emits viewport, layout and raw
+ *   pin membership, since layout updates do not replace browser pins. Empty
+ *   history emits nothing, so mutates: false with conditional manual emits.
+ *   The SDK also emits ax-state-changed.
  *
  * This module must never import server.ts or index.ts.
  */
@@ -586,6 +585,10 @@ const undoOperation = defineOperation<z.infer<typeof undoRedoSchema>, Record<str
     await syncCanvasRuntimeBackends();
     ctx.emit('canvas-viewport-update', { viewport: canvasState.viewport });
     ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    ctx.emit('context-pins-changed', {
+      count: canvasState.contextPinnedNodeIds.size,
+      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
+    });
     return { ok: true, description: `Undid: ${entry.description}` };
   },
 });
@@ -610,6 +613,10 @@ const redoOperation = defineOperation<z.infer<typeof undoRedoSchema>, Record<str
     await syncCanvasRuntimeBackends();
     ctx.emit('canvas-viewport-update', { viewport: canvasState.viewport });
     ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    ctx.emit('context-pins-changed', {
+      count: canvasState.contextPinnedNodeIds.size,
+      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
+    });
     return { ok: true, description: `Redid: ${entry.description}` };
   },
 });

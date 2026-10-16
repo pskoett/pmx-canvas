@@ -17,8 +17,18 @@ body{margin:0}
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">One context chip</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">What the agent has in context is always visible as a one-line summary in the top-right corner; clicking it opens the details. It replaces the floating “✦ N nodes in context” bar and the top-bar Pins meter, and supersedes the chip wording on Context, NearPin and BoardPins. It never floats over the canvas and sits beside the agent it describes.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd">What the agent has in context is always visible as a one-line summary in the top-right corner; clicking it opens the details. It replaces the top-bar Pins meter and supersedes the chip wording on Context, NearPin and BoardPins. Owner decision 2026-10-16: when Agent sessions is OFF, also restore the quiet bottom count below. The top-bar summary remains unchanged.</p>
 </div>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 600">Agent sessions OFF · bottom-center, 18 px from the canvas edge</span>
+<div style="display: flex; align-items: center; gap: 8px; align-self: center; box-sizing: border-box; height: 34px; padding: 0 6px 0 12px; border-radius: 999px; border: 1px solid rgba(75,188,255,0.3); background: #0f1d31; box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #4BBCFF; font-size: 12px; font-weight: 500">
+<svg width="14" height="14" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg>
+4 nodes in context
+<button aria-label="Clear all context pins" style="width: 22px; height: 22px; border: 0; border-radius: 999px; padding: 0; background: rgba(75,188,255,0.14); color: #4BBCFF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+<span style="font-size: 11px; color: #8ea3bd">Count active pinned cards on this board, with a real Clear all action and styled tooltip. Retired pins are saved but excluded from counts and nearby context, even with lifecycle Off. No active pins or Home: no pill. Independent of attachment and lifecycle. Sessions ON: the composer owns the footer. Selection wraps within the canvas above the pill or measured composer. At canvas widths of 1200 px or less, including space taken by Review/session panels, a visible minimap sits 10 px above the measured footer stack, even when magnified on hover. Hidden composers reserve no space.</span>
+</section>
 
 <section style="display: flex; flex-direction: column; gap: 10px">
 <div style="display: grid; grid-template-columns: 200px 1fr 1fr; gap: 16px; align-items: end"><span style="{{s.label}}">1 · At rest — the summary, always visible</span><span style="{{s.label}}">Harbor</span><span style="{{s.label}}">Daylight</span></div>

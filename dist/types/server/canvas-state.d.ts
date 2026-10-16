@@ -11,6 +11,7 @@
  * `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of 0.4.0 —
  * the one-shot boot migration into SQLite was retired.
  */
+import { type WorkspaceSettings } from '../shared/workspace-settings.js';
 import { KnowledgeLifecycle, type Lifecycle } from './knowledge-lifecycle.js';
 import { type Tour } from '../shared/tour.js';
 import { type WikiBoard } from './wiki-links.js';
@@ -465,6 +466,8 @@ declare class CanvasStateManager {
     };
     setViewport(v: Partial<ViewportState>): void;
     get theme(): CanvasTheme;
+    getWorkspaceSettings(): WorkspaceSettings;
+    updateWorkspaceSettings(patch: Partial<WorkspaceSettings>): WorkspaceSettings;
     setTheme(theme: CanvasTheme): CanvasTheme;
     get contextPinnedNodeIds(): Set<string>;
     getAxState(): PmxAxState;

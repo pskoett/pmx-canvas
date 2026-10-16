@@ -7,6 +7,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
+import { workspaceSettingsPatchSchema } from '../../../shared/workspace-settings.js';
 import { normalizeCanvasTheme } from '../../canvas-db.js';
 import { applyCanvasNodeUpdates } from '../../canvas-operations.js';
 import { canvasState } from '../../canvas-state.js';
@@ -98,4 +99,33 @@ const applyUpdatesOperation = defineOperation<z.infer<typeof applyUpdatesSchema>
   },
 });
 
-export const canvasWireOperations: Operation[] = [themeGetOperation, themeSetOperation, applyUpdatesOperation];
+const settingsGetOperation = defineOperation({
+  name: 'settings.get',
+  mutates: false,
+  input: emptySchema,
+  inputShape: emptyShape,
+  http: { method: 'GET', path: '/api/canvas/settings' },
+  handler: () => ({ ok: true, workspaceSettings: canvasState.getWorkspaceSettings() }),
+});
+
+const settingsSetOperation = defineOperation({
+  name: 'settings.set',
+  mutates: false,
+  // Strip transport attribution/precondition fields before storing the patch.
+  input: z.object(workspaceSettingsPatchSchema.shape),
+  inputShape: workspaceSettingsPatchSchema.shape,
+  http: { method: 'POST', path: '/api/canvas/settings' },
+  handler: (input, ctx) => {
+    const workspaceSettings = canvasState.updateWorkspaceSettings(input);
+    ctx.emit('settings-changed', { workspaceSettings });
+    return { ok: true, workspaceSettings };
+  },
+});
+
+export const canvasWireOperations: Operation[] = [
+  themeGetOperation,
+  themeSetOperation,
+  settingsGetOperation,
+  settingsSetOperation,
+  applyUpdatesOperation,
+];

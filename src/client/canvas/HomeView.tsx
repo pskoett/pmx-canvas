@@ -24,6 +24,8 @@ import { HomeReviewView } from './HomeReviewView';
 import { KnowledgeDialog } from './KnowledgeDialog';
 import { RelationPresetsDialog } from './RelationPresetsDialog';
 import { knowledge, lifecycleFilter } from '../state/knowledge-store';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
+import { lifecycleUiGeneration } from '../state/boards-store';
 import type { LifecycleQualification } from '../../shared/lifecycle-status.js';
 import { IconChevronDown, IconChevronRight, IconMore, IconPin, IconSearch } from '../icons';
 
@@ -114,7 +116,9 @@ function BoardThumbnail({ board }: { board: BoardSummary }) {
  */
 export function HomeView() {
   const boards = boardList.value;
-  const [view, setView] = useState<'Folders' | 'Map' | 'Graph' | 'Review'>('Folders');
+  const enabled = knowledgeLifecycleEnabled.value;
+  const [selectedView, setView] = useState<'Folders' | 'Map' | 'Graph' | 'Review'>('Folders');
+  const view = !enabled && selectedView === 'Review' ? 'Folders' : selectedView;
   const [folder, setFolder] = useState<string>(() => {
     const recent = [...boardList.value].sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))[0];
     return recent?.folder ?? '';
@@ -178,10 +182,13 @@ export function HomeView() {
   }
   const shown = query ? matches : here;
   const reviewBoard = async (id: string) => {
+    if (!knowledgeLifecycleEnabled.value) return;
+    const generation = lifecycleUiGeneration;
     const cardId = reviewTargets.get(id)?.[0];
     if (!cardId) return;
-    await openMemoryTarget({ boardId: id, cardId });
-    if (activeBoardId.value === id) lifecycleFilter.value = 'To review';
+    const opened = await openMemoryTarget({ boardId: id, cardId });
+    if (opened && knowledgeLifecycleEnabled.value && generation === lifecycleUiGeneration && activeBoardId.value === id)
+      lifecycleFilter.value = 'To review';
   };
 
   useEffect(() => {
@@ -374,7 +381,7 @@ export function HomeView() {
             </span>
           </span>
         </button>
-        {reviewTargets.has(board.id) && (
+        {enabled && reviewTargets.has(board.id) && (
           <button
             type="button"
             class="home-card-review"
@@ -440,7 +447,7 @@ export function HomeView() {
           <button type="button" class="home-button is-primary" onClick={() => void openBoard(selected.id)}>
             Open board
           </button>
-          {reviewTargets.has(selected.id) && (
+          {enabled && reviewTargets.has(selected.id) && (
             <button type="button" class="home-button" onClick={() => void reviewBoard(selected.id)}>
               Review cards
             </button>
@@ -516,11 +523,19 @@ export function HomeView() {
       )}
       {relationPresetsOpen && <RelationPresetsDialog onClose={() => setRelationPresetsOpen(false)} />}
       <nav class="home-view-tabs" aria-label="Library view">
-        {(['Folders', 'Map', 'Graph', 'Review'] as const).map((tab) => (
-          <button type="button" class="home-button" aria-pressed={view === tab} onClick={() => setView(tab)} key={tab}>
-            {tab}
-          </button>
-        ))}
+        {(['Folders', 'Map', 'Graph', 'Review'] as const)
+          .filter((tab) => enabled || tab !== 'Review')
+          .map((tab) => (
+            <button
+              type="button"
+              class="home-button"
+              aria-pressed={view === tab}
+              onClick={() => setView(tab)}
+              key={tab}
+            >
+              {tab}
+            </button>
+          ))}
         <button type="button" class="home-button" onClick={() => setRelationPresetsOpen(true)}>
           Relation presets
         </button>
@@ -533,9 +548,17 @@ export function HomeView() {
             <div class="home-library-head">
               <span class="home-library-title">Library</span>
               <span class="home-tree-count">{plural(boards.length, 'board')}</span>
-              <button type="button" class="home-button" onClick={() => setKnowledgeDialog('')}>
-                Categories
-              </button>
+              {enabled && (
+                <button
+                  type="button"
+                  class="home-button"
+                  onClick={() => {
+                    if (knowledgeLifecycleEnabled.value) setKnowledgeDialog('');
+                  }}
+                >
+                  Categories
+                </button>
+              )}
             </div>
             {searchField}
             {pinned.length > 0 && (
@@ -615,10 +638,18 @@ export function HomeView() {
                       {query ? `Results for “${search.trim()}”` : folder ? leaf(folder) : 'Library'}
                     </h1>
                   </div>
-                  <button type="button" class="home-button" onClick={() => setKnowledgeDialog(folder)}>
-                    {' '}
-                    {folder ? 'Folder settings' : 'Categories'}
-                  </button>
+                  {enabled && (
+                    <button
+                      type="button"
+                      class="home-button"
+                      onClick={() => {
+                        if (knowledgeLifecycleEnabled.value) setKnowledgeDialog(folder);
+                      }}
+                    >
+                      {' '}
+                      {folder ? 'Folder settings' : 'Categories'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     class="home-button is-primary"
@@ -628,7 +659,7 @@ export function HomeView() {
                   </button>
                 </div>
 
-                {knowledge.value && !query && (
+                {enabled && knowledge.value && !query && (
                   <section class="home-main-section" aria-label="Folder review summary">
                     <span class="home-section-label">
                       Card review · {folder ? 'In this folder and subfolders' : 'Across the library'}
@@ -668,7 +699,7 @@ export function HomeView() {
                             <li key={`${hit.boardId}:${hit.cardId}`}>
                               <button type="button" class="home-hit" onClick={() => void openHit(hit)}>
                                 <span class="home-card-name">{hit.title || hit.boardTitle}</span>
-                                {hit.qualification?.retired && <span class="category-tag">Retired</span>}
+                                {enabled && hit.qualification?.retired && <span class="category-tag">Retired</span>}
                                 <span class="home-card-meta">
                                   {hit.boardTitle} · {hit.snippet}
                                 </span>

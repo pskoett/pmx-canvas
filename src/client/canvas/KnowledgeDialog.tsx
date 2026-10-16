@@ -1,4 +1,6 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
+import { lifecycleUiGeneration } from '../state/boards-store';
 import { categorySchema, type KnowledgeCategory, type Lifecycle } from '../../shared/knowledge-lifecycle.js';
 import { KNOWLEDGE_PRESETS } from '../../shared/knowledge-presets.js';
 import { knowledge, refreshKnowledge } from '../state/knowledge-store';
@@ -8,6 +10,7 @@ import { useFocusTrap } from './use-focus-trap';
 import { ChoiceMenu } from './ChoiceMenu';
 
 export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose: () => void }) {
+  const enabled = knowledgeLifecycleEnabled.value;
   const ref = useRef<HTMLDivElement>(null);
   const catalog = knowledge.value;
   const properties = catalog?.folders.find((item) => item.path === folder);
@@ -31,16 +34,24 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
   const [pending, setPending] = useState<(() => void) | null>(null);
   const dirty = !folder && JSON.stringify(editing) !== baseline;
   const requestAction = (action: () => void) => {
-    if (busy || pending) return;
+    if (!knowledgeLifecycleEnabled.value || busy || pending) return;
     if (dirty) setPending(() => action);
     else action();
   };
   const handleEscape = () => {
+    if (!knowledgeLifecycleEnabled.value) return;
     if (pending) setPending(null);
     else if (confirmDelete) setConfirmDelete(null);
     else requestAction(onClose);
   };
-  useFocusTrap(ref, true, { onEscape: handleEscape });
+  useFocusTrap(ref, enabled, { onEscape: handleEscape });
+  useLayoutEffect(() => {
+    if (!enabled && ref.current?.contains(document.activeElement))
+      document.querySelector<HTMLElement>('button[aria-label="Settings"]')?.focus({ preventScroll: true });
+  }, [enabled]);
+  useEffect(() => {
+    if (enabled) void refreshKnowledge();
+  }, [enabled]);
   const select = (category: KnowledgeCategory) => {
     const draft = structuredClone(category);
     setEditing(draft);
@@ -50,6 +61,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
     setMessage('');
   };
   const write = async (path: string, body: unknown) => {
+    if (!knowledgeLifecycleEnabled.value) return false;
     const result = await requestJson<{ ok: boolean } | null>('knowledgeWrite', `/api/canvas/knowledge/${path}`, null, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,17 +70,26 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
     return result?.ok === true;
   };
   const adopt = async (name: string) => {
-    if (busy || !catalog) return;
+    if (!knowledgeLifecycleEnabled.value || busy || !catalog) return;
+    const generation = lifecycleUiGeneration;
     setBusy(true);
     setMessage('');
     let ok = true;
     const preset = KNOWLEDGE_PRESETS[name];
     for (const category of preset.categories) {
+      if (!knowledgeLifecycleEnabled.value || generation !== lifecycleUiGeneration) {
+        ok = false;
+        break;
+      }
       if (!catalog.categories.some((item) => item.id === category.id)) ok = await write('category', { category });
       if (!ok) break;
     }
     if (ok)
       for (const [path, id] of Object.entries(preset.folders)) {
+        if (!knowledgeLifecycleEnabled.value || generation !== lifecycleUiGeneration) {
+          ok = false;
+          break;
+        }
         if (!catalog.folders.some((item) => item.path === path))
           ok = await write('folder', { path, categoryId: id, lifecycleOverride: null });
         if (!ok) break;
@@ -86,6 +107,8 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
   return (
     <div
       class="knowledge-backdrop"
+      hidden={!enabled}
+      style={enabled ? undefined : { display: 'none' }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation();
@@ -120,6 +143,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
             <button
               type="button"
               onClick={() => {
+                if (!knowledgeLifecycleEnabled.value) return;
                 const action = pending;
                 setPending(null);
                 setBaseline(JSON.stringify(editing));
@@ -136,7 +160,8 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
           <form
             onSubmit={async (event) => {
               event.preventDefault();
-              if (busy) return;
+              if (!knowledgeLifecycleEnabled.value || busy) return;
+              const generation = lifecycleUiGeneration;
               setBusy(true);
               const ok = await write('folder', {
                 path: folder,
@@ -145,8 +170,8 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
               });
               await refreshKnowledge();
               setBusy(false);
-              if (ok) onClose();
-              else setMessage('Folder settings were not saved. Retry.');
+              if (ok && knowledgeLifecycleEnabled.value && generation === lifecycleUiGeneration) onClose();
+              else if (!ok) setMessage('Folder settings were not saved. Retry.');
             }}
           >
             <div class="knowledge-field">
@@ -263,13 +288,15 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                   noValidate
                   onSubmit={async (event) => {
                     event.preventDefault();
-                    if (busy) return;
+                    if (!knowledgeLifecycleEnabled.value || busy) return;
+                    const generation = lifecycleUiGeneration;
                     const parsed = categorySchema.safeParse({ ...editing, ...cleanLifecycle(editing) });
                     if (!parsed.success) {
                       const field = String(parsed.error.issues[0].path[0]);
                       setTab(['name', 'glyph', 'id'].includes(field) ? 'Basics' : 'Review policy');
                       setMessage(parsed.error.issues[0].message);
                       setTimeout(() => {
+                        if (!knowledgeLifecycleEnabled.value || generation !== lifecycleUiGeneration) return;
                         const label =
                           field === 'name'
                             ? 'Name'
@@ -300,6 +327,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                     const ok = result?.ok === true;
                     await refreshKnowledge();
                     setBusy(false);
+                    if (!knowledgeLifecycleEnabled.value || generation !== lifecycleUiGeneration) return;
                     if (ok) {
                       const saved = result?.category ?? parsed.data;
                       setEditing(saved);
@@ -401,7 +429,8 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                                 class="is-danger"
                                 disabled={busy}
                                 onClick={async () => {
-                                  if (busy) return;
+                                  if (!knowledgeLifecycleEnabled.value || busy) return;
+                                  const generation = lifecycleUiGeneration;
                                   setBusy(true);
                                   const result = await requestJson<{ ok: boolean; error?: string } | null>(
                                     'knowledgeRemove',
@@ -411,6 +440,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                                   );
                                   await refreshKnowledge();
                                   setBusy(false);
+                                  if (!knowledgeLifecycleEnabled.value || generation !== lifecycleUiGeneration) return;
                                   setConfirmDelete(null);
                                   if (result?.ok === true) {
                                     setEditing(null);

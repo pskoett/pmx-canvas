@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   activeSession,
   agentPresences,
@@ -8,6 +8,7 @@ import {
   sessionActive,
 } from '../../src/client/state/presence-store.ts';
 import type { AgentPresence } from '../../src/shared/agent-presence.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 
 function presence(overrides: Partial<AgentPresence>): AgentPresence {
   return {
@@ -27,10 +28,14 @@ function presence(overrides: Partial<AgentPresence>): AgentPresence {
   };
 }
 
-beforeEach(() => resetPresence());
+beforeEach(() => {
+  resetPresence();
+  workspaceSettings.value = null;
+});
+afterEach(() => (workspaceSettings.value = null));
 
 describe('presence store', () => {
-  test('sessionActive is the single gate: only an attached presence flips it', () => {
+  test('attachments remain writers with beta off and use session chrome only after opt-in', () => {
     applyPresenceSnapshot({ presences: [presence({ sessionId: 'mcp', source: 'mcp', opCount: 3 })] });
     expect(sessionActive.value).toBe(false);
     expect(externalWriterPresences.value.map((p) => p.sessionId)).toEqual(['mcp']);
@@ -44,7 +49,9 @@ describe('presence store', () => {
     });
     expect(sessionActive.value).toBe(true);
     expect(activeSession.value?.sessionId).toBe('copilot');
-    // External writers exclude the attached session.
+    expect(externalWriterPresences.value.map((p) => p.sessionId)).toEqual(['mcp', 'copilot']);
+    workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
+    // Only the opted-in session UI takes the attached writer out of the ordinary roster.
     expect(externalWriterPresences.value.map((p) => p.sessionId)).toEqual(['mcp']);
   });
 

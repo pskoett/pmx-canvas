@@ -1,4 +1,5 @@
-import { batch, signal } from '@preact/signals';
+import { batch, effect, signal } from '@preact/signals';
+import { knowledgeLifecycleEnabled } from './workspace-settings';
 import { requestJson } from './intent-bridge';
 import { focusNode, hasInitialServerLayout, hiddenByCollapsedGroup, nodes, toggleCollapsed } from './canvas-store';
 import type { MemoryTarget } from '../../shared/memory-graph.js';
@@ -57,6 +58,11 @@ export const activeBoardId = signal<string | null>(null);
 export const browsingMemory = signal(false);
 /** Review belongs to this navigation incarnation, never merely a reused card ID. */
 export const lifecycleTarget = signal<{ boardId: string; nodeId: string; incarnation: number } | null>(null);
+export const lifecycleFilter = signal<'All' | 'To review' | 'Retired'>('All');
+effect(() => {
+  activeBoardId.value;
+  lifecycleFilter.value = 'All';
+});
 /** Layout/pin/reconnect invalidation for the library's shared graph projection. */
 export const memoryGraphRevision = signal(0);
 /** False until the first list arrives — Home must not flash before the server answers. */
@@ -72,6 +78,12 @@ let reloadRevision: number | null = null;
 let openRequestSequence = 0;
 let openRequestQueue: Promise<void> = Promise.resolve();
 let navigationSequence = 0;
+/** Invalidates lifecycle UI work across suspension, including an off/on round trip. */
+export let lifecycleUiGeneration = 0;
+effect(() => {
+  knowledgeLifecycleEnabled.value;
+  lifecycleUiGeneration++;
+});
 
 /** Only the current transport's connected handshake may replace the server epoch. */
 export function connectBoardCatalog(epoch: string): void {
@@ -175,6 +187,8 @@ export async function openBoard(id: string | null): Promise<void> {
 
 /** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */
 export async function openMemoryTarget(target: MemoryTarget, options: { review?: boolean } = {}): Promise<boolean> {
+  if (options.review && !knowledgeLifecycleEnabled.value) return false;
+  const lifecycleGeneration = lifecycleUiGeneration;
   const opening = openBoard(target.boardId);
   const sequence = navigationSequence;
   await opening;
@@ -186,7 +200,8 @@ export async function openMemoryTarget(target: MemoryTarget, options: { review?:
       sequence !== navigationSequence ||
       activeBoardId.value !== target.boardId ||
       boardIncarnation !== incarnation ||
-      browsingMemory.value
+      browsingMemory.value ||
+      (options.review && (!knowledgeLifecycleEnabled.value || lifecycleGeneration !== lifecycleUiGeneration))
     )
       return false;
     if (hasInitialServerLayout.value && nodes.value.has(target.cardId)) {

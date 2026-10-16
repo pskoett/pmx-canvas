@@ -123,6 +123,7 @@ const backupRestoreOperation = defineOperation<z.infer<typeof restoreSchema>, Re
     // Keep the reload marker in later catalogs too, if a GET overtakes this event.
     const catalog = boardsPayload(true);
     ctx.emit('boards-changed', catalog);
+    ctx.emit('settings-changed', { workspaceSettings: canvasState.getWorkspaceSettings() });
     return { ok: true, restored: file, previous, ...catalog };
   },
 });

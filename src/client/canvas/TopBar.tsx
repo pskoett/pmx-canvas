@@ -37,6 +37,7 @@ import {
   startSession,
 } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
+import { agentSessionsEnabled } from '../state/workspace-settings';
 
 /**
  * The attached session's chip (rail-chrome-v2 phase 3): phase-colored, with a
@@ -84,7 +85,7 @@ function AgentChip() {
   useEffect(() => {
     if (opened && !opened.button.isConnected) setOpened(null);
   }, [allSessions, opened]);
-  if (allSessions.length === 0) return null;
+  if (!agentSessionsEnabled.value || allSessions.length === 0) return null;
   // Attached workers are represented by their orchestrator's roll-up, not a
   // second top-level chip of their own. Orphans remain visible.
   const sessions = allSessions.filter(
@@ -299,7 +300,7 @@ function SessionTouches({ session, popover = false }: { session: AgentPresence; 
  */
 function GateBadge() {
   const count = pendingGates.value.length;
-  const active = activeSession.value !== null && count > 0;
+  const active = count > 0;
   const now = useNow(active ? 1000 : 0);
   if (!active) return null;
   const soonest = pendingGates.value
@@ -309,13 +310,12 @@ function GateBadge() {
   return (
     <BarHint
       label="Approval gates waiting on you"
-      tapToOpen
-      body="The agent is blocked until you approve or reject in the session panel; unanswered gates auto-hold when the countdown runs out."
+      body="Open agent controls to approve or reject. Unanswered gates auto-hold when the countdown runs out, even with the session beta off."
     >
-      <span class="gate-badge">
+      <button type="button" class="gate-badge" onClick={() => (sessionPanelOpened.value = true)}>
         {count} gate{count === 1 ? '' : 's'}
         {soonest !== undefined && ` · ${formatCountdown(soonest)}`}
-      </span>
+      </button>
     </BarHint>
   );
 }
@@ -327,7 +327,7 @@ function GateBadge() {
  */
 function StartSessionButton() {
   const [busy, setBusy] = useState(false);
-  if (activeSession.value) return null;
+  if (!agentSessionsEnabled.value || activeSession.value) return null;
   return (
     <BarHint
       label="Start an agent session"

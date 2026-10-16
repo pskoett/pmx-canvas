@@ -12,7 +12,7 @@
  * the human sees: the node is in the pane and its content rendered — for
  * iframe-backed kinds, a sentinel inside the frame document is visible.
  */
-import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
+import { expect, test, setWorkspaceFeatures, type APIRequestContext, type Locator } from './workspace-fixture.js';
 
 const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
 
@@ -396,6 +396,7 @@ test('Home is navigation first even with a long agent README and repeated links'
   page,
   request,
 }, testInfo) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const targetName = `Home detail target ${testInfo.project.name}`;
   const sourceName = `Navigation acceptance ${testInfo.project.name}`;
   const target = (

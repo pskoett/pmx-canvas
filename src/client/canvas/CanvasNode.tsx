@@ -1,11 +1,12 @@
 import { activeBoardId, boardList, openMemoryTarget } from '../state/boards-store';
-import { cardQualification, lifecycleFilter } from '../state/knowledge-store';
+import { cardQualification, effectiveLifecycleFilter as lifecycleFilter } from '../state/knowledge-store';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { relationHighlight } from '../state/relation-store';
 import { LifecycleFooter } from './LifecycleChrome';
 import { BarHint } from './BarHint';
 import { BoardPinButton } from './BoardPinButton';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { mutatingNodeIds, sessionActive } from '../state/presence-store';
+import { mutatingNodeIds, sessionChromeActive } from '../state/presence-store';
 import { attentionPulseNodeIds } from '../state/attention-store';
 import { type ChipFold, headerChip, isAgentPin, NearPinMark, NodeContextMark, NodeTypeIcon } from './NodeContextMark';
 import { activityLensNodeIds, sessionEditedIds } from '../state/session-store';
@@ -463,7 +464,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   };
   // Shimmer while an attached agent is mutating this node (rail-chrome-v2
   // phase 3). Gated on sessionActive: the quiet board never shimmers.
-  const isAgentMutating = sessionActive.value && mutatingNodeIds.value.has(node.id);
+  const isAgentMutating = sessionChromeActive.value && mutatingNodeIds.value.has(node.id);
   const nodeClass = [
     'canvas-node',
     isActive ? 'active' : '',
@@ -479,10 +480,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isGroup ? 'group-node' : '',
     isStrictSize ? 'strict-size' : '',
     isAgentMutating ? 'agent-mutating' : '',
-    sessionEditedIds.value.has(node.id) ? 'session-edited' : '',
+    sessionChromeActive.value && sessionEditedIds.value.has(node.id) ? 'session-edited' : '',
     activityLensNodeIds.value && !activityLensNodeIds.value.has(node.id) ? 'lens-dimmed' : '',
     relationHighlight.value && !relationHighlight.value.cards.has(node.id) ? 'relation-dimmed' : '',
-    cardQualification(node.id)?.retired ? 'lifecycle-retired' : '',
+    knowledgeLifecycleEnabled.value && cardQualification(node.id)?.retired ? 'lifecycle-retired' : '',
     lifecycleFilter.value === 'To review' &&
     !cardQualification(node.id)?.due &&
     !cardQualification(node.id)?.sources.length

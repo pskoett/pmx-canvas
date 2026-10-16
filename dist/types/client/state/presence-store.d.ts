@@ -26,9 +26,10 @@ export declare function writerColor(sessionId: string): string;
 export declare function writerInitial(label: string): string;
 /** Compact relative age for feed rows and the writers sheet: now · 12s · 4m · 2h. */
 export declare function relativeAge(iso: string, now?: number): string;
-/** Master gate for every agent surface: an attached session exists. */
+/** Attachment state is independent of whether the human opted into its UI. */
 export declare const sessionActive: import("@preact/signals-core").ReadonlySignal<boolean>;
-/** Live writers with no attached session — the External Steering mode. */
+export declare const sessionChromeActive: import("@preact/signals-core").ReadonlySignal<boolean>;
+/** With session UI off, attached agents still appear as ordinary live writers. */
 export declare const externalWriterPresences: import("@preact/signals-core").ReadonlySignal<AgentPresence[]>;
 /**
  * Connected agents the human can ADDRESS from the composer: every live

@@ -6,6 +6,7 @@ import { KnowledgeDialog } from '../../src/client/canvas/KnowledgeDialog.tsx';
 import { memoryKey, type MemoryGraph } from '../../src/shared/memory-graph.ts';
 import type { LifecycleQualification } from '../../src/shared/lifecycle-status.ts';
 import { knowledge } from '../../src/client/state/knowledge-store.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 import {
   activeBoardId,
   boardList,
@@ -75,6 +76,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: true };
   calls.length = 0;
   fixtureEpoch++;
   fixtureRevision = 0;
@@ -126,6 +128,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  workspaceSettings.value = null;
   browsingMemory.value = false;
 });
 
@@ -278,6 +281,28 @@ describe('Home memory views', () => {
 });
 
 describe('Home (docs/design/Home.dc.html)', () => {
+  test('lifecycle is hidden until enabled, while folders, boards, map, graph and relation presets remain available', async () => {
+    workspaceSettings.value = null;
+    const { getByRole, queryByRole } = render(<HomeView />);
+    expect(queryByRole('button', { name: 'Review', exact: true })).toBeNull();
+    expect(queryByRole('button', { name: 'Categories' })).toBeNull();
+    expect(queryByRole('region', { name: 'Folder review summary' })).toBeNull();
+    for (const name of ['Folders', 'Map', 'Graph', 'Relation presets', 'New board'])
+      expect(getByRole('button', { name, exact: true })).toBeTruthy();
+    expect(getByRole('button', { name: 'Discovery', exact: true })).toBeTruthy();
+    await act(() => {
+      workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: true };
+    });
+    expect(getByRole('button', { name: 'Review', exact: true })).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'Review', exact: true }));
+    expect(getByRole('region', { name: 'Card review queue' })).toBeTruthy();
+    await act(() => {
+      workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: false };
+    });
+    expect(queryByRole('region', { name: 'Card review queue' })).toBeNull();
+    expect(getByRole('button', { name: 'New board', exact: true })).toBeTruthy();
+  });
+
   test('a card selects the board into details; Open board opens it as the human', async () => {
     boardList.value = boardList.value.map((entry) =>
       entry.id !== 'b-disc'
@@ -489,6 +514,43 @@ describe('board switcher', () => {
     await waitFor(() => {
       expect(JSON.parse(String(lastOpen()?.init?.body))).toEqual({ id: null });
     });
+  });
+
+  test('a suspended category editor keeps its draft, releases focus and refuses stale saves', async () => {
+    knowledge.value = {
+      ok: true,
+      categories: [],
+      folders: [],
+      relationPresets: [],
+      cards: {},
+      reviewCards: [],
+      resolvedFolders: {},
+    };
+    const { getByRole, getByLabelText, queryByRole } = render(
+      <>
+        <button type="button" aria-label="Settings">
+          Settings
+        </button>
+        <KnowledgeDialog onClose={() => {}} />
+      </>,
+    );
+    fireEvent.click(getByRole('button', { name: 'Add category' }));
+    const name = getByLabelText('Name') as HTMLInputElement;
+    fireEvent.input(name, { target: { value: 'Unfinished category' } });
+    const save = getByRole('button', { name: 'Save category' });
+    name.focus();
+    await act(() => {
+      workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: false };
+    });
+    expect(queryByRole('dialog', { name: 'Categories' })).toBeNull();
+    expect(document.activeElement).toBe(getByRole('button', { name: 'Settings' }));
+    fireEvent.submit(save.closest('form')!);
+    expect(calls.some((call) => call.init?.method === 'POST')).toBe(false);
+    await act(() => {
+      workspaceSettings.value = { agentSessions: false, knowledgeLifecycle: true };
+    });
+    expect(getByRole('dialog', { name: 'Categories' })).toBeTruthy();
+    expect((getByLabelText('Name') as HTMLInputElement).value).toBe('Unfinished category');
   });
 
   test.each([false, true])('category deletion is in-app and refuses assigned empty folders (used=%s)', async (used) => {

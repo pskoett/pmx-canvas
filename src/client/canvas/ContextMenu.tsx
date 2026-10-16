@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import {
   contextPinnedNodeIds,
@@ -514,7 +515,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   const items: MenuItem[] = [];
   const localPath = getNodeLocalPath(node);
 
-  items.push({ label: 'Review', action: () => openLifecycle(node.id) });
+  if (knowledgeLifecycleEnabled.value) items.push({ label: 'Review', action: () => openLifecycle(node.id) });
 
   // S2: Delegate to focusNode() which centers, brings to front, and persists
   items.push({

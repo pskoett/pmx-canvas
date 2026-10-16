@@ -13,7 +13,7 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: 500px repeat(2, minmax(0, 1fr)); gap: 40px">
 
 <section style="display: flex; flex-direction: column; gap: 14px">
 <div><h2 style="margin: 0; font-size: 15px; font-weight: 600">7 · Tool rail in a 690px-tall window</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">20 buttons need 850px. Settings-type tools move into one menu.</p></div>
@@ -43,14 +43,19 @@ body{margin:0}
 <sc-if value="{{i.btn}}" hint-placeholder-val="{{ true }}"><button aria-label="{{i.label}}" style="{{i.style}}"><svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="{{i.d}}"></path></svg></button></sc-if>
 </sc-for>
 </div>
-<div role="menu" aria-label="Settings" style="position: absolute; left: 60px; bottom: 8px; width: 180px; box-sizing: border-box; padding: 6px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 2px">
-<sc-for list="{{settings}}" as="m" hint-placeholder-count="6">
+<!-- Tooltip preview is a sibling of the scrolling menu, never clipped by its overflow. -->
+<div role="tooltip" id="settings-tooltip-preview" style="position: absolute; z-index: 2; left: 60px; bottom: 340px; width: 280px; box-sizing: border-box; padding: 10px 12px; border: 1px solid #2a4566; border-radius: 6px; background: #13243b; color: #b9c6d6; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.24)"><strong style="color: #e6eef7">Hover / keyboard focus</strong><br>Show session tools for this workspace. Off hides the tools, not attached agents or their protections.</div>
+<div role="menu" aria-label="Settings" style="position: absolute; left: 60px; bottom: 8px; width: 280px; max-height: 316px; overflow-y: auto; box-sizing: border-box; padding: 6px; border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 2px">
+<div style="padding: 4px 10px; color: #8ea3bd; font-size: 11px">Workspace · all boards</div>
+<sc-for list="{{settings}}" as="m" hint-placeholder-count="8">
 <sc-if value="{{m.sep}}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: #1b2c44"></div></sc-if>
-<sc-if value="{{m.btn}}" hint-placeholder-val="{{ true }}"><button role="menuitem" style="display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left">{{m.label}}<span style="font-size: 11px; color: #6b7d94">{{m.hint}}</span></button></sc-if>
+<sc-if value="{{m.btn}}" hint-placeholder-val="{{ true }}"><button role="menuitem" aria-description="{{m.tip}}" style="display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left">{{m.label}}<span style="font-size: 11px; color: #6b7d94">{{m.hint}}</span></button></sc-if>
+<sc-if value="{{m.toggle}}" hint-placeholder-val="{{ false }}"><button role="menuitemcheckbox" aria-checked="false" aria-description="{{m.tip}}" style="display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: {{m.bg}}; color: #e6eef7; font-family: inherit; font-size: 12px; text-align: left"><span>{{m.label}} <span style="font-size: 10px; color: #8ea3bd">Beta</span></span><span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8ea3bd">Off <span aria-hidden="true" style="display: inline-flex; align-items: center; width: 24px; height: 14px; padding: 2px; box-sizing: border-box; border: 1px solid #6b7d94; border-radius: 999px; background: #081524"><span style="width: 8px; height: 8px; border-radius: 50%; background: #8ea3bd"></span></span></span></button></sc-if>
 </sc-for>
 </div>
 </div>
-<span style="font-size: 11px; color: #8ea3bd">13 tools, then Settings: theme, snapshots, minimap, shortcuts, trace, feedback. The Eraser stays beside Text note: it is the only way to remove an annotation. Theme and Trace open their choices in place, with a “‹ Settings” back row — no side flyout, which would clip in a 600 px pane.</span>
+<span style="font-size: 11px; color: #8ea3bd">13 tools, then Settings. Both Beta switches default Off and persist library-wide, never in board snapshots. Every main item explains itself on hover and keyboard focus through a nonnative, viewport-contained overlay outside the scrolling menu (preview above). Saving disables the action with aria-disabled while retaining focus on the switch; Tab and board shortcuts never act on the canvas behind the menu. Theme and Trace open in place with “‹ Settings”, not a side flyout. Eraser stays beside Text note.</span>
+<span style="font-size: 11px; color: #8ea3bd">Sessions Off: no chips, start, timeline, work items, composer or receipts; attached agents, writer visibility, approvals, scope, edit locks and veto remain. Lifecycle Off: no Review, policy/category management, filters or due/retired marks; saved records and suspended drafts remain. Folders, boards, pins and relations stay. UI opt-ins only, not API/security disables; retired context stays excluded.</span>
 </div>
 
 </div>
@@ -200,7 +205,18 @@ class Component extends DCLogic {
     });
     function m(label, hint, active) { return { btn: true, sep: false, label: label, hint: hint, bg: active ? '#1b2c44' : 'transparent' }; }
     var msep = { btn: false, sep: true };
-    var settings = [m('Theme', 'Harbor ›', true), m('Snapshots', ''), m('Minimap', 'On'), m('Keyboard shortcuts', '?'), msep, m('Trace', 'Off ›'), m('Send feedback', '')];
+    function setting(label, hint, tip) { return Object.assign(m(label, hint), { tip: tip, toggle: false }); }
+    function optIn(label, tip, active) { return { btn: false, sep: false, toggle: true, label: label, tip: tip, bg: active ? '#1b2c44' : 'transparent' }; }
+    var settings = [
+      setting('Theme', 'Harbor ›', 'Choose the workspace appearance.'),
+      setting('Snapshots', '', 'Save or restore this board; workspace opt-ins are not included.'),
+      setting('Minimap', 'On', 'Show or hide the board overview.'),
+      setting('Keyboard shortcuts', '?', 'See the available keyboard commands.'), msep,
+      optIn('Agent sessions', 'Show session tools for this workspace. Off hides the tools, not attached agents or their protections.', true),
+      optIn('Knowledge lifecycle', 'Show Review, policies, categories and lifecycle marks. Off retains saved records and suspends drafts; retired context stays excluded.'), msep,
+      setting('Trace', 'Off ›', 'Choose trace controls for inspecting canvas activity.'),
+      setting('Send feedback', '', 'Share feedback about PMX Canvas.')
+    ];
     var nodeMenu = [m('Focus', ''), m('Rename…', ''), m('Collapse', ''), m('Open in new tab', '', true), msep, m('Delete', '⌫')];
     var oldIcons = [{ d: P.ctx }, { d: P.ask }, { d: P.open }, { d: P.expand }, { d: P.chevron }, { d: P.close }];
     return { railToday: railToday, railNew: railNew, settings: settings, nodeMenu: nodeMenu, oldIcons: oldIcons };

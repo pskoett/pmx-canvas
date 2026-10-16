@@ -30,6 +30,7 @@ const writes = new Set([
   'annotation.add',
   'annotation.remove',
   'theme.set',
+  'settings.set',
   'viewport.set',
   'canvas.apply-updates',
   'canvas.clear',
@@ -160,6 +161,23 @@ export function registerWorkbenchApp(server: McpServer, ensureCanvas: () => Prom
               throw new OperationError('Read the note before editing: a content revision is required.', 409);
             const node = await canvas.getNode(String(args.id));
             if (node?.data.path) throw new OperationError('Edit file-linked content in the local PMX workbench.', 403);
+          }
+          if (op.name === 'settings.set') {
+            // Only this app-only UI preference request carries the workbench
+            // marker. Canvas edits still use the agent invoker below; never
+            // fetch or forward the daemon's human-author capability.
+            const response = await fetch(new URL('/api/canvas/settings', base), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-PMX-Workbench': '1',
+                'X-PMX-Source': 'mcp',
+              },
+              body: JSON.stringify(args),
+              redirect: 'error',
+              signal: AbortSignal.timeout(15_000),
+            });
+            return reply(response.status, await response.text());
           }
           const result = await canvas.invoker().invoke(op.name, args);
           return reply(route.status ? route.status(result) : 200, JSON.stringify(result));

@@ -20,6 +20,7 @@ import { TraceNode } from '../nodes/TraceNode';
 import { BoardNode } from '../nodes/BoardNode';
 import { RelationsPanel } from './RelationsPanel';
 import { lifecycleTarget, openLifecycle } from '../state/knowledge-store';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import {
   collapseExpandedNode,
   contextPinnedNodeIds,
@@ -247,8 +248,17 @@ export function ExpandedNodeOverlay() {
     () => (nodeId ? document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`) : null),
     [nodeId],
   );
-  const reviewing = lifecycleTarget.value?.nodeId === nodeId;
+  const reviewing = knowledgeLifecycleEnabled.value && lifecycleTarget.value?.nodeId === nodeId;
+  const suspendingFocusedReview =
+    !knowledgeLifecycleEnabled.value &&
+    lifecycleTarget.value?.nodeId === nodeId &&
+    !!document.activeElement?.closest('.lifecycle-dialog');
   useFocusTrap(panelRef, node !== undefined && !reviewing, { restoreTo: restoreToNode });
+  useLayoutEffect(() => {
+    // Resuming the expanded card's trap must not steal the hidden review's return focus.
+    if (suspendingFocusedReview)
+      document.querySelector<HTMLElement>('button[aria-label="Settings"]')?.focus({ preventScroll: true });
+  }, [reviewing]);
 
   if (!node) return null;
 
@@ -311,9 +321,11 @@ export function ExpandedNodeOverlay() {
           </BarHint>
           <span class="expanded-spacer" />
           <div class="expanded-actions">
-            <button type="button" class="expanded-action-btn" onClick={() => openLifecycle(node.id)}>
-              Review
-            </button>
+            {knowledgeLifecycleEnabled.value && (
+              <button type="button" class="expanded-action-btn" onClick={() => openLifecycle(node.id)}>
+                Review
+              </button>
+            )}
             <button
               type="button"
               class="expanded-action-btn"

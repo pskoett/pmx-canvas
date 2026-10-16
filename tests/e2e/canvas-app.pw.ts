@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect, setWorkspaceFeatures, type Page, type APIRequestContext } from './workspace-fixture.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -127,6 +127,7 @@ test('real workbench creates boards, edits notes, drags and pins without a dupli
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   // A long end-to-end flow: 18-23 s alone, 22-52 s inside a loaded parallel
   // run, so the default 30 s budget timed it out while every step still passed.
   test.setTimeout(60_000);
@@ -395,6 +396,7 @@ test('pin reconciliation preserves retired membership without exposing it in the
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   await board(request, 'Retired pin membership');
   const id = await note(request, 'Retired source');
   expect(
@@ -436,6 +438,17 @@ test('pin reconciliation preserves retired membership without exposing it in the
       return snapshot.events.find((entry: { event: string }) => entry.event === 'context-pins-changed').payload.nodeIds;
     })
     .toEqual([]);
+  const activeId = await note(request, 'Active source');
+  await request.post('/api/canvas/context-pins', { data: { nodeIds: [id, activeId] } });
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: false });
+  await expect(app.getByTestId('context-chip')).toContainText('1 card');
+  await expect(app.getByRole('region', { name: 'Pinned context', exact: true })).toContainText('1 node in context');
+  expect((await (await request.get('/api/canvas/pinned-context')).json()).nodeIds).toEqual([activeId]);
+  expect(
+    (await request.post(`/api/canvas/node/${id}/lifecycle/restore`, { data: { evidence: 'Reactivated source' } })).ok(),
+  ).toBe(true);
+  await expect(app.getByTestId('context-chip')).toContainText('2 cards');
+  await expect(app.getByRole('region', { name: 'Pinned context', exact: true })).toContainText('2 nodes in context');
 });
 
 for (const snapshot of [false, true]) {
@@ -480,7 +493,7 @@ for (const snapshot of [false, true]) {
     await expect.poll(() => captured).toBe(true);
     const chip = app.getByTestId('context-chip');
     await chip.click();
-    await app.getByRole('button', { name: 'Clear all' }).click();
+    await app.getByRole('button', { name: 'Clear all', exact: true }).click();
     await expect.poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds).toEqual([]);
     // Observe the whole replay window, not an optimistic sample before the old reply lands.
     const staysClear = chip.evaluate(
@@ -547,7 +560,7 @@ test('curated structured notes and AX focus reach the host context', async ({ pa
   await expect(chip).toBeInViewport();
   await expect(chip).toContainText('1 card');
   await chip.click();
-  await app.getByRole('button', { name: 'Clear all' }).click();
+  await app.getByRole('button', { name: 'Clear all', exact: true }).click();
   await expect(chip).toContainText('Nothing in context');
   await page.keyboard.press('Escape');
   await app.locator(`[data-node-id="${status.id}"] .ctx-pin-btn`).click();

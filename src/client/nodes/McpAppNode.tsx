@@ -84,7 +84,7 @@ export function RefreshingViewerFrame({
   source: ViewerFrameSource;
   iframeRef: RefObject<HTMLIFrameElement>;
   onLoad: () => void;
-  onDocumentLoad?: (frame: HTMLIFrameElement, signal: AbortSignal) => void | Promise<boolean | void>;
+  onDocumentLoad?: (frame: HTMLIFrameElement, signal: AbortSignal) => void | Promise<boolean | 'cancelled' | void>;
   title: string;
   className?: string;
   sandbox?: string;
@@ -143,7 +143,7 @@ export function RefreshingViewerFrame({
         const ready = onDocumentLoad?.(loadedFrame, controller.signal);
         const loaded = ready ? await ready : undefined;
         readiness.current.delete(controller);
-        if (promotionRef.current !== token) return;
+        if (promotionRef.current !== token || loaded === 'cancelled') return;
         if (loaded === false) {
           if (entry.attempt === 0) {
             const retry = { ...entry, attempt: 1 };

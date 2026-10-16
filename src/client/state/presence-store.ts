@@ -1,6 +1,7 @@
 import { computed, signal } from '@preact/signals';
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
 import { intents } from './intent-store';
+import { agentSessionsEnabled } from './workspace-settings';
 import {
   HUMAN_STARTED_SESSION_LABEL,
   type AgentActivityEntry,
@@ -56,11 +57,14 @@ export function relativeAge(iso: string, now = Date.now()): string {
   return `${Math.floor(ms / 3_600_000)}h`;
 }
 
-/** Master gate for every agent surface: an attached session exists. */
+/** Attachment state is independent of whether the human opted into its UI. */
 export const sessionActive = computed(() => isSessionActive(agentPresences.value));
+export const sessionChromeActive = computed(() => agentSessionsEnabled.value && sessionActive.value);
 
-/** Live writers with no attached session — the External Steering mode. */
-export const externalWriterPresences = computed(() => externalWriters(agentPresences.value));
+/** With session UI off, attached agents still appear as ordinary live writers. */
+export const externalWriterPresences = computed(() =>
+  agentSessionsEnabled.value ? externalWriters(agentPresences.value) : agentPresences.value,
+);
 
 /**
  * Connected agents the human can ADDRESS from the composer: every live

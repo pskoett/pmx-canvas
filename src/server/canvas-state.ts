@@ -13,6 +13,12 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
+import {
+  DEFAULT_WORKSPACE_SETTINGS,
+  workspaceSettingsPatchSchema,
+  workspaceSettingsSchema,
+  type WorkspaceSettings,
+} from '../shared/workspace-settings.js';
 import { KnowledgeLifecycle, lifecycleSchema, type Lifecycle } from './knowledge-lifecycle.js';
 import { relationSourceEnd } from '../shared/relations.js';
 import { OperationError } from './operations/types.js';
@@ -2999,6 +3005,23 @@ class CanvasStateManager {
 
   get theme(): CanvasTheme {
     return this._theme;
+  }
+
+  getWorkspaceSettings(): WorkspaceSettings {
+    const stored = this._db ? readMetaFromDB(this._db, 'workspace_settings') : null;
+    return stored === null
+      ? { ...DEFAULT_WORKSPACE_SETTINGS }
+      : workspaceSettingsSchema.parse({ ...DEFAULT_WORKSPACE_SETTINGS, ...JSON.parse(stored) });
+  }
+
+  updateWorkspaceSettings(patch: Partial<WorkspaceSettings>): WorkspaceSettings {
+    if (!this._db) throw new OperationError('Settings need a workspace database.', 409);
+    const next = workspaceSettingsSchema.parse({
+      ...this.getWorkspaceSettings(),
+      ...workspaceSettingsPatchSchema.parse(patch),
+    });
+    writeMetaToDB(this._db, 'workspace_settings', JSON.stringify(next));
+    return next;
   }
 
   setTheme(theme: CanvasTheme): CanvasTheme {

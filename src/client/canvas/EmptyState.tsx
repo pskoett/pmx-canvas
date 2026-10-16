@@ -7,6 +7,7 @@ import { modChord } from '../utils/platform';
 import { canvasAreaCenter } from './canvas-area';
 import { importFiles } from './import-files';
 import { promptedCreate } from './ToolRail';
+import { agentSessionsEnabled } from '../state/workspace-settings';
 
 /**
  * Empty board (rail-chrome-v2 phase 7, design item 11): centered onboarding
@@ -66,10 +67,12 @@ export function EmptyState({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span class="empty-state-action-label">Paste a link</span>
           <kbd>{modChord('V')}</kbd>
         </button>
-        <button type="button" class="empty-state-action is-agent" onClick={() => void startSession()}>
-          <IconSteer size={16} class="tone-purple" />
-          <span class="empty-state-action-label">Start agent session</span>
-        </button>
+        {agentSessionsEnabled.value && (
+          <button type="button" class="empty-state-action is-agent" onClick={() => void startSession()}>
+            <IconSteer size={16} class="tone-purple" />
+            <span class="empty-state-action-label">Start agent session</span>
+          </button>
+        )}
       </div>
       <button type="button" class="empty-state-hint" onClick={onOpenPalette}>
         ? shortcuts · {modChord('K')} palette

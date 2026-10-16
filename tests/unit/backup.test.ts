@@ -61,6 +61,108 @@ const boardNames = async () =>
   ((await call('GET', '/api/canvas/boards')).body.boards as Array<{ name: string }>).map((b) => b.name).sort();
 
 describe('library backup', () => {
+  test('workspace settings default off, merge boolean patches, and survive board changes and restart without a writer', async () => {
+    const root = startWorkspace();
+    const settings = async () => (await call('GET', '/api/canvas/settings')).body.workspaceSettings;
+    expect(await settings()).toEqual({ agentSessions: false, knowledgeLifecycle: false });
+    const presenceBefore = (await call('GET', '/api/canvas/ax/presence')).body;
+    // Unmarked API writes cannot change the human's workspace UI preferences.
+    const write = await fetch(`${baseUrl}/api/canvas/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentSessions: true, fromWorkbench: true, humanAuthor: true }),
+    });
+    expect(write.status).toBe(403);
+    expect(await settings()).toEqual({ agentSessions: false, knowledgeLifecycle: false });
+    expect((await call('POST', '/api/canvas/settings', { agentSessions: true })).status).toBe(200);
+    expect(await settings()).toEqual({ agentSessions: true, knowledgeLifecycle: false });
+    expect(await boardNames()).toEqual([]);
+    expect((await call('GET', '/api/canvas/ax/presence')).body).toEqual(presenceBefore);
+    const beforeUpdates = await (await fetch(`${baseUrl}/api/workbench/poll`)).json();
+    await call('POST', '/api/canvas/settings', { knowledgeLifecycle: true });
+    await call('POST', '/api/canvas/settings', { agentSessions: false });
+    const expected = { agentSessions: false, knowledgeLifecycle: true };
+    expect(await settings()).toEqual(expected);
+    const updates = await (await fetch(`${baseUrl}/api/workbench/poll?since=${beforeUpdates.seq}`)).json();
+    expect(
+      updates.events
+        .filter((event: { event: string }) => event.event === 'settings-changed')
+        .map((event: { payload: unknown }) => event.payload),
+    ).toEqual([
+      expect.objectContaining({ workspaceSettings: { agentSessions: true, knowledgeLifecycle: true } }),
+      expect.objectContaining({ workspaceSettings: expected }),
+    ]);
+    for (const key of ['agentSessions', 'knowledgeLifecycle']) {
+      for (const value of ['true', 1, null, {}, []]) {
+        expect((await call('POST', '/api/canvas/settings', { [key]: value })).status).toBe(400);
+        expect(await settings()).toEqual(expected);
+      }
+    }
+    const db = new Database(join(root, '.pmx-canvas', 'canvas.db'), { readonly: true });
+    expect(
+      JSON.parse(
+        db.query<{ value: string }, []>("SELECT value FROM meta WHERE key = 'workspace_settings'").get()!.value,
+      ),
+    ).toEqual(expected);
+    db.close();
+    await addNote('First board');
+    const firstBoardId = canvasState.activeBoardId;
+    const snapshot = canvasState.saveSnapshot('settings-independent')!;
+    await call('POST', '/api/canvas/settings', { agentSessions: true });
+    expect(canvasState.restoreSnapshot(snapshot.id)).toBe(true);
+    expect(await settings()).toEqual({ agentSessions: true, knowledgeLifecycle: true });
+    await call('POST', '/api/canvas/settings', { agentSessions: false });
+    const second = await call('POST', '/api/canvas/boards', { name: 'Second' });
+    const secondBoard = second.body.board as { id: string };
+    expect((await call('POST', '/api/canvas/boards/open', { id: secondBoard.id })).status).toBe(200);
+    expect(await settings()).toEqual(expected);
+    expect((await call('POST', '/api/canvas/boards/open', { id: firstBoardId })).status).toBe(200);
+    expect(await settings()).toEqual(expected);
+    stopCanvasServer();
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    canvasState.loadFromDisk();
+    baseUrl = startCanvasServer({ workspaceRoot: root, port: 0 })!.replace(/\/$/, '');
+    expect(await settings()).toEqual(expected);
+    const poll = await (await fetch(`${baseUrl}/api/workbench/poll`)).json();
+    expect(
+      poll.events.find((event: { event: string }) => event.event === 'connected').payload.workspaceSettings,
+    ).toEqual(expected);
+  });
+
+  test('an existing library without settings still defaults off', async () => {
+    const root = startWorkspace();
+    await addNote('Existing board');
+    canvasState.flushToDisk();
+    stopCanvasServer();
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    canvasState.loadFromDisk();
+    baseUrl = startCanvasServer({ workspaceRoot: root, port: 0 })!.replace(/\/$/, '');
+    expect((await call('GET', '/api/canvas/settings')).body.workspaceSettings).toEqual({
+      agentSessions: false,
+      knowledgeLifecycle: false,
+    });
+  });
+
+  test('settings writes fail on database refusal without changing canonical settings', async () => {
+    const root = startWorkspace();
+    const db = new Database(join(root, '.pmx-canvas', 'canvas.db'));
+    db.run(
+      "CREATE TRIGGER reject_settings BEFORE INSERT ON meta WHEN NEW.key = 'workspace_settings' BEGIN SELECT RAISE(ABORT, 'settings rejected'); END",
+    );
+    try {
+      expect((await call('POST', '/api/canvas/settings', { agentSessions: true })).status).toBe(500);
+      expect((await call('GET', '/api/canvas/settings')).body.workspaceSettings).toEqual({
+        agentSessions: false,
+        knowledgeLifecycle: false,
+      });
+    } finally {
+      db.run('DROP TRIGGER reject_settings');
+      db.close();
+    }
+  });
+
   test('CLI rejects unknown backup flags without writing or changing the schedule', async () => {
     const root = startWorkspace();
     const entry = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
@@ -187,6 +289,7 @@ describe('library backup', () => {
 
   test('a backup restores every board on a clean machine, keeping the file it replaced', async () => {
     const source = startWorkspace();
+    await call('POST', '/api/canvas/settings', { knowledgeLifecycle: true });
     await addNote('Objective one');
     await call('POST', '/api/canvas/boards', { name: 'Discovery' });
     const backup = (
@@ -196,9 +299,20 @@ describe('library backup', () => {
 
     // A fresh workspace somewhere else: nothing on it but a scratch board.
     const target = startWorkspace();
+    await call('POST', '/api/canvas/settings', { agentSessions: true });
     await addNote('Scratch');
+    const beforeRestore = await (await fetch(`${baseUrl}/api/workbench/poll`)).json();
     const restored = await call('POST', '/api/canvas/backup/restore', { file: backup });
     expect(restored.status).toBe(200);
+    expect((await call('GET', '/api/canvas/settings')).body.workspaceSettings).toEqual({
+      agentSessions: false,
+      knowledgeLifecycle: true,
+    });
+    const restoredEvents = await (await fetch(`${baseUrl}/api/workbench/poll?since=${beforeRestore.seq}`)).json();
+    expect(
+      restoredEvents.events.find((event: { event: string }) => event.event === 'settings-changed').payload
+        .workspaceSettings,
+    ).toEqual({ agentSessions: false, knowledgeLifecycle: true });
     const laterCatalog = (await call('GET', '/api/canvas/boards')).body;
     expect(restored.body.reloadRevision).toBe(restored.body.catalogRevision);
     expect(laterCatalog.catalogEpoch).toBe(restored.body.catalogEpoch);
@@ -213,6 +327,10 @@ describe('library backup', () => {
 
     const restoredPrevious = await call('POST', '/api/canvas/backup/restore', { file: previous });
     expect(restoredPrevious.status).toBe(200);
+    expect((await call('GET', '/api/canvas/settings')).body.workspaceSettings).toEqual({
+      agentSessions: true,
+      knowledgeLifecycle: false,
+    });
     const previousState = (await call('GET', '/api/canvas/state')).body as {
       nodes: Array<{ data: { title?: string } }>;
     };

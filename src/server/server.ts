@@ -2252,6 +2252,7 @@ function buildWorkbenchConnectSnapshot(
       continuity,
       path: primaryWorkbenchPath,
       theme: canvasState.theme,
+      workspaceSettings: canvasState.getWorkspaceSettings(),
       workbenchToken,
       catalogEpoch: boardCatalogEpoch,
       // Lets a long-lived client detect that the server was upgraded under it

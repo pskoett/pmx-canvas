@@ -144,6 +144,50 @@ the same change.
 | [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
+**Workspace UI opt-ins (owner decision, 2026-10-16).** Main rail **Settings** contains
+**Agent sessions (Beta)** and **Knowledge lifecycle (Beta)**, each with a small switch,
+both **OFF by default**. These preferences persist workspace-wide across reloads and
+board changes: they are library-wide settings, never board snapshot state. Restoring a
+board snapshot must not change them. Chrome §7 is the chosen settings drawing; this
+decision gates the session and lifecycle surfaces described elsewhere in this guide.
+
+Every main Settings item (including existing actions and both opt-ins) has an explanatory,
+nonnative tooltip on pointer hover and keyboard focus. Tooltips render outside the scrolling
+menu in an overlay, stay within the viewport, and do not clip at the menu boundary. Do not
+use native `title` tooltips; associate the explanation with its control for assistive technology.
+Keep the menu scrollable in short windows and all items keyboard-reachable. Saving a switch
+uses `aria-disabled` with an action guard, not native disabling that drops keyboard focus;
+the focused switch announces its new state, and board shortcuts never own menu keys.
+
+- **Agent sessions OFF** hides session chips, Start agent session, timeline, work items,
+  composer and receipts. It does not end or detach attached agents. Normal writer visibility
+  remains, and approvals, scope fences, human edit locks and veto protections still apply;
+  required approval decisions must remain reachable outside the hidden session UI. Restore
+  the bottom-center **N nodes in context** pill for pinned cards on the current board, with
+  Clear all and its styled tooltip, independently of attachment or lifecycle. Hide it on Home
+  and when no cards are pinned. Keep the top-bar context summary unchanged. The selection
+  toolbar wraps within the canvas above the pill; at narrow widths a visible minimap sits
+  10 px above the toolbar's measured height, or above the pill if nothing is selected. Fit
+  and focus reserve the pill's screen-space bounds. ContextChip shows this footer exception
+  to the earlier one-chip decision; enabling sessions gives the footer back to the composer.
+  Footer collision layout uses the actual canvas width, including space taken by Review or
+  session panels: at 1200 px or less the minimap sits above the measured composer/selection
+  stack, with a 10 px gap even when the minimap magnifies on hover. Hidden composers reserve
+  no space. Wider canvases keep the minimap in the bottom-right corner.
+- **Knowledge lifecycle OFF** hides Home Review, card Review, review-policy and category
+  management, lifecycle filters, due marks and retired marks/dimming. Saved policies,
+  categories and review records remain intact. Open lifecycle drafts are suspended without
+  saving or discarding them and resume when enabled again. Ordinary folders, boards, pins
+  and relations remain available; hiding lifecycle never removes their ordinary controls.
+- These are **UI opt-ins**, not backend security boundaries or API disables. Background
+  agents and API operations retain their contracts and protections. Retirement still excludes
+  retired content from agent context even while retired marks and lifecycle controls are hidden.
+  Context counts and nearby-context marks exclude retired cards regardless of the opt-in;
+  raw pin membership remains saved, so restoring a retired card restores its active pin.
+  Clear all removes all saved pins, including retired cards excluded from the displayed count.
+  A successful review save is acknowledged even if its dock is suspended before the reply:
+  clear the saved draft, reload its preconditions, and retain retirement Undo on resume.
+
 **Near cards distance (owner decision, 2026-10-14).** Near means an edge-to-edge
 gap of at most 600 canvas pixels, not distance between centres. Large cards do
 not need to overlap to qualify. Keep the five nearest unpinned cards per pin;
@@ -217,7 +261,9 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
   hidden, so hover or keyboard focus cannot move the pin onto another action.
   Section labels are a heading display of the markdown node. Rarely used tools
   live in one settings menu on the rail (built 2026-10-08: theme, snapshots, minimap,
-  shortcuts, trace, feedback; Theme and Trace open in place with a "‹ Settings" row). The
+  shortcuts, trace, feedback; now also Agent sessions (Beta) and Knowledge lifecycle (Beta),
+  both initially off, with library-wide persistence and explanatory hover/focus tooltips.
+  Theme and Trace open in place with a "‹ Settings" row). The
   Eraser stays beside Text note — it is the only way to remove an annotation — so the rail
   has 13 tools (Chrome.dc.html §7, updated to match).
 - **Kinds and knowledge categories carry no colour** (categories confirmed with the

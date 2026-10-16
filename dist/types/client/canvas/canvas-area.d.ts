@@ -31,7 +31,7 @@ export interface CanvasFitInsets {
 }
 /**
  * Screen-space insets Fit must reserve for the floating chrome that overlays
- * the canvas region: the bottom command bar (whose pinned-chip row grows it)
+ * the canvas region: the bottom command bar or standalone context pill,
  * and the bottom-right minimap. Measured from the live elements — fit's old
  * world-space padding shrank with the fit zoom and parked nodes underneath
  * both (0.5.0 Amp report, finding A; architecture rule 9's trap).

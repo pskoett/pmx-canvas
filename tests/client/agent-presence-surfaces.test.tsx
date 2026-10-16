@@ -6,6 +6,7 @@ import { nodes, viewport } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 import type { AgentPresence } from '../../src/shared/agent-presence.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 
 // rail-chrome-v2 phase 3 (amended 2026-08-24): panels mount on sessionActive;
 // the presence layer paints EVERY live writer, external ones dashed.
@@ -55,11 +56,15 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
   resetPresence();
   nodes.value = new Map([['n1', makeNode('n1')]]);
   viewport.value = { x: 0, y: 0, scale: 1 };
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  workspaceSettings.value = null;
+});
 
 describe('top-bar agent chip', () => {
   test('is absent on the quiet board and when only unattached writers exist', () => {

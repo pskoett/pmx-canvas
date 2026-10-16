@@ -114,11 +114,13 @@ describe('tool rail tooltips', () => {
     const settings = getByRole('button', { name: 'Settings', exact: true });
     fireEvent.click(settings);
     const menu = getByRole('menu', { name: 'Settings' });
-    expect([...menu.querySelectorAll('[role^=menuitem]')].map((item) => item.firstElementChild?.textContent)).toEqual([
+    expect([...menu.querySelectorAll('[role^=menuitem]')].map((item) => item.getAttribute('aria-label'))).toEqual([
       'Theme',
       'Snapshots',
       'Minimap',
       'Keyboard shortcuts',
+      'Agent sessions (Beta)',
+      'Knowledge lifecycle (Beta)',
       'Trace',
       'Send feedback',
     ]);

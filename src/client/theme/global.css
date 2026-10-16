@@ -1266,6 +1266,7 @@ body,
   min-height: 0;
   position: relative;
   overflow: hidden;
+  container: canvas / inline-size;
 }
 
 .workspace { display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
@@ -2170,6 +2171,64 @@ body,
   letter-spacing: 0;
 }
 
+/* Context stays useful with Agent sessions off, without the composer. */
+.context-pin-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  border: 1px solid color-mix(in srgb, var(--c-pin) 30%, transparent);
+  border-radius: var(--r-pill);
+  background: var(--c-panel);
+  color: var(--c-pin);
+  box-shadow: 0 10px 30px var(--c-shadow);
+  font: 500 12px var(--font-ui);
+  white-space: nowrap;
+  z-index: 65;
+}
+.context-pin-bar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--c-pin) 14%, transparent);
+  color: var(--c-pin);
+  cursor: pointer;
+}
+.context-pin-bar button:hover {
+  background: color-mix(in srgb, var(--c-pin) 24%, transparent);
+}
+.canvas-region:has(> .context-pin-bar) > .selection-bar {
+  bottom: 62px;
+}
+@container canvas (max-width: 1200px) {
+  .canvas-region:has(> .selection-bar) > .minimap {
+    bottom: calc(28px + var(--selection-bar-height));
+  }
+  .canvas-region:has(> .context-pin-bar) > .minimap {
+    bottom: 62px;
+  }
+  .canvas-region:has(> .context-pin-bar):has(> .selection-bar) > .minimap {
+    bottom: calc(72px + var(--selection-bar-height));
+  }
+  .canvas-region:has(> .command-bar:not([hidden])) > .minimap {
+    bottom: calc(28px + var(--command-bar-height));
+  }
+  .canvas-region:has(> .command-bar:not([hidden])):has(> .selection-bar) > .minimap {
+    bottom: calc(38px + var(--command-bar-height) + var(--selection-bar-height));
+  }
+}
+
 /* ── Command bar (rail-chrome-v2 phase 5) ─────────────────────
    The human's steering surface while a session is attached: the design's
    floating composer, centered at the bottom of the canvas region, with the
@@ -2814,6 +2873,7 @@ body,
 .session-panel button:focus-visible,
 .session-panel input:focus-visible,
 .command-bar button:focus-visible,
+.context-pin-bar button:focus-visible,
 .command-bar-input:focus-visible,
 .selection-bar button:focus-visible,
 .activity-feed button:focus-visible,
@@ -3774,6 +3834,73 @@ kbd.toolbar-menu-hint {
   width: 7px;
   height: 7px;
   border-radius: 50%;
+}
+
+.rail-settings-menu {
+  width: min(300px, calc(100vw - 76px));
+}
+
+.settings-item-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-caption,
+.settings-error {
+  margin: 0;
+  padding: 5px 10px;
+  color: var(--c-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.settings-error {
+  color: var(--c-danger);
+}
+
+.settings-switch {
+  display: block;
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 28px;
+  height: 16px;
+  padding: 2px;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  background: var(--c-panel-soft);
+}
+
+.settings-switch::after {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c-muted);
+}
+
+.settings-switch.is-on {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+.settings-switch.is-on::after {
+  margin-left: auto;
+  background: var(--c-contrast-fg);
+}
+
+.toolbar-tooltip.settings-tooltip {
+  position: fixed;
+  width: 280px;
+  min-width: 0;
+  max-width: calc(100vw - 24px);
+  opacity: 1;
+  transform: none;
+}
+
+.toolbar-tooltip.settings-tooltip::after {
+  display: none;
 }
 
 
@@ -5099,8 +5226,8 @@ html.is-node-resizing .ext-app-preview-catcher {
    (rail-chrome-v2 phase 7, item 13). */
 /* In a session the command bar owns the bottom-center slot — lift the
    selection bar clear of it (composer + chips row). */
-[data-session-active='true'] .selection-bar {
-  bottom: 124px;
+.canvas-region:has(> .command-bar:not([hidden])) > .selection-bar {
+  bottom: calc(28px + var(--command-bar-height));
 }
 .selection-bar {
   position: absolute;
@@ -5108,7 +5235,12 @@ html.is-node-resizing .ext-app-preview-catcher {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - 32px);
   gap: 2px;
   padding: 6px 8px;
   background: color-mix(in srgb, var(--c-panel) 97%, transparent);
@@ -8206,6 +8338,7 @@ html.is-node-dragging .intent-line-layer {
 }
 .home-details-actions .home-button.is-primary {
   flex: 1;
+  white-space: nowrap;
 }
 .home-main-head .home-button {
   height: 32px;
@@ -9351,7 +9484,8 @@ html.is-node-dragging .intent-line-layer {
   padding: 5px 10px; border: 1px solid var(--c-line); border-radius: 6px; background: var(--c-panel);
   color: var(--c-text); font: 12px var(--font-ui); cursor: pointer;
 }
-.knowledge-dialog button:disabled { opacity: 0.5; cursor: wait; }
+.knowledge-dialog button:disabled,
+.knowledge-dialog button[aria-disabled="true"] { opacity: 0.5; cursor: wait; }
 .knowledge-dialog button[type="submit"] { align-self: flex-start; min-height: 30px; background: var(--c-accent); border-color: transparent; color: var(--c-contrast-fg); font-weight: 500; }
 :root[data-theme="sepia"] .knowledge-dialog button[type="submit"] { background: color-mix(in srgb, var(--c-accent) 75%, var(--c-text)); }
 .knowledge-dialog button.is-danger { align-self: flex-start; color: var(--c-danger); border-color: color-mix(in srgb, var(--c-danger) 50%, var(--c-line)); }

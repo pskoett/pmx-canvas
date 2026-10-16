@@ -45,6 +45,137 @@ done
   return wrapper;
 }
 
+for (const interruption of ['ctrl-c', 'browser-loss'] as const) {
+  test(`foreground PTY recording handles ${interruption} without hiding capture failure`, async ({
+    request,
+  }, testInfo) => {
+    test.skip(process.platform !== 'linux', 'Requires Linux controlling-PTY and process inspection');
+    test.setTimeout(60_000);
+    const headers = { 'x-pmx-workbench': '1' };
+    expect((await request.post('/api/canvas/clear', { headers })).ok()).toBe(true);
+    expect((await request.post('/api/canvas/tour', { headers, data: { tour: { stops: [] } } })).ok()).toBe(true);
+    const video = testInfo.outputPath('terminal.mp4');
+    const args = [
+      'bun',
+      'run',
+      'src/cli/index.ts',
+      'record',
+      '--port',
+      process.env.PMX_PLAYWRIGHT_PORT ?? '4517',
+      '--stop-on-signal',
+      '--present',
+      '--resolution',
+      '640x360',
+      '--fps',
+      '5',
+      '--output',
+      video,
+      '--chrome-path',
+      await recordingChrome(testInfo),
+    ];
+    // pty.fork creates a controlling terminal with the recorder as foreground
+    // process-group leader. ETX reaches Chrome too: kill(recorder, SIGINT) does not.
+    const harness = spawn(
+      'python3',
+      [
+        '-c',
+        String.raw`
+import os, pty, select, time, json, pathlib, subprocess, signal, sys
+command=json.loads(sys.argv[1]); target=pathlib.Path(sys.argv[2]); mode=sys.argv[3]
+pid,fd=pty.fork()
+if pid==0: os.execvp(command[0],command)
+log=bytearray(); sent=False; status=None; deadline=time.monotonic()+45
+try:
+ while time.monotonic()<deadline:
+  frames=list(pathlib.Path(str(target)+'.frames').glob('frame-*.png'))
+  if len(frames)>=3 and not sent:
+   assert os.tcgetpgrp(fd)==pid
+   rows=subprocess.check_output(['ps','-o','pid,ppid,pgid,args','-g',str(pid)],text=True)
+   rows='\n'.join(rows.splitlines()[1:])
+   log.extend(rows.encode())
+   if mode=='ctrl-c': os.write(fd,b'\x03')
+   else:
+    browsers=[int(row.split()[0]) for row in rows.splitlines() if int(row.split()[1])==pid and 'chrome' in row]
+    assert browsers, 'No recorder-owned Chrome child'
+    os.kill(browsers[0],signal.SIGKILL)
+    deadline=time.monotonic()+5
+   sent=True
+  if select.select([fd],[],[],0.05)[0]:
+   try: log.extend(os.read(fd,65536))
+   except OSError: pass
+  done,code=os.waitpid(pid,os.WNOHANG)
+  if done: status=os.waitstatus_to_exitcode(code); break
+finally:
+ if status is None:
+  os.killpg(pid,signal.SIGKILL); os.waitpid(pid,0)
+ os.close(fd)
+ target.with_suffix('.pty.log').write_bytes(log)
+print(json.dumps({'sent':sent,'exitCode':status}))
+`,
+        JSON.stringify(args),
+        video,
+        interruption,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let stdout = '';
+    let stderr = '';
+    harness.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    harness.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    const code = await new Promise<number | null>((resolve, reject) => {
+      harness.on('exit', resolve);
+      harness.on('error', reject);
+    });
+    expect(code, stderr).toBe(0);
+    const result = JSON.parse(stdout);
+    expect(result.sent).toBe(true);
+    const log = await readFile(testInfo.outputPath('terminal.pty.log'), 'utf8');
+    expect(result.exitCode, log).not.toBeNull();
+    if (interruption === 'browser-loss') {
+      expect(result.exitCode, log).not.toBe(0);
+      expect(log).toMatch(/closed|disconnected|terminated/i);
+      expect(await readdir(`${video}.frames`)).not.toContain('recording.json');
+      expect(await readdir(testInfo.outputPath())).not.toContain('terminal.mp4');
+      return;
+    }
+    expect(result.exitCode, log).toBe(0);
+    const frames = `${video}.frames`;
+    const names = (await readdir(frames)).filter((name) => name.endsWith('.png'));
+    const metadata = JSON.parse(await readFile(join(frames, 'recording.json'), 'utf8'));
+    expect(metadata.frames).toBe(names.length);
+    expect(metadata.frames).toBeGreaterThanOrEqual(3);
+    const probe = spawn('ffprobe', [
+      '-v',
+      'error',
+      '-count_frames',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=nb_read_frames,width,height',
+      '-of',
+      'json',
+      video,
+    ]);
+    let decoded = '';
+    probe.stdout.on('data', (chunk) => {
+      decoded += String(chunk);
+    });
+    expect(
+      await new Promise((resolve, reject) => {
+        probe.on('exit', resolve);
+        probe.on('error', reject);
+      }),
+    ).toBe(0);
+    const stream = JSON.parse(decoded).streams[0];
+    expect(Number(stream.nb_read_frames)).toBe(names.length);
+    expect([stream.width, stream.height]).toEqual([640, 360]);
+  });
+}
+
 test('realtime recording sees concurrent edits and finalizes on SIGTERM', async ({ request }, testInfo) => {
   test.setTimeout(60_000);
   const headers = { 'x-pmx-workbench': '1' };

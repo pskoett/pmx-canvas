@@ -19,6 +19,7 @@ import {
 } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 
 // rail-chrome-v2 phase 7a: empty state (11), palette (7), selection bar (13),
 // degraded connection (14).
@@ -60,6 +61,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  workspaceSettings.value = null;
   calls = [];
   resetPresence();
   selectedNodeIds.value = new Set();
@@ -74,7 +76,10 @@ beforeEach(() => {
   reconnectAttempt.value = 0;
   reconnectDelay.value = 0;
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  workspaceSettings.value = null;
+});
 
 describe('selection geometry', () => {
   test('align left / top snap to the minimum edge; a collapsing selection flows instead of overlapping', () => {
@@ -169,12 +174,13 @@ describe('selection geometry', () => {
 });
 
 describe('empty state', () => {
-  test('offers the four starter actions; New note creates the same blank note as M', async () => {
-    const { getByText, getByTestId } = render(<EmptyState onOpenPalette={() => {}} />);
+  test('offers ordinary starter actions with session beta off; New note creates the same blank note as M', async () => {
+    const { getByText, getByTestId, queryByText } = render(<EmptyState onOpenPalette={() => {}} />);
     expect(getByTestId('empty-state').textContent).toContain('Nothing on this board yet');
-    for (const label of ['New markdown note', 'Drop files', 'Paste a link', 'Start agent session']) {
+    for (const label of ['New markdown note', 'Drop files', 'Paste a link']) {
       expect(getByText(label)).toBeTruthy();
     }
+    expect(queryByText('Start agent session')).toBeNull();
     fireEvent.click(getByText('New markdown note'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     const create = calls.find((call) => call.url === '/api/canvas/node');
@@ -183,6 +189,7 @@ describe('empty state', () => {
   });
 
   test('Start agent session attaches a browser-keyed session', async () => {
+    workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
     const { getByText } = render(<EmptyState onOpenPalette={() => {}} />);
     fireEvent.click(getByText('Start agent session'));
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -193,6 +200,7 @@ describe('empty state', () => {
 
 describe('command palette', () => {
   test('groups Actions before Jump to, shows shortcuts, and offers Start agent session only off-session', () => {
+    workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
     const { container, rerender } = render(<CommandPalette onClose={() => {}} onToggleMinimap={() => {}} />);
     const groups = [...container.querySelectorAll('.command-palette-group')].map((el) => el.textContent);
     expect(groups).toEqual(['Actions', 'Jump to']);

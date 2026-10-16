@@ -2,6 +2,7 @@ import { computed, signal } from '@preact/signals';
 import { findNeighborhoods, gapDistance } from '../../server/spatial-analysis.js';
 import { contextPinnedNodeIds, nodes, selectedNodeIds } from './canvas-store';
 import { grabbingNodeId } from './human-store';
+import { activeContextPinnedNodeIds, cardQualification } from './knowledge-store';
 
 /**
  * Near a pin (docs/design/NearPin.dc.html): each pinned node pulls up to five
@@ -23,11 +24,12 @@ let lastNear = new Map<string, NearPin[]>();
  * changes: the chips subscribed to it re-render only when a neighbourhood does.
  */
 export const nearPins = computed<Map<string, NearPin[]>>(() => {
-  const pins = contextPinnedNodeIds.value;
+  const pins = activeContextPinnedNodeIds.value;
   const near = new Map<string, NearPin[]>();
   if (pins.size > 0) {
     const nearest = new Map<string, Array<NearPin & { distance: number }>>();
-    for (const neighborhood of findNeighborhoods([...nodes.value.values()], pins)) {
+    const activeNodes = [...nodes.value.values()].filter((node) => !cardQualification(node.id)?.retired);
+    for (const neighborhood of findNeighborhoods(activeNodes, pins)) {
       const pinTitle = neighborhood.pinnedNodeTitle ?? neighborhood.pinnedNodeId;
       for (const neighbor of neighborhood.neighbors) {
         const list = nearest.get(neighbor.id) ?? [];

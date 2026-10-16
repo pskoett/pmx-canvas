@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, setWorkspaceFeatures, type APIRequestContext } from './workspace-fixture.js';
 import { execFileSync } from 'node:child_process';
 
 const headers = { 'x-pmx-workbench': '1' };
@@ -85,6 +85,7 @@ test('title click selects for context pinning; shift toggles; dragging preserves
 });
 
 test('only changed top-level endings show receipts; workers retain snapshots', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   await page.goto('/workbench');
   await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'false');
   const receipt = page.getByTestId('session-receipt');
@@ -128,6 +129,7 @@ test('only changed top-level endings show receipts; workers retain snapshots', a
 });
 
 test('top-level sessions ending together share one receipt that points at History', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   await page.goto('/workbench');
   const receipt = page.getByTestId('session-receipt');
   const presence = (agentId: string, attached: boolean) =>
@@ -151,6 +153,7 @@ test('See change stacks marked words, keeps later human edits, and reopens its b
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const { board } = await (await post(request, 'boards', { name: 'Pricing research' })).json();
   await post(request, 'boards/open', { id: board.id });
   const before = 'SMB buyers compare price first. Most would keep their plan. Support came second.';
@@ -298,6 +301,7 @@ test('See change stacks marked words, keeps later human edits, and reopens its b
 });
 
 test('receipt Undo protects an unseen human edit and repeated Unpin never adds pins', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const { board } = await (await post(request, 'boards', { name: 'Stale receipt' })).json();
   await post(request, 'boards/open', { id: board.id });
   const a = await (
@@ -404,12 +408,15 @@ test('receipt Undo protects an unseen human edit and repeated Unpin never adds p
       return (await response.json()).nodeIds;
     })
     .toEqual([c.id]);
+  // Let in-flight poll handlers finish before the page fixture closes their transport.
+  await page.unrouteAll({ behavior: 'wait' });
 });
 
 test('receipt Unpin refuses a board switch hidden by a held poll, even with the same card ID', async ({
   page,
   request,
 }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const { board: a } = await (await post(request, 'boards', { name: 'Pin race A' })).json();
   const { board: b } = await (await post(request, 'boards', { name: 'Pin race B' })).json();
   await post(request, 'boards/open', { id: a.id });
@@ -488,6 +495,7 @@ test('receipt Unpin refuses a board switch hidden by a held poll, even with the 
 });
 
 test('a created-only receipt reopens its snapshot board before comparing', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
   const { board } = await (await post(request, 'boards', { name: 'Original board' })).json();
   await post(request, 'boards/open', { id: board.id });
   await post(request, 'node', { type: 'markdown', title: 'Baseline', content: 'Keep this', x: 100, y: 100 });

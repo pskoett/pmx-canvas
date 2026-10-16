@@ -13,6 +13,7 @@ import {
 } from '../../src/client/state/presence-store.ts';
 import { resetSessionStore } from '../../src/client/state/session-store.ts';
 import type { AgentActivityEntry, AgentPresence } from '../../src/shared/agent-presence.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 
 // rail-chrome-v2 phase 6: External Steering — writers with no session. The
 // indicator, feed, and sheet mount only in that mode; the quiet board and the
@@ -66,12 +67,16 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
   calls = [];
   resetPresence();
   resetIntents();
   resetSessionStore();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  workspaceSettings.value = null;
+});
 
 describe('external writer indicator', () => {
   test('absent on the quiet board and while a session is attached', () => {
@@ -130,7 +135,7 @@ describe('activity feed', () => {
     expect(getByTestId('activity-feed').textContent).toContain('External activity — 2 writers');
     // The subtitle is derived, not the mockup's literal "via MCP".
     expect(getByTestId('activity-feed').querySelector('.activity-feed-sub')?.textContent).toBe(
-      '6 writes · last 2m · no session attached',
+      '6 writes · last 2m · live writers',
     );
     const rows = getAllByTestId('activity-row');
     expect(rows.map((row) => row.querySelector('.activity-text')?.textContent)).toEqual([

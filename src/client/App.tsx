@@ -7,6 +7,7 @@ import { AttentionToast } from './canvas/AttentionToast';
 import { registerCanvasArea, canvasArea } from './canvas/canvas-area';
 import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandBar } from './canvas/CommandBar';
+import { ContextPinBar } from './canvas/ContextChip';
 import { ConnectionBanner } from './canvas/ConnectionBanner';
 import { CommandPalette } from './canvas/CommandPalette';
 import { BoardLinkDialog } from './canvas/BoardLinkDialog';
@@ -18,12 +19,19 @@ import { HomeView } from './canvas/HomeView';
 import { ExportDialog } from './canvas/ExportDialog';
 import { activeBoardId, boardsLoaded, browsingMemory, boardIncarnation } from './state/boards-store';
 import { createNodeInView } from './canvas/create-in-view';
-import { undoFromKeyboard } from './state/session-store';
+import {
+  activityLens,
+  heldGates,
+  pendingGates,
+  scopeFence,
+  sessionPanelOpened,
+  undoFromKeyboard,
+} from './state/session-store';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
-import { SessionPanel } from './canvas/SessionPanel';
+import { AgentControls, SessionPanel } from './canvas/SessionPanel';
 import { SessionReceipt } from './canvas/SessionReceipt';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
@@ -57,7 +65,8 @@ import {
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
-import { sessionActive } from './state/presence-store';
+import { sessionActive, sessionChromeActive } from './state/presence-store';
+import { agentSessionsEnabled, knowledgeLifecycleEnabled } from './state/workspace-settings';
 import { isHostedWorkbench } from './state/workbench-transport';
 import {
   createGroupFromClient,
@@ -80,7 +89,7 @@ function logAppError(action: string, error: unknown): void {
  * would re-render the whole shell (and re-measure the canvas) on every drag frame.
  */
 const boardIsEmpty = computed(() => nodes.value.size === 0);
-const reviewIsOpen = computed(() => {
+const validReviewTarget = computed(() => {
   const target = lifecycleTarget.value;
   return (
     !!target &&
@@ -90,6 +99,7 @@ const reviewIsOpen = computed(() => {
     nodes.value.has(target.nodeId)
   );
 });
+const reviewIsOpen = computed(() => knowledgeLifecycleEnabled.value && validReviewTarget.value);
 
 export function App() {
   // Off by default in a narrow pane (Pane600.dc.html); the Settings menu turns it on.
@@ -109,8 +119,21 @@ export function App() {
   // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
   // as a data attribute so styling and tests can key on it; the quiet board
   // (no attached session) must stay byte-clean of agent chrome.
-  const sessionIsActive = sessionActive.value;
+  const sessionIsActive = sessionChromeActive.value;
+  const sessionsEnabled = agentSessionsEnabled.value;
+  const hasAgentControls =
+    sessionActive.value || pendingGates.value.length > 0 || heldGates.value.length > 0 || !!scopeFence.value;
   const reviewOpen = reviewIsOpen.value;
+
+  useLayoutEffect(() => {
+    if (!sessionsEnabled) {
+      activityLens.value = null;
+      sessionPanelOpened.value = false;
+      if (document.activeElement?.closest('.command-bar, .session-panel, .agent-popover')) {
+        snapshotBtnRef.current?.focus({ preventScroll: true });
+      }
+    }
+  }, [sessionsEnabled]);
 
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
   const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
@@ -192,7 +215,7 @@ export function App() {
       }
 
       // A companion review closes before expansion or the underlying selection.
-      if (e.key === 'Escape' && lifecycleTarget.value) {
+      if (e.key === 'Escape' && reviewIsOpen.value) {
         if ((e.target as HTMLElement | null)?.closest('[role="menu"], [role="alertdialog"]')) return;
         e.preventDefault();
         lifecycleTarget.value = null;
@@ -220,16 +243,16 @@ export function App() {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
-      // Menus and dialogs own their arrow keys (and Tab order); board navigation must not also move a node.
-      if (
-        (e.key === 'Tab' || e.key.startsWith('Arrow')) &&
-        target?.closest('.top-bar, [role="menu"], [role="dialog"]')
-      ) {
+      // Menus own every shortcut; dialogs retain global undo, zoom and help.
+      if (target?.closest('[role="menu"]')) return;
+      const inDialog = target?.closest('[role="dialog"]');
+      // Chrome owns its arrow keys and Tab order, rather than board navigation.
+      if ((e.key === 'Tab' || e.key.startsWith('Arrow')) && target?.closest('.tool-rail, .top-bar')) {
         return;
       }
 
       // Held Space = temporary pan tool (released on keyup below).
-      if (e.key === ' ' && !e.repeat && !mod) {
+      if (e.key === ' ' && !e.repeat && !mod && !inDialog) {
         e.preventDefault();
         spacePanHeld.value = true;
         return;
@@ -263,6 +286,9 @@ export function App() {
       } else if (mod && e.key === '-') {
         e.preventDefault();
         zoomByFactor(1 / 1.25);
+      } else if (inDialog) {
+        // Dialog controls keep navigation and board-editing keys to themselves.
+        return;
       } else if (e.key === 'Escape') {
         if (!isSelectionEscape(e)) return;
         e.preventDefault();
@@ -450,7 +476,8 @@ export function App() {
               intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
             )}
             {!onHome && selectedNodeIds.value.size > 0 && <SelectionBar />}
-            {!onHome && sessionIsActive && !isHostedWorkbench() && <CommandBar />}
+            {!onHome && !sessionsEnabled && <ContextPinBar />}
+            {!onHome && sessionActive.value && !isHostedWorkbench() && <CommandBar />}
             {!onHome && <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />}
             <TextPrompt />
             {!browsingMemory.value && <ExportDialog />}
@@ -471,10 +498,11 @@ export function App() {
               />
             )}
           </div>
-          {reviewOpen && <LifecyclePanel />}
+          {validReviewTarget.value && <LifecyclePanel />}
         </div>
       </div>
       {sessionIsActive && <SessionPanel />}
+      {!sessionIsActive && hasAgentControls && <AgentControls />}
       {!browsingMemory.value && menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {!browsingMemory.value && paletteOpen && (
         <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />

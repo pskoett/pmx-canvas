@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import type { Lifecycle, LifecycleResults, ReviewRecord } from '../../server/knowledge-lifecycle.js';
-import { activeBoardId, boardIncarnation, browsingMemory, openMemoryTarget } from '../state/boards-store';
+import {
+  activeBoardId,
+  boardIncarnation,
+  browsingMemory,
+  lifecycleUiGeneration,
+  openMemoryTarget,
+} from '../state/boards-store';
 import { focusNode, nodes } from '../state/canvas-store';
 import { requestJson } from '../state/intent-bridge';
 import {
@@ -28,6 +35,7 @@ export function LifecyclePanel() {
 }
 
 function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarget.value> }) {
+  const enabled = knowledgeLifecycleEnabled.value;
   const ref = useRef<HTMLDivElement>(null);
   const loadSequence = useRef(0);
   const [detail, setDetail] = useState<LifecycleResults['get'] | null>(null);
@@ -39,25 +47,29 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [retiredHere, setRetiredHere] = useState(false);
+  const [needsReload, setNeedsReload] = useState(false);
   const node = nodes.value.get(target.nodeId);
   const unsavedContent = hasUnsavedMarkdown(target.boardId, target.nodeId);
   const current = cardQualification(target.nodeId) ?? detail?.qualification;
   const path = `/api/canvas/node/${encodeURIComponent(target.nodeId)}`;
   const sameBoard = () => activeBoardId.value === target.boardId && boardIncarnation === target.incarnation;
-  const ownsDialog = () => sameBoard() && lifecycleTarget.value === target;
+  const ownsDialog = () => knowledgeLifecycleEnabled.value && sameBoard() && lifecycleTarget.value === target;
   const load = async () => {
+    if (!ownsDialog()) return;
+    const generation = lifecycleUiGeneration;
     const sequence = ++loadSequence.current;
     const result = await requestJson<LifecycleResults['get'] | null>(
       'lifecycle',
       `${path}/lifecycle?board=${encodeURIComponent(target.boardId)}`,
       null,
     );
-    if (!ownsDialog() || sequence !== loadSequence.current) return;
+    if (!ownsDialog() || generation !== lifecycleUiGeneration || sequence !== loadSequence.current) return;
     if (result?.ok !== true) {
       setError('Could not load lifecycle. Retry before reviewing.');
       return;
     }
     setDetail(result);
+    setNeedsReload(false);
     setError('');
     setOverride(result.lifecycleSource === 'card');
     setPolicy(result.lifecycle ?? DEFAULT_LIFECYCLE);
@@ -68,10 +80,11 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
   useEffect(() => {
     const previous = document.activeElement;
     const dock = ref.current;
-    dock?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
-    // The dock has committed its new geometry before focusing the real card.
-    focusNode(target.nodeId, { recordHistory: false });
-    void load();
+    if (knowledgeLifecycleEnabled.value) {
+      dock?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+      // The dock has committed its new geometry before focusing the real card.
+      focusNode(target.nodeId, { recordHistory: false });
+    }
     return () => {
       if (
         dock?.contains(document.activeElement) &&
@@ -82,8 +95,18 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
         previous.focus({ preventScroll: true });
     };
   }, []);
+  useLayoutEffect(() => {
+    if (!enabled && ref.current?.contains(document.activeElement))
+      document.querySelector<HTMLElement>('button[aria-label="Settings"]')?.focus({ preventScroll: true });
+  }, [enabled]);
+  useEffect(() => {
+    if (!enabled) return;
+    // Refresh qualification, not the observation to which the existing draft refers.
+    void refreshKnowledge();
+    if (!detail || needsReload) void load();
+  }, [enabled]);
   const mutate = async (suffix: string, body: Record<string, unknown>) => {
-    if (!ownsDialog() || busy) return false;
+    if (!ownsDialog() || busy || needsReload) return false;
     setBusy(true);
     setError('');
     const result = await requestJson<{ ok: boolean } | null>('lifecycleWrite', `${path}${suffix}`, null, {
@@ -91,7 +114,10 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, expectedBoardId: target.boardId }),
     });
-    if (!ownsDialog()) return false;
+    if (!sameBoard() || lifecycleTarget.value !== target) {
+      setBusy(false);
+      return false;
+    }
     if (!result?.ok) {
       setBusy(false);
       setError(
@@ -99,11 +125,13 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
       );
       return false;
     }
+    // Invalidate acknowledged preconditions without unmounting focused controls.
+    // If suspended, resume reloads before another mutation is allowed.
+    setNeedsReload(true);
     await load();
     await refreshKnowledge();
-    if (!ownsDialog()) return false;
     setBusy(false);
-    return true;
+    return sameBoard() && lifecycleTarget.value === target;
   };
   const recordReview = async (reviewOutcome: typeof outcome, wasApplied: boolean) => {
     if (!detail) return false;
@@ -136,7 +164,10 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
   return (
     <div
       class="lifecycle-dock"
+      hidden={!enabled}
+      style={enabled ? undefined : { display: 'none' }}
       onKeyDown={(event) => {
+        if (!ownsDialog()) return;
         // This dialog owns its keys, including Space on the disclosure summary.
         event.stopPropagation();
         if (event.key === 'Escape') {
@@ -152,6 +183,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
             type="button"
             aria-label="Close review"
             onClick={() => {
+              if (!ownsDialog()) return;
               lifecycleTarget.value = null;
             }}
           >
@@ -160,7 +192,13 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
         </header>
         {error && <p role="alert">{error}</p>}
         {!detail && error && (
-          <button type="button" disabled={busy} onClick={() => void load()}>
+          <button
+            type="button"
+            aria-disabled={busy}
+            onClick={() => {
+              if (!busy) void load();
+            }}
+          >
             Reload and recheck
           </button>
         )}
@@ -176,7 +214,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 <p>This card is retired. Restoring it does not mark it checked.</p>
                 <button
                   type="button"
-                  disabled={busy}
+                  aria-disabled={busy || needsReload}
                   onClick={() => void mutate('/lifecycle/restore', { evidence: 'Restored by the human reviewer.' })}
                 >
                   Restore card
@@ -203,6 +241,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                       <button
                         type="button"
                         onClick={() => {
+                          if (!ownsDialog()) return;
                           lifecycleTarget.value = null;
                           void openMemoryTarget(source);
                         }}
@@ -214,6 +253,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 ))}
                 <form
                   class="lifecycle-quick-review"
+                  noValidate
                   onSubmit={(event) => {
                     event.preventDefault();
                     void recordReview('retain', true).then((ok) => {
@@ -238,8 +278,9 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                   <div class="lifecycle-review-actions">
                     <button
                       type="submit"
-                      disabled={
+                      aria-disabled={
                         busy ||
+                        needsReload ||
                         !!error ||
                         unsavedContent ||
                         !evidence.trim() ||
@@ -250,8 +291,9 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                     </button>
                     <button
                       type="button"
-                      disabled={busy}
+                      aria-disabled={busy}
                       onClick={() => {
+                        if (!ownsDialog() || busy) return;
                         lifecycleTarget.value = null;
                       }}
                     >
@@ -264,14 +306,26 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
             {(error || node?.contentRevision !== detail.contentRevision) && (
               <div role="status">
                 <p>Reload, check the current card and sources, then write a fresh note.</p>
-                <button type="button" disabled={busy} onClick={() => void load()}>
+                <button
+                  type="button"
+                  aria-disabled={busy}
+                  onClick={() => {
+                    if (!busy) void load();
+                  }}
+                >
                   Reload and recheck
                 </button>
               </div>
             )}
             <details class="lifecycle-advanced">
               <summary>Settings and history</summary>
-              <button type="button" disabled={busy} onClick={() => void load()}>
+              <button
+                type="button"
+                aria-disabled={busy}
+                onClick={() => {
+                  if (!busy) void load();
+                }}
+              >
                 Reload lifecycle and source revisions
               </button>
               <p class="lifecycle-category">
@@ -301,7 +355,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                     Inherit from {detail.lifecycleSourceFolder ?? 'the folder'} · {detail.lifecycle?.rate ?? 'unknown'}
                   </p>
                 )}
-                <button type="submit" disabled={busy}>
+                <button type="submit" aria-disabled={busy || needsReload}>
                   Save lifecycle
                 </button>
               </form>
@@ -344,6 +398,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                     <button
                       type="button"
                       onClick={() => {
+                        if (!ownsDialog()) return;
                         lifecycleTarget.value = null;
                         void openMemoryTarget(source);
                       }}
@@ -365,7 +420,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                   </label>
                   <button
                     type="button"
-                    disabled={busy}
+                    aria-disabled={busy || needsReload}
                     onClick={() =>
                       void mutate('/lifecycle/restore', {
                         evidence: evidence || 'Restored by the human reviewer.',
@@ -411,8 +466,9 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                   <p>Revise and externalize record work already performed. They do not edit or execute anything.</p>
                   <button
                     type="submit"
-                    disabled={
+                    aria-disabled={
                       busy ||
+                      needsReload ||
                       (applied &&
                         ['retain', 'revise', 'externalize'].includes(outcome) &&
                         (!evidence.trim() ||
@@ -433,9 +489,9 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                   </p>
                   <button
                     type="button"
-                    disabled={busy}
+                    aria-disabled={busy}
                     onClick={async () => {
-                      if (!sameBoard()) return;
+                      if (!ownsDialog() || busy) return;
                       setBusy(true);
                       const ok = await sendSteering(
                         `Refresh this board using the recorded recipe for ${target.boardId}/${target.nodeId}. Review the recipe before running it. Tool: ${recipe.recipe!.tool}\nInput: ${JSON.stringify(recipe.recipe!.input ?? null)}\nPrompt: ${recipe.recipe!.prompt}\nRegeneration is not validation. Preserve source observations and report evidence separately.`,
