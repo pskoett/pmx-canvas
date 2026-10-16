@@ -6833,7 +6833,10 @@ test.describe('workspace beta settings', () => {
     }
     await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
     await page.setViewportSize({ width: 1024, height: 900 });
-    await expect(page.getByRole('button', { name: 'Fit canvas', exact: true })).toBeVisible();
+    // Let responsive folding settle; Fit can live in More even at this width.
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
     await fitCanvas(page);
     const card = page.locator(`[data-node-id="${ids[0]}"]`);
     await card.locator('.md-card-content').click({ modifiers: ['Shift'] });
