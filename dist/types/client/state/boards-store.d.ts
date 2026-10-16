@@ -68,6 +68,12 @@ export declare const boardList: import("@preact/signals-core").Signal<BoardSumma
 export declare const activeBoardId: import("@preact/signals-core").Signal<string | null>;
 /** An explicitly opened library view stays visible while agents switch boards. */
 export declare const browsingMemory: import("@preact/signals-core").Signal<boolean>;
+/** Review belongs to this navigation incarnation, never merely a reused card ID. */
+export declare const lifecycleTarget: import("@preact/signals-core").Signal<{
+    boardId: string;
+    nodeId: string;
+    incarnation: number;
+} | null>;
 /** Layout/pin/reconnect invalidation for the library's shared graph projection. */
 export declare const memoryGraphRevision: import("@preact/signals-core").Signal<number>;
 /** False until the first list arrives — Home must not flash before the server answers. */
@@ -92,7 +98,9 @@ export declare function loadBoards(): Promise<void>;
 /** Open a board, or Home with null. */
 export declare function openBoard(id: string | null): Promise<void>;
 /** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */
-export declare function openMemoryTarget(target: MemoryTarget): Promise<void>;
+export declare function openMemoryTarget(target: MemoryTarget, options?: {
+    review?: boolean;
+}): Promise<boolean>;
 /** Create a board (filed in `folder` when given) and open it. */
 export declare function createAndOpenBoard(name: string, folder?: string | null): Promise<void>;
 export interface BoardCopyCard {

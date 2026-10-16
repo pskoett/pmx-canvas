@@ -3,6 +3,7 @@ import { memoryKey, type MemoryGraph, type MemoryGraphEdge, type MemoryGraphNode
 import { relationDefinition, relationText } from '../../shared/relations.js';
 import { boardList, browsingMemory, memoryGraphRevision, openMemoryTarget, updateBoard } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
+import { isSelectionEscape } from '../utils/keyboard';
 import { BoardPinButton } from './BoardPinButton';
 import { graphRadius, graphSimulation, MAP_CARD, mapLayout, type GraphParticle, type Point } from './memory-layout';
 
@@ -87,6 +88,16 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
   useLayoutEffect(() => {
     browsingMemory.value = true;
   }, []);
+  useLayoutEffect(() => {
+    if (!selectedKey) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!isSelectionEscape(event)) return;
+      event.preventDefault();
+      setSelectedKey(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedKey]);
   useLayoutEffect(() => {
     const stage = viewport.current;
     const region = stage?.closest<HTMLElement>('.canvas-region');

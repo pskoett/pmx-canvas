@@ -128,10 +128,16 @@ type MarkdownDraft = {
   editBase: { current: { boardId: string | null; revision: number } };
   saveQueue: { current: Promise<void> };
   nativeSaveAttempts: Set<{ revision: number }>;
-  pending: number;
+  pending: Signal<number>;
   owners: number;
 };
 const markdownDrafts = new Map<string, MarkdownDraft>();
+
+/** Review must refer to persisted content, not an edited or saving preview. */
+export function hasUnsavedMarkdown(boardId: string, nodeId: string): boolean {
+  const draft = markdownDrafts.get(JSON.stringify([boardId, nodeId]));
+  return !!draft && (draft.dirty.value || draft.pending.value > 0);
+}
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const board = activeBoard();
@@ -147,7 +153,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       editBase: { current: { boardId, revision: node.contentRevision ?? 0 } },
       saveQueue: { current: Promise.resolve() },
       nativeSaveAttempts: new Set(),
-      pending: 0,
+      pending: signal(0),
       owners: 0,
     };
     markdownDrafts.set(draftKey, created);
@@ -182,13 +188,13 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     setLoaded(matches);
     return () => {
       draft.owners--;
-      if (!draft.owners && !draft.pending && !draft.dirty.value && markdownDrafts.get(draftKey) === draft)
+      if (!draft.owners && !draft.pending.value && !draft.dirty.value && markdownDrafts.get(draftKey) === draft)
         markdownDrafts.delete(draftKey);
     };
   }, [draft]);
 
   useEffect(() => {
-    const renderingDraft = draft.dirty.value || draft.pending > 0;
+    const renderingDraft = draft.dirty.value || draft.pending.value > 0;
     if (!renderingDraft) editBase.current = { boardId, revision: node.contentRevision ?? 0 };
     let cancelled = false;
     (async () => {
@@ -254,7 +260,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       const incarnation = boardIncarnation;
       const attempt = { revision: nodes.value.get(node.id)?.contentRevision ?? 0 };
       draft.nativeSaveAttempts.add(attempt);
-      draft.pending++;
+      draft.pending.value++;
       // Order the complete save, including disk writes and rendering. A later
       // draft must not persist before an older render resumes and overwrites it.
       saveQueue.current = saveQueue.current.then(async () => {
@@ -364,8 +370,8 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         await saveQueue.current;
       } finally {
         draft.nativeSaveAttempts.delete(attempt);
-        draft.pending--;
-        if (!draft.owners && !draft.pending && !draft.dirty.value && markdownDrafts.get(draftKey) === draft)
+        draft.pending.value--;
+        if (!draft.owners && !draft.pending.value && !draft.dirty.value && markdownDrafts.get(draftKey) === draft)
           markdownDrafts.delete(draftKey);
       }
     },

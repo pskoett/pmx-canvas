@@ -21,25 +21,27 @@ describe('bundled skills', () => {
     expect(readBundledSkill('pmx-canvas')).toContain(`PMX Canvas ${version} requires`);
   });
 
-  test('Amp setup examples parse and pin the workspace, target and steering identity', async () => {
+  test('the linked Amp setup guide pins the workspace, target and steering identity', async () => {
     const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
-    for (const path of ['Readme.md', 'skills/pmx-canvas/references/installing-pmx-canvas.md']) {
-      const markdown = await Bun.file(new URL(`../../${path}`, import.meta.url)).text();
-      const configs = [...markdown.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)].map((match) => JSON.parse(match[1]!));
-      const ampConfigs = configs.filter((config) => config['amp.mcpServers']);
-      expect(ampConfigs).toHaveLength(1);
-      expect(ampConfigs[0]['amp.mcpServers'].canvas).toEqual({
-        command: 'bunx',
-        args: [`pmx-canvas@${version}`, '--mcp'],
-        includeTools: ['canvas_*'],
-        env: {
-          PMX_CANVAS_WORKSPACE_ROOT: '/absolute/path/to/project',
-          PMX_CANVAS_PORT: '14313',
-          PMX_CANVAS_URL: '',
-          PMX_CANVAS_AGENT_SOURCE: 'amp',
-        },
-      });
-    }
+    const readme = await Bun.file(new URL('../../Readme.md', import.meta.url)).text();
+    expect(readme).toContain('(skills/pmx-canvas/references/installing-pmx-canvas.md#amp-');
+    const markdown = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/installing-pmx-canvas.md', import.meta.url),
+    ).text();
+    const configs = [...markdown.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)].map((match) => JSON.parse(match[1]!));
+    const ampConfigs = configs.filter((config) => config['amp.mcpServers']);
+    expect(ampConfigs).toHaveLength(1);
+    expect(ampConfigs[0]['amp.mcpServers'].canvas).toEqual({
+      command: 'bunx',
+      args: [`pmx-canvas@${version}`, '--mcp'],
+      includeTools: ['canvas_*'],
+      env: {
+        PMX_CANVAS_WORKSPACE_ROOT: '/absolute/path/to/project',
+        PMX_CANVAS_PORT: '14313',
+        PMX_CANVAS_URL: '',
+        PMX_CANVAS_AGENT_SOURCE: 'amp',
+      },
+    });
   });
 
   test('findBundledSkillsRoot resolves the packaged skills directory', () => {

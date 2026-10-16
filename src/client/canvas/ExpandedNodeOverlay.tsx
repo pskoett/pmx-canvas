@@ -19,7 +19,7 @@ import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
 import { BoardNode } from '../nodes/BoardNode';
 import { RelationsPanel } from './RelationsPanel';
-import { openLifecycle } from '../state/knowledge-store';
+import { lifecycleTarget, openLifecycle } from '../state/knowledge-store';
 import {
   collapseExpandedNode,
   contextPinnedNodeIds,
@@ -247,7 +247,8 @@ export function ExpandedNodeOverlay() {
     () => (nodeId ? document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`) : null),
     [nodeId],
   );
-  useFocusTrap(panelRef, node !== undefined, { restoreTo: restoreToNode });
+  const reviewing = lifecycleTarget.value?.nodeId === nodeId;
+  useFocusTrap(panelRef, node !== undefined && !reviewing, { restoreTo: restoreToNode });
 
   if (!node) return null;
 
@@ -286,7 +287,7 @@ export function ExpandedNodeOverlay() {
         ref={panelRef}
         class={`expanded-overlay-panel${isCtxPinned ? ' is-pinned' : ''}`}
         role="dialog"
-        aria-modal="true"
+        aria-modal={reviewing ? undefined : 'true'}
         aria-label={title}
         data-testid="expanded-node"
       >

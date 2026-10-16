@@ -68,8 +68,8 @@ export interface SpatialContext {
     }[];
     annotations: SpatialAnnotationContext[];
 }
-/** Euclidean distance between two node centers */
-export declare function centerDistance(a: CanvasNodeState, b: CanvasNodeState): number;
+/** Gap distance — how far apart two nodes are edge-to-edge (0 if overlapping) */
+export declare function gapDistance(a: CanvasNodeState, b: CanvasNodeState): number;
 /**
  * Detect proximity clusters using single-linkage clustering.
  * Two nodes are "close" if their edge-to-edge gap is within the threshold.
@@ -78,7 +78,8 @@ export declare function centerDistance(a: CanvasNodeState, b: CanvasNodeState): 
  */
 export declare function detectClusters(nodes: CanvasNodeState[], proximityThreshold?: number): SpatialCluster[];
 /**
- * Find the nearest unpinned nodes to each pinned node.
+ * Find the nearest unpinned nodes by their edge-to-edge gap from each pin.
+ * The inclusive distance limit is in world pixels, independent of card size.
  */
 export declare function findNeighborhoods(nodes: CanvasNodeState[], pinnedIds: Set<string>, maxNeighbors?: number, maxDistance?: number): SpatialContext['pinnedNeighborhoods'];
 /**

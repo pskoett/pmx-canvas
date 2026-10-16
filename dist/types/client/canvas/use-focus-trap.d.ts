@@ -11,4 +11,5 @@ export declare function useFocusTrap(ref: {
         current: HTMLElement | null;
     };
     restoreTo?: () => HTMLElement | null;
+    onEscape?: () => void;
 }): void;

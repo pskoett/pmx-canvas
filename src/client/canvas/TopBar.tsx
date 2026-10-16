@@ -50,16 +50,17 @@ const AGENT_PHASE_RANK: Record<string, number> = { 'waiting-approval': 0, thinki
 function AgentChip() {
   const [opened, setOpened] = useState<{ id: string; button: HTMLButtonElement } | null>(null);
   const popover = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!opened) return;
     const close = (event: PointerEvent) => {
       if (!popover.current?.contains(event.target as Node) && !opened.button.contains(event.target as Node))
         setOpened(null);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        event.preventDefault();
         setOpened(null);
-        opened.button.focus();
+        opened.button.focus({ preventScroll: true });
       }
     };
     const onResize = () => setOpened(null);

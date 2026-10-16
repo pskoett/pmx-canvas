@@ -1,5 +1,6 @@
 import { timeAgo } from '../utils/time-ago';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { isSelectionEscape } from '../utils/keyboard';
 import {
   boardList,
   activeBoardId,
@@ -19,6 +20,7 @@ import { approxTokens } from '../state/context-chip-store';
 import { BoardCopyDialog } from './BoardCopyDialog';
 import { BoardPinButton } from './BoardPinButton';
 import { HomeMemoryView } from './HomeMemoryView';
+import { HomeReviewView } from './HomeReviewView';
 import { KnowledgeDialog } from './KnowledgeDialog';
 import { RelationPresetsDialog } from './RelationPresetsDialog';
 import { knowledge, lifecycleFilter } from '../state/knowledge-store';
@@ -112,7 +114,7 @@ function BoardThumbnail({ board }: { board: BoardSummary }) {
  */
 export function HomeView() {
   const boards = boardList.value;
-  const [view, setView] = useState<'Folders' | 'Map' | 'Graph'>('Folders');
+  const [view, setView] = useState<'Folders' | 'Map' | 'Graph' | 'Review'>('Folders');
   const [folder, setFolder] = useState<string>(() => {
     const recent = [...boardList.value].sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))[0];
     return recent?.folder ?? '';
@@ -126,7 +128,6 @@ export function HomeView() {
   const [moving, setMoving] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [reviewOnly, setReviewOnly] = useState(false);
   const [hits, setHits] = useState<LibraryHit[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -175,11 +176,7 @@ export function HomeView() {
     targets.push(nodeId);
     reviewTargets.set(boardId, targets);
   }
-  const shown = query
-    ? matches
-    : reviewOnly
-      ? boards.filter((board) => reviewBoardIds.has(board.id) && reviewTargets.has(board.id))
-      : here;
+  const shown = query ? matches : here;
   const reviewBoard = async (id: string) => {
     const cardId = reviewTargets.get(id)?.[0];
     if (!cardId) return;
@@ -219,6 +216,18 @@ export function HomeView() {
     if (selectedId && !boards.some((board) => board.id === selectedId)) setSelectedId(null);
   }, [boards, selectedId]);
 
+  useLayoutEffect(() => {
+    if (view !== 'Folders' || !selectedId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!isSelectionEscape(event)) return;
+      event.preventDefault();
+      setSelectedId(null);
+      setConfirmingDelete(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view, selectedId]);
+
   const openHit = (hit: LibraryHit) => openMemoryTarget(hit);
 
   const toggle = (path: string) => {
@@ -232,7 +241,6 @@ export function HomeView() {
   const goTo = (path: string) => {
     setFolder(path);
     setSearch('');
-    setReviewOnly(false);
     setSelectedId(null);
     setPickerOpen(false);
   };
@@ -508,7 +516,7 @@ export function HomeView() {
       )}
       {relationPresetsOpen && <RelationPresetsDialog onClose={() => setRelationPresetsOpen(false)} />}
       <nav class="home-view-tabs" aria-label="Library view">
-        {(['Folders', 'Map', 'Graph'] as const).map((tab) => (
+        {(['Folders', 'Map', 'Graph', 'Review'] as const).map((tab) => (
           <button type="button" class="home-button" aria-pressed={view === tab} onClick={() => setView(tab)} key={tab}>
             {tab}
           </button>
@@ -517,10 +525,10 @@ export function HomeView() {
           Relation presets
         </button>
       </nav>
-      {view !== 'Folders' ? (
+      {view === 'Map' || view === 'Graph' ? (
         <HomeMemoryView key={view} mode={view} />
       ) : (
-        <div class={`home-view${selected ? ' has-details' : ''}`} data-testid="home-view">
+        <div class={`home-view${selected && view === 'Folders' ? ' has-details' : ''}`} data-testid="home-view">
           <aside class={`home-library${pickerOpen ? ' is-open' : ''}`} aria-label="Library">
             <div class="home-library-head">
               <span class="home-library-title">Library</span>
@@ -583,161 +591,165 @@ export function HomeView() {
               </button>
             </div>
 
-            <div class="home-main-head">
-              <div class="home-main-title">
-                <nav class="home-crumbs" aria-label="Folder path">
-                  <button type="button" onClick={() => goTo('')}>
-                    Library
-                  </button>
-                  {folder &&
-                    folderAncestors(folder).map((path) => (
-                      <span key={path}>
-                        <span class="home-crumb-sep">/</span>
-                        <button type="button" onClick={() => goTo(path)}>
-                          {leaf(path)}
-                        </button>
-                      </span>
-                    ))}
-                </nav>
-                <h1 class="home-view-title">
-                  {query ? `Results for “${search.trim()}”` : folder ? leaf(folder) : 'Library'}
-                </h1>
-              </div>
-              <button type="button" class="home-button" onClick={() => setKnowledgeDialog(folder)}>
-                {' '}
-                {folder ? 'Folder settings' : 'Categories'}
-              </button>
-              <button type="button" class="home-button is-primary" onClick={() => void promptNewBoard(folder || null)}>
-                {folder ? 'New board here' : 'New board'}
-              </button>
-            </div>
-
-            {knowledge.value && !query && (
-              <section class="home-main-section" aria-label="Folder review summary">
-                <span class="home-section-label">
-                  Card review · {folder ? 'In this folder and subfolders' : 'Across the library'}
-                </span>
-                <div class="home-card-meta">
-                  {folderCategory && (
-                    <span>
-                      Category: {folderCategory.glyph} {folderCategory.name}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    class={`home-review-link${reviewNeeded ? ' has-review' : ''}`}
-                    aria-pressed={reviewOnly}
-                    onClick={() => setReviewOnly(!reviewOnly)}
-                  >
-                    Review needed: {plural(reviewNeeded, 'card')}
-                  </button>
-                  <span>No review policy: {plural(withoutPolicy, 'card')}</span>
-                </div>
-              </section>
-            )}
-
-            {boards.length === 0 ? (
-              <div class="home-view-empty">
-                No boards yet. Create one, or let an agent start writing — it opens one.
-              </div>
-            ) : query ? (
-              <>
-                {hits.length > 0 && (
-                  <section class="home-main-section">
-                    <span class="home-section-label">Cards · {hits.length}</span>
-                    <ul class="home-hits" aria-label="Library search results">
-                      {hits.map((hit) => (
-                        <li key={`${hit.boardId}:${hit.cardId}`}>
-                          <button type="button" class="home-hit" onClick={() => void openHit(hit)}>
-                            <span class="home-card-name">{hit.title || hit.boardTitle}</span>
-                            {hit.qualification?.retired && <span class="category-tag">Retired</span>}
-                            <span class="home-card-meta">
-                              {hit.boardTitle} · {hit.snippet}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-                {matches.length > 0 ? (
-                  <section class="home-main-section">
-                    <span class="home-section-label">Boards · {matches.length}</span>
-                    <ul class="home-cards">{matches.map(card)}</ul>
-                  </section>
-                ) : (
-                  hits.length === 0 && (
-                    <div class="home-view-empty" role="status">
-                      No boards match “{search.trim()}”.
-                    </div>
-                  )
-                )}
-              </>
+            {view === 'Review' ? (
+              <HomeReviewView folder={folder} folders={folders} onScopeChange={goTo} />
             ) : (
               <>
-                {!reviewOnly && subfolders.length > 0 && (
-                  <section class="home-main-section">
-                    <span class="home-section-label">Folders · {subfolders.length}</span>
-                    <ul class="home-folders">
-                      {subfolders.map((path) => {
-                        const inside = boards.filter((board) => inFolder(board, path));
-                        const latest = inside
-                          .map((board) => board.lastOpenedAt ?? '')
-                          .sort()
-                          .at(-1);
-                        const inContext = inside.filter((board) => board.pin).length;
-                        return (
-                          <li key={path}>
-                            <button
-                              type="button"
-                              class="home-folder"
-                              data-testid="home-section"
-                              data-folder={path}
-                              onClick={() => goTo(path)}
-                            >
-                              <span class="home-folder-stack" aria-hidden="true">
-                                <span />
-                                <span />
-                                <span />
-                              </span>
-                              {inContext > 0 && <span class="home-folder-context">{inContext} in context</span>}
-                              <span class="home-folder-name">{leaf(path)}</span>
-                              <span class="home-folder-meta">
-                                {plural(inside.length, 'board')}
-                                {latest ? ` · opened ${openedAgo(latest)}` : ''}
-                              </span>
+                <div class="home-main-head">
+                  <div class="home-main-title">
+                    <nav class="home-crumbs" aria-label="Folder path">
+                      <button type="button" onClick={() => goTo('')}>
+                        Library
+                      </button>
+                      {folder &&
+                        folderAncestors(folder).map((path) => (
+                          <span key={path}>
+                            <span class="home-crumb-sep">/</span>
+                            <button type="button" onClick={() => goTo(path)}>
+                              {leaf(path)}
                             </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                          </span>
+                        ))}
+                    </nav>
+                    <h1 class="home-view-title">
+                      {query ? `Results for “${search.trim()}”` : folder ? leaf(folder) : 'Library'}
+                    </h1>
+                  </div>
+                  <button type="button" class="home-button" onClick={() => setKnowledgeDialog(folder)}>
+                    {' '}
+                    {folder ? 'Folder settings' : 'Categories'}
+                  </button>
+                  <button
+                    type="button"
+                    class="home-button is-primary"
+                    onClick={() => void promptNewBoard(folder || null)}
+                  >
+                    {folder ? 'New board here' : 'New board'}
+                  </button>
+                </div>
+
+                {knowledge.value && !query && (
+                  <section class="home-main-section" aria-label="Folder review summary">
+                    <span class="home-section-label">
+                      Card review · {folder ? 'In this folder and subfolders' : 'Across the library'}
+                    </span>
+                    <div class="home-card-meta">
+                      {folderCategory && (
+                        <span>
+                          Category: {folderCategory.glyph} {folderCategory.name}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        class={`home-review-link${reviewNeeded ? ' has-review' : ''}`}
+                        onClick={() => {
+                          setView('Review');
+                          setSelectedId(null);
+                        }}
+                      >
+                        Review needed: {plural(reviewNeeded, 'card')}
+                      </button>
+                      <span>No review policy: {plural(withoutPolicy, 'card')}</span>
+                    </div>
                   </section>
                 )}
-                <section class="home-main-section">
-                  <span class="home-section-label">
-                    {reviewOnly ? 'Boards needing review' : folder ? `Boards in ${leaf(folder)}` : 'Unfiled boards'} ·{' '}
-                    {shown.length}
-                  </span>
-                  {shown.length > 0 ? (
-                    <ul
-                      class="home-cards"
-                      aria-label={
-                        reviewOnly ? 'Boards needing review' : folder ? `Boards in ${folder}` : 'Unfiled boards'
-                      }
-                    >
-                      {shown.map(card)}
-                    </ul>
-                  ) : (
-                    <div class="home-view-empty">
-                      {reviewOnly ? 'No cards currently need review in this scope.' : 'No boards here yet.'}
-                    </div>
-                  )}
-                </section>
+
+                {boards.length === 0 ? (
+                  <div class="home-view-empty">
+                    No boards yet. Create one, or let an agent start writing — it opens one.
+                  </div>
+                ) : query ? (
+                  <>
+                    {hits.length > 0 && (
+                      <section class="home-main-section">
+                        <span class="home-section-label">Cards · {hits.length}</span>
+                        <ul class="home-hits" aria-label="Library search results">
+                          {hits.map((hit) => (
+                            <li key={`${hit.boardId}:${hit.cardId}`}>
+                              <button type="button" class="home-hit" onClick={() => void openHit(hit)}>
+                                <span class="home-card-name">{hit.title || hit.boardTitle}</span>
+                                {hit.qualification?.retired && <span class="category-tag">Retired</span>}
+                                <span class="home-card-meta">
+                                  {hit.boardTitle} · {hit.snippet}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+                    {matches.length > 0 ? (
+                      <section class="home-main-section">
+                        <span class="home-section-label">Boards · {matches.length}</span>
+                        <ul class="home-cards">{matches.map(card)}</ul>
+                      </section>
+                    ) : (
+                      hits.length === 0 && (
+                        <div class="home-view-empty" role="status">
+                          No boards match “{search.trim()}”.
+                        </div>
+                      )
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {subfolders.length > 0 && (
+                      <section class="home-main-section">
+                        <span class="home-section-label">Folders · {subfolders.length}</span>
+                        <ul class="home-folders">
+                          {subfolders.map((path) => {
+                            const inside = boards.filter((board) => inFolder(board, path));
+                            const latest = inside
+                              .map((board) => board.lastOpenedAt ?? '')
+                              .sort()
+                              .at(-1);
+                            const inContext = inside.filter((board) => board.pin).length;
+                            return (
+                              <li key={path}>
+                                <button
+                                  type="button"
+                                  class="home-folder"
+                                  data-testid="home-section"
+                                  data-folder={path}
+                                  onClick={() => goTo(path)}
+                                >
+                                  <span class="home-folder-stack" aria-hidden="true">
+                                    <span />
+                                    <span />
+                                    <span />
+                                  </span>
+                                  {inContext > 0 && <span class="home-folder-context">{inContext} in context</span>}
+                                  <span class="home-folder-name">{leaf(path)}</span>
+                                  <span class="home-folder-meta">
+                                    {plural(inside.length, 'board')}
+                                    {latest ? ` · opened ${openedAgo(latest)}` : ''}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </section>
+                    )}
+                    <section class="home-main-section">
+                      <span class="home-section-label">
+                        {folder ? `Boards in ${leaf(folder)}` : 'Unfiled boards'} · {shown.length}
+                      </span>
+                      {shown.length > 0 ? (
+                        <ul class="home-cards" aria-label={folder ? `Boards in ${folder}` : 'Unfiled boards'}>
+                          {shown.map(card)}
+                        </ul>
+                      ) : (
+                        <div class="home-view-empty">No boards here yet.</div>
+                      )}
+                    </section>
+                  </>
+                )}
               </>
             )}
           </main>
 
-          {details}
+          {view === 'Folders' && details}
           {movingBoard && (
             <BoardFolderDialog
               key={movingBoard.id}

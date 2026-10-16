@@ -131,6 +131,7 @@ the same change.
 | [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt. Built (2026-10-10) with two placements of our own: the live "Claude · this session" counts sit in the top bar's agent chip ("2 read · 1 edited", press to dim untouched cards; Pane600's wording), because the bottom of the canvas belongs to the command bar; "see change" lives on the receipt's Edited lines, not on the card, which has no meta line — its open view is now built to SeeChange. The drawing's Suggested state is dropped (maintainer, 2026-10-10: the agent changes the canvas directly; asks and suggestions go through the composer) | 1 |
 | [`BoardPins.dc.html`](design/BoardPins.dc.html) | Board pins: where you pin a board, the tiered brief, the context chip across boards; each pinned board carries its category glyph and review state (due count, the brief’s “review due” / “lifecycle unknown” lines) | 1 |
 | [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details. Folders carry no colour (the 2026-10-07 decision supersedes the drawing's hues); the folder's README line waits until folders have a README. Map and Graph are now available. A card selects the board into details; Open board (or a double-click) opens it | 1, 2 |
+| [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Uses.dc.html`](design/Uses.dc.html), [`Home.dc.html`](design/Home.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Selected 2026-10-14: C1 compact category inspector; R2 read-only chooser then separate preset editor; H2 individual-card Home Review queue; V2 real card beside a docked review drawer, lower dock at 600 px. Supersedes earlier category full-form and review-modal geometry; retains inheritance, evidence guards and independent clocks | Implemented; owner acceptance pending, no release claim |
 | [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library; implemented with the wave-2 deviations below | 2 |
 | [`HomeTeam.dc.html`](design/HomeTeam.dc.html) | Home on a team server: workspace and personal libraries, per-user pins, moving a board into the workspace, locked links, folder categories and due counts in both libraries (look ahead) | Later (Part 3, step 5) |
 | [`Categories.dc.html`](design/Categories.dc.html), [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Knowledge categories as a folder property (glyph + word, no colour; set here vs `↳` inherited; dashed “unknown”), folder settings, the one workspace list with lifecycle defaults and templates (org/team/personal is one option), a solo-research workspace; on cards: lifecycle override (never category), the four clocks, review outcomes with evidence, the board's review list, the brief. Review due is amber **outlined** with ⧗ as the card's bottom line, only while due; changed-since-read stays amber **filled** with △ in the header. 600 px | For review (move 13, Part 3) |
@@ -142,6 +143,25 @@ the same change.
 | [`Zoom.dc.html`](design/Zoom.dc.html) | Fit-all readability when frames are unmounted | 4 |
 | [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
+
+**Near cards distance (owner decision, 2026-10-14).** Near means an edge-to-edge
+gap of at most 600 canvas pixels, not distance between centres. Large cards do
+not need to overlap to qualify. Keep the five nearest unpinned cards per pin;
+the brief, chip distances, tether numbering and nearest-pin drag preview use the
+same gap. The dotted boundary expands the whole pinned rectangle by 600 pixels,
+with rounded corners, rather than drawing a circle around its centre.
+
+**Escape cancels selection (owner decision, 2026-10-14).** Escape returns board
+relation and To review / Retired filters to All, and clears selected cards or
+links. In Home it clears the selected board/card in Folders, Map or Graph
+without leaving that view or resetting its camera; the Review queue's search
+and source-warning filter also clear. Open menus/dialogs consume Escape first, and typing in a
+text editor or search field does not silently reset the underlying selection.
+Category and relation-preset dialogs retain Escape ownership after a busy save/apply
+disables the focused control and focus falls back to the page body; nested menus and
+unsaved-change confirmations still dismiss first without discarding drafts.
+Agent session popovers accept Escape immediately on opening, consume it before underlying
+selection and return focus to their initial button without scrolling the canvas.
 
 **Authorship simplification (owner decision, 2026-10-12).** Remove the violet stars from
 card type icons and relation pills. The type-icon hint still names who wrote or edited the
@@ -314,6 +334,10 @@ connection evidence.
 agent names/counts fill a wider bar: fold actions into More before compacting sessions to
 their existing initials and popovers. More owns keyboard focus as soon as it opens and
 stays reachable through resize or count changes until it closes.
+At extra-narrow widths with multiple attached sessions, compact spacing tightens and the
+board name may ellipsize below its usual minimum; the status dot, board pin, context summary,
+agent initials and More remain reachable. The switcher button must shrink with its wrapper,
+not retain its intrinsic text width behind clipped controls.
 External writers follow the same compact step, keeping their avatars, activity button and
 accessible identity while giving the context summary room. At narrow widths, retained Updates
 tracks the measured bottom of the Map/Graph toolbar, including wrapped tabs/counts, not a
@@ -351,24 +375,59 @@ option/if/chosen links backward from the selected outcome; with focus active, Fl
 Custom vocabularies use the local neighborhood. These are view-only, not a decision or execution engine. Remote cards
 remain footer links, not long lines across boards.
 
-Lifecycle uses a focus-trapped **Review** dialog reachable from More, a due footer or the
-expanded-card Review button, rather than replacing the expanded content with a tab. This also
-works for card types without an expanded view. Acceptance correction (2026-10-11): the default
-dialog asks for one short check note and offers **Checked, still correct** or **Not now**.
+Owner selection (2026-10-14): **C1 compact category inspector, R2 choose then customize,
+H2 dedicated Home Review queue, V2 docked card review drawer**. These are implemented
+directions in the current acceptance batch; owner acceptance is pending, with no release claim. The selected
+drawings are CategoryEditor, Uses, Home, Lifecycle and Lifecycle600; they supersede earlier
+full-form category editing and standalone review-modal geometry.
+The owner-approved naming is **Review** in Home navigation, **Knowledge review** as the
+queue page heading, and **Review card** in the drawer, followed by the actual card title.
+Review concerns the context's reliability, not task completion or automatic validation.
+
+C1 keeps a searchable neutral glyph-and-word category list beside **Basics / Review policy /
+Usage** tabs, templates behind disclosure, and Save/Cancel with a dirty guard on leaving.
+The Add category button stays 8 px below the search field, rather than touching its border.
+Basics offers the starter glyphs as visible, neutral choices alongside the custom glyph input.
+Choosing a glyph changes only that draft's glyph, not its name or review policy; Save commits it.
+Folder inheritance, card-only lifecycle overrides and assigned-category deletion protections
+remain. R2 starts with a read-only relation preview; **Customize preset** opens a separate editor.
+Save changes the workspace template only. **Use on board** explicitly copies the saved vocabulary
+to one selected board; existing edges and other boards stay unchanged, with no later auto-sync.
+Opening before the workspace catalog arrives must still select the first saved preset when it
+loads. An explicit new/deleted selection stays empty instead of silently choosing another preset.
+
+V2 docks **Review card** beside the real rendered card, reachable from More, a due footer or the
+expanded-card Review button; it does not substitute a text excerpt for the card. The 380 px
+side dock becomes a lower dock at narrow widths, keeping content visible above. It asks for
+one short check note and offers **Checked, still correct** or **Not now**.
+The camera fits the reviewed card into the actual remaining canvas on opening, reopening
+and resize. Keyboard focus must not add a native scroll offset beneath that camera;
+the canvas clips overflow without becoming a scroll container.
+Fit preserves the card boundary, not visibility of its entire body: expand or resize a
+compact card to read content beyond its body viewport.
 Not now writes nothing and leaves the current review state alone. **Settings and history**
 discloses the policy, four clocks, advanced outcomes, recipes and retirement controls.
 Four clock tiles stay separate; only read delivery is violet. New
-review metadata clears the evidence draft and applied checkbox. Retire/Restore are audited;
+review metadata clears the evidence draft and applied checkbox. Stale content/source observations
+refuse validation; dirty Markdown must save, reload and be rechecked first. Close/Escape also
+dismiss without writing. Retire/Restore are audited;
 the post-retirement toast offers Undo. Filters dim nonmatches rather than deleting their spatial
 context. Due footers use variant A, including collapsed cards; healthy cards gain no badge.
 Home's tree is navigation only. The selected-folder summary reports category and actionable
 **Review needed** counts, explicitly including descendants; **No review policy** is informational,
-not a task. Review opens the next qualified card with the To review filter and a readable camera.
+not a task. The summary opens H2's dedicated **Review** tab with individual cards, authoritative
+card and board titles, reasons, last checked and **Open review**. Scope is the selected folder
+plus descendants or the whole library. Search and Source warnings only narrow the queue;
+long descendant options must not push the scope border or arrow outside the main pane,
+including at 390 px. Check the pane and queue scroll widths, not only the root document.
+Refresh retries unavailable observations. Nonretired cards with due or source warnings count
+once, even with both; unknown policy alone is neutral, but explicit warnings still qualify.
+Opening focuses the real card and dock and never validates it.
 Board details prioritize Open board; agent README and link dumps belong in agent reads or Map/Graph,
 not the human's opening flow. Categories and folder settings reuse themed ChoiceMenus and compact
 controls; unused category deletion is confirmed inline, assigned categories name blocking folders.
 Presets add only missing starter
-entries and never overwrite edits. Medium cadence is an explicit optional day count, never
+entries and never overwrite edits. Medium cadence is an explicit required day count, never
 inferred from the category name. Unknown stays unknown.
 
 The `Flows` source-qualification extension distinguishes a portal's source warning from its

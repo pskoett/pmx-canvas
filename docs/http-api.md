@@ -18,7 +18,7 @@ A category is the same fields plus stable `id`, editable `name` and `glyph` (non
 
 | Route | Input / result |
 |---|---|
-| `GET /api/canvas/knowledge` | `{ok, categories, folders, relationPresets, cards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
+| `GET /api/canvas/knowledge` | `{ok, categories, folders, relationPresets, cards, reviewCards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
 | `POST /api/canvas/knowledge/category` | `{category}` creates or replaces by id; returns `{ok, category}` |
 | `DELETE /api/canvas/knowledge/category/:id` | Deletes an unused category; returns `{ok:true, id}`. Unknown id: 404; blank id: invalid input (400); omitted path id: no matching route (404). Explicit folder assignments, including empty folders, refuse deletion (409) and name the folders to reassign or clear first. Never clears folders or inherited policies. |
 | `POST /api/canvas/knowledge/folder` | `{path, categoryId: string|null, lifecycleOverride: Lifecycle|null}` replaces folder properties; returns `{ok, folder}` |
@@ -28,6 +28,18 @@ A category is the same fields plus stable `id`, editable `name` and `glyph` (non
 | `POST /api/canvas/node/:id/lifecycle` | `{lifecycleOverride: Lifecycle|null, expectedBoardId?}`; returns `{ok:true}` |
 | `POST /api/canvas/node/:id/review` | `{outcome, evidence: string, applied: boolean, expectedBoardId?, expectedContentRevision?, expectedSources?}`; returns `{ok, record}` |
 | `POST /api/canvas/node/:id/lifecycle/restore` | `{evidence: string, expectedBoardId?}`; returns `{ok, record}` |
+
+**Additive local contract, 2026-10-14 (validation ongoing):** `knowledge.list.reviewCards`
+is an array of `{boardId: string, cardId: string, boardTitle: string, folder: string|null,
+title: string}`. Titles and folder placement come from the authoritative board/card observation,
+not cached Home previews. Each nonretired card with `due === true` or nonempty `sources` appears
+once, including a card with both. Join to `cards[JSON.stringify([boardId, cardId])]` for reasons,
+source warnings and `lastValidatedAt`; missing validation is not a synthetic last-checked date.
+Unknown policy alone does not qualify, but explicit content or source warnings still do.
+The read covers the library without opening boards or writing validation. Consumers may filter
+to a canonical folder and its descendants; null folder is unfiled and included in whole-library
+scope. Opening a result is navigation, not a review record. The same additive result is returned
+by SDK `knowledge({action:"list"})`.
 
 Folder paths use the board-folder canonicalization (trimmed segments, at most eight levels).
 Null category inherits; null override clears that local override. An explicit child category
@@ -675,9 +687,9 @@ a merged receipt has recorded more than 20 IDs across sessions; unrelated pins s
 board-scoped cursor; without `consumer` or `since`, each request starts from the
 beginning. An explicit `since` never advances a cursor. The brief is a map,
 not a dump: an `overview` entry for the open board first, then pins, then each
-pin's neighbours (reason `near`: up to five unpinned cards within 600 px, nearest
-first, with `near: { pinNodeId, pinTitle }`), then relevant current-board changes
-and asks, then pinned boards (reason `pinned-board`: the board and its pinned
+pin's neighbours (reason `near`: up to five unpinned cards within a 600 canvas-pixel
+edge-to-edge gap, nearest first, with `near: { pinNodeId, pinTitle }`), then relevant
+current-board changes and asks, then pinned boards (reason `pinned-board`: the board and its pinned
 cards), then compact linked or same-folder board context. Cards arrive as title,
 a short summary (`summaryOnly: true`) and their relations; a pin puts a card
 first, it does not send its full text. On a later read a changed card lists what changed in

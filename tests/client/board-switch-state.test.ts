@@ -7,7 +7,9 @@ import {
   boardsLoaded,
   connectBoardCatalog,
   createAndOpenBoard,
+  lifecycleTarget,
   openBoard,
+  openMemoryTarget,
   updateBoard,
 } from '../../src/client/state/boards-store.ts';
 import {
@@ -321,6 +323,30 @@ describe('board switch client state', () => {
 
     expect(opened).toEqual(['B']);
     expect(activeBoardId.value).toBe('B');
+  });
+
+  test('review navigation cannot target a reused card ID after a later board choice', async () => {
+    globalThis.fetch = ((input, init) => {
+      if (String(input) === '/api/canvas/boards/open') {
+        return Promise.resolve(json(boardPayload(JSON.parse(String(init?.body)).id)));
+      }
+      return new Promise<Response>(() => {});
+    }) as typeof fetch;
+    const staleReview = openMemoryTarget({ boardId: 'B', cardId: 'shared' }, { review: true });
+    await Bun.sleep(0);
+    await openBoard('A');
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'A', layout: layout('shared') });
+    expect(await staleReview).toBe(false);
+    expect(activeBoardId.value).toBe('A');
+    expect(lifecycleTarget.value).toBeNull();
+
+    const currentReview = openMemoryTarget({ boardId: 'B', cardId: 'shared' }, { review: true });
+    await Bun.sleep(0);
+    EVENT_HANDLERS['canvas-layout-update']({ boardId: 'B', layout: layout('shared') });
+    expect(await currentReview).toBe(true);
+    expect(lifecycleTarget.value).toMatchObject({ boardId: 'B', nodeId: 'shared' });
+    await openBoard('A');
+    expect(lifecycleTarget.value).toBeNull();
   });
 
   test('two delayed opens reach the server and settle in click order', async () => {

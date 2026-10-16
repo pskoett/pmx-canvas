@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import { BarHint } from './BarHint';
 import { IconClose, IconExternalLink } from '../icons';
 import type { AgentPresence } from '../../shared/agent-presence.js';
@@ -107,10 +107,11 @@ export function ActivityFeed() {
   const writers = externalWriterPresences.value;
   const now = useNow(open ? 10_000 : 0);
   // Esc closes the top-most surface: the sheet first, then the feed.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      e.preventDefault();
       if (writersSheetOpen.value) writersSheetOpen.value = false;
       else activityFeedOpen.value = false;
     };

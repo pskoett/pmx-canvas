@@ -476,32 +476,29 @@ test('Home is navigation first even with a long agent README and repeated links'
   await expect(page.locator(`[data-node-id="${id}"]`)).toBeVisible();
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   await page.getByRole('button', { name: 'Review needed: 1 card', exact: true }).click();
-  const reviewBoards = page.getByRole('list', { name: 'Boards needing review' });
-  await expect(reviewBoards.getByRole('button', { name: sourceName, exact: true })).toBeVisible();
-  await reviewBoards.getByRole('button', { name: `Review ${sourceName}`, exact: true }).click();
+  const queue = page.getByRole('region', { name: 'Card review queue' });
+  const row = queue.locator('tbody tr').filter({ hasText: 'Review this value' });
+  await expect(row).toContainText(sourceName);
+  await row.getByRole('button', { name: `Open review: Review this value on ${sourceName}` }).click();
   const dueCard = page.locator(`[data-node-id="${dueId}"]`);
   await expect(dueCard).toBeInViewport();
-  await expect(page.getByRole('button', { name: /^To review ·/ })).toHaveAttribute('aria-pressed', 'true');
-  await dueCard.getByRole('button', { name: /review due/ }).click();
   const review = page.getByRole('dialog', { name: 'Review card' });
   await expect(review.getByRole('button', { name: 'Checked, still correct' })).toBeDisabled();
   await expect(review.locator('.lifecycle-clocks')).not.toBeVisible();
   const close = review.getByRole('button', { name: 'Close review' });
-  const summary = review.locator('summary');
+  const summary = review.locator('summary').first();
   await close.focus();
-  await page.keyboard.press('Shift+Tab');
-  await expect(summary).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(close).toBeFocused();
+  await expect(review.getByLabel('What did you check?')).toBeFocused();
   await summary.focus();
   await page.keyboard.press('Space');
-  await expect(review.locator('details')).toHaveAttribute('open', '');
+  await expect(review.locator('.lifecycle-advanced')).toHaveAttribute('open', '');
   await expect(page.getByRole('button', { name: 'Pan (Space)', exact: true })).not.toHaveAttribute(
     'aria-pressed',
     'true',
   );
   await page.keyboard.press('Space');
-  await expect(review.locator('details')).not.toHaveAttribute('open', '');
+  await expect(review.locator('.lifecycle-advanced')).not.toHaveAttribute('open', '');
   await review.getByRole('button', { name: 'Not now', exact: true }).click();
   await expect(review).toHaveCount(0);
   const deferred = await (await request.get(`/api/canvas/node/${dueId}/lifecycle`)).json();

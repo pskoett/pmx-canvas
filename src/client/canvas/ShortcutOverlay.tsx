@@ -45,7 +45,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: 'Drag empty space', desc: 'Lasso select multiple nodes' },
       { keys: isMac ? 'Delete / \u232b' : 'Delete / Backspace', desc: 'Delete the selection (or the focused node)' },
       { keys: isMac ? '\u2318Z / \u21e7\u2318Z' : 'Ctrl+Z / Ctrl+Y', desc: 'Undo / redo — agent edits included' },
-      { keys: 'Esc', desc: 'Clear selection / close overlay' },
+      { keys: 'Esc', desc: 'Close overlay first, then clear selection and view filters' },
     ],
   },
   {

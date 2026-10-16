@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 import {
   IconArrange,
@@ -202,13 +202,16 @@ export function ToolRail({
       }
     : undefined;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!openMenu) return;
     const onPointerDown = (e: PointerEvent) => {
       if (railRef.current && e.target instanceof Node && !railRef.current.contains(e.target)) setOpenMenu(null);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null);
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpenMenu(null);
+      }
     };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);

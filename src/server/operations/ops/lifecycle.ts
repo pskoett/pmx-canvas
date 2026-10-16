@@ -3,7 +3,7 @@ import { canvasState } from '../../canvas-state.js';
 import { categorySchema, lifecycleSchema, type Lifecycle } from '../../knowledge-lifecycle.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { readTargetBoard } from './boards.js';
-import { lifecycleQualifications } from '../../lifecycle-status.js';
+import { lifecycleQualifications, lifecycleSnapshot } from '../../lifecycle-status.js';
 import { memoryKey } from '../../../shared/memory-graph.js';
 import { folderAncestors } from '../../../shared/boards.js';
 import { relationPresetSchema } from '../../../shared/relations.js';
@@ -34,7 +34,7 @@ export const lifecycleOperations: Operation[] = [
       return {
         ok: true,
         ...catalog,
-        cards: lifecycleQualifications(),
+        ...lifecycleSnapshot(),
         resolvedFolders: Object.fromEntries(
           [...paths].map((path) => [path, canvasState.knowledge.resolve(path, null, catalog)]),
         ),

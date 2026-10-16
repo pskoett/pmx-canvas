@@ -88,14 +88,31 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   await expect(page.getByText('canvas.buildWebArtifact', { exact: true })).toBeVisible();
   await expect(page.getByText('playwright', { exact: true })).toBeVisible();
 
+  // The seeded workspace is larger than the initial camera. Bring lazy viewers
+  // into the actual canvas instead of relying on native scrolling beneath it.
+  await page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Fit all', exact: true }).click();
+
   const artifactFrame = page.frameLocator(
     '.canvas-node:has(.node-title:text-is("SDLC Control Room Artifact")) iframe.mcp-app-frame',
   );
   await expect(artifactFrame.getByText('Delivery Control Room')).toBeVisible();
 
-  const dashboardFrame = page.frameLocator(
-    '.canvas-node:has(.node-title:text-is("Control Tower Widgets")) iframe.mcp-app-frame',
-  );
+  const dashboardNode = page.locator('.canvas-node:has(.node-title:text-is("Control Tower Widgets"))');
+  const dashboardIframe = dashboardNode.locator('iframe.mcp-app-frame');
+  await expect(dashboardIframe).toHaveCount(1);
+  const dashboardElement = await dashboardIframe.elementHandle();
+  const viewer = await dashboardElement!.contentFrame();
+  expect(viewer).not.toBeNull();
+  const viewerUrl = new URL((await dashboardIframe.getAttribute('src'))!, baseUrl);
+  expect(viewerUrl.origin).toBe(new URL(baseUrl).origin);
+  expect(viewerUrl.pathname).toBe('/api/canvas/json-render/view');
+  expect(viewerUrl.searchParams.get('nodeId')).toBe(await dashboardNode.getAttribute('data-node-id'));
+  // This functional smoke has no startup SLA. Lazy document load supplies the
+  // restore prerequisite; keep the usual five seconds for visible rendering.
+  // Match the authored URL so an initial about:blank cannot satisfy readiness.
+  await viewer!.waitForURL((url) => url.href === viewerUrl.href, { waitUntil: 'load' });
+  const dashboardFrame = dashboardIframe.contentFrame();
   await expect(dashboardFrame.getByText('Control Tower Widgets')).toBeVisible();
 
   const intakeFrame = page.frameLocator(

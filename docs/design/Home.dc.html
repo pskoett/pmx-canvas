@@ -141,8 +141,26 @@ body{margin:0}
 </aside>
 
 </div>
+<section style="width:1440px;height:700px;box-sizing:border-box;padding:40px 48px;background:#081524;color:#e6eef7;font:13px/1.5 'IBM Plex Sans',system-ui,sans-serif">
+<h1 style="font-size:28px;margin:0">H2 · Dedicated Home Review queue</h1>
+<p style="color:#8ea3bd">Selected 2026-10-14 · local implementation, validation ongoing. The folder summary opens Review, not a board-grouped popover.</p>
+<div style="display:flex;gap:24px;border:1px solid #1b2c44;border-radius:10px;background:#0f1d31;padding:20px;margin-top:20px">
+<aside style="width:220px;border-right:1px solid #1b2c44;padding-right:20px"><strong>Library</strong><p style="color:#8ea3bd">Find boards, cards, folders…</p><p>▸ Engineering</p><p style="background:#13243b;padding:6px;border-radius:6px">▾ Projects</p><p style="padding-left:16px">Product<br>Research<br>Launch</p><p>▸ Sources</p></aside>
+<main style="flex:1;min-width:0">
+<nav style="display:flex;gap:16px;color:#8ea3bd">Folders · Map · Graph · <strong style="color:#e6eef7">Review</strong><span style="margin-left:auto">Categories · Relation presets</span></nav>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px"><h2 style="font-size:20px;margin:0">Knowledge review</h2><label>Review scope <select style="font:inherit;color:inherit;background:#081524;border:1px solid #1b2c44;border-radius:6px;padding:7px"><option>Projects and descendants</option><option>Whole library</option></select></label></div>
+<p style="color:#8ea3bd">Projects and descendants</p>
+<div style="display:flex;gap:16px;align-items:center"><label>Find review cards <input type="search" style="font:inherit;color:inherit;background:#081524;border:1px solid #1b2c44;border-radius:6px;padding:7px"></label><label><input type="checkbox"> Source warnings only</label><button style="font:inherit;color:inherit;background:#081524;border:1px solid #1b2c44;border-radius:6px;padding:7px">Refresh queue</button></div>
+<p>Review needed: 3 cards · Showing 3</p>
+<table style="width:100%;border-collapse:collapse;text-align:left;font:13px/1.5 inherit"><thead style="color:#8ea3bd"><tr><th style="padding:10px">Card</th><th>Board</th><th>Why review</th><th>Last checked</th><th>Open</th></tr></thead><tbody>
+<tr style="border-top:1px solid #1b2c44"><td style="padding:12px">Churn by month</td><td>Product metrics</td><td>Billing dashboard changed</td><td>12 September</td><td>Open review →</td></tr>
+<tr style="border-top:1px solid #1b2c44"><td style="padding:12px">Interview finding</td><td>Pricing research</td><td>Content changed since check</td><td>3 September</td><td>Open review →</td></tr>
+<tr style="border-top:1px solid #1b2c44"><td style="padding:12px">Launch assumptions</td><td>Launch plan</td><td>Scheduled check due</td><td>Never checked</td><td>Open review →</td></tr>
+</tbody></table><p style="color:#8ea3bd;border-top:1px solid #1b2c44;padding-top:12px">No review policy: 4 cards. Missing policy is neutral, not overdue. Explicit content or source warnings still enter the queue.</p>
+</main></div><p style="color:#8ea3bd">Nonretired due or source-warning cards count once. Titles are authoritative. Opening never validates. Unavailable state retains results with an out-of-date warning and Refresh to retry; empty filters say “No actionable cards in these filters.”</p>
+</section>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1660}}'>
 class Component extends DCLogic {
   renderVals() {
     var rowBase = 'display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border:0;border-radius:6px;font-family:inherit;text-align:left;';

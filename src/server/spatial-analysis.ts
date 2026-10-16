@@ -72,17 +72,8 @@ export interface SpatialContext {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Euclidean distance between two node centers */
-export function centerDistance(a: CanvasNodeState, b: CanvasNodeState): number {
-  const ax = a.position.x + a.size.width / 2;
-  const ay = a.position.y + a.size.height / 2;
-  const bx = b.position.x + b.size.width / 2;
-  const by = b.position.y + b.size.height / 2;
-  return Math.sqrt((ax - bx) ** 2 + (ay - by) ** 2);
-}
-
 /** Gap distance — how far apart two nodes are edge-to-edge (0 if overlapping) */
-function gapDistance(a: CanvasNodeState, b: CanvasNodeState): number {
+export function gapDistance(a: CanvasNodeState, b: CanvasNodeState): number {
   const aRight = a.position.x + a.size.width;
   const aBottom = a.position.y + a.size.height;
   const bRight = b.position.x + b.size.width;
@@ -259,7 +250,8 @@ export function detectClusters(nodes: CanvasNodeState[], proximityThreshold = 20
 }
 
 /**
- * Find the nearest unpinned nodes to each pinned node.
+ * Find the nearest unpinned nodes by their edge-to-edge gap from each pin.
+ * The inclusive distance limit is in world pixels, independent of card size.
  */
 export function findNeighborhoods(
   nodes: CanvasNodeState[],
@@ -272,7 +264,7 @@ export function findNeighborhoods(
 
   return pinned.map((pin) => {
     const withDist = unpinned
-      .map((n) => ({ node: n, distance: centerDistance(pin, n) }))
+      .map((n) => ({ node: n, distance: gapDistance(pin, n) }))
       .filter((d) => d.distance <= maxDistance)
       .sort((a, b) => a.distance - b.distance)
       .slice(0, maxNeighbors);

@@ -2,7 +2,7 @@ import { memoryKey, type MemoryTarget } from '../shared/memory-graph.js';
 import { relationKind, relationSourceEnd } from '../shared/relations.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
-import type { Lifecycle, ReviewRecord } from './knowledge-lifecycle.js';
+import type { Lifecycle, ReviewCardSummary, ReviewRecord } from './knowledge-lifecycle.js';
 import { normalizeCanvasNodeData, type CanvasNodeProvenance } from './canvas-provenance.js';
 import { agentPresence } from './agent-presence.js';
 
@@ -22,6 +22,11 @@ export function lifecycleQualifications(
   now = Date.now(),
   atUse: MemoryTarget[] = [],
 ): Record<string, LifecycleQualification> {
+  return lifecycleSnapshot(now, atUse).cards;
+}
+
+/** Compact queue metadata and qualifications come from the same authoritative read. */
+export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = []) {
   const result: Record<string, LifecycleQualification> = {};
   const cards = new Map<string, CanvasNodeState>();
   const validations = new Map<string, ReviewRecord | null>();
@@ -209,5 +214,19 @@ export function lifecycleQualifications(
       });
     }
   }
-  return result;
+  const reviewCards: ReviewCardSummary[] = [];
+  for (const { board, read } of reads) {
+    for (const node of read?.layout.nodes ?? []) {
+      const status = result[memoryKey({ boardId: board.id, cardId: node.id })];
+      if (status.retired || !(status.due || status.sources.length)) continue;
+      reviewCards.push({
+        boardId: board.id,
+        cardId: node.id,
+        boardTitle: board.name,
+        folder: board.folder,
+        title: String(node.data.title || 'Untitled card'),
+      });
+    }
+  }
+  return { cards: result, reviewCards };
 }

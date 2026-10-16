@@ -16,7 +16,7 @@ import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { EmptyState } from './canvas/EmptyState';
 import { HomeView } from './canvas/HomeView';
 import { ExportDialog } from './canvas/ExportDialog';
-import { activeBoardId, boardsLoaded, browsingMemory } from './state/boards-store';
+import { activeBoardId, boardsLoaded, browsingMemory, boardIncarnation } from './state/boards-store';
 import { createNodeInView } from './canvas/create-in-view';
 import { undoFromKeyboard } from './state/session-store';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
@@ -42,6 +42,7 @@ import {
   edges,
   expandedNodeId,
   fitAll,
+  focusNode,
   hasInitialServerLayout,
   nodes,
   pendingExpandedNodeCloseId,
@@ -66,6 +67,9 @@ import {
   ungroupFromClient,
 } from './state/intent-bridge';
 import type { AnnotationTool } from './types';
+import { lifecycleFilter, lifecycleTarget } from './state/knowledge-store';
+import { relationFilter } from './state/relation-store';
+import { isSelectionEscape } from './utils/keyboard';
 
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
@@ -76,6 +80,16 @@ function logAppError(action: string, error: unknown): void {
  * would re-render the whole shell (and re-measure the canvas) on every drag frame.
  */
 const boardIsEmpty = computed(() => nodes.value.size === 0);
+const reviewIsOpen = computed(() => {
+  const target = lifecycleTarget.value;
+  return (
+    !!target &&
+    !browsingMemory.value &&
+    activeBoardId.value === target.boardId &&
+    boardIncarnation === target.incarnation &&
+    nodes.value.has(target.nodeId)
+  );
+});
 
 export function App() {
   // Off by default in a narrow pane (Pane600.dc.html); the Settings menu turns it on.
@@ -87,6 +101,8 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>(null);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
+  const canvasRegionRef = useRef<HTMLDivElement>(null);
+  const [area, setArea] = useState(canvasArea);
   const { menu, openNodeMenu, openCanvasMenu, openEdgeMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
   const onHome = boardsLoaded.value && (activeBoardId.value === null || browsingMemory.value);
@@ -94,11 +110,16 @@ export function App() {
   // as a data attribute so styling and tests can key on it; the quiet board
   // (no attached session) must stay byte-clean of agent chrome.
   const sessionIsActive = sessionActive.value;
+  const reviewOpen = reviewIsOpen.value;
 
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
   const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
   const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
   const handleSetAnnotationTool = useCallback((tool: AnnotationTool) => setAnnotationTool(tool), []);
+  const handleCanvasRegion = useCallback((el: HTMLDivElement | null) => {
+    registerCanvasArea(el);
+    canvasRegionRef.current = el;
+  }, []);
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     animateViewport({ x, y, scale: viewport.value.scale }, 200);
@@ -153,7 +174,8 @@ export function App() {
       }
 
       // The library owns its keyboard. Never edit the agent's hidden active board.
-      if (browsingMemory.value) return;
+      if (browsingMemory.value || activeBoardId.value === null) return;
+      if (e.defaultPrevented) return;
 
       // Cmd/Ctrl+K toggles command palette (works from anywhere, including inputs)
       if (mod && e.key === 'k') {
@@ -169,7 +191,15 @@ export function App() {
         return;
       }
 
-      // Esc always collapses expanded node first (even from inside inputs)
+      // A companion review closes before expansion or the underlying selection.
+      if (e.key === 'Escape' && lifecycleTarget.value) {
+        if ((e.target as HTMLElement | null)?.closest('[role="menu"], [role="alertdialog"]')) return;
+        e.preventDefault();
+        lifecycleTarget.value = null;
+        return;
+      }
+
+      // Esc collapses expansion after its companion review.
       if (e.key === 'Escape' && expandedNodeId.value && !pendingExpandedNodeCloseId.value) {
         e.preventDefault();
         collapseExpandedNode();
@@ -234,10 +264,11 @@ export function App() {
         e.preventDefault();
         zoomByFactor(1 / 1.25);
       } else if (e.key === 'Escape') {
-        if (selectedNodeIds.value.size > 0 || selectedEdgeId.value !== null) {
-          clearSelection();
-          return;
-        }
+        if (!isSelectionEscape(e)) return;
+        e.preventDefault();
+        if (relationFilter.value?.boardId === activeBoardId.value) relationFilter.value = null;
+        lifecycleFilter.value = 'All';
+        clearSelection();
         activeNodeId.value = null;
         closeMenu();
       } else if (e.key === 'Tab') {
@@ -353,13 +384,24 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [sessionIsActive]);
 
+  useLayoutEffect(() => {
+    const region = canvasRegionRef.current;
+    if (!region) return;
+    const observer = new ResizeObserver(() => {
+      setArea(canvasArea());
+      void reportClientViewportSize();
+      const review = lifecycleTarget.value;
+      if (review && reviewIsOpen.value) focusNode(review.nodeId, { recordHistory: false });
+    });
+    observer.observe(region);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!hasInitialLayout) return;
     const ready = (window as Window & { __pmxCanvasBootstrapReady?: () => void }).__pmxCanvasBootstrapReady;
     if (typeof ready === 'function') ready();
   }, [hasInitialLayout]);
-
-  const area = canvasArea();
 
   return (
     <div
@@ -382,55 +424,57 @@ export function App() {
       <div class="app-main">
         <TopBar />
         <ConnectionBanner />
-        <div class="canvas-region" ref={(el) => registerCanvasArea(el)}>
-          {!browsingMemory.value && (
-            <CanvasViewport
-              onNodeContextMenu={openNodeMenu}
-              onCanvasContextMenu={openCanvasMenu}
-              onEdgeContextMenu={openEdgeMenu}
-              annotationMode={annotationTool !== null}
-              annotationTool={annotationTool}
+        <div class={`workspace${reviewOpen ? ' is-reviewing' : ''}`}>
+          <div class="canvas-region" ref={handleCanvasRegion}>
+            {!browsingMemory.value && (
+              <CanvasViewport
+                onNodeContextMenu={openNodeMenu}
+                onCanvasContextMenu={openCanvasMenu}
+                onEdgeContextMenu={openEdgeMenu}
+                annotationMode={annotationTool !== null}
+                annotationTool={annotationTool}
+              />
+            )}
+            <AttentionToast />
+            <KnowledgeSync />
+            {!onHome && <LifecycleFilters />}
+            {!onHome && <RelationLegend />}
+            <AttentionHistory />
+            <ActivityFeed />
+            <WritersSheet />
+            {onHome ? (
+              <HomeView />
+            ) : (
+              hasInitialLayout &&
+              boardIsEmpty.value &&
+              intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
+            )}
+            {!onHome && selectedNodeIds.value.size > 0 && <SelectionBar />}
+            {!onHome && sessionIsActive && !isHostedWorkbench() && <CommandBar />}
+            {!onHome && <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />}
+            <TextPrompt />
+            {!browsingMemory.value && <ExportDialog />}
+            {!onHome && expandedNodeId.value && <ExpandedNodeOverlay />}
+            <SnapshotPanel
+              open={snapshotOpen && !browsingMemory.value}
+              onClose={handleCloseSnapshot}
+              anchorRef={snapshotBtnRef}
             />
-          )}
-          <AttentionToast />
-          <KnowledgeSync />
-          {!onHome && <LifecycleFilters />}
-          {!onHome && <RelationLegend />}
-          <AttentionHistory />
-          <ActivityFeed />
-          <WritersSheet />
-          {onHome ? (
-            <HomeView />
-          ) : (
-            hasInitialLayout &&
-            boardIsEmpty.value &&
-            intents.value.size === 0 && <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
-          )}
-          {!onHome && selectedNodeIds.value.size > 0 && <SelectionBar />}
-          {!onHome && sessionIsActive && !isHostedWorkbench() && <CommandBar />}
-          {!onHome && <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />}
-          <TextPrompt />
-          {!browsingMemory.value && <ExportDialog />}
-          {!onHome && expandedNodeId.value && <ExpandedNodeOverlay />}
-          <SnapshotPanel
-            open={snapshotOpen && !browsingMemory.value}
-            onClose={handleCloseSnapshot}
-            anchorRef={snapshotBtnRef}
-          />
-          {minimapVisible && !onHome && (
-            <Minimap
-              viewport={viewport}
-              nodes={nodes}
-              edges={edges}
-              onNavigate={handleMinimapNavigate}
-              containerWidth={area.width}
-              containerHeight={area.height}
-            />
-          )}
+            {minimapVisible && !onHome && (
+              <Minimap
+                viewport={viewport}
+                nodes={nodes}
+                edges={edges}
+                onNavigate={handleMinimapNavigate}
+                containerWidth={area.width}
+                containerHeight={area.height}
+              />
+            )}
+          </div>
+          {reviewOpen && <LifecyclePanel />}
         </div>
       </div>
       {sessionIsActive && <SessionPanel />}
-      <LifecyclePanel />
       {!browsingMemory.value && menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {!browsingMemory.value && paletteOpen && (
         <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />

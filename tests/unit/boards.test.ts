@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
+import type { KnowledgeResults } from '../../src/server/knowledge-lifecycle.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { runCanvasBatchOperation } from '../../src/server/operations/index.ts';
 import { executeOperation, isEmitSuppressed } from '../../src/server/operations/registry.ts';
@@ -403,6 +404,65 @@ test('knowledge inheritance resets at explicit child categories, clears override
   resetCanvasForTests(root);
   canvasState.loadFromDisk({ clearExisting: true });
   expect(await read()).toMatchObject({ category: { name: 'Renamed' }, lifecycle: { rate: 'slow' } });
+});
+
+test('knowledge review queue joins authoritative titles and board-qualified status without reading blobs or validating', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const first = canvasState.createBoard('First', 'Projects/Child')!;
+  canvasState.switchBoard(first.id);
+  canvasState.addNode(note('shared', 'First title'));
+  const policy = {
+    decayType: 'reality',
+    rate: 'medium',
+    cadenceDays: 7,
+    triggers: [],
+    revalidationMethod: 'Inspect sources',
+  };
+  await executeOperation('node.lifecycle-set', { id: 'shared', lifecycleOverride: policy });
+  canvasState.addNode(note('retired', 'Retired title'));
+  await executeOperation('node.lifecycle-set', { id: 'retired', lifecycleOverride: policy });
+  await executeOperation('node.review', { id: 'retired', outcome: 'retire', applied: true, evidence: 'Superseded' });
+  const second = canvasState.createBoard('Second', 'ProjectsElsewhere')!;
+  canvasState.switchBoard(second.id);
+  canvasState.addNode(note('shared', 'Second title'));
+  await executeOperation('node.lifecycle-set', { id: 'shared', lifecycleOverride: policy });
+  await executeOperation('node.update', {
+    id: 'shared',
+    title: 'Live authoritative title',
+    content: 'Large content not carried by the queue',
+  });
+  canvasState.addNode(note('neutral', 'No policy, no warning'));
+  canvasState.addNode({
+    ...note('portal', 'Source-only warning'),
+    type: 'board',
+    data: { title: 'Source-only warning', boardId: first.id },
+  });
+  const before = await executeOperation('node.lifecycle-get', { id: 'shared', board: second.id });
+  const catalog = (await executeOperation('knowledge.list', {})) as KnowledgeResults['list'];
+  expect(catalog.reviewCards).toHaveLength(3);
+  expect(catalog.reviewCards).toEqual(
+    expect.arrayContaining([
+      { boardId: first.id, cardId: 'shared', boardTitle: 'First', folder: 'Projects/Child', title: 'First title' },
+      {
+        boardId: second.id,
+        cardId: 'shared',
+        boardTitle: 'Second',
+        folder: 'ProjectsElsewhere',
+        title: 'Live authoritative title',
+      },
+      {
+        boardId: second.id,
+        cardId: 'portal',
+        boardTitle: 'Second',
+        folder: 'ProjectsElsewhere',
+        title: 'Source-only warning',
+      },
+    ]),
+  );
+  expect(JSON.stringify(catalog.reviewCards)).not.toContain('Large content');
+  expect(await executeOperation('node.lifecycle-get', { id: 'shared', board: second.id })).toEqual(before);
+  expect(canvasState.activeBoardId).toBe(second.id);
 });
 
 test('category removal refuses empty-folder assignments, validates ids and persists unused deletion on Home', async () => {

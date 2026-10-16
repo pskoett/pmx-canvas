@@ -182,8 +182,32 @@ test('See change stacks marked words, keeps later human edits, and reopens its b
   ).toBe(true);
   await post(request, 'context-pins', { nodeIds: [a.id] });
   const avatar = page.getByRole('button', { name: 'Codex session details' });
-  await avatar.click();
   const popover = page.getByRole('dialog', { name: 'Codex session details' });
+  for (const width of [600, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    // Escape must work as soon as the popover exists, not only after a
+    // deferred listener catches up. The pointer still opens the real control.
+    const opened = page.evaluate(
+      () =>
+        new Promise<string | null>((resolve) => {
+          const observer = new MutationObserver(() => {
+            const dialog = document.querySelector('.agent-session-popover');
+            if (!dialog) return;
+            observer.disconnect();
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+            resolve(dialog.textContent);
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+        }),
+    );
+    await avatar.click();
+    expect(await opened).toContain('Codex');
+    await expect(popover).toHaveCount(0);
+    await expect(avatar).toHaveAttribute('aria-expanded', 'false');
+    await expect(avatar).toBeFocused();
+  }
+  await page.setViewportSize({ width: 600, height: 900 });
+  await avatar.click();
   await expect(popover).toContainText('2 edited');
   await expect(page.locator('.agent-chip-touches')).toBeHidden();
   await popover.getByRole('switch', { name: 'Dim untouched nodes' }).click();

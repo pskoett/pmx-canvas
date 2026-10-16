@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Lifecycle, LifecycleResults, ReviewRecord } from '../../server/knowledge-lifecycle.js';
-import { activeBoardId, boardIncarnation, openMemoryTarget } from '../state/boards-store';
-import { nodes } from '../state/canvas-store';
+import { activeBoardId, boardIncarnation, browsingMemory, openMemoryTarget } from '../state/boards-store';
+import { focusNode, nodes } from '../state/canvas-store';
 import { requestJson } from '../state/intent-bridge';
 import {
   cardQualification,
@@ -11,13 +11,14 @@ import {
   retirementUndo,
 } from '../state/knowledge-store';
 import { sendSteering } from '../state/session-store';
-import { useFocusTrap } from './use-focus-trap';
+import { hasUnsavedMarkdown } from '../nodes/MarkdownNode';
 import { cleanLifecycle, DEFAULT_LIFECYCLE, LifecycleFields } from './LifecycleFields';
 
 export function LifecyclePanel() {
   const target = lifecycleTarget.value;
   if (
     !target ||
+    browsingMemory.value ||
     activeBoardId.value !== target.boardId ||
     boardIncarnation !== target.incarnation ||
     !nodes.value.has(target.nodeId)
@@ -28,7 +29,7 @@ export function LifecyclePanel() {
 
 function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarget.value> }) {
   const ref = useRef<HTMLDivElement>(null);
-  useFocusTrap(ref, true);
+  const loadSequence = useRef(0);
   const [detail, setDetail] = useState<LifecycleResults['get'] | null>(null);
   const [override, setOverride] = useState(false);
   const [policy, setPolicy] = useState<Lifecycle>(DEFAULT_LIFECYCLE);
@@ -39,18 +40,20 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
   const [error, setError] = useState('');
   const [retiredHere, setRetiredHere] = useState(false);
   const node = nodes.value.get(target.nodeId);
+  const unsavedContent = hasUnsavedMarkdown(target.boardId, target.nodeId);
   const current = cardQualification(target.nodeId) ?? detail?.qualification;
   const path = `/api/canvas/node/${encodeURIComponent(target.nodeId)}`;
   const sameBoard = () => activeBoardId.value === target.boardId && boardIncarnation === target.incarnation;
   const ownsDialog = () => sameBoard() && lifecycleTarget.value === target;
   const load = async () => {
+    const sequence = ++loadSequence.current;
     const result = await requestJson<LifecycleResults['get'] | null>(
       'lifecycle',
       `${path}/lifecycle?board=${encodeURIComponent(target.boardId)}`,
       null,
     );
-    if (!ownsDialog()) return;
-    if (!result) {
+    if (!ownsDialog() || sequence !== loadSequence.current) return;
+    if (result?.ok !== true) {
       setError('Could not load lifecycle. Retry before reviewing.');
       return;
     }
@@ -63,7 +66,21 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
     setApplied(false);
   };
   useEffect(() => {
+    const previous = document.activeElement;
+    const dock = ref.current;
+    dock?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+    // The dock has committed its new geometry before focusing the real card.
+    focusNode(target.nodeId, { recordHistory: false });
     void load();
+    return () => {
+      if (
+        dock?.contains(document.activeElement) &&
+        sameBoard() &&
+        previous instanceof HTMLElement &&
+        previous.isConnected
+      )
+        previous.focus({ preventScroll: true });
+    };
   }, []);
   const mutate = async (suffix: string, body: Record<string, unknown>) => {
     if (!ownsDialog() || busy) return false;
@@ -90,6 +107,15 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
   };
   const recordReview = async (reviewOutcome: typeof outcome, wasApplied: boolean) => {
     if (!detail) return false;
+    if (
+      wasApplied &&
+      ['retain', 'revise', 'externalize'].includes(reviewOutcome) &&
+      (!evidence.trim() ||
+        hasUnsavedMarkdown(target.boardId, target.nodeId) ||
+        node?.contentRevision !== detail.contentRevision ||
+        error)
+    )
+      return false;
     const ok = await mutate('/review', {
       outcome: reviewOutcome,
       evidence,
@@ -109,18 +135,19 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
   const date = (value: string | null | undefined) => (value ? new Date(value).toLocaleString() : 'Unknown');
   return (
     <div
-      class="knowledge-backdrop"
+      class="lifecycle-dock"
       onKeyDown={(event) => {
         // This dialog owns its keys, including Space on the disclosure summary.
         event.stopPropagation();
         if (event.key === 'Escape') {
+          event.preventDefault();
           lifecycleTarget.value = null;
         }
       }}
     >
-      <div ref={ref} class="knowledge-dialog lifecycle-dialog" role="dialog" aria-modal="true" aria-label="Review card">
+      <div ref={ref} class="knowledge-dialog lifecycle-dialog" role="dialog" aria-label="Review card">
         <header>
-          <h2>{String(node?.data.title ?? 'Card')} · Review</h2>
+          <h2>Review card · {String(node?.data.title ?? 'Card')}</h2>
           <button
             type="button"
             aria-label="Close review"
@@ -157,6 +184,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
               </div>
             ) : (
               <>
+                <h3>Why review?</h3>
                 {current?.due ? (
                   <p class="lifecycle-warning">
                     ⧗{' '}
@@ -167,6 +195,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 ) : (
                   <p>Last checked: {date(detail.lastValidation?.when)}</p>
                 )}
+                {current?.reasons.length ? <p>{current.reasons.join(' ')}</p> : null}
                 {(current?.sources ?? detail.qualification.sources).map((source) => (
                   <div class="lifecycle-warning" key={`${source.boardId}:${source.cardId}`}>
                     ⧗ Source needs a check: {source.title}
@@ -193,6 +222,9 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                   }}
                 >
                   <p>Check the card and its sources before confirming.</p>
+                  {unsavedContent && (
+                    <p role="status">Save the card's edits, then reload and recheck before validating.</p>
+                  )}
                   <label>
                     What did you check?
                     <textarea
@@ -206,7 +238,13 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                   <div class="lifecycle-review-actions">
                     <button
                       type="submit"
-                      disabled={busy || !evidence.trim() || node?.contentRevision !== detail.contentRevision}
+                      disabled={
+                        busy ||
+                        !!error ||
+                        unsavedContent ||
+                        !evidence.trim() ||
+                        node?.contentRevision !== detail.contentRevision
+                      }
                     >
                       Checked, still correct
                     </button>
@@ -361,14 +399,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                       <option value="unresolved">Unresolved</option>
                     </select>
                   </label>
-                  <label>
-                    Evidence · a link or a note
-                    <textarea
-                      required={applied && ['retain', 'revise', 'externalize'].includes(outcome)}
-                      value={evidence}
-                      onInput={(event) => setEvidence(event.currentTarget.value)}
-                    />
-                  </label>
+                  <p>Uses the check note above. Applied retain, revise and externalize require evidence.</p>
                   <label>
                     <input
                       type="checkbox"
@@ -378,7 +409,18 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                     I applied this outcome and checked the content and sources
                   </label>
                   <p>Revise and externalize record work already performed. They do not edit or execute anything.</p>
-                  <button type="submit" disabled={busy}>
+                  <button
+                    type="submit"
+                    disabled={
+                      busy ||
+                      (applied &&
+                        ['retain', 'revise', 'externalize'].includes(outcome) &&
+                        (!evidence.trim() ||
+                          unsavedContent ||
+                          !!error ||
+                          node?.contentRevision !== detail.contentRevision))
+                    }
+                  >
                     Record review
                   </button>
                 </form>

@@ -31,8 +31,8 @@
       "y": 10260
     },
     "CategoryEditor.dc.html": {
-      "h": 990,
-      "title": "One category list per workspace — lifecycle defaults and templates",
+      "h": 1100,
+      "title": "C1 — compact workspace category inspector (selected 2026-10-14)",
       "w": 1440,
       "x": 1520,
       "y": 10260
@@ -73,11 +73,11 @@
       "y": 6260
     },
     "Home.dc.html": {
-      "h": 960,
-      "title": "Home — Folders: library tree, context, README",
+      "h": 1660,
+      "title": "Home — Folders and H2 individual-card Review queue (selected 2026-10-14)",
       "w": 1440,
-      "x": 1520,
-      "y": 2740
+      "x": 0,
+      "y": 12000
     },
     "HomeGraph.dc.html": {
       "h": 960,
@@ -102,14 +102,14 @@
     },
     "Lifecycle.dc.html": {
       "h": 1420,
-      "title": "Card lifecycle, four clocks, review outcomes, board and brief",
+      "title": "V2 — real rendered card with docked review drawer (selected 2026-10-14)",
       "w": 1440,
       "x": 3040,
       "y": 10260
     },
     "Lifecycle600.dc.html": {
-      "h": 1470,
-      "title": "Categories and lifecycle at 600 px",
+      "h": 1800,
+      "title": "C1, H2 and V2 at 600 px — lower review dock",
       "w": 600,
       "x": 4560,
       "y": 10260
@@ -227,11 +227,11 @@
       "y": 4060
     },
     "Uses.dc.html": {
-      "h": 1420,
-      "title": "One relation layer: research, dependencies, decisions, agent flows",
+      "h": 2340,
+      "title": "R2 — choose then customize workspace presets; relation use cases",
       "w": 1440,
-      "x": 3040,
-      "y": 6260
+      "x": 1520,
+      "y": 12000
     },
     "Vision.dc.html": {
       "h": 1560,

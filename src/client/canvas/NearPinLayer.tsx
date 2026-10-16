@@ -1,4 +1,4 @@
-import { centerDistance } from '../../server/spatial-analysis.js';
+import { gapDistance } from '../../server/spatial-analysis.js';
 import { nodes, toggleContextPin, viewport } from '../state/canvas-store';
 import {
   closeNearCardSoon,
@@ -12,7 +12,7 @@ import {
 import type { CanvasNodeState } from '../types';
 import { viewKey } from './NodeContextMark';
 
-/** The brief's "near" radius (findNeighborhoods), in world px. */
+/** The brief's "near" edge gap (findNeighborhoods), in world px. */
 const NEAR_RADIUS = 600;
 
 interface Point {
@@ -35,10 +35,10 @@ function edgePoint(from: Point, box: { left: number; top: number; width: number;
 /**
  * Which pin? (docs/design/NearPin.dc.html §2): for a hovered, selected or
  * dragged pin — or the pins a near chip asked to show — dotted tethers to its
- * neighbours, numbered nearest first, and an unlabeled radius only when
+ * neighbours, numbered nearest first, and an unlabeled boundary only when
  * another node is within range. Drawn in screen
  * space (architecture rule 9) so they stay legible at fit zoom; while an
- * unpinned node is dragged only the nearest pin's radius shows (§3).
+ * unpinned node is dragged only the nearest pin's boundary shows (§3).
  */
 export function NearPinLayer() {
   const focus = tetherFocus.value;
@@ -53,7 +53,7 @@ export function NearPinLayer() {
       {focus.pinIds.map((pinId) => {
         const pin = all.get(pinId);
         if (!pin) return null;
-        if (![...all.values()].some((node) => node.id !== pinId && centerDistance(node, pin) <= NEAR_RADIUS)) {
+        if (![...all.values()].some((node) => node.id !== pinId && gapDistance(node, pin) <= NEAR_RADIUS)) {
           return null;
         }
         const pinTopLeft = toScreen(pin.position.x, pin.position.y);
@@ -70,10 +70,17 @@ export function NearPinLayer() {
           : (byPin.get(pinId) ?? [])
               .map((id) => all.get(id))
               .filter((node): node is CanvasNodeState => node !== undefined)
-              .sort((a, b) => centerDistance(a, pin) - centerDistance(b, pin));
+              .sort((a, b) => gapDistance(a, pin) - gapDistance(b, pin));
         return (
           <g key={pinId} data-pin-id={pinId}>
-            <circle class="near-pin-radius" cx={c.x} cy={c.y} r={r} />
+            <rect
+              class="near-pin-radius"
+              x={pinBox.left - r}
+              y={pinBox.top - r}
+              width={pinBox.width + 2 * r}
+              height={pinBox.height + 2 * r}
+              rx={r}
+            />
             {neighbours.map((node, index) => {
               const topLeft = toScreen(node.position.x, node.position.y);
               const box = {
@@ -145,12 +152,13 @@ export function NearPinCard() {
         return (
           <span key={pin.pinNodeId} class="near-hint-row">
             <span class="near-hint-title">{pin.pinTitle}</span>
-            {pinNode && <span class="near-hint-distance">{Math.round(centerDistance(node, pinNode))} px</span>}
+            {pinNode && <span class="near-hint-distance">{Math.round(gapDistance(node, pinNode))} px</span>}
           </span>
         );
       })}
       <span class="near-hint-body">
-        The agent gets its title and a short summary because a pin is nearby. Pin it to put it first.
+        Distance is measured between card edges. The agent gets its title and a short summary because a pin is nearby.
+        Pin it to put it first.
       </span>
       <span class="near-hint-actions">
         <button

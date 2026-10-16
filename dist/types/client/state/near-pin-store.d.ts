@@ -1,6 +1,6 @@
 /**
  * Near a pin (docs/design/NearPin.dc.html): each pinned node pulls up to five
- * unpinned nodes within 600 px into the agent's brief as title + short
+ * unpinned nodes within a 600 px edge-to-edge gap into the agent's brief as title + short
  * summary. Same rule as the server's brief (`findNeighborhoods`), so the mark
  * claims exactly what the agent receives.
  */
@@ -21,7 +21,7 @@ export declare const hoveredNodeId: import("@preact/signals-core").Signal<string
 /** A near node whose pins the human asked to see from its chip ("Show pins"). */
 export declare const shownPinsFor: import("@preact/signals-core").Signal<string | null>;
 /**
- * Pins drawn with tethers and the 600 px radius: the pin being dragged,
+ * Pins drawn with tethers and the 600 px boundary around their edges: the pin being dragged,
  * hovered or selected, or the pins of the near node whose chip said "Show
  * pins". Dragging an unpinned node rings only its nearest pin (§3).
  */

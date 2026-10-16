@@ -130,6 +130,32 @@ afterEach(() => {
 });
 
 describe('Home memory views', () => {
+  for (const mode of ['Folders', 'Map', 'Graph'] as const) {
+    test(`Escape clears ${mode} selection without changing its view or camera; dialogs close first`, async () => {
+      const { container, getByRole, getAllByRole, queryByRole } = render(<HomeView />);
+      if (mode !== 'Folders') fireEvent.click(getByRole('button', { name: mode, exact: true }));
+      const name = mode === 'Folders' ? 'Discovery' : 'board: Discovery';
+      await waitFor(() => expect(getByRole('button', { name, exact: true })).toBeTruthy());
+      const target = getByRole('button', { name, exact: true });
+      fireEvent.click(target);
+      expect(target.getAttribute('aria-pressed')).toBe('true');
+      const camera = container.querySelector('.home-memory-world')?.getAttribute('style');
+      fireEvent.click(getByRole('button', { name: 'Relation presets', exact: true }));
+      const dialog = getByRole('dialog', { name: 'Workspace relation presets' });
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+      expect(queryByRole('dialog', { name: 'Workspace relation presets' })).toBeNull();
+      expect(target.getAttribute('aria-pressed')).toBe('true');
+      for (const search of getAllByRole('searchbox')) {
+        fireEvent.keyDown(search, { key: 'Escape' });
+        expect(target.getAttribute('aria-pressed')).toBe('true');
+      }
+      fireEvent.keyDown(target, { key: 'Escape' });
+      await waitFor(() => expect(target.getAttribute('aria-pressed')).toBe('false'));
+      expect(container.querySelector('.home-memory-world')?.getAttribute('style')).toBe(camera);
+      expect(getByRole('button', { name: mode, exact: true })).toBeTruthy();
+    });
+  }
+
   test('Map keeps unlinked boards and explicitly exposes broken targets', async () => {
     const { getByRole, getByText, queryByRole } = render(<HomeView />);
     fireEvent.click(getByRole('button', { name: 'Map', exact: true }));
@@ -368,6 +394,16 @@ describe('Home folders', () => {
       folders: [],
       relationPresets: [],
       resolvedFolders: {},
+      reviewCards: [
+        {
+          boardId: 'b-okr',
+          cardId: 'due',
+          boardTitle: 'C4 OKR planning',
+          folder: 'Planning/Quarterly',
+          title: 'Planning evidence',
+        },
+        { boardId: 'b-loose', cardId: 'other', boardTitle: 'Scratch', folder: null, title: 'Scratch evidence' },
+      ],
       cards: {
         [memoryKey({ boardId: 'b-okr', cardId: 'due' })]: due,
         [memoryKey({ boardId: 'b-okr', cardId: 'unclassified' })]: { ...due, due: false, unknown: true },
@@ -399,10 +435,11 @@ describe('Home folders', () => {
     expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain('Review needed: 1 card');
     expect(getByRole('region', { name: 'Folder review summary' }).textContent).toContain('No review policy: 1 card');
     fireEvent.click(getByRole('button', { name: 'Review needed: 1 card' }));
-    const toReview = getByRole('list', { name: 'Boards needing review' });
+    const toReview = getByRole('region', { name: 'Card review queue' });
     expect(toReview.textContent).toContain('C4 OKR planning');
     expect(toReview.textContent).not.toContain('Scratch');
-    expect(getByRole('button', { name: 'Review C4 OKR planning' })).toBeTruthy();
+    expect(getByRole('button', { name: 'Open review: Planning evidence on C4 OKR planning' })).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'Folders', exact: true }));
 
     // Move Scratch into a new child under an implicit parent folder.
     fireEvent.click(getByRole('button', { name: 'Unfiled' }));
@@ -470,10 +507,58 @@ describe('board switcher', () => {
       folders: used ? [{ path: 'Empty', categoryId: category.id, lifecycleOverride: null }] : [],
       relationPresets: [],
       cards: {},
+      reviewCards: [],
       resolvedFolders: {},
     };
-    const { getByRole, queryByRole, getByText } = render(<KnowledgeDialog onClose={() => {}} />);
+    let closed = 0;
+    const { getByRole, queryByRole, getByText, getByLabelText } = render(
+      <KnowledgeDialog
+        onClose={() => {
+          closed++;
+        }}
+      />,
+    );
     fireEvent.click(getByRole('button', { name: /U Unused/ }));
+    expect(getByText('Add from template').parentElement?.hasAttribute('open')).toBe(false);
+    fireEvent.input(getByLabelText('Search categories'), { target: { value: 'missing' } });
+    expect(queryByRole('button', { name: /U Unused/ })).toBeNull();
+    fireEvent.input(getByLabelText('Search categories'), { target: { value: '' } });
+    fireEvent.input(getByLabelText('Name'), { target: { value: 'Draft' } });
+    fireEvent.click(getByRole('tab', { name: 'Review policy' }));
+    fireEvent.input(getByLabelText('How to check'), { target: { value: '' } });
+    fireEvent.click(getByRole('tab', { name: 'Basics' }));
+    fireEvent.click(getByRole('button', { name: 'Save category' }));
+    expect(getByRole('tab', { name: 'Review policy' }).getAttribute('aria-selected')).toBe('true');
+    expect(calls.some((call) => call.url === '/api/canvas/knowledge/category')).toBe(false);
+    fireEvent.input(getByLabelText('How to check'), { target: { value: 'check' } });
+    fireEvent.click(getByRole('button', { name: 'Cancel', exact: true }));
+    expect(getByRole('group', { name: 'Discard category changes' })).toBeTruthy();
+    fireEvent.keyDown(getByRole('button', { name: 'Keep editing' }), { key: 'Escape' });
+    expect(queryByRole('group', { name: 'Discard category changes' })).toBeNull();
+    expect(closed).toBe(0);
+    const fetchBeforeSave = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      if (url === '/api/canvas/knowledge/category') {
+        calls.push({ url, init });
+        return Response.json({ ok: false });
+      }
+      return fetchBeforeSave(url, init);
+    }) as typeof fetch;
+    try {
+      fireEvent.click(getByRole('button', { name: 'Save category' }));
+      await waitFor(() => expect(getByText('Category was not saved. Retry.')).toBeTruthy());
+      fireEvent.click(getByRole('button', { name: 'Close settings' }));
+      expect(getByRole('group', { name: 'Discard category changes' })).toBeTruthy();
+      fireEvent.click(getByRole('button', { name: 'Keep editing' }));
+    } finally {
+      globalThis.fetch = fetchBeforeSave;
+    }
+    fireEvent.click(getByRole('tab', { name: 'Basics' }));
+    expect((getByLabelText('Name') as HTMLInputElement).value).toBe('Draft');
+    fireEvent.click(getByRole('button', { name: 'Add category' }));
+    fireEvent.click(getByRole('button', { name: 'Discard changes' }));
+    fireEvent.click(getByRole('button', { name: /U Unused/ }));
+    fireEvent.click(getByRole('tab', { name: 'Usage' }));
     if (used) {
       expect(getByText(/Cannot delete: assigned to Empty/)).toBeTruthy();
       expect(queryByRole('button', { name: 'Delete category' })).toBeNull();

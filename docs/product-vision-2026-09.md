@@ -22,6 +22,21 @@
 
 **Wave 1 status, 2026-10-10 — context made visible: built on `main`, not released.** From the board alone a person can now see what is in the agent's context and whether its copy is current: read / not read / changed marks on pinned cards; near-a-pin (the brief carries neighbours, the dotted chip, tethers and the 600 px radius, the moment a card arrives or leaves); links that changed since a read, on the link and in the brief ("new, by codex"); board pins and Home as a library (folder tree, board cards, details, the in-context switch); the session receipt (what the agent did, per-edit descriptions with "See change", Tell <agent>, Undo per card via `snapshot.restore-node`) and the live session lens in the agent chip. Remaining: the curation evaluation, deferred until the maintainer tests a version; building to the new [SeeChange](design/SeeChange.dc.html) drawing (2026-10-10); the pickup/drop pauses of a drag on large boards (per-frame cost fixed 2026-10-10). Handoff detail in plan 016. **Dropped 2026-10-10:** Suggested cards — the agent changes the canvas directly, and an ask or a suggestion already goes through the composer. Detail and deviations: [plan 016](plans/plan-016-context-made-visible-wave-1.md), [design.md](design.md).
 
+**Near cards correction (owner decision, 2026-10-14).** Spatial curation measures
+the gap between card edges, not centres: up to five nearest unpinned cards within
+600 canvas pixels of each pin. The boundary follows the whole pinned card, and
+the UI and agent context share that geometry. This fixes large-card proximity
+without increasing the distance limit or context cap; it is not a semantic
+relation or evidence of review. This supersedes the centre-based radius above.
+
+**Escape selection correction (owner decision, 2026-10-14).** Keyboard Escape
+cancels board selection and relation/review/retired filters, or Home selection
+without leaving its view or resetting the camera. The Review queue clears its
+local filters. Menus and the review drawer close first; editable fields retain
+their drafts. This is implemented in the current acceptance batch, not a release.
+Attached-agent popovers also accept immediate Escape and return focus to the initial
+button without changing the canvas scroll or underlying selection.
+
 **Implementation and stabilization, 2026-10-12 (supersedes the remaining-work list above):** See change now
 matches its drawing, and the measured page-wide pickup/drop style cost is removed; occasional
 long drag tasks remain. The maintainer's real-agent curation evaluation is still deferred.
@@ -56,6 +71,26 @@ Final combined local gates pass 1,445 unit, 307 client and 282 headed browser ca
 fresh headed CLI/stdio MCP. Its [CI run](https://github.com/pskoett/pmx-canvas/actions/runs/38302301010)
 passed Linux, macOS, browser E2E and CLI E2E; Windows was cancelled, so this batch is not
 claimed fully cross-platform green. The earlier all-five-jobs CI verifies the preceding delivery.
+
+**Owner-selected review surfaces, 2026-10-14 (implemented; owner acceptance pending, not released):**
+C1 is the compact category inspector: a searchable neutral category list, Basics / Review policy /
+Usage tabs, templates behind disclosure, Save/Cancel and a dirty-leave guard. Folder inheritance,
+card lifecycle overrides and assigned-category deletion protections remain unchanged.
+R2 is choose-then-customize: read-only workspace preset preview before a separate editor;
+saving edits the template, and explicit Use on board copies the saved vocabulary to one board.
+Existing edges and other boards remain unchanged; there is no later auto-sync.
+H2 adds a dedicated Home Review tab of individual cards with authoritative card/board titles,
+reasons and last-checked times. Scope is folder plus descendants or whole library; nonretired
+due cards or cards with source warnings count once. Unknown policy alone stays neutral;
+explicit warnings still qualify. Opening a queue item never validates it.
+Owner-approved naming: **Review** in navigation, **Knowledge review** as the page title,
+and **Review card** in the drawer. This checks context reliability, not task completion.
+V2 keeps the real rendered card visible beside a docked review drawer (lower dock when narrow),
+with one check note, Checked, still correct / Not now, and secondary Settings and history.
+Stale content/source guards and dirty Markdown guards protect validation; dismissal writes
+nothing. Read, content, validation and relevance clocks remain separate, and retire/restore are
+audited rather than validation. Canonical drawings and decisions are in [design.md](design.md).
+This selection adds no delivery, release or acceptance-gate claim to the earlier results below.
 
 **Owner acceptance alignment, 2026-10-13:** the step-by-step rehearsal exposed toolbar
 crowding with multiple sessions, inert expanded wiki links, narrow Graph control overlap,

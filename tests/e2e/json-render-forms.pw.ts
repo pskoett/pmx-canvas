@@ -2,6 +2,19 @@ import { expect, test } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 2 });
 
+let ownedBoardId: string | null = null;
+test.beforeEach(async ({ request }) => {
+  // Viewer drafts belong to this test, not leftover export/restore fixtures.
+  const created = await request.post('/api/canvas/boards', { data: { name: 'JSON form test' } });
+  expect(created.ok()).toBe(true);
+  ownedBoardId = (await created.json()).board.id;
+  expect((await request.post('/api/canvas/boards/open', { data: { id: ownedBoardId } })).ok()).toBe(true);
+});
+test.afterEach(async ({ request }) => {
+  if (ownedBoardId) await request.delete(`/api/canvas/boards/${ownedBoardId}`);
+  ownedBoardId = null;
+});
+
 for (const theme of ['harbor', 'daylight']) {
   for (const mode of ['src', 'srcdoc']) {
     test(`embedded JSON controls load bundled Plex (${theme}, ${mode})`, async ({ page, request }, info) => {

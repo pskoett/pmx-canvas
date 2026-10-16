@@ -5,26 +5,27 @@ import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import { RELATION_PRESETS, relationPresetSchema, type RelationPreset } from '../shared/relations.js';
+import {
+  categorySchema,
+  lifecycleSchema,
+  type KnowledgeCategory,
+  type Lifecycle,
+} from '../shared/knowledge-lifecycle.js';
 
-export const lifecycleSchema = z
-  .strictObject({
-    decayType: z.enum(['reality', 'decision', 'dependency', 'relevance']),
-    rate: z.enum(['fast', 'medium', 'slow', 'durable']),
-    triggers: z.array(z.string().trim().min(1)),
-    revalidationMethod: z.string().trim().min(1),
-    cadenceDays: z.number().int().min(1).max(36500).optional(),
-  })
-  .refine((value) => value.rate !== 'medium' || value.cadenceDays !== undefined, {
-    path: ['cadenceDays'],
-    message: 'Medium lifecycle requires a cadence in days.',
-  });
-export const categorySchema = lifecycleSchema.safeExtend({
-  id: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  glyph: z.string().trim().min(1),
-});
-export type Lifecycle = z.infer<typeof lifecycleSchema>;
-export type KnowledgeCategory = z.infer<typeof categorySchema>;
+export {
+  categorySchema,
+  lifecycleSchema,
+  type KnowledgeCategory,
+  type Lifecycle,
+} from '../shared/knowledge-lifecycle.js';
+
+export interface ReviewCardSummary {
+  boardId: string;
+  cardId: string;
+  boardTitle: string;
+  folder: string | null;
+  title: string;
+}
 export interface FolderProperties {
   path: string;
   categoryId: string | null;
@@ -58,6 +59,7 @@ export interface KnowledgeResults {
     folders: FolderProperties[];
     relationPresets: RelationPreset[];
     cards: Record<string, LifecycleQualification>;
+    reviewCards: ReviewCardSummary[];
     resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
   };
   'category-set': { ok: true; category: KnowledgeCategory };

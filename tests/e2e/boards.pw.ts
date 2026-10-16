@@ -71,6 +71,14 @@ test('Home manages shared relation presets while board filters show only existin
   const originalB = (await (await request.get('/api/canvas/boards')).json()).boards.find(
     (board: { id: string }) => board.id === boardB.id,
   );
+  let releaseKnowledge!: () => void;
+  const heldKnowledge = new Promise<void>((resolve) => {
+    releaseKnowledge = resolve;
+  });
+  await page.route('**/api/canvas/knowledge', async (route) => {
+    await heldKnowledge;
+    await route.continue();
+  });
   await page.goto('/workbench');
   await expect(page.getByLabel('Filter board relations').locator('option')).toHaveText(['All relations', 'cites · 1']);
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
@@ -80,25 +88,82 @@ test('Home manages shared relation presets while board filters show only existin
   expect(homePresetBounds.x + homePresetBounds.width).toBeLessThanOrEqual(390);
   await page.getByRole('button', { name: 'Relation presets', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Workspace relation presets' });
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await expect(dialog).toContainText('Relation presets unavailable');
+  releaseKnowledge();
+  await page.unrouteAll({ behavior: 'wait' });
+  await expect(dialog.getByRole('button', { name: 'Use on board', exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(dialog.getByRole('button', { name: 'Customize preset', exact: true })).toBeInViewport({ ratio: 1 });
   await dialog.getByRole('button', { name: 'Add preset', exact: true }).click();
-  await dialog.getByLabel('Name', { exact: true }).fill('Verification');
+  await dialog.getByLabel('Name', { exact: true }).fill('  Verification  ');
   await dialog.getByRole('button', { name: 'Add kind', exact: true }).click();
-  await dialog.getByLabel('Kind 1', { exact: true }).fill('assesses');
+  await dialog.getByLabel('Kind 1', { exact: true }).fill('  assesses  ');
   await dialog.getByLabel('Ink 1', { exact: true }).selectOption('derived');
   await dialog.getByLabel('Arrow', { exact: true }).uncheck();
   await dialog.getByRole('button', { name: 'Save preset', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Preset saved for the workspace');
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await expect(dialog.getByLabel('Saved relation preview')).toContainText('assesses');
+  await expect(dialog.getByLabel('Saved relation preview')).toContainText('Undirected: A — B');
   await page.reload();
   await page.getByRole('button', { name: 'Relation presets', exact: true }).click();
   await dialog
     .getByRole('group', { name: 'Workspace relation presets' })
     .getByRole('button', { name: /^Verification/ })
     .click();
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Customize preset', exact: true }).click();
   await expect(dialog.getByLabel('Kind 1', { exact: true })).toHaveValue('assesses');
   await expect(dialog.getByLabel('Arrow', { exact: true })).not.toBeChecked();
+  await dialog.getByLabel('Kind 1', { exact: true }).fill('UNSAVED kind');
+  await dialog.getByLabel('Ink 1', { exact: true }).selectOption('contradicts');
+  await dialog.getByLabel('Arrow', { exact: true }).check();
+  await expect(dialog.getByRole('button', { name: 'Use on board', exact: true })).toHaveCount(0);
+  await page.route('**/api/canvas/knowledge/relation-preset', (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: '{"ok":false}' }),
+  );
+  await dialog.getByRole('button', { name: 'Save preset', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Preset was not saved');
+  await expect(dialog.getByLabel('Kind 1', { exact: true })).toHaveValue('UNSAVED kind');
+  await page.unroute('**/api/canvas/knowledge/relation-preset');
+  await dialog.getByRole('button', { name: 'Cancel customization', exact: true }).click();
+  const guard = dialog.getByRole('alertdialog', { name: 'Discard preset changes' });
+  await expect(guard).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(guard).toHaveCount(0);
+  await expect(dialog.getByLabel('Kind 1', { exact: true })).toHaveValue('UNSAVED kind');
+  await dialog.getByRole('button', { name: 'Cancel customization', exact: true }).click();
+  await guard.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  await expect(dialog.getByLabel('Kind 1', { exact: true })).toHaveValue('UNSAVED kind');
+  await dialog.getByRole('button', { name: 'Cancel customization', exact: true }).click();
+  await guard.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
   await dialog.getByLabel('Apply saved preset to board').selectOption(boardA);
-  await dialog.getByRole('button', { name: 'Apply saved preset', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Use on board', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Preset applied');
+  const applied = (await (await request.get('/api/canvas/boards')).json()).boards;
+  expect(applied.find((board: { id: string }) => board.id === boardA).relationVocabulary).toEqual([
+    { kind: 'assesses', ink: 'derived', directed: false },
+  ]);
+  // Busy disables the clicked button, so focus may fall back to the page body.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: 'Relation presets', exact: true }).click();
+  await dialog
+    .getByRole('group', { name: 'Workspace relation presets' })
+    .getByRole('button', { name: /^Verification/ })
+    .click();
+  await dialog.getByRole('button', { name: 'Customize preset', exact: true }).click();
+  await dialog.getByLabel('Kind 1', { exact: true }).fill('later saved kind');
+  await dialog.getByLabel('Arrow', { exact: true }).check();
+  await dialog.getByRole('button', { name: 'Save preset', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Preset saved for the workspace');
+  await expect(dialog.getByLabel('Saved relation preview')).toContainText('later saved kind');
+  await expect(dialog.getByLabel('Saved relation preview')).toContainText('Directed: A → B');
+  expect((await (await request.get('/api/canvas/boards')).json()).boards).toEqual(applied);
+  await dialog.getByRole('button', { name: 'Delete preset', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cancel deletion', exact: true }).click();
+  await expect(dialog.getByLabel('Saved relation preview')).toContainText('later saved kind');
   await dialog.getByRole('button', { name: 'Delete preset', exact: true }).click();
   await dialog.getByRole('button', { name: 'Confirm deletion', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Preset deleted');
@@ -119,6 +184,20 @@ test('Home manages shared relation presets while board filters show only existin
   ]);
   await page.getByLabel('Filter board relations').selectOption('qualifies');
   await expect(page.getByRole('button', { name: 'qualifies 1', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.getByLabel('Filter board relations')).toHaveValue('');
+  for (const filter of ['To review', 'Retired']) {
+    const button = page.getByRole('button', { name: new RegExp(`^${filter} ·`) });
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Settings' })).toHaveCount(0);
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+  await page.getByLabel('Filter board relations').selectOption('qualifies');
   expect((await (await request.get('/api/canvas/state', { headers: HUMAN })).json()).edges).toEqual(originalEdges);
   const filtered = originalEdges.find((edge: { kind: string }) => edge.kind === 'qualifies');
   expect((await request.delete('/api/canvas/edge', { headers: HUMAN, data: { id: filtered.id } })).ok()).toBe(true);
@@ -126,6 +205,196 @@ test('Home manages shared relation presets while board filters show only existin
   const remaining = originalEdges.find((edge: { kind: string }) => edge.kind === 'supports');
   expect((await request.delete('/api/canvas/edge', { headers: HUMAN, data: { id: remaining.id } })).ok()).toBe(true);
   await expect(page.getByLabel('Filter board relations')).toHaveCount(0);
+});
+
+test('category glyph choices preserve custom glyphs and policy with clear search spacing', async ({
+  page,
+  request,
+}) => {
+  const category = {
+    id: 'glyph-picker',
+    name: 'Glyph example',
+    glyph: 'Ω',
+    decayType: 'reality',
+    rate: 'medium',
+    cadenceDays: 37,
+    triggers: [],
+    revalidationMethod: 'Compare original evidence',
+  };
+  expect((await request.post('/api/canvas/knowledge/category', { headers: HUMAN, data: { category } })).ok()).toBe(
+    true,
+  );
+  const savedCategory = async () => {
+    const catalog = (await (await request.get('/api/canvas/knowledge')).json()) as {
+      categories: Array<typeof category>;
+    };
+    return catalog.categories.find((item) => item.id === category.id);
+  };
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Categories', exact: true }).last().click();
+  const dialog = page.getByRole('dialog', { name: 'Categories', exact: true });
+  await dialog.getByRole('button', { name: /^Ω Glyph example/ }).click();
+  for (const width of [600, 1024, 1920, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const search = (await dialog.getByRole('searchbox', { name: 'Search categories' }).boundingBox())!;
+    const add = (await dialog.getByRole('button', { name: 'Add category', exact: true }).boundingBox())!;
+    expect(add.y - (search.y + search.height)).toBeGreaterThanOrEqual(8);
+    const choices = dialog.getByRole('group', { name: 'Glyph choices' }).getByRole('button');
+    await expect(choices).toHaveCount(9);
+    for (const button of await choices.all()) {
+      const bounds = (await button.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    }
+  }
+  await dialog.getByRole('button', { name: 'Choose glyph ▤', exact: true }).click();
+  await expect(dialog.getByLabel('Glyph', { exact: true })).toHaveValue('▤');
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue(category.name);
+  expect(await savedCategory()).toEqual(category);
+  await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Category saved.');
+  expect(await savedCategory()).toEqual({ ...category, glyph: '▤' });
+  await dialog.getByLabel('Glyph', { exact: true }).fill('Ж');
+  await expect(dialog.getByRole('button', { name: 'Choose glyph ▤', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
+  await expect.poll(savedCategory).toEqual({ ...category, glyph: 'Ж' });
+  await page.reload();
+  await page.getByRole('button', { name: 'Categories', exact: true }).last().click();
+  await dialog.getByRole('button', { name: /^Ж Glyph example/ }).click();
+  await expect(dialog.getByLabel('Glyph', { exact: true })).toHaveValue('Ж');
+  expect(await savedCategory()).toEqual({ ...category, glyph: 'Ж' });
+});
+
+test('Home Review scopes individual cards, reveals grouped content and docks without validating unsaved edits', async ({
+  page,
+  request,
+}) => {
+  const { board: scoped } = await (
+    await request.post('/api/canvas/boards', {
+      data: { name: 'Scoped evidence', folder: 'Projects/Child/Long descendant folder' },
+    })
+  ).json();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: scoped.id } });
+  const cardId = await note(request, 'Authoritative evidence');
+  await note(request, 'Neutral unclassified card', 650);
+  const policy = {
+    decayType: 'reality',
+    rate: 'medium',
+    cadenceDays: 7,
+    triggers: [],
+    revalidationMethod: 'Inspect original content',
+  };
+  expect(
+    (
+      await request.post(`/api/canvas/node/${cardId}/lifecycle`, {
+        headers: HUMAN,
+        data: { lifecycleOverride: policy },
+      })
+    ).ok(),
+  ).toBe(true);
+  const { id: groupId } = await (
+    await request.post('/api/canvas/group', { headers: HUMAN, data: { title: 'Folded evidence', childIds: [cardId] } })
+  ).json();
+  await request.patch(`/api/canvas/node/${groupId}`, { headers: HUMAN, data: { collapsed: true } });
+  const { board: outside } = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Outside scope', folder: 'ProjectsElsewhere' } })
+  ).json();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: outside.id } });
+  const outsideId = await note(request, 'Outside evidence');
+  await request.post(`/api/canvas/node/${outsideId}/lifecycle`, {
+    headers: HUMAN,
+    data: { lifecycleOverride: policy },
+  });
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  const queue = page.getByRole('region', { name: 'Card review queue' });
+  await expect(queue.getByRole('heading', { name: 'Knowledge review', exact: true })).toBeVisible();
+  await queue.getByLabel('Review scope').selectOption('');
+  await expect(queue.locator('tbody tr')).toHaveCount(2);
+  await queue.getByLabel('Review scope').selectOption('Projects');
+  await expect(queue).toContainText('Projects and descendants');
+  await expect(queue.locator('tbody tr')).toHaveCount(1);
+  await expect(queue).not.toContainText('Outside evidence');
+  await expect(queue).toContainText('No review policy: 2 cards');
+  await queue.getByLabel('Source warnings only').check();
+  await expect(queue.locator('tbody tr')).toHaveCount(0);
+  await queue.getByLabel('Source warnings only').uncheck();
+  // A longer descendant option must not push the native scope arrow out of
+  // view, even when a shorter parent is selected. Check the scroll containers,
+  // not just the root document: Home can clip overflow inside its main pane.
+  for (const width of [390, 600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const queueBounds = (await queue.boundingBox())!;
+    const scopeBounds = (await queue.getByLabel('Review scope').boundingBox())!;
+    expect(scopeBounds.x + scopeBounds.width).toBeLessThanOrEqual(queueBounds.x + queueBounds.width);
+    expect(await queue.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.locator('.home-main').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  }
+  await page.setViewportSize({ width: 600, height: 900 });
+  await queue.getByRole('button', { name: 'Open review: Authoritative evidence on Scoped evidence' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Review card', exact: true });
+  const card = page.locator(`[data-node-id="${cardId}"]`);
+  await expect(drawer).toBeVisible();
+  await expect(
+    drawer.getByRole('heading', { name: 'Review card · Authoritative evidence', exact: true }),
+  ).toBeVisible();
+  await expect(card).toBeInViewport({ ratio: 1 });
+  await expect(card).toContainText('Authoritative evidence body');
+  await expect(drawer).not.toHaveAttribute('aria-modal', 'true');
+  const region = (await page.locator('.canvas-region').boundingBox())!;
+  const dock = (await drawer.boundingBox())!;
+  expect(dock.y).toBeGreaterThanOrEqual(region.y + region.height - 1);
+  expect(dock.x + dock.width).toBeLessThanOrEqual(600);
+  for (const width of [1440, 600, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(card).toBeInViewport({ ratio: 1 });
+    await drawer.getByRole('button', { name: 'Not now', exact: true }).click();
+    await card.getByRole('button', { name: /review due/ }).click();
+    await expect(drawer).toBeVisible();
+    // The complete card must fit the actual canvas, not merely the browser
+    // viewport behind a dock. Reopening exercises a different mount path.
+    await expect
+      .poll(async () => {
+        const content = (await card.boundingBox())!;
+        const canvas = (await page.locator('.canvas-region').boundingBox())!;
+        return (
+          content.x >= canvas.x &&
+          content.y >= canvas.y &&
+          content.x + content.width <= canvas.x + canvas.width &&
+          content.y + content.height <= canvas.y + canvas.height
+        );
+      })
+      .toBe(true);
+  }
+  await drawer.getByLabel('What did you check?').fill('Dismissal is not validation');
+  await drawer.getByRole('button', { name: 'Not now', exact: true }).click();
+  expect((await (await request.get(`/api/canvas/node/${cardId}/lifecycle`)).json()).records).toHaveLength(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await page.getByRole('button', { name: '</> Source', exact: true }).click();
+  await page.locator('.md-editor-expanded textarea').fill('Unsaved source must not validate');
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await drawer.getByLabel('What did you check?').fill('This is still a draft');
+  await expect(drawer.getByRole('button', { name: 'Checked, still correct', exact: true })).toBeDisabled();
+  await expect(drawer).toContainText("Save the card's edits");
+  const contentBounds = (await page.getByTestId('expanded-node').boundingBox())!;
+  const sideDock = (await drawer.boundingBox())!;
+  expect(contentBounds.x + contentBounds.width).toBeLessThanOrEqual(sideDock.x);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(page.locator('.md-editor-expanded textarea')).toHaveValue('Unsaved source must not validate');
+  const detail = await (await request.get(`/api/canvas/node/${cardId}/lifecycle`)).json();
+  expect(detail.records).toHaveLength(0);
+  expect((await (await request.get(`/api/canvas/node/${cardId}`)).json()).data.content).toBe(
+    'Authoritative evidence body',
+  );
 });
 
 test('an agent opens its new board and the connected workbench follows without a reload', async ({ page, request }) => {
@@ -821,6 +1090,7 @@ test('narrow library filters remain reachable alongside retained Updates', async
     await page.getByTestId('external-indicator').click();
     await expect(page.getByTestId('activity-feed')).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(page.getByTestId('activity-feed')).toHaveCount(0);
   }
   await updates.click();
   await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toBeVisible();
@@ -1097,6 +1367,36 @@ test('the shortcut reference accepts Escape immediately on a board and Home', as
     await page.getByRole('menuitem', { name: 'Keyboard shortcuts ?' }).click();
     expect(await opened).toContain('Keyboard Shortcuts');
     await expect(page.locator('.shortcut-overlay')).toHaveCount(0);
+  }
+});
+
+test('Escape deselects in Home without leaving Folders, Map or Graph, after closing menus first', async ({
+  page,
+  request,
+}) => {
+  const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Escape selection' } })).json();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+  await note(request, 'Selection evidence');
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  for (const mode of ['Folders', 'Map', 'Graph']) {
+    await page.getByRole('button', { name: mode, exact: true }).click();
+    if (mode === 'Graph') await page.getByRole('button', { name: 'Pause layout', exact: true }).click();
+    const selected = page.getByRole('button', {
+      name: mode === 'Folders' ? 'Escape selection' : 'board: Escape selection',
+      exact: true,
+    });
+    await selected.click();
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
+    const camera = mode === 'Folders' ? null : await page.locator('.home-memory-world').getAttribute('style');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Settings' })).toHaveCount(0);
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    await expect(selected).toHaveAttribute('aria-pressed', 'false');
+    if (mode !== 'Folders') await expect(page.locator('.home-memory-world')).toHaveAttribute('style', camera!);
+    await expect(page.getByRole('button', { name: 'Board: Home. Switch board', exact: true })).toBeVisible();
   }
 });
 

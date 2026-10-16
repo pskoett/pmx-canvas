@@ -852,7 +852,9 @@ export function CanvasViewport({
         width: '100%',
         height: '100%',
         position: 'relative',
-        overflow: 'hidden',
+        // The camera owns scrolling. Hidden permits native focus/resize scroll,
+        // adding an untracked offset underneath our viewport transform.
+        overflow: 'clip',
         cursor:
           annotationTool === 'eraser'
             ? 'cell'

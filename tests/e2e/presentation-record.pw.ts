@@ -24,9 +24,22 @@ async function recordingChrome(testInfo: TestInfo): Promise<string> {
   // this test-only launch policy out of the product's secure Chrome defaults.
   const wrapper = testInfo.outputPath('recording-chrome.sh');
   const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  // --headed also applies to this separately launched recorder. This tests a
+  // visible capture path, not the product CLI's normal hardcoded headless path.
+  const headedArgs =
+    testInfo.project.use.headless === false
+      ? `for arg do
+  shift
+  case "$arg" in
+    --headless|--headless=*) ;;
+    *) set -- "$@" "$arg" ;;
+  esac
+done
+`
+      : '';
   await writeFile(
     wrapper,
-    `#!/bin/sh\nexec ${quote(chromium.executablePath())} --no-sandbox "$@" 2>${quote(testInfo.outputPath('recording-chrome.log'))}\n`,
+    `#!/bin/sh\n${headedArgs}exec ${quote(chromium.executablePath())} --no-sandbox "$@" 2>${quote(testInfo.outputPath('recording-chrome.log'))}\n`,
     { mode: 0o755 },
   );
   return wrapper;

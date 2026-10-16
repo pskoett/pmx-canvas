@@ -41,6 +41,16 @@ async function selectTheme(page: Page, themeLabel: string): Promise<void> {
   await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: themeLabel }).click();
 }
 
+/** Navigate the real camera, never rely on native scrolling under its transform. */
+async function fitCanvas(page: Page): Promise<void> {
+  const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
+  if (await fit.isVisible()) await fit.click();
+  else {
+    await page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Fit all', exact: true }).click();
+  }
+}
+
 /** Pick an annotation tool directly through the rail. */
 async function pickAnnotateTool(page: Page, itemLabel: string | RegExp): Promise<void> {
   await page.locator('.tool-rail').getByRole('button', { name: itemLabel, exact: true }).click();
@@ -1356,14 +1366,81 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
   expect(validation.ok).toBe(true);
 });
 
+test('large cards enter and leave nearby context by their edges, in both the UI and agent brief', async ({
+  page,
+  request,
+}) => {
+  const pinResponse = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Large anchor', content: 'Pinned context', x: 0, y: 0, width: 760, height: 600 },
+  });
+  const pin = (await pinResponse.json()) as { id: string };
+  const nearResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Large neighbour',
+      content: 'Nearby context',
+      x: 940,
+      y: 0,
+      width: 1000,
+      height: 600,
+    },
+  });
+  const near = (await nearResponse.json()) as { id: string };
+  await request.post('/api/canvas/context-pins', { data: { nodeIds: [pin.id] } });
+  await request.post('/api/canvas/viewport', { data: { x: 280, y: 300, scale: 0.4 } });
+  await page.goto('/workbench');
+  const anchor = page.locator(`[data-node-id="${pin.id}"]`);
+  const neighbour = page.locator(`[data-node-id="${near.id}"]`);
+  await expect(neighbour.locator('.node-near-mark')).toContainText('near');
+  await neighbour.locator('.node-near-mark').hover();
+  await expect(page.locator('.near-hint')).toContainText('Large anchor180 px');
+  await page.locator('.near-hint-show').click();
+  const boundary = page.locator(`[data-pin-id="${pin.id}"] rect.near-pin-radius`);
+  await expect(boundary).toBeAttached();
+  await expect(boundary).toHaveAttribute('width', '784');
+  await expect(boundary).toHaveAttribute('rx', '240');
+
+  const initialBrief = (await (await request.get('/api/canvas/context')).json()) as {
+    cursor: { current: number };
+  };
+  const nearbyIds = async () => {
+    const response = await request.get(`/api/canvas/context?since=${initialBrief.cursor.current}`);
+    const brief = (await response.json()) as { entries: Array<{ nodeId?: string; reason: string }> };
+    return brief.entries.filter((entry) => entry.reason === 'near').map((entry) => entry.nodeId);
+  };
+  expect(await nearbyIds()).toEqual([near.id]);
+
+  // Move beyond a 600 px edge gap with a real title drag, then back inside.
+  await page.mouse.move(1250, 750);
+  const title = await neighbour.locator('.node-title').boundingBox();
+  expect(title).not.toBeNull();
+  if (!title) throw new Error('Neighbour title is not visible');
+  const x = title.x + title.width / 2;
+  const y = title.y + title.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 200, y, { steps: 16 });
+  await page.mouse.up();
+  await expect(neighbour.locator('.node-near-mark')).toHaveCount(0);
+  await expect.poll(nearbyIds).toEqual([]);
+  await page.mouse.down();
+  await page.mouse.move(x, y, { steps: 16 });
+  await page.mouse.up();
+  await expect(neighbour.locator('.node-near-mark')).toContainText('near');
+  await expect.poll(nearbyIds).toEqual([near.id]);
+  await expect(anchor).toHaveClass(/context-pinned/);
+});
+
 test('semantic attention layer shows focus and interpretation history', async ({ page, request }) => {
   const bugResponse = await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
       title: 'Bug report',
       content: 'Anchor node',
-      x: 460,
+      x: 100,
       y: 220,
+      width: 360,
+      height: 200,
     },
   });
   const bugNode = (await bugResponse.json()) as { id: string };
@@ -2478,6 +2555,8 @@ test('native step controls on a materialized flow node drive the work item and t
   await expect(step1.locator('.ax-step-controls')).toHaveCount(1);
   await expect(step1).toContainText('Step 1/3');
 
+  // Materialization deliberately lays the flow below its source, without focusing it.
+  await fitCanvas(page);
   // Drive the REAL native control on the step NODE (not in the panel).
   await step1.getByRole('button', { name: 'Start' }).click();
   await expect.poll(async () => workStatus(workIds[0])).toBe('in-progress');
@@ -2607,6 +2686,7 @@ test('presentation mode focuses iframe keyboard navigation and hides review hint
   await page.goto('/workbench');
   const deckNode = page.locator('.canvas-node').filter({ hasText: 'Keyboard Deck' });
   await expect(deckNode).toHaveCount(1);
+  await fitCanvas(page);
   await deckNode.getByLabel('Expand (focus mode)').click();
 
   const overlay = page.locator('.expanded-overlay-panel');
@@ -4561,6 +4641,14 @@ test('narrow screens keep the rail chrome fully usable with meta collapsed', asy
 });
 
 test('populated multi-agent bars keep view controls reachable after resizing', async ({ page, request }) => {
+  const pinnedBoard = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Toolbar pinned reference' } })
+  ).json();
+  expect(
+    (
+      await request.post(`/api/canvas/boards/${pinnedBoard.board.id}/pin`, { headers: { 'x-pmx-workbench': '1' } })
+    ).ok(),
+  ).toBe(true);
   const ids: string[] = [];
   for (let i = 0; i < 4; i++) {
     ids.push(
@@ -4590,7 +4678,7 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
     }
   }
   await page.goto('/workbench');
-  for (const width of [1280, 1024, 600, 1920]) {
+  for (const width of [1280, 1024, 600, 390, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     const more = page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true });
     const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
@@ -4598,7 +4686,8 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
       .poll(async () => {
         const control = (await more.isVisible()) ? more : fit;
         const bounds = await control.boundingBox();
-        return bounds !== null && bounds.x >= 0 && bounds.x + bounds.width <= width;
+        const bar = (await page.locator('.top-bar').boundingBox())!;
+        return bounds !== null && bounds.x >= bar.x && bounds.x + bounds.width <= bar.x + bar.width;
       })
       .toBe(true);
     if (await more.isVisible()) {
@@ -4635,6 +4724,7 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
   await expect(page.getByRole('menuitem', { name: 'Fit all', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Fit canvas', exact: true })).toBeVisible();
+  await request.delete(`/api/canvas/boards/${pinnedBoard.board.id}`);
 });
 
 test('desktop theme picker lists every registered theme and applies one', async ({ page }) => {
@@ -6030,6 +6120,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   await expect(made.locator('.group-count')).toHaveText('2');
   expect(second.id).toBeTruthy();
 
+  await fitCanvas(page);
   await made.getByRole('button', { name: 'Collapse group' }).click();
   const chip = page.locator('[data-testid="group-chip"]');
   await expect(chip).toBeVisible();
@@ -6120,6 +6211,7 @@ test('ungroup is the same action for the human and the agent: dissolve, children
   await expect(chips).toHaveCount(2);
   await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toHaveCount(0);
 
+  await fitCanvas(page);
   // Human: expand the chip, ⋯ → Ungroup.
   await chips
     .filter({ hasText: 'H group' })
@@ -6415,7 +6507,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await expect(dialog.getByText('No evidence-backed validation')).toBeVisible();
   await dialog.getByLabel('Set a card lifecycle override').check();
   await dialog.getByLabel('Cadence in days').fill('');
-  await dialog.getByLabel('Revalidate by').fill('Compare with the source dashboard.');
+  await dialog.getByLabel('How to check').fill('Compare with the source dashboard.');
   await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
   expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle).toBeNull();
   await dialog.getByLabel('Cadence in days').fill('7');
@@ -6423,9 +6515,9 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await expect
     .poll(async () => (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle?.cadenceDays)
     .toBe(7);
-  await dialog.getByRole('button', { name: 'Check', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Review frequency', exact: true }).click();
   await dialog.getByRole('menuitemradio', { name: 'Fast · at use', exact: true }).click();
-  await dialog.getByLabel('Revalidate by').fill('Compare with the source dashboard.');
+  await dialog.getByLabel('How to check').fill('Compare with the source dashboard.');
   await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
   await expect(dialog.locator('.lifecycle-advanced .lifecycle-warning').first()).toContainText('Fast: check at use');
   await dialog.getByRole('button', { name: 'Close review' }).click();
@@ -6433,17 +6525,17 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await expect(dueFooter).toBeInViewport({ ratio: 1 });
   await dueFooter.click();
   await dialog.getByText('Settings and history', { exact: true }).click();
-  await dialog.getByLabel('Evidence · a link or a note').fill('Observed 99% in the dashboard.');
+  await dialog.getByLabel('What did you check?').fill('Observed 99% in the dashboard.');
   await dialog.getByLabel('I applied this outcome').check();
   // A human keeps typing while another writer changes the content. The old draft must not validate it.
   await request.patch(`/api/canvas/node/${id}`, { data: { content: 'Capacity is 95%.' } });
   await expect(dialog.getByRole('alert')).toContainText('Content changed while');
-  await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
-  await expect(dialog.getByRole('alert').first()).toContainText('Not saved');
+  await expect(dialog.getByRole('button', { name: 'Record review', exact: true })).toBeDisabled();
+  expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).records).toHaveLength(0);
   await dialog.getByRole('button', { name: 'Reload lifecycle and source revisions' }).click();
-  await expect(dialog.getByLabel('Evidence · a link or a note')).toHaveValue('');
+  await expect(dialog.getByLabel('What did you check?')).toHaveValue('');
   await expect(dialog.getByLabel('I applied this outcome')).not.toBeChecked();
-  await dialog.getByLabel('Evidence · a link or a note').fill('Checked the new value: 95%.');
+  await dialog.getByLabel('What did you check?').fill('Checked the new value: 95%.');
   await dialog.getByLabel('I applied this outcome').check();
   await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
   await expect(dialog.locator('.lifecycle-history')).toContainText('Checked the new value: 95%.');
@@ -6453,7 +6545,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   };
   expect(validated.qualification.due).toBe(false);
   await dialog.getByRole('combobox', { name: 'Outcome', exact: true }).selectOption('retire');
-  await dialog.getByLabel('Evidence · a link or a note').fill('No longer active.');
+  await dialog.getByLabel('What did you check?').fill('No longer active.');
   await dialog.getByLabel('I applied this outcome').check();
   await dialog.getByRole('button', { name: 'Record review', exact: true }).click();
   await expect(dialog.getByRole('button', { name: 'Undo retirement' })).toBeVisible();
@@ -6481,11 +6573,14 @@ test('human adopts and edits category defaults without a preset overwriting thei
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   await page.getByRole('button', { name: 'Categories', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Categories', exact: true });
+  await expect(dialog.getByRole('button', { name: /^Solo research/ })).not.toBeVisible();
+  await dialog.getByText('Add from template', { exact: true }).click();
   await dialog.getByRole('button', { name: /^Solo research/ }).click();
   await expect(dialog.getByRole('status')).toContainText('Starter data added');
   await dialog.locator('.category-choice').filter({ hasText: 'Finding' }).click();
   await dialog.getByLabel('Name', { exact: true }).fill('Reviewed finding');
-  await dialog.getByLabel('Revalidate by').fill('Compare both supporting and conflicting source evidence.');
+  await dialog.getByRole('tab', { name: 'Review policy' }).click();
+  await dialog.getByLabel('How to check').fill('Compare both supporting and conflicting source evidence.');
   await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Category saved');
   await dialog.getByRole('button', { name: /^Solo research/ }).click();
@@ -6501,13 +6596,18 @@ test('human adopts and edits category defaults without a preset overwriting thei
   );
   expect(catalog.resolvedFolders['Projects/Findings'].category.name).toBe('Reviewed finding');
   await dialog.locator('.category-choice').filter({ hasText: 'Reviewed finding' }).click();
+  await dialog.getByRole('tab', { name: 'Usage' }).click();
   await expect(dialog.getByText(/Cannot delete: assigned to Projects\/Findings/)).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Delete category' })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Add category', exact: true }).click();
   await dialog.getByLabel('Name', { exact: true }).fill('Disposable category');
-  await dialog.getByLabel('Revalidate by').fill('Check the source.');
+  await dialog.getByRole('tab', { name: 'Usage' }).click();
+  await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
+  await expect(dialog.getByRole('tab', { name: 'Review policy' })).toHaveAttribute('aria-selected', 'true');
+  await dialog.getByLabel('How to check').fill('Check the source.');
   await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Category saved');
+  await dialog.getByRole('tab', { name: 'Usage' }).click();
   await dialog.getByRole('button', { name: 'Delete category' }).click();
   await dialog.getByRole('button', { name: 'Cancel deletion' }).click();
   await expect(dialog.locator('.category-choice').filter({ hasText: 'Disposable category' })).toBeVisible();

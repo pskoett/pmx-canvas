@@ -1,10 +1,10 @@
 /**
  * Which pin? (docs/design/NearPin.dc.html §2): for a hovered, selected or
  * dragged pin — or the pins a near chip asked to show — dotted tethers to its
- * neighbours, numbered nearest first, and an unlabeled radius only when
+ * neighbours, numbered nearest first, and an unlabeled boundary only when
  * another node is within range. Drawn in screen
  * space (architecture rule 9) so they stay legible at fit zoom; while an
- * unpinned node is dragged only the nearest pin's radius shows (§3).
+ * unpinned node is dragged only the nearest pin's boundary shows (§3).
  */
 export declare function NearPinLayer(): import("preact/jsx-runtime").JSX.Element | null;
 /**

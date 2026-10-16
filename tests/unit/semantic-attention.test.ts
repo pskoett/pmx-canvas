@@ -9,7 +9,7 @@ import {
 
 // Geometry reference for fixtures (all nodes are 100x100):
 // - proximity clusters use edge-to-edge gap <= 200px
-// - pinned neighborhoods use center distance <= 600px
+// - pinned neighborhoods use edge-to-edge gap <= 600px
 
 interface NodeSpec {
   id: string;

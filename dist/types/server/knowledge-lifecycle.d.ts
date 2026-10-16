@@ -1,47 +1,16 @@
 import type { Database } from 'bun:sqlite';
-import { z } from 'zod';
 import { type ActorAttribution } from './attribution.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import { type RelationPreset } from '../shared/relations.js';
-export declare const lifecycleSchema: z.ZodObject<{
-    decayType: z.ZodEnum<{
-        reality: "reality";
-        decision: "decision";
-        dependency: "dependency";
-        relevance: "relevance";
-    }>;
-    rate: z.ZodEnum<{
-        fast: "fast";
-        medium: "medium";
-        slow: "slow";
-        durable: "durable";
-    }>;
-    triggers: z.ZodArray<z.ZodString>;
-    revalidationMethod: z.ZodString;
-    cadenceDays: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strict>;
-export declare const categorySchema: z.ZodObject<{
-    decayType: z.ZodEnum<{
-        reality: "reality";
-        decision: "decision";
-        dependency: "dependency";
-        relevance: "relevance";
-    }>;
-    rate: z.ZodEnum<{
-        fast: "fast";
-        medium: "medium";
-        slow: "slow";
-        durable: "durable";
-    }>;
-    triggers: z.ZodArray<z.ZodString>;
-    revalidationMethod: z.ZodString;
-    cadenceDays: z.ZodOptional<z.ZodNumber>;
-    id: z.ZodString;
-    name: z.ZodString;
-    glyph: z.ZodString;
-}, z.core.$strict>;
-export type Lifecycle = z.infer<typeof lifecycleSchema>;
-export type KnowledgeCategory = z.infer<typeof categorySchema>;
+import { type KnowledgeCategory, type Lifecycle } from '../shared/knowledge-lifecycle.js';
+export { categorySchema, lifecycleSchema, type KnowledgeCategory, type Lifecycle, } from '../shared/knowledge-lifecycle.js';
+export interface ReviewCardSummary {
+    boardId: string;
+    cardId: string;
+    boardTitle: string;
+    folder: string | null;
+    title: string;
+}
 export interface FolderProperties {
     path: string;
     categoryId: string | null;
@@ -84,6 +53,7 @@ export interface KnowledgeResults {
         folders: FolderProperties[];
         relationPresets: RelationPreset[];
         cards: Record<string, LifecycleQualification>;
+        reviewCards: ReviewCardSummary[];
         resolvedFolders: Record<string, ReturnType<KnowledgeLifecycle['resolve']>>;
     };
     'category-set': {

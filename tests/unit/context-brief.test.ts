@@ -131,12 +131,57 @@ describe('near a pin (docs/design/NearPin.dc.html)', () => {
     ]);
   });
 
-  test('at most five neighbours per pin', () => {
-    const neighbours = Array.from({ length: 7 }, (_, index) => at(`n${index}`, 100 + index * 50));
+  test('large cards use edge gaps, including touching and overlapping, with a Euclidean 600 px limit', () => {
+    const pin = { ...at('pin', -100), position: { x: -100, y: -200 }, size: { width: 760, height: 600 } };
+    for (const candidate of [
+      { x: 680, y: -100, width: 1200, height: 300, near: true },
+      { x: -300, y: -100, width: 180, height: 200, near: true },
+      { x: 0, y: -520, width: 300, height: 300, near: true },
+      { x: 0, y: 420, width: 500, height: 1000, near: true },
+      { x: 660, y: 0, width: 760, height: 600, near: true },
+      { x: 600, y: 0, width: 760, height: 600, near: true },
+      { x: 1260, y: 0, width: 760, height: 600, near: true },
+      { x: 1260.01, y: 0, width: 760, height: 600, near: false },
+      { x: 1020, y: 880, width: 760, height: 600, near: true },
+      { x: 1020, y: 880.01, width: 760, height: 600, near: false },
+    ]) {
+      const brief = compileContextBrief(
+        input({
+          nodes: [
+            pin,
+            {
+              ...at('candidate', candidate.x),
+              position: { x: candidate.x, y: candidate.y },
+              size: { width: candidate.width, height: candidate.height },
+            },
+          ],
+          pinnedNodeIds: ['pin'],
+          contentRevision: 1,
+          since: 1,
+        }),
+      );
+      expect(brief.document?.entries.filter((entry) => entry.reason === 'near').map((entry) => entry.nodeId)).toEqual(
+        candidate.near ? ['candidate'] : [],
+      );
+    }
+  });
+
+  test('at most five neighbours per pin, ranked by edge gap rather than card centres', () => {
+    const pin = { ...at('pin', 0), size: { width: 760, height: 600 } };
+    const neighbours = Array.from({ length: 7 }, (_, index) => ({
+      ...at(`n${index}`, 780 + index * 20),
+      size: { width: 1400 - index * 200, height: 600 },
+    }));
     const brief = compileContextBrief(
-      input({ nodes: [at('pin', 0), ...neighbours], pinnedNodeIds: ['pin'], contentRevision: 1, since: 1 }),
+      input({ nodes: [pin, ...neighbours], pinnedNodeIds: ['pin'], contentRevision: 1, since: 1 }),
     );
-    expect(brief.document?.entries.filter((entry) => entry.reason === 'near')).toHaveLength(5);
+    expect(brief.document?.entries.filter((entry) => entry.reason === 'near').map((entry) => entry.nodeId)).toEqual([
+      'n0',
+      'n1',
+      'n2',
+      'n3',
+      'n4',
+    ]);
   });
 });
 

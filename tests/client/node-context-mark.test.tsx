@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { NearPinMark, NodeContextMark, NodeTypeIcon, isAgentPin } from '../../src/client/canvas/NodeContextMark.tsx';
 import { NearPinCard, NearPinLayer } from '../../src/client/canvas/NearPinLayer.tsx';
-import { contextPinnedNodeIds, nodes, selectedNodeIds } from '../../src/client/state/canvas-store.ts';
+import { contextPinnedNodeIds, nodes, selectedNodeIds, viewport } from '../../src/client/state/canvas-store.ts';
 import { grabbingNodeId } from '../../src/client/state/human-store.ts';
 import {
   hoveredNodeId,
@@ -186,8 +186,13 @@ describe('near a pin', () => {
 
 function nearScene() {
   const pinA = node({ id: 'pin-a', data: { title: 'Release runbook' } });
-  const pinB = node({ id: 'pin-b', position: { x: 300, y: 0 }, data: { title: 'Rollout' } });
-  const close = node({ id: 'close', position: { x: 150, y: 0 }, data: { title: 'Price page copy' } });
+  const pinB = node({ id: 'pin-b', position: { x: 600, y: 0 }, data: { title: 'Rollout' } });
+  const close = node({
+    id: 'close',
+    position: { x: 420, y: 0 },
+    size: { width: 120, height: 100 },
+    data: { title: 'Price page copy' },
+  });
   const farther = node({ id: 'farther', position: { x: 0, y: 400 }, data: { title: 'Pricing notes' } });
   nodes.value = new Map([pinA, pinB, close, farther].map((entry) => [entry.id, entry]));
   contextPinnedNodeIds.value = new Set(['pin-a', 'pin-b']);
@@ -203,6 +208,7 @@ function resetNear() {
   nearCard.value = null;
   nearChange.value = null;
   grabbingNodeId.value = null;
+  viewport.value = { x: 0, y: 0, scale: 1 };
 }
 
 describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.html §2–3)', () => {
@@ -220,7 +226,7 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
     const card = container.querySelector('.near-hint') as HTMLElement;
     expect(card.querySelector('.near-hint-label')?.textContent).toBe('Near 2 pins');
     const rows = [...card.querySelectorAll('.near-hint-row')].map((row) => row.textContent);
-    expect(rows).toEqual(['Release runbook150 px', 'Rollout150 px']);
+    expect(rows).toEqual(['Release runbook60 px', 'Rollout60 px']);
     fireEvent.click(card.querySelector('.near-hint-show') as Element);
     expect(shownPinsFor.value).toBe('close');
     expect(tetherFocus.value.pinIds.sort()).toEqual(['pin-a', 'pin-b']);
@@ -254,11 +260,23 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
     expect(card.style.maxHeight).toBe(`${Math.max(120, bottom - 18 - 16)}px`);
   });
 
-  test('a hovered pin draws numbered tethers to its neighbours, nearest first, and its 600 px radius', () => {
-    nearScene();
+  test('a large hovered pin draws its edge-gap boundary and nearest-first tethers at fit zoom', () => {
+    const pin = node({ id: 'pin-a', position: { x: -100, y: -200 }, size: { width: 760, height: 600 } });
+    const close = node({ id: 'close', position: { x: 680, y: -100 }, size: { width: 1200, height: 300 } });
+    const farther = node({ id: 'farther', position: { x: -350, y: -100 }, size: { width: 180, height: 200 } });
+    nodes.value = new Map([pin, farther, close].map((entry) => [entry.id, entry]));
+    contextPinnedNodeIds.value = new Set(['pin-a']);
+    viewport.value = { x: 53, y: -17, scale: 0.4 };
     hoveredNodeId.value = 'pin-a';
     const { container } = render(<NearPinLayer />);
-    expect(container.querySelector('[data-pin-id="pin-a"] .near-pin-radius')?.getAttribute('r')).toBe('600');
+    const boundary = container.querySelector('[data-pin-id="pin-a"] rect.near-pin-radius');
+    expect(['x', 'y', 'width', 'height', 'rx'].map((attribute) => boundary?.getAttribute(attribute))).toEqual([
+      '-227',
+      '-337',
+      '784',
+      '720',
+      '240',
+    ]);
     expect(container.textContent).not.toContain('px from');
     const tethers = [...container.querySelectorAll('.near-pin-tether')].map((tether) => [
       (tether as HTMLElement).dataset.nearNode,
@@ -280,7 +298,7 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
       { distance: 601, pinned: false, dragging: true, ring: false },
       { distance: 599, pinned: false, dragging: true, ring: true },
     ]) {
-      const neighbor = node({ id: 'other', position: { x: scene.distance ?? 0, y: 0 } });
+      const neighbor = node({ id: 'other', position: { x: pin.size.width + (scene.distance ?? 0), y: 0 } });
       nodes.value = new Map((scene.distance === null ? [pin] : [pin, neighbor]).map((entry) => [entry.id, entry]));
       contextPinnedNodeIds.value = new Set(scene.pinned ? ['pin', 'other'] : ['pin']);
       selectedNodeIds.value = new Set(['pin']);
@@ -299,9 +317,13 @@ describe('near a pin: the card, tethers and the moment it changes (NearPin.dc.ht
 
   test('dragging an unpinned node rings only the nearest pin and previews its chip', () => {
     const { close } = nearScene();
-    nodes.value = new Map(nodes.value).set('close', { ...close, position: { x: 260, y: 0 } });
+    nodes.value = new Map([
+      ['pin-a', node({ id: 'pin-a', size: { width: 1000, height: 600 } })],
+      ['pin-b', node({ id: 'pin-b', position: { x: 1300, y: 0 }, size: { width: 200, height: 200 } })],
+      ['close', { ...close, position: { x: 1020, y: 0 } }],
+    ]);
     grabbingNodeId.value = 'close';
-    expect(tetherFocus.value).toEqual({ pinIds: ['pin-b'], ringOnly: true });
+    expect(tetherFocus.value).toEqual({ pinIds: ['pin-a'], ringOnly: true });
     const { container } = render(<NearPinMark node={nodes.value.get('close') as CanvasNodeState} pinned={false} />);
     expect(container.querySelector('.node-near-mark')?.classList.contains('is-preview')).toBe(true);
   });

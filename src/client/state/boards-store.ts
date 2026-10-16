@@ -1,6 +1,6 @@
 import { batch, signal } from '@preact/signals';
 import { requestJson } from './intent-bridge';
-import { focusNode, hasInitialServerLayout, nodes } from './canvas-store';
+import { focusNode, hasInitialServerLayout, hiddenByCollapsedGroup, nodes, toggleCollapsed } from './canvas-store';
 import type { MemoryTarget } from '../../shared/memory-graph.js';
 import type { RelationDefinition } from '../../shared/relations.js';
 
@@ -55,6 +55,8 @@ export const boardList = signal<BoardSummary[]>([]);
 export const activeBoardId = signal<string | null>(null);
 /** An explicitly opened library view stays visible while agents switch boards. */
 export const browsingMemory = signal(false);
+/** Review belongs to this navigation incarnation, never merely a reused card ID. */
+export const lifecycleTarget = signal<{ boardId: string; nodeId: string; incarnation: number } | null>(null);
 /** Layout/pin/reconnect invalidation for the library's shared graph projection. */
 export const memoryGraphRevision = signal(0);
 /** False until the first list arrives — Home must not flash before the server answers. */
@@ -81,6 +83,7 @@ export function connectBoardCatalog(epoch: string): void {
   reloadRevision = null;
   openRequestSequence++;
   navigationSequence++;
+  lifecycleTarget.value = null;
 }
 
 /** The SSE bridge resyncs the canvas when the open board changes under it. */
@@ -119,7 +122,10 @@ export function applyBoards(
       (boardGeneration !== null &&
         typeof data.boardGeneration === 'number' &&
         data.boardGeneration !== boardGeneration));
-  if (switched) boardIncarnation++;
+  if (switched) {
+    boardIncarnation++;
+    lifecycleTarget.value = null;
+  }
   if (typeof data.boardGeneration === 'number') boardGeneration = data.boardGeneration;
   reloadRevision = data.reloadRevision;
   batch(() => {
@@ -150,6 +156,8 @@ async function post(action: string, url: string, method: string, body?: unknown)
 /** Open a board, or Home with null. */
 export async function openBoard(id: string | null): Promise<void> {
   const sequence = ++openRequestSequence;
+  navigationSequence++;
+  lifecycleTarget.value = null;
   const epoch = catalogEpoch;
   let payload: BoardsPayload | null = null;
   const request = openRequestQueue.then(async () => {
@@ -166,24 +174,38 @@ export async function openBoard(id: string | null): Promise<void> {
 }
 
 /** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */
-export async function openMemoryTarget(target: MemoryTarget): Promise<void> {
-  const sequence = ++navigationSequence;
-  await openBoard(target.boardId);
-  if (!target.cardId) return;
+export async function openMemoryTarget(target: MemoryTarget, options: { review?: boolean } = {}): Promise<boolean> {
+  const opening = openBoard(target.boardId);
+  const sequence = navigationSequence;
+  await opening;
+  const incarnation = boardIncarnation;
+  if (!target.cardId) return sequence === navigationSequence && activeBoardId.value === target.boardId;
   // A slow layout fetch must not turn a card jump into only a board switch.
   for (let attempt = 0; attempt < 400; attempt++) {
-    if (sequence !== navigationSequence || activeBoardId.value !== target.boardId) return;
+    if (
+      sequence !== navigationSequence ||
+      activeBoardId.value !== target.boardId ||
+      boardIncarnation !== incarnation ||
+      browsingMemory.value
+    )
+      return false;
     if (hasInitialServerLayout.value && nodes.value.has(target.cardId)) {
+      const group = hiddenByCollapsedGroup.value.get(target.cardId);
+      if (group) toggleCollapsed(group);
       focusNode(target.cardId);
-      return;
+      if (options.review) lifecycleTarget.value = { boardId: target.boardId, nodeId: target.cardId, incarnation };
+      return true;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 25));
   }
+  return false;
 }
 
 /** Create a board (filed in `folder` when given) and open it. */
 export async function createAndOpenBoard(name: string, folder?: string | null): Promise<void> {
   const sequence = ++openRequestSequence;
+  navigationSequence++;
+  lifecycleTarget.value = null;
   const epoch = catalogEpoch;
   const created = await requestJson<{ board?: BoardSummary } | null>('createBoard', '/api/canvas/boards', null, {
     method: 'POST',

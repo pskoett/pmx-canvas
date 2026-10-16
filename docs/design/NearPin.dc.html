@@ -17,7 +17,7 @@ body{margin:0}
 
 <div>
 <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.015em">Near a pin</h1>
-<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd; max-width: 1100px">Each pinned node pulls up to five unpinned nodes whose centres are within 600 px into the agent's brief — each as its title and a short summary, with “near &lt;pin&gt;” as the reason, after the pinned cards. A pin puts a card first in the agent’s map (title, summary, relations); the agent pulls full text itself when it needs it. Near nodes get their own, weaker mark: a dotted chip with the word “near”. The mark ships in wave 1 together with that brief change, so it claims exactly what the agent receives.</p>
+<p style="margin: 4px 0 0; font-size: 13px; color: #8ea3bd; max-width: 1100px">Each pinned node pulls up to five unpinned nodes whose edge-to-edge gap is at most 600 canvas pixels into the agent's brief — each as its title and a short summary, with “near &lt;pin&gt;” as the reason, after the pinned cards. Updated with the maintainer 2026-10-14: distance follows the whole card, not its centre; diagrams are schematic. A pin puts a card first in the agent’s map (title, summary, relations); the agent pulls full text itself when it needs it. Near nodes get their own, weaker mark: a dotted chip with the word “near”. The mark ships in wave 1 together with that brief change, so it claims exactly what the agent receives.</p>
 </div>
 
 <section style="display: grid; grid-template-columns: 860px minmax(0, 1fr); gap: 32px">
@@ -62,7 +62,7 @@ Price page copy — Draft copy for the Pro plan page: headline, three benefits, 
 <span style="{{s.label}}">2 · Which pin? Hover a pin to see its neighbours</span>
 <div style="{{s.scene}} height: 420px">
 <svg width="860" height="420" viewBox="0 0 860 420" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
-<circle cx="425" cy="192" r="285" style="stroke: rgba(75,188,255,0.25); stroke-width: 1.5; stroke-dasharray: 3 6"></circle>
+<rect x="15" y="-135" width="820" height="654" rx="285" style="stroke: rgba(75,188,255,0.25); stroke-width: 1.5; stroke-dasharray: 3 6"></rect>
 <path d="{{tether.a}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
 <path d="{{tether.b}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
 <path d="{{tether.c}}" style="stroke: #4BBCFF; stroke-width: 1.5; stroke-dasharray: 2 5"></path>
@@ -79,7 +79,7 @@ Price page copy — Draft copy for the Pro plan page: headline, three benefits, 
 </sc-for>
 <sc-for list="{{nums}}" as="m" hint-placeholder-count="3"><span style="position: absolute; left: {{m.x}}px; top: {{m.y}}px; width: 20px; height: 20px; border-radius: 999px; background: #081524; border: 1px dotted #4BBCFF; color: #4BBCFF; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px">{{m.n}}</span></sc-for>
 </div>
-<span style="font-size: 12px; color: #8ea3bd">Dotted tethers, numbered nearest first, and an unlabeled 600 px radius while the pin is hovered or selected, only when another card's centre is within range. Tethers are drawn in screen space, so they still join a pin and its neighbours at fit zoom. Other nodes are untouched.</span>
+<span style="font-size: 12px; color: #8ea3bd">Dotted tethers, numbered by nearest edge gap first, and an unlabeled rounded boundary 600 canvas pixels beyond the pin's edges while it is hovered or selected, only when another card's edges are within range. Tethers are drawn in screen space, so they still join a pin and its neighbours at fit zoom. Other nodes are untouched.</span>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 12px">
@@ -108,7 +108,7 @@ Price page copy — Draft copy for the Pro plan page: headline, three benefits, 
 <sc-for list="{{moments}}" as="mo" hint-placeholder-count="3">
 <div style="display: flex; flex-direction: column; gap: 8px">
 <div style="{{s.scene}} height: 190px">
-<sc-if value="{{mo.ring}}" hint-placeholder-val="{{ false }}"><svg width="420" height="190" viewBox="0 0 420 190" style="position: absolute; left: 0; top: 0; fill: none"><circle cx="110" cy="95" r="150" style="stroke: rgba(75,188,255,0.35); stroke-width: 1.5; stroke-dasharray: 3 6"></circle></svg></sc-if>
+<sc-if value="{{mo.ring}}" hint-placeholder-val="{{ false }}"><svg width="420" height="190" viewBox="0 0 420 190" style="position: absolute; left: 0; top: 0; fill: none"><rect x="-130" y="-90" width="480" height="332" rx="150" style="stroke: rgba(75,188,255,0.35); stroke-width: 1.5; stroke-dasharray: 3 6"></rect></svg></sc-if>
 <div style="{{s.pinnedBox}} left: 20px; top: 60px"><div style="{{s.pinnedHead}}"><span style="{{s.title}}">Release runbook</span><span style="{{s.pinOn}}"><svg width="9" height="9" viewBox="0 0 24 24" style="{{s.ic2}}"><path d="{{i.pin}}"></path></svg></span></div></div>
 <div style="{{mo.box}}"><div style="{{s.plainHead}}"><span style="{{s.title}}">Price page copy</span><sc-if value="{{mo.chip}}" hint-placeholder-val="{{ false }}"><span style="{{mo.chipStyle}}"><svg width="11" height="11" viewBox="0 0 24 24" style="{{s.ring}}"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.4" style="fill: currentColor; stroke: none"></circle></svg>near</span></sc-if></div></div>
 </div>
@@ -226,7 +226,7 @@ class Component extends DCLogic {
       { k: 'Agent editing', v: 'violet bar across the top' }
     ];
     var moments = [
-      { t: 'Dragging toward a pin', d: 'The nearest pin shows its 600 px radius while you drag; the chip previews “near” once the centre is inside.', ring: true, chip: true, chipStyle: chip + 'opacity:0.6;', update: 'Release runbook · 600 px',
+      { t: 'Dragging toward a pin', d: 'The nearest pin by edge gap shows its boundary while you drag; the chip previews “near” once the edge-to-edge gap is at most 600 canvas pixels, subject to the five-card cap.', ring: true, chip: true, chipStyle: chip + 'opacity:0.6;', update: 'Release runbook · 600 px edge gap',
         box: boxBase + 'border:1px solid #1b2c44;left:220px;top:110px;width:180px;' },
       { t: 'Dropped inside', d: 'The chip pulses once. One Updates entry names the node and the pin — no generic toast.', ring: false, chip: true, chipStyle: chipPulse, update: '“Price page copy” is now near “Release runbook” — the agent gets its title and summary.',
         box: boxBase + 'border:1px solid #1b2c44;left:220px;top:110px;width:180px;' },

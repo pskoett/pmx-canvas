@@ -13,9 +13,9 @@ export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChang
   return (
     <div class="lifecycle-fields">
       <div class="knowledge-field">
-        <span>Decays when</span>
+        <span>Why review?</span>
         <ChoiceMenu
-          label="Decays when"
+          label="Why review?"
           value={value.decayType}
           onChange={(decayType) => onChange({ ...value, decayType: decayType as Lifecycle['decayType'] })}
           options={[
@@ -27,9 +27,9 @@ export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChang
         />
       </div>
       <div class="knowledge-field">
-        <span>Check</span>
+        <span>Review frequency</span>
         <ChoiceMenu
-          label="Check"
+          label="Review frequency"
           value={value.rate}
           onChange={(rate) => onChange({ ...value, rate: rate as Lifecycle['rate'] })}
           options={[
@@ -58,15 +58,22 @@ export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChang
           />
         </label>
       )}
+      <details class="lifecycle-triggers">
+        <summary>Additional review triggers</summary>
+        <label>
+          Also review when · one trigger per line
+          <textarea
+            value={value.triggers.join('\n')}
+            onInput={(event) => onChange({ ...value, triggers: event.currentTarget.value.split('\n') })}
+          />
+        </label>
+        <p>
+          Source changes, contradictions and superseding decisions are observed through explicit relations. Other
+          triggers describe what the reviewer should check.
+        </p>
+      </details>
       <label>
-        Also review when · one trigger per line
-        <textarea
-          value={value.triggers.join('\n')}
-          onInput={(event) => onChange({ ...value, triggers: event.currentTarget.value.split('\n') })}
-        />
-      </label>
-      <label>
-        Revalidate by
+        How to check
         <input
           required
           pattern={'.*\\S.*'}
@@ -74,10 +81,6 @@ export function LifecycleFields({ value, onChange }: { value: Lifecycle; onChang
           onInput={(event) => onChange({ ...value, revalidationMethod: event.currentTarget.value })}
         />
       </label>
-      <p>
-        Source changes, contradictions and superseding decisions are observed through explicit relations. Other triggers
-        describe what the reviewer should check.
-      </p>
     </div>
   );
 }

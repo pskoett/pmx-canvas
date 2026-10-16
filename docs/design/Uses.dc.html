@@ -11,8 +11,14 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
 <style>
 body{margin:0}
+.r2{width:1440px;height:820px;padding:40px 48px;box-sizing:border-box;background:#081524;color:#e6eef7;font:13px/1.5 'IBM Plex Sans',system-ui,sans-serif}.r2 h1{font-size:28px;margin:0}.r2 h2{font-size:15px}.r2 p,.r2 small{color:#8ea3bd}.r2 .dialog{display:grid;grid-template-columns:220px 1fr;gap:24px;width:900px;margin:24px auto;background:#0f1d31;border:1px solid #1b2c44;border-radius:14px;padding:20px}.r2 button,.r2 select,.r2 input{font:inherit;color:inherit;background:#081524;border:1px solid #1b2c44;border-radius:6px;padding:7px 10px}.r2 aside button{display:block;width:100%;text-align:left;margin:8px 0}.r2 .selected{border-color:#e6eef7;background:#13243b}.r2 .primary{background:#4BBCFF;color:#081524;border-color:transparent;font-weight:600}.r2 .example{display:flex;align-items:center;gap:16px;padding:10px;background:#13243b;border:1px solid #1b2c44;border-radius:10px;margin:8px 0}.r2 .example span{border:1px solid #1b2c44;border-radius:6px;padding:8px}.r2 .example b{flex:1;text-align:center;font-weight:500}.r2 footer{border-top:1px solid #1b2c44;padding-top:12px}.r2 .editor{border:1px solid #1b2c44;border-radius:10px;padding:16px;background:#0f1d31}
+.r2{height:920px}
 </style>
 </helmet>
+<section class="r2"><h1>R2 · Choose then customize workspace relation presets</h1><p>Selected 2026-10-14 · local implementation, validation ongoing. Home → Relation presets; chooser is read-only, editor is separate.</p>
+<div class="dialog"><aside><h2>Workspace relation presets</h2><button class="selected">Research</button><button>Dependencies</button><button>Decision</button><button>Flow</button><button>+ Add preset</button><small>Saved templates shared across the workspace.</small></aside><main><h2>Research · saved relations</h2><small>Read-only example</small><div class="example"><span>Example A</span><b style="color:#5FCFC0">supports ─────→</b><span>Example B</span></div><small>supports · Directed: A → B</small><div class="example"><span>Example A</span><b style="color:#E59B6B">contradicts ─────→</b><span>Example B</span></div><small>contradicts · Directed: A → B</small><div class="example"><span>Example A</span><b style="color:#8ea3bd">related ·········</b><span>Example B</span></div><small>related · Undirected: A — B</small><p>Examples explain meaning and direction, not actual board connections.</p><footer><label>Apply saved preset to board <select><option>Product metrics</option></select></label><p><button class="primary">Use on board</button> <button>Customize preset</button> <button>Delete preset</button></p><small>Copies saved vocabulary to this board only. Existing edges and other boards stay unchanged; later edits/deletion never auto-sync.</small></footer></main></div>
+<section class="editor"><strong>Customize preset · separate editing state</strong><div style="display:flex;gap:12px;align-items:center;margin:12px 0"><label>Name <input value="Research"></label><input value="supports" aria-label="Kind"><select aria-label="Meaning ink"><option>supports</option></select><label><input type="checkbox" checked> Arrow</label><button>×</button><button>Add kind</button></div><button class="primary">Save preset</button> <button>Cancel customization</button><small style="margin-left:12px">Save changes only the template. Dirty exit: Keep editing / Discard changes. Deletion asks inline confirmation.</small></section>
+</section>
 <div style="width: 1440px; height: 1420px; box-sizing: border-box; padding: 48px 56px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 28px">
 
 <div>
@@ -25,7 +31,7 @@ body{margin:0}
 <section style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Research · evidence</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: what supports or contradicts a claim</span></div>
 <div style="{{u.canvas}}">
-<div style="{{u.legend}}"><span style="{{u.vocab}}">Research ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #5FCFC0"></span>supports<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E59B6B"></span>contradicts<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #7C9CFF"></span>cites<span style="{{u.n}}">3</span></span></div>
+<div style="{{u.legend}}"><span style="{{u.vocab}}">All relations ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #5FCFC0"></span>supports<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E59B6B"></span>contradicts<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #7C9CFF"></span>cites<span style="{{u.n}}">3</span></span></div>
 <svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
 <path d="M 170 180 C 170 140, 290 150, 290 112" style="stroke: #5FCFC0; stroke-width: 2"></path><path d="M 290 110 L 285.5 119 L 294.5 119 Z" style="fill: #5FCFC0"></path>
 <path d="M 474 180 C 474 140, 354 150, 354 112" style="stroke: #E59B6B; stroke-width: 2"></path><path d="M 354 110 L 349.5 119 L 358.5 119 Z" style="fill: #E59B6B"></path>
@@ -46,7 +52,7 @@ body{margin:0}
 <section style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Dependency analysis</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: what is affected if a node changes</span></div>
 <div style="{{u.canvas}}">
-<div style="{{u.legend}}"><span style="{{u.vocab}}">Dependencies ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E58FB0"></span>depends on<span style="{{u.n}}">5</span></span><span style="{{u.chip}} color: #f4c542; border-color: rgba(244,197,66,0.4)"><span style="{{u.sw}} background: #f4c542"></span>cycle<span style="{{u.n}}">1</span></span><span style="font-size: 11px; color: #b9c6d6; margin-left: 4px">Change auth-token.ts → 5 affected</span></div>
+<div style="{{u.legend}}"><span style="{{u.vocab}}">All relations ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E58FB0"></span>depends on<span style="{{u.n}}">5</span></span><span style="{{u.chip}} color: #f4c542; border-color: rgba(244,197,66,0.4)"><span style="{{u.sw}} background: #f4c542"></span>cycle<span style="{{u.n}}">1</span></span><span style="font-size: 11px; color: #b9c6d6; margin-left: 4px">Change auth-token.ts → 5 affected</span></div>
 <svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
 <path d="M 105 108 C 105 150, 185 160, 185 196" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 185 198 L 180.5 189 L 189.5 189 Z" style="fill: #E58FB0"></path>
 <path d="M 322 108 C 322 150, 440 160, 440 196" style="stroke: #E58FB0; stroke-width: 2"></path><path d="M 440 198 L 435.5 189 L 444.5 189 Z" style="fill: #E58FB0"></path>
@@ -70,7 +76,7 @@ body{margin:0}
 <section style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Decision tree</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: the chosen path; conditions always labeled</span></div>
 <div style="{{u.canvas}}">
-<div style="{{u.legend}}"><span style="{{u.vocab}}">Decision ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #D5DEEA"></span>option<span style="{{u.n}}">3</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #7C9CFF"></span>if…<span style="{{u.n}}">2</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #3d5170"></span>rejected<span style="{{u.n}}">2</span></span></div>
+<div style="{{u.legend}}"><span style="{{u.vocab}}">All relations ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #D5DEEA"></span>option<span style="{{u.n}}">3</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #7C9CFF"></span>if…<span style="{{u.n}}">2</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #3d5170"></span>rejected<span style="{{u.n}}">2</span></span></div>
 <svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round">
 <path d="M 322 108 C 322 150, 105 140, 105 186" style="stroke: #3d5170; stroke-width: 1.5; stroke-dasharray: 5 4"></path><path d="M 105 188 L 100.5 179 L 109.5 179 Z" style="fill: #3d5170"></path>
 <path d="M 322 108 L 322 186" style="stroke: #D5DEEA; stroke-width: 3"></path><path d="M 322 190 L 316.5 179 L 327.5 179 Z" style="fill: #D5DEEA"></path>
@@ -92,7 +98,7 @@ body{margin:0}
 <section style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 15px; font-weight: 600">Agent flow</h2><span style="font-size: 12px; color: #8ea3bd">Highlight: progress — done, current, next, loop</span></div>
 <div style="{{u.canvas}}">
-<div style="{{u.legend}}"><span style="{{u.vocab}}">Flow ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #D5DEEA"></span>next<span style="{{u.n}}">3</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E59B6B"></span>if fails<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #8ea3bd"></span>loop<span style="{{u.n}}">1</span></span></div>
+<div style="{{u.legend}}"><span style="{{u.vocab}}">All relations ▾</span><span style="{{u.chip}}"><span style="{{u.sw}} background: #D5DEEA"></span>next<span style="{{u.n}}">3</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #E59B6B"></span>if fails<span style="{{u.n}}">1</span></span><span style="{{u.chip}}"><span style="{{u.sw}} background: #8ea3bd"></span>loop<span style="{{u.n}}">1</span></span></div>
 <svg width="644" height="470" viewBox="0 0 644 470" style="position: absolute; left: 0; top: 0; fill: none; stroke-linecap: round; stroke-linejoin: round">
 <path d="M 152 185 L 174 185" style="stroke: #D5DEEA; stroke-width: 2"></path><path d="M 178 185 L 169 180.5 L 169 189.5 Z" style="fill: #D5DEEA"></path>
 <path d="M 308 185 L 330 185" style="stroke: #B388FF; stroke-width: 2; stroke-dasharray: 5 4"></path><path d="M 334 185 L 325 180.5 L 325 189.5 Z" style="fill: #B388FF"></path>
@@ -119,7 +125,7 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1420}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2340}}'>
 class Component extends DCLogic {
   renderVals() {
     var u = {
@@ -138,7 +144,7 @@ class Component extends DCLogic {
       step: 'position:absolute;top:130px;width:128px;height:110px;box-sizing:border-box;overflow:hidden;padding:12px;border-radius:10px;border:1px solid #1b2c44;background:#0f1d31;box-shadow:0 1px 2px rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.24);font-size:12px;font-weight:600;display:flex;flex-direction:column;gap:6px;'
     };
     var grammar = [
-      { t: 'Vocabulary per board', d: 'Research, Dependencies, Decision, Flow or your own types. Picked in the legend.' },
+      { t: 'Vocabulary per board', d: 'Explicitly copy a saved Home preset or define your own kinds. The legend only filters existing relations.' },
       { t: 'Own ports, lanes', d: 'Links never stack; parallel ones run side by side with a count.' },
       { t: 'Hover = neighborhood', d: 'Everything not connected steps back; the link explains itself.' },
       { t: 'Reason on every link', d: 'One sentence agents write and humans read: the “why”.' },
