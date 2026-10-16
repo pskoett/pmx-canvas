@@ -8,6 +8,7 @@ import {
   type Page,
 } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { RELATION_PRESETS } from '../../src/shared/relations.js';
 
 const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
 
@@ -700,31 +701,18 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   await expect(page.locator(`[data-node-id="${a.id}"]`)).not.toHaveClass(/relation-dimmed/);
   await page.getByRole('button', { name: 'supports 1', exact: true }).click();
   await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
+  await expect(page.locator('.relation-dimmed')).toHaveCount(0);
+  await page.locator(`[data-node-id="${b.id}"] .node-body`).click();
   await expect(page.locator(`[data-node-id="${unrelated.id}"]`)).toHaveClass(/relation-dimmed/);
   const dimmedCard = page.locator(`[data-node-id="${unrelated.id}"]`);
   await expect
     .poll(() => dimmedCard.evaluate((element) => Number(getComputedStyle(element).opacity)))
     .toBeCloseTo(0.35, 2);
-  const aBox = (await page.locator(`[data-node-id="${a.id}"]`).boundingBox())!;
-  const bBox = (await page.locator(`[data-node-id="${b.id}"]`).boundingBox())!;
-  // Drive real pointer events, but control elapsed time: two animation frames
-  // plus test-protocol latency can exceed the short hover grace on a loaded host.
-  await page.clock.pauseAt(new Date(Date.now() + 1000));
-  try {
-    for (const box of [aBox, bBox, aBox, bBox]) {
-      await page.mouse.move((aBox.x + aBox.width + bBox.x) / 2, bBox.y + 50);
-      await page.clock.runFor(50);
-      expect(await dimmedCard.getAttribute('class')).toMatch(/relation-dimmed/);
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.clock.runFor(50);
-      expect(await dimmedCard.evaluate((element) => Number(getComputedStyle(element).opacity))).toBeLessThan(0.4);
-    }
-    await page.mouse.move(60, 760);
-    await page.clock.runFor(500);
-    await expect(dimmedCard).not.toHaveClass(/relation-dimmed/);
-  } finally {
-    await page.clock.resume();
-  }
+  await dimmedCard.locator('.node-body').hover();
+  await expect(dimmedCard).toHaveClass(/relation-dimmed/);
+  await expect(page.locator(`[data-node-id="${b.id}"]`)).not.toHaveClass(/relation-dimmed/);
+  await page.mouse.click(60, 760);
+  await expect(page.locator('.relation-dimmed')).toHaveCount(0);
   await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
   const pill = page.locator('.edge-pill').filter({ hasText: 'supports' });
   await pill.hover();
@@ -758,6 +746,61 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   expect(state.edges.some((entry) => entry.id === edge.id)).toBe(false);
   for (const id of [a.id, b.id, unrelated.id])
     await request.delete(`/api/canvas/node/${id}`, { headers: { 'x-pmx-workbench': '1' } });
+});
+
+test('selecting a group keeps its nested cards and their relations readable without hover focus', async ({
+  page,
+  request,
+}) => {
+  const { activeBoardId } = await (await request.get('/api/canvas/boards')).json();
+  const board = await request.patch(`/api/canvas/boards/${activeBoardId}`, {
+    headers: { 'x-pmx-workbench': '1' },
+    data: { relationVocabulary: RELATION_PRESETS.Research },
+  });
+  expect(board.ok()).toBe(true);
+  const create = async (title: string, x: number) => {
+    const response = await request.post('/api/canvas/node', {
+      headers: { 'x-pmx-workbench': '1' },
+      data: { type: 'markdown', title, content: title, x, y: 240, width: 280, height: 160 },
+    });
+    expect(response.ok()).toBe(true);
+    return (await response.json()) as { id: string };
+  };
+  const child = await create('Nested card', 160);
+  const sibling = await create('Direct member', 560);
+  const outside = await create('Unrelated card', 1120);
+  const group = async (title: string, childIds: string[]) => {
+    const response = await request.post('/api/canvas/group', { data: { title, childIds } });
+    expect(response.ok()).toBe(true);
+    return (await response.json()) as { id: string };
+  };
+  const inner = await group('Inner group', [child.id]);
+  const outer = await group('Outer group', [inner.id, sibling.id]);
+  const edge = await (
+    await request.post('/api/canvas/edge', { data: { from: child.id, to: sibling.id, type: 'relation' } })
+  ).json();
+  await page.goto('/workbench');
+  await page.keyboard.press('f');
+  const frame = page.locator(`[data-node-id="${outer.id}"]`);
+  await frame.locator('.node-titlebar').hover();
+  await expect(page.locator('.relation-dimmed')).toHaveCount(0);
+  await frame.locator('.node-titlebar').click({ position: { x: 80, y: 10 } });
+  await expect(frame).toHaveClass(/selected/);
+  for (const id of [outer.id, inner.id, child.id, sibling.id]) {
+    const card = page.locator(`[data-node-id="${id}"]`);
+    await expect(card).not.toHaveClass(/relation-dimmed/);
+    await expect(card).toHaveCSS('opacity', '1');
+  }
+  await expect(page.locator(`path#edge-path-${edge.id}`)).toHaveCSS('opacity', '0.85');
+  const other = page.locator(`[data-node-id="${outside.id}"]`);
+  await expect(other).toHaveClass(/relation-dimmed/);
+  await other.locator('.node-body').hover();
+  await expect(other).toHaveClass(/relation-dimmed/);
+  await other.locator('.node-body').click({ modifiers: ['Shift'] });
+  await expect(other).not.toHaveClass(/relation-dimmed/);
+  await expect(page.locator(`[data-node-id="${child.id}"]`)).not.toHaveClass(/relation-dimmed/);
+  await page.mouse.click(60, 760);
+  await expect(page.locator('.relation-dimmed')).toHaveCount(0);
 });
 
 test('double-click Delete: a node deletes; a frame deletes with its children staying', async ({ page, request }) => {

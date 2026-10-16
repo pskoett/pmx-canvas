@@ -1,8 +1,7 @@
 import { computed, effect, signal } from '@preact/signals';
 import { relationKind, relationPreset, relationSourceEnd } from '../../shared/relations.js';
 import { activeBoard, activeBoardId } from './boards-store';
-import { activeNodeId, edges, nodes } from './canvas-store';
-import { hoveredNodeId } from './near-pin-store';
+import { activeNodeId, edges, nodes, selectedNodeIds } from './canvas-store';
 
 export const relationFilter = signal<{ boardId: string; kind: string } | null>(null);
 
@@ -16,28 +15,8 @@ effect(() => {
   }
 });
 
-// Keep the neighborhood lit while the pointer crosses a short gap between cards.
-// A new card takes over immediately; resting on blank canvas clears the hover.
-const relationHover = signal<string | null>(null);
-let hoverBoardId = activeBoardId.peek();
-effect(() => {
-  const boardId = activeBoardId.value;
-  const hovered = hoveredNodeId.value;
-  if (boardId !== hoverBoardId) {
-    hoverBoardId = boardId;
-    relationHover.value = null;
-    return;
-  }
-  if (hovered) {
-    relationHover.value = hovered;
-    return;
-  }
-  const timer = setTimeout(() => {
-    relationHover.value = null;
-  }, 120);
-  return () => clearTimeout(timer);
-});
-export const relationFocus = computed(() => relationHover.value ?? activeNodeId.value);
+// Hover is for hints, not for changing which cards remain readable.
+export const relationFocus = computed(() => activeNodeId.value);
 
 /** View-only highlights. They never infer evidence, change a decision or execute a flow. */
 export const relationHighlight = computed(() => {
@@ -45,14 +24,23 @@ export const relationHighlight = computed(() => {
   const focus = relationFocus.value;
   const kind = relationFilter.value?.boardId === activeBoardId.value ? relationFilter.value.kind : null;
   const list = [...edges.value.values()].filter((edge) => !edge.toBoardId || edge.toBoardId === activeBoardId.value);
-  if (!focus && !kind && preset !== 'Flow') return null;
-  const cards = new Set<string>(focus ? [focus] : []);
+  const focusedCards = new Set(selectedNodeIds.value);
+  if (focus) focusedCards.add(focus);
+  if (focusedCards.size === 0 && !kind) return null;
+  // Selecting a frame focuses its contents too, including nested groups.
+  for (const id of focusedCards) {
+    const node = nodes.value.get(id);
+    if (node?.type === 'group' && Array.isArray(node.data.children))
+      for (const child of node.data.children) if (typeof child === 'string') focusedCards.add(child);
+  }
+  const cards = new Set(focusedCards);
   const links = new Set<string>();
   const add = (edge: (typeof list)[number]) => {
     links.add(edge.id);
     cards.add(edge.from);
     cards.add(edge.to);
   };
+  if (!kind) for (const edge of list) if (focusedCards.has(edge.from) && focusedCards.has(edge.to)) add(edge);
   if (kind) {
     for (const edge of list) if (relationKind(edge) === kind) add(edge);
   } else if (preset === 'Dependencies' || preset === 'Decision') {
@@ -84,7 +72,7 @@ export const relationHighlight = computed(() => {
   } else {
     for (const edge of list)
       if (
-        (edge.from === focus || edge.to === focus) &&
+        (focusedCards.has(edge.from) || focusedCards.has(edge.to)) &&
         (preset !== 'Research' || ['supports', 'contradicts', 'cites', 'derived-from'].includes(relationKind(edge)))
       )
         add(edge);

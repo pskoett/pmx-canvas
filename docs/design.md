@@ -342,8 +342,12 @@ receive separate endpoint slots. Hover explains endpoints, kind and reason; the 
 card's Relations view uses the same qualified graph as agents, with navigable targets and a
 pointer to shared Home settings. Connections are grouped into Evidence for/against, Sources, Used by and
 other Connections. Reasons stay in the hint/inspector, not long pills covering both endpoints.
+Owner correction (2026-10-16): relation dimming follows clicked focus, selection, or an
+explicit relation filter, never pointer hover. Selecting a group keeps all its descendants
+readable, including nested groups. Moving the pointer does not change that focus; clicking
+blank canvas clears it. This supersedes the hover-triggered focus in the Relations drawing.
 Research highlights evidence; Dependencies follows explicit downstream impact; Decision traces
-option/if/chosen links backward from the selected outcome; Flow reads existing AX step status.
+option/if/chosen links backward from the selected outcome; with focus active, Flow reads existing AX step status.
 Custom vocabularies use the local neighborhood. These are view-only, not a decision or execution engine. Remote cards
 remain footer links, not long lines across boards.
 
