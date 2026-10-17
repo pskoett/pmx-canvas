@@ -1,11 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { memoryKey, type MemoryGraph, type MemoryGraphEdge, type MemoryGraphNode } from '../../shared/memory-graph.js';
+import { memoryKey, type MemoryGraph, type MemoryGraphNode, type MemoryTarget } from '../../shared/memory-graph.js';
 import { relationDefinition, relationText } from '../../shared/relations.js';
-import { boardList, browsingMemory, memoryGraphRevision, openMemoryTarget, updateBoard } from '../state/boards-store';
+import {
+  boardList,
+  browsingMemory,
+  catalogEpoch,
+  memoryGraphRevision,
+  openMemoryTarget,
+  updateBoard,
+} from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
 import { isSelectionEscape } from '../utils/keyboard';
 import { BoardPinButton } from './BoardPinButton';
-import { graphRadius, graphSimulation, MAP_CARD, mapLayout, type GraphParticle, type Point } from './memory-layout';
+import { graphLayout, graphRadius, MAP_CARD, mapLayout, type GraphLayout, type Point } from './memory-layout';
+import { graphDisplay, type GraphConnection } from './graph-display';
 
 const linkNames = {
   member: 'Membership',
@@ -62,14 +70,18 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
   const [zoom, setZoom] = useState(1);
   const [moved, setMoved] = useState<Record<string, Point>>({});
   const [size, setSize] = useState(1);
-  const [repel, setRepel] = useState(1);
-  const [distance, setDistance] = useState(160);
   const [labelFade, setLabelFade] = useState(15);
-  const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [sidebar, setSidebar] = useState(false);
-  const [paint, setPaint] = useState(0);
-  const particles = useRef(new Map<string, GraphParticle>());
-  const simulation = useRef<ReturnType<typeof graphSimulation> | null>(null);
+  const [expanded, setExpanded] = useState(new Set<string>());
+  const [revealed, setRevealed] = useState(new Set<string>());
+  const [trail, setTrail] = useState<Array<{ key: string; focus: string; depth: number }>>([]);
+  const [navigationError, setNavigationError] = useState('');
+  const [following, setFollowing] = useState(false);
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const layoutCache = useRef<GraphLayout>();
+  const navigation = useRef(0);
+  const focusAfterReveal = useRef<string | null>(null);
+  const preserveCamera = useRef(false);
   const fitPending = useRef(true);
   const viewport = useRef<HTMLDivElement>(null);
   const sidebarElement = useRef<HTMLElement>(null);
@@ -84,6 +96,14 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
   } | null>(null);
   const suppressClick = useRef(false);
   const refresh = useRef<() => void>(() => {});
+  const clearSelection = () => {
+    navigation.current++;
+    setSelectedKey(null);
+    setRevealed(new Set());
+    setTrail([]);
+    setFollowing(false);
+    setNavigationError('');
+  };
 
   useLayoutEffect(() => {
     browsingMemory.value = true;
@@ -93,7 +113,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
     const onKey = (event: KeyboardEvent) => {
       if (!isSelectionEscape(event)) return;
       event.preventDefault();
-      setSelectedKey(null);
+      clearSelection();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -141,8 +161,19 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
       const params = new URLSearchParams({ depth: String(depth) });
       if (map) params.set('projection', 'boards');
       if (!map && focus) params.set('focus', focus);
+      const epoch = catalogEpoch;
+      const sourceRevision = memoryGraphRevision.peek();
+      const catalog = boardList.peek();
       const result = await requestJson<MemoryGraph | null>('memoryGraph', `/api/canvas/memory-graph?${params}`, null);
       if (cancelled) return;
+      if (
+        !map &&
+        (epoch !== catalogEpoch || sourceRevision !== memoryGraphRevision.peek() || catalog !== boardList.peek())
+      ) {
+        running = false;
+        schedule();
+        return;
+      }
       if (result && Array.isArray(result.nodes) && Array.isArray(result.edges)) {
         setGraph(result);
         setError(false);
@@ -163,59 +194,121 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
   }, [liveRevision, boards, revision]);
 
   useEffect(() => {
-    if (!map || !selectedKey) return;
+    if (!selectedKey) return;
+    const chosen = graph?.nodes.find((node) => node.key === selectedKey);
+    if (!map && chosen?.linksComplete !== false) return;
     let cancelled = false;
     setDetails(null);
-    const params = new URLSearchParams({ focus: selectedKey, depth: '2' });
+    const params = new URLSearchParams({ focus: selectedKey, depth: chosen?.kind === 'card' ? '1' : '2' });
+    const epoch = catalogEpoch;
+    const sourceRevision = memoryGraphRevision.peek();
     void requestJson<MemoryGraph | null>('memoryGraph', `/api/canvas/memory-graph?${params}`, null).then((result) => {
-      if (!cancelled) setDetails({ key: selectedKey, graph: result });
+      if (!cancelled && epoch === catalogEpoch && sourceRevision === memoryGraphRevision.peek())
+        setDetails({
+          key: selectedKey,
+          graph: result && Array.isArray(result.nodes) && Array.isArray(result.edges) ? result : null,
+        });
     });
     return () => {
       cancelled = true;
     };
-  }, [map, selectedKey, graph]);
+  }, [map, selectedKey, graph, liveRevision]);
 
-  const allNodes = useMemo(
+  const catalogNodes: MemoryGraphNode[] = useMemo(
     () =>
-      (graph?.nodes ?? [])
-        .filter((node) => !map || node.kind === 'board')
-        .map((node) => {
-          const board = boards.find((entry) => entry.id === node.boardId);
-          if (!board) return node;
-          return {
-            ...node,
-            folder: board.folder,
-            ...(node.kind === 'board'
-              ? {
-                  title: board.name,
-                  inContext: !!board.pin,
-                  nodeCount: board.nodeCount,
-                  position: board.mapPosition ?? undefined,
-                }
-              : {}),
-          };
-        }),
-    [graph, map, boards],
+      boards.map((board) => ({
+        key: memoryKey({ boardId: board.id }),
+        boardId: board.id,
+        kind: 'board',
+        title: board.name,
+        summary: '',
+        folder: board.folder,
+        inContext: !!board.pin,
+        summaryOnly: true,
+        nodeCount: board.nodeCount,
+        linksComplete: false,
+      })),
+    [boards],
   );
+  const allNodes = useMemo(() => {
+    const source = [...(graph?.nodes ?? [])];
+    if (!map)
+      for (const node of catalogNodes)
+        if (source.some((entry) => entry.boardId === node.boardId) && !source.some((entry) => entry.key === node.key))
+          source.push(node);
+    return source
+      .filter((node) => !map || node.kind === 'board')
+      .map((node) => {
+        const board = boards.find((entry) => entry.id === node.boardId);
+        if (!board) return node;
+        return {
+          ...node,
+          folder: board.folder,
+          ...(node.kind === 'board'
+            ? {
+                title: board.name,
+                inContext: !!board.pin,
+                nodeCount: board.nodeCount,
+                position: board.mapPosition ?? undefined,
+              }
+            : {}),
+        };
+      });
+  }, [graph, map, boards, catalogNodes]);
   const generated = useMemo(() => mapLayout(allNodes, collapsed), [allNodes, collapsed]);
+  const geometry = useMemo(() => {
+    if (map) return null;
+    const nodes = new Map(catalogNodes.map((node) => [node.key, node]));
+    for (const node of allNodes) nodes.set(node.key, node);
+    const next = graphLayout([...nodes.values()], layoutCache.current);
+    layoutCache.current = next;
+    return next;
+  }, [map, catalogNodes, allNodes, layoutRevision]);
   const folderCounts = new Map<string, number>();
   for (const node of new Map(allNodes.map((node) => [node.boardId, node])).values()) {
     const folder = node.folder?.split('/')[0] ?? '';
     folderCounts.set(folder, (folderCounts.get(folder) ?? 0) + 1);
   }
-  const visible = allNodes.filter(
-    (node) =>
-      (node.kind === 'board' ? showBoards : showCards) &&
-      (!context || node.inContext) &&
-      (unfiled || !!node.folder) &&
-      !hiddenFolders.has(node.folder?.split('/')[0] ?? '') &&
-      (!map || !generated.hidden.has(node.key)) &&
-      `${node.title} ${node.summary} ${node.folder ?? ''}`
-        .toLocaleLowerCase()
-        .includes(query.trim().toLocaleLowerCase()),
+  const eligible = new Set(
+    allNodes
+      .filter(
+        (node) =>
+          (!map && (revealed.has(node.key) || revealed.has(memoryKey({ boardId: node.boardId })))) ||
+          ((!context || node.inContext) &&
+            (unfiled || !!node.folder) &&
+            !hiddenFolders.has(node.folder?.split('/')[0] ?? '') &&
+            (!map || !generated.hidden.has(node.key)) &&
+            `${node.title} ${node.summary} ${node.folder ?? ''} ${!map ? (boards.find((board) => board.id === node.boardId)?.name ?? '') : ''}`
+              .toLocaleLowerCase()
+              .includes(query.trim().toLocaleLowerCase())),
+      )
+      .map((node) => node.key),
   );
+  // A matching card needs its structural board hub even before expansion.
+  if (!map) for (const node of allNodes) if (eligible.has(node.key)) eligible.add(memoryKey({ boardId: node.boardId }));
+  const display = graphDisplay(allNodes, graph?.edges ?? [], {
+    expanded,
+    eligible,
+    hiddenLinks,
+    selectedKey,
+    showBoards: showBoards || revealed.size > 0,
+    showCards: showCards || revealed.size > 0,
+  });
+  const visible = map
+    ? allNodes.filter((node) => eligible.has(node.key) && (node.kind === 'board' ? showBoards : showCards))
+    : display.nodes;
   const visibleKeys = new Set(visible.map((node) => node.key));
-  const position = (key: string) => moved[key] ?? (map ? generated.positions.get(key) : particles.current.get(key));
+  const position = (key: string): Point | undefined => {
+    if (moved[key]) return moved[key];
+    if (map) return generated.positions.get(key);
+    const point = geometry?.positions.get(key);
+    const node = allNodes.find((entry) => entry.key === key);
+    const parentKey = node?.kind === 'card' ? memoryKey({ boardId: node.boardId }) : '';
+    const parent = geometry?.positions.get(parentKey);
+    return point && parent && moved[parentKey]
+      ? { x: point.x + moved[parentKey].x - parent.x, y: point.y + moved[parentKey].y - parent.y }
+      : point;
+  };
   const edges = (graph?.edges ?? []).filter((edge) => {
     if (hiddenLinks.has(edge.kind) || (map && edge.kind === 'member')) return false;
     const from = map ? memoryKey({ boardId: edge.source.boardId }) : edge.from;
@@ -223,10 +316,10 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
     return visibleKeys.has(from) && (edge.missing || visibleKeys.has(to)) && (edge.missing || from !== to);
   });
   const selected = allNodes.find((node) => node.key === selectedKey);
-  const emphasized = allNodes.find((node) => node.key === (hoverKey ?? selectedKey));
-  const neighbors = new Set<string>(emphasized ? [emphasized.key] : []);
+  const emphasized = allNodes.find((node) => node.key === (map ? (hoverKey ?? selectedKey) : selectedKey));
+  const neighbors = map ? new Set<string>(emphasized ? [emphasized.key] : []) : display.neighbors;
   for (const edge of edges) {
-    if (!emphasized) break;
+    if (!map || !emphasized) break;
     if (
       emphasized.kind === 'board'
         ? edge.source.boardId === emphasized.boardId || edge.target.boardId === emphasized.boardId
@@ -238,61 +331,42 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
       neighbors.add(memoryKey({ boardId: edge.target.boardId }));
     }
   }
-  const detailGraph = map ? (details?.key === selectedKey ? details.graph : null) : graph;
+  const detailGraph =
+    (map || selected?.linksComplete === false) && details?.key === selectedKey && details.graph
+      ? details.graph
+      : map
+        ? null
+        : graph;
   const selectedBoard = boards.find((board) => board.id === selected?.boardId);
-  // Overview aggregates cross-board connections; selection reveals exact card
-  // endpoints. Local relations remain in the inspector, never discarded from data.
-  const drawingEdges = new Map<string, { edge: MemoryGraphEdge; from: string; to: string; count: number }>();
+  const mapEdges = new Map<string, GraphConnection>();
   for (const edge of edges) {
-    const aggregate =
-      map ||
-      (!emphasized &&
-        edge.kind !== 'member' &&
-        !edge.missing &&
-        visibleKeys.has(memoryKey({ boardId: edge.source.boardId })) &&
-        visibleKeys.has(memoryKey({ boardId: edge.target.boardId })));
-    const from = aggregate ? memoryKey({ boardId: edge.source.boardId }) : edge.from;
-    const to = aggregate ? memoryKey({ boardId: edge.target.boardId }) : edge.to;
-    if (aggregate && from === to && !edge.missing) continue;
-    const key = aggregate ? JSON.stringify([from, to, edge.kind, edge.relationKind, edge.missing]) : edge.id;
-    const old = drawingEdges.get(key);
-    if (old) old.count++;
-    else drawingEdges.set(key, { edge, from, to, count: 1 });
+    if (!map) break;
+    const from = memoryKey({ boardId: edge.source.boardId });
+    const to = memoryKey({ boardId: edge.target.boardId });
+    const key = JSON.stringify([from, to, edge.kind, edge.relationKind, edge.missing]);
+    const old = mapEdges.get(key);
+    if (old) old.edges.push(edge);
+    else mapEdges.set(key, { key, from, to, kind: edge.kind, exact: false, edges: [edge], incident: 0 });
   }
-  const graphFolders = new Map<string, Point[]>();
-  if (!map)
-    for (const node of visible) {
-      const point = position(node.key);
-      if (!point) continue;
-      const folder = node.folder?.split('/')[0] ?? '';
-      const group = graphFolders.get(folder) ?? [];
-      group.push(point);
-      graphFolders.set(folder, group);
-    }
-  // Only topology and force settings restart the simulation. Content/pin refreshes
-  // repaint the same particles; dragged positions are retained across topology edits.
-  const topology = JSON.stringify([
-    allNodes.map((node) => [node.key, node.folder, node.nodeCount]),
-    graph?.edges.map((edge) => [edge.from, edge.to, edge.kind, edge.missing]),
-  ]);
+  const drawingEdges = map ? [...mapEdges.values()] : display.connections;
+  const graphRegions = (geometry?.regions ?? []).filter((region) =>
+    visible.some(
+      (node) => (node.folder ?? '') === region.path || (!!region.path && node.folder?.startsWith(`${region.path}/`)),
+    ),
+  );
   useEffect(() => {
-    simulation.current?.stop();
-    if (map) return;
-    const sim = graphSimulation(allNodes, graph?.edges ?? [], particles.current, { repel, distance, size });
-    simulation.current = sim;
-    particles.current = new Map(sim.nodes().map((node) => [node.key, node]));
-    sim.stop().tick(allNodes.length > 1000 ? 1 : 25);
-    setPaint((value) => value + 1);
-    sim.on('tick', () => setPaint((value) => value + 1));
-    if (!paused) sim.restart();
-    return () => {
-      sim.stop();
-    };
-  }, [map, topology, repel, distance, size]);
-  useEffect(() => {
-    if (paused) simulation.current?.stop();
-    else simulation.current?.alpha(0.35).restart();
-  }, [paused]);
+    if (!graph || map || graph.focus !== (focus || null) || graph.depth !== depth) return;
+    if (selectedKey && !allNodes.some((node) => node.key === selectedKey)) clearSelection();
+    setRevealed((old) => new Set([...old].filter((key) => allNodes.some((node) => node.key === key))));
+    setTrail((old) =>
+      old.filter((entry) =>
+        boards.some(
+          (board) =>
+            memoryKey({ boardId: board.id }) === entry.key || entry.key.startsWith(`[${JSON.stringify(board.id)},`),
+        ),
+      ),
+    );
+  }, [graph, boards]);
 
   const fitView = () => {
     const stage = viewport.current;
@@ -312,6 +386,9 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
         if (hiddenFolders.has(region.path.split('/')[0] ?? '') || (!unfiled && !region.path)) continue;
         bounds.push({ x: region.x, y: region.y }, { x: region.x + region.width, y: region.y + region.height });
       }
+    else
+      for (const region of graphRegions)
+        bounds.push({ x: region.x, y: region.y }, { x: region.x + region.width, y: region.y + region.height });
     if (!bounds.length) return;
     const x = Math.min(...bounds.map((p) => p.x)),
       y = Math.min(...bounds.map((p) => p.y));
@@ -331,7 +408,8 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
     });
   };
   useEffect(() => {
-    fitPending.current = true;
+    if (preserveCamera.current) preserveCamera.current = false;
+    else fitPending.current = true;
   }, [map, focus, depth, collapsed]);
   useEffect(() => {
     if (
@@ -344,7 +422,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
       fitPending.current = false;
       fitView();
     }
-  }, [graph, map, paint, collapsed]);
+  }, [graph, map, collapsed]);
   const zoomAt = (next: number, center?: Point) => {
     const stage = viewport.current;
     if (!stage) return;
@@ -354,14 +432,80 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
     setZoom(scale);
   };
   const selectNode = (node: MemoryGraphNode, recenter = false) => {
+    navigation.current++;
+    setFollowing(false);
+    setNavigationError('');
+    setTrail([]);
     setSelectedKey(node.key);
     const point = position(node.key);
-    if (recenter && point && viewport.current)
-      setOffset({
-        x: viewport.current.clientWidth / 2 - point.x * zoom,
-        y: viewport.current.clientHeight / 2 - point.y * zoom,
-      });
+    if (recenter && point && viewport.current) {
+      const stage = viewport.current;
+      const x = point.x * zoom + offset.x,
+        y = point.y * zoom + offset.y;
+      setOffset(
+        map
+          ? { x: stage.clientWidth / 2 - point.x * zoom, y: stage.clientHeight / 2 - point.y * zoom }
+          : {
+              x: offset.x + Math.max(32 - x, 0) - Math.max(x - stage.clientWidth + 32, 0),
+              y: offset.y + Math.max(40 - y, 0) - Math.max(y - stage.clientHeight + 60, 0),
+            },
+      );
+    }
   };
+  const follow = async (target: MemoryTarget, back?: { key: string; focus: string; depth: number }) => {
+    const token = ++navigation.current;
+    const epoch = catalogEpoch;
+    const sourceRevision = memoryGraphRevision.peek();
+    const key = memoryKey(target);
+    const nextFocus = back ? back.focus : allNodes.some((node) => node.key === key) ? focus : key;
+    const nextDepth = back?.depth ?? depth;
+    setFollowing(true);
+    setNavigationError('');
+    if (nextFocus !== focus || nextDepth !== depth || !allNodes.some((node) => node.key === key)) {
+      const params = new URLSearchParams({ depth: String(nextDepth) });
+      if (nextFocus) params.set('focus', nextFocus);
+      const result = await requestJson<MemoryGraph | null>('memoryGraph', `/api/canvas/memory-graph?${params}`, null);
+      if (token !== navigation.current) return;
+      if (
+        epoch !== catalogEpoch ||
+        sourceRevision !== memoryGraphRevision.peek() ||
+        !result?.nodes?.some((node) => node.key === key) ||
+        !Array.isArray(result.edges)
+      ) {
+        setFollowing(false);
+        setNavigationError('The library changed or this endpoint could not be loaded. Select the connection again.');
+        return;
+      }
+      preserveCamera.current = true;
+      fitPending.current = false;
+      setGraph(result);
+      setFocus(nextFocus);
+      setDepth(nextDepth);
+    }
+    if (back) setTrail((old) => old.slice(0, -1));
+    else if (selectedKey) setTrail((old) => [...old, { key: selectedKey, focus, depth }]);
+    setExpanded((old) => new Set([...old, target.boardId]));
+    setRevealed((old) => new Set([...old, key, memoryKey({ boardId: target.boardId })]));
+    setSelectedKey(key);
+    setFollowing(false);
+    if (!back) focusAfterReveal.current = key;
+    setSidebar(false);
+  };
+  useLayoutEffect(() => {
+    const key = focusAfterReveal.current;
+    const point = key ? position(key) : null;
+    const stage = viewport.current;
+    if (!key || !point || !stage || !visibleKeys.has(key)) return;
+    focusAfterReveal.current = null;
+    const x = point.x * zoom + offset.x,
+      y = point.y * zoom + offset.y;
+    setOffset({
+      x: offset.x + Math.max(32 - x, 0) - Math.max(x - stage.clientWidth + 32, 0),
+      y: offset.y + Math.max(40 - y, 0) - Math.max(y - stage.clientHeight + 60, 0),
+    });
+    const index = visible.findIndex((node) => node.key === key);
+    stage.querySelectorAll<HTMLButtonElement>('.home-memory-select')[index]?.focus({ preventScroll: true });
+  }, [selectedKey, graph, expanded]);
   const endGesture = (cancelled: boolean) => {
     const drag = gesture.current;
     gesture.current = null;
@@ -380,17 +524,8 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
       void updateBoard(drag.boardId, {
         mapPosition: { x: p.x - MAP_CARD.width / 2, y: p.y - MAP_CARD.height / 2 },
       }).finally(clear);
-    } else clear();
-    if (!map && cancelled) {
-      const p = particles.current.get(key);
-      if (p) {
-        p.fx = drag.origin.x;
-        p.fy = drag.origin.y;
-        p.x = drag.origin.x;
-        p.y = drag.origin.y;
-        setPaint((value) => value + 1);
-      }
-    }
+    } else if (map) clear();
+    else if (cancelled) setMoved((old) => ({ ...old, [key]: drag.origin }));
   };
   const connectionCount = (node: MemoryGraphNode) =>
     new Set(
@@ -416,6 +551,33 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
             : allNodes.filter((node) => node.kind === 'card').length}{' '}
           cards · {graph?.edges.filter((edge) => edge.kind !== 'member').length ?? 0} links
         </span>
+        {!map && (
+          <>
+            <button
+              type="button"
+              class="home-button"
+              onClick={() =>
+                setExpanded(new Set(allNodes.filter((node) => node.kind === 'board').map((node) => node.boardId)))
+              }
+            >
+              Expand all
+            </button>
+            <button
+              type="button"
+              class="home-button"
+              onClick={() => {
+                setExpanded(new Set());
+                clearSelection();
+              }}
+            >
+              Collapse all
+            </button>
+            <span class="home-memory-counts">
+              {display.exactCount} exact · {display.bundledCount} bundled ·{' '}
+              {[...display.internal.values()].reduce((a, b) => a + b, 0)} internal
+            </span>
+          </>
+        )}
         <span class={`home-memory-live${error ? ' is-error' : ''}`} role="status">
           {error ? 'Update failed' : loading ? 'Updating…' : 'Live'}
         </span>
@@ -465,17 +627,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
             };
             drag.current = point;
             if (!drag.key) setOffset(point);
-            else if (map) setMoved((old) => ({ ...old, [drag.key!]: point }));
-            else {
-              const p = particles.current.get(drag.key);
-              if (p) {
-                p.fx = point.x;
-                p.fy = point.y;
-                p.x = point.x;
-                p.y = point.y;
-                setPaint((value) => value + 1);
-              }
-            }
+            else setMoved((old) => ({ ...old, [drag.key!]: point }));
           }}
           onPointerUp={() => endGesture(false)}
           onPointerCancel={() => endGesture(true)}
@@ -485,24 +637,18 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
             style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`, '--memory-zoom': zoom }}
           >
             {!map &&
-              [...graphFolders].map(([folder, points]) => {
-                const left = Math.min(...points.map((p) => p.x)) - 36;
-                const top = Math.min(...points.map((p) => p.y)) - 52;
-                return (
-                  <div
-                    key={folder}
-                    class="home-memory-cluster"
-                    style={{
-                      left,
-                      top,
-                      width: Math.max(...points.map((p) => p.x)) - left + 36,
-                      height: Math.max(...points.map((p) => p.y)) - top + 46,
-                    }}
-                  >
-                    <span>{folder || 'Unfiled'}</span>
-                  </div>
-                );
-              })}
+              graphRegions.map((region) => (
+                <div
+                  key={region.path}
+                  class="home-memory-cluster"
+                  data-folder={region.path}
+                  style={{ left: region.x, top: region.y, width: region.width, height: region.height }}
+                >
+                  <span>
+                    {region.path || 'Unfiled'} · {region.count} {region.count === 1 ? 'board' : 'boards'}
+                  </span>
+                </div>
+              ))}
             {map &&
               generated.regions
                 .filter((region) => !hiddenFolders.has(region.path.split('/')[0] ?? '') && (unfiled || region.path))
@@ -530,40 +676,96 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                   </div>
                 ))}
             <svg class="home-memory-links" aria-hidden="true">
-              {[...drawingEdges.values()].map(({ edge, from, to, count }) => {
+              {drawingEdges.map(({ key, edges: evidence, from, to, exact, incident }, index) => {
+                const edge = evidence[0];
+                const count = evidence.length;
                 const a = position(from),
                   b = position(to);
                 if (!a) return null;
-                const hi =
-                  emphasized &&
-                  (emphasized.kind === 'board'
-                    ? edge.source.boardId === emphasized.boardId || edge.target.boardId === emphasized.boardId
-                    : edge.from === emphasized.key || edge.to === emphasized.key);
-                const end = b ?? { x: a.x + 100, y: a.y - 70 };
+                const hi = map
+                  ? emphasized &&
+                    (emphasized.kind === 'board'
+                      ? edge.source.boardId === emphasized.boardId || edge.target.boardId === emphasized.boardId
+                      : edge.from === emphasized.key || edge.to === emphasized.key)
+                  : incident > 0;
+                const definition = relationDefinition(
+                  { kind: edge.relationKind, type: edge.type },
+                  boards.find((board) => board.id === edge.source.boardId)?.relationVocabulary,
+                );
+                const ink = edge.missing
+                  ? 'var(--c-warn)'
+                  : (map || exact) && edge.kind === 'card'
+                    ? `var(--c-rel-${definition.ink})`
+                    : undefined;
+                const endpoint = b ?? { x: a.x + 100, y: a.y - 70 };
+                const length = Math.hypot(endpoint.x - a.x, endpoint.y - a.y) || 1;
+                const targetNode = allNodes.find((node) => node.key === to);
+                const radius = targetNode ? graphRadius(targetNode, size) + 4 : 0;
+                const end =
+                  !map && b
+                    ? { x: b.x - ((b.x - a.x) * radius) / length, y: b.y - ((b.y - a.y) * radius) / length }
+                    : endpoint;
+                const bend = edge.kind === 'member' || !exact ? 0 : 24;
+                const cx = (a.x + end.x) / 2 - ((end.y - a.y) * bend) / length;
+                const cy = (a.y + end.y) / 2 + ((end.x - a.x) * bend) / length;
+                const directed =
+                  !map && exact && edge.kind !== 'member' && (edge.kind !== 'card' || definition.directed);
                 const startY = map ? a.y + (end.y > a.y ? MAP_CARD.height / 2 : -MAP_CARD.height / 2) : a.y;
                 const endY = map && b ? end.y + (end.y > a.y ? -MAP_CARD.height / 2 : MAP_CARD.height / 2) : end.y;
+                // Stagger counts along bundles instead of stacking them at crossings.
+                const fraction = map ? 0.5 : 0.58 + (index % 3) * 0.1;
+                const labelAt = map || a.y <= end.y ? fraction : 1 - fraction;
                 return (
                   <g
-                    key={edge.id}
-                    style={
-                      edge.kind === 'card' && !edge.missing
-                        ? {
-                            stroke: `var(--c-rel-${relationDefinition({ kind: edge.relationKind, type: edge.type }, boards.find((board) => board.id === edge.source.boardId)?.relationVocabulary).ink})`,
-                          }
-                        : undefined
-                    }
-                    class={`memory-edge edge-${edge.kind}${edge.missing ? ' is-missing' : ''}${hi ? ' is-emphasized' : emphasized ? ' is-dimmed' : ''}`}
+                    key={key}
+                    data-from={from}
+                    data-to={to}
+                    data-count={count}
+                    data-exact={exact}
+                    style={ink ? { stroke: ink } : undefined}
+                    class={`memory-edge edge-${edge.kind}${!map && !exact ? ' is-bundle' : ''}${edge.missing ? ' is-missing' : ''}${hi ? ' is-emphasized' : emphasized ? ' is-dimmed' : ''}`}
                   >
+                    {directed && (
+                      <defs>
+                        <marker
+                          id={`memory-arrow-${index}`}
+                          viewBox="0 0 10 10"
+                          refX="9"
+                          refY="5"
+                          markerWidth="6"
+                          markerHeight="6"
+                          orient="auto-start-reverse"
+                        >
+                          <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: ink ?? 'var(--c-muted)', stroke: 'none' }} />
+                        </marker>
+                      </defs>
+                    )}
+                    {!map && (
+                      <title>
+                        {exact
+                          ? relationText({ ...edge, kind: edge.relationKind ?? edge.kind })
+                          : `${count} links, combined directions and types. Inspect individual connections in details.`}
+                      </title>
+                    )}
                     <path
+                      marker-end={directed ? `url(#memory-arrow-${index})` : undefined}
                       d={
                         map
                           ? `M ${a.x} ${startY} C ${a.x} ${(startY + endY) / 2}, ${end.x} ${(startY + endY) / 2}, ${end.x} ${endY}`
-                          : `M ${a.x} ${a.y} Q ${(a.x + end.x) / 2 + (edge.kind === 'member' ? 0 : 12)} ${(a.y + end.y) / 2 - (edge.kind === 'member' ? 0 : 12)} ${end.x} ${end.y}`
+                          : from === to
+                            ? `M ${a.x} ${a.y} C ${a.x + 60} ${a.y - 80}, ${a.x - 60} ${a.y - 80}, ${a.x} ${a.y - radius}`
+                            : `M ${a.x} ${a.y} Q ${cx} ${cy} ${end.x} ${end.y}`
                       }
                     />
-                    {count > 1 && (
-                      <text class="home-memory-link-count" x={(a.x + end.x) / 2} y={(a.y + end.y) / 2 - 6}>
-                        {count} links
+                    {(count > 1 || (!map && !exact && edge.kind !== 'member' && !edge.missing)) && (
+                      <text
+                        class="home-memory-link-count"
+                        x={a.x + (end.x - a.x) * labelAt}
+                        y={a.y + (end.y - a.y) * labelAt - 6 / (map ? 1 : zoom)}
+                      >
+                        {count}
+                        {map ? ' links' : ''}
+                        {!map && emphasized && incident > 0 && incident < count ? ` (${incident} selected)` : ''}
                       </text>
                     )}
                     {edge.missing && (
@@ -584,6 +786,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
               return (
                 <article
                   key={node.key}
+                  data-key={node.key}
                   class={`home-memory-node is-${node.kind}${node.inContext ? ' in-context' : ''}${selectedKey === node.key ? ' is-selected' : ''}${hi ? ' is-emphasized' : emphasized ? ' is-dimmed' : ''}`}
                   style={{
                     left: point.x,
@@ -606,17 +809,28 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                     class="home-memory-select"
                     aria-label={`${node.kind}: ${node.title}`}
                     aria-pressed={selectedKey === node.key}
+                    aria-expanded={!map && node.kind === 'board' ? expanded.has(node.boardId) : undefined}
                     onFocus={(event) => {
-                      if (!gesture.current && event.currentTarget.matches(':focus-visible')) selectNode(node, true);
+                      if (map && !gesture.current && event.currentTarget.matches(':focus-visible'))
+                        selectNode(node, true);
                     }}
                     onClick={() => {
                       if (!suppressClick.current) {
                         selectNode(node);
-                        setSidebar(true);
+                        if (!map && node.kind === 'board')
+                          setExpanded((old) => {
+                            const next = new Set(old);
+                            if (next.has(node.boardId)) next.delete(node.boardId);
+                            else next.add(node.boardId);
+                            return next;
+                          });
+                        if (map || node.kind === 'card') setSidebar(true);
                       }
                       suppressClick.current = false;
                     }}
-                    onDblClick={() => void openMemoryTarget(node)}
+                    onDblClick={() => {
+                      if (map) void openMemoryTarget(node);
+                    }}
                     onPointerDown={(event) => {
                       if (event.button !== 0) return;
                       event.stopPropagation();
@@ -632,7 +846,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                       event.currentTarget.setPointerCapture(event.pointerId);
                     }}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
+                      if (map && event.key === 'Enter') {
                         event.preventDefault();
                         void openMemoryTarget(node);
                       }
@@ -645,15 +859,20 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                           selectNode(next, true);
                           viewport.current
                             ?.querySelectorAll<HTMLButtonElement>('.home-memory-select')
-                            [nextIndex]?.focus();
+                            [nextIndex]?.focus({ preventScroll: true });
                         }
                       }
                     }}
                   >
-                    <strong>{node.title}</strong>
+                    <strong>
+                      {node.title}
+                      {!map && node.kind === 'board' ? (expanded.has(node.boardId) ? ' −' : ' +') : ''}
+                    </strong>
                     <span>
                       {node.kind === 'board'
-                        ? `${node.nodeCount ?? 0} cards · ${connectionCount(node)} connected boards`
+                        ? map
+                          ? `${node.nodeCount ?? 0} cards · ${connectionCount(node)} connected boards`
+                          : `${node.nodeCount ?? 0} cards${display.internal.get(node.boardId) ? ` · ${display.internal.get(node.boardId)} internal` : ''}`
                         : (node.type ?? 'card')}
                     </span>
                     {map && <span class="home-memory-summary">{node.summary || 'No summary yet'}</span>}
@@ -786,6 +1005,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                   <select
                     value={focus}
                     onChange={(event) => {
+                      clearSelection();
                       fitPending.current = true;
                       setFocus(event.currentTarget.value);
                     }}
@@ -807,6 +1027,8 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                   <select
                     value={depth}
                     onChange={(event) => {
+                      navigation.current++;
+                      setFollowing(false);
                       fitPending.current = true;
                       setDepth(Number(event.currentTarget.value));
                     }}
@@ -818,7 +1040,7 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                 </label>
               </section>
               <section>
-                <h2>Display and forces</h2>
+                <h2>Display</h2>
                 <label>
                   Label fade
                   <input
@@ -840,58 +1062,37 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                     onInput={(event) => setSize(Number(event.currentTarget.value))}
                   />
                 </label>
-                <label>
-                  Repel
-                  <input
-                    type="range"
-                    min="0.2"
-                    max="3"
-                    step="0.1"
-                    value={repel}
-                    onInput={(event) => setRepel(Number(event.currentTarget.value))}
-                  />
-                </label>
-                <label>
-                  Link distance
-                  <input
-                    type="range"
-                    min="60"
-                    max="300"
-                    step="10"
-                    value={distance}
-                    onInput={(event) => setDistance(Number(event.currentTarget.value))}
-                  />
-                </label>
                 <div class="home-memory-actions">
-                  <button type="button" class="home-button" aria-pressed={paused} onClick={() => setPaused(!paused)}>
-                    {paused ? 'Resume layout' : 'Pause layout'}
-                  </button>
                   <button
                     type="button"
                     class="home-button"
                     onClick={() => {
-                      for (const p of particles.current.values()) {
-                        p.fx = null;
-                        p.fy = null;
-                      }
-                      setPaused(false);
-                      simulation.current?.alpha(0.7).restart();
+                      setMoved({});
+                      layoutCache.current = undefined;
+                      setLayoutRevision((old) => old + 1);
                     }}
                   >
-                    Rearrange
+                    Reset layout
                   </button>
                 </div>
               </section>
             </>
           )}
+          {!map && revealed.size > 0 && (
+            <p class="home-memory-help" role="status">
+              Follow reveals endpoints even when filters hide them. Clear selection to restore filters. Local Focus
+              shows the query being browsed.
+            </p>
+          )}
+          {navigationError && (
+            <p class="home-memory-missing" role="alert">
+              {navigationError}
+            </p>
+          )}
+          {following && <p role="status">Finding endpoint…</p>}
           {selected ? (
             <section class="home-memory-details" role="complementary" aria-label="Selection details">
-              <button
-                type="button"
-                class="home-memory-clear"
-                aria-label="Close details"
-                onClick={() => setSelectedKey(null)}
-              >
+              <button type="button" class="home-memory-clear" aria-label="Close details" onClick={clearSelection}>
                 ×
               </button>
               <h3>{selected.title}</h3>
@@ -907,6 +1108,20 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                 {selected.inContext ? '⌖ In context' : 'Not in context'}
               </p>
               <div class="home-memory-actions">
+                {!map && trail.length > 0 && (
+                  <button
+                    type="button"
+                    class="home-button"
+                    disabled={following}
+                    onClick={() => {
+                      const previous = trail.at(-1)!;
+                      const [boardId, cardId] = JSON.parse(previous.key) as [string, string | null];
+                      void follow({ boardId, ...(cardId ? { cardId } : {}) }, previous);
+                    }}
+                  >
+                    Back
+                  </button>
+                )}
                 <button type="button" class="home-button is-primary" onClick={() => void openMemoryTarget(selected)}>
                   Open {selected.kind}
                 </button>
@@ -916,6 +1131,8 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                     type="button"
                     class="home-button"
                     onClick={() => {
+                      navigation.current++;
+                      setFollowing(false);
                       fitPending.current = true;
                       setFocus(selected.key);
                     }}
@@ -934,6 +1151,12 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                 )}
               </div>
               {map && <p>{selected.summary || 'No summary yet.'}</p>}
+              {!map && selected.linksComplete === false && (
+                <p class="home-memory-help">
+                  Partial local graph. Connection details may include endpoints outside this query; Follow changes Local
+                  Focus when needed.
+                </p>
+              )}
               <details class="home-memory-connections" open>
                 <summary>Connections</summary>
                 {map && !detailGraph && (
@@ -957,22 +1180,51 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
                           : edge.from === selected.key;
                       const target = outgoing ? edge.target : edge.source;
                       const other = detailGraph?.nodes.find((node) => node.key === memoryKey(target));
+                      const directed =
+                        map ||
+                        edge.kind !== 'card' ||
+                        relationDefinition(
+                          { kind: edge.relationKind, type: edge.type },
+                          boards.find((board) => board.id === edge.source.boardId)?.relationVocabulary,
+                        ).directed;
+                      const sourceTitle =
+                        detailGraph?.nodes.find((node) => node.key === edge.from)?.title ?? edge.source.boardId;
+                      const targetTitle =
+                        detailGraph?.nodes.find((node) => node.key === edge.to)?.title ?? edge.target.boardId;
                       return (
                         <li key={edge.id}>
                           <span>
-                            {outgoing ? '→' : '←'}{' '}
+                            {directed ? (outgoing ? '→' : '←') : '↔'}{' '}
                             {edge.kind === 'card'
                               ? relationText({ ...edge, kind: edge.relationKind })
                               : `${edge.kind}${edge.label ? ` · ${edge.label}` : ''}`}
                           </span>
+                          {!map && (
+                            <small>
+                              {sourceTitle} {directed ? '→' : '↔'} {targetTitle} ·{' '}
+                              {other?.folder ??
+                                boards.find((board) => board.id === target.boardId)?.folder ??
+                                'Unfiled'}{' '}
+                              / {boards.find((board) => board.id === target.boardId)?.name ?? target.boardId}
+                            </small>
+                          )}
                           {edge.missing ? (
                             <span class="home-memory-missing">
                               ⚠ Missing target: {target.boardId}
                               {target.cardId ? ` / ${target.cardId}` : ''}
                             </span>
                           ) : (
-                            <button type="button" class="home-button" onClick={() => void openMemoryTarget(target)}>
-                              {other?.title ?? target.boardId}
+                            <button
+                              type="button"
+                              class="home-button"
+                              disabled={!map && following}
+                              onClick={() => {
+                                if (map) void openMemoryTarget(target);
+                                else void follow(target);
+                              }}
+                            >
+                              {!map ? 'Follow ' : ''}
+                              {other?.title ?? (map ? target.boardId : (target.cardId ?? target.boardId))}
                             </button>
                           )}
                         </li>
@@ -994,8 +1246,9 @@ export function HomeMemoryView({ mode }: { mode: 'Map' | 'Graph' }) {
             </section>
           ) : (
             <p class="home-memory-help">
-              Overview groups links between boards. Select a board or card to see exact connections. Double-click to
-              open.
+              {map
+                ? 'Overview groups links between boards. Select a board to inspect connections. Double-click to open.'
+                : 'Activate a board to expand or collapse its cards in place. Select a card to inspect incoming and outgoing evidence. Follow reveals an endpoint in its own folder; Open is separate. Bundles combine directions and types. Dotted membership is not evidence.'}
             </p>
           )}
         </aside>

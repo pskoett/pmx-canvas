@@ -1,13 +1,4 @@
-import {
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceSimulation,
-  forceX,
-  forceY,
-  type SimulationNodeDatum,
-} from 'd3-force';
-import { memoryKey, type MemoryGraphEdge, type MemoryGraphNode } from '../../shared/memory-graph.js';
+import type { MemoryGraphNode } from '../../shared/memory-graph.js';
 
 export type Point = { x: number; y: number };
 export const MAP_CARD = { width: 220, height: 92 };
@@ -114,102 +105,127 @@ export function mapLayout(nodes: MemoryGraphNode[], collapsed: Set<string>) {
   return { positions, regions, hidden };
 }
 
-export interface GraphParticle extends SimulationNodeDatum {
-  key: string;
-  boardId: string;
-  kind: 'board' | 'card';
-  radius: number;
-  x: number;
-  y: number;
-  anchor: Point;
-}
-
 export function graphRadius(node: MemoryGraphNode, size: number): number {
-  return (node.kind === 'board' ? 7 + Math.sqrt(node.nodeCount ?? 0) * 1.6 : 3.2) * size;
+  return (node.kind === 'board' ? 16 + Math.sqrt(node.nodeCount ?? 0) * 0.5 : 4) * size;
 }
 
-/** D3 owns only view particles, never the shared graph or saved board coordinates. */
-export function graphSimulation(
-  nodes: MemoryGraphNode[],
-  edges: MemoryGraphEdge[],
-  previous: Map<string, GraphParticle>,
-  settings: { repel: number; distance: number; size: number },
-) {
-  // A shallow card focus can omit board nodes but still contains multiple boards.
-  const boards = [...new Map(nodes.map((node) => [node.boardId, node])).values()];
-  const folders = [...new Set(nodes.map((node) => node.folder?.split('/')[0] ?? ''))].sort();
-  const anchors = new Map<string, Point>();
-  folders.forEach((folder, index) => {
-    const group = boards.filter((node) => (node.folder?.split('/')[0] ?? '') === folder);
-    const angle = (index * Math.PI * 2) / Math.max(1, folders.length);
-    const center = {
-      x: Math.cos(angle) * 200 * Math.sqrt(folders.length),
-      y: Math.sin(angle) * 200 * Math.sqrt(folders.length),
-    };
-    group.forEach((board, i) => {
-      const a = i * 2.399963229728653;
-      const r = Math.sqrt(i) * 200;
-      anchors.set(board.boardId, { x: center.x + Math.cos(a) * r, y: center.y + Math.sin(a) * r });
-    });
-  });
-  const counts = new Map<string, number>();
-  const particles = nodes.map((node): GraphParticle => {
-    const old = previous.get(node.key);
-    const anchor = anchors.get(node.boardId) ?? { x: 0, y: 0 };
-    const i = counts.get(node.boardId) ?? 0;
-    counts.set(node.boardId, i + 1);
-    const radius = node.kind === 'board' ? 0 : 45 + Math.sqrt(i) * 9;
-    return {
-      key: node.key,
-      boardId: node.boardId,
-      kind: node.kind,
-      anchor,
-      radius: graphRadius(node, settings.size),
-      x: old?.x ?? anchor.x + Math.cos(i * 2.399963229728653) * radius,
-      y: old?.y ?? anchor.y + Math.sin(i * 2.399963229728653) * radius,
-      ...(old?.fx != null ? { fx: old.fx, fy: old.fy } : {}),
-    };
-  });
-  const keys = new Set(particles.map((node) => node.key));
-  const seen = new Set<string>();
-  const links: Array<{ source: string; target: string; member: boolean }> = [];
-  for (const edge of edges) {
-    if (edge.missing) continue;
-    // Cross-board attraction is between clusters. Card-to-card springs across the
-    // library would tear the clouds apart and make an overview unreadable.
-    const source = edge.kind === 'member' ? edge.from : memoryKey({ boardId: edge.source.boardId });
-    const target = edge.kind === 'member' ? edge.to : memoryKey({ boardId: edge.target.boardId });
-    const key = JSON.stringify([source, target]);
-    if (source === target || !keys.has(source) || !keys.has(target) || seen.has(key)) continue;
-    seen.add(key);
-    links.push({ source, target, member: edge.kind === 'member' });
+export interface GraphLayout {
+  positions: Map<string, Point>;
+  cells: Map<string, { folder: string; x: number; y: number; height: number; cards: string[] }>;
+  regions: MemoryRegion[];
+}
+
+/** Reserve card slots before expansion. Refreshes append, never repack existing boards. */
+export function graphLayout(nodes: MemoryGraphNode[], previous?: GraphLayout): GraphLayout {
+  const positions = new Map(previous?.positions);
+  const cells: GraphLayout['cells'] = new Map();
+  for (const [id, cell] of previous?.cells ?? []) cells.set(id, { ...cell, cards: [...cell.cards] });
+  const boards = nodes.filter((node) => node.kind === 'board');
+  const roots = [...new Set(boards.map((node) => node.folder?.split('/')[0] ?? ''))].sort();
+  let rootX = 32;
+  let rootY = 32;
+  let rowHeight = 0;
+  let appendX = previous?.regions.length
+    ? Math.max(...previous.regions.map((region) => region.x + region.width)) + 96
+    : 32;
+  for (const root of roots) {
+    const oldRegion = previous?.regions.find((region) => region.path === root);
+    if (oldRegion) {
+      rootX = oldRegion.x;
+      rootY = oldRegion.y;
+    } else if (previous?.regions.length) {
+      rootX = appendX;
+      rootY = 32;
+    } else if (rootX > 1200) {
+      rootX = 32;
+      rootY += rowHeight + 64;
+      rowHeight = 0;
+    }
+    const members = boards.filter((node) => (node.folder?.split('/')[0] ?? '') === root);
+    const paths = [...new Set(members.map((node) => node.folder ?? ''))].sort();
+    let y = rootY + 64;
+    for (const path of paths) {
+      const group = members
+        .filter((node) => (node.folder ?? '') === path)
+        .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
+      const height = Math.max(360, ...group.map((node) => Math.ceil((node.nodeCount ?? 0) / 2) * 110 + 160));
+      const columns = Math.min(2, group.length);
+      const existing = [...cells.values()].filter((cell) => cell.folder === path);
+      let appendedY = existing.length ? Math.max(...existing.map((cell) => cell.y + cell.height)) + 24 : y;
+      group.forEach((board, index) => {
+        const old = cells.get(board.boardId);
+        if (old?.folder === path) return;
+        const x = rootX + 40 + (previous ? 0 : index % columns) * 360;
+        const top = previous ? appendedY : y + Math.floor(index / columns) * height;
+        cells.set(board.boardId, { x, y: top, height, folder: path, cards: old?.cards ?? [] });
+        positions.set(board.key, { x: x + 180, y: top + 150 });
+        if (old) for (const key of old.cards) positions.delete(key);
+        if (previous) appendedY += height + 24;
+      });
+      y += Math.ceil(group.length / columns) * height + 48;
+    }
+    const height = y - rootY;
+    rowHeight = Math.max(rowHeight, height);
+    rootX += Math.min(2, members.length) * 360 + 128;
+    appendX = Math.max(appendX, rootX);
   }
-  return forceSimulation(particles)
-    .alphaDecay(0.055)
-    .velocityDecay(0.55)
-    .force(
-      'links',
-      forceLink<GraphParticle, (typeof links)[number]>(links)
-        .id((node) => node.key)
-        .distance((edge) => (edge.member ? settings.distance * 0.28 : settings.distance * 2.2))
-        .strength((edge) => (edge.member ? 0.35 : 0.035)),
-    )
-    .force(
-      'repel',
-      forceManyBody<GraphParticle>()
-        .strength((node) => -(node.kind === 'board' ? 250 : 12) * settings.repel)
-        .distanceMax(700),
-    )
-    .force(
-      'collision',
-      forceCollide<GraphParticle>((node) => node.radius + (node.kind === 'board' ? 25 : 4)).iterations(2),
-    )
-    .force(
-      'folder-x',
-      forceX<GraphParticle>((node) => node.anchor.x).strength((node) => (node.kind === 'board' ? 0.035 : 0.008)),
-    )
-    .force(
-      'folder-y',
-      forceY<GraphParticle>((node) => node.anchor.y).strength((node) => (node.kind === 'board' ? 0.035 : 0.008)),
+  for (const node of nodes.filter((entry) => entry.kind === 'card').sort((a, b) => a.key.localeCompare(b.key))) {
+    const cell = cells.get(node.boardId);
+    if (!cell) continue;
+    let index = cell.cards.indexOf(node.key);
+    if (index < 0) {
+      index = cell.cards.length;
+      cell.cards.push(node.key);
+    }
+    if (!positions.has(node.key)) {
+      positions.set(node.key, {
+        x: cell.x + 180 + (index % 2 ? 95 : -95),
+        y: cell.y + 150 + (index < 2 ? -90 : Math.floor(index / 2) * 110),
+      });
+    }
+  }
+  // Growth compacts only the owning board's card slots, never a neighboring hub.
+  for (const cell of cells.values()) {
+    const rows = Math.ceil(cell.cards.length / 2);
+    if (rows * 110 + 160 <= cell.height) continue;
+    const spacing = (cell.height - 230) / Math.max(1, rows - 1);
+    cell.cards.forEach((key, index) => {
+      positions.set(key, {
+        x: cell.x + 180 + (index % 2 ? 95 : -95),
+        y: cell.y + (index < 2 ? 60 : 190 + Math.floor(index / 2) * spacing),
+      });
+    });
+  }
+  const regions: MemoryRegion[] = [];
+  const paths = new Set<string>();
+  for (const board of boards) {
+    const parts = (board.folder ?? '').split('/');
+    parts.forEach((_, index) => {
+      paths.add(parts.slice(0, index + 1).join('/'));
+    });
+  }
+  for (const path of [...paths].sort()) {
+    const members = boards.filter(
+      (node) => (node.folder ?? '') === path || (!!path && node.folder?.startsWith(`${path}/`)),
     );
+    const boxes = members.flatMap((node) => {
+      const cell = cells.get(node.boardId);
+      return cell ? [cell] : [];
+    });
+    const depth = path ? path.split('/').length - 1 : 0;
+    const nesting = Math.max(0, ...members.map((node) => (node.folder?.split('/').length ?? 1) - 1 - depth));
+    const x = Math.min(...boxes.map((cell) => cell.x)) - 32 - nesting * 24;
+    const y = Math.min(...boxes.map((cell) => cell.y)) - 48 - nesting * 32;
+    regions.push({
+      path,
+      x,
+      y,
+      width: Math.max(...boxes.map((cell) => cell.x + 360)) - x + 32 + nesting * 24,
+      height: Math.max(...boxes.map((cell) => cell.y + cell.height)) - y + 24 + nesting * 24,
+      count: members.length,
+      depth,
+      collapsed: false,
+    });
+  }
+  return { positions, cells, regions };
 }

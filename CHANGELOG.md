@@ -27,7 +27,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Home keeps folders for navigation and opens affected cards from Review needed; card review starts with one note and one confirmation.
 - Category and folder dialogs use compact themed controls, and unused categories can be deleted with inline confirmation.
 - Proximity rings have no distance caption and appear only when another card's center is within range.
-- Home Map groups boards in collapsible folders; Graph has live clusters, connection details, filters and layout controls.
+- Home Map groups boards in collapsible folders; Graph starts with counted board hubs that expand in place, with stable folder regions and Follow/Back through card relations.
 - Map and Graph update as agents work without moving your camera or taking you out of the library.
 - Session receipts show stacked Before/After with changed words marked, one change open at a time, and whole-card Undo that skips cards whose latest edit is yours.
 - In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.

@@ -1122,6 +1122,9 @@ test('narrow library filters remain reachable alongside retained Updates', async
   const search = page.getByRole('searchbox', { name: 'Find boards and cards', exact: true });
   for (const width of [390, 600, 760, 390]) {
     await page.setViewportSize({ width, height: 900 });
+    // The toolbar can wrap on resize. Observe the painted layout after its
+    // ResizeObserver has positioned Updates, not rectangles from different frames.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const a = (await updates.boundingBox())!;
     const b = (await filters.boundingBox())!;
     expect(a.y >= b.y + b.height || b.y >= a.y + a.height || a.x >= b.x + b.width || b.x >= a.x + a.width).toBe(true);
@@ -1436,7 +1439,6 @@ test('Escape deselects in Home without leaving Folders, Map or Graph, after clos
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   for (const mode of ['Folders', 'Map', 'Graph']) {
     await page.getByRole('button', { name: mode, exact: true }).click();
-    if (mode === 'Graph') await page.getByRole('button', { name: 'Pause layout', exact: true }).click();
     const selected = page.getByRole('button', {
       name: mode === 'Folders' ? 'Escape selection' : 'board: Escape selection',
       exact: true,
@@ -1469,7 +1471,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   await page.getByRole('button', { name: 'Graph', exact: true }).click();
   await expect(page.getByRole('button', { name: 'board: Live library', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Pause layout', exact: true }).click();
+  await page.getByRole('button', { name: 'board: Live library', exact: true }).click();
   const sourceNode = page.getByRole('button', { name: 'card: Live source', exact: true });
   await sourceNode.click();
   const box = await sourceNode.boundingBox();
@@ -1508,7 +1510,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   expect((await request.post('/api/canvas/context-pins', { data: { nodeIds: [source] } })).ok()).toBe(true);
   await expect(details).toContainText('⌖ In context');
   await expect(updated.locator('..')).toHaveClass(/in-context/);
-  // The node-size control changes rendered size. Labels and forces are not decorative controls.
+  // The node-size control changes rendered size without moving the static layout.
   const size = page.getByRole('slider', { name: 'Node size', exact: true });
   await size.focus();
   await size.press('End');
@@ -1530,7 +1532,8 @@ test('Graph stays live through agent board switches without losing camera, selec
   expect((await (await request.get('/api/canvas/state')).json()).nodes).toHaveLength(2);
   await details.getByRole('button', { name: 'Focus here', exact: true }).click();
   await page.getByRole('combobox', { name: 'Depth', exact: true }).selectOption('0');
-  await expect(page.locator('.home-memory-node')).toHaveCount(1);
+  await expect(page.locator('.home-memory-node.is-card')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'board: Live library', exact: true })).toBeVisible();
   // A card-only focus still belongs to a board and must retain its folder filter.
   const folder = page.getByRole('checkbox', { name: 'Research', exact: true });
   await expect(folder).toBeChecked();
@@ -1653,10 +1656,232 @@ test('Home Map persists human positions and Graph matches agent focus without op
   expect(projected.nodes.some((node: { boardId: string }) => node.boardId === orphan.id)).toBe(false);
   await page.getByRole('combobox', { name: 'Focus', exact: true }).selectOption('pins');
   await page.getByRole('combobox', { name: 'Depth', exact: true }).selectOption('1');
+  await page.getByRole('button', { name: 'board: Planning map', exact: true }).click();
   await expect(page.getByRole('button', { name: 'card: A decision to explore', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'card: A decision to explore', exact: true }).click();
   await page.getByRole('button', { name: 'Open card', exact: true }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'A decision to explore' })).toBeInViewport();
+});
+
+test('U1 expands stable folder slots and follows qualified evidence without opening or pinning', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const library: Array<{ id: string; name: string; cards: string[] }> = [];
+  const titles = [
+    ['Interviews', 'SMB survey', 'Enterprise', 'Quote log', 'Signup poll'],
+    ['Billing', 'Revenue', 'Churn', 'Retention', 'ARPA'],
+    ['Competitors', 'Price sheet', 'Tier matrix', 'Teardown', 'Free tier'],
+    ['Pricing', 'Pro at $24?', 'Margin model', 'Alt: usage', 'Assumptions'],
+    ['Legal', 'Consent', 'Terms', 'Privacy', 'Review'],
+    ['Delivery', 'Rollout', 'Owner', 'Capacity', 'Checklist'],
+    ['Roadmap', 'Q4 launch', 'Milestone', 'Scope', 'Experiment'],
+    ['Unlinked', 'Idea', 'Question', 'Scratch', 'Later'],
+  ];
+  for (const [index, [name, ...cards]] of titles.entries()) {
+    const { board } = await (
+      await request.post('/api/canvas/boards', {
+        headers: HUMAN,
+        data: { name, folder: index < 4 ? 'Research' : index < 7 ? 'Planning' : 'Scratch' },
+      })
+    ).json();
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+    const ids: string[] = [];
+    for (const title of cards) ids.push(await note(request, title));
+    library.push({ id: board.id, name, cards: ids });
+  }
+  const relations: Array<{ a: number; ac: number; b: number; bc: number; kind: string }> = [];
+  for (const [a, b, count] of [
+    [0, 1, 2],
+    [0, 2, 1],
+    [0, 3, 7],
+    [1, 3, 7],
+    [2, 3, 5],
+    [3, 4, 3],
+    [3, 5, 5],
+    [3, 6, 4],
+    [4, 5, 2],
+    [5, 6, 2],
+  ]) {
+    for (let i = 0; i < count; i++) {
+      const pricing = a === 3 || b === 3;
+      const pc = i < 2 ? 0 : 1 + ((i - 2) % 3);
+      const rc = i < 2 ? i : 2 + (Math.floor((i - 2) / 3) % 2);
+      let ac = pricing && a === 3 ? pc : pricing ? rc : i % 4;
+      let bc = pricing && b === 3 ? pc : pricing ? rc : (i + 1) % 4;
+      let from = a,
+        to = b;
+      if (a === 0 && b === 3 && i === 1) {
+        from = b;
+        to = a;
+        ac = 0;
+        bc = 0;
+      }
+      relations.push({
+        a: from,
+        ac,
+        b: to,
+        bc,
+        kind:
+          a === 0 && b === 3 && i < 2
+            ? i === 0
+              ? 'contradicts'
+              : 'cites'
+            : ['supports', 'depends-on', 'related'][i % 3],
+      });
+    }
+  }
+  for (let a = 0; a < 8; a++)
+    for (let i = 0; i < (a === 3 ? 3 : 1); i++)
+      relations.push({ a, ac: a === 3 ? 1 + i : 1, b: a, bc: a === 3 ? 1 + ((i + 1) % 3) : 2, kind: 'related' });
+  for (const relation of relations) {
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: library[relation.a].id } });
+    expect(
+      (
+        await request.post('/api/canvas/edge', {
+          headers: HUMAN,
+          data: {
+            from: library[relation.a].cards[relation.ac],
+            to: library[relation.b].cards[relation.bc],
+            ...(relation.a !== relation.b ? { toBoardId: library[relation.b].id } : {}),
+            type: 'relation',
+            kind: relation.kind,
+            reason: `${relation.kind}: independently authored evidence`,
+          },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Graph', exact: true }).click();
+  const hub = (name: string) => page.getByRole('button', { name: `board: ${name}`, exact: true });
+  const card = (name: string) => page.getByRole('button', { name: `card: ${name}`, exact: true });
+  const world = page.locator('.home-memory-world');
+  const details = page.getByRole('complementary', { name: 'Selection details' });
+  const anchors = () =>
+    page.locator('.home-memory-node.is-board, .home-memory-cluster').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        key: node.getAttribute('data-key') ?? node.getAttribute('data-folder'),
+        rect: node.getBoundingClientRect().toJSON(),
+      })),
+    );
+  await expect(hub('Pricing')).toBeInViewport();
+  await expect(page.locator('.home-memory-counts')).toHaveText('0 exact · 38 bundled · 10 internal');
+  await expect(page.locator('.home-memory-node.is-card')).toHaveCount(0);
+  await expect(page.locator('.memory-edge.edge-card')).toHaveCount(10);
+  expect(
+    await page
+      .locator('.memory-edge.edge-card')
+      .evaluateAll((edges) => edges.map((edge) => Number(edge.getAttribute('data-count'))).sort((a, b) => a - b)),
+  ).toEqual([1, 2, 2, 2, 3, 4, 5, 5, 7, 7]);
+  const initial = await anchors();
+  const camera = await world.getAttribute('style');
+  await hub('Interviews').focus();
+  await page.keyboard.press('Space');
+  await expect(hub('Interviews')).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Enter');
+  await expect(hub('Interviews')).toHaveAttribute('aria-expanded', 'false');
+  for (const name of ['Interviews', 'Billing', 'Competitors', 'Pricing']) await hub(name).click();
+  await expect(page.locator('.home-memory-node.is-card')).toHaveCount(16);
+  await expect(page.locator('.home-memory-counts')).toHaveText('28 exact · 16 bundled · 4 internal');
+  expect(await anchors()).toEqual(initial);
+  await expect(world).toHaveAttribute('style', camera!);
+  await card('Pro at $24?').click();
+  await expect(details.locator('li')).toHaveCount(12);
+  await expect(details).toContainText('← contradicts');
+  await expect(details).toContainText('→ cites');
+  // Six exact edges plus three two-relation card-to-hub bundles represent all 12 facts.
+  await expect(page.locator('.memory-edge.edge-card.is-emphasized')).toHaveCount(9);
+  expect(
+    await page
+      .locator('.memory-edge.edge-card.is-emphasized')
+      .evaluateAll((edges) => edges.reduce((sum, edge) => sum + Number(edge.getAttribute('data-count')), 0)),
+  ).toBe(12);
+  const mutations: string[] = [];
+  page.on('request', (request) => {
+    if (
+      /\/api\/canvas\/(boards\/open|node|edge|context-pins|knowledge)/.test(request.url()) &&
+      request.method() !== 'GET'
+    )
+      mutations.push(request.url());
+  });
+  await page.getByRole('checkbox', { name: 'Planning', exact: true }).uncheck();
+  await details.getByRole('button', { name: 'Follow Q4 launch', exact: true }).click();
+  await expect(card('Q4 launch')).toHaveAttribute('aria-pressed', 'true');
+  await expect(card('Q4 launch')).toBeInViewport();
+  await expect(hub('Roadmap')).toHaveAttribute('aria-expanded', 'true');
+  const region = await page.locator('.home-memory-cluster[data-folder="Planning"]').boundingBox();
+  const endpoint = await card('Q4 launch').boundingBox();
+  expect(endpoint!.x).toBeGreaterThan(region!.x);
+  expect(endpoint!.y).toBeGreaterThan(region!.y);
+  expect(endpoint!.x + endpoint!.width).toBeLessThan(region!.x + region!.width);
+  expect(endpoint!.y + endpoint!.height).toBeLessThan(region!.y + region!.height);
+  const followedCamera = await world.getAttribute('style');
+  await details.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(card('Pro at $24?')).toHaveAttribute('aria-pressed', 'true');
+  await expect(world).toHaveAttribute('style', followedCamera!);
+  await page.getByRole('checkbox', { name: 'Planning', exact: true }).check();
+  await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
+  await expect(page.locator('.home-memory-node.is-card')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expand all', exact: true }).click();
+  await expect(page.locator('.home-memory-node.is-card')).toHaveCount(32);
+  await expect(page.locator('.home-memory-counts')).toHaveText('48 exact · 0 bundled · 0 internal');
+  await page.getByRole('button', { name: 'Reset layout', exact: true }).click();
+  await page.waitForTimeout(1000);
+  expect(await anchors()).toEqual(initial);
+  expect(mutations).toEqual([]);
+  expect((await boards(request)).activeBoardId).toBeNull();
+
+  // A shallow query must still follow a qualified endpoint omitted from its nodes.
+  await card('Pro at $24?').click();
+  await details.getByRole('button', { name: 'Focus here', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Depth', exact: true }).selectOption('0');
+  await expect(page.locator('.home-memory-node.is-card')).toHaveCount(1);
+  await expect(details.getByRole('button', { name: 'Follow Q4 launch', exact: true })).toBeVisible();
+  const localCamera = await world.getAttribute('style');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held = false;
+  await page.route('**/api/canvas/memory-graph?*', async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get('focus') === JSON.stringify([library[6].id, library[6].cards[0]]) && params.get('depth') === '0') {
+      held = true;
+      const response = await route.fetch();
+      await gate;
+      await route.fulfill({ response });
+    } else await route.continue();
+  });
+  try {
+    await details.getByRole('button', { name: 'Follow Q4 launch', exact: true }).click();
+    await expect.poll(() => held).toBe(true);
+    await hub('Pricing').click();
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+    await expect(hub('Pricing')).toHaveAttribute('aria-pressed', 'true');
+    await expect(card('Q4 launch')).toHaveCount(0);
+    await hub('Pricing').click();
+    await card('Pro at $24?').click();
+    await details.getByRole('button', { name: 'Follow Q4 launch', exact: true }).click();
+    await expect(card('Q4 launch')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('combobox', { name: 'Focus', exact: true })).toHaveValue(
+      JSON.stringify([library[6].id, library[6].cards[0]]),
+    );
+    await expect(card('Q4 launch')).toBeInViewport();
+    const afterFollow = await world.getAttribute('style');
+    await details.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(card('Pro at $24?')).toHaveAttribute('aria-pressed', 'true');
+    await expect(world).toHaveAttribute('style', afterFollow!);
+    // The first local-query Fit is intentional; Follow/Back may not refit it again.
+    expect(localCamera).toBeTruthy();
+    expect(mutations).toEqual([]);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });
 
 test('a wiki card jump waits for a delayed target layout before focusing it', async ({ page, request }) => {

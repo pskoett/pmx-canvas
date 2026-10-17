@@ -368,13 +368,32 @@ navigates through links and backlinks on `canvas://boards`, and that Map and Gra
 replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
 links disagree, the Map shows it (folders as regions) rather than forcing them to match.
 
-**Home Map/Graph acceptance revision (2026-10-11).** The initial static clusters and
-toolbar-only filters did not meet the HomeMap/HomeGraph drawings. Graph now has a live
-force layout, folder outlines, board-sized hubs, smaller card dots, readable board labels,
-and a sidebar for counted filters, focus/depth, label fade, node size, repel and link distance.
-Overview aggregates cross-board links; hover/selection reveals exact endpoints and dims
-unrelated nodes. Selection details expose direction, reasons, context and Open board/card.
-Pause stops motion, Rearrange releases dragged nodes, and reduced motion starts paused.
+**Home Map/Graph acceptance revision (2026-10-11; Graph U1 supersedes on 2026-10-17).**
+Graph uses fixed, retained folder regions with round board hubs and smaller card dots.
+Boards start collapsed. Click, Enter or Space expands/collapses cards in place; Open in
+selection details is a separate, guarded content action. Expand all is an explicit dense
+view, not the starting state. Folder membership is structural, never semantic evidence.
+Overview bundles cross-board card relations by unordered board pair, combining directions
+and kinds into neutral counted lines. Hidden internal relations are counted on the hub.
+Bundle counts stay screen-sized and stagger along lines; compact label backgrounds keep
+neighboring board names readable at narrow overview zoom.
+Expanded endpoints show exact authored edges, their source-board vocabulary and arrows;
+`related` has no arrow, while `depends-on` runs from dependent to prerequisite.
+Opposite authored directions remain separate. Dotted membership never enters evidence counts.
+Card selection emphasizes incident evidence and retains dim surrounding context. Details
+retain every direction, type and reason, including evidence hidden by display filters.
+Follow reveals/selects the qualified endpoint inside its own board/folder without opening,
+pinning or validating knowledge. Follow temporarily overrides display filters with an
+explanation. Clear restores filters; discovered expansions remain until explicitly collapsed.
+For an endpoint outside a local query, Follow visibly changes Local Focus; Back restores the
+previous query and selection. Partial projections never claim complete link delivery.
+Expansion, collapse, clear and Back preserve camera and board anchors; Follow pans only as
+needed for an offscreen endpoint. Fit is explicit except for initial load or a changed query.
+New library items append slots, with card growth confined to its owning board cell.
+Counted filters, focus/depth, label fade, node size and view-local drag remain. Static Graph
+has no force simulation, Pause, Repel or Link distance. Reset layout clears view-local drag
+overrides without refitting the camera. The canonical HomeGraph drawing carries overview,
+expanded, focus and all-card states; its fictional evidence is a reference, not stored data.
 Map nests and collapses neutral folder regions; dragging persists top-left `mapPosition`
 in SQLite and a refused write rolls back. Both views update from the shared projection
 without resetting the camera or selection. An agent opening a board does not eject a human
@@ -386,7 +405,7 @@ workspace board pins, including the agent's active board, without hidden-board c
 category hues: later folder/meaning-colour decisions override those marks. Map board tiles
 use consistent dimensions rather than count-based sizes, and no unqualified age fading or
 token estimate is shown. The sidebar overlays the view at 600 px; selection scrolls its
-details into view, keeping visual and keyboard order aligned. Graph positions/force settings
+details into view, keeping visual and keyboard order aligned. Graph positions/display settings
 are view-local, not saved board coordinates. Folders remain independent of links. Remote card
 connections use the source footer and human More-menu picker, not remote canvas
 lines; auto-arrange remains local and static export retains explicit external

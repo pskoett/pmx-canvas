@@ -9200,6 +9200,23 @@ html.is-node-dragging .intent-line-layer {
 .home-memory .memory-edge.edge-portal { stroke: var(--c-rel-derived); }
 .home-memory .memory-edge.edge-wiki { stroke: var(--c-rel-cites); }
 .home-memory .memory-edge.edge-card { stroke: var(--c-rel-related); }
+.home-memory.is-graph .home-memory-cluster {
+  border-width: calc(1px / var(--memory-zoom));
+  border-color: color-mix(in srgb, var(--c-muted) 45%, var(--c-line));
+}
+.home-memory.is-graph .memory-edge.is-bundle:not(.is-missing) { stroke: var(--c-muted); stroke-width: 1.5; }
+.home-memory.is-graph .memory-edge.is-bundle:not(.is-dimmed):not(.is-emphasized) { opacity: .8; }
+.home-memory.is-graph .home-memory-link-count {
+  font: calc(11px / var(--memory-zoom)) var(--font-code);
+  fill: var(--c-text-soft);
+  paint-order: stroke;
+  stroke: var(--c-bg);
+  stroke-width: calc(5px / var(--memory-zoom));
+  stroke-linejoin: round;
+  text-anchor: middle;
+}
+.home-memory-counts { font-size: 11px; color: var(--c-muted); }
+.home-memory-connections li > small { display: block; color: var(--c-muted); font-size: 11px; }
 .home-memory .memory-edge.is-emphasized { opacity: 1; }
 .home-memory .memory-edge.is-dimmed { opacity: .08; }
 .home-memory .memory-legend-portal { color: var(--c-rel-derived); }
@@ -9363,7 +9380,7 @@ html.is-node-dragging .intent-line-layer {
 .home-memory.is-graph .home-memory-node.is-card {
   background: var(--c-muted);
 }
-.home-memory.is-graph .home-memory-node.is-board { z-index: 3; }
+.home-memory.is-graph .home-memory-node.is-board { z-index: 3; background: var(--c-bg); border: 2px solid var(--c-text-soft); }
 .home-memory.is-graph .home-memory-node.is-card:hover,
 .home-memory.is-graph .home-memory-node.is-card.is-selected { z-index: 4; }
 .home-memory.is-graph .home-memory-node.in-context {
@@ -9380,8 +9397,8 @@ html.is-node-dragging .intent-line-layer {
   top: calc(100% + 7px);
   left: 50%;
   transform: translateX(-50%);
-  width: calc(180px / var(--memory-zoom));
-  max-width: none;
+  width: max-content;
+  max-width: calc(180px / var(--memory-zoom));
   text-align: center;
   color: var(--c-text);
   background: var(--c-bg);
@@ -9394,8 +9411,10 @@ html.is-node-dragging .intent-line-layer {
 .home-memory.is-graph .is-emphasized .home-memory-select strong,
 .home-memory.is-graph .home-memory-node:focus-within strong { opacity: 1; }
 .home-memory.is-graph .is-card .home-memory-select strong {
-  display: none;
-  top: -26px;
+  display: block;
+  top: calc(100% + 6px);
+  width: 160px;
+  font-size: calc(10px / var(--memory-zoom));
 }
 .home-memory.is-graph .is-card:hover .home-memory-select strong,
 .home-memory.is-graph .is-card.is-selected .home-memory-select strong,
@@ -9408,6 +9427,17 @@ html.is-node-dragging .intent-line-layer {
 .home-memory.is-graph .home-memory-select span,
 .home-memory.is-graph .home-memory-node > .board-pin-btn {
   display: none;
+}
+.home-memory.is-graph .is-board .home-memory-select > span {
+  display: block;
+  position: absolute;
+  top: calc(100% + 26px / var(--memory-zoom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(180px / var(--memory-zoom));
+  text-align: center;
+  pointer-events: none;
+  font-size: calc(10px / var(--memory-zoom));
 }
 .node-body.has-memory-links,
 .node-body:has(> .node-lifecycle-warning) {

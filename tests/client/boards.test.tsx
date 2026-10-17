@@ -224,7 +224,9 @@ describe('Home memory views', () => {
   test('Graph requests qualified local focus and pins depth through the human bridge; filters cards', async () => {
     const { getByRole, getByLabelText, queryByRole } = render(<HomeView />);
     fireEvent.click(getByRole('button', { name: 'Graph', exact: true }));
-    await waitFor(() => expect(getByRole('button', { name: 'card: Evidence' })).toBeTruthy());
+    await waitFor(() => expect(getByRole('button', { name: 'board: Discovery' })).toBeTruthy());
+    expect(queryByRole('button', { name: 'card: Evidence' })).toBeNull();
+    fireEvent.click(getByRole('button', { name: 'board: Discovery' }));
     fireEvent.click(getByRole('button', { name: 'card: Evidence' }));
     fireEvent.click(getByRole('button', { name: 'Focus here' }));
     await waitFor(() =>
@@ -244,6 +246,112 @@ describe('Home memory views', () => {
     fireEvent.click(getByLabelText('Boards'));
     expect(queryByRole('button', { name: 'board: Discovery' })).toBeNull();
     expect(getByRole('button', { name: 'card: Evidence' })).toBeTruthy();
+  });
+
+  test('Graph bundles opposite directions without membership, expands in place and follows without opening content', async () => {
+    boardList.value = [board('a', 'Interviews', 2, 'Research'), board('b', 'Pricing', 1, 'Planning')];
+    const target = (boardId: string, cardId?: string) => ({ boardId, ...(cardId ? { cardId } : {}) });
+    memoryGraph = {
+      focus: null,
+      depth: 2,
+      unresolvedLinks: [],
+      nodes: [
+        ...boardList.value.map((entry) => ({
+          key: memoryKey(entry.id === 'a' ? target('a') : target('b')),
+          boardId: entry.id,
+          kind: 'board' as const,
+          title: entry.name,
+          nodeCount: entry.nodeCount,
+          summary: '',
+          folder: entry.folder,
+          inContext: false,
+          summaryOnly: true as const,
+        })),
+        ...[
+          ['a', 'survey', 'SMB survey', 'Research'],
+          ['a', 'quote', 'Quote log', 'Research'],
+          ['b', 'proposal', 'Pro at $24?', 'Planning'],
+        ].map(([boardId, cardId, title, folder]) => ({
+          key: memoryKey(target(boardId, cardId)),
+          boardId,
+          cardId,
+          title,
+          folder,
+          kind: 'card' as const,
+          summary: 'Summary only',
+          inContext: false,
+          summaryOnly: true as const,
+        })),
+      ],
+      edges: [
+        ['a', 'survey', 'b', 'proposal', 'contradicts'],
+        ['b', 'proposal', 'a', 'survey', 'cites'],
+        ['a', 'quote', 'a', 'survey', 'related'],
+        ['b', 'proposal', 'a', 'quote', 'depends-on'],
+      ].map(([a, ac, b, bc, kind], index) => ({
+        id: `r${index}`,
+        kind: 'card' as const,
+        source: target(a, ac),
+        target: target(b, bc),
+        from: memoryKey(target(a, ac)),
+        to: memoryKey(target(b, bc)),
+        relationKind: kind,
+        reason: `Evidence ${index}`,
+        missing: false,
+      })),
+    };
+    for (const node of memoryGraph.nodes.filter((entry) => entry.kind === 'card'))
+      memoryGraph.edges.push({
+        id: `m${node.key}`,
+        kind: 'member',
+        source: target(node.boardId),
+        target: node,
+        from: memoryKey(target(node.boardId)),
+        to: node.key,
+        missing: false,
+      });
+    const { getByRole, getAllByRole, queryByRole, getByText, container } = render(<HomeView />);
+    fireEvent.click(getByRole('button', { name: 'Graph', exact: true }));
+    await waitFor(() => expect(getByRole('button', { name: 'board: Interviews' })).toBeTruthy());
+    expect(container.querySelectorAll('.is-card')).toHaveLength(0);
+    expect(getByText('0 exact · 3 bundled · 1 internal')).toBeTruthy();
+    expect(container.querySelectorAll('.memory-edge.edge-card')).toHaveLength(1);
+    expect(container.querySelector('.memory-edge.edge-card')?.getAttribute('data-count')).toBe('3');
+    const anchors = () =>
+      [...container.querySelectorAll<HTMLElement>('.home-memory-node.is-board, .home-memory-cluster')].map((node) =>
+        node.getAttribute('style'),
+      );
+    const before = anchors();
+    fireEvent.click(getByRole('button', { name: 'board: Interviews' }));
+    expect(getByText('1 exact · 3 bundled · 0 internal')).toBeTruthy();
+    expect(container.querySelector('.edge-card[data-exact="true"] > path')?.hasAttribute('marker-end')).toBe(false);
+    expect(anchors()).toEqual(before);
+    fireEvent.click(getByRole('button', { name: 'card: SMB survey' }));
+    expect(getByText('← cites (why: Evidence 1)')).toBeTruthy();
+    expect(getByText('→ contradicts (why: Evidence 0)')).toBeTruthy();
+    fireEvent.click(getAllByRole('button', { name: 'Follow Pro at $24?' })[0]!);
+    expect(getByRole('button', { name: 'card: Pro at $24?' }).getAttribute('aria-pressed')).toBe('true');
+    expect(getByText('4 exact · 0 bundled · 0 internal')).toBeTruthy();
+    expect(container.querySelectorAll('.edge-card[data-exact="true"] > path[marker-end]')).toHaveLength(3);
+    expect(getByText('→ depends-on (why: Evidence 3)')).toBeTruthy();
+    const dependency = [...container.querySelectorAll('.edge-card')].find(
+      (edge) => edge.querySelector('title')?.textContent === 'depends-on (why: Evidence 3)',
+    );
+    expect(dependency?.getAttribute('data-from')).toBe(memoryKey(target('b', 'proposal')));
+    expect(dependency?.getAttribute('data-to')).toBe(memoryKey(target('a', 'quote')));
+    expect(dependency?.querySelector('path[marker-end]')).toBeTruthy();
+    expect(anchors()).toEqual(before);
+    fireEvent.click(getByRole('button', { name: 'Back', exact: true }));
+    expect(getByRole('button', { name: 'card: SMB survey' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(getByRole('button', { name: 'Collapse all', exact: true }));
+    expect(queryByRole('button', { name: 'card: SMB survey' })).toBeNull();
+    expect(anchors()).toEqual(before);
+    expect(calls.filter((call) => call.init?.method && call.init.method !== 'GET')).toEqual([]);
+    fireEvent.click(getByRole('button', { name: 'Map', exact: true }));
+    await waitFor(() => expect(getByRole('button', { name: 'board: Interviews' })).toBeTruthy());
+    expect(
+      [...container.querySelectorAll<SVGElement>('.memory-edge.edge-card')].map((edge) => edge.style.stroke),
+    ).toContain('var(--c-rel-contradicts)');
   });
 
   test('Map saves human drag positions and can return a board to generated layout', async () => {

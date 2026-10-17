@@ -361,6 +361,17 @@ node or fit the new ids — auto-placement is board-relative, not camera-relativ
 Home has Folders, Map, and Graph views. Folder paths organize boards independently
 of links; dragging a board in Map persists its position in SQLite.
 
+Graph starts with collapsed board hubs inside named folder regions. Activate a hub
+to expand/collapse cards in place, or use Expand all for the dense view. Counted
+bundles summarize cross-board relations; internal counts and dotted membership
+are distinct. Select a card to inspect incoming/outgoing kinds and reasons.
+Follow reveals an endpoint in Graph, including across folders; it does not open
+content, pin context or validate knowledge. Follow can temporarily reveal filtered
+endpoints and change Local Focus for endpoints outside the query. Back restores
+the previous selection/query; clear selection restores filters. Open board/card
+is explicit. Positions remain still, dragging is view-local, and Reset layout
+clears that arrangement. Home Map and Folders keep their existing behavior.
+
 ```bash
 pmx-canvas board list                          # most recently opened first; activeBoardId null = Home
 pmx-canvas board create "Q4 planning"          # created, not opened
