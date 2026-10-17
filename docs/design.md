@@ -375,13 +375,27 @@ selection details is a separate, guarded content action. Expand all is an explic
 view, not the starting state. Folder membership is structural, never semantic evidence.
 Overview bundles cross-board card relations by unordered board pair, combining directions
 and kinds into neutral counted lines. Hidden internal relations are counted on the hub.
-Bundle counts stay screen-sized and stagger along lines; compact label backgrounds keep
-neighboring board names readable at narrow overview zoom.
+Bundle counts stay screen-sized and stagger along lines. Transparent, content-sized node
+labels use glyph-only contrast, never opaque boxes or hover/focus padding that masks edges.
+Names retain a readable overview minimum and grow above 100% zoom; card counts flow below
+board titles rather than overlapping a fixed label offset.
 Expanded endpoints show exact authored edges, their source-board vocabulary and arrows;
 `related` has no arrow, while `depends-on` runs from dependent to prerequisite.
 Opposite authored directions remain separate. Dotted membership never enters evidence counts.
 Card selection emphasizes incident evidence and retains dim surrounding context. Details
 retain every direction, type and reason, including evidence hidden by display filters.
+Map and Graph details share a full-width dock below the view and legend, separate from filters.
+The view-local height starts at 280 px; drag the separator or use Up/Down and Home/End to
+resize. The upper bound reserves 160 px for the graph when the window has room. Collapse
+retains the selection/action header; restore keeps height, selection, expansion and camera.
+The relation list scrolls internally. A reserved dock keeps selecting a card from shifting
+the view, and the same bottom layout remains usable with the narrow filter overlay closed.
+Owner readability follow-up uses 14 px relation text and controls (36 px minimum height),
+15 px headings and 13 px secondary text. Inspector chrome never scales with canvas zoom.
+Owner follow-up (2026-10-17): Map matches this inspector visually, not functionally. Map
+retains board tiles, persisted positions, Reset position and connection Open actions; it does
+not inherit Graph expansion or Follow/Back. Both narrow filter toggles say Filters, and a
+selection never opens that overlay just to show relations in the separate bottom dock.
 Follow reveals/selects the qualified endpoint inside its own board/folder without opening,
 pinning or validating knowledge. Follow temporarily overrides display filters with an
 explanation. Clear restores filters; discovered expansions remain until explicitly collapsed.
@@ -389,6 +403,8 @@ For an endpoint outside a local query, Follow visibly changes Local Focus; Back 
 previous query and selection. Partial projections never claim complete link delivery.
 Expansion, collapse, clear and Back preserve camera and board anchors; Follow pans only as
 needed for an offscreen endpoint. Fit is explicit except for initial load or a changed query.
+Graph Fit can zoom below 8% for large retained regions; subsequent zoom steps remain
+incremental. This makes hubs reachable, not every dense overview label readable.
 New library items append slots, with card growth confined to its owning board cell.
 Counted filters, focus/depth, label fade, node size and view-local drag remain. Static Graph
 has no force simulation, Pause, Repel or Link distance. Reset layout clears view-local drag
@@ -404,8 +420,8 @@ workspace board pins, including the agent's active board, without hidden-board c
 **Remaining drawing deviations.** No synthetic Home board, portal-derived hierarchy, or
 category hues: later folder/meaning-colour decisions override those marks. Map board tiles
 use consistent dimensions rather than count-based sizes, and no unqualified age fading or
-token estimate is shown. The sidebar overlays the view at 600 px; selection scrolls its
-details into view, keeping visual and keyboard order aligned. Graph positions/display settings
+token estimate is shown. Both sidebars contain filters only and overlay the view at 600 px;
+selection details stay in the shared bottom dock. Graph positions/display settings
 are view-local, not saved board coordinates. Folders remain independent of links. Remote card
 connections use the source footer and human More-menu picker, not remote canvas
 lines; auto-arrange remains local and static export retains explicit external
@@ -422,7 +438,7 @@ not retain its intrinsic text width behind clipped controls.
 External writers follow the same compact step, keeping their avatars, activity button and
 accessible identity while giving the context summary room. At narrow widths, retained Updates
 tracks the measured bottom of the Map/Graph toolbar, including wrapped tabs/counts, not a
-fixed offset. It stays clear of Filters & details in both sidebar states; while filters are
+fixed offset. It stays clear of Filters in both sidebar states; while filters are
 open it compacts to an icon beside the sidebar rather than covering search.
 The open session drawer sits above retained canvas receipts so its controls remain
 reachable. Expanded Markdown uses the same wiki navigation as the card preview, after its

@@ -12,14 +12,21 @@ body{margin:0}
 .u1 aside{width:280px;box-sizing:border-box;padding:18px;background:#0b1828;border-left:1px solid #1b2c44;overflow:auto}
 .u1 h2{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#8ea3bd}.u1 p{color:#8ea3bd}.u1 .evidence{border-top:1px solid #1b2c44;padding:12px 0}.u1 .why{font-size:12px;color:#8ea3bd}
 .u1 .folder{fill:#0b1828;stroke:#8ea3bd;stroke-dasharray:5 5}.u1 .hub{fill:#081524;stroke:#b9c6d6;stroke-width:3}.u1 .dot{fill:#8ea3bd}.u1 text{fill:#e6eef7;text-anchor:middle}.u1 .count{fill:#8ea3bd;font-size:12px}.u1 .bundle{stroke:#8ea3bd;fill:none}.u1 .member{stroke:#8ea3bd;stroke-dasharray:2 6;opacity:.25}.u1 .exact{fill:none;stroke-width:2}.u1 .filters-toggle{display:none}.u1 footer{font-size:12px;color:#8ea3bd;border-top:1px solid #1b2c44}
+.u1 text{text-shadow:0 1px 2px #081524,0 0 2px #081524}
+.u1 .inspector{height:280px;display:flex;flex-direction:column;border-top:1px solid #1b2c44;background:#0b1828;font-size:14px}
+.u1 .inspector button{font-size:14px;min-height:36px}.u1 .inspector strong{font-size:15px}.u1 .inspector .why{font-size:13px}
+.u1 .resize{height:8px;flex-shrink:0;cursor:row-resize;text-align:center;color:#8ea3bd}
+.u1 .inspector header{padding:8px 18px;flex-shrink:0}.u1 .inspector strong{flex:1}
+.u1 .connections{padding:0 18px;overflow:auto;min-height:0}.u1 .connections .evidence{padding:8px 0}
 @media(max-width:760px){.u1{width:600px}.u1 header{padding:12px}.u1 aside{display:none}.u1 .filters-toggle{display:block}.u1 .stage svg{min-width:0}.u1 footer{padding:10px}}
 </style></helmet>
 <!-- Canonical U1, approved 2026-10-17. State is a drawing property, not product data.
      Folder outlines/slots are identical in overview, expanded, focus and all states.
+     Node labels stay transparent, including hover/focus; contrast follows glyphs only.
      Production uses theme tokens, qualified library data and existing guarded Open. -->
 <div class="u1">
   <header><h1>Library</h1><span>8 boards · 32 cards · 48 relations</span><button>Folders</button><button>Map</button><button aria-pressed="true">Graph</button></header>
-  <header><button>Overview</button><button>Expand all</button><span>{{caption}}</span><button class="filters-toggle">Filters &amp; details</button></header>
+  <header><button>Overview</button><button>Expand all</button><span>{{caption}}</span><button class="filters-toggle">Filters</button></header>
   <div class="body">
     <div class="stage">
       <svg viewBox="0 0 1000 780" aria-label="Fixed folder regions and expandable board hubs">
@@ -32,18 +39,25 @@ body{margin:0}
         <sc-for list="{{boards}}" as="b" hint-placeholder-count="8"><circle class="hub" cx="{{b.x}}" cy="{{b.y}}" r="16"/><text x="{{b.x}}" y="{{b.labelY}}">{{b.title}} {{b.toggle}}</text><text class="count" x="{{b.x}}" y="{{b.countY}}">4 cards · {{b.internal}} internal</text></sc-for>
       </svg>
     </div>
-    <aside aria-label="Graph filters and selection details">
+    <aside aria-label="Graph filters">
       <h2>Filters</h2><p>Boards · Cards · Only in context<br>Research · Planning · Scratch<br>Membership · Portals · Wiki · Relations · Previous</p>
       <h2>Display</h2><p>Label fade · Node size</p><button>Reset layout</button>
       <h2>Local graph</h2><p>Focus: Whole library · Depth: 2</p>
-      <section><h2>Selection details</h2><strong>Pro at $24?</strong><p>Research / Pricing · 12 connections</p><button>Back</button> <button>Clear focus</button> <button>Open card</button>
-        <div class="evidence">SMB survey → contradicts → Pro at $24?<p class="why">6 of 9 SMB respondents would downgrade at $24.</p><button>Follow SMB survey</button></div>
-        <div class="evidence">Pro at $24? → cites → SMB survey<p class="why">The proposal cites the survey separately.</p><button>Follow SMB survey</button></div>
-        <div class="evidence">Q4 launch → depends-on → Pro at $24?<p class="why">Planning / Roadmap · board collapsed</p><button>Follow Q4 launch</button></div>
-      </section>
     </aside>
   </div>
   <footer>○ Board, activate to expand · • Card, activate to select · dotted membership is not evidence<br>Counted bundles combine directions and types; inspect exact connections. Follow reveals in Graph, never opens content or pins context.</footer>
+  <section class="inspector" aria-label="Selection details">
+    <div class="resize" role="separator" aria-orientation="horizontal" aria-label="Resize relation details">━</div>
+    <header><strong>{{inspectorTitle}}</strong><sc-if value="{{focused}}"><button>Back</button><button>Clear focus</button><button>Open card</button></sc-if><button>Collapse details</button></header>
+    <div class="connections">
+      <sc-if value="{{empty}}"><p>Select a card to inspect incoming and outgoing evidence. Follow reveals an endpoint; Open is separate.</p></sc-if>
+      <sc-if value="{{focused}}">
+      <div class="evidence">SMB survey → contradicts → Pro at $24?<p class="why">6 of 9 SMB respondents would downgrade at $24.</p><button>Follow SMB survey</button></div>
+      <div class="evidence">Pro at $24? → cites → SMB survey<p class="why">The proposal cites the survey separately.</p><button>Follow SMB survey</button></div>
+      <div class="evidence">Q4 launch → depends-on → Pro at $24?<p class="why">Planning / Roadmap · board collapsed</p><button>Follow Q4 launch</button></div>
+      </sc-if>
+    </div>
+  </section>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960},"state":"overview"}'>
@@ -68,7 +82,7 @@ class Component extends DCLogic {
       return {title,x,y,labelY:y+20,spoke:`M ${b[1]} ${b[2]} L ${x} ${y}`};
     }):[]);
     const bundles = [[0,1,2],[0,2,1],[0,3,7],[1,3,7],[2,3,5],[3,4,3],[3,5,5],[3,6,4],[4,5,2],[5,6,2]].map(([a,b,count])=>({path:`M ${data[a][1]} ${data[a][2]} L ${data[b][1]} ${data[b][2]}`,x:(data[a][1]+data[b][1])/2,y:(data[a][2]+data[b][2])/2-10,count}));
-    return {boards,cards,bundles,focused:state==='focus',caption:expanded?'Expanded cards stay inside their folders. Select, inspect, follow.':'38 cross-board relations in bundles · 10 internal · activate a board to expand'};
+    return {boards,cards,bundles,focused:state==='focus',empty:state!=='focus',inspectorTitle:state==='focus'?'Research / Pricing / Pro at $24? · 12 connections':'Relations',caption:expanded?'Expanded cards stay inside their folders. Select, inspect, follow.':'38 cross-board relations in bundles · 10 internal · activate a board to expand'};
   }
 }
 </script>

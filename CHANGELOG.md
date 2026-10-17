@@ -28,6 +28,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Category and folder dialogs use compact themed controls, and unused categories can be deleted with inline confirmation.
 - Proximity rings have no distance caption and appear only when another card's center is within range.
 - Home Map groups boards in collapsible folders; Graph starts with counted board hubs that expand in place, with stable folder regions and Follow/Back through card relations.
+- Map and Graph relations share a height-adjustable bottom inspector with an internally scrolling list, separate from filters; resizing or collapsing it preserves selection and camera. Map keeps its existing board navigation and saved positions.
 - Map and Graph update as agents work without moving your camera or taking you out of the library.
 - Session receipts show stacked Before/After with changed words marked, one change open at a time, and whole-card Undo that skips cards whose latest edit is yours.
 - In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.
@@ -41,6 +42,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Home Graph names no longer cover relations with opaque label boxes, including on hover and selection.
+- Graph labels grow above 100% zoom without overlapping board counts, and Fit can include large libraries below the old 8% zoom limit.
 - Populated agent sessions fold the top bar before controls run offscreen, and retained receipts no longer cover the narrow session drawer.
 - Wiki links navigate from the expanded Markdown document as well as the card preview, and missing-board creation waits for the document save before binding the link.
 - Narrow Graph filters remain reachable beside retained Updates even when the toolbar wraps, and external activity no longer crowds the context summary offscreen.

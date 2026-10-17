@@ -1113,7 +1113,7 @@ test('narrow library filters remain reachable alongside retained Updates', async
   await page.keyboard.press('Escape');
   const updates = page.getByRole('button', { name: /Recent updates/i });
   await expect(updates).toBeVisible();
-  const filters = page.getByRole('button', { name: 'Filters & details', exact: true });
+  const filters = page.getByRole('button', { name: 'Filters', exact: true });
   const a = (await updates.boundingBox())!;
   const b = (await filters.boundingBox())!;
   expect(a.y >= b.y + b.height || b.y >= a.y + a.height || a.x >= b.x + b.width || b.x >= a.x + a.width).toBe(true);
@@ -1622,6 +1622,51 @@ test('Home Map persists human positions and Graph matches agent focus without op
   await expect(tile).toBeVisible();
   await expect.poll(mapOrigin).toEqual(saved);
   await tile.click();
+  const inspector = page.locator('.home-memory-inspector');
+  const details = page.getByRole('complementary', { name: 'Selection details' });
+  const resize = page.getByRole('separator', { name: 'Resize relation details' });
+  await expect(details.getByRole('button', { name: 'Remote Map evidence', exact: true })).toBeVisible();
+  const legend = (await page.getByLabel('Legend', { exact: true }).boundingBox())!;
+  expect((await inspector.boundingBox())!.y).toBeGreaterThanOrEqual(legend.y + legend.height);
+  expect((await inspector.boundingBox())!.width).toBeCloseTo(
+    (await page.getByRole('main', { name: 'Library Map' }).boundingBox())!.width,
+    0,
+  );
+  const camera = await page.locator('.home-memory-world').getAttribute('style');
+  const height = (await inspector.boundingBox())!.height;
+  const handle = (await resize.boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2 - 64, { steps: 8 });
+  await page.mouse.up();
+  expect((await inspector.boundingBox())!.height).toBeCloseTo(height + 64, 0);
+  await resize.press('ArrowDown');
+  await resize.press('ArrowDown');
+  expect((await inspector.boundingBox())!.height).toBeCloseTo(height, 0);
+  await page.getByRole('button', { name: 'Collapse details', exact: true }).click();
+  await expect(details.locator('li').first()).toBeHidden();
+  await expect(details.getByRole('button', { name: 'Open board', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand details', exact: true }).click();
+  await expect(page.locator('.home-memory-world')).toHaveAttribute('style', camera!);
+  expect(await mapOrigin()).toEqual(saved);
+  for (const width of [600, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width === 600) {
+      await page.getByRole('button', { name: 'Fit view', exact: true }).click();
+      await tile.click();
+      await expect(page.getByRole('button', { name: 'Filters', exact: true })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+    }
+    await expect(details.getByRole('button', { name: 'Remote Map evidence', exact: true })).toBeVisible();
+    const bounds = (await inspector.boundingBox())!;
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    expect((await page.locator('.home-memory-stage').boundingBox())!.height).toBeGreaterThanOrEqual(160);
+  }
+  await expect(page.locator('.home-memory-sidebar')).not.toContainText('Remote Map evidence');
+  expect((await boards(request)).activeBoardId).toBeNull();
+  await page.getByRole('button', { name: 'Fit view', exact: true }).click();
   await page.getByRole('button', { name: 'Reset position', exact: true }).click();
   await expect.poll(mapOrigin).toEqual(originalPosition);
   await page.route(`**/api/canvas/boards/${source.id}`, (route) =>
@@ -1788,10 +1833,41 @@ test('U1 expands stable folder slots and follows qualified evidence without open
   await expect(page.locator('.home-memory-counts')).toHaveText('28 exact · 16 bundled · 4 internal');
   expect(await anchors()).toEqual(initial);
   await expect(world).toHaveAttribute('style', camera!);
+  await expect(card('SMB survey').locator('strong')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await card('Pro at $24?').click();
+  await expect(card('Pro at $24?').locator('strong')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(card('Pro at $24?').locator('strong')).toHaveCSS('border-top-width', '0px');
   await expect(details.locator('li')).toHaveCount(12);
   await expect(details).toContainText('← contradicts');
   await expect(details).toContainText('→ cites');
+  // Relations belong below the graph, independent of the filter sidebar.
+  const inspector = page.locator('.home-memory-inspector');
+  const stage = page.locator('.home-memory-stage');
+  const legend = page.getByLabel('Legend', { exact: true });
+  await expect(inspector).toBeVisible();
+  expect((await inspector.boundingBox())!.y).toBeGreaterThanOrEqual(
+    (await legend.boundingBox())!.y + (await legend.boundingBox())!.height,
+  );
+  expect((await inspector.boundingBox())!.width).toBeCloseTo(
+    (await page.getByRole('main', { name: 'Library Graph' }).boundingBox())!.width,
+    0,
+  );
+  const resize = page.getByRole('separator', { name: 'Resize relation details' });
+  const beforeResize = (await inspector.boundingBox())!.height;
+  await resize.focus();
+  await resize.press('ArrowUp');
+  expect((await inspector.boundingBox())!.height).toBeGreaterThan(beforeResize);
+  await resize.press('ArrowDown');
+  expect((await inspector.boundingBox())!.height).toBeCloseTo(beforeResize, 0);
+  expect((await stage.boundingBox())!.height).toBeGreaterThanOrEqual(160);
+  expect(await anchors()).toEqual(initial);
+  await expect(world).toHaveAttribute('style', camera!);
+  await page.getByRole('button', { name: 'Collapse details', exact: true }).click();
+  await expect(details.locator('li').first()).toBeHidden();
+  await page.getByRole('button', { name: 'Expand details', exact: true }).click();
+  await expect(details.locator('li')).toHaveCount(12);
+  await expect(card('Pro at $24?')).toHaveAttribute('aria-pressed', 'true');
+  await expect(world).toHaveAttribute('style', camera!);
   // Six exact edges plus three two-relation card-to-hub bundles represent all 12 facts.
   await expect(page.locator('.memory-edge.edge-card.is-emphasized')).toHaveCount(9);
   expect(
@@ -1833,6 +1909,17 @@ test('U1 expands stable folder slots and follows qualified evidence without open
   expect(await anchors()).toEqual(initial);
   expect(mutations).toEqual([]);
   expect((await boards(request)).activeBoardId).toBeNull();
+
+  // Zooming past 100% must enlarge labels, not shrink their world font and
+  // overlap a board title with its card count.
+  const labelHeight = (await card('Pro at $24?').locator('strong').boundingBox())!.height;
+  for (let i = 0; i < 20 && Number.parseFloat(await page.locator('.home-memory-zoom > span').innerText()) < 200; i++)
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  expect((await card('Pro at $24?').locator('strong').boundingBox())!.height).toBeGreaterThan(labelHeight * 1.4);
+  const titleBox = (await hub('Pricing').locator('strong').boundingBox())!;
+  const countBox = (await hub('Pricing').locator('.home-memory-node-label > span').boundingBox())!;
+  expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(countBox.y);
+  await page.getByRole('button', { name: 'Fit view', exact: true }).click();
 
   // A shallow query must still follow a qualified endpoint omitted from its nodes.
   await card('Pro at $24?').click();
@@ -1882,6 +1969,35 @@ test('U1 expands stable folder slots and follows qualified evidence without open
     release();
     await page.unrouteAll({ behavior: 'wait' });
   }
+});
+
+test('Graph Fit keeps every hub reachable in a tall card-heavy library', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  for (const [name, folder, count] of [
+    ['Dense research', 'Research', 220],
+    ['Delivery', 'Planning', 1],
+    ['Scratchpad', 'Scratch', 1],
+  ] as const) {
+    const { board } = await (await request.post('/api/canvas/boards', { data: { name, folder } })).json();
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
+    for (let i = 0; i < count; i++) await note(request, `${name} card ${i + 1}`);
+  }
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await page.getByRole('button', { name: 'Graph', exact: true }).click();
+  await expect(page.locator('.home-memory-node.is-board')).toHaveCount(3);
+  for (let repeat = 0; repeat < 2; repeat++) {
+    await page.getByRole('button', { name: 'Fit view', exact: true }).click();
+    for (const name of ['Dense research', 'Delivery', 'Scratchpad'])
+      await expect(page.getByRole('button', { name: `board: ${name}`, exact: true })).toBeInViewport();
+  }
+  // One zoom-in after a deep Fit is incremental, not a jump back to the old 8% floor.
+  const world = page.locator('.home-memory-world');
+  const scale = () => world.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a);
+  const fitted = await scale();
+  expect(fitted).toBeLessThan(0.08);
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  expect(await scale()).toBeCloseTo(fitted * 1.2, 5);
 });
 
 test('a wiki card jump waits for a delayed target layout before focusing it', async ({ page, request }) => {
