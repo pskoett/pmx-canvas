@@ -65,6 +65,13 @@
       "x": 9120,
       "y": 4060
     },
+    "EmptyState.dc.html": {
+      "h": 690,
+      "title": "Empty board: start here or with your agent",
+      "w": 600,
+      "x": 0,
+      "y": 14420
+    },
     "Flows.dc.html": {
       "h": 1280,
       "title": "Lineage, evidence, open a group",

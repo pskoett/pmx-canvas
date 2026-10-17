@@ -174,14 +174,17 @@ describe('selection geometry', () => {
 });
 
 describe('empty state', () => {
-  test('offers ordinary starter actions with session beta off; New note creates the same blank note as M', async () => {
+  test('offers both ways to start with session beta off; Start a note creates the same blank note as M', async () => {
     const { getByText, getByTestId, queryByText } = render(<EmptyState onOpenPalette={() => {}} />);
-    expect(getByTestId('empty-state').textContent).toContain('Nothing on this board yet');
-    for (const label of ['New markdown note', 'Drop files', 'Paste a link']) {
+    expect(getByTestId('empty-state').textContent).toContain('What would you like to work on?');
+    for (const label of ['Drop files here', 'Paste a link', 'Start a note']) {
       expect(getByText(label)).toBeTruthy();
     }
+    expect(getByText('Write down an idea, then ask your agent to help you develop it.')).toBeTruthy();
+    expect(getByText('Or start with your agent')).toBeTruthy();
+    expect(getByText('Give your agent a task and ask it to work on this board.')).toBeTruthy();
     expect(queryByText('Start agent session')).toBeNull();
-    fireEvent.click(getByText('New markdown note'));
+    fireEvent.click(getByText('Start a note'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     const create = calls.find((call) => call.url === '/api/canvas/node');
     expect(create?.init?.method).toBe('POST');
@@ -191,6 +194,7 @@ describe('empty state', () => {
   test('Start agent session attaches a browser-keyed session', async () => {
     workspaceSettings.value = { agentSessions: true, knowledgeLifecycle: false };
     const { getByText } = render(<EmptyState onOpenPalette={() => {}} />);
+    expect(getByText('Give your agent a task and ask it to work on this board.')).toBeTruthy();
     fireEvent.click(getByText('Start agent session'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     const attach = calls.find((call) => call.url === '/api/canvas/ax/presence');

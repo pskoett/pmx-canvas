@@ -213,7 +213,7 @@ class Component extends DCLogic {
       setting('Minimap', 'On', 'Show or hide the board overview.'),
       setting('Keyboard shortcuts', '?', 'See the available keyboard commands.'), msep,
       optIn('Agent sessions', 'Show session tools for this workspace. Off hides the tools, not attached agents or their protections.', true),
-      optIn('Knowledge lifecycle', 'Show Review, policies, categories and lifecycle marks. Off retains saved records and suspends drafts; retired context stays excluded.'), msep,
+      optIn('Knowledge lifecycle', 'This turns on context lifecycle, where boards and cards decay over time as their relevance fades. Includes Review, review policies, categories, and due or retired indicators. Turning off hides lifecycle tools without deleting their data or drafts. Saved for this workspace.'), msep,
       optIn('Trace', 'Show execution traces. Turning off keeps existing traces and never starts an agent.', false, false),
       setting('Send feedback', '', 'Share feedback about PMX Canvas.')
     ];

@@ -564,7 +564,7 @@ export function ToolRail({
                 beta
                 checked={knowledgeLifecycleEnabled.value}
                 disabled={!workspaceSettings.value || savingSettings}
-                description="Show Review, review policies, categories, and due or retired indicators. Turning off hides lifecycle tools without deleting their data or drafts. Saved for this workspace."
+                description="This turns on context lifecycle, where boards and cards decay over time as their relevance fades. Includes Review, review policies, categories, and due or retired indicators. Turning off hides lifecycle tools without deleting their data or drafts. Saved for this workspace."
                 onClick={() => void setBeta('knowledgeLifecycle')}
               />
               {settingsError && (

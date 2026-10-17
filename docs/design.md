@@ -120,6 +120,7 @@ the same change.
 | [`TokenSystem.dc.html`](design/TokenSystem.dc.html) | The token system today vs proposed: palette, meaning, scale | 0 |
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
 | [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), section headings, floating chrome | 0 |
+| [`EmptyState.dc.html`](design/EmptyState.dc.html) | Empty board: Drop files here, Paste a link, Start a note with collaboration guidance, then a separate agent-first path | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
 | [`NearPin.dc.html`](design/NearPin.dc.html) | Near a pin: the dotted “near” chip on a pinned node's unpinned neighbours, tethers on hover, the moment of change, combinations, 600 px; ships with the brief carrying neighbours (title + summary, reason “near <pin>”) | 1 |
 | [`ContextChip.dc.html`](design/ContextChip.dc.html), [`ContextChip600.dc.html`](design/ContextChip600.dc.html) | The one context chip (decided with the maintainer 2026-10-07: placement, near muted, quiet empty state, agent-pin dots, “N in context” at 600 px): top bar, right, replacing the floating ContextPinBar and the ContextBudget meter; at rest for cards, near, boards, agent-only pins, nothing pinned; opened into Cards (full, × unpin, clear all), Near (derived, title + summary, no ×, Pin to promote) and Boards (read state, × unpin). **A pinned board travels as a map** (decided 2026-10-07): folder, README summary, each pinned card's title + summary, links and backlinks; the agent pulls a card or board in full itself, so the chip shows no full / summary / not-sent state. **A cost, not a budget** (decided with the maintainer 2026-10-08): the chip shows what the brief costs as ≈ tokens, with no meter, share or clipped state; when the host reports its agent's token usage the panel names that count too (“Copilot’s whole context holds 42.8k tokens”). The brief's size limit stays internal as a page size. At rest it is the summary, always visible and right-aligned in the top bar at every width; the details open only on click. At ≤ 760 px the summary is “N in context” with no token text, and the bar gives way in this order: session id and counts; Export, Present, zoom and fit fold into ⋯; agent chip to its avatar, Start agent session to its icon; the board name truncates — the dot, board pin, summary and ⋯ never collapse. Harbor and Daylight, 600 px. Supersedes the chip wording on Context, NearPin and BoardPins | 1 (slices 4b, 5b) |
@@ -144,6 +145,15 @@ the same change.
 | [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
+**Empty-board onboarding (owner decision, 2026-10-17).** Keep both starting paths visible:
+Drop files here, Paste a link, and Start a note, each with a short explanation. The note
+invites the person to ask their agent to help develop the idea. A separate “Or start with
+your agent” section says “Give your agent a task and ask it to work on this board.” This is
+guidance, not an agent-launch button, and remains visible with Agent sessions (Beta) off.
+With the beta on, the existing Start agent session action sits below that guidance.
+The existing panel, type and colour tokens stay; actions form one readable column, and
+short windows scroll the guide rather than cutting off either starting path.
+
 **Workspace UI opt-ins (owner decision, 2026-10-16).** Main rail **Settings** contains
 **Agent sessions (Beta)** and **Knowledge lifecycle (Beta)**, each with a small switch,
 both **OFF by default**. These preferences persist workspace-wide across reloads and
@@ -155,6 +165,8 @@ Every main Settings item (including existing actions and both opt-ins) has an ex
 nonnative tooltip on pointer hover and keyboard focus. Tooltips render outside the scrolling
 menu in an overlay, stay within the viewport, and do not clip at the menu boundary. Do not
 use native `title` tooltips; associate the explanation with its control for assistive technology.
+The lifecycle explanation leads with context lifecycle and boards/cards decaying as their
+relevance fades, before naming its tools and explaining that turning it off preserves data.
 Keep the menu scrollable in short windows and all items keyboard-reachable. Saving a switch
 uses `aria-disabled` with an action guard, not native disabling that drops keyboard focus;
 the focused switch announces its new state, and board shortcuts never own menu keys.

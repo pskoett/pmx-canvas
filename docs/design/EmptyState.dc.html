@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Empty board: start here or with your agent</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0}
+.empty-board-drawing{width:600px;height:690px;box-sizing:border-box;padding:48px;background:#081524;color:#e6eef7;font:13px/1.5 'IBM Plex Sans',system-ui,sans-serif;display:flex;align-items:center;justify-content:center}
+.empty-board-guide{width:560px;max-width:100%;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.empty-board-guide h2{margin:0;font-size:20px;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+.empty-board-guide .actions{display:grid;gap:10px;width:100%}
+.empty-board-guide button{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;box-sizing:border-box;border:1px solid #1b2c44;border-radius:10px;background:#0f1d31;color:#b9c6d6;font:inherit;text-align:left}
+.empty-board-guide .copy{flex:1;font-size:12px;font-weight:600}
+.empty-board-guide .description{display:block;margin-top:4px;color:#8ea3bd;font-size:12px;font-weight:400}
+.empty-board-guide kbd,.empty-board-guide .hint{color:#6b7d94;font:10px 'IBM Plex Mono',monospace}
+.empty-board-guide .agent{width:100%;padding-top:16px;border-top:1px solid #1b2c44}
+.empty-board-guide h3{margin:0;font-size:12px;font-weight:600;color:#b9c6d6}
+.empty-board-guide p{margin:6px 0 0;font-size:12.5px;color:#8ea3bd}
+</style></helmet>
+<div class="empty-board-drawing">
+  <div class="empty-board-guide">
+    <svg width="52" height="52" viewBox="0 0 64 64" fill="none" stroke-width="2.5" aria-hidden="true"><rect x="8" y="8" width="48" height="48" rx="7" stroke="#1b2c44"/><rect x="20" y="20" width="24" height="24" rx="4" stroke="#2a4566" stroke-dasharray="4 4"/></svg>
+    <h2>What would you like to work on?</h2>
+    <div class="actions">
+      <button><span aria-hidden="true">↑</span><span class="copy">Drop files here<span class="description">Bring in the material you want to work with.</span></span><span class="hint">or pick</span></button>
+      <button><span aria-hidden="true">▱</span><span class="copy">Paste a link<span class="description">Add a source, reference, or inspiration.</span></span><kbd>⌘V</kbd></button>
+      <button><span aria-hidden="true">▤</span><span class="copy">Start a note<span class="description">Write down an idea, then ask your agent to help you develop it.</span></span><kbd>M</kbd></button>
+    </div>
+    <div class="agent">
+      <h3>Or start with your agent</h3>
+      <p>Give your agent a task and ask it to work on this board.</p>
+    </div>
+    <span class="hint">? shortcuts · ⌘K palette</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":690}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>
