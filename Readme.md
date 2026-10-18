@@ -1,20 +1,26 @@
 # pmx-canvas
 
-PMX Canvas is a shared visual workspace for you and your AI agents. You both
-add and edit material on the same board, in real time. Keep research, files,
-charts, diagrams, and interactive views together as you think, plan, and work.
+PMX Canvas is a shared board where you and your AI agents collect and present
+the data and evidence behind your work. Curate that material into context for
+your agent's next step, then bring the results back onto the board to review
+and build on. You both add and edit material on the same board, in real time.
 
-## Your extended memory
+## Collect evidence. Curate context. Move work forward.
 
-When work is spread across chats and files, you keep explaining the same
-background and piecing together earlier decisions. The board is your extended
-memory and your agent's working memory. Keep what you've learned, connect it
-to its sources, and return to it in the next session.
+Real work needs evidence: research, files, data, charts, diagrams, decisions.
+When that's scattered across chats and files, you keep re-explaining the
+background and your agent works from whatever it happens to see.
 
-You choose what goes into the agent's context by pinning cards and boards.
-See what the agent has read, what has changed since, and what it added or
-edited. Boards save locally and link to one another, so you can build a
-library of knowledge alongside your ongoing work.
+On a PMX board, you and your agent put that material in one place, side by
+side. Then you curate it:
+
+- **Pin cards and boards** to choose the material you want your agent to use.
+- **Link conclusions to their sources**, so evidence stays connected.
+- **See what the agent has read**, what changed since, and what it added or edited.
+
+Ask your agent to put its findings back on the board as new material to
+review, present, and build on. Boards save locally and link to one another,
+so the evidence for your work keeps building up across sessions.
 
 ![Harbor dark theme: a fictional bicycle-library board with research, charts, interactive views, files, and labeled relationships](docs/screenshots/workbench-live-dark.png)
 
