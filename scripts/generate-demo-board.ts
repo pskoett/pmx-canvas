@@ -1814,6 +1814,7 @@ interface ExportedNode {
   id: string;
   type: string;
   contentChangedAt?: string;
+  freshnessStartedAt?: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
   data: Record<string, unknown>;
@@ -1979,6 +1980,7 @@ async function exportFixture(outputPath: string, workspace: string): Promise<{ n
     return {
       ...raw,
       ...(raw.contentChangedAt ? { contentChangedAt: FIXTURE_TIMESTAMP } : {}),
+      ...(raw.freshnessStartedAt ? { freshnessStartedAt: FIXTURE_TIMESTAMP } : {}),
       data: normalizeNodeData(raw.data),
     };
   });

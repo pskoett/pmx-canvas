@@ -637,6 +637,16 @@
             ],
             "description": "Operation to perform: add | get | update | remove | lifecycle-get | lifecycle-set | review | lifecycle-restore."
           },
+          "destinationBoardId": {
+            "description": "Create a static node on this board without opening it. expectedBoardId still guards the ACTIVE board.",
+            "type": "string",
+            "minLength": 1
+          },
+          "requestId": {
+            "description": "Persistent logical creation identity. Reuse only for retries with identical input and destination; new identical content needs a new id. Static types only.",
+            "type": "string",
+            "minLength": 1
+          },
           "intentId": {
             "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
             "type": "string"

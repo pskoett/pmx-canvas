@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { type ActorAttribution } from './attribution.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
+import type { CanvasNodeState } from './canvas-state.js';
 import { type RelationPreset } from '../shared/relations.js';
 import { type KnowledgeCategory, type Lifecycle } from '../shared/knowledge-lifecycle.js';
 export { categorySchema, lifecycleSchema, type KnowledgeCategory, type Lifecycle, } from '../shared/knowledge-lifecycle.js';
@@ -140,6 +141,32 @@ export declare class KnowledgeLifecycle {
     removeCategory(id: string): string;
     setFolder(value: FolderProperties): FolderProperties;
     resolve(folderPath: string | null, override?: Lifecycle | null, catalog?: {
+        categories: KnowledgeCategory[];
+        folders: FolderProperties[];
+        relationPresets: RelationPreset[];
+    }): {
+        category: {
+            decayType: "reality" | "decision" | "dependency" | "relevance";
+            rate: "fast" | "medium" | "slow" | "durable";
+            triggers: string[];
+            revalidationMethod: string;
+            id: string;
+            name: string;
+            glyph: string;
+            cadenceDays?: number | undefined;
+        } | null;
+        categorySourceFolder: string | null;
+        lifecycle: {
+            decayType: "reality" | "decision" | "dependency" | "relevance";
+            rate: "fast" | "medium" | "slow" | "durable";
+            triggers: string[];
+            revalidationMethod: string;
+            cadenceDays?: number | undefined;
+        } | null;
+        lifecycleSourceFolder: string | null;
+        lifecycleSource: "unknown" | "card" | "folder";
+    };
+    resolveCard(folderPath: string | null, node: Pick<CanvasNodeState, 'type' | 'data'>, catalog?: {
         categories: KnowledgeCategory[];
         folders: FolderProperties[];
         relationPresets: RelationPreset[];

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, test } from 'bun:test';
+import { normalizeCanvasNodeData } from '../../src/server/canvas-provenance.ts';
 import {
   serializeCanvasLayoutForAgent,
   serializeCanvasNode,
@@ -23,6 +24,61 @@ function expectExternalMcpAppHtmlSummary(value: unknown, html: string, resourceU
 }
 
 describe('canvas node provenance', () => {
+  const explicitProvenance = {
+    sourceKind: 'recipe',
+    sourceUri: 'recipe://plan',
+    refreshStrategy: 'agent-request',
+  };
+
+  test('rejects malformed explicit provenance even when source data permits inference', () => {
+    const invalidValues: unknown[] = [
+      null,
+      [],
+      'recipe',
+      {},
+      ...Object.keys(explicitProvenance).flatMap((key) => {
+        const incomplete: Record<string, unknown> = { ...explicitProvenance };
+        delete incomplete[key];
+        return [incomplete, { ...explicitProvenance, [key]: ' ' }, { ...explicitProvenance, [key]: 42 }];
+      }),
+      { ...explicitProvenance, sourceKind: 'unknown' },
+      { ...explicitProvenance, refreshStrategy: 'unknown' },
+      { ...explicitProvenance, snapshotContent: 'false' },
+      { ...explicitProvenance, syncedAt: 42 },
+      { ...explicitProvenance, details: [] },
+      { ...explicitProvenance, sources: [{ boardId: 'board' }] },
+      { ...explicitProvenance, recipe: { tool: 'tool' } },
+    ];
+    for (const provenance of invalidValues) {
+      for (const type of ['status', 'file'] as const) {
+        expect(() => normalizeCanvasNodeData(type, { path: '/tmp/plan.md', provenance })).toThrow(/provenance/);
+      }
+    }
+  });
+
+  test('preserves absent provenance inference and valid explicit controls', () => {
+    expect(normalizeCanvasNodeData('status', { title: 'Plain' })).toEqual({ title: 'Plain' });
+    expect(normalizeCanvasNodeData('file', { path: '/tmp/plan.md' })).toMatchObject({
+      provenance: { sourceKind: 'workspace-file', refreshStrategy: 'file-watch' },
+    });
+    const provenance = {
+      ...explicitProvenance,
+      sourceUri: ' recipe://plan ',
+      snapshotContent: false,
+      syncedAt: '2026-04-22T09:00:00.000Z',
+      sources: [{ boardId: 'board', cardId: 'card' }],
+      recipe: { tool: 'planner', prompt: 'Plan' },
+      details: { label: 'Keep me' },
+    };
+    expect(normalizeCanvasNodeData('status', { provenance }).provenance).toEqual({
+      ...provenance,
+      sourceUri: 'recipe://plan',
+    });
+    expect(normalizeCanvasNodeData('status', { provenance: explicitProvenance }).provenance).toMatchObject({
+      snapshotContent: true,
+    });
+  });
+
   test('serializes normalized provenance for source-backed nodes', () => {
     const filePath = '/tmp/plan.md';
     const artifactPath = '/tmp/artifacts/dashboard.html';

@@ -116,7 +116,7 @@ export declare function updateBoardInDB(db: Database, id: string, patch: {
 /** Create and populate an inactive board as one SQLite transaction. */
 export declare function createBoardWithStateInDB(db: Database, name: string, folder: string | null, state: PersistedCanvasState, readmeNodeId: string | null, invalidateTarget?: (boardId: string, nodeId: string) => void): CanvasBoard;
 /** Derived incoming-link metadata only: the target owns its clock and its body. */
-export declare function invalidateLinksInDB(db: Database, boardId: string, nodeId: string): void;
+export declare function invalidateLinksInDB(db: Database, boardId: string, nodeId: string): number | undefined;
 /** A target's appearance/disappearance changes its incoming saved relations on source cards. */
 export declare function invalidateIncomingLinksInDB(db: Database, boardId: string, nodeId: string | null, invalidate: (boardId: string, nodeId: string) => void): void;
 /** Deletes a board with its rows and its snapshots. */

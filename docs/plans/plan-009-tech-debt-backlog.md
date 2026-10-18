@@ -159,15 +159,18 @@ healthy enough for staged vision work with these constraints, not debt-free or f
 in native hosts. The reported Amp embedded-portal context-pill opening failure is still
 unverified and distinct from the fixed pin count.
 
-## Private wiki-import reports (2026-10-18, pending candidate reproduction)
+## Private wiki-import findings (2026-10-18, locally fixed and retested)
 
 Source: [private import-test handoff](https://ampcode.com/threads/T-01a14f43-f513-7397-8ec4-f6a85551dff0).
 Reported environment: PMX Canvas 0.8.2 at
 [`92c2930`](https://github.com/pskoett/pmx-canvas/commit/92c293029e98a5fc1c04f43821470eb35fe500c6),
-Bun 1.4.2, headed Chromium in a Linux orb. These reports are kept separate, not confirmed
-reproductions on the newer Graph candidate and not presumed duplicates of existing findings.
-No product fix is claimed here. The source thread's skill changes, database and
-source files have not been imported into this checkout.
+Bun 1.4.2, headed Chromium in a Linux orb. Synthetic MCP reproductions subsequently
+confirmed the findings. Local fixes build on the pushed Graph candidate
+[`150aeba`](https://github.com/pskoett/pmx-canvas/commit/150aebad08c03909a0170660d12bd33f558735a9).
+After-fix checks use the official SDK Client and StdioClientTransport attached to a
+disposable source daemon, plus headed Chromium for rendered effects. This is not a
+native-host or published-package claim. The source database and private documents
+were not imported; the owner's running workbench was not changed.
 
 Private evidence remains in the source thread's workspace: `wiki-load-before.json`,
 `wiki-load-after.json`, `wiki-backlog-cards.png` and `wiki-linkedin-cards.png` under
@@ -177,7 +180,15 @@ work; use synthetic fixtures or redaction for any public reproduction or report.
 
 ### WI-01, high: embedded base64 Markdown images make parsing and board loading slow
 
-**Status:** reported with source-thread isolation evidence; candidate reproduction pending.
+**Status:** locally fixed and retested with identical inline image content, not a data conversion.
+Marked's long destination and unmatched setext scans caused the reproduced parser cost.
+The wiki parser now avoids those scans while preserving reference and rendered-image output.
+Controlled 1,106,157-character parser runs changed from 1245–1503 ms to 17–31 ms;
+the short-reference control changed from 7–10 ms to 3–4 ms. These synthetic parser
+measurements are not end-to-end load or universal speedup claims. MCP-created inline
+and file-reference boards both render and decode the same SHA-256-checked 800×600 image.
+Payload duplication, offscreen render requests and full-layout SSE remain possible
+amplifiers, not solved or independently established causes of all loading outliers.
 
 The source test measured board-open request through ready card bodies and loaded pictures
 (including natural image dimensions), not just HTTP response time. Each cell lists three
@@ -207,15 +218,15 @@ Reported amplifiers to inspect at reproduction: `src/server/wiki-links.ts`;
 offscreen cards; and full-layout SSE payloads. These are investigation leads from the tested
 revision, not independently verified causes on the candidate.
 
-**Next:** use synthetic long Markdown with several large base64 PNGs and an equivalent
-short-reference control. Repeatedly measure actual rendered-content readiness, image natural
-dimensions, parser results and payload sizes under stated cache/connection conditions. Keep
-the text-only control and verify reference/image preservation before choosing a product fix.
+**Next:** measure remaining payload/paint costs separately if large real boards still stall.
+Retain reference/image-preservation checks before changing parser or transport behavior again.
 
 ### WI-02, medium: relative image creation ignores the configured workspace root
 
-**Status:** source thread confirmed path-resolution mismatch on the tested revision;
-candidate reproduction pending.
+**Status:** locally fixed and retested through MCP. Relative paths now resolve against
+the configured workspace root. A daemon launched outside that root creates the synthetic
+relative-path image successfully, and served bytes match the original hash. The serving
+route's realpath confinement is unchanged.
 
 Launch from directory A with `PMX_CANVAS_WORKSPACE_ROOT=B`, with a valid picture at
 `B/wiki/assets/diagram.png`. `POST /api/canvas/node` with
@@ -227,22 +238,25 @@ The source investigation identified `buildImageNodeData` in
 `src/server/canvas-operations.ts` using `resolve(src)`, unlike file-node creation's
 `resolve(canvasState.getWorkspaceRoot(), rawPath)`.
 
-**Next:** reproduce with separate launch/workspace directories and a synthetic image, using
-the absolute path as control. Any resolution fix must preserve `handleCanvasImage` realpath
-confinement; do not weaken the file-serving boundary to make relative creation succeed.
+**Guardrail:** keep separate launch/workspace coverage and realpath confinement; relative
+creation must not weaken the file-serving boundary.
 
 ### WI-03, low: review/lifecycle badge protrudes beside grouped cards
 
-**Status:** visual observation only; cause and candidate behavior unverified.
+**Status:** locally fixed and visually retested independently of freshness noise removal.
+The group's sole body child was stretched by the content flex rule. Its footer now lives
+in the bottom frame chrome. A deliberately due, zero-review group has a 22.44 CSS px footer
+at 68% zoom, versus 259.76 px in the source reproduction. All 36 width/theme cases hit-test
+the footer, and a real pointer click opens that group's Review drawer. Fresh children stay
+unmarked. This does not resolve or identify the separately reported Updates badge.
 
 With Knowledge lifecycle enabled, a dense group at 68% zoom showed a partly obscured amber
 review badge beside a middle-left card; a similar artifact appeared on another board.
 Capture conditions were 1600 × 1100 CSS pixels, DPR 2. All nine cards in the dense group fit
 and rendered. This is not established as the separately reported floating Updates badge.
 
-**Next:** reproduce with synthetic grouped cards and lifecycle enabled at the recorded zoom
-and viewport, then inspect badge/node bounds and clipping before assigning a cause or merging
-the report with another issue.
+**Guardrail:** test explicit group due/source warnings as well as fresh content, so removing
+inherited policy noise cannot conceal a broken badge layout.
 
 **Not counted as product bugs:** source-draft chronology, poor initial import board
 granularity, and unescaped wiki-alias pipes in Markdown tables. An unescaped table alias can
@@ -254,7 +268,9 @@ It has not been integrated into this checkout.
 
 ### WI-04, priority pending: incomplete provenance is silently discarded on node creation
 
-**Status:** reported API validation/feedback defect on 0.8.2; candidate reproduction pending.
+**Status:** locally fixed and retested through MCP. Explicit incomplete/invalid provenance
+is rejected with field-specific errors; valid source dependencies survive readback. Omitted
+provenance still uses normal inference for sourced node types.
 
 The source test submitted `data.provenance` with `sourceKind:'agent'`,
 `snapshotContent:true`, `sources:[{boardId,cardId,contentRevision,availability:'cached'}]`
@@ -267,19 +283,73 @@ The source investigation points to `normalizeExistingProvenance` in
 `src/server/canvas-provenance.ts` returning null for missing required fields, after which
 the ensure path deletes provenance. The data-only repair supplied `sourceKind:'recipe'`,
 `sourceUri` and `refreshStrategy:'agent-request'`; the source thread verified all 20 repaired
-cards, 54 source references/revisions and persistence after restart. No product fix is claimed.
+cards, 54 source references/revisions and persistence after restart. That repair was data-only.
 
-**Next:** reproduce with synthetic source/derived cards and incomplete provenance. Check both
-the POST response and persisted GET result. Consider rejecting malformed provenance with
-required-field errors instead of silently accepting then deleting it; retain a valid-payload
-control before choosing a boundary change.
+**Guardrail:** keep the rejected incomplete payload and valid source-preservation control.
 
 ### WI-05, usability: short library queries rank picture filenames above content
 
-**Status:** source-thread search-relevance observation, not an established correctness defect;
-priority and candidate behavior unverified.
+**Status:** locally improved and retested through MCP. Exact and whole-term match tiers
+precede embedded substrings; field weights only break ties within a tier. `V2 platform`
+ranks above `TV2 pictures` for `V2`, while the latter remains discoverable. Search scope,
+filters and stable tie ordering are covered by regression tests.
 
 A short query ranked picture filenames containing the token ahead of the intended platform
 content. No private content is needed to investigate this. Use synthetic titles, body content
 and overlapping filename tokens to assess relevance; establish the intended ranking before
 calling matching results incorrect.
+
+### WI-06, product requirement: schedule new content's first review by type and decay
+
+**Status:** locally implemented and retested through MCP and browser. New authored content
+starts fresh without a review record. Medium first expires at creation plus cadence;
+Fast/Slow at a later use/resumed session. Imports and existing undated content gain no
+synthetic freshness. Edits preserve the baseline. Group/portal nodes skip inherited factual
+decay unless explicitly assigned a card override; source/dependency warnings still apply.
+
+The source inspection used local and remote `main` at
+[`676fd1d`](https://github.com/pskoett/pmx-canvas/commit/676fd1d37727e0e4cc8d393b450500ef658ac052).
+A new work overview inherited a fast category policy and returned `records:[]`,
+`lastValidation:null`, `unknown:false`, `due:true`, with reason "Fast: check at use."
+A new planning overview inherited medium/90 days and reported
+"Review every 90 days; never validated." The snapshot contained 258 review-queue items,
+including group frames. The importing agent assigned the broad policy, amplifying the noise;
+this is not a measurement of the current candidate's queue.
+
+The source investigation reports that `src/server/lifecycle-status.ts` evaluates all node
+types: medium cadence treats `checked === null` as immediately due, while fast cadence
+requires current-session validation on the active board. `LifecycleChrome.tsx` presents both
+as the same amber review-due badge. Null per-card lifecycle inherits policy, rather than
+opting out. Source log: `ERR-20261018-005`, pattern `canvas.review_policy_import_noise`.
+
+**Required behavior, superseding the earlier emphasis on badge distinctions:** newly authored
+content must not enter the review queue solely because it has no validation record. Schedule
+its first review later according to its effective content type/decay policy, including the
+new work overview. Relabeling an immediate warning alone does not satisfy this requirement.
+Freshness and evidence validation remain distinct; creation does not establish validation.
+Imported historical content and edit-reset semantics need separate treatment, not a blanket
+reset that treats every import or edit as freshly established evidence.
+
+**Guardrail:** server-owned initial freshness is persisted independently of validation.
+Tests cover cadence boundaries, inherited policies, later sessions, imports, edits,
+undo/redo and snapshot restore. Historical text creation must declare
+`data.contentOrigin: "imported"`; origin is immutable. Do not fabricate review records or
+blanket-reclassify facts as durable. This remains separate from WI-03's layout fix.
+
+### WI-07, capability: create on an inactive board without switching the human's board
+
+**Status:** locally implemented and MCP-retested for static node creation. `destinationBoardId`
+selects the stored destination; `expectedBoardId` remains an active-board guard. The singleton
+commits without temporarily opening the destination, altering active undo or creating ghosts.
+Both boards' scope fences are conservatively enforced. Runtime-backed nodes, generated
+primitives, intents and membership mutations are explicitly unsupported, as are inactive
+updates/removals. These are documented boundaries, not silent fallback paths.
+
+### WI-08, retry safety: distinguish retries from intentional identical creations
+
+**Status:** locally implemented and MCP-retested. Optional `requestId` persists an atomic
+creation receipt with the node. Same input/destination replays the original receipt; mismatched
+reuse conflicts. New ids preserve intentional identical creations. Regression tests exercise
+restart, removal, rollback at receipt failure, endpoint clocks and named batch references.
+Receipts survive individual node deletion but are deleted with the owning board. Existing
+named batch edge/group references already worked and remain a passing control.

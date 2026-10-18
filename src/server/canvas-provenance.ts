@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { normalizeHtmlNodeSemanticData } from './html-node-summary.js';
+import { OperationError } from './operations/types.js';
 
 export type CanvasNodeType =
   | 'markdown'
@@ -83,39 +84,40 @@ function buildMcpToolUri(serverName: string, toolName: string): string {
   return `mcp-tool://${encodeURIComponent(serverName)}/${encodeURIComponent(toolName)}`;
 }
 
+const provenanceSchema = z.object({
+  sourceKind: z.enum(['workspace-file', 'webpage-url', 'mcp-tool', 'artifact-file', 'image-url', 'recipe']),
+  sourceUri: z.string().trim().min(1),
+  refreshStrategy: z.enum([
+    'file-watch',
+    'file-read-write',
+    'image-reload',
+    'webpage-refresh',
+    'mcp-app-rehydrate',
+    'artifact-reopen',
+    'agent-request',
+  ]),
+  snapshotContent: z.boolean().default(true),
+  syncedAt: z.string().trim().min(1).optional(),
+  sources: z
+    .array(observedSourceSchema)
+    .max(100)
+    .refine(
+      (sources) =>
+        new Set(sources.map((source) => JSON.stringify([source.boardId, source.cardId]))).size === sources.length,
+      'Source targets must be unique',
+    )
+    .optional(),
+  recipe: recipeSchema.optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+
 function normalizeExistingProvenance(value: unknown): CanvasNodeProvenance | null {
-  if (!isRecord(value)) return null;
-
-  const sourceKind = pickString(value.sourceKind);
-  const sourceUri = pickString(value.sourceUri);
-  const refreshStrategy = pickString(value.refreshStrategy);
-  if (!sourceKind || !sourceUri || !refreshStrategy) return null;
-
-  const normalized: CanvasNodeProvenance = {
-    sourceKind: sourceKind as CanvasNodeProvenanceSourceKind,
-    sourceUri,
-    refreshStrategy: refreshStrategy as CanvasNodeRefreshStrategy,
-    snapshotContent: value.snapshotContent !== false,
-  };
-
-  const syncedAt = pickString(value.syncedAt);
-  if (syncedAt) normalized.syncedAt = syncedAt;
-  if (value.sources !== undefined)
-    normalized.sources = z
-      .array(observedSourceSchema)
-      .max(100)
-      .refine(
-        (sources) =>
-          new Set(sources.map((source) => JSON.stringify([source.boardId, source.cardId]))).size === sources.length,
-        'Source targets must be unique',
-      )
-      .parse(value.sources);
-  if (value.recipe !== undefined) normalized.recipe = recipeSchema.parse(value.recipe);
-  if (isRecord(value.details) && Object.keys(value.details).length > 0) {
-    normalized.details = { ...value.details };
+  if (value === undefined) return null;
+  const result = z.object({ provenance: provenanceSchema }).safeParse({ provenance: value });
+  if (!result.success) {
+    throw new OperationError(`Invalid node data: ${z.prettifyError(result.error)}`);
   }
-
-  return normalized;
+  return result.data.provenance;
 }
 
 function mergeProvenance(

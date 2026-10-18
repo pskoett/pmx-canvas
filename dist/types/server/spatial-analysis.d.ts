@@ -82,6 +82,8 @@ export declare function detectClusters(nodes: CanvasNodeState[], proximityThresh
  * The inclusive distance limit is in world pixels, independent of card size.
  */
 export declare function findNeighborhoods(nodes: CanvasNodeState[], pinnedIds: Set<string>, maxNeighbors?: number, maxDistance?: number): SpatialContext['pinnedNeighborhoods'];
+/** Shared lexical relevance for cards and library metadata. Scores are ranking details. */
+export declare function searchRelevance(title: string, fields: Array<[string, number]>, query: string): number;
 /**
  * Full-text search across node titles and content.
  * Returns matching nodes with relevance score.

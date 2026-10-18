@@ -24,11 +24,31 @@ const escapeHtml = (text: string) =>
       })[c]!,
   );
 
+// Same language as Marked 15's blockSkip, with ordinary destination characters
+// consumed in runs instead of one regex iteration per byte of an inline image.
+const blockSkip = /\[[^[\]]*?\]\([^\\()]*(?:\\.[^\\()]*|\([^\\()]*(?:\\.[^\\()]*)*\)[^\\()]*)*\)|`[^`]*?`|<[^<>]*?>/g;
+
 /** Marked's inline tokenizer keeps wiki syntax out of code spans/fences and HTML attributes. */
 function parser(render: (token: WikiToken) => string): Marked {
   return new Marked(
     { gfm: true, breaks: true },
     {
+      tokenizer: {
+        space() {
+          // Lexer installs rules after constructing the tokenizer. Copy rather
+          // than mutating shared rules, before it queues inline parsing.
+          this.rules.inline = { ...this.rules.inline, blockSkip };
+          return false;
+        },
+        lheading(src) {
+          // Setext headings cannot cross a blank line. Avoid Marked 15's costly
+          // unmatched long-line regex unless a possible underline is present.
+          const blank = /\n\s*?\n/.exec(src);
+          const paragraph = blank ? src.slice(0, blank.index + 1) : src;
+          if (!/\n {0,3}(?:=+|-+) *(?:\n|$)/.test(paragraph)) return undefined;
+          return false;
+        },
+      },
       extensions: [
         {
           name: 'wiki',

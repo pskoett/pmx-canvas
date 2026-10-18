@@ -434,6 +434,7 @@ test('Home is navigation first even with a long agent README and repeated links'
     type: 'markdown',
     title: 'Review this value',
     content: 'The measured value is 37.',
+    data: { contentOrigin: 'imported' },
     x: 1200,
     y: 300,
   });

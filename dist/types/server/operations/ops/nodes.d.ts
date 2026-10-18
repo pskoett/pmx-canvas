@@ -35,6 +35,7 @@ export declare function createdNodePayloadFromNode(node: CanvasNodeState, option
  */
 export declare function createBasicCanvasNode(body: Record<string, unknown>, options: {
     fileMode: 'auto' | 'path';
+    prepareOnlyNodes?: CanvasNodeState[];
 }): {
     node: CanvasNodeState;
     needsCodeGraphRecompute: boolean;
@@ -57,4 +58,6 @@ export declare function buildNodePatch(existing: CanvasNodeState, body: Record<s
 export declare function removeNodeCore(id: string): {
     needsCodeGraphRecompute: boolean;
 };
+/** Explicit creation identity is opt-in, not content-based deduplication. */
+export declare function createDestinationNode(body: Record<string, unknown>): CanvasNodeState;
 export declare const nodeOperations: Operation[];

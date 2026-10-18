@@ -320,6 +320,19 @@ describe('image node validation', () => {
     }
   });
 
+  test('resolves relative images against the workspace instead of the launch cwd', () => {
+    expect(workspaceRoot).not.toBe(process.cwd());
+    const imagePath = join(workspaceRoot, 'workspace-image.png');
+    writeFileSync(imagePath, imageFixtures.png);
+    for (const content of ['workspace-image.png', './workspace-image.png', imagePath]) {
+      const { node } = addCanvasNode({ type: 'image', content, title: 'Workspace picture' });
+      expect(node.data.src).toBe(imagePath);
+      expect(node.data.path).toBe(imagePath);
+      expect(node.data.title).toBe('Workspace picture');
+      expect(node.data.mimeType).toBe('image/png');
+    }
+  });
+
   test('accepts http(s) URLs and data: URIs with image/* media type', () => {
     expect(() => addCanvasNode({ type: 'image', content: 'https://example.com/cat.png' })).not.toThrow();
     expect(() => addCanvasNode({ type: 'image', content: 'data:image/png;base64,iVBORw0KGgo=' })).not.toThrow();

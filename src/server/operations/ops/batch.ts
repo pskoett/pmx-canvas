@@ -30,6 +30,7 @@ import { executeOperation, runWithSuppressedEmits } from '../registry.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
 import { readJsonValue } from '../http.js';
 import { isRecord } from './nodes.js';
+import { boardsPayload } from './boards.js';
 
 interface BatchEntry {
   op: string;
@@ -157,8 +158,10 @@ function createInternalBatchNode(args: Record<string, unknown>): Record<string, 
  * entry shape. Most ops match the wire shape verbatim; the cases below diverge
  * because the legacy switch shaped them by hand.
  */
-function shapeBatchEntry(op: string, result: unknown): Record<string, unknown> {
+function shapeBatchEntry(op: string, result: unknown, creationReceipt = false): Record<string, unknown> {
   const body = isRecord(result) ? result : {};
+  // A retry's refs must describe its original creation, not a later live edit.
+  if (creationReceipt) return body;
 
   // node.add / node.update / group.create / graph.add: the legacy switch pushed
   // { ok:true, ...serializeCanvasNodeCompact(node), <extras> }. The wire shape
@@ -237,7 +240,13 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
           refs,
         };
       }
-      if (operation.op === 'node.add' && typeof args.type === 'string' && isInternalBatchNodeType(args.type)) {
+      if (
+        operation.op === 'node.add' &&
+        typeof args.type === 'string' &&
+        isInternalBatchNodeType(args.type) &&
+        args.destinationBoardId === undefined &&
+        args.requestId === undefined
+      ) {
         const result = createInternalBatchNode(args);
         results.push(result);
         if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {
@@ -258,7 +267,11 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       if (canvasState.boardGeneration !== boardGeneration) {
         throw new Error('The board changed while the batch was running.');
       }
-      const result = shapeBatchEntry(operation.op, raw);
+      const result = shapeBatchEntry(
+        operation.op,
+        raw,
+        operation.op === 'node.add' && (args.requestId !== undefined || args.destinationBoardId !== undefined),
+      );
       results.push(result);
       if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {
         refs[operation.assign] = result;
@@ -391,8 +404,20 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
     const operations = normalizeOperations(input.operations);
     // Suppress every per-entry SSE frame (auto layout emit + each handler's
     // ctx.emit). After the loop completes, emit ONE final canvas-layout-update.
+    const revision = canvasState.getContentRevision().revision;
     const envelope = await runWithSuppressedEmits(() => runBatch(operations));
-    ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    if (
+      revision !== canvasState.getContentRevision().revision ||
+      operations.some(
+        (entry) =>
+          entry.op !== 'node.add' ||
+          entry.args.destinationBoardId === undefined ||
+          entry.args.destinationBoardId === canvasState.activeBoardId,
+      )
+    )
+      ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    if (operations.some((entry) => entry.op === 'node.add' && entry.args.destinationBoardId !== undefined))
+      ctx.emit('boards-changed', boardsPayload());
     // The suppression window also swallows the pins op's context-pins-changed
     // frame, leaving the client's pin state (menus, indicators) stale until
     // reload (0.4.5 report Finding X). If the batch touched pins, follow the

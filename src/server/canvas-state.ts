@@ -261,6 +261,8 @@ export interface CanvasNodeState {
   contentRevision?: number;
   /** Time of that semantic change; absent for content created before this clock was recorded. */
   contentChangedAt?: string;
+  /** Initial authored freshness, not evidence validation. Imports and undated existing content have none. */
+  freshnessStartedAt?: string;
   /** Board-monotonic revision of this node's latest link change, kept apart from its text. */
   linksRevision?: number;
 }
@@ -642,6 +644,9 @@ class CanvasStateManager {
     const data = { ...node.data };
     // Lifecycle is optional metadata, never a card taxonomy or validation clock.
     delete data.categoryId;
+    if (data.contentOrigin !== undefined && data.contentOrigin !== 'authored' && data.contentOrigin !== 'imported') {
+      throw new OperationError('Content origin must be authored or imported.');
+    }
     if (data.lifecycleOverride !== undefined && data.lifecycleOverride !== null) {
       const lifecycle = lifecycleSchema.safeParse(data.lifecycleOverride);
       if (!lifecycle.success) throw new OperationError('Invalid lifecycle override.');
@@ -1173,10 +1178,121 @@ class CanvasStateManager {
     return board ? { ...board, nodeCount: this.nodes.size } : null;
   }
 
-  /**
-   * One board's content without opening it: the open board from memory, any
-   * other straight from SQLite. Null when there is no such board.
-   */
+  /** Synchronous, owner-controlled static creation. No board activation or runtime hydration. */
+  createStoredNode(
+    boardId: string,
+    requestId: string | undefined,
+    fingerprint: string,
+    build: (nodes: CanvasNodeState[]) => CanvasNodeState,
+  ): CanvasNodeState {
+    const db = this._db;
+    if (!db) throw new OperationError('Destination/retry creation requires persistent workspace storage.');
+    const active = boardId === this._activeBoardId;
+    let created = false;
+    const activeLinkRevisions = new Map<string, number>();
+    let activeRevision = this._contentRevision;
+    const node = db.transaction(() => {
+      const previous = requestId
+        ? db
+            .query<{ board_id: string; fingerprint: string; node: string }, [string]>(
+              'SELECT board_id, fingerprint, node FROM node_creation_requests WHERE request_id = ?',
+            )
+            .get(requestId)
+        : null;
+      if (previous) {
+        if (previous.board_id !== boardId || previous.fingerprint !== fingerprint)
+          throw new OperationError('requestId was already used with different creation input or destination.', 409);
+        // Return the original receipt even if the node has since been edited or removed.
+        return JSON.parse(previous.node) as CanvasNodeState;
+      }
+      // Include pending edits in catalog resolution and durable relation clocks,
+      // without publishing or changing the active board before commit.
+      if (this._activeBoardId) saveStateToDB(db, this._activeBoardId, this.persistedState());
+      const state = loadStateFromDB(db, boardId);
+      if (!state) throw new OperationError(`Board "${boardId}" not found.`, 404);
+      const policies = [this.getPolicy(), state.ax?.policy];
+      if (policies.some((policy) => policy && (policy.scope || Object.keys(policy.agentScopes ?? {}).length)))
+        throw new OperationError('Destination/retry creation is refused while either board has a scope fence.', 403);
+      let next = this.normalizeNode(build(state.nodes));
+      const now = new Date().toISOString();
+      const provenance = next.data.provenance as { sourceKind?: string } | undefined;
+      const imported =
+        next.data.contentOrigin === 'imported' ||
+        next.data.source !== undefined ||
+        (provenance !== undefined && provenance.sourceKind !== 'recipe');
+      next = {
+        ...next,
+        createdBy: currentActor(),
+        lastEditedBy: currentActor(),
+        contentRevision: (state.revisionState?.revision ?? 0) + 1,
+        contentChangedAt: now,
+        freshnessStartedAt: imported ? undefined : now,
+      };
+      if (next.type === 'markdown') {
+        const catalog = listBoardsFromDB(db).map((board) => ({
+          id: board.id,
+          name: board.name,
+          cards: (board.id === boardId ? [...state.nodes, next] : (loadStateFromDB(db, board.id)?.nodes ?? [])).map(
+            (card) => ({ id: card.id, title: typeof card.data.title === 'string' ? card.data.title : card.id }),
+          ),
+        }));
+        next.data.wikiLinks = resolveWikiLinks(String(next.data.content ?? ''), [], catalog);
+      }
+      state.nodes.push(next);
+      state.revisionState = {
+        ...state.revisionState,
+        revision: next.contentRevision!,
+        floor: state.revisionState?.floor ?? 0,
+        tombstones: state.revisionState?.tombstones ?? [],
+      };
+      // Theme is workspace-global; never let an inactive projection overwrite it.
+      state.theme = this._theme;
+      saveStateToDB(db, boardId, state);
+      const invalidate = (targetBoardId: string, targetNodeId: string) => {
+        const revision = invalidateLinksInDB(db, targetBoardId, targetNodeId);
+        if (targetBoardId === this._activeBoardId && revision !== undefined) {
+          activeLinkRevisions.set(targetNodeId, revision);
+          activeRevision = Math.max(activeRevision, revision);
+        }
+      };
+      const links = next.type === 'markdown' ? wikiLinksFromData(next.data) : [];
+      if (links.length) {
+        invalidate(boardId, next.id);
+        const targets = new Map(
+          links.flatMap(({ target }) => (target?.cardId ? [[JSON.stringify(target), target] as const] : [])),
+        );
+        for (const target of targets.values()) invalidate(target.boardId, target.cardId!);
+      }
+      invalidateIncomingLinksInDB(db, boardId, next.id, invalidate);
+      const committed = loadStateFromDB(db, boardId)!;
+      next = committed.nodes.find((candidate) => candidate.id === next.id)!;
+      if (active) activeRevision = committed.revisionState!.revision;
+      if (requestId)
+        db.run('INSERT INTO node_creation_requests VALUES (?, ?, ?, ?)', [
+          requestId,
+          boardId,
+          fingerprint,
+          JSON.stringify(next),
+        ]);
+      created = true;
+      return next;
+    })();
+    if (created) {
+      if (active) {
+        this.nodes.set(node.id, structuredClone(node));
+        this.recordNodeCreation(node);
+      }
+      for (const [id, revision] of activeLinkRevisions) {
+        const existing = this.nodes.get(id);
+        if (existing) this.nodes.set(id, { ...existing, linksRevision: revision });
+      }
+      this._contentRevision = activeRevision;
+      if (active || activeLinkRevisions.size) this.notifyChange('nodes');
+    }
+    return node;
+  }
+
+  /** Read a board without activating it. This projection is not a write payload. */
   readBoard(
     id: string,
     includeBlobs = true,
@@ -1590,6 +1706,22 @@ class CanvasStateManager {
     }
   }
 
+  private persistedState(): PersistedCanvasState {
+    return this.externalizePersistedStateBlobs({
+      version: 1,
+      theme: this._theme,
+      tour: this._tour,
+      viewport: this._viewport,
+      nodes: Array.from(this.nodes.values()),
+      edges: Array.from(this.edges.values()),
+      annotations: Array.from(this.annotations.values()),
+      contextPins: Array.from(this._contextPinnedNodeIds),
+      contextPinMeta: this.pinMetaRecord(),
+      ax: this.getAxState(),
+      revisionState: this.revisionState(),
+    });
+  }
+
   /** Write current state to SQLite immediately. */
   private saveToDisk(): boolean {
     if (!this._db) return false;
@@ -1601,20 +1733,7 @@ class CanvasStateManager {
       }
       const boardId = this.ensureActiveBoard();
       if (!boardId) return false;
-      const payload = this.externalizePersistedStateBlobs({
-        version: 1,
-        theme: this._theme,
-        tour: this._tour,
-        viewport: this._viewport,
-        nodes: Array.from(this.nodes.values()),
-        edges: Array.from(this.edges.values()),
-        annotations: Array.from(this.annotations.values()),
-        contextPins: Array.from(this._contextPinnedNodeIds),
-        contextPinMeta: this.pinMetaRecord(),
-        ax: this.getAxState(),
-        revisionState: this.revisionState(),
-      });
-      saveStateToDB(this._db, boardId, payload);
+      saveStateToDB(this._db, boardId, this.persistedState());
       this._lastPersistenceError = null;
       return true;
     } catch (error) {
@@ -2278,6 +2397,12 @@ class CanvasStateManager {
   addNode(node: CanvasNodeState, savedWikiLinks?: WikiLink[]): void {
     node = this.normalizeNode(node);
     const actor = currentActor();
+    const now = new Date().toISOString();
+    const provenance = node.data.provenance as { sourceKind?: string } | undefined;
+    const imported =
+      node.data.contentOrigin === 'imported' ||
+      node.data.source !== undefined ||
+      (provenance !== undefined && provenance.sourceKind !== 'recipe');
     const cloned = structuredClone(
       this.normalizeNode(
         this.bindWikiLinks(
@@ -2286,7 +2411,8 @@ class CanvasStateManager {
             createdBy: actor,
             lastEditedBy: actor,
             contentRevision: this.nextContentRevision(),
-            contentChangedAt: new Date().toISOString(),
+            contentChangedAt: now,
+            freshnessStartedAt: imported ? undefined : now,
           },
           undefined,
           savedWikiLinks,
@@ -2298,9 +2424,13 @@ class CanvasStateManager {
     this.invalidateIncomingRelations(node.id);
     this.scheduleSave();
     this.notifyChange('nodes');
+    this.recordNodeCreation(cloned);
+  }
+
+  private recordNodeCreation(cloned: CanvasNodeState): void {
     this.recordMutation({
       operationType: 'addNode',
-      description: `Added ${node.type} node "${(node.data.title as string) ?? node.id}"`,
+      description: `Added ${cloned.type} node "${(cloned.data.title as string) ?? cloned.id}"`,
       forward: this.suppressed(() => {
         this.nodes.set(cloned.id, {
           ...structuredClone(cloned),
@@ -2313,7 +2443,7 @@ class CanvasStateManager {
         this.scheduleSave();
         this.notifyChange('nodes');
       }),
-      inverse: this.suppressed(() => this.removeNode(node.id)),
+      inverse: this.suppressed(() => this.removeNode(cloned.id)),
     });
   }
 
@@ -2355,6 +2485,9 @@ class CanvasStateManager {
     const existing = this.nodes.get(id);
     if (!existing) return;
     if (patch.data) {
+      if (patch.data.contentOrigin !== existing.data.contentOrigin) {
+        throw new OperationError('Content origin is immutable after creation.');
+      }
       const attachmentId = existing.data.attachmentId;
       if (typeof attachmentId === 'string' && patch.data.attachmentId !== attachmentId) {
         throw new Error('Attachment identity is immutable.');
@@ -2369,7 +2502,7 @@ class CanvasStateManager {
     const oldSnapshot = structuredClone(existing);
     let nextNode = this.normalizeNode(
       this.bindWikiLinks(
-        { ...existing, ...patch },
+        { ...existing, ...patch, freshnessStartedAt: existing.freshnessStartedAt },
         existing,
         savedWikiLinks ?? undefined,
         savedWikiLinks !== null && !!patch.data && 'content' in patch.data,

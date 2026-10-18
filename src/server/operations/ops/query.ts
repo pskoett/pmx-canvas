@@ -21,7 +21,7 @@ import { canvasState, type CanvasNodeState } from '../../canvas-state.js';
 import { setCanvasContextPins, syncCanvasRuntimeBackends } from '../../canvas-operations.js';
 import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
-import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
+import { buildSpatialContext, searchNodes, searchRelevance } from '../../spatial-analysis.js';
 import { boardConnections, memoryGraph } from '../../memory-graph.js';
 import { relationText } from '../../../shared/relations.js';
 import { lifecycleQualifications } from '../../lifecycle-status.js';
@@ -193,16 +193,23 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
             boardTitle: board.name,
             cardId: result.id,
           }));
-          const metadata = `${board.name} ${board.folder ?? ''}`.toLocaleLowerCase();
           const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
           const readmeText = typeof readme?.data.content === 'string' ? readme.data.content : '';
-          if (`${metadata} ${readmeText.toLocaleLowerCase()}`.includes(q.toLocaleLowerCase())) {
+          const score = searchRelevance(
+            board.name,
+            [
+              [board.folder ?? '', 2],
+              [readmeText, 1],
+            ],
+            q,
+          );
+          if (score > 0) {
             cards.unshift({
               id: board.id,
               type: 'board',
               title: board.name,
               snippet: readmeText.slice(0, 160) || board.folder || board.name,
-              score: metadata.includes(q.toLocaleLowerCase()) ? 4 : 2,
+              score,
               boardId: board.id,
               boardTitle: board.name,
               cardId: readme?.id ?? board.id,
@@ -215,7 +222,11 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
           boardId: canvasState.activeBoardId,
           cardId: result.id,
         }));
-    results.sort((a, b) => b.score - a.score);
+    results.sort((a, b) => {
+      const aKey = `${a.boardId ?? ''}/${a.id}`;
+      const bKey = `${b.boardId ?? ''}/${b.id}`;
+      return b.score - a.score || (aKey < bKey ? -1 : aKey > bKey ? 1 : 0);
+    });
     const delivered = Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results;
     const qualifications = lifecycleQualifications(
       Date.now(),

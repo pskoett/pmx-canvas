@@ -38,6 +38,7 @@ export interface CanvasStructuredNodeUpdateInput extends Omit<CanvasGraphNodeUpd
     chartHeight?: unknown;
 }
 interface CanvasAddNodeInput {
+    prepareOnlyNodes?: CanvasNodeState[];
     type: CanvasNodeState['type'];
     title?: string;
     content?: string;

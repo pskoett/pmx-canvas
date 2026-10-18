@@ -33,9 +33,24 @@ async function boards(request: APIRequestContext) {
   };
 }
 
-async function note(request: APIRequestContext, title: string, x = 120, y = 120): Promise<string> {
+async function note(
+  request: APIRequestContext,
+  title: string,
+  x = 120,
+  y = 120,
+  contentOrigin?: 'imported',
+): Promise<string> {
   const response = await request.post('/api/canvas/node', {
-    data: { type: 'markdown', title, content: `${title} body`, x, y, width: 320, height: 180 },
+    data: {
+      type: 'markdown',
+      title,
+      content: `${title} body`,
+      data: { contentOrigin },
+      x,
+      y,
+      width: 320,
+      height: 180,
+    },
   });
   return ((await response.json()) as { id: string }).id;
 }
@@ -306,7 +321,7 @@ test('Home board action labels stay on one line alongside review and more contro
   await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Needs review' } })).json();
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: board.id } });
-  const cardId = await note(request, 'Evidence to review');
+  const cardId = await note(request, 'Evidence to review', 120, 120, 'imported');
   expect(
     (
       await request.post(`/api/canvas/node/${cardId}/lifecycle`, {
@@ -363,7 +378,7 @@ test('Home Review scopes individual cards, reveals grouped content and docks wit
     })
   ).json();
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: scoped.id } });
-  const cardId = await note(request, 'Authoritative evidence');
+  const cardId = await note(request, 'Authoritative evidence', 120, 120, 'imported');
   await note(request, 'Neutral unclassified card', 650);
   const policy = {
     decayType: 'reality',
@@ -388,7 +403,7 @@ test('Home Review scopes individual cards, reveals grouped content and docks wit
     await request.post('/api/canvas/boards', { data: { name: 'Outside scope', folder: 'ProjectsElsewhere' } })
   ).json();
   await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: outside.id } });
-  const outsideId = await note(request, 'Outside evidence');
+  const outsideId = await note(request, 'Outside evidence', 120, 120, 'imported');
   await request.post(`/api/canvas/node/${outsideId}/lifecycle`, {
     headers: HUMAN,
     data: { lifecycleOverride: policy },

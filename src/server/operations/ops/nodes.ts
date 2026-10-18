@@ -9,6 +9,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { realpathSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { canvasState, type CanvasAnnotation, type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
@@ -334,7 +335,7 @@ export function createdNodePayloadFromNode(
  */
 export function createBasicCanvasNode(
   body: Record<string, unknown>,
-  options: { fileMode: 'auto' | 'path' },
+  options: { fileMode: 'auto' | 'path'; prepareOnlyNodes?: CanvasNodeState[] },
 ): { node: CanvasNodeState; needsCodeGraphRecompute: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
   const type = typeof body.type === 'string' ? body.type : '';
   const extraData = isRecord(body.data) ? body.data : undefined;
@@ -426,6 +427,7 @@ export function createBasicCanvasNode(
       defaultWidth: defaults.width,
       defaultHeight: defaults.height,
       fileMode: options.fileMode,
+      prepareOnlyNodes: options.prepareOnlyNodes,
     });
     return { node, needsCodeGraphRecompute, ...(sizeAdjustment ? { sizeAdjustment } : {}) };
   } catch (error) {
@@ -586,6 +588,52 @@ export function removeNodeCore(id: string): { needsCodeGraphRecompute: boolean }
 
 // ── node.add ──────────────────────────────────────────────────
 
+/** Explicit creation identity is opt-in, not content-based deduplication. */
+export function createDestinationNode(body: Record<string, unknown>): CanvasNodeState {
+  for (const key of ['destinationBoardId', 'requestId']) {
+    if (body[key] !== undefined && (typeof body[key] !== 'string' || !body[key].trim()))
+      throw new OperationError(`${key} must be a non-empty string.`);
+  }
+  if (body.expectedBoardId !== undefined && body.expectedBoardId !== canvasState.activeBoardId)
+    throw new OperationError('The active board changed. Refresh before retrying this action.', 409);
+  const boardId = typeof body.destinationBoardId === 'string' ? body.destinationBoardId : canvasState.activeBoardId;
+  if (!boardId) throw new OperationError('Open a board or provide destinationBoardId.');
+  const supported = ['markdown', 'status', 'context', 'ledger', 'trace', 'diff', 'mermaid', 'html'];
+  if (!supported.includes(String(body.type)) || body.primitive !== undefined || body.kind !== undefined)
+    throw new OperationError(
+      'destinationBoardId/requestId support static markdown, status, context, ledger, trace, diff, mermaid and plain html creation only.',
+    );
+  const data = isRecord(body.data) ? body.data : {};
+  if (
+    body.intentId !== undefined ||
+    ['children', 'childIds', 'childLayout', 'groupId', 'parentId', 'parentGroup'].some(
+      (key) => body[key] !== undefined || data[key] !== undefined,
+    )
+  )
+    throw new OperationError('Destination/retry creation does not support ghost intents or membership mutations.');
+  const ignored = new Set(['requestId', 'destinationBoardId', 'expectedBoardId', 'full', 'verbose', 'agentId']);
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : isRecord(value)
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .filter((key) => value[key] !== undefined)
+              .map((key) => [key, canonical(value[key])]),
+          )
+        : value;
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify(canonical(Object.fromEntries(Object.entries(body).filter(([key]) => !ignored.has(key))))))
+    .digest('hex');
+  return canvasState.createStoredNode(
+    boardId,
+    typeof body.requestId === 'string' ? body.requestId : undefined,
+    fingerprint,
+    (nodes) => createBasicCanvasNode(body, { fileMode: 'auto', prepareOnlyNodes: nodes }).node,
+  );
+}
+
 interface NodeAddResult {
   node: CanvasNodeState;
   extras?: Record<string, unknown>;
@@ -717,6 +765,18 @@ function createGroupNode(body: Record<string, unknown>): NodeAddResult {
 }
 
 const nodeAddShape = {
+  destinationBoardId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Create a static node on this board without opening it. expectedBoardId still guards the ACTIVE board.'),
+  requestId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Persistent logical creation identity. Reuse only for retries with identical input and destination; new identical content needs a new id. Static types only.',
+    ),
   intentId: z
     .string()
     .optional()
@@ -874,6 +934,8 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
   },
   handler: async (input, ctx) => {
     const body: Record<string, unknown> = input;
+    if (body.destinationBoardId !== undefined || body.requestId !== undefined)
+      return { node: createDestinationNode(body) };
     const type = typeof body.type === 'string' ? body.type : '';
     // Report #50: require a resolvable type rather than silently defaulting to a
     // markdown node — an empty / type-less body created a phantom node before.

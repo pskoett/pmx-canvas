@@ -94,6 +94,7 @@ export interface CanvasStructuredNodeUpdateInput extends Omit<CanvasGraphNodeUpd
 }
 
 interface CanvasAddNodeInput {
+  prepareOnlyNodes?: CanvasNodeState[];
   type: CanvasNodeState['type'];
   title?: string;
   content?: string;
@@ -796,7 +797,7 @@ function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> 
   }
 
   if (!isDataUri && !isUrl && src) {
-    const resolved = resolve(src);
+    const resolved = resolve(canvasState.getWorkspaceRoot(), src);
     const fileName = basename(resolved) || src;
     const { mimeType } = validateLocalImageFile(resolved);
     return {
@@ -954,7 +955,7 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
   const position =
     input.x !== undefined && input.y !== undefined
       ? { x: input.x, y: input.y }
-      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+      : findOpenCanvasPosition(input.prepareOnlyNodes ?? canvasState.getLayout().nodes, width, height);
   const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const data = buildNodeData(input);
   const node: CanvasNodeState = {
@@ -968,6 +969,7 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     data,
   };
 
+  if (input.prepareOnlyNodes) return { id, node, needsCodeGraphRecompute: false };
   canvasState.addNode(node);
   const storedNode = canvasState.getNode(id) ?? node;
 

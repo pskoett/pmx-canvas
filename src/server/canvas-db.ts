@@ -56,6 +56,9 @@ export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'ha
 }
 
 const SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS node_creation_requests (
+    request_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, fingerprint TEXT NOT NULL, node TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS knowledge_categories (id TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS folder_properties (path TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS review_records (
@@ -824,6 +827,7 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
           createdBy: node.createdBy,
           lastEditedBy: node.lastEditedBy,
           contentChangedAt: node.contentChangedAt,
+          freshnessStartedAt: node.freshnessStartedAt,
         }),
         node.contentRevision ?? 0,
         node.linksRevision ?? 0,
@@ -962,7 +966,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
   const nodeRows = db.query<NodeRow, [string]>('SELECT * FROM nodes WHERE board_id = ?').all(id);
   const nodes: CanvasNodeState[] = nodeRows.map((row) => {
     const attribution = JSON.parse(row.attribution || '{}') as Partial<
-      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt'>
+      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt' | 'freshnessStartedAt'>
     >;
     return {
       id: row.id,
@@ -976,6 +980,7 @@ export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvas
       createdBy: attribution.createdBy,
       lastEditedBy: attribution.lastEditedBy,
       contentChangedAt: attribution.contentChangedAt,
+      freshnessStartedAt: attribution.freshnessStartedAt,
       contentRevision: row.content_revision,
       linksRevision: row.links_revision,
     };
@@ -1217,8 +1222,8 @@ export function createBoardWithStateInDB(
 }
 
 /** Derived incoming-link metadata only: the target owns its clock and its body. */
-export function invalidateLinksInDB(db: Database, boardId: string, nodeId: string): void {
-  db.transaction(() => {
+export function invalidateLinksInDB(db: Database, boardId: string, nodeId: string): number | undefined {
+  return db.transaction(() => {
     const node = db
       .query<{ links_revision: number; content_revision: number }, [string, string]>(
         'SELECT links_revision, content_revision FROM nodes WHERE board_id = ? AND id = ?',
@@ -1235,6 +1240,7 @@ export function invalidateLinksInDB(db: Database, boardId: string, nodeId: strin
       'INSERT INTO ax_state (board_id, key, value) VALUES (?, ?, ?) ON CONFLICT(board_id, key) DO UPDATE SET value = excluded.value',
       [boardId, 'revision', JSON.stringify(state)],
     );
+    return state.revision;
   })();
 }
 
@@ -1307,7 +1313,15 @@ export function deleteBoardFromDB(
           );
       }
     }
-    for (const table of ['nodes', 'edges', 'annotations', 'context_pins', 'ax_state', 'board_pins']) {
+    for (const table of [
+      'nodes',
+      'edges',
+      'annotations',
+      'context_pins',
+      'ax_state',
+      'board_pins',
+      'node_creation_requests',
+    ]) {
       db.run(`DELETE FROM ${table} WHERE board_id = ?`, [id]);
     }
     const snapshotIds = db
@@ -1432,6 +1446,7 @@ export function saveSnapshotToDB(
           createdBy: node.createdBy,
           lastEditedBy: node.lastEditedBy,
           contentChangedAt: node.contentChangedAt,
+          freshnessStartedAt: node.freshnessStartedAt,
         }),
         node.contentRevision ?? 0,
         node.linksRevision ?? 0,
@@ -1570,7 +1585,7 @@ export function loadSnapshotFromDB(
     .all(snapshotRow.id);
   const nodes: CanvasNodeState[] = nodeRows.map((row) => {
     const attribution = JSON.parse(row.attribution || '{}') as Partial<
-      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt'>
+      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt' | 'freshnessStartedAt'>
     >;
     return {
       id: row.id,
@@ -1584,6 +1599,7 @@ export function loadSnapshotFromDB(
       createdBy: attribution.createdBy,
       lastEditedBy: attribution.lastEditedBy,
       contentChangedAt: attribution.contentChangedAt,
+      freshnessStartedAt: attribution.freshnessStartedAt,
       contentRevision: row.content_revision,
       linksRevision: row.links_revision,
     };

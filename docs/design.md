@@ -298,6 +298,14 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
   outcome history live under ⋯ → Review → Settings and history, folder settings and Home.
   "No review policy" appears in Home's selected-folder summary, never on a card. Why: the brief tells the agent
   to doubt a due card, so the human sees that on the card too.
+  **Freshness correction, 2026-10-18:** newly authored cards have no warning until
+  their effective decay policy or an actual source invalidation requires review.
+  Creation is not evidence validation. Historical imports and undated existing cards
+  do not gain a new freshness clock; edits never restart it. Navigation groups and
+  portals skip inherited factual decay unless explicitly assigned a card policy.
+  An explicitly due group's same outlined footer sits below its children in the
+  group frame, never as the empty body's expanding first child. The Lifecycle
+  artboards' warning tokens, glyph, copy and compact row remain unchanged.
 - **A portal's pin is its board's pin** (decided with the maintainer 2026-10-07). On a
   portal card the header pin, in the usual place, pins the linked board into the agent's
   working set (README and pinned cards in full, on every board); there is no separate card

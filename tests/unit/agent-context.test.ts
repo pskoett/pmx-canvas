@@ -24,6 +24,40 @@ function makeTypedNode(type: CanvasNodeState['type'], data: Record<string, unkno
 }
 
 describe('meaningful card text', () => {
+  test('search ranks exact and whole terms above substring discovery with stable ties', () => {
+    const nodes = [
+      ['pictures', 'TV2 pictures', 'TV2 image collection'],
+      ['platform', 'V2 platform', 'Pilot deployment plan'],
+      ['exact', 'V2', ''],
+      ['unicode', 'éV2ø', ''],
+      ['punctuation', '(V2)', ''],
+    ].map(([id, title, content]) => ({ ...makeTypedNode('markdown', { title, content }), id }));
+    const ids = searchNodes(nodes, ' V2 ').map((result) => result.id);
+    expect(ids[0]).toBe('exact');
+    expect(ids.indexOf('platform')).toBeLessThan(ids.indexOf('pictures'));
+    expect(ids.indexOf('punctuation')).toBeLessThan(ids.indexOf('unicode'));
+    expect(ids).toContain('pictures');
+    expect(ids).toContain('unicode');
+    expect(searchNodes([...nodes].reverse(), 'v2').map((result) => result.id)).toEqual(ids);
+  });
+
+  test('search retains partial queries, paths and literal punctuation while preferring complete terms', () => {
+    const nodes = [
+      { ...makeTypedNode('markdown', { title: 'TV2 platform', content: '' }), id: 'substring' },
+      { ...makeTypedNode('markdown', { title: 'V2 platform', content: '' }), id: 'whole' },
+      { ...makeTypedNode('file', { path: '/plans/V2/platform.md' }), id: 'path' },
+    ];
+    const ids = searchNodes(nodes, 'v2 platform').map((result) => result.id);
+    expect(ids[0]).toBe('whole');
+    expect(ids.indexOf('path')).toBeLessThan(ids.indexOf('substring'));
+    expect(ids).toContain('substring');
+    expect(searchNodes(nodes, 'missing platform').map((result) => result.id)).toContain('whole');
+    expect(searchNodes(nodes, 'plat').map((result) => result.id)).toContain('whole');
+    const literal = makeTypedNode('markdown', { title: 'C++ [draft]', content: '' });
+    expect(searchNodes([literal], 'C++ [draft]').map((result) => result.id)).toEqual([literal.id]);
+    expect(searchNodes([literal], '[absent]')).toEqual([]);
+  });
+
   const samples: Record<CanvasNodeState['type'], { data: Record<string, unknown>; meaning: string }> = {
     markdown: { data: { content: 'Keep the source', rendered: '<p>Keep the source</p>' }, meaning: 'Keep the source' },
     board: { data: { boardId: 'board-1', title: 'Roadmap' }, meaning: 'Roadmap' },

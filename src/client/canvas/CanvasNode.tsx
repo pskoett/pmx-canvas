@@ -824,7 +824,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               on a content-fitted node). Renders nothing unless the node carries a
               `data.axStep` stamp. */}
             <AxStepControls node={node} />
-            <LifecycleFooter nodeId={node.id} />
+            {!isGroup && <LifecycleFooter nodeId={node.id} />}
             {remoteEdges.map((edge) => {
               const targetBoard = boardList.value.find((board) => board.id === edge.toBoardId);
               const link = sourceBoard?.links?.find(
@@ -852,7 +852,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             })}
           </div>
         )}
-        {node.collapsed && <LifecycleFooter nodeId={node.id} />}
+        {/* Group children live in the world layer, not this body. Keep their
+            warning in the frame's bottom chrome, out of the content flex rule. */}
+        {(node.collapsed || isGroup) && <LifecycleFooter nodeId={node.id} />}
       </div>
       {!node.collapsed && (
         <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />

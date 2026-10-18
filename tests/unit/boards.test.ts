@@ -411,7 +411,10 @@ test('knowledge review queue joins authoritative titles and board-qualified stat
   canvasState.loadFromDisk({ clearExisting: true });
   const first = canvasState.createBoard('First', 'Projects/Child')!;
   canvasState.switchBoard(first.id);
-  canvasState.addNode(note('shared', 'First title'));
+  canvasState.addNode({
+    ...note('shared', 'First title'),
+    data: { title: 'First title', content: 'First title', contentOrigin: 'imported' },
+  });
   const policy = {
     decayType: 'reality',
     rate: 'medium',
@@ -425,7 +428,10 @@ test('knowledge review queue joins authoritative titles and board-qualified stat
   await executeOperation('node.review', { id: 'retired', outcome: 'retire', applied: true, evidence: 'Superseded' });
   const second = canvasState.createBoard('Second', 'ProjectsElsewhere')!;
   canvasState.switchBoard(second.id);
-  canvasState.addNode(note('shared', 'Second title'));
+  canvasState.addNode({
+    ...note('shared', 'Second title'),
+    data: { title: 'Second title', content: 'Second title', contentOrigin: 'imported' },
+  });
   await executeOperation('node.lifecycle-set', { id: 'shared', lifecycleOverride: policy });
   await executeOperation('node.update', {
     id: 'shared',

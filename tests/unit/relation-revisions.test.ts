@@ -145,6 +145,103 @@ describe('connection changes are tracked apart from text', () => {
     expect(pins.nodes).toEqual([]);
   });
 
+  test('new authored content gets a decay window without inventing evidence or resetting it on edits', async () => {
+    await twoCards();
+    const policy = {
+      decayType: 'reality',
+      rate: 'medium',
+      cadenceDays: 17,
+      triggers: [],
+      revalidationMethod: 'Check sources',
+    };
+    await executeOperation('node.lifecycle-set', { id: 'plan', lifecycleOverride: policy });
+    const read = async () => (await executeOperation('node.lifecycle-get', { id: 'plan' })) as LifecycleResults['get'];
+    expect(await read()).toMatchObject({
+      records: [],
+      lastValidation: null,
+      qualification: { due: false, lastValidatedAt: null },
+    });
+    const birth = Date.parse(node('plan').freshnessStartedAt!);
+    expect(Number.isFinite(birth)).toBe(true);
+    const key = JSON.stringify([canvasState.activeBoardId, 'plan']);
+    expect(lifecycleQualifications(birth + 17 * 86400000 - 1)[key].due).toBe(false);
+    expect(lifecycleQualifications(birth + 17 * 86400000)[key].due).toBe(true);
+    const saved = canvasState.saveSnapshot('Authored freshness')!;
+    await executeOperation('node.update', { id: 'plan', content: 'Edited, not revalidated.' });
+    expect(Date.parse(node('plan').freshnessStartedAt!)).toBe(birth);
+    expect(lifecycleQualifications(birth + 17 * 86400000)[key].due).toBe(true);
+    mutationHistory.undo();
+    mutationHistory.redo();
+    expect(Date.parse(node('plan').freshnessStartedAt!)).toBe(birth);
+    expect(canvasState.restoreSnapshot(saved.id)).toBe(true);
+    expect(Date.parse(node('plan').freshnessStartedAt!)).toBe(birth);
+    canvasState.flushToDisk();
+    canvasState.close();
+    resetCanvasForTests(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+    expect(Date.parse(node('plan').freshnessStartedAt!)).toBe(birth);
+    expect(await read()).toMatchObject({ records: [], lastValidation: null });
+  });
+
+  test('imports stay unvalidated and navigation structures skip inherited factual decay unless explicitly assigned', async () => {
+    await twoCards();
+    const board = canvasState.activeBoardId!;
+    const policy = {
+      decayType: 'reality',
+      rate: 'medium',
+      cadenceDays: 90,
+      triggers: [],
+      revalidationMethod: 'Check sources',
+    };
+    await executeOperation('knowledge.category-set', {
+      category: { ...policy, id: 'facts', name: 'Facts', glyph: 'F' },
+    });
+    await executeOperation('knowledge.folder-set', { path: 'Facts', categoryId: 'facts', lifecycleOverride: null });
+    await executeOperation('board.update', { id: board, folder: 'Facts' });
+    const imported = (await executeOperation('node.add', {
+      type: 'markdown',
+      title: 'Old imported fact',
+      content: 'Historical source.',
+      data: { contentOrigin: 'imported' },
+    })) as { id: string };
+    const group = (await executeOperation('group.create', { title: 'Navigation group' })) as { id: string };
+    const get = async (id: string) => (await executeOperation('node.lifecycle-get', { id })) as LifecycleResults['get'];
+    expect(await get(imported.id)).toMatchObject({ records: [], lastValidation: null, qualification: { due: true } });
+    expect(await get('plan')).toMatchObject({ records: [], lastValidation: null, qualification: { due: false } });
+    expect(await get(group.id)).toMatchObject({ lifecycle: null, qualification: { due: false } });
+    await executeOperation('node.lifecycle-set', { id: group.id, lifecycleOverride: policy });
+    const groupKey = JSON.stringify([board, group.id]);
+    expect(lifecycleQualifications(Date.parse(node(group.id).freshnessStartedAt!) + 90 * 86400000)[groupKey].due).toBe(
+      true,
+    );
+    await executeOperation('node.update', { id: imported.id, content: 'Reworded history, no new evidence.' });
+    expect(await get(imported.id)).toMatchObject({ qualification: { due: true } });
+    await expect(
+      executeOperation('node.update', { id: imported.id, data: { contentOrigin: 'authored' } }),
+    ).rejects.toThrow('origin');
+  });
+
+  test.each([
+    'fast',
+    'slow',
+  ] as const)('new %s content is fresh until a later use session, with no synthetic review', async (rate) => {
+    await twoCards();
+    const birth = Date.parse(node('plan').freshnessStartedAt!);
+    await executeOperation('node.lifecycle-set', {
+      id: 'plan',
+      lifecycleOverride: { decayType: 'reality', rate, triggers: [], revalidationMethod: 'Check sources' },
+    });
+    const key = JSON.stringify([canvasState.activeBoardId, 'plan']);
+    agentPresence.touch({ source: 'test', agentId: 'author', attached: true }, birth);
+    expect(lifecycleQualifications(birth)[key].due).toBe(false);
+    agentPresence.touch({ source: 'test', agentId: 'reader', attached: true }, birth + 1);
+    expect(lifecycleQualifications(birth + 1)[key].due).toBe(true);
+    expect(await executeOperation('node.lifecycle-get', { id: 'plan' })).toMatchObject({
+      records: [],
+      lastValidation: null,
+    });
+  });
+
   test('dashboard qualification follows explicit sources, keeps clocks separate and excludes retired cards', async () => {
     await twoCards();
     canvasState.updateNode('plan', { data: { title: 'Capacity conclusion', content: 'Add a replica.' } });

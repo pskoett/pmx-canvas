@@ -37,6 +37,11 @@ tokens without rechecking the evidence. Brief `lifecycle` snapshots update quali
 of the content cursor; `complete: false` requires rechecking cached cards before reuse.
 Records retain the reviewed revision; content persistence failure adds no record.
 Restore never validates and only explicit restore reverses retirement.
+Newly authored cards start fresh, with no synthetic review. Medium first expires at
+creation plus its cadence; Fast/Slow at a later use/resumed session. Use
+`data.contentOrigin: "imported"` when creating historical text. Imports and existing
+undated cards keep unknown freshness; edits never reset it. Groups and board portals
+need an explicit lifecycle override for factual decay, but still carry source warnings.
 Moving/unfiling a board checks both the active scope and the target board's stored global
 scope or writer territory. Opening Home or another board cannot bypass the target's fence.
 
@@ -353,10 +358,13 @@ No new tool is added: the tool count stays 24.
 
 Library search is `canvas_query { action: "search", query: "auth", scope:
 "library" }`. It returns board/card IDs and never switches the active board.
+Exact and whole-term matches rank ahead of embedded substrings; substring discovery
+still works, so `V2 platform` precedes `TV2 pictures` for `V2` without dropping the latter.
 
-To author a new board, create it, then call `canvas_board { action: "open",
-id: "<returned-board-id>" }` and verify `activeBoardId` in the response before
-writing. Opening changes the shared workbench the human sees and the target of
+To author static cards on a new board without interrupting the human, create the
+board and pass its id as `destinationBoardId` to `canvas_node { action: "add" }`.
+For active-board operations, call `canvas_board { action: "open", id: "<returned-board-id>" }`
+and verify `activeBoardId` before writing. Opening changes the shared workbench the human sees and the target of
 subsequent writes; it is not a private agent selection. Another participant can
 switch it later, so recheck after interruptions. `id: null` opens Home. Deletion
 remains human-only.
@@ -384,6 +392,18 @@ Target another board without opening it with `canvas_query { action: "layout",
 board: "<id>" }` or `canvas_node { action: "get", id: "<node-id>", board:
 "<id>" }`. Unknown boards error, and full inactive-board reads resolve stored
 blob references.
+
+`canvas_node { action: "add", type: "markdown", destinationBoardId: "<id>",
+requestId: "<logical-operation-id>", content: "..." }` creates on that board without
+opening it. `expectedBoardId` still guards the active board. `requestId` is optional;
+reuse it only for identical retries, and use a new id for intentional identical new
+content. Receipts persist across restart and return the original creation payload
+even after the node is deleted; mismatched reuse fails. Either field restricts creation
+to static markdown/status/context/ledger/trace/diff/mermaid/plain-html nodes. Runtime
+types, primitives, intents and membership mutations fail explicitly. Both boards'
+scope fences apply conservatively. Batch entries support these fields and named refs;
+this does not add inactive-board update/remove support. See [the full creation/retry
+contract](http-api.md#nodes).
 
 `canvas_node { action: "update" }` accepts `expectedBoardId` and `expectedContentRevision`
 to refuse stale writes. Ordinary updates change the card only. File-backed Markdown may opt

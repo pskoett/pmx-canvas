@@ -475,6 +475,38 @@ describe('canvas server HTTP API', () => {
     expect(gone.status).toBe(404);
   });
 
+  test('search ranks library metadata and README hits consistently with cards without switching boards', async () => {
+    const original = canvasState.activeBoardId;
+    const activeBoard = canvasState.createBoard('Deployment')!;
+    const archive = canvasState.createBoard('TV2 pictures')!;
+    canvasState.switchBoard(archive.id);
+    const readme = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Overview', content: 'TV2 image collection' }),
+    });
+    canvasState.setBoardReadme(archive.id, readme.id);
+    canvasState.switchBoard(activeBoard.id);
+    const exact = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'V2', content: 'Pilot deployment plan' }),
+    });
+    type Search = { results: Array<{ id: string; boardId: string }> };
+    const active = await jsonRequest<Search>('/api/canvas/search?q=V2');
+    expect(active.results.map((result) => result.id)).toEqual([exact.id]);
+    const library = await jsonRequest<Search>('/api/canvas/search?q=%20V2%20&scope=library');
+    expect(library.results[0]?.id).toBe(exact.id);
+    expect(library.results.map((result) => result.id)).toContain(archive.id);
+    expect(library.results.map((result) => result.id)).toContain(readme.id);
+    const limited = await jsonRequest<Search>('/api/canvas/search?q=V2&scope=library&limit=1');
+    expect(limited.results.map((result) => result.id)).toEqual([exact.id]);
+    expect(canvasState.activeBoardId).toBe(activeBoard.id);
+    canvasState.switchBoard(original);
+    canvasState.deleteBoard(archive.id);
+    canvasState.deleteBoard(activeBoard.id);
+  });
+
   test('supports node CRUD, markdown rendering, and search', async () => {
     const render = await jsonRequest<{ html: string }>('/api/render', {
       method: 'POST',
@@ -547,6 +579,34 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
+  });
+
+  test('rejects invalid explicit provenance on create and update with field errors', async () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const invalid = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: 'status', data: { provenance: { sourceKind: 'recipe' } } }),
+    });
+    expect(invalid.status).toBe(400);
+    expect(await invalid.text()).toContain('sourceUri');
+    expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).nodes).toHaveLength(0);
+
+    const provenance = { sourceKind: 'recipe', sourceUri: 'recipe://plan', refreshStrategy: 'agent-request' };
+    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: 'status', title: 'Original', data: { provenance } }),
+    });
+    const before = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    const updated = await fetch(`${baseUrl}/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ data: { provenance: { ...provenance, refreshStrategy: 'unknown' } } }),
+    });
+    expect(updated.status).toBe(400);
+    expect(await updated.text()).toContain('refreshStrategy');
+    expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).nodes).toEqual(before.nodes);
   });
 
   test('creates diff nodes with the diff default size and clamps undersized creates', async () => {

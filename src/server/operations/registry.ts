@@ -500,7 +500,14 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   if (name === 'node.add' && typeof capturedBoard === 'string' && capturedBoard !== canvasState.activeBoardId) {
     throw new OperationError('The board changed while the file was loading.', 409);
   }
-  if (!canvasState.activeBoardId && needsOpenBoard(op)) {
+  if (
+    !canvasState.activeBoardId &&
+    needsOpenBoard(op) &&
+    !(
+      name === 'node.add' &&
+      (asRecord(rawInput).destinationBoardId !== undefined || asRecord(rawInput).requestId !== undefined)
+    )
+  ) {
     openBoardForWrite();
     if (canvasState.activeBoardId) emitOperationEvent('boards-changed', boardsPayload());
   }
@@ -537,6 +544,19 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
         );
       }
     }
+  }
+  if (
+    name === 'node.add' &&
+    (asRecord(rawInput).destinationBoardId !== undefined || asRecord(rawInput).requestId !== undefined)
+  ) {
+    const revision = canvasState.getContentRevision().revision;
+    const result = await op.execute(rawInput, operationContext);
+    const destination = asRecord(rawInput).destinationBoardId ?? canvasState.activeBoardId;
+    if (destination === canvasState.activeBoardId || revision !== canvasState.getContentRevision().revision)
+      emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    emitOperationEvent('boards-changed', boardsPayload());
+    if (destination === canvasState.activeBoardId) notePresence(name, rawInput, meta, op, result);
+    return result;
   }
   const linkedId = linkedIntentId(rawInput);
   // A ghost that expired QUIETLY (no veto) does not block its mutation — the

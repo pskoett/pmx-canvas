@@ -81,6 +81,8 @@ export interface CanvasNodeState {
     contentRevision?: number;
     /** Time of that semantic change; absent for content created before this clock was recorded. */
     contentChangedAt?: string;
+    /** Initial authored freshness, not evidence validation. Imports and undated existing content have none. */
+    freshnessStartedAt?: string;
     /** Board-monotonic revision of this node's latest link change, kept apart from its text. */
     linksRevision?: number;
 }
@@ -293,10 +295,9 @@ declare class CanvasStateManager {
     /** The open board, or null on Home. */
     get activeBoardId(): string | null;
     getActiveBoard(): CanvasBoard | null;
-    /**
-     * One board's content without opening it: the open board from memory, any
-     * other straight from SQLite. Null when there is no such board.
-     */
+    /** Synchronous, owner-controlled static creation. No board activation or runtime hydration. */
+    createStoredNode(boardId: string, requestId: string | undefined, fingerprint: string, build: (nodes: CanvasNodeState[]) => CanvasNodeState): CanvasNodeState;
+    /** Read a board without activating it. This projection is not a write payload. */
     readBoard(id: string, includeBlobs?: boolean): {
         board: CanvasBoard;
         state: PersistedCanvasState;
@@ -365,6 +366,7 @@ declare class CanvasStateManager {
     /** Debounced save — coalesces rapid mutations into a single write. */
     private scheduleSave;
     flushToDisk(): void;
+    private persistedState;
     /** Write current state to SQLite immediately. */
     private saveToDisk;
     private _lastPersistenceError;
@@ -417,6 +419,7 @@ declare class CanvasStateManager {
     private recordDeletion;
     get viewport(): ViewportState;
     addNode(node: CanvasNodeState, savedWikiLinks?: WikiLink[]): void;
+    private recordNodeCreation;
     addJsonRenderNode(node: CanvasNodeState): void;
     addGraphNode(node: CanvasNodeState): void;
     /** Metadata stays on the stored node: no blob hydration, wiki resolution or group reflow. */

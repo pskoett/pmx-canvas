@@ -61,10 +61,14 @@ export declare class PmxCanvas extends EventEmitter {
      * or keep the whole node — both work. (Previously returned a bare id string.)
      */
     addNode(input: {
+        destinationBoardId?: string;
+        requestId?: string;
+        expectedBoardId?: string | null;
         intentId?: string;
         type: CanvasNodeState['type'];
         title?: string;
         content?: string;
+        data?: Record<string, unknown>;
         children?: string[];
         childIds?: string[];
         childLayout?: 'grid' | 'column' | 'flow';

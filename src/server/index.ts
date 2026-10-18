@@ -78,10 +78,12 @@ import {
 import {
   buildNodePatch,
   createBasicCanvasNode,
+  createDestinationNode,
   removeNodeCore,
   setGroupChildrenFromApi,
 } from './operations/ops/nodes.js';
 import { streamJsonRenderCore } from './operations/ops/json-render.js';
+import { boardsPayload } from './operations/ops/boards.js';
 import { executeOperation, runCanvasBatchOperation, type OpenMcpAppCoreResult } from './operations/index.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
@@ -292,10 +294,14 @@ export class PmxCanvas extends EventEmitter {
    * or keep the whole node — both work. (Previously returned a bare id string.)
    */
   addNode(input: {
+    destinationBoardId?: string;
+    requestId?: string;
+    expectedBoardId?: string | null;
     intentId?: string;
     type: CanvasNodeState['type'];
     title?: string;
     content?: string;
+    data?: Record<string, unknown>;
     children?: string[];
     childIds?: string[];
     childLayout?: 'grid' | 'column' | 'flow';
@@ -312,6 +318,19 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     strictSize?: boolean;
   }): SdkCanvasNode {
+    if (input.expectedBoardId !== undefined && input.expectedBoardId !== canvasState.activeBoardId)
+      throw new Error('The active board changed. Refresh before retrying this action.');
+    if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
+      const revision = canvasState.getContentRevision().revision;
+      const node = createDestinationNode(input);
+      if (
+        (input.destinationBoardId ?? canvasState.activeBoardId) === canvasState.activeBoardId ||
+        revision !== canvasState.getContentRevision().revision
+      )
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      emitPrimaryWorkbenchEvent('boards-changed', boardsPayload());
+      return toSdkNode(node);
+    }
     assertInsideFence(
       'node.add',
       createTarget(input, input.type === 'group' ? (input.childIds ?? input.children ?? []) : []),

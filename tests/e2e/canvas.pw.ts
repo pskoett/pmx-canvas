@@ -6598,6 +6598,8 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
     .toBe(7);
   await expect(saveLifecycle).toBeFocused();
   await expect(dialog.locator('.lifecycle-advanced')).toHaveJSProperty('open', true);
+  expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).qualification.due).toBe(false);
+  await expect(card.locator('.node-lifecycle-warning')).toHaveCount(0);
   await page.keyboard.press('Backspace');
   await expect(card).toBeVisible();
   expect((await request.get(`/api/canvas/node/${id}`)).ok()).toBe(true);
@@ -6605,6 +6607,20 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await dialog.getByRole('menuitemradio', { name: 'Fast · at use', exact: true }).click();
   await dialog.getByLabel('How to check').fill('Compare with the source dashboard.');
   await dialog.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
+  const fresh = await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json();
+  expect(fresh.qualification.due).toBe(false);
+  expect(fresh.lastValidation).toBeNull();
+  expect(fresh.records).toHaveLength(0);
+  await expect(card.locator('.node-lifecycle-warning')).toHaveCount(0);
+  // A later reader session, not creation or a missing review record, makes Fast due.
+  expect(
+    (
+      await request.post('/api/canvas/ax/presence', {
+        data: { source: 'lifecycle-later-reader', attached: true },
+      })
+    ).ok(),
+  ).toBe(true);
+  await dialog.getByRole('button', { name: 'Reload lifecycle and source revisions' }).click();
   await expect(dialog.locator('.lifecycle-advanced .lifecycle-warning').first()).toContainText('Fast: check at use');
   await dialog.getByRole('button', { name: 'Close review' }).click();
   const dueFooter = card.getByRole('button', { name: /review due/ });
@@ -6649,6 +6665,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   await dialog.getByRole('button', { name: 'Reload lifecycle and source revisions' }).click();
   await dialog.getByRole('button', { name: 'Close review' }).click();
   await expect(dialog).toHaveCount(0);
+  await request.post('/api/canvas/ax/presence', { data: { source: 'lifecycle-later-reader', attached: false } });
 });
 
 test('human adopts and edits category defaults without a preset overwriting their changes', async ({

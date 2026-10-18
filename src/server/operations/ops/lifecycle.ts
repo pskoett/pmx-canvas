@@ -157,7 +157,7 @@ export const lifecycleOperations: Operation[] = [
         boardId: read.boardId,
         nodeId: input.id,
         contentRevision: node.contentRevision ?? 0,
-        ...canvasState.knowledge.resolve(folder, node.data.lifecycleOverride as Lifecycle | null),
+        ...canvasState.knowledge.resolveCard(folder, node),
         ...canvasState.knowledge.reviews(read.boardId, input.id),
         qualification: lifecycleQualifications(Date.now(), [{ boardId: read.boardId, cardId: input.id }])[
           memoryKey({ boardId: read.boardId, cardId: input.id })

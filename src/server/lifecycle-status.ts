@@ -49,11 +49,7 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = []) 
     for (const node of read?.layout.nodes ?? []) {
       const key = memoryKey({ boardId: board.id, cardId: node.id });
       cards.set(key, node);
-      const { lifecycle } = canvasState.knowledge.resolve(
-        board.folder,
-        node.data.lifecycleOverride as Lifecycle | null,
-        catalog,
-      );
+      const { lifecycle } = canvasState.knowledge.resolveCard(board.folder, node, catalog);
       policies.set(key, lifecycle);
       const { lastValidation, retired } = canvasState.databasePath
         ? canvasState.knowledge.reviews(board.id, node.id)
@@ -128,15 +124,19 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = []) 
     const policy = policies.get(key);
     if (!policy) continue;
     const checked = status.lastValidatedAt ? Date.parse(status.lastValidatedAt) : null;
-    if (policy.rate === 'fast' && used.has(key) && (checked === null || checked < session))
+    const authored = cards.get(key)?.freshnessStartedAt;
+    const freshSince = checked ?? (authored ? Date.parse(authored) : null);
+    if (policy.rate === 'fast' && used.has(key) && (freshSince === null || freshSince < session))
       status.reasons.push('Fast: check at use.');
     if (
       policy.rate === 'medium' &&
       policy.cadenceDays &&
-      (checked === null || now - checked >= policy.cadenceDays * 86400000)
+      (freshSince === null || now - freshSince >= policy.cadenceDays * 86400000)
     )
-      status.reasons.push(`Review every ${policy.cadenceDays} days${checked === null ? '; never validated' : ''}.`);
-    if (policy.rate === 'slow' && used.has(key) && (checked === null || checked < session))
+      status.reasons.push(
+        `Review every ${policy.cadenceDays} days${freshSince === null ? '; no freshness baseline' : ''}.`,
+      );
+    if (policy.rate === 'slow' && used.has(key) && (freshSince === null || freshSince < session))
       status.reasons.push('Slow: review on resumed work.');
   }
   for (const [key, dependencies] of sources) {

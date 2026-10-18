@@ -4,6 +4,7 @@ import { normalizeBoardFolder } from '../shared/boards.js';
 import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
+import type { CanvasNodeState } from './canvas-state.js';
 import { RELATION_PRESETS, relationPresetSchema, type RelationPreset } from '../shared/relations.js';
 import {
   categorySchema,
@@ -228,6 +229,14 @@ export class KnowledgeLifecycle {
       lifecycleSourceFolder: override ? null : lifecycleSourceFolder,
       lifecycleSource: override ? ('card' as const) : lifecycle ? ('folder' as const) : ('unknown' as const),
     };
+  }
+
+  resolveCard(folderPath: string | null, node: Pick<CanvasNodeState, 'type' | 'data'>, catalog = this.list()) {
+    const resolved = this.resolve(folderPath, node.data.lifecycleOverride as Lifecycle | null, catalog);
+    if ((node.type === 'group' || node.type === 'board') && !node.data.lifecycleOverride) {
+      return { ...resolved, lifecycle: null, lifecycleSource: 'unknown' as const, lifecycleSourceFolder: null };
+    }
+    return resolved;
   }
 
   reviews(boardId: string, nodeId: string) {

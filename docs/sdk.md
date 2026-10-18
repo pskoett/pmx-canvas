@@ -14,7 +14,10 @@ properties. `category-set` and `folder-set` use the [HTTP contract fields](http-
 without opening a board. `await canvas.lifecycle({action: "get", id, board})` reads inherited
 policy and review history; `set`, `review` and `restore` write the active board and accept
 `expectedBoardId`. These registry-backed SDK writes obey the same scope and human edit locks
-as HTTP/MCP. No lifecycle UI, due engine or brief filtering is implemented in this data slice.
+as HTTP/MCP. New authored cards start fresh until their effective policy first requires
+review, without an evidence-validation record. Use `data: {contentOrigin: 'imported'}`
+on historical content; edits never reset its freshness or validate it. See the
+[lifecycle contract](http-api.md#knowledge-lifecycle-data-plan-017-slice-1).
 
 After actually checking the card and its evidence, capture its semantic version rather than
 acknowledging a newer body you have not read:
@@ -34,6 +37,16 @@ record. Read, edit, refresh and explicit retirement restore never renew validati
 records retain their reviewed revision, and legacy unversioned evidence remains unknown.
 
 ## Quick example
+
+`canvas.addNode` also accepts `destinationBoardId`, `requestId`, and
+`expectedBoardId` for [static destination creation and durable retries](http-api.md#nodes).
+The destination does not activate that board; `expectedBoardId` guards the active board.
+Use a new request id for a new logical creation, including intentional identical content.
+Retrying the same id/input/destination returns the original receipt, even after removal,
+and never resurrects the node. Mismatched reuse fails. Either destination/retry field
+restricts creation to markdown, status, context, ledger, trace, diff, mermaid and plain html;
+runtime types, primitives, intents and membership changes fail explicitly. Both boards'
+fences are conservatively enforced. This is creation-only, not background CRUD.
 
 ```ts
 import { createCanvas } from 'pmx-canvas';

@@ -282,6 +282,38 @@ export function findNeighborhoods(
   });
 }
 
+/** Shared lexical relevance for cards and library metadata. Scores are ranking details. */
+export function searchRelevance(title: string, fields: Array<[string, number]>, query: string): number {
+  const normalize = (text: string) => text.toLowerCase().trim().replace(/\s+/g, ' ');
+  const q = normalize(query);
+  if (!q) return 0;
+  const terms = [...new Set(q.split(' '))];
+  const texts = [[normalize(title), 3] as const, ...fields.map(([text, weight]) => [normalize(text), weight] as const)];
+  const whole = terms.map((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // JS \b is ASCII-only; letters, marks and numbers in any script remain part of a word.
+    return new RegExp(`(?<![\\p{L}\\p{M}\\p{N}_])${escaped}(?![\\p{L}\\p{M}\\p{N}_])`, 'u');
+  });
+  let weight = 0;
+  for (const [text, importance] of texts) {
+    for (const term of terms) if (text.includes(term)) weight += importance;
+  }
+  if (!weight) return 0;
+  const wholeTerms = whole.filter((pattern) => texts.some(([text]) => pattern.test(text))).length;
+  const tier =
+    texts[0][0] === q
+      ? 5
+      : texts.some(([text]) => text === q)
+        ? 4
+        : wholeTerms === terms.length
+          ? 3
+          : wholeTerms > 0
+            ? 2
+            : 1;
+  // Field evidence breaks ties but can never overwhelm a better match tier.
+  return tier + weight / (weight + 1);
+}
+
 /**
  * Full-text search across node titles and content.
  * Returns matching nodes with relevance score.
@@ -314,16 +346,17 @@ export function searchNodes(
     ).toLowerCase();
     const url = ((node.data.url as string) ?? '').toLowerCase();
 
-    let score = 0;
-    for (const term of terms) {
-      // Title matches are worth more
-      if (title.includes(term)) score += 3;
-      if (path.includes(term)) score += 2;
-      if (url.includes(term)) score += 2;
-      if (description.includes(term)) score += 1;
-      if (summary.includes(term)) score += 1;
-      if (content.includes(term)) score += 1;
-    }
+    const score = searchRelevance(
+      title,
+      [
+        [path, 2],
+        [url, 2],
+        [description, 1],
+        [summary, 1],
+        [content, 1],
+      ],
+      q,
+    );
 
     if (score === 0) continue;
 
@@ -351,7 +384,7 @@ export function searchNodes(
     });
   }
 
-  results.sort((a, b) => b.score - a.score);
+  results.sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return results;
 }
 

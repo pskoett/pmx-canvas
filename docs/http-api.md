@@ -16,6 +16,18 @@ new session, slow on resumed work, durable has no passive expiry. The latest att
 is the boundary, falling back to the active board's last-open time, then process start.
 A category is the same fields plus stable `id`, editable `name` and `glyph` (nonempty strings).
 
+Newly authored cards start fresh without a review record. Medium's first deadline is
+creation plus `cadenceDays`; Fast/Slow first require review in a later use/resumed
+session. Evidence validation stays null until an actual successful review. Concrete
+source changes and contradictions can still require review immediately. Edits, reads,
+undo/redo and snapshot restore never restart the initial freshness clock.
+Creation accepts `data.contentOrigin: "authored"|"imported"` (immutable afterward).
+Use `"imported"` for historical text pasted or extracted into a new Markdown card;
+attachments and externally sourced provenance are also treated as imports. Imports
+and pre-existing undated content do not acquire a synthetic freshness baseline.
+Groups and board portals skip inherited factual decay unless given an explicit
+card lifecycle override; explicit dependency/source warnings remain visible.
+
 | Route | Input / result |
 |---|---|
 | `GET /api/canvas/knowledge` | `{ok, categories, folders, relationPresets, cards, reviewCards, resolvedFolders}`; `cards` uses JSON `[boardId,cardId]` keys |
@@ -112,6 +124,9 @@ Folder defaults stop at links. Portal source warnings stay separate from the por
 
 `data.provenance` accepts `sources: [{boardId, cardId, contentRevision?, observedAt?,
 availability?: "live"|"cached"|"unavailable"}]` and an inert `recipe: {tool, input?, prompt}`.
+Explicit provenance requires `sourceKind`, nonempty `sourceUri` and `refreshStrategy`;
+invalid or incomplete input returns 400 with field errors rather than being discarded.
+Omit provenance to use the normal inference for file, image and other sourced nodes.
 Keep `observedAt`/source revision distinct from retrieval `syncedAt`/`fetchedAt`; retrieval-only
 updates do not advance content or validation. Cached/unavailable warnings never claim a fresh check.
 The human's **Ask agent to refresh this board** sends steering; Canvas executes no recipe tool.
@@ -452,6 +467,32 @@ curl -X POST http://localhost:4313/api/canvas/schema/validate \
 ```
 
 ## Nodes
+
+`POST /api/canvas/node` accepts `destinationBoardId` to create on a stored board
+without opening it or changing the human's active board. `expectedBoardId` remains
+an **active-board** precondition, not a destination selector; stale values return 409.
+Unknown destinations return 404. This is creation-only, not background CRUD.
+
+Optional `requestId` identifies a logical creation within the workspace database.
+Use the same id, destination and creation input when retrying; a new intentional
+creation needs a new id even for identical content. Node and receipt commit in one
+transaction. Receipts survive restart, deletion, undo and snapshot restore; replay
+returns the original creation payload without recreating or updating anything.
+Reusing an id with different input/destination returns 409. Object key order and
+transport-only `full`, `verbose`, `agentId`, `expectedBoardId` do not affect identity.
+Receipts survive individual node removal but are deleted with their owning board.
+
+Either field opts into static creation only: `markdown`, `status`, `context`,
+`ledger`, `trace`, `diff`, `mermaid`, and plain `html`. Runtime-backed types, generated
+HTML primitives, ghost intents and membership mutations are explicitly refused (400),
+never redirected to the active board. Persistent workspace storage is required.
+New creations are conservatively refused (403) if either the active or destination
+board has a scope fence or per-agent territory. Inactive creation creates no ghost or
+undo entry on the active board and starts no runtime watcher. Only genuine changes
+to active cards' incoming link clocks can emit an active layout; the destination's
+layout is never substituted. Library metadata refreshes through `boards-changed`.
+Auto-placement uses the destination's nodes. Batch entries accept the same fields;
+batches still prefix-commit and assigned references work on receipts as on new nodes.
 
 ```bash
 # Add a node
