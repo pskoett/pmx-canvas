@@ -480,6 +480,9 @@ function needsOpenBoard(op: Operation): boolean {
 
 async function executeOperationInner(name: string, rawInput: unknown, meta: ExecuteOperationMeta): Promise<unknown> {
   const op = getOperation(name);
+  const storedCreation =
+    ['node.add', 'group.create', 'edge.add'].includes(name) &&
+    (asRecord(rawInput).destinationBoardId !== undefined || asRecord(rawInput).requestId !== undefined);
   if (HUMAN_ONLY_OPS.has(name) && !meta.fromWorkbench) {
     throw new OperationError('This action requires the human in the workbench.', 403);
   }
@@ -500,14 +503,7 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   if (name === 'node.add' && typeof capturedBoard === 'string' && capturedBoard !== canvasState.activeBoardId) {
     throw new OperationError('The board changed while the file was loading.', 409);
   }
-  if (
-    !canvasState.activeBoardId &&
-    needsOpenBoard(op) &&
-    !(
-      name === 'node.add' &&
-      (asRecord(rawInput).destinationBoardId !== undefined || asRecord(rawInput).requestId !== undefined)
-    )
-  ) {
+  if (!canvasState.activeBoardId && needsOpenBoard(op) && !storedCreation) {
     openBoardForWrite();
     if (canvasState.activeBoardId) emitOperationEvent('boards-changed', boardsPayload());
   }
@@ -545,10 +541,7 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
       }
     }
   }
-  if (
-    name === 'node.add' &&
-    (asRecord(rawInput).destinationBoardId !== undefined || asRecord(rawInput).requestId !== undefined)
-  ) {
+  if (storedCreation) {
     const revision = canvasState.getContentRevision().revision;
     const result = await op.execute(rawInput, operationContext);
     const destination = asRecord(rawInput).destinationBoardId ?? canvasState.activeBoardId;

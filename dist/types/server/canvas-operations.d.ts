@@ -90,6 +90,10 @@ export declare function describeCreateSize(requestedWidth: number | undefined, r
     height: number;
 }): CanvasSizeAdjustment | undefined;
 interface CanvasCreateGroupInput {
+    destinationBoardId?: string;
+    requestId?: string;
+    expectedBoardId?: string | null;
+    intentId?: string;
     title?: string;
     childIds?: string[];
     x?: number;
@@ -228,6 +232,10 @@ export declare function deleteCanvasSnapshot(id: string): {
 };
 export declare function gcCanvasSnapshots(options?: Parameters<typeof canvasState.gcSnapshots>[0]): ReturnType<typeof canvasState.gcSnapshots>;
 export declare function addCanvasEdge(input: {
+    destinationBoardId?: string;
+    requestId?: string;
+    expectedBoardId?: string | null;
+    intentId?: string;
     from?: string;
     to?: string;
     toBoardId?: string;
@@ -248,6 +256,12 @@ export declare function createCanvasGroup(input: CanvasCreateGroupInput): {
     id: string;
     node: CanvasNodeState;
     sizeAdjustment?: CanvasSizeAdjustment;
+};
+/** One logical creation identity across node, frame and link operations. */
+export declare function storedCreationTarget(input: object, operation: string): {
+    boardId: string;
+    requestId: string | undefined;
+    fingerprint: string;
 };
 export declare function groupCanvasNodes(groupId: string, childIds: string[], options?: {
     childLayout?: CanvasArrangeMode;

@@ -48,6 +48,18 @@ restricts creation to markdown, status, context, ledger, trace, diff, mermaid an
 runtime types, primitives, intents and membership changes fail explicitly. Both boards'
 fences are conservatively enforced. This is creation-only, not background CRUD.
 
+`canvas.createGroup` and `canvas.addEdge` accept those same three fields, so a
+background import can create its cards, enclosing frame and relations without
+navigation. Group children and edge endpoints resolve on the destination;
+`toBoardId` still selects an independent foreign edge target. Both methods return
+IDs as before. Replaying a request returns its original ID, not a later edited
+value or a resurrected object.
+
+`canvas.search(query, { boardId, folder, scope, limit })` shares HTTP/MCP search
+ranking. Board and folder filters intersect; a folder includes its descendants
+(`""` means unfiled). Filters default omitted scope to library, while explicit
+active scope never widens. Filtering precedes limits and never opens boards.
+
 ```ts
 import { createCanvas } from 'pmx-canvas';
 

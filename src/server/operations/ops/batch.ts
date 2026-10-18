@@ -270,7 +270,8 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       const result = shapeBatchEntry(
         operation.op,
         raw,
-        operation.op === 'node.add' && (args.requestId !== undefined || args.destinationBoardId !== undefined),
+        ['node.add', 'group.create', 'edge.add'].includes(operation.op) &&
+          (args.requestId !== undefined || args.destinationBoardId !== undefined),
       );
       results.push(result);
       if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {
@@ -410,13 +411,18 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
       revision !== canvasState.getContentRevision().revision ||
       operations.some(
         (entry) =>
-          entry.op !== 'node.add' ||
+          !['node.add', 'group.create', 'edge.add'].includes(entry.op) ||
           entry.args.destinationBoardId === undefined ||
           entry.args.destinationBoardId === canvasState.activeBoardId,
       )
     )
       ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
-    if (operations.some((entry) => entry.op === 'node.add' && entry.args.destinationBoardId !== undefined))
+    if (
+      operations.some(
+        (entry) =>
+          ['node.add', 'group.create', 'edge.add'].includes(entry.op) && entry.args.destinationBoardId !== undefined,
+      )
+    )
       ctx.emit('boards-changed', boardsPayload());
     // The suppression window also swallows the pins op's context-pins-changed
     // frame, leaving the client's pin state (menus, indicators) stale until

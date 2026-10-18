@@ -38,6 +38,13 @@ cmd(
     if (height !== undefined) body.height = height;
     if (typeof flags['child-layout'] === 'string') body.childLayout = flags['child-layout'];
     if (positional.length > 0) body.childIds = positional;
+    for (const [flag, field] of [
+      ['destination-board', 'destinationBoardId'],
+      ['request-id', 'requestId'],
+      ['expected-board', 'expectedBoardId'],
+    ] as const) {
+      if (typeof flags[flag] === 'string') body[field] = flags[flag];
+    }
 
     const result = await invokeOperation('group.create', body);
     output(result);

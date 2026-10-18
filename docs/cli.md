@@ -285,6 +285,17 @@ none keeps 100% with scrolling. [Sizing and readability](node-types.md#mermaid-n
 `--from-search` / `--to-search` must each resolve to exactly one node — broad
 queries fail rather than guess. Use the full visible title.
 
+Background `group create` and `edge add` accept `--destination-board <id>`,
+`--request-id <logical-id>` and `--expected-board <active-id>`. The destination
+does not open in the workbench; `--to-board` on an edge independently selects its
+foreign endpoint. Reuse request IDs only for identical retries. See the
+[creation/retry contract](http-api.md#nodes).
+
+`search <query>` accepts `--board-id <id>`, `--folder <path>`, `--scope active|library`
+and `--limit <n>` (`--library` also selects library scope). Board/folder filters
+intersect; folders include descendants, and `--folder ""` selects unfiled boards.
+Filters default omitted scope to library; explicit active scope stays active.
+
 CLI create commands return the created node shape with normalized title,
 content, and geometry, which makes scripting stacked layouts and batch
 follow-ups easier.

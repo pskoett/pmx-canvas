@@ -2,6 +2,13 @@ import { type CanvasPlacementRect } from '../shared/placement.js';
 export { findOpenCanvasPosition, type CanvasPlacementRect } from '../shared/placement.js';
 export declare const GROUP_PAD = 56;
 export declare const GROUP_TITLEBAR_HEIGHT = 32;
+/** Pack members inside an explicitly sized frame without changing that frame. */
+export declare function computeManualGroupLayout<T extends CanvasPlacementRect & {
+    id: string;
+}>(children: T[], frame: CanvasPlacementRect, layout: 'grid' | 'column' | 'flow'): Map<string, {
+    x: number;
+    y: number;
+}>;
 /**
  * Compute bounding box for a group that should contain the given child rects.
  * Returns position and size with padding, or null if no valid children.

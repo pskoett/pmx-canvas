@@ -48,7 +48,8 @@ import type { ExportManifest } from './board-export.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { overlapsAny } from '../shared/placement.js';
-import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
+import { buildSpatialContext } from './spatial-analysis.js';
+import { searchCanvasNodes } from './operations/ops/query.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
@@ -464,6 +465,9 @@ export class PmxCanvas extends EventEmitter {
   }
 
   addEdge(input: {
+    destinationBoardId?: string;
+    requestId?: string;
+    expectedBoardId?: string | null;
     intentId?: string;
     from?: string;
     to?: string;
@@ -477,6 +481,17 @@ export class PmxCanvas extends EventEmitter {
     style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
+    if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
+      const revision = canvasState.getContentRevision().revision;
+      const edge = addCanvasEdge(input);
+      if (
+        (input.destinationBoardId ?? canvasState.activeBoardId) === canvasState.activeBoardId ||
+        revision !== canvasState.getContentRevision().revision
+      )
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      emitPrimaryWorkbenchEvent('boards-changed', boardsPayload());
+      return edge.id;
+    }
     assertInsideFence('edge.add', {
       nodeIds:
         input.toBoardId && input.toBoardId !== canvasState.activeBoardId
@@ -532,6 +547,9 @@ export class PmxCanvas extends EventEmitter {
    * If childIds are provided, the group auto-sizes to contain them with padding.
    */
   createGroup(input: {
+    destinationBoardId?: string;
+    requestId?: string;
+    expectedBoardId?: string | null;
     intentId?: string;
     title?: string;
     childIds?: string[];
@@ -542,6 +560,17 @@ export class PmxCanvas extends EventEmitter {
     color?: string;
     childLayout?: 'grid' | 'column' | 'flow';
   }): string {
+    if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
+      const revision = canvasState.getContentRevision().revision;
+      const { id } = createCanvasGroup(input);
+      if (
+        (input.destinationBoardId ?? canvasState.activeBoardId) === canvasState.activeBoardId ||
+        revision !== canvasState.getContentRevision().revision
+      )
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      emitPrimaryWorkbenchEvent('boards-changed', boardsPayload());
+      return id;
+    }
     assertInsideFence('group.create', { nodeIds: input.childIds ?? [] });
     return this.runIntentCommit(
       input.intentId,
@@ -1377,8 +1406,11 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
-  search(query: string): ReturnType<typeof searchNodes> {
-    return searchNodes(canvasState.getLayout().nodes, query);
+  search(
+    query: string,
+    options: { scope?: 'active' | 'library'; boardId?: string; folder?: string; limit?: number } = {},
+  ) {
+    return searchCanvasNodes(query, options).results;
   }
 
   getSpatialContext() {

@@ -1277,6 +1277,16 @@
             ],
             "description": "Operation to perform: add | remove."
           },
+          "destinationBoardId": {
+            "description": "Board owning the source and edge; does not activate it",
+            "type": "string",
+            "minLength": 1
+          },
+          "requestId": {
+            "description": "Logical creation identity for retry-safe edge creation",
+            "type": "string",
+            "minLength": 1
+          },
           "intentId": {
             "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
             "type": "string"
@@ -1290,7 +1300,7 @@
             "type": "string"
           },
           "toBoardId": {
-            "description": "Target board ID for a direct cross-board edge; source stays on the open board",
+            "description": "Target board ID for a cross-board edge; independent of the source destinationBoardId",
             "type": "string",
             "minLength": 1
           },
@@ -1358,6 +1368,16 @@
               "ungroup"
             ],
             "description": "Operation to perform: create | add | ungroup."
+          },
+          "destinationBoardId": {
+            "description": "Create the group on this board without activating it",
+            "type": "string",
+            "minLength": 1
+          },
+          "requestId": {
+            "description": "Logical creation identity for retry-safe group creation",
+            "type": "string",
+            "minLength": 1
           },
           "intentId": {
             "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
@@ -1802,6 +1822,14 @@
               "active",
               "library"
             ]
+          },
+          "boardId": {
+            "description": "Stable board ID to search; defaults scope to library when supplied",
+            "type": "string"
+          },
+          "folder": {
+            "description": "Folder and descendants; empty string selects unfiled boards",
+            "type": "string"
           },
           "limit": {
             "description": "Max results to return (default: 10)",

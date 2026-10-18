@@ -14,7 +14,6 @@ import type { MemoryGraph } from '../shared/memory-graph.js';
 import type { Attachment, DocumentImport, ImportSection } from './document-import.js';
 import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
-import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
 import { type OpenMcpAppCoreResult } from './operations/index.js';
@@ -114,6 +113,9 @@ export declare class PmxCanvas extends EventEmitter {
         intentId?: string;
     }): void;
     addEdge(input: {
+        destinationBoardId?: string;
+        requestId?: string;
+        expectedBoardId?: string | null;
         intentId?: string;
         from?: string;
         to?: string;
@@ -139,6 +141,9 @@ export declare class PmxCanvas extends EventEmitter {
      * If childIds are provided, the group auto-sizes to contain them with padding.
      */
     createGroup(input: {
+        destinationBoardId?: string;
+        requestId?: string;
+        expectedBoardId?: string | null;
         intentId?: string;
         title?: string;
         childIds?: string[];
@@ -524,7 +529,21 @@ export declare class PmxCanvas extends EventEmitter {
     getNode(id: string, options?: {
         board?: string;
     }): SdkCanvasNode | undefined;
-    search(query: string): ReturnType<typeof searchNodes>;
+    search(query: string, options?: {
+        scope?: 'active' | 'library';
+        boardId?: string;
+        folder?: string;
+        limit?: number;
+    }): {
+        qualification?: import("../shared/lifecycle-status.js").LifecycleQualification | undefined;
+        boardId: string | null;
+        cardId: string;
+        id: string;
+        type: string;
+        title: string | null;
+        snippet: string;
+        score: number;
+    }[];
     getSpatialContext(): import("./spatial-analysis.js").SpatialContext;
     undo(): Promise<{
         ok: boolean;

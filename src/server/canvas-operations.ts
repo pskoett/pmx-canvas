@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename, resolve } from 'node:path';
 import { agentPresence } from './agent-presence.js';
 import { recomputeCodeGraph } from './code-graph.js';
@@ -22,6 +23,7 @@ import {
 } from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
 import { intentRegistry } from './intent-registry.js';
+import { OperationError } from './operations/types.js';
 import { clampCreateNodeSize } from './canvas-validation.js';
 import { validCanvasNodeUpdates } from './canvas-geometry.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
@@ -152,6 +154,10 @@ export function describeCreateSize(
 // surface's sizeWarnings.
 
 interface CanvasCreateGroupInput {
+  destinationBoardId?: string;
+  requestId?: string;
+  expectedBoardId?: string | null;
+  intentId?: string;
   title?: string;
   childIds?: string[];
   x?: number;
@@ -1534,6 +1540,10 @@ export function gcCanvasSnapshots(
 }
 
 export function addCanvasEdge(input: {
+  destinationBoardId?: string;
+  requestId?: string;
+  expectedBoardId?: string | null;
+  intentId?: string;
   from?: string;
   to?: string;
   toBoardId?: string;
@@ -1546,37 +1556,49 @@ export function addCanvasEdge(input: {
   style?: CanvasEdge['style'];
   animated?: boolean;
 }): CanvasEdge {
-  const kind = input.kind === undefined ? undefined : relationKindSchema.parse(input.kind);
-  const reason = input.reason === undefined ? undefined : relationReasonSchema.parse(input.reason);
-  const fromResult = resolveCanvasNode({
-    ...(typeof input.from === 'string' ? { id: input.from } : {}),
-    ...(typeof input.fromSearch === 'string' ? { search: input.fromSearch } : {}),
-  });
-  if (!fromResult.ok) {
-    throw new Error(fromResult.error);
-  }
-  const toResult = resolveCanvasNode({
-    ...(typeof input.to === 'string' ? { id: input.to } : {}),
-    ...(typeof input.toSearch === 'string' ? { search: input.toSearch } : {}),
-    ...(input.toBoardId ? { board: input.toBoardId } : {}),
-  });
-  if (!toResult.ok) {
-    throw new Error(toResult.error);
-  }
+  const stored =
+    input.destinationBoardId !== undefined || input.requestId !== undefined
+      ? storedCreationTarget(input, 'edge.add')
+      : undefined;
+  const build = (): CanvasEdge => {
+    const kind = input.kind === undefined ? undefined : relationKindSchema.parse(input.kind);
+    const reason = input.reason === undefined ? undefined : relationReasonSchema.parse(input.reason);
+    const fromResult = resolveCanvasNode({
+      ...(typeof input.from === 'string' ? { id: input.from } : {}),
+      ...(typeof input.fromSearch === 'string' ? { search: input.fromSearch } : {}),
+      ...(stored ? { board: stored.boardId } : {}),
+    });
+    if (!fromResult.ok) {
+      throw new Error(fromResult.error);
+    }
+    const toResult = resolveCanvasNode({
+      ...(typeof input.to === 'string' ? { id: input.to } : {}),
+      ...(typeof input.toSearch === 'string' ? { search: input.toSearch } : {}),
+      ...(input.toBoardId || stored ? { board: input.toBoardId ?? stored!.boardId } : {}),
+    });
+    if (!toResult.ok) {
+      throw new Error(toResult.error);
+    }
 
-  const id = `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const edge: CanvasEdge = {
-    id,
-    from: fromResult.node.id,
-    to: toResult.node.id,
-    ...(input.toBoardId && input.toBoardId !== canvasState.activeBoardId ? { toBoardId: input.toBoardId } : {}),
-    type: input.type,
-    ...(kind ? { kind } : {}),
-    ...(reason ? { reason } : {}),
-    ...(input.label ? { label: input.label } : {}),
-    ...(input.style ? { style: input.style } : {}),
-    ...(input.animated !== undefined ? { animated: input.animated } : {}),
+    const id = `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const edge: CanvasEdge = {
+      id,
+      from: fromResult.node.id,
+      to: toResult.node.id,
+      ...(input.toBoardId && input.toBoardId !== (stored?.boardId ?? canvasState.activeBoardId)
+        ? { toBoardId: input.toBoardId }
+        : {}),
+      type: input.type,
+      ...(kind ? { kind } : {}),
+      ...(reason ? { reason } : {}),
+      ...(input.label ? { label: input.label } : {}),
+      ...(input.style ? { style: input.style } : {}),
+      ...(input.animated !== undefined ? { animated: input.animated } : {}),
+    };
+    return edge;
   };
+  if (stored) return canvasState.createStoredEdge(stored.boardId, stored.requestId, stored.fingerprint, build);
+  const edge = build();
   const added = canvasState.addEdge(edge);
   if (!added) {
     throw new Error('Duplicate or self-edge.');
@@ -1608,52 +1630,73 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): {
   node: CanvasNodeState;
   sizeAdjustment?: CanvasSizeAdjustment;
 } {
-  let x = input.x;
-  let y = input.y;
-  let width = input.width ?? 600;
-  let height = input.height ?? 400;
+  const stored =
+    input.destinationBoardId !== undefined || input.requestId !== undefined
+      ? storedCreationTarget(
+          { ...input, title: input.title ?? 'Group', childIds: input.childIds ?? [] },
+          'group.create',
+        )
+      : undefined;
   const explicitFrame =
     input.x !== undefined || input.y !== undefined || input.width !== undefined || input.height !== undefined;
-
-  const childIds = input.childIds ?? [];
-  if (childIds.length > 0 && x === undefined && y === undefined) {
-    const childRects = childIds
-      .map((cid) => canvasState.getNode(cid))
-      .filter((node): node is CanvasNodeState => node !== undefined);
-    const bounds = computeGroupBounds(childRects);
-    if (bounds) {
-      x = bounds.x;
-      y = bounds.y;
-      width = bounds.width;
-      height = bounds.height;
+  const childIds = [...new Set(input.childIds ?? [])];
+  const build = (nodes: CanvasNodeState[]): CanvasNodeState => {
+    const missing = childIds.filter((id) => !nodes.some((node) => node.id === id));
+    if (stored && missing.length)
+      throw new OperationError(`Cannot create group: missing child node IDs: ${missing.join(', ')}.`);
+    // Selecting both a frame and its descendant would create conflicting memberships.
+    for (const id of stored ? childIds : []) {
+      let parent = nodes.find((node) => node.id === id)?.data.parentGroup;
+      while (typeof parent === 'string') {
+        if (childIds.includes(parent)) throw new OperationError('Cannot group both an ancestor and its descendant.');
+        parent = nodes.find((node) => node.id === parent)?.data.parentGroup;
+      }
     }
-  }
+    let x = input.x;
+    let y = input.y;
+    let width = input.width ?? 600;
+    let height = input.height ?? 400;
+    if (childIds.length > 0 && x === undefined && y === undefined) {
+      const childRects = childIds
+        .map((cid) => nodes.find((node) => node.id === cid))
+        .filter((node): node is CanvasNodeState => node !== undefined);
+      const bounds = computeGroupBounds(childRects);
+      if (bounds) {
+        x = bounds.x;
+        y = bounds.y;
+        width = bounds.width;
+        height = bounds.height;
+      }
+    }
 
-  const position =
-    x !== undefined && y !== undefined
-      ? { x, y }
-      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+    const position = x !== undefined && y !== undefined ? { x, y } : findOpenCanvasPosition(nodes, width, height);
 
-  const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const data: Record<string, unknown> = {
-    title: input.title ?? 'Group',
-    children: [],
-    frameMode: explicitFrame ? 'manual' : 'fit',
-    ...(input.color ? { color: input.color } : {}),
+    const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const data: Record<string, unknown> = {
+      title: input.title ?? 'Group',
+      children: [],
+      frameMode: explicitFrame ? 'manual' : 'fit',
+      ...(input.color ? { color: input.color } : {}),
+    };
+
+    return {
+      id,
+      type: 'group',
+      position,
+      size: { width, height },
+      zIndex: 0,
+      collapsed: false,
+      pinned: false,
+      data: { ...data, children: stored ? childIds : [] },
+    };
   };
+  const created = stored
+    ? canvasState.createStoredGroup(stored.boardId, stored.requestId, stored.fingerprint, build, input.childLayout)
+    : build(canvasState.getLayout().nodes);
+  const id = created.id;
+  if (!stored) canvasState.addNode(created);
 
-  canvasState.addNode({
-    id,
-    type: 'group',
-    position,
-    size: { width, height },
-    zIndex: 0,
-    collapsed: false,
-    pinned: false,
-    data,
-  });
-
-  if (childIds.length > 0) {
+  if (!stored && childIds.length > 0) {
     canvasState.groupNodes(id, childIds, {
       preservePositions: input.childLayout === undefined,
       ...(input.childLayout ? { layout: input.childLayout } : {}),
@@ -1661,7 +1704,7 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): {
     });
   }
 
-  const node = canvasState.getNode(id);
+  const node = stored ? created : canvasState.getNode(id);
   if (!node) {
     throw new Error(`Group "${id}" was not created.`);
   }
@@ -1679,6 +1722,41 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): {
           },
         }
       : {}),
+  };
+}
+
+/** One logical creation identity across node, frame and link operations. */
+export function storedCreationTarget(input: object, operation: string) {
+  const body = input as Record<string, unknown>;
+  for (const key of ['destinationBoardId', 'requestId']) {
+    if (body[key] !== undefined && (typeof body[key] !== 'string' || !body[key].trim()))
+      throw new OperationError(`${key} must be a non-empty string.`);
+  }
+  if (body.expectedBoardId !== undefined && body.expectedBoardId !== canvasState.activeBoardId)
+    throw new OperationError('The active board changed. Refresh before retrying this action.', 409);
+  if (body.intentId !== undefined)
+    throw new OperationError('Destination/retry creation does not support ghost intents.');
+  const boardId = typeof body.destinationBoardId === 'string' ? body.destinationBoardId : canvasState.activeBoardId;
+  if (!boardId) throw new OperationError('Open a board or provide destinationBoardId.');
+  const ignored = new Set(['requestId', 'destinationBoardId', 'expectedBoardId', 'full', 'verbose', 'agentId']);
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : isRecord(value)
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .filter((key) => value[key] !== undefined)
+              .map((key) => [key, canonical(value[key])]),
+          )
+        : value;
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify(canonical(Object.fromEntries(Object.entries(body).filter(([key]) => !ignored.has(key))))))
+    .digest('hex');
+  return {
+    boardId,
+    requestId: typeof body.requestId === 'string' ? body.requestId : undefined,
+    fingerprint: operation === 'node.add' ? fingerprint : `${operation}:${fingerprint}`,
   };
 }
 

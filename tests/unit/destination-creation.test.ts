@@ -8,6 +8,7 @@ import { loadStateFromDB } from '../../src/server/canvas-db.js';
 import { PmxCanvas } from '../../src/server/index.js';
 import { mutationHistory } from '../../src/server/mutation-history.js';
 import { intentRegistry } from '../../src/server/intent-registry.js';
+import { humanPresence } from '../../src/server/human-presence.js';
 import { runCanvasBatchOperation } from '../../src/server/operations/index.js';
 import {
   executeOperation,
@@ -196,6 +197,129 @@ test('SDK active-board retry creation is durable and intentional identical conte
   expect(canvasState.getLayout().nodes).toHaveLength(2);
 });
 
+test('background batch creates cards, a containing group and relations, with stable retry receipts', async () => {
+  const events: string[] = [];
+  setOperationEventEmitter((event) => events.push(event));
+  const before = canvasState.getLayout();
+  const generation = canvasState.boardGeneration;
+  const operations = [
+    {
+      op: 'node.add',
+      assign: 'one',
+      args: { type: 'markdown', title: 'One', x: 100, y: 150, destinationBoardId: b, requestId: 'flow-one' },
+    },
+    {
+      op: 'node.add',
+      assign: 'two',
+      args: { type: 'markdown', title: 'Two', x: 850, y: 350, destinationBoardId: b, requestId: 'flow-two' },
+    },
+    {
+      op: 'group.create',
+      assign: 'frame',
+      args: {
+        title: 'Research',
+        childIds: ['$one', '$two'],
+        destinationBoardId: b,
+        expectedBoardId: a,
+        requestId: 'flow-group',
+      },
+    },
+    {
+      op: 'edge.add',
+      assign: 'link',
+      args: {
+        from: '$one',
+        to: '$two',
+        type: 'references',
+        destinationBoardId: b,
+        expectedBoardId: a,
+        requestId: 'flow-edge',
+      },
+    },
+  ];
+  const first = await runCanvasBatchOperation(operations);
+  expect(first.ok).toBe(true);
+  const replay = await runCanvasBatchOperation(operations);
+  expect(replay).toEqual(first);
+  expect(canvasState.activeBoardId).toBe(a);
+  expect(canvasState.boardGeneration).toBe(generation);
+  expect(canvasState.getLayout()).toEqual(before);
+  expect(mutationHistory.canUndo()).toBe(false);
+  expect(events).not.toContain('canvas-layout-update');
+  const stored = canvasState.readBoard(b)!.layout;
+  expect(stored.nodes).toHaveLength(3);
+  expect(stored.edges).toHaveLength(1);
+  const group = stored.nodes.find((node) => node.type === 'group')!;
+  const cards = stored.nodes.filter((node) => node.type === 'markdown');
+  expect(group.data.children).toEqual(cards.map((node) => node.id));
+  expect(cards.every((node) => node.data.parentGroup === group.id)).toBe(true);
+  for (const card of cards) {
+    expect(card.position.x).toBeGreaterThan(group.position.x);
+    expect(card.position.y).toBeGreaterThan(group.position.y);
+    expect(card.position.x + card.size.width).toBeLessThan(group.position.x + group.size.width);
+    expect(card.position.y + card.size.height).toBeLessThan(group.position.y + group.size.height);
+    expect(card.linksRevision).toBeGreaterThan(card.contentRevision!);
+  }
+  canvasState.close();
+  canvasState.setWorkspaceRoot(root);
+  canvasState.loadFromDisk();
+  expect(await runCanvasBatchOperation(operations)).toEqual(first);
+  canvasState.switchBoard(b);
+  canvasState.updateNode(group.id, { data: { ...group.data, title: 'Human edit' } });
+  canvasState.removeEdge(stored.edges[0]!.id);
+  canvasState.switchBoard(a);
+  expect(await runCanvasBatchOperation(operations)).toEqual(first);
+  expect(canvasState.readBoard(b)!.layout.edges).toHaveLength(0);
+  expect(canvasState.readBoard(b)!.layout.nodes.find((node) => node.id === group.id)!.data.title).toBe('Human edit');
+});
+
+test('background group and edge controls preserve guards, locks, scope, and atomic rollback', async () => {
+  const one = await add({ title: 'One' });
+  const two = await add({ title: 'Two' });
+  const group = { childIds: [one.id, two.id], destinationBoardId: b, expectedBoardId: a, requestId: 'guard-group' };
+  const edge = {
+    from: one.id,
+    to: two.id,
+    type: 'flow',
+    destinationBoardId: b,
+    expectedBoardId: a,
+    requestId: 'guard-edge',
+  };
+  for (const [op, input] of [
+    ['group.create', group],
+    ['edge.add', edge],
+  ] as const) {
+    await expect(executeOperation(op, { ...input, expectedBoardId: b })).rejects.toThrow('active board changed');
+    humanPresence.set({ clientId: 'locked', name: 'Human', grabbingNodeId: one.id });
+    try {
+      await expect(executeOperation(op, input)).rejects.toThrow('being edited');
+    } finally {
+      humanPresence.reset();
+    }
+    const db = new Database(canvasState.databasePath!);
+    const before = canvasState.readBoard(b)!.layout;
+    db.exec(
+      "CREATE TRIGGER reject_receipt BEFORE INSERT ON node_creation_requests BEGIN SELECT RAISE(FAIL, 'receipt rejected'); END",
+    );
+    try {
+      await expect(executeOperation(op, input)).rejects.toThrow('receipt rejected');
+      expect(canvasState.readBoard(b)!.layout).toEqual(before);
+    } finally {
+      db.exec('DROP TRIGGER reject_receipt');
+      db.close();
+    }
+  }
+  await expect(executeOperation('group.create', { ...group, childIds: [one.id, 'missing'] })).rejects.toThrow(
+    'missing',
+  );
+  await expect(executeOperation('edge.add', { ...edge, to: 'missing' })).rejects.toThrow('not found');
+  canvasState.switchBoard(b);
+  canvasState.setPolicy({ scope: { nodeIds: [one.id], padding: 0 } });
+  canvasState.switchBoard(a);
+  await expect(executeOperation('group.create', group)).rejects.toThrow('scope fence');
+  await expect(executeOperation('edge.add', edge)).rejects.toThrow('scope fence');
+});
+
 test('creation receipts and live clocks agree, and inactive wiki links include unsaved active targets', async () => {
   const sdk = new PmxCanvas();
   const target = sdk.addNode({ type: 'markdown', title: 'Target' });
@@ -227,6 +351,65 @@ test('creation receipts and live clocks agree, and inactive wiki links include u
   const revision = canvasState.getContentRevision();
   await add({ requestId: 'wiki-create', content: '[[A#Renamed target]]' });
   expect(canvasState.getContentRevision()).toEqual(revision);
+});
+
+test('SDK background grouping/search and cross-board links preserve ownership, clocks, freshness and undo', async () => {
+  startCanvasServer({ workspaceRoot: root, port: 0, autoOpenBrowser: false });
+  const sdk = new PmxCanvas();
+  const active = sdk.addNode({ type: 'markdown', title: 'Active target' });
+  const one = await add({ title: 'Needle one', x: 120, y: 140 });
+  const two = await add({ title: 'Needle two', x: 800, y: 350 });
+  const original = canvasState.readBoard(b)!.layout.nodes;
+  const input = { childIds: [one.id, two.id], destinationBoardId: b, expectedBoardId: a, requestId: 'sdk-group' };
+  const groupId = sdk.createGroup(input);
+  expect(sdk.createGroup(input)).toBe(groupId);
+  expect(
+    sdk
+      .search('Needle', { boardId: b })
+      .map((result) => result.id)
+      .sort(),
+  ).toEqual([one.id, two.id].sort());
+  expect(sdk.search('Needle', { boardId: b, scope: 'active' })).toEqual([]);
+  const beforeTarget = canvasState.getNode(active.id)!;
+  const link = {
+    fromSearch: 'Needle two',
+    to: active.id,
+    toBoardId: a,
+    type: 'references' as const,
+    destinationBoardId: b,
+    requestId: 'sdk-link',
+  };
+  const edgeId = sdk.addEdge(link);
+  expect(sdk.addEdge(link)).toBe(edgeId);
+  const stored = canvasState.readBoard(b)!.layout;
+  expect(stored.edges[0]).toMatchObject({ id: edgeId, from: two.id, to: active.id, toBoardId: a });
+  expect(canvasState.getNode(active.id)!.linksRevision!).toBeGreaterThan(beforeTarget.linksRevision ?? 0);
+  expect(canvasState.getNode(active.id)!.contentRevision).toBe(beforeTarget.contentRevision);
+  for (const node of original)
+    expect(stored.nodes.find((item) => item.id === node.id)!.freshnessStartedAt).toBe(node.freshnessStartedAt);
+  expect(canvasState.activeBoardId).toBe(a);
+  canvasState.switchBoard(b);
+  mutationHistory.reset();
+  const outerId = sdk.createGroup({
+    title: 'Outer',
+    childIds: [groupId],
+    requestId: 'active-group',
+    childLayout: 'grid',
+  });
+  const fresh = canvasState.getNode(outerId)!.freshnessStartedAt;
+  await sdk.undo();
+  expect(canvasState.getNode(outerId)).toBeUndefined();
+  expect(canvasState.getNode(groupId)!.data.parentGroup).toBeUndefined();
+  await sdk.redo();
+  expect(canvasState.getNode(groupId)!.data.parentGroup).toBe(outerId);
+  expect(canvasState.getNode(outerId)!.freshnessStartedAt).toBe(fresh);
+  const newEdgeId = sdk.addEdge({ from: one.id, to: two.id, type: 'flow', requestId: 'active-edge' });
+  const linksRevision = canvasState.getNode(one.id)!.linksRevision!;
+  await sdk.undo();
+  expect(canvasState.getEdges().some((edge) => edge.id === newEdgeId)).toBe(false);
+  expect(canvasState.getNode(one.id)!.linksRevision!).toBeGreaterThan(linksRevision);
+  await sdk.redo();
+  expect(canvasState.getEdges().some((edge) => edge.id === newEdgeId)).toBe(true);
 });
 
 test.each([
@@ -303,6 +486,40 @@ test('HTTP and stdio MCP expose the same destination and persistent request iden
     expect(canvasState.activeBoardId).toBe(a);
     expect(canvasState.getLayout().nodes).toHaveLength(0);
     expect(canvasState.readBoard(b)!.layout.nodes).toHaveLength(1);
+    const second = (await (await post({ ...body, title: 'Other', requestId: 'transport-2' })).json()) as { id: string };
+    const group = await client.callTool({
+      name: 'canvas_group',
+      arguments: {
+        action: 'create',
+        childIds: [first.id, second.id],
+        destinationBoardId: b,
+        expectedBoardId: a,
+        requestId: 'transport-group',
+      },
+    });
+    expect(group.isError).not.toBe(true);
+    const edge = await client.callTool({
+      name: 'canvas_edge',
+      arguments: {
+        action: 'add',
+        from: first.id,
+        to: second.id,
+        type: 'references',
+        destinationBoardId: b,
+        expectedBoardId: a,
+        requestId: 'transport-edge',
+      },
+    });
+    expect(edge.isError).not.toBe(true);
+    const stored = canvasState.readBoard(b)!.layout;
+    expect(stored.nodes).toHaveLength(3);
+    expect(stored.edges).toHaveLength(1);
+    expect(
+      stored.nodes
+        .filter((node) => node.type === 'markdown')
+        .every((node) => node.data.parentGroup === stored.nodes.find((item) => item.type === 'group')!.id),
+    ).toBe(true);
+    expect(canvasState.activeBoardId).toBe(a);
     expect((await fetch(`${base}/canvas/index.js`)).status).toBe(200);
   } finally {
     await client.close();

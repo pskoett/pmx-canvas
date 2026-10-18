@@ -338,17 +338,20 @@ blanket-reclassify facts as durable. This remains separate from WI-03's layout f
 
 ### WI-07, capability: create on an inactive board without switching the human's board
 
-**Status:** locally implemented and MCP-retested for static node creation. `destinationBoardId`
-selects the stored destination; `expectedBoardId` remains an active-board guard. The singleton
-commits without temporarily opening the destination, altering active undo or creating ghosts.
-Both boards' scope fences are conservatively enforced. Runtime-backed nodes, generated
-primitives, intents and membership mutations are explicitly unsupported, as are inactive
-updates/removals. These are documented boundaries, not silent fallback paths.
+**Status:** static node creation is delivered; the follow-up extends destination creation to
+groups and edges, completing the multi-card + frame + relations import workflow. Explicit
+board/folder search filters now intersect before ranking/limits. `destinationBoardId` selects
+the stored owner; `expectedBoardId` remains an active-board guard and `toBoardId` is an
+independent foreign endpoint. The singleton commits without temporarily opening the
+destination, altering active undo or creating ghosts. Scope fences and human edit locks
+remain enforced. Runtime-backed node creation, generated primitives, intents and inactive
+update/remove operations remain unsupported, not silently redirected. The two new
+capabilities require independent validation of this follow-up candidate.
 
 ### WI-08, retry safety: distinguish retries from intentional identical creations
 
 **Status:** locally implemented and MCP-retested. Optional `requestId` persists an atomic
-creation receipt with the node. Same input/destination replays the original receipt; mismatched
+creation receipt with the node, group or edge. Same input/destination replays the original receipt; mismatched
 reuse conflicts. New ids preserve intentional identical creations. Regression tests exercise
 restart, removal, rollback at receipt failure, endpoint clocks and named batch references.
 Receipts survive individual node deletion but are deleted with the owning board. Existing

@@ -507,6 +507,49 @@ describe('canvas server HTTP API', () => {
     canvasState.deleteBoard(activeBoard.id);
   });
 
+  test('search filters intersect board and normalized folder before ranking limits without activating boards', async () => {
+    const original = canvasState.activeBoardId;
+    const boards = [
+      canvasState.createBoard('Filter parent', 'Search')!,
+      canvasState.createBoard('Filter child', 'Search/Child')!,
+      canvasState.createBoard('Filter sibling', 'Searchable')!,
+      canvasState.createBoard('Filter unfiled')!,
+    ];
+    const ids: string[] = [];
+    try {
+      for (const [index, board] of boards.entries()) {
+        canvasState.switchBoard(board.id);
+        const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'markdown', title: index === 3 ? 'Needle' : 'Overview', content: 'Needle' }),
+        });
+        ids.push(node.id);
+      }
+      const search = async (options: Record<string, string> = {}) => {
+        const result = await jsonRequest<{ results: Array<{ id: string }> }>(
+          `/api/canvas/search?${new URLSearchParams({ q: 'Needle absent', ...options })}`,
+        );
+        expect(canvasState.activeBoardId).toBe(boards[3]!.id);
+        return result.results.map((hit) => hit.id);
+      };
+      expect(await search()).toEqual([ids[3]!]);
+      expect((await search({ folder: ' Search ' })).sort()).toEqual(ids.slice(0, 2).sort());
+      expect(await search({ boardId: boards[1]!.id, folder: 'Search', limit: '1' })).toEqual([ids[1]!]);
+      expect(await search({ boardId: boards[1]!.id, folder: 'Search/Child', scope: 'library' })).toEqual([ids[1]!]);
+      expect(await search({ boardId: boards[2]!.id, folder: 'Search' })).toEqual([]);
+      expect(await search({ boardId: 'missing' })).toEqual([]);
+      expect(await search({ folder: 'missing' })).toEqual([]);
+      expect(await search({ folder: '' })).toEqual([ids[3]!]);
+      expect(await search({ scope: 'active', folder: 'Search' })).toEqual([]);
+      expect(await search({ scope: 'active', boardId: boards[1]!.id })).toEqual([]);
+      expect(await search({ scope: 'active', folder: '', boardId: boards[3]!.id })).toEqual([ids[3]!]);
+    } finally {
+      canvasState.switchBoard(original);
+      for (const board of boards) canvasState.deleteBoard(board.id);
+    }
+  });
+
   test('supports node CRUD, markdown rendering, and search', async () => {
     const render = await jsonRequest<{ html: string }>('/api/render', {
       method: 'POST',

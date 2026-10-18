@@ -559,6 +559,52 @@ describe('MCP composite tools (plan-006)', () => {
     expect((await call(client, 'canvas_query', { action: 'layout', board: 'missing' })).isError).toBe(true);
   }, 30000);
 
+  test('canvas_query search forwards intersecting board/folder filters and explicit active scope', async () => {
+    const { client, port } = await createMcpSession();
+    try {
+      const boards: string[] = [];
+      const ids: string[] = [];
+      for (const [index, folder] of ['Search', 'Search/Child', 'Searchable', ''].entries()) {
+        const { board } = parseJsonText<{ board: { id: string } }>(
+          await call(client, 'canvas_board', { action: 'create', name: `Filter ${index}`, folder }),
+        );
+        boards.push(board.id);
+        await call(client, 'canvas_board', { action: 'open', id: board.id });
+        ids.push(
+          parseJsonText<{ id: string }>(
+            await call(client, 'canvas_node', {
+              action: 'add',
+              type: 'markdown',
+              title: index === 3 ? 'Needle' : 'Overview',
+              content: 'Needle',
+            }),
+          ).id,
+        );
+      }
+      const base = await resolveBaseUrl(port);
+      const search = async (options: Record<string, unknown> = {}) => {
+        const response = await call(client, 'canvas_query', { action: 'search', query: 'Needle absent', ...options });
+        expect(response.isError).not.toBe(true);
+        const result = parseJsonText<{ results: Array<{ id: string }> }>(response);
+        expect(await (await fetch(`${base}/api/canvas/boards`)).json()).toMatchObject({ activeBoardId: boards[3] });
+        return result.results.map((hit) => hit.id);
+      };
+      expect(await search()).toEqual([ids[3]!]);
+      expect((await search({ folder: ' Search ' })).sort()).toEqual(ids.slice(0, 2).sort());
+      expect(await search({ boardId: boards[1], folder: 'Search', limit: 1 })).toEqual([ids[1]!]);
+      expect(await search({ boardId: boards[1], folder: 'Search/Child', scope: 'library' })).toEqual([ids[1]!]);
+      expect(await search({ boardId: boards[2], folder: 'Search' })).toEqual([]);
+      expect(await search({ boardId: 'missing' })).toEqual([]);
+      expect(await search({ folder: 'missing' })).toEqual([]);
+      expect(await search({ folder: '' })).toEqual([ids[3]!]);
+      expect(await search({ scope: 'active', folder: 'Search' })).toEqual([]);
+      expect(await search({ scope: 'active', boardId: boards[1] })).toEqual([]);
+      expect(await search({ scope: 'active', folder: '', boardId: boards[3] })).toEqual([ids[3]!]);
+    } finally {
+      await client.close();
+    }
+  }, 30000);
+
   test('canvas_query folds search/layout', async () => {
     const { client } = await createMcpSession();
     const added = parseJsonText<{ id: string }>(

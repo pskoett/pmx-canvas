@@ -48,6 +48,13 @@ cmd(
     if (typeof flags.reason === 'string') body.reason = flags.reason;
     if (typeof flags.style === 'string') body.style = flags.style;
     if (flags.animated) body.animated = true;
+    for (const [flag, field] of [
+      ['destination-board', 'destinationBoardId'],
+      ['request-id', 'requestId'],
+      ['expected-board', 'expectedBoardId'],
+    ] as const) {
+      if (typeof flags[flag] === 'string') body[field] = flags[flag];
+    }
 
     const result = await invokeOperation('edge.add', body);
     output(result);

@@ -297,6 +297,11 @@ declare class CanvasStateManager {
     getActiveBoard(): CanvasBoard | null;
     /** Synchronous, owner-controlled static creation. No board activation or runtime hydration. */
     createStoredNode(boardId: string, requestId: string | undefined, fingerprint: string, build: (nodes: CanvasNodeState[]) => CanvasNodeState): CanvasNodeState;
+    private stampStoredNode;
+    createStoredGroup(boardId: string, requestId: string | undefined, fingerprint: string, build: (nodes: CanvasNodeState[]) => CanvasNodeState, childLayout?: 'grid' | 'column' | 'flow'): CanvasNodeState;
+    createStoredEdge(boardId: string, requestId: string | undefined, fingerprint: string, build: (nodes: CanvasNodeState[]) => CanvasEdge): CanvasEdge;
+    /** Stored creations share one durable receipt/commit boundary, never a temporary board switch. */
+    private createStoredCreation;
     /** Read a board without activating it. This projection is not a write payload. */
     readBoard(id: string, includeBlobs?: boolean): {
         board: CanvasBoard;

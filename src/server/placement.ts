@@ -14,6 +14,35 @@ const GROUP_LAYOUT_MIN_ROW_WIDTH = 1200;
 const GROUP_LAYOUT_MAX_ROW_WIDTH = 1800;
 const GROUP_TO_GROUP_GAP = 48;
 
+/** Pack members inside an explicitly sized frame without changing that frame. */
+export function computeManualGroupLayout<T extends CanvasPlacementRect & { id: string }>(
+  children: T[],
+  frame: CanvasPlacementRect,
+  layout: 'grid' | 'column' | 'flow',
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const left = frame.position.x + GROUP_PAD;
+  const top = frame.position.y + GROUP_TITLEBAR_HEIGHT + GROUP_PAD;
+  const right = frame.position.x + frame.size.width - GROUP_PAD;
+  let x = left,
+    y = top,
+    rowHeight = 0;
+  for (const child of [...children].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)) {
+    if (layout === 'grid' && x > left && x + child.size.width > right) {
+      x = left;
+      y += rowHeight + 24;
+      rowHeight = 0;
+    }
+    positions.set(child.id, { x: layout === 'column' ? left : x, y: layout === 'flow' ? top : y });
+    if (layout === 'column') y += child.size.height + 24;
+    else {
+      x += child.size.width + 24;
+      rowHeight = Math.max(rowHeight, child.size.height);
+    }
+  }
+  return positions;
+}
+
 /**
  * Compute bounding box for a group that should contain the given child rects.
  * Returns position and size with padding, or null if no valid children.

@@ -361,6 +361,12 @@ Library search is `canvas_query { action: "search", query: "auth", scope:
 Exact and whole-term matches rank ahead of embedded substrings; substring discovery
 still works, so `V2 platform` precedes `TV2 pictures` for `V2` without dropping the latter.
 
+Search also accepts intersecting `boardId` and `folder` filters. Folder includes
+exact and descendant paths, with `""` for unfiled boards. Filters default omitted
+scope to library; explicit `scope: "active"` remains constrained to the active
+board. Filtering happens before ranking/limit, and unknown selections return no
+results. These are selectors, not board switches.
+
 To author static cards on a new board without interrupting the human, create the
 board and pass its id as `destinationBoardId` to `canvas_node { action: "add" }`.
 For active-board operations, call `canvas_board { action: "open", id: "<returned-board-id>" }`
@@ -404,6 +410,16 @@ types, primitives, intents and membership mutations fail explicitly. Both boards
 scope fences apply conservatively. Batch entries support these fields and named refs;
 this does not add inactive-board update/remove support. See [the full creation/retry
 contract](http-api.md#nodes).
+
+`canvas_group { action: "create" }` and `canvas_edge { action: "add" }` accept
+the same `destinationBoardId`, `requestId` and active `expectedBoardId` guard.
+Create cards, group their IDs and connect them in one `canvas_batch` using named
+refs, without switching the human's board. Groups resolve children on the
+destination and preserve positions unless `childLayout` is supplied. Edge source
+ownership uses `destinationBoardId`; `toBoardId` remains an independent cross-board
+target. Retry receipts preserve edits/removals and survive restart. This extends
+creation, not background update/remove operations; runtime and intent restrictions
+on static node creation remain in force.
 
 `canvas_node { action: "update" }` accepts `expectedBoardId` and `expectedContentRevision`
 to refuse stale writes. Ordinary updates change the card only. File-backed Markdown may opt

@@ -24,6 +24,7 @@ import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes, searchRelevance } from '../../spatial-analysis.js';
 import { boardConnections, memoryGraph } from '../../memory-graph.js';
 import { relationText } from '../../../shared/relations.js';
+import { normalizeBoardFolder } from '../../../shared/boards.js';
 import { lifecycleQualifications } from '../../lifecycle-status.js';
 import {
   compileContextBrief,
@@ -118,6 +119,8 @@ const pinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, u
 const searchShape = {
   q: z.unknown().optional().describe('Search query — matches against node titles, content, and file paths'),
   scope: z.unknown().optional().describe('active (default) or library (all boards)'),
+  boardId: z.string().optional().describe('Stable board ID to search; defaults scope to library when supplied'),
+  folder: z.string().optional().describe('Folder and descendants; empty string selects unfiled boards'),
   limit: z.unknown().optional().describe('Max results to return (default: all over HTTP, 10 via the MCP tool).'),
 };
 
@@ -140,13 +143,17 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
       query: z.string().describe('Search query — matches against node titles, content, and file paths'),
       limit: z.number().optional().describe('Max results to return (default: 10)'),
       scope: z.enum(['active', 'library']).optional().describe('Search the active board or the full board library'),
+      boardId: searchShape.boardId,
+      folder: searchShape.folder,
     },
     // Map the MCP-facing `query` arg onto the wire's `q`. The handler caps by
     // `limit` on every transport; the MCP tool additionally defaults it to 10.
     buildInput: (input) => ({
       q: typeof input.query === 'string' ? input.query : '',
       ...(typeof input.limit === 'number' ? { limit: input.limit } : {}),
-      ...(input.scope === 'library' ? { scope: 'library' } : {}),
+      ...(input.scope === 'library' || input.scope === 'active' ? { scope: input.scope } : {}),
+      ...(typeof input.boardId === 'string' ? { boardId: input.boardId } : {}),
+      ...(typeof input.folder === 'string' ? { folder: input.folder } : {}),
     }),
     formatResult: (result, input) => {
       const body = isRecord(result) ? result : {};
@@ -170,79 +177,106 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
       };
     },
   },
-  handler: (input) => {
-    const q = typeof input.q === 'string' ? input.q : '';
-    if (!q.trim()) {
-      return { results: [], query: q };
-    }
-    const rawLimit = input.limit;
-    const limit =
-      typeof rawLimit === 'number'
-        ? rawLimit
-        : typeof rawLimit === 'string' && rawLimit.trim() !== ''
-          ? Number(rawLimit)
-          : Number.NaN;
-    const library = input.scope === 'library';
-    const results = library
-      ? canvasState.listBoards().flatMap((board) => {
-          const read = canvasState.readBoard(board.id, true);
-          if (!read) return [];
-          const cards = searchNodes(read.layout.nodes, q).map((result) => ({
-            ...result,
-            boardId: board.id,
-            boardTitle: board.name,
-            cardId: result.id,
-          }));
-          const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
-          const readmeText = typeof readme?.data.content === 'string' ? readme.data.content : '';
-          const score = searchRelevance(
-            board.name,
-            [
-              [board.folder ?? '', 2],
-              [readmeText, 1],
-            ],
-            q,
-          );
-          if (score > 0) {
-            cards.unshift({
-              id: board.id,
-              type: 'board',
-              title: board.name,
-              snippet: readmeText.slice(0, 160) || board.folder || board.name,
-              score,
-              boardId: board.id,
-              boardTitle: board.name,
-              cardId: readme?.id ?? board.id,
-            });
-          }
-          return cards;
-        })
-      : searchNodes(canvasState.getLayout().nodes, q).map((result) => ({
+  handler: (input) =>
+    searchCanvasNodes(typeof input.q === 'string' ? input.q : '', {
+      scope: input.scope === 'active' || input.scope === 'library' ? input.scope : undefined,
+      boardId: input.boardId,
+      folder: input.folder,
+      limit: typeof input.limit === 'number' || typeof input.limit === 'string' ? input.limit : undefined,
+    }),
+});
+
+/** Search without opening boards; HTTP, MCP and SDK share discovery and ranking. */
+export function searchCanvasNodes(
+  q: string,
+  options: { scope?: 'active' | 'library'; boardId?: string; folder?: string; limit?: number | string } = {},
+) {
+  if (!q.trim()) {
+    return { results: [], query: q };
+  }
+  const rawLimit = options.limit;
+  const limit =
+    typeof rawLimit === 'number'
+      ? rawLimit
+      : typeof rawLimit === 'string' && rawLimit.trim() !== ''
+        ? Number(rawLimit)
+        : Number.NaN;
+  const hasFilter = options.boardId !== undefined || options.folder !== undefined;
+  const library = options.scope === 'library' || (options.scope === undefined && hasFilter);
+  const folder = options.folder === undefined ? undefined : normalizeBoardFolder(options.folder);
+  const selectedBoards = canvasState
+    .listBoards()
+    .filter(
+      (board) =>
+        (options.boardId === undefined || board.id === options.boardId) &&
+        (folder === undefined ||
+          board.folder === folder ||
+          (folder !== null && board.folder?.startsWith(`${folder}/`))),
+    );
+  const results = library
+    ? selectedBoards.flatMap((board) => {
+        const read = canvasState.readBoard(board.id, true);
+        if (!read) return [];
+        const cards = searchNodes(read.layout.nodes, q).map((result) => ({
           ...result,
-          boardId: canvasState.activeBoardId,
+          boardId: board.id,
+          boardTitle: board.name,
           cardId: result.id,
         }));
-    results.sort((a, b) => {
-      const aKey = `${a.boardId ?? ''}/${a.id}`;
-      const bKey = `${b.boardId ?? ''}/${b.id}`;
-      return b.score - a.score || (aKey < bKey ? -1 : aKey > bKey ? 1 : 0);
-    });
-    const delivered = Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results;
-    const qualifications = lifecycleQualifications(
-      Date.now(),
-      delivered.flatMap((result) => (result.boardId ? [{ boardId: result.boardId, cardId: result.cardId }] : [])),
-    );
-    return {
-      results: delivered.map((result) => ({
+        const readme = read.layout.nodes.find((node) => node.id === board.readmeNodeId);
+        const readmeText = typeof readme?.data.content === 'string' ? readme.data.content : '';
+        const score = searchRelevance(
+          board.name,
+          [
+            [board.folder ?? '', 2],
+            [readmeText, 1],
+          ],
+          q,
+        );
+        if (score > 0) {
+          cards.unshift({
+            id: board.id,
+            type: 'board',
+            title: board.name,
+            snippet: readmeText.slice(0, 160) || board.folder || board.name,
+            score,
+            boardId: board.id,
+            boardTitle: board.name,
+            cardId: readme?.id ?? board.id,
+          });
+        }
+        return cards;
+      })
+    : searchNodes(
+        !hasFilter || selectedBoards.some((board) => board.id === canvasState.activeBoardId)
+          ? canvasState.getLayout().nodes
+          : [],
+        q,
+      ).map((result) => ({
         ...result,
-        ...(result.boardId
-          ? { qualification: qualifications[memoryKey({ boardId: result.boardId, cardId: result.cardId })] }
-          : {}),
-      })),
-      query: q,
-    };
-  },
-});
+        boardId: canvasState.activeBoardId,
+        cardId: result.id,
+      }));
+  results.sort((a, b) => {
+    const aKey = `${a.boardId ?? ''}/${a.id}`;
+    const bKey = `${b.boardId ?? ''}/${b.id}`;
+    return b.score - a.score || (aKey < bKey ? -1 : aKey > bKey ? 1 : 0);
+  });
+  const delivered = Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results;
+  const qualifications = lifecycleQualifications(
+    Date.now(),
+    delivered.flatMap((result) => (result.boardId ? [{ boardId: result.boardId, cardId: result.cardId }] : [])),
+  );
+  return {
+    results: delivered.map((result) => ({
+      ...result,
+      ...(result.boardId
+        ? { qualification: qualifications[memoryKey({ boardId: result.boardId, cardId: result.cardId })] }
+        : {}),
+    })),
+    query: q,
+  };
+}
 
 // ── context.get ───────────────────────────────────────────────
 

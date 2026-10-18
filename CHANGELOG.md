@@ -11,6 +11,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- Agents can create groups and connections on a background board without interrupting your view.
+- Search can be restricted to a board or folder subtree.
 - Knowledge category and lifecycle data tools provide inherited folder settings and auditable card reviews and restores.
 - Relations carry named kinds and reasons, with board-specific vocabularies and Research, Dependencies, Decision and Flow presets.
 - Review warnings follow source changes and explicit lifecycle policies; retired cards stay stored but leave active agent briefs.

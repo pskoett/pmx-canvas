@@ -436,6 +436,9 @@ curl http://localhost:4313/api/canvas/state
 # Search the library (omit scope for the active board)
 curl "http://localhost:4313/api/canvas/search?q=auth&limit=10&scope=library"
 
+# Restrict to a board inside a folder subtree without opening it
+curl "http://localhost:4313/api/canvas/search?q=auth&boardId=<id>&folder=Research"
+
 # Validate the current layout. Reports collisions, groupFrameOverlaps (a group
 # frame covering a node that is not one of its members, nested members
 # included — e.g. after a group auto-fits around enlarged children),
@@ -468,6 +471,13 @@ curl -X POST http://localhost:4313/api/canvas/schema/validate \
 
 ## Nodes
 
+Search accepts intersecting `boardId` (stable ID) and `folder` filters. A folder
+matches itself and slash-boundary descendants; `folder=` selects unfiled boards.
+Filters default an omitted scope to `library`. Explicit `scope=active` stays
+constrained to the active board, even when another board is selected. Unknown or
+nonmatching selections return no results. Filtering precedes ranking and limits;
+term-OR discovery and whole-term ranking remain unchanged. Search never navigates.
+
 `POST /api/canvas/node` accepts `destinationBoardId` to create on a stored board
 without opening it or changing the human's active board. `expectedBoardId` remains
 an **active-board** precondition, not a destination selector; stale values return 409.
@@ -493,6 +503,19 @@ to active cards' incoming link clocks can emit an active layout; the destination
 layout is never substituted. Library metadata refreshes through `boards-changed`.
 Auto-placement uses the destination's nodes. Batch entries accept the same fields;
 batches still prefix-commit and assigned references work on receipts as on new nodes.
+
+`POST /api/canvas/group` and `POST /api/canvas/edge` also accept
+`destinationBoardId`, `requestId` and `expectedBoardId` under the same commit,
+retry, scope-fence and no-navigation contract. Groups resolve all `childIds` on
+the destination, preserve their positions by default, and support explicit frames
+and `childLayout`. Membership changes respect human edit locks, including moved
+descendants and affected parent frames. Edges resolve `from`/`fromSearch` and
+`to`/`toSearch` on the destination; `toBoardId` independently selects a foreign
+target board, not the owner of the edge. Both endpoints' relation clocks update
+without changing their content/freshness. A retry returns its original group or
+edge receipt, preserving later edits and not resurrecting removals. A request ID
+cannot be reused for a different creation operation. Inactive group membership
+updates/removals and other background CRUD remain unsupported.
 
 ```bash
 # Add a node

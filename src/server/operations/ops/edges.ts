@@ -17,6 +17,8 @@ const VALID_EDGE_STYLES = new Set(['solid', 'dashed', 'dotted']);
 // ── edge.add ──────────────────────────────────────────────────
 
 const edgeAddShape = {
+  destinationBoardId: z.string().min(1).optional().describe('Board owning the source and edge; does not activate it'),
+  requestId: z.string().min(1).optional().describe('Logical creation identity for retry-safe edge creation'),
   intentId: z
     .string()
     .optional()
@@ -28,7 +30,7 @@ const edgeAddShape = {
     .string()
     .min(1)
     .optional()
-    .describe('Target board ID for a direct cross-board edge; source stays on the open board'),
+    .describe('Target board ID for a cross-board edge; independent of the source destinationBoardId'),
   fromSearch: z
     .string()
     .optional()
@@ -121,6 +123,9 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
     }
     try {
       return addCanvasEdge({
+        destinationBoardId: input.destinationBoardId,
+        requestId: input.requestId,
+        intentId: input.intentId,
         ...(typeof body.from === 'string' ? { from: body.from } : {}),
         ...(typeof body.to === 'string' ? { to: body.to } : {}),
         ...(typeof body.toBoardId === 'string' ? { toBoardId: body.toBoardId } : {}),
@@ -134,6 +139,7 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
         ...(body.animated !== undefined ? { animated: Boolean(body.animated) } : {}),
       });
     } catch (error) {
+      if (error instanceof OperationError) throw error;
       throw new OperationError(error instanceof Error ? error.message : 'Duplicate or self-edge.');
     }
   },

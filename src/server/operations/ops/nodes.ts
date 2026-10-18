@@ -9,13 +9,13 @@
  * This module must never import server.ts or index.ts.
  */
 import { realpathSync, statSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { canvasState, type CanvasAnnotation, type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
 import {
   addCanvasNode,
   createCanvasGroup,
+  storedCreationTarget,
   buildStructuredNodeUpdate,
   hasStructuredNodeUpdateFields,
   hasTraceNodeDataFields,
@@ -590,14 +590,7 @@ export function removeNodeCore(id: string): { needsCodeGraphRecompute: boolean }
 
 /** Explicit creation identity is opt-in, not content-based deduplication. */
 export function createDestinationNode(body: Record<string, unknown>): CanvasNodeState {
-  for (const key of ['destinationBoardId', 'requestId']) {
-    if (body[key] !== undefined && (typeof body[key] !== 'string' || !body[key].trim()))
-      throw new OperationError(`${key} must be a non-empty string.`);
-  }
-  if (body.expectedBoardId !== undefined && body.expectedBoardId !== canvasState.activeBoardId)
-    throw new OperationError('The active board changed. Refresh before retrying this action.', 409);
-  const boardId = typeof body.destinationBoardId === 'string' ? body.destinationBoardId : canvasState.activeBoardId;
-  if (!boardId) throw new OperationError('Open a board or provide destinationBoardId.');
+  const { boardId, requestId, fingerprint } = storedCreationTarget(body, 'node.add');
   const supported = ['markdown', 'status', 'context', 'ledger', 'trace', 'diff', 'mermaid', 'html'];
   if (!supported.includes(String(body.type)) || body.primitive !== undefined || body.kind !== undefined)
     throw new OperationError(
@@ -611,24 +604,9 @@ export function createDestinationNode(body: Record<string, unknown>): CanvasNode
     )
   )
     throw new OperationError('Destination/retry creation does not support ghost intents or membership mutations.');
-  const ignored = new Set(['requestId', 'destinationBoardId', 'expectedBoardId', 'full', 'verbose', 'agentId']);
-  const canonical = (value: unknown): unknown =>
-    Array.isArray(value)
-      ? value.map(canonical)
-      : isRecord(value)
-        ? Object.fromEntries(
-            Object.keys(value)
-              .sort()
-              .filter((key) => value[key] !== undefined)
-              .map((key) => [key, canonical(value[key])]),
-          )
-        : value;
-  const fingerprint = createHash('sha256')
-    .update(JSON.stringify(canonical(Object.fromEntries(Object.entries(body).filter(([key]) => !ignored.has(key))))))
-    .digest('hex');
   return canvasState.createStoredNode(
     boardId,
-    typeof body.requestId === 'string' ? body.requestId : undefined,
+    requestId,
     fingerprint,
     (nodes) => createBasicCanvasNode(body, { fileMode: 'auto', prepareOnlyNodes: nodes }).node,
   );

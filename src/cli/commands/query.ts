@@ -28,7 +28,7 @@ import {
 cmd(
   'search',
   'Search nodes by title or content',
-  ['pmx-canvas search "design doc"', 'pmx-canvas search --query "TODO"'],
+  ['pmx-canvas search "design doc"', 'pmx-canvas search --query "TODO" --folder "Research" --board-id <id>'],
   async (args) => {
     const { positional, flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('search');
@@ -36,7 +36,15 @@ cmd(
     const query = positional[0] || (typeof flags.query === 'string' ? flags.query : '');
     if (!query) die('Missing search query', 'pmx-canvas search "query"');
 
-    const result = await invokeOperation('search', { q: query, ...(flags.library ? { scope: 'library' } : {}) });
+    if (flags.scope !== undefined && flags.scope !== 'active' && flags.scope !== 'library')
+      die('--scope must be active or library.');
+    const result = await invokeOperation('search', {
+      q: query,
+      ...(flags.scope ? { scope: flags.scope } : flags.library ? { scope: 'library' } : {}),
+      ...(typeof flags['board-id'] === 'string' ? { boardId: flags['board-id'] } : {}),
+      ...(typeof flags.folder === 'string' ? { folder: flags.folder } : {}),
+      ...(typeof flags.limit === 'string' ? { limit: Number(flags.limit) } : {}),
+    });
     output(result);
   },
 );

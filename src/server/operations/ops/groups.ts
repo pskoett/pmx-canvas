@@ -21,6 +21,8 @@ function pickChildLayout(value: unknown): 'grid' | 'column' | 'flow' | undefined
 // ── group.create ──────────────────────────────────────────────
 
 const groupCreateShape = {
+  destinationBoardId: z.string().min(1).optional().describe('Create the group on this board without activating it'),
+  requestId: z.string().min(1).optional().describe('Logical creation identity for retry-safe group creation'),
   intentId: z
     .string()
     .optional()
@@ -90,7 +92,7 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
     const width = typeof body.width === 'number' ? body.width : undefined;
     const height = typeof body.height === 'number' ? body.height : undefined;
     const childLayout = pickChildLayout(body.childLayout);
-    if (childIds.length > 0) {
+    if (childIds.length > 0 && input.destinationBoardId === undefined && input.requestId === undefined) {
       const missingChildIds = childIds.filter((id) => !canvasState.getNode(id));
       if (missingChildIds.length > 0) {
         throw new OperationError(
@@ -99,6 +101,9 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
       }
     }
     return createCanvasGroup({
+      destinationBoardId: input.destinationBoardId,
+      requestId: input.requestId,
+      intentId: input.intentId,
       title,
       childIds,
       color,

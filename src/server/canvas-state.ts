@@ -22,6 +22,7 @@ import {
 import { KnowledgeLifecycle, lifecycleSchema, type Lifecycle } from './knowledge-lifecycle.js';
 import { relationSourceEnd } from '../shared/relations.js';
 import { OperationError } from './operations/types.js';
+import { humanPresence } from './human-presence.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import {
   copyFileSync,
@@ -92,9 +93,8 @@ import { normalizeCanvasTheme } from './canvas-db.js';
 import {
   type CanvasPlacementRect,
   computeGroupBounds,
+  computeManualGroupLayout,
   computePackedGroupLayout,
-  GROUP_PAD,
-  GROUP_TITLEBAR_HEIGHT,
   resolveGroupCollision,
 } from './placement.js';
 import {
@@ -780,38 +780,8 @@ class CanvasStateManager {
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot || snapshot.children.length === 0) return;
     if (snapshot.group.data.frameMode === 'manual') {
-      const sorted = [...snapshot.children].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
-      const left = snapshot.group.position.x + GROUP_PAD;
-      const top = snapshot.group.position.y + GROUP_TITLEBAR_HEIGHT + GROUP_PAD;
-      const right = snapshot.group.position.x + snapshot.group.size.width - GROUP_PAD;
-      const gap = 24;
-      let cursorX = left;
-      let cursorY = top;
-      let rowHeight = 0;
-
-      for (const child of sorted) {
-        if (layout === 'column') {
-          this.nodes.set(child.id, { ...child, position: { x: left, y: cursorY } });
-          cursorY += child.size.height + gap;
-          continue;
-        }
-
-        if (layout === 'flow') {
-          this.nodes.set(child.id, { ...child, position: { x: cursorX, y: top } });
-          cursorX += child.size.width + gap;
-          continue;
-        }
-
-        if (cursorX > left && cursorX + child.size.width > right) {
-          cursorX = left;
-          cursorY += rowHeight + gap;
-          rowHeight = 0;
-        }
-
-        this.nodes.set(child.id, { ...child, position: { x: cursorX, y: cursorY } });
-        cursorX += child.size.width + gap;
-        rowHeight = Math.max(rowHeight, child.size.height);
-      }
+      const positions = computeManualGroupLayout(snapshot.children, snapshot.group, layout);
+      for (const child of snapshot.children) this.nodes.set(child.id, { ...child, position: positions.get(child.id)! });
       return;
     }
 
@@ -1185,13 +1155,195 @@ class CanvasStateManager {
     fingerprint: string,
     build: (nodes: CanvasNodeState[]) => CanvasNodeState,
   ): CanvasNodeState {
+    return this.createStoredCreation(boardId, requestId, fingerprint, (state, invalidate) => {
+      const next = this.stampStoredNode(this.normalizeNode(build(state.nodes)), state);
+      if (next.type === 'markdown') {
+        const catalog = listBoardsFromDB(this._db!).map((board) => ({
+          id: board.id,
+          name: board.name,
+          cards: (board.id === boardId
+            ? [...state.nodes, next]
+            : (loadStateFromDB(this._db!, board.id)?.nodes ?? [])
+          ).map((card) => ({ id: card.id, title: typeof card.data.title === 'string' ? card.data.title : card.id })),
+        }));
+        next.data.wikiLinks = resolveWikiLinks(String(next.data.content ?? ''), [], catalog);
+      }
+      state.nodes.push(next);
+      const links = next.type === 'markdown' ? wikiLinksFromData(next.data) : [];
+      if (links.length) {
+        invalidate(boardId, next.id);
+        const targets = new Map(
+          links.flatMap(({ target }) => (target?.cardId ? [[JSON.stringify(target), target] as const] : [])),
+        );
+        for (const target of targets.values()) invalidate(target.boardId, target.cardId!);
+      }
+      return next;
+    });
+  }
+
+  private stampStoredNode(node: CanvasNodeState, state: PersistedCanvasState): CanvasNodeState {
+    const now = new Date().toISOString();
+    const provenance = node.data.provenance as { sourceKind?: string } | undefined;
+    const imported =
+      node.data.contentOrigin === 'imported' ||
+      node.data.source !== undefined ||
+      (provenance !== undefined && provenance.sourceKind !== 'recipe');
+    return {
+      ...node,
+      createdBy: currentActor(),
+      lastEditedBy: currentActor(),
+      contentRevision: ++state.revisionState!.revision,
+      contentChangedAt: now,
+      freshnessStartedAt: imported ? undefined : now,
+    };
+  }
+
+  createStoredGroup(
+    boardId: string,
+    requestId: string | undefined,
+    fingerprint: string,
+    build: (nodes: CanvasNodeState[]) => CanvasNodeState,
+    childLayout?: 'grid' | 'column' | 'flow',
+  ): CanvasNodeState {
+    return this.createStoredCreation(boardId, requestId, fingerprint, (state) => {
+      const group = this.stampStoredNode(this.normalizeNode(build(state.nodes)), state);
+      const ids = group.data.children as string[];
+      const children = ids.map((id) => state.nodes.find((node) => node.id === id)!);
+      const affected = new Set(ids);
+      // A group can itself be a member; moving its frame moves its descendants too.
+      const move = (node: CanvasNodeState, position: { x: number; y: number }) => {
+        const dx = position.x - node.position.x,
+          dy = position.y - node.position.y;
+        const descendants = new Set<string>([node.id]);
+        for (const id of descendants) {
+          const child = state.nodes.find((item) => item.id === id)!;
+          affected.add(id);
+          if (child.type === 'group') for (const nested of child.data.children as string[]) descendants.add(nested);
+          child.position = { x: child.position.x + dx, y: child.position.y + dy };
+        }
+      };
+      if (childLayout) {
+        if (group.data.frameMode === 'manual') {
+          const positions = computeManualGroupLayout(children, group, childLayout);
+          for (const child of children) move(child, positions.get(child.id)!);
+        } else {
+          const packed = computePackedGroupLayout(children);
+          for (const child of children) move(child, packed.positions.get(child.id)!);
+          if (packed.bounds) {
+            group.position = { x: packed.bounds.x, y: packed.bounds.y };
+            group.size = { width: packed.bounds.width, height: packed.bounds.height };
+          }
+        }
+      }
+      // Detach from old parents before attaching. Refit only affected ancestors.
+      const parents = new Set<string>();
+      for (const child of children) {
+        if (typeof child.data.parentGroup === 'string') parents.add(child.data.parentGroup);
+        child.data = { ...child.data, parentGroup: group.id };
+      }
+      for (const parentId of parents) {
+        const parent = state.nodes.find((node) => node.id === parentId)!;
+        affected.add(parentId);
+        parent.data = {
+          ...parent.data,
+          children: (parent.data.children as string[]).filter((id) => !ids.includes(id)),
+        };
+      }
+      const refit = (parentId: string) => {
+        const parent = state.nodes.find((node) => node.id === parentId)!;
+        if (parent.data.frameMode === 'manual') return;
+        affected.add(parentId);
+        const bounds = computeGroupBounds(
+          state.nodes.filter((node) => (parent.data.children as string[]).includes(node.id)),
+        );
+        if (bounds) {
+          parent.position = { x: bounds.x, y: bounds.y };
+          parent.size = { width: bounds.width, height: bounds.height };
+        }
+        if (typeof parent.data.parentGroup === 'string') {
+          refit(parent.data.parentGroup);
+        }
+      };
+      for (const parentId of parents) refit(parentId);
+      for (const node of state.nodes.filter((item) => affected.has(item.id))) {
+        const held = humanPresence.lockedNodes().get(node.id);
+        if (held) throw new OperationError(`Node "${node.id}" is being edited by ${held} right now.`, 409);
+        // Group membership is semantic; geometry alone does not renew freshness.
+        if (ids.includes(node.id) || parents.has(node.id)) {
+          delete node.data.agentSummary;
+          delete node.data.summary;
+          node.contentRevision = ++state.revisionState!.revision;
+          node.lastEditedBy = currentActor();
+          node.contentChangedAt = new Date().toISOString();
+        }
+      }
+      state.nodes.push(group);
+      return group;
+    });
+  }
+
+  createStoredEdge(
+    boardId: string,
+    requestId: string | undefined,
+    fingerprint: string,
+    build: (nodes: CanvasNodeState[]) => CanvasEdge,
+  ): CanvasEdge {
+    return this.createStoredCreation(boardId, requestId, fingerprint, (state, invalidate) => {
+      const edge = build(state.nodes);
+      if (
+        (!edge.toBoardId && edge.from === edge.to) ||
+        state.edges.some(
+          (item) =>
+            item.from === edge.from &&
+            item.to === edge.to &&
+            item.toBoardId === edge.toBoardId &&
+            item.type === edge.type &&
+            item.kind === edge.kind,
+        )
+      )
+        throw new OperationError('Duplicate or self-edge.');
+      const targetBoard = edge.toBoardId ?? boardId;
+      const target =
+        targetBoard === boardId
+          ? state.nodes.find((node) => node.id === edge.to)
+          : this.readBoard(targetBoard)?.layout.nodes.find((node) => node.id === edge.to);
+      for (const id of [edge.from, edge.to]) {
+        const held = humanPresence.lockedNodes().get(id);
+        if (held) throw new OperationError(`Node "${id}" is being edited by ${held} right now.`, 409);
+      }
+      const sourceEnd = relationSourceEnd(edge);
+      const source = sourceEnd === 'to' ? target : state.nodes.find((node) => node.id === edge.from);
+      const stamped = {
+        ...edge,
+        sourceRevision: sourceEnd ? source?.contentRevision : undefined,
+        revision: ++state.revisionState!.revision,
+        createdBy: currentActor(),
+        changedBy: currentActor(),
+        createdAt: new Date().toISOString(),
+        changedAt: new Date().toISOString(),
+      };
+      state.edges.push(stamped);
+      invalidate(boardId, edge.from);
+      invalidate(targetBoard, edge.to);
+      return stamped;
+    });
+  }
+
+  /** Stored creations share one durable receipt/commit boundary, never a temporary board switch. */
+  private createStoredCreation<T extends CanvasNodeState | CanvasEdge>(
+    boardId: string,
+    requestId: string | undefined,
+    fingerprint: string,
+    build: (state: PersistedCanvasState, invalidate: (boardId: string, nodeId: string) => void) => T,
+  ): T {
     const db = this._db;
     if (!db) throw new OperationError('Destination/retry creation requires persistent workspace storage.');
     const active = boardId === this._activeBoardId;
-    let created = false;
+    let committed: PersistedCanvasState | undefined;
+    let before: PersistedCanvasState | undefined;
     const activeLinkRevisions = new Map<string, number>();
     let activeRevision = this._contentRevision;
-    const node = db.transaction(() => {
+    const result = db.transaction(() => {
       const previous = requestId
         ? db
             .query<{ board_id: string; fingerprint: string; node: string }, [string]>(
@@ -1203,7 +1355,7 @@ class CanvasStateManager {
         if (previous.board_id !== boardId || previous.fingerprint !== fingerprint)
           throw new OperationError('requestId was already used with different creation input or destination.', 409);
         // Return the original receipt even if the node has since been edited or removed.
-        return JSON.parse(previous.node) as CanvasNodeState;
+        return JSON.parse(previous.node) as T;
       }
       // Include pending edits in catalog resolution and durable relation clocks,
       // without publishing or changing the active board before commit.
@@ -1213,38 +1365,15 @@ class CanvasStateManager {
       const policies = [this.getPolicy(), state.ax?.policy];
       if (policies.some((policy) => policy && (policy.scope || Object.keys(policy.agentScopes ?? {}).length)))
         throw new OperationError('Destination/retry creation is refused while either board has a scope fence.', 403);
-      let next = this.normalizeNode(build(state.nodes));
-      const now = new Date().toISOString();
-      const provenance = next.data.provenance as { sourceKind?: string } | undefined;
-      const imported =
-        next.data.contentOrigin === 'imported' ||
-        next.data.source !== undefined ||
-        (provenance !== undefined && provenance.sourceKind !== 'recipe');
-      next = {
-        ...next,
-        createdBy: currentActor(),
-        lastEditedBy: currentActor(),
-        contentRevision: (state.revisionState?.revision ?? 0) + 1,
-        contentChangedAt: now,
-        freshnessStartedAt: imported ? undefined : now,
-      };
-      if (next.type === 'markdown') {
-        const catalog = listBoardsFromDB(db).map((board) => ({
-          id: board.id,
-          name: board.name,
-          cards: (board.id === boardId ? [...state.nodes, next] : (loadStateFromDB(db, board.id)?.nodes ?? [])).map(
-            (card) => ({ id: card.id, title: typeof card.data.title === 'string' ? card.data.title : card.id }),
-          ),
-        }));
-        next.data.wikiLinks = resolveWikiLinks(String(next.data.content ?? ''), [], catalog);
-      }
-      state.nodes.push(next);
       state.revisionState = {
         ...state.revisionState,
-        revision: next.contentRevision!,
+        revision: state.revisionState?.revision ?? 0,
         floor: state.revisionState?.floor ?? 0,
         tombstones: state.revisionState?.tombstones ?? [],
       };
+      before = structuredClone(state);
+      const invalidations: Array<[string, string]> = [];
+      let next = build(state, (targetBoardId, nodeId) => invalidations.push([targetBoardId, nodeId]));
       // Theme is workspace-global; never let an inactive projection overwrite it.
       state.theme = this._theme;
       saveStateToDB(db, boardId, state);
@@ -1255,17 +1384,10 @@ class CanvasStateManager {
           activeRevision = Math.max(activeRevision, revision);
         }
       };
-      const links = next.type === 'markdown' ? wikiLinksFromData(next.data) : [];
-      if (links.length) {
-        invalidate(boardId, next.id);
-        const targets = new Map(
-          links.flatMap(({ target }) => (target?.cardId ? [[JSON.stringify(target), target] as const] : [])),
-        );
-        for (const target of targets.values()) invalidate(target.boardId, target.cardId!);
-      }
-      invalidateIncomingLinksInDB(db, boardId, next.id, invalidate);
-      const committed = loadStateFromDB(db, boardId)!;
-      next = committed.nodes.find((candidate) => candidate.id === next.id)!;
+      for (const [targetBoardId, nodeId] of invalidations) invalidate(targetBoardId, nodeId);
+      if ('data' in next) invalidateIncomingLinksInDB(db, boardId, next.id, invalidate);
+      committed = loadStateFromDB(db, boardId)!;
+      next = ([...committed.nodes, ...committed.edges].find((candidate) => candidate.id === next.id) ?? next) as T;
       if (active) activeRevision = committed.revisionState!.revision;
       if (requestId)
         db.run('INSERT INTO node_creation_requests VALUES (?, ?, ?, ?)', [
@@ -1274,13 +1396,45 @@ class CanvasStateManager {
           fingerprint,
           JSON.stringify(next),
         ]);
-      created = true;
       return next;
     })();
-    if (created) {
+    if (committed) {
       if (active) {
-        this.nodes.set(node.id, structuredClone(node));
-        this.recordNodeCreation(node);
+        const changed = committed.nodes.filter(
+          (node) => JSON.stringify(before!.nodes.find((old) => old.id === node.id)) !== JSON.stringify(node),
+        );
+        for (const node of changed) this.nodes.set(node.id, structuredClone(node));
+        if ('data' in result && result.type !== 'group') this.recordNodeCreation(result);
+        else {
+          for (const edge of committed.edges) this.edges.set(edge.id, structuredClone(edge));
+          const edge = 'data' in result ? undefined : (result as CanvasEdge);
+          const restore = (nodes: CanvasNodeState[]) =>
+            this.suppressed(() => {
+              this.removeNode(result.id);
+              for (const node of nodes) {
+                const existing = this.nodes.get(node.id);
+                if (existing) this.setSemanticNode({ ...structuredClone(node), linksRevision: existing.linksRevision });
+                else
+                  this.nodes.set(node.id, {
+                    ...structuredClone(node),
+                    contentRevision: this.nextContentRevision(),
+                    lastEditedBy: currentActor(),
+                    contentChangedAt: new Date().toISOString(),
+                  });
+              }
+              this.scheduleSave();
+              this.notifyChange('nodes');
+            });
+          this.recordMutation({
+            operationType: 'data' in result ? 'groupNodes' : 'addEdge',
+            description: `Created ${result.type} on stored board`,
+            forward: edge ? this.suppressed(() => this.addEdge(structuredClone(edge))) : restore(changed),
+            inverse:
+              'data' in result
+                ? restore(before!.nodes.filter((node) => changed.some((item) => item.id === node.id)))
+                : this.suppressed(() => this.removeEdge(result.id)),
+          });
+        }
       }
       for (const [id, revision] of activeLinkRevisions) {
         const existing = this.nodes.get(id);
@@ -1289,7 +1443,7 @@ class CanvasStateManager {
       this._contentRevision = activeRevision;
       if (active || activeLinkRevisions.size) this.notifyChange('nodes');
     }
-    return node;
+    return result;
   }
 
   /** Read a board without activating it. This projection is not a write payload. */
