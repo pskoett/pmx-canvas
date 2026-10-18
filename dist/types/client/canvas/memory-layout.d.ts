@@ -21,17 +21,3 @@ export declare function mapLayout(nodes: MemoryGraphNode[], collapsed: Set<strin
     regions: MemoryRegion[];
     hidden: Set<string>;
 };
-export declare function graphRadius(node: MemoryGraphNode, size: number): number;
-export interface GraphLayout {
-    positions: Map<string, Point>;
-    cells: Map<string, {
-        folder: string;
-        x: number;
-        y: number;
-        height: number;
-        cards: string[];
-    }>;
-    regions: MemoryRegion[];
-}
-/** Reserve card slots before expansion. Refreshes append, never repack existing boards. */
-export declare function graphLayout(nodes: MemoryGraphNode[], previous?: GraphLayout): GraphLayout;

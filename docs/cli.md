@@ -361,16 +361,25 @@ node or fit the new ids — auto-placement is board-relative, not camera-relativ
 Home has Folders, Map, and Graph views. Folder paths organize boards independently
 of links; dragging a board in Map persists its position in SQLite.
 
-Graph starts with collapsed board hubs inside named folder regions. Activate a hub
-to expand/collapse cards in place, or use Expand all for the dense view. Counted
-bundles summarize cross-board relations; internal counts and dotted membership
-are distinct. Select a card to inspect incoming/outgoing kinds and reasons.
-Follow reveals an endpoint in Graph, including across folders; it does not open
-content, pin context or validate knowledge. Follow can temporarily reveal filtered
-endpoints and change Local Focus for endpoints outside the query. Back restores
-the previous selection/query; clear selection restores filters. Open board/card
-is explicit. Positions remain still, dragging is view-local, and Reset layout
-clears that arrangement. Home Map and Folders keep their existing behavior.
+Graph is one zoomable Library > Board > Card
+explorer. Library shows neutral, undirected, counted board-pair evidence bundles;
+Board shows internal card relations and external neighbor boards; Card shows exact
+one-hop qualified neighbors, incoming left and outgoing right. Click, Enter or Space
+on a node drills; an edge selects its exact evidence in the existing bottom inspector.
+Back restores the prior scene, camera, query, filters and selection; breadcrumbs go
+up the ownership hierarchy instead. Open board/card is a separate content action.
+Unconnected boards/cards have labelled clickable trays. Search and reveal actions
+expose large sets with explicit displayed/total/filtered/hidden counts. A deterministic
+bounded force solve supplies initial positions. Dragging a node pushes nearby nodes
+and lets connected neighbors respond, then the graph settles around its drop position.
+Link pull stays gentle even for highly connected nodes, with wider spacing between cards.
+Canceled drags restore all displaced nodes. Positions remain local to Graph; live
+updates alone preserve existing anchors. Graph's dock starts collapsed and compact.
+Hover highlights a node's connections without fading the other links.
+Entry and search preserve readable size; the header distinguishes off-screen nodes
+from filtered or not-yet-drawn nodes. Fit view shows the whole drawn extent. Home Map
+(including its 280 px default dock), Folders and server graph focus/depth contracts
+are unchanged.
 
 ```bash
 pmx-canvas board list                          # most recently opened first; activeBoardId null = Home

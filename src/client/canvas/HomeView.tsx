@@ -19,7 +19,8 @@ import { requestJson } from '../state/intent-bridge';
 import { approxTokens } from '../state/context-chip-store';
 import { BoardCopyDialog } from './BoardCopyDialog';
 import { BoardPinButton } from './BoardPinButton';
-import { HomeMemoryView } from './HomeMemoryView';
+import { HomeMapView } from './HomeMapView';
+import { HomeGraphView } from './HomeGraphView';
 import { HomeReviewView } from './HomeReviewView';
 import { KnowledgeDialog } from './KnowledgeDialog';
 import { RelationPresetsDialog } from './RelationPresetsDialog';
@@ -541,7 +542,11 @@ export function HomeView() {
         </button>
       </nav>
       {view === 'Map' || view === 'Graph' ? (
-        <HomeMemoryView key={view} mode={view} />
+        view === 'Map' ? (
+          <HomeMapView />
+        ) : (
+          <HomeGraphView />
+        )
       ) : (
         <div class={`home-view${selected && view === 'Folders' ? ' has-details' : ''}`} data-testid="home-view">
           <aside class={`home-library${pickerOpen ? ' is-open' : ''}`} aria-label="Library">

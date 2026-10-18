@@ -319,7 +319,7 @@ Wave 2/3 scope and acceptance fixes are pushed in the
 [combined implementation](https://github.com/pskoett/pmx-canvas/commit/11dc311732d8c12acc86dda12b269539df8fa5b3)
 and [stabilization follow-up](https://github.com/pskoett/pmx-canvas/commit/fd63c3c611e680864d444532ca3ef7bb79cd171e).
 Home Map/Graph now have live updates, counted filters and selection details; Graph
-uses a force layout with working controls. Explicit library browsing survives agent
+follows the topology-driven navigation acceptance revision below. Explicit library browsing survives agent
 board switches, preserving camera, selection and gestures until the human opens a target.
 Wave 3 implements per-board relation vocabularies, provenance, source-driven review and
 [knowledge categories and context lifecycle](plans/plan-017-knowledge-categories-and-lifecycle.md).
@@ -368,48 +368,80 @@ navigates through links and backlinks on `canvas://boards`, and that Map and Gra
 replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
 links disagree, the Map shows it (folders as regions) rather than forcing them to match.
 
-**Home Map/Graph acceptance revision (2026-10-11; Graph U1 supersedes on 2026-10-17).**
-Graph uses fixed, retained folder regions with round board hubs and smaller card dots.
-Boards start collapsed. Click, Enter or Space expands/collapses cards in place; Open in
-selection details is a separate, guarded content action. Expand all is an explicit dense
-view, not the starting state. Folder membership is structural, never semantic evidence.
-Overview bundles cross-board card relations by unordered board pair, combining directions
-and kinds into neutral counted lines. Hidden internal relations are counted on the hub.
-Bundle counts stay screen-sized and stagger along lines. Transparent, content-sized node
-labels use glyph-only contrast, never opaque boxes or hover/focus padding that masks edges.
-Names retain a readable overview minimum and grow above 100% zoom; card counts flow below
-board titles rather than overlapping a fixed label offset.
-Expanded endpoints show exact authored edges, their source-board vocabulary and arrows;
-`related` has no arrow, while `depends-on` runs from dependent to prerequisite.
-Opposite authored directions remain separate. Dotted membership never enters evidence counts.
-Card selection emphasizes incident evidence and retains dim surrounding context. Details
-retain every direction, type and reason, including evidence hidden by display filters.
-Map and Graph details share a full-width dock below the view and legend, separate from filters.
-The view-local height starts at 280 px; drag the separator or use Up/Down and Home/End to
+**Home Map/Graph acceptance revision (2026-10-18, owner-authorized Claude/Oracle agreement).**
+Graph is one zoomable, topology-driven **Library > Board > Card** explorer. The canonical
+`HomeGraph.dc.html` draws all three levels with actual relationships. This is the acceptance
+target, not a claim that UI implementation or owner verification is complete. Folder paths
+remain metadata and filters; they never determine Graph geometry.
+
+- **Library:** named board nodes connected by neutral, undirected, counted bundles of
+  original evidence for each unordered board pair. Combining directions and kinds does not
+  invent a board-to-board fact. Internal counts and missing targets are separately qualified.
+- **Board:** the board's internal card-relation topology, alongside external neighbor boards.
+  Membership alone draws no evidence edge; there is no central ownership hub dictating layout.
+- **Card:** the focused card with exact one-hop qualified neighbors, incoming on the left and
+  outgoing on the right. Keep board identity on every endpoint, original direction and the
+  source-board vocabulary. Undirected `related` has no arrow; `depends-on` points from dependent
+  to prerequisite. Opposite authored directions remain separate facts, including when the same
+  qualified neighbor participates on both sides.
+
+Ordinary node **click, Enter or Space drills** into that board or card's graph, including
+external neighbors. An **edge selects its exact evidence** in the existing bottom inspector;
+a bundle exposes its constituent facts, never a synthetic reason. **Back** restores the prior
+scene, camera, query, filters and selection. The breadcrumb instead goes up the ownership
+hierarchy: Library, owning Board, Card; it is not traversal history. **Open board/card** is
+separate and opens content, never an implicit consequence of drilling or inspecting evidence.
+
+Unconnected boards and cards occupy a **labelled, clickable tray**, not invented links.
+Large connected sets use bounded initial display with search and explicit reveal actions;
+show displayed, total, filtered and hidden counts so omissions are never mistaken for absence.
+Search can reveal a hidden target without shrinking every label. Entry and reveal preserve
+readable scale at 100%; explicit Fit may show a dense extent. The header separately counts
+drawn nodes outside the usable viewport, filtered nodes and nodes beyond the display limit.
+Card entry centers the focused card; mutual and undirected neighbors start below it, not below
+the deepest side bank. Display bounds do not truncate inspector evidence or change the graph
+API. No unverified numeric display limit is a design constant.
+
+Initial layout uses a **deterministic bounded force solve** and caches the settled positions.
+Owner interaction follow-up (2026-10-18): **dragging reheats the graph** at every exploration
+level. The held node follows the pointer through occupied space; nearby nodes repel and real
+links pull their neighbors. After release the dropped node stays put while the rest cools and
+settles, then animation stops. Canceling restores the whole pre-drag layout. Card directions
+start in left/right banks; manual rearrangement never changes the authored arrows.
+Dense-graph follow-up: each node shares a gentler weighted pull across its links, rather than
+accumulating full-strength springs with its degree. Keep breathing room instead of packing
+connected nodes against their collision stops. Initial Card banks use the same spacing rule.
+Live updates alone keep existing nodes anchored and preserve camera and selection; place
+additions without globally reshuffling the scene. Graph positions remain view-local, not saved
+board coordinates. Use the existing stack, with no new framework or dependencies. Graph and
+Map retain separate view owners, sharing projection loading and the inspector shell only.
+Server/API `focus` and `depth` contracts remain unchanged; these are not Graph navigation controls.
+
+Graph nodes use one 220 × 96 px outlined footprint, with glyph, title and metadata inside it.
+Collision clearance, boundary ports, obstacle-avoiding routes and Fit share those bounds.
+The 64 px node-spacing gap reserves breathing room and a corridor outside each node's 8 px route clearance;
+settling separates rectangles instead of allowing springs to close those corridors. Hover
+emphasizes a node's incident links without fading unrelated connections.
+External boards use dashed outlines. Count/type labels reserve their own non-overlapping
+rectangles outside node bodies; Fit includes those rectangles. The view permits line crossings,
+not paths through titles. No old slot grid, ring or pair-only navigation remains alongside it.
+
+Graph's full-width bottom inspector starts **collapsed and compact**, below the view and legend,
+separate from filters. Selecting evidence exposes it in that dock; expanding/restoring retains
+selection and camera. Map retains its existing behavior and **280 px default dock**, not a
+redesign. In the existing docking shell, drag the separator or use Up/Down and Home/End to
 resize. The upper bound reserves 160 px for the graph when the window has room. Collapse
-retains the selection/action header; restore keeps height, selection, expansion and camera.
+retains the selection/action header; restore keeps height, selection and camera.
 The relation list scrolls internally. A reserved dock keeps selecting a card from shifting
 the view, and the same bottom layout remains usable with the narrow filter overlay closed.
+The fixed action header has 8 px bottom spacing and a divider before the scrolling list;
+the empty heading reserves the collapse control's full 36 px height above the help text.
 Owner readability follow-up uses 14 px relation text and controls (36 px minimum height),
 15 px headings and 13 px secondary text. Inspector chrome never scales with canvas zoom.
 Owner follow-up (2026-10-17): Map matches this inspector visually, not functionally. Map
 retains board tiles, persisted positions, Reset position and connection Open actions; it does
-not inherit Graph expansion or Follow/Back. Both narrow filter toggles say Filters, and a
+not inherit Graph drill navigation or Back. Both narrow filter toggles say Filters, and a
 selection never opens that overlay just to show relations in the separate bottom dock.
-Follow reveals/selects the qualified endpoint inside its own board/folder without opening,
-pinning or validating knowledge. Follow temporarily overrides display filters with an
-explanation. Clear restores filters; discovered expansions remain until explicitly collapsed.
-For an endpoint outside a local query, Follow visibly changes Local Focus; Back restores the
-previous query and selection. Partial projections never claim complete link delivery.
-Expansion, collapse, clear and Back preserve camera and board anchors; Follow pans only as
-needed for an offscreen endpoint. Fit is explicit except for initial load or a changed query.
-Graph Fit can zoom below 8% for large retained regions; subsequent zoom steps remain
-incremental. This makes hubs reachable, not every dense overview label readable.
-New library items append slots, with card growth confined to its owning board cell.
-Counted filters, focus/depth, label fade, node size and view-local drag remain. Static Graph
-has no force simulation, Pause, Repel or Link distance. Reset layout clears view-local drag
-overrides without refitting the camera. The canonical HomeGraph drawing carries overview,
-expanded, focus and all-card states; its fictional evidence is a reference, not stored data.
 Map nests and collapses neutral folder regions; dragging persists top-left `mapPosition`
 in SQLite and a refused write rolls back. Both views update from the shared projection
 without resetting the camera or selection. An agent opening a board does not eject a human

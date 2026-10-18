@@ -133,7 +133,7 @@ afterEach(() => {
 });
 
 describe('Home memory views', () => {
-  for (const mode of ['Folders', 'Map', 'Graph'] as const) {
+  for (const mode of ['Folders', 'Map'] as const) {
     test(`Escape clears ${mode} selection without changing its view or camera; dialogs close first`, async () => {
       const { container, getByRole, getAllByRole, queryByRole } = render(<HomeView />);
       if (mode !== 'Folders') fireEvent.click(getByRole('button', { name: mode, exact: true }));
@@ -221,35 +221,42 @@ describe('Home memory views', () => {
     await waitFor(() => expect(queryByText('Memory update failed.') === null).toBe(true));
   });
 
-  test('Graph requests qualified local focus and pins depth through the human bridge; filters cards', async () => {
-    const { getByRole, getByLabelText, queryByRole } = render(<HomeView />);
+  test('Graph drills from the unlinked tray and keeps an isolated focused card visible without opening it', async () => {
+    const { container, getByRole, getByLabelText, queryByRole } = render(<HomeView />);
     fireEvent.click(getByRole('button', { name: 'Graph', exact: true }));
     await waitFor(() => expect(getByRole('button', { name: 'board: Discovery' })).toBeTruthy());
+    expect(getByRole('button', { name: 'board: Discovery' }).closest('.graph-unlinked')).toBeTruthy();
+    expect(container.querySelectorAll('.graph-node')).toHaveLength(0);
+    expect(getByRole('button', { name: 'Expand details' }).getAttribute('aria-expanded')).toBe('false');
     expect(queryByRole('button', { name: 'card: Evidence' })).toBeNull();
     fireEvent.click(getByRole('button', { name: 'board: Discovery' }));
+    expect(getByRole('navigation', { name: 'Graph path' }).textContent).toContain('Discovery');
+    expect(getByRole('button', { name: 'card: Evidence' }).closest('.graph-unlinked')).toBeTruthy();
     fireEvent.click(getByRole('button', { name: 'card: Evidence' }));
-    fireEvent.click(getByRole('button', { name: 'Focus here' }));
-    await waitFor(() =>
-      expect(
-        calls.some(
-          (call) =>
-            new URL(call.url, 'http://test').searchParams.get('focus') ===
-            memoryKey({ boardId: 'b-disc', cardId: 'same' }),
-        ),
-      ).toBe(true),
-    );
-    fireEvent.change(getByLabelText('Focus'), { target: { value: 'pins' } });
-    fireEvent.change(getByLabelText('Depth'), { target: { value: '0' } });
-    await waitFor(() => expect(calls.some((call) => call.url.includes('depth=0&focus=pins'))).toBe(true));
-    const request = calls.find((call) => call.url.includes('depth=0&focus=pins'))!;
+    expect(getByRole('button', { name: 'card: Evidence' }).closest('.graph-node')).toBeTruthy();
+    expect(getByRole('button', { name: 'card: Evidence' }).getAttribute('aria-pressed')).toBe('true');
+    const request = calls.find((call) => call.url.includes('projection=full'))!;
     expect(new Headers(request.init?.headers).get('X-PMX-Workbench')).toBe('1');
-    fireEvent.click(getByLabelText('Boards'));
-    expect(queryByRole('button', { name: 'board: Discovery' })).toBeNull();
+    fireEvent.click(getByLabelText('Only in context'));
     expect(getByRole('button', { name: 'card: Evidence' })).toBeTruthy();
+    fireEvent.click(getByLabelText('Unfiled'));
+    expect(getByRole('button', { name: 'card: Evidence' })).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'Back', exact: true }));
+    expect(getByRole('button', { name: 'card: Evidence' }).closest('.graph-unlinked')).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'Back', exact: true }));
+    expect(queryByRole('button', { name: 'card: Evidence' })).toBeNull();
+    expect(calls.filter((call) => call.init?.method && call.init.method !== 'GET')).toEqual([]);
+    fireEvent.click(getByRole('button', { name: 'board: Discovery' }));
+    fireEvent.click(getByRole('button', { name: 'Expand details' }));
+    fireEvent.click(getByRole('button', { name: 'Open board', exact: true }));
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/canvas/boards/open')).toBe(true));
+    const open = calls.find((call) => call.url === '/api/canvas/boards/open')!;
+    expect(JSON.parse(String(open.init?.body))).toEqual({ id: 'b-disc' });
+    expect(new Headers(open.init?.headers).get('X-PMX-Workbench')).toBe('1');
   });
 
-  test('Graph bundles opposite directions without membership, expands in place and follows without opening content', async () => {
-    boardList.value = [board('a', 'Interviews', 2, 'Research'), board('b', 'Pricing', 1, 'Planning')];
+  test('Graph topology preserves exact one-hop identities and restores navigation frames', async () => {
+    boardList.value = [board('a', 'Interviews', 3, 'Research'), board('b', 'Pricing', 2, 'Planning')];
     const target = (boardId: string, cardId?: string) => ({ boardId, ...(cardId ? { cardId } : {}) });
     memoryGraph = {
       focus: null,
@@ -270,7 +277,9 @@ describe('Home memory views', () => {
         ...[
           ['a', 'survey', 'SMB survey', 'Research'],
           ['a', 'quote', 'Quote log', 'Research'],
+          ['a', 'alone', 'Unrelated note', 'Research'],
           ['b', 'proposal', 'Pro at $24?', 'Planning'],
+          ['b', 'survey', 'Other survey', 'Planning'],
         ].map(([boardId, cardId, title, folder]) => ({
           key: memoryKey(target(boardId, cardId)),
           boardId,
@@ -288,6 +297,7 @@ describe('Home memory views', () => {
         ['b', 'proposal', 'a', 'survey', 'cites'],
         ['a', 'quote', 'a', 'survey', 'related'],
         ['b', 'proposal', 'a', 'quote', 'depends-on'],
+        ['a', 'quote', 'b', 'survey', 'cites'],
       ].map(([a, ac, b, bc, kind], index) => ({
         id: `r${index}`,
         kind: 'card' as const,
@@ -310,42 +320,105 @@ describe('Home memory views', () => {
         to: node.key,
         missing: false,
       });
-    const { getByRole, getAllByRole, queryByRole, getByText, container } = render(<HomeView />);
+    const { getByRole, getAllByRole, getByLabelText, queryByRole, getByText, container } = render(
+      <>
+        <BoardSwitcher fallbackName="repo" />
+        <HomeView />
+      </>,
+    );
     fireEvent.click(getByRole('button', { name: 'Graph', exact: true }));
     await waitFor(() => expect(getByRole('button', { name: 'board: Interviews' })).toBeTruthy());
     expect(container.querySelectorAll('.is-card')).toHaveLength(0);
-    expect(getByText('0 exact · 3 bundled · 1 internal')).toBeTruthy();
-    expect(container.querySelectorAll('.memory-edge.edge-card')).toHaveLength(1);
-    expect(container.querySelector('.memory-edge.edge-card')?.getAttribute('data-count')).toBe('3');
-    const anchors = () =>
-      [...container.querySelectorAll<HTMLElement>('.home-memory-node.is-board, .home-memory-cluster')].map((node) =>
-        node.getAttribute('style'),
-      );
-    const before = anchors();
+    expect(getByText('5 links · 4 between boards · 1 inside boards · 0 missing')).toBeTruthy();
+    expect(container.querySelectorAll('.graph-link.is-bundle')).toHaveLength(1);
+    const bundle = getByRole('button', { name: 'Inspect 4 links between Interviews and Pricing' });
+    expect(bundle.getAttribute('data-count')).toBe('4');
+    expect(bundle.getAttribute('style')).toContain('stroke: var(--c-muted)');
+    expect(bundle.querySelector('.graph-link-line')?.hasAttribute('marker-end')).toBe(false);
+    expect(getByRole('button', { name: 'Expand details' }).getAttribute('aria-expanded')).toBe('false');
+    fireEvent.keyDown(bundle, { key: 'Enter' });
+    expect(getByRole('button', { name: 'Collapse details' }).getAttribute('aria-expanded')).toBe('true');
+    expect(getByText('Original evidence, not a new aggregate relation')).toBeTruthy();
+    fireEvent.click(getByLabelText('Wiki links'));
+    fireEvent.click(getByRole('button', { name: 'Zoom in' }));
+    const libraryCamera = container.querySelector('.home-memory-world')?.getAttribute('style');
     fireEvent.click(getByRole('button', { name: 'board: Interviews' }));
-    expect(getByText('1 exact · 3 bundled · 0 internal')).toBeTruthy();
-    expect(container.querySelector('.edge-card[data-exact="true"] > path')?.hasAttribute('marker-end')).toBe(false);
-    expect(anchors()).toEqual(before);
+    expect(getByRole('navigation', { name: 'Graph path' }).textContent).toBe('Library›Interviews');
+    expect(container.querySelectorAll('.graph-link.is-exact')).toHaveLength(1);
+    expect(container.querySelector('.graph-link.is-exact .graph-link-line')?.hasAttribute('marker-end')).toBe(false);
+    expect(container.querySelectorAll('.graph-link.is-bundle')).toHaveLength(2);
+    expect(getByRole('button', { name: 'board: Pricing' }).closest('.graph-node')).toBeTruthy();
+    expect(getByRole('button', { name: 'card: Unrelated note' }).closest('.graph-unlinked')).toBeTruthy();
+    expect(queryByRole('button', { name: 'card: Pro at $24?' })).toBeNull();
+    const boardEdge = getByRole('button', { name: 'Inspect 1 link between Quote log and SMB survey' });
+    fireEvent.click(boardEdge);
+    fireEvent.click(getByRole('button', { name: 'Zoom in' }));
+    fireEvent.click(getByLabelText('Wiki links'));
+    const boardCamera = container.querySelector('.home-memory-world')?.getAttribute('style');
     fireEvent.click(getByRole('button', { name: 'card: SMB survey' }));
+    expect(container.querySelectorAll('.graph-link.is-exact')).toHaveLength(3);
+    expect(container.querySelectorAll('.graph-link.is-bundle')).toHaveLength(0);
+    expect(container.querySelectorAll('.graph-link.is-exact .graph-link-line[marker-end]')).toHaveLength(2);
+    expect(getByRole('button', { name: 'card: Quote log' })).toBeTruthy();
+    expect(getByRole('button', { name: 'card: Pro at $24?' })).toBeTruthy();
+    expect(queryByRole('button', { name: 'card: Other survey' })).toBeNull();
+    expect(queryByRole('button', { name: 'card: Unrelated note' })).toBeNull();
     expect(getByText('← cites (why: Evidence 1)')).toBeTruthy();
     expect(getByText('→ contradicts (why: Evidence 0)')).toBeTruthy();
     fireEvent.click(getAllByRole('button', { name: 'Follow Pro at $24?' })[0]!);
     expect(getByRole('button', { name: 'card: Pro at $24?' }).getAttribute('aria-pressed')).toBe('true');
-    expect(getByText('4 exact · 0 bundled · 0 internal')).toBeTruthy();
-    expect(container.querySelectorAll('.edge-card[data-exact="true"] > path[marker-end]')).toHaveLength(3);
     expect(getByText('→ depends-on (why: Evidence 3)')).toBeTruthy();
-    const dependency = [...container.querySelectorAll('.edge-card')].find(
-      (edge) => edge.querySelector('title')?.textContent === 'depends-on (why: Evidence 3)',
-    );
-    expect(dependency?.getAttribute('data-from')).toBe(memoryKey(target('b', 'proposal')));
-    expect(dependency?.getAttribute('data-to')).toBe(memoryKey(target('a', 'quote')));
-    expect(dependency?.querySelector('path[marker-end]')).toBeTruthy();
-    expect(anchors()).toEqual(before);
+    expect(getByRole('button', { name: 'card: SMB survey' })).toBeTruthy();
     fireEvent.click(getByRole('button', { name: 'Back', exact: true }));
     expect(getByRole('button', { name: 'card: SMB survey' }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(getByRole('button', { name: 'Collapse all', exact: true }));
+    fireEvent.click(getByRole('button', { name: 'card: Quote log' }));
+    expect(getByRole('button', { name: 'card: SMB survey' }).textContent).toContain('Interviews');
+    expect(getByRole('button', { name: 'card: Other survey' }).textContent).toContain('Pricing');
+    expect(container.querySelectorAll('.graph-link.is-exact')).toHaveLength(3);
+    expect(
+      getByRole('button', { name: 'Inspect 1 link between Quote log and Other survey' }).getAttribute('data-to'),
+    ).toBe(memoryKey(target('b', 'survey')));
+    fireEvent.click(getByRole('button', { name: 'Back', exact: true }));
+    fireEvent.click(getByRole('button', { name: 'Interviews', exact: true }));
+    expect(getByRole('navigation', { name: 'Graph path' }).textContent).toBe('Library›Interviews');
+    expect(container.querySelector('.home-memory-world')?.getAttribute('style')).toBe(boardCamera);
+    expect((getByLabelText('Wiki links') as HTMLInputElement).checked).toBe(false);
+    expect(
+      getByRole('button', { name: 'Inspect 1 link between Quote log and SMB survey' }).classList.contains(
+        'is-selected',
+      ),
+    ).toBe(true);
+    fireEvent.click(getByRole('button', { name: 'Back', exact: true }));
+    expect(container.querySelector('.home-memory-world')?.getAttribute('style')).toBe(libraryCamera);
+    expect((getByLabelText('Wiki links') as HTMLInputElement).checked).toBe(false);
+    expect(
+      getByRole('button', { name: 'Inspect 4 links between Interviews and Pricing' }).classList.contains('is-selected'),
+    ).toBe(true);
     expect(queryByRole('button', { name: 'card: SMB survey' })).toBeNull();
-    expect(anchors()).toEqual(before);
+
+    // Escape first clears evidence; editors and menus keep the current scope intact.
+    fireEvent.keyDown(getByRole('searchbox', { name: 'Search graph' }), { key: 'Escape' });
+    expect(getByRole('button', { name: 'Close details' })).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'Board: Home. Switch board' }));
+    fireEvent.keyDown(getByRole('menu', { name: 'Boards' }), { key: 'Escape' });
+    expect(queryByRole('menu', { name: 'Boards' })).toBeNull();
+    expect(getByRole('button', { name: 'Close details' })).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'Relation presets', exact: true }));
+    fireEvent.keyDown(getByRole('dialog', { name: 'Workspace relation presets' }), { key: 'Escape' });
+    expect(getByRole('button', { name: 'Close details' })).toBeTruthy();
+    fireEvent.keyDown(getByRole('button', { name: 'Library', exact: true }), { key: 'Escape' });
+    expect(queryByRole('button', { name: 'Close details' })).toBeNull();
+    fireEvent.click(getByRole('button', { name: 'board: Interviews' }));
+    fireEvent.click(getByRole('button', { name: 'card: SMB survey' }));
+    fireEvent.keyDown(getByRole('searchbox', { name: 'Search graph' }), { key: 'Escape' });
+    expect(getByRole('button', { name: 'card: SMB survey' }).getAttribute('aria-pressed')).toBe('true');
+    const exact = getByRole('button', { name: 'Inspect 1 link between SMB survey and Pro at $24?' });
+    fireEvent.keyDown(exact, { key: ' ' });
+    fireEvent.keyDown(getByRole('button', { name: 'card: SMB survey' }), { key: 'Escape' });
+    expect(queryByRole('button', { name: 'Close details' })).toBeNull();
+    expect(getByRole('button', { name: 'card: SMB survey' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(getByRole('button', { name: 'card: SMB survey' }), { key: 'Escape' });
+    expect(getByRole('navigation', { name: 'Graph path' }).textContent).toBe('Library›Interviews');
     expect(calls.filter((call) => call.init?.method && call.init.method !== 'GET')).toEqual([]);
     fireEvent.click(getByRole('button', { name: 'Map', exact: true }));
     await waitFor(() => expect(getByRole('button', { name: 'board: Interviews' })).toBeTruthy());

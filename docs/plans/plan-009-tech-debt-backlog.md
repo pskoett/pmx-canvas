@@ -153,8 +153,133 @@ the simplified review form retains captured content/source revision guards.
 The live-library checkpoint in the vision records the next boundaries: explicit per-tab
 editor ownership before concurrent board editing, and measured fetch/force/paint costs before
 workers or culling. The 13-board/101-card browser fixture is acceptance evidence, not a large
-library capacity claim. `HomeMemoryView` remains a substantial UI module; split a measured
-responsibility when it grows, not a generic abstraction around every control. The codebase is
+library capacity claim. Map and Graph now have separate view owners, sharing discovery loading
+and inspector docking only; the superseded combined view and Graph layouts are removed. The codebase is
 healthy enough for staged vision work with these constraints, not debt-free or fully validated
 in native hosts. The reported Amp embedded-portal context-pill opening failure is still
 unverified and distinct from the fixed pin count.
+
+## Private wiki-import reports (2026-10-18, pending candidate reproduction)
+
+Source: [private import-test handoff](https://ampcode.com/threads/T-01a14f43-f513-7397-8ec4-f6a85551dff0).
+Reported environment: PMX Canvas 0.8.2 at
+[`92c2930`](https://github.com/pskoett/pmx-canvas/commit/92c293029e98a5fc1c04f43821470eb35fe500c6),
+Bun 1.4.2, headed Chromium in a Linux orb. These reports are kept separate, not confirmed
+reproductions on the newer Graph candidate and not presumed duplicates of existing findings.
+No product fix is claimed here. The source thread's skill changes, database and
+source files have not been imported into this checkout.
+
+Private evidence remains in the source thread's workspace: `wiki-load-before.json`,
+`wiki-load-after.json`, `wiki-backlog-cards.png` and `wiki-linkedin-cards.png` under
+`.amp/in/artifacts/`, plus `.learnings/wiki-load-probe.js` and `.learnings/ERRORS.md`.
+Screenshots and full notes contain private wiki content. Keep them within authorized private
+work; use synthetic fixtures or redaction for any public reproduction or report.
+
+### WI-01, high: embedded base64 Markdown images make parsing and board loading slow
+
+**Status:** reported with source-thread isolation evidence; candidate reproduction pending.
+
+The source test measured board-open request through ready card bodies and loaded pictures
+(including natural image dimensions), not just HTTP response time. Each cell lists three
+runs in milliseconds. The workaround changed import data, not product code: seven embedded
+images became file-backed image nodes on their owning boards, referenced through
+`/api/canvas/image/<id>`. Served bytes matched the originals by SHA-256. The documents and
+pictures were retained, with extra figure cards; this is not an identical-card-count comparison.
+
+| Workload | Before workaround | After data-only workaround | State payload, before → after |
+|---|---|---|---|
+| 9 Markdown cards, 5 pictures originally | 5329 / 5609 / 5714 | 782 / 879 / 817 | 3,195,186 → 649,194 bytes |
+| 12 cards, 2 pictures originally | 9364 / 4011 / 7403 | 710 / 904 / 759 | Not reported → 211,414 bytes |
+| 29-card text-only control | 1566 / 1419 / 1643 | 1372 / 1021 / 1275 | Not reported |
+
+Direct isolation on one 924,640-character card measured `wikiReferences` at
+1422 / 1194 / 1170 ms and `renderWikiMarkdown` at 1183 / 1187 / 1189 ms. Replacing only base64
+URLs with short URLs reduced the source to 11,728 characters and parsing to 2–11 ms, retaining
+11 wiki references and four image tags. This isolates parsing cost, not image downloading.
+The server was already running, caches were not cleared, and transport was local to the orb.
+Small-board transitions also occasionally took about three seconds. No universal speedup or
+single cause for every outlier is established. File-backed assets must accompany the database.
+
+Reported amplifiers to inspect at reproduction: `src/server/wiki-links.ts`;
+`handleRender` in `src/server/server.ts` lexing persisted Markdown twice and rendering again;
+`src/server/canvas-serialization.ts` duplicating source at top level and `data.content`;
+`MarkdownNode.tsx` posting each mounted card's entire source to `/api/render`, including
+offscreen cards; and full-layout SSE payloads. These are investigation leads from the tested
+revision, not independently verified causes on the candidate.
+
+**Next:** use synthetic long Markdown with several large base64 PNGs and an equivalent
+short-reference control. Repeatedly measure actual rendered-content readiness, image natural
+dimensions, parser results and payload sizes under stated cache/connection conditions. Keep
+the text-only control and verify reference/image preservation before choosing a product fix.
+
+### WI-02, medium: relative image creation ignores the configured workspace root
+
+**Status:** source thread confirmed path-resolution mismatch on the tested revision;
+candidate reproduction pending.
+
+Launch from directory A with `PMX_CANVAS_WORKSPACE_ROOT=B`, with a valid picture at
+`B/wiki/assets/diagram.png`. `POST /api/canvas/node` with
+`{type:"image",content:"wiki/assets/diagram.png"}` returned 400,
+`Invalid image node: diagram.png does not exist`. The absolute path succeeded, as did all
+seven image imports using that workaround.
+
+The source investigation identified `buildImageNodeData` in
+`src/server/canvas-operations.ts` using `resolve(src)`, unlike file-node creation's
+`resolve(canvasState.getWorkspaceRoot(), rawPath)`.
+
+**Next:** reproduce with separate launch/workspace directories and a synthetic image, using
+the absolute path as control. Any resolution fix must preserve `handleCanvasImage` realpath
+confinement; do not weaken the file-serving boundary to make relative creation succeed.
+
+### WI-03, low: review/lifecycle badge protrudes beside grouped cards
+
+**Status:** visual observation only; cause and candidate behavior unverified.
+
+With Knowledge lifecycle enabled, a dense group at 68% zoom showed a partly obscured amber
+review badge beside a middle-left card; a similar artifact appeared on another board.
+Capture conditions were 1600 × 1100 CSS pixels, DPR 2. All nine cards in the dense group fit
+and rendered. This is not established as the separately reported floating Updates badge.
+
+**Next:** reproduce with synthetic grouped cards and lifecycle enabled at the recorded zoom
+and viewport, then inspect badge/node bounds and clipping before assigning a cause or merging
+the report with another issue.
+
+**Not counted as product bugs:** source-draft chronology, poor initial import board
+granularity, and unescaped wiki-alias pipes in Markdown tables. An unescaped table alias can
+produce zero parsed references, so zero unresolved links alone is not a preservation check.
+The initial handoff's wiki-import guidance was local-only. A later handoff reports it pushed
+to `origin/main` in
+[`48013e1`](https://github.com/pskoett/pmx-canvas/commit/48013e1346ea34f107c11f93dca3f4cace1f7a23).
+It has not been integrated into this checkout.
+
+### WI-04, priority pending: incomplete provenance is silently discarded on node creation
+
+**Status:** reported API validation/feedback defect on 0.8.2; candidate reproduction pending.
+
+The source test submitted `data.provenance` with `sourceKind:'agent'`,
+`snapshotContent:true`, `sources:[{boardId,cardId,contentRevision,availability:'cached'}]`
+and `recipe:{tool,prompt}`, omitting `sourceUri` and `refreshStrategy`. Creation succeeded,
+but a subsequent GET returned `provenance:null`, losing the submitted source dependencies.
+The payload was incomplete and `agent` is not an advertised source kind. This does not claim
+that valid provenance was rejected or lost.
+
+The source investigation points to `normalizeExistingProvenance` in
+`src/server/canvas-provenance.ts` returning null for missing required fields, after which
+the ensure path deletes provenance. The data-only repair supplied `sourceKind:'recipe'`,
+`sourceUri` and `refreshStrategy:'agent-request'`; the source thread verified all 20 repaired
+cards, 54 source references/revisions and persistence after restart. No product fix is claimed.
+
+**Next:** reproduce with synthetic source/derived cards and incomplete provenance. Check both
+the POST response and persisted GET result. Consider rejecting malformed provenance with
+required-field errors instead of silently accepting then deleting it; retain a valid-payload
+control before choosing a boundary change.
+
+### WI-05, usability: short library queries rank picture filenames above content
+
+**Status:** source-thread search-relevance observation, not an established correctness defect;
+priority and candidate behavior unverified.
+
+A short query ranked picture filenames containing the token ahead of the intended platform
+content. No private content is needed to investigate this. Use synthetic titles, body content
+and overlapping filename tokens to assess relevance; establish the intended ranking before
+calling matching results incorrect.
