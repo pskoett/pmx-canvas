@@ -20,9 +20,10 @@ Boards use `folder` for their nested Home path (for example `Engineering/Canvas`
 File a board with `canvas_board { action: "update", id: "<board-id>", folder:
 "Engineering/Canvas" }`; `folder: ""` unfiles it. Moving preserves its ID and content.
 
-Before importing a wiki or knowledge base, read [Wiki imports](references/wiki-imports.md).
-Choose boards by topic or workflow, not one per file or one per category; verify rendered
-links and pictures as well as stored data.
+Before importing context from folders, repositories, documents or exports, read
+[Importing context](references/importing-context.md) for source inventory, mapping and verification.
+Choose boards by topic or workflow, not one per file, folder or category. Choose cards by useful
+units of meaning, preserve evidence and references, and verify rendered content as well as stored data.
 
 Knowledge lifecycle data is explicit, never classified automatically. `canvas_board` actions
 `knowledge-list`, `category-set` (`category`: id/name/glyph/decayType/rate/triggers/revalidationMethod),
