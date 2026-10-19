@@ -1,26 +1,26 @@
 # Product Vision — September 2026
 
 **Status:** Direction accepted. Decisions are recorded where they were made (2026-09-06, 2026-09-23, 2026-09-24, 2026-09-26); a move not marked decided is still a proposal.
-**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-13; architecture direction clarified 2026-10-15
+**Date:** 2026-09-05; release scope updated 2026-09-29; ChatGPT plugin decision added 2026-10-03; first hosted version direction added 2026-10-10; implementation progress updated 2026-10-13; architecture direction clarified 2026-10-15; post-0.9.0 sequence added 2026-10-19
 **Scope:** Where `pmx-canvas` should go, what must be fixed now, what to add, what to delete, and what is architecturally wrong. Written against `main` `e17776f6` (clean tree); revised against `561e6ec5` (v0.6.3).
 **Revisions:** 2026-09-23 (the [vision review](product-vision-review-2026-09.md) folded in; it keeps the reasoning and the full design sketch), 2026-09-24 (gate and reference-surface decisions; promise hardened; measurement split), 2026-09-26 (gate answers become attribution, not a lock; moved to 0.8). Details in git history.
 **Method:** My own position, drafted first, then stress-tested by a 54-agent panel: four fact-finders, six independent visions from different angles (context engineering, systems, product strategy, rendering, developer experience, minimalism), a merge into 14 moves, three adversarial refuters per move (evidence, feasibility, value), and a completeness critic. Where the panel refuted me, this document says so. Companion: [`product-review-2026-09.md`](product-review-2026-09.md) (the audit).
 
 ## Current plan
 
-*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-15. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
+*One page; the rest of this document is the reasoning and the detail. Updated 2026-10-19. The implementation status below is authoritative for current progress; historical diagnoses and release slots are retained as planning context, not descriptions of today's checkout.*
 
 **The promise.** One board is both the human's durable workspace and the agent's working memory. Agents write boards, humans shape them, boards last, link into a wiki, travel as files and links, and what the human curates is what the agent reads next.
 
-**The bet inside it.** The first half is proven by use: every real board was agent-written and human-kept. The second half, that the board changes what an agent does, has never been observed. The plan tests it early (0.7 measures, 0.8 checks) and says in advance what happens if it fails.
+**The bet inside it.** The first half is proven by use: every real board was agent-written and human-kept. The second half, that the board changes what an agent does, has never been observed. Read instrumentation shipped early (0.7); the effect evaluation now comes at the very end of the plan (decided with the maintainer, 2026-10-19), and the plan still says in advance what happens if it fails.
 
-**Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the workbench is built and checked for any size, from a narrow side pane to a full browser window, checked in Chromium at 600, 1024 and 1920 px, replacing the 2026-09-24 single 600 px reference (2026-10-05); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Board pins are the working set across boards (2026-10-05, move 0a). A hosted team server separates workspace and personal libraries (2026-10-05, Part 3). Folders are the one browsing hierarchy and links stay a graph for relations (2026-10-06, move 0). Undecided: generated surfaces (6b).
+**Decided:** the fleet layer and every node type stay (2026-09-06); boards are the wiki and the destination is "share this board" (2026-09-23); the workbench is built and checked for any size, from a narrow side pane to a full browser window, checked in Chromium at 600, 1024 and 1920 px, replacing the 2026-09-24 single 600 px reference (2026-10-05); gate answers are open to any writer and record who answered, replacing the 2026-09-24 human-only decision (2026-09-26). Home is a view listing boards, not a board; deleting a board needs an in-page confirm; backup is built in with its own schedule (2026-09-27). Board pins are the working set across boards (2026-10-05, move 0a). A hosted team server separates workspace and personal libraries (2026-10-05; part of the hosted version, Part 4, since 2026-10-19). Folders are the one browsing hierarchy and links stay a graph for relations (2026-10-06, move 0). Undecided: generated surfaces (6b).
 
-**Knowledge direction, 2026-10-07:** Part 3 extends the workspace/personal split to user-defined knowledge scopes (org → team → personal is one example template), with categories as a property of folders. Move 13 adopts evidence-backed context lifecycle from the context-decay framework. Local folder categories and card lifecycle are now implemented in Wave 3. Shared/private knowledge scopes remain future work; Jev-style classification is optional longer-term assistance. These later stages are not prerequisites for the model-independent local features or Wave 1.
+**Knowledge direction, 2026-10-07:** The hosted version (Part 4, since 2026-10-19) extends the workspace/personal split to user-defined knowledge scopes (org → team → personal is one example template), with categories as a property of folders. Move 13 adopts evidence-backed context lifecycle from the context-decay framework. Local folder categories and card lifecycle are now implemented in Wave 3. Shared/private knowledge scopes remain future work; Jev-style classification is optional longer-term assistance. These later stages are not prerequisites for the model-independent local features or Wave 1.
 
-**Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible with the curation evaluation, the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
+**Design track, 2026-10-04:** [design.md](design.md) pairs each remaining move with the design that shows it, in waves: a foundation (one font, scale and meaning colours across all themes) first and alone, then context made visible (its curation evaluation moved to plan 019 step 6 on 2026-10-19), the board map and graph with the wiki work, the relations layer with moves 1 and 13, and the frame host with move 5. A wave is done only when function and design both pass.
 
-**Wave 1 status, 2026-10-10 — context made visible: built on `main`, not released.** From the board alone a person can now see what is in the agent's context and whether its copy is current: read / not read / changed marks on pinned cards; near-a-pin (the brief carries neighbours, the dotted chip, tethers and the 600 px radius, the moment a card arrives or leaves); links that changed since a read, on the link and in the brief ("new, by codex"); board pins and Home as a library (folder tree, board cards, details, the in-context switch); the session receipt (what the agent did, per-edit descriptions with "See change", Tell <agent>, Undo per card via `snapshot.restore-node`) and the live session lens in the agent chip. Remaining: the curation evaluation, deferred until the maintainer tests a version; building to the new [SeeChange](design/SeeChange.dc.html) drawing (2026-10-10); the pickup/drop pauses of a drag on large boards (per-frame cost fixed 2026-10-10). Handoff detail in plan 016. **Dropped 2026-10-10:** Suggested cards — the agent changes the canvas directly, and an ask or a suggestion already goes through the composer. Detail and deviations: [plan 016](plans/plan-016-context-made-visible-wave-1.md), [design.md](design.md).
+**Wave 1 status, 2026-10-10 — context made visible: built on `main`, not released.** From the board alone a person can now see what is in the agent's context and whether its copy is current: read / not read / changed marks on pinned cards; near-a-pin (the brief carries neighbours, the dotted chip, tethers and the 600 px radius, the moment a card arrives or leaves); links that changed since a read, on the link and in the brief ("new, by codex"); board pins and Home as a library (folder tree, board cards, details, the in-context switch); the session receipt (what the agent did, per-edit descriptions with "See change", Tell <agent>, Undo per card via `snapshot.restore-node`) and the live session lens in the agent chip. Remaining: the curation evaluation, deferred to plan 019 step 6 (2026-10-19); building to the new [SeeChange](design/SeeChange.dc.html) drawing (2026-10-10); the pickup/drop pauses of a drag on large boards (per-frame cost fixed 2026-10-10). Handoff detail in plan 016. **Dropped 2026-10-10:** Suggested cards — the agent changes the canvas directly, and an ask or a suggestion already goes through the composer. Detail and deviations: [plan 016](plans/plan-016-context-made-visible-wave-1.md), [design.md](design.md).
 
 **Near cards correction (owner decision, 2026-10-14).** Spatial curation measures
 the gap between card edges, not centres: up to five nearest unpinned cards within
@@ -117,8 +117,8 @@ the toolbar's actual extent and compacts writer text, keeping filtering, activit
 reachable without changing their meaning. This does not replace the three reference-width
 gate or establish native-host acceptance.
 
-**Still open:** the owner's acceptance of everything since 0.8.2 and the real-agent curation
-evaluation. Full Relations/Flows/Uses sketch parity is not implemented: inline edge editing,
+**Still open:** the owner's acceptance of everything since 0.8.2. The real-agent curation
+evaluation moved to the end of the plan on 2026-10-19. Full Relations/Flows/Uses sketch parity is not implemented: inline edge editing,
 amber lineage strokes, pair/cycle/affected badges and lineage actions remain; see
 [the design contract](design.md#build-plan). Dense Fit labels still need selection/local focus
 for detail. The actual Amp embedded context-pill opening, native Copilot/WebKit, native Windows
@@ -133,28 +133,43 @@ the change → impact → evidence → review loop over additional presets or de
 features. Improve authored meaning alongside this work and reuse the same semantics for
 small-chain human navigation. See [the priorities and acceptance checks below](#relation-navigation-priorities).
 This extends moves 0, 1 and 13; it is future direction, not newly delivered functionality
-or a replacement for owner acceptance and the real-agent curation evaluation.
+or a replacement for owner acceptance.
 
 **MCP work relative to this checkpoint (2026-10-12).** The improvements below are
 planned, not part of the delivered Waves 1–3 or new prerequisites for their acceptance.
-Keep owner acceptance, remaining sketch parity and the real-agent curation evaluation
-as the current focus. After that acceptance checkpoint, scope a separate MCP hardening
-batch: structured results and accurate tool annotations first, then cancellation/progress
+Keep owner acceptance as the current focus. After 0.9.0 and its cleanup release, MCP
+hardening is the next batch ([plan 019](plans/plan-019-post-0.9-roadmap.md)): structured results and accurate tool annotations first, then cancellation/progress
 and subscription-aware context delivery (moves 6a and 1). Reuse the existing board,
 revision and context-read contracts; a concrete delivery bug found during acceptance
 can be fixed narrowly without pulling the whole batch forward. ChatGPT native-composer
-validation and SDK v2 evaluation stay in Part 4, after Part 3's team/access foundations;
+validation and SDK v2 evaluation stay in Part 4, which now carries the team/access work;
 the optional PMX session connection stays a Part 5 decision. No release number is assigned.
 
 **Release status:** still 0.8.2. No release, tag, publication, deployment or version bump is
 authorized; implementation and green CI do not substitute for the owner's acceptance.
+
+**After 0.9.0 (decided with the maintainer, 2026-10-19).** The sequence is: a cleanup release
+(tour debt, large-board costs, the bounded due evaluator), MCP hardening (moves 6a and 1),
+the frame host with the Wave-0 design pass (moves 5 and 9), then Wave 5 with the remaining
+relations sketch parity (moves 3 and 0), then trust and the journal. **All account and team
+work belongs to the hosted version (Part 4):** the read-only share link, comments, a second
+writer, accounts, roles and knowledge scopes. Local PMX stays single-user, and static export is
+its sharing path. Build that work once in the shared product so it serves the ChatGPT Sites
+version first and the standalone Cloudflare version (Part 5) later.
+**Evaluations come at the very end for now:** the curation-effect benchmark and its
+per-release reruns no longer precede or gate any of this work. Read instrumentation and the
+release gates in [RELEASE.md](RELEASE.md) are unchanged. This supersedes every statement
+below that puts the curation evaluation first. **Accepted risk:** several releases will build
+on the curation claim before the effect is measured; the decision is to carry that risk rather
+than reinstate an earlier gate. Detail and acceptance checks:
+[plan 019](plans/plan-019-post-0.9-roadmap.md).
 
 **Architecture clarification, 2026-10-15:** the architecture reviews strengthen the existing
 shared-product/separate-runtime direction, not a microservice split. Moves 4, 6 and 7 now
 spell out commit guarantees, writer-policy parity and authenticated authority; the
 [runtime direction](#likely-repository-structure-shared-product-separate-runtimes) defines
 ownership and shared contracts. These are future requirements, not implemented guarantees.
-Owner acceptance and the curation evaluation remain first; fix demonstrated defects narrowly,
+Owner acceptance remains first; fix demonstrated defects narrowly,
 then prove the boundaries through a complete slice before moving packages or porting broadly.
 
 **Document import, updated 2026-09-28:** the agent-assisted v1 is implemented and verified on `main` (move 15): attach an original, explicitly request agent processing, review the returned Markdown, then add it to the board. Simple PDF, PPTX and XLSX fixtures were verified with Amp's tools. Canvas bundles no converter or OCR, does not launch an agent automatically, and does not guarantee general format fidelity.
@@ -162,7 +177,7 @@ then prove the boundaries through a complete slice before moving packages or por
 | Release scope | Content | Acceptance target (not a completion claim) |
 |---|---|---|
 | 0.7.0 — persistent boards and connected memory | Many boards, nested folders, backups, static export, README/link cards, library search, shared card text, attribution/revisions, selective copies, bounded cross-board context, agent-assisted document import, trust fixes and the 600 px gate | Release checks, installed-package smoke, browser workflows and live board checks pass; document conversion limitations and migration are explicit |
-| Next batch — scope/version to be agreed | Owner acceptance of Waves 1–3, remaining sketch parity and real-agent curation evaluation; later moves remain staged, not completed work | A focused plan with its own acceptance checks and explicit release approval; no automatic carry-over of the old 0.8 bundle |
+| After 0.9.0: versions proposed in [plan 019](plans/plan-019-post-0.9-roadmap.md) | Cleanup, MCP hardening, frame host and Wave-0 design pass, Wave 5 with relations sketch parity, then trust and journal; the share link ships with the hosted version; the curation evaluation last | Each release ends on plan 019's checks and explicit release approval; no automatic carry-over of the old 0.8 bundle |
 
 **Release decision, 2026-09-29:** package the completed batch as **0.7.0**, not
 0.8. Static export and the connected-memory features move into this release;
@@ -185,8 +200,8 @@ and its fixes as groundwork; pause further full-plugin release work. This is a
 sequencing decision, not authorization to build or launch hosted PMX now, and it
 does not change local PMX Canvas's existing distribution.
 
-**Hosted direction, 2026-10-10:** after the team features in Part 3, the first
-hosted version targets ChatGPT Sites with OpenAI login and the MCP server hosted
+**Hosted direction, 2026-10-10 (revised 2026-10-19: accounts and team features are built in
+the hosted version, not before it):** the first hosted version targets ChatGPT Sites with OpenAI login and the MCP server hosted
 there too. This is the first product validation, with the ChatGPT plugin as its
 distribution channel. If it works and people adopt it for recurring work, the
 next ambition is a full PMX Canvas service hosted directly on Cloudflare
@@ -206,7 +221,7 @@ assessment and acceptance targets.
 
 **Both halves, and which one is the bet.** The board being the human's durable workspace, written by agents, is proven: every real board was agent-written from the maintainer's prompts and then shaped, pinned, presented and returned to. The board being the agent's working memory, read and acted on, is a hypothesis: nothing yet shows an agent reading the board and behaving differently because of it, canvas steering has gone quiet, and the conversation lives in the host's chat. The vision holds both as one loop, so it has to prove the second half rather than let it ride on the first. Two things make that possible. Every node type needs a text form that carries its meaning, because a board that is rich for a human (decks, charts, drawings) is nearly opaque to an agent otherwise (move 1). And the loop is measured release by release, with a fixed benchmark (Part 1, item 4).
 
-Human attention helps select the agent's context; it does not define the whole product. Explicit steering directs agents; annotations, pins, connections, and grouping inform relevance, while spatial layout and human camera attention can contribute weaker cues. The server compiles one brief for every agent turn, paged so it never floods a host. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run a board is shared: first as an exported file, then as a link, then with comments and a second writer. That is the sharing sequence in Part 3; the first managed hosted offering follows it in Part 4.
+Human attention helps select the agent's context; it does not define the whole product. Explicit steering directs agents; annotations, pins, connections, and grouping inform relevance, while spatial layout and human camera attention can contribute weaker cues. The server compiles one brief for every agent turn, paged so it never floods a host. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run a board is shared: first as an exported file, then as a link, then with comments and a second writer. Export is local (Part 3); since 2026-10-19 the link, comments and a second writer are built in the hosted version (Part 4).
 
 **Purpose clarification:** pmx-canvas supports **knowledge work broadly**, including research, analysis, dashboards, planning, discovery, coordination, and orchestrating coding or other work. These are examples, not a closed list or a coding-only boundary. Its promise is to help humans and agents do the work, carry useful understanding into the next task, and see known changes and uncertainty in the context they use. The [companion vision](product-context-vision-2026-09.md#position) explored a separate memory graph and wiki; as of 2026-09-23 that role is played by the boards themselves (move 0), and its publication and audience guidance waits until sharing reaches a second writer. Contributing to memory does not automatically make every item a confirmed fact or shared organizational knowledge; attention does not grant approval or sharing permission.
 
@@ -224,7 +239,7 @@ This scope supersedes the original 0.7/0.7.x/0.8 split.
 | Connected boards (moves 0, 14) | README designation, text-only board-link cards, backlinks, library search, selective inactive board copies | Wiki syntax, board map, direct cross-board card edges, make-board/inline-board gestures remain planned |
 | Agent context (Part 1, move 1) | Shared per-type card text, persisted authorship/content revisions, bounded linked/same-folder context, opt-in durable consumer cursors, read instrumentation | Controlled retrieval checks are not the real-agent evaluation of whether curation improves outcomes; the full proposed ranker is not complete |
 | Trust (move 7) | Refused-write toasts, redirect filtering, workbench-token attribution and attributed ask answers including self-answers | Local attribution is not proof of human intent; per-writer remote authentication/sharing remains planned |
-| Sharing and presentation (moves 11, 12) | Static HTML export with explicit content choices; tours shipped in 0.6.5 | Read-only live share links remain planned; a colleague's use is a separate milestone from browser tests |
+| Sharing and presentation (moves 11, 12) | Static HTML export with explicit content choices; tours shipped in 0.6.5 | Read-only live share links ship with the hosted version (Part 4, decided 2026-10-19); a colleague's use is a separate milestone from browser tests |
 | Document context (move 15) | Original attachments, explicit processing consent, agent draft/review/commit, source-linked searchable Markdown, cancellation, retention and export privacy | Extraction depends on host tools; no bundled converter, OCR or general chart/formula fidelity guarantee |
 | Pane UX (moves 5, 9) | Chromium 600 px reference gate and Home folder polish | Unified frame host, frame budget and broader renderer consolidation remain planned |
 
@@ -294,7 +309,7 @@ Move 0 comes first, so real boards stop being overwritten. Then three changes th
    - **Delivery: does the brief reach the agent?** Record which resources each agent session reads and whether the pinned nodes were in what it read, per host. A miss here is plumbing (the skill, an adapter's per-prompt injection, the MCP client), and the answer is to fix the adapter, not to doubt the thesis.
    - **Effect: when it arrives, does curation change the work?** One fixed eval under `docs/evals/`: the same task, with the brief delivered, on a curated and an uncurated board, scored on criteria written before the first run. With one real user, real sessions cannot carry statistical weight; the eval is the test, and real sessions only confirm or contradict it.
 
-   **Continuous improvement, not a verdict (decided 2026-10-07; evaluation rule corrected with the maintainer 2026-10-10).** The eval ([curation-effect](evals/curation-effect.md)) is a benchmark rerun on every release that touches the brief, pins, budgets or adapters. Track absolute answer quality on both curated and uncurated boards, delivery reliability and retrieval cost. The curation gap (curated minus uncurated score) diagnoses the contribution of curation; it is not a target to maximise. Better uncurated answers can narrow the gap without regression, and worse uncurated answers can widen it without improvement. Investigate repeatable quality or cost regressions under comparable conditions and fix broken delivery; three runs per condition are diagnostic, not a statistical release gate. Each lost rubric line feeds the improvement backlog. This replaces the 2026-09 one-off decision rule and the later gap-growth requirement.
+   **Continuous improvement, not a verdict (decided 2026-10-07; evaluation rule corrected with the maintainer 2026-10-10).** The eval ([curation-effect](evals/curation-effect.md)) is a benchmark rerun on every release that touches the brief, pins, budgets or adapters. Track absolute answer quality on both curated and uncurated boards, delivery reliability and retrieval cost. The curation gap (curated minus uncurated score) diagnoses the contribution of curation; it is not a target to maximise. Better uncurated answers can narrow the gap without regression, and worse uncurated answers can widen it without improvement. Investigate repeatable quality or cost regressions under comparable conditions and fix broken delivery; three runs per condition are diagnostic, not a statistical release gate. Each lost rubric line feeds the improvement backlog. This replaces the 2026-09 one-off decision rule and the later gap-growth requirement. **Moved to the end, 2026-10-19:** the effect eval and its reruns wait until the end of the plan; the delivery half (read instrumentation) stays.
 
 ## Part 2: The shape I believe in
 
@@ -484,7 +499,7 @@ does not establish correctness on its own. Before second-writer or hosted write 
 
 Transactional state plus a change journal can deliver this before full event-sourced
 reconstruction. Today's polling cursor and snapshot fallback remain useful, but are not
-durable replay. This work does not block the current curation evaluation or require completing
+durable replay. This work does not block the curation evaluation or require completing
 the journal before a read-only share link.
 
 ### 5. Keep every node type; unify how they render (M)
@@ -495,7 +510,7 @@ One frame host for every iframe-backed kind: mounted lazily when the node is in 
 
 A frame host is necessary but not sufficient while four hosts set the definition of "works". Name one **reference surface** where every node type must render, gate releases on it, and treat embedded panes as best-effort with the visible fallback. Otherwise field reports keep setting the roadmap, as they did for all of 0.5 and 0.6.
 
-**Decided with the maintainer, 2026-10-05, replacing the 2026-09-24 decision: the workbench has no single reference width.** It lives in narrow agent-host panes, the resizable side browser in the Claude desktop app, and full browser windows of any size. The gate checks three widths in Chromium: 600 px (the narrow end), 1024 px (the middle, between the layout breakpoints) and 1920 px (a full window). Every node type must paint at all three or the release does not ship. (The 2026-09-24 decision made 600 px the one reference surface.) It is nearly free and covers the Claude Code and Codex panes and full windows, and Chromium is also the engine a hosted version would target first. What it misses is WebKit, where the Copilot app pane (the maintainer's host) and most black-tile rounds live, and which every iPhone and Safari viewer of a shared link will use. Those stay best-effort behind the visible fallback and retry. Recommended trigger for adding a WebKit project to the gate: whichever comes first of Part 3 step 2 (the read-only link) or the next WebKit-only bug that reaches a release. The compiled-binary window is not an option today: headed `Bun.WebView` is not implemented ([`bun-webview-integration.md`](bun-webview-integration.md)).
+**Decided with the maintainer, 2026-10-05, replacing the 2026-09-24 decision: the workbench has no single reference width.** It lives in narrow agent-host panes, the resizable side browser in the Claude desktop app, and full browser windows of any size. The gate checks three widths in Chromium: 600 px (the narrow end), 1024 px (the middle, between the layout breakpoints) and 1920 px (a full window). Every node type must paint at all three or the release does not ship. (The 2026-09-24 decision made 600 px the one reference surface.) It is nearly free and covers the Claude Code and Codex panes and full windows, and Chromium is also the engine a hosted version would target first. What it misses is WebKit, where the Copilot app pane (the maintainer's host) and most black-tile rounds live, and which every iPhone and Safari viewer of a shared link will use. Those stay best-effort behind the visible fallback and retry. Recommended trigger for adding a WebKit project to the gate: whichever comes first of the hosted read-only link (Part 4) or the next WebKit-only bug that reaches a release. The compiled-binary window is not an option today: headed `Bun.WebView` is not implemented ([`bun-webview-integration.md`](bun-webview-integration.md)).
 
 Deletes: the `ExtAppFrame` recovery machinery, two of three AX-bridge copies, five per-type iframe implementations. Capabilities removed: none. Every deletion the earlier version of this move argued from "zero real uses" was withdrawn once the real boards surfaced; what remains is argued from cost and incident count only.
 
@@ -565,7 +580,7 @@ Objection (feasibility, refuted as bundled): the previous registry campaign took
 
 ### 7. Trust that is not a label (S, then M)
 
-The workbench marker is a plain header any agent with `curl` can set, so "human-only gate resolution keyed on the marker" is still theater. The server mints a secret at boot, serves it only in the workbench HTML, and human-only ops require it. Its limit, raised by the [context vision](product-context-vision-2026-09.md) and accepted: an agent running as the same user can fetch that HTML too, so the secret stops casual header-setting and makes self-approval a deliberate act of circumvention, not proof of human intent. On a local single-user board that is the honest ceiling and the docs should say so; on a shared board (Part 3 step 2 on) human-only ops key on the viewer's own token, which an agent in another person's session never holds.
+The workbench marker is a plain header any agent with `curl` can set, so "human-only gate resolution keyed on the marker" is still theater. The server mints a secret at boot, serves it only in the workbench HTML, and human-only ops require it. Its limit, raised by the [context vision](product-context-vision-2026-09.md) and accepted: an agent running as the same user can fetch that HTML too, so the secret stops casual header-setting and makes self-approval a deliberate act of circumvention, not proof of human intent. On a local single-user board that is the honest ceiling and the docs should say so; on a shared board (the hosted version, Part 4) human-only ops key on the viewer's own identity, which an agent in another person's session never holds.
 
 **Superseded 2026-09-26 (see below).** ~~Decided with the maintainer, 2026-09-24: the human answers, the requester can withdraw.~~ Approving, rejecting and answering (gates, elicitations, mode requests) are human-only. A new `withdraw` lets the agent that raised an ask close it while it is still open, with a distinct `withdrawn` status that never counts as approval, so an orchestrator can tidy up at the end of a run. Every agent-facing resolve path becomes withdraw: the `canvas_ax_gate` resolve action, the CLI resolve commands, and the Copilot extension's `resolve_approval` tool (which becomes `withdraw_approval`); the orchestration skill's "resolve gates" step becomes "withdraw open gates". This matches the orchestration skill, which already treats gates as human decisions, and removes the one tool that invited self-approval. In practice the tool matters more than the secret: an agent handed `resolve_approval` will use it. The approval flow sees little real use on the board today, so the change is cheap now.
 
@@ -573,7 +588,7 @@ The workbench marker is a plain header any agent with `curl` can set, so "human-
 
 Then: file nodes are confined by default to the workspace plus explicit allow-roots (persistence hygiene, since every host already gives the agent `cat`); the webpage fetcher follows redirects by hand and refuses any hop that moves a public fetch onto a loopback or private address, and refuses link-local (cloud metadata) addresses on every hop, while a URL the caller points at a local dev server on purpose still loads; the client bridge checks `res.ok` and shows the toast on a refused write. One reservation I am not settled on: the real boards carry file nodes for documents (weekly prioritization reports) that may live outside any repository, and default confinement would have refused them; the default should probably be a per-board allow-root list that includes the folders a PM board actually reads, not the workspace alone.
 
-The same mechanism gives the product its own remote story, without relying on anything external. A loopback-only server means Claude Code cloud, Codex cloud and the Copilot coding agent, the agents that run longest unattended, cannot reach the board at all. With per-writer tokens minted by the server (human tokens served only to the workbench, agent tokens issued per session), the server can bind beyond loopback deliberately (`--listen` plus a token), and a remote agent is just another authenticated writer. No relay, no sync service, no version-control detour. The same tokens carry the read-only share link, the second step of the sharing path in Part 3; the first step, static export (move 11), needs none of this.
+The same mechanism gives the product its own remote story, without relying on anything external. A loopback-only server means Claude Code cloud, Codex cloud and the Copilot coding agent, the agents that run longest unattended, cannot reach the board at all. With per-writer tokens minted by the server (human tokens served only to the workbench, agent tokens issued per session), the server can bind beyond loopback deliberately (`--listen` plus a token), and a remote agent is just another authenticated writer. No relay, no sync service, no version-control detour. The read-only share link no longer rides these local tokens: it ships with the hosted version (Part 4, decided 2026-10-19). Per-writer tokens and `--listen` serve the owner's remote agents; local PMX remains single-user. Static export (move 11) needs none of this.
 
 **Authority across editions (2026-10-15).** Shared and hosted access uses an authenticated
 principal (the caller and its grants), supplied by the edition's identity adapter, and one
@@ -708,21 +723,23 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 
 ## Part 3: Long term, share this board
 
-**Decided with the maintainer, 2026-09-23; scope clarified 2026-10-10:** this phase delivers "share this board" through local and self-hosted sharing. Part 4 adds the first managed hosted offering after the team features. Hosted multiplayer competes head-on with established whiteboard products that have teams, funding and their own MCP integrations. What they cannot easily be is local-first, host-agnostic, and inside the agent's pane in Claude Code, Codex, Copilot and Amp; that is where this product wins. A PM board is something its owner presents to colleagues, so sharing grows from that, one step at a time, and each step is justified only by someone using the one before it.
+**Re-scoped with the maintainer, 2026-10-19:** all account and team work moves to the hosted version (Part 4): the read-only link, comments, a second writer, accounts, roles and org/team/personal scopes. Local PMX stays single-user; its sharing is static export, and move 7's tokens and `--listen` serve remote agents, not other people. Steps 2–5 below and the team model after the table now describe hosted work. The dependencies still hold inside the hosted version (the journal before a second writer).
+
+**Decided with the maintainer, 2026-09-23; scope clarified 2026-10-10; sequencing superseded 2026-10-19 (above):** ~~this phase delivers "share this board" through local and self-hosted sharing. Part 4 adds the first managed hosted offering after the team features.~~ Hosted multiplayer competes head-on with established whiteboard products that have teams, funding and their own MCP integrations. What they cannot easily be is local-first, host-agnostic, and inside the agent's pane in Claude Code, Codex, Copilot and Amp; that is where this product wins. A PM board is something its owner presents to colleagues, so sharing grows from that, one step at a time, and each step is justified only by someone using the one before it.
 
 | Step | What it is | Needs first |
 |---|---|---|
 | 1. Export | A static HTML file of one board (move 11), carrying its tour once move 12 lands | nothing |
-| 2. Link | A read-only share link: `--listen` plus a board-scoped read token | move 7 in full |
-| 3. Comments | Viewers annotate and reply; comments are cards addressed to the owner | author on every node (Part 1) |
-| 4. Second writer | Another human writes to a shared board, with their own agent | the journal (move 4), concurrent boards (move 0, stage 2) |
-| 5. Accounts | Per-board roles (read, comment, write, answer asks), single-tenant; org, team and personal knowledge scopes | a team using step 4 |
+| 2. Link | **Moved to the hosted version (Part 4), 2026-10-19.** A local `--listen` link is only reachable on the owner's network or through a tunnel while the owner's machine is awake; hosting replaces its token model anyway. Static export stays the pre-hosted sharing path | hosted runtime (Part 4) with authenticated identity and per-board permissions |
+| 3. Comments | **Hosted version (2026-10-19).** Viewers annotate and reply; comments are cards addressed to the owner | author on every node (Part 1), the hosted link |
+| 4. Second writer | **Hosted version (2026-10-19).** Another human writes to a shared board, with their own agent | the journal (move 4), concurrent boards (move 0, stage 2) |
+| 5. Accounts | **Hosted version (2026-10-19).** Full account administration, per-board roles (read, comment, write, answer asks) beyond the minimum the link needs; org, team and personal knowledge scopes | hosted identity (Sites first, Cloudflare later) |
 
 **What Part 2 already buys.** The journal (move 4) provides ordered changes and replay for synchronization, subject to its commit, retry and authorization guarantees. Compare-and-set detects concurrent conflicts; the app must reject or deliberately resolve them, including layout and multi-card changes. Operational transforms or CRDTs are not prerequisites for this conflict-rejecting model. Per-writer tokens (move 7) become per-user credentials; author on every node (Part 1) becomes attribution; presence is already multi-writer with identity colors; the ask node with an attributed answer becomes an ask addressed to a person or a role. Existing presence labels alone do not establish authenticated users or isolated sessions.
 
 **Sharing is per board.** Sharing a board never shares what it links to. A portal to a board the viewer cannot see renders as a locked card with no title, and the viewer's brief never reaches past what they can see. This is where the [context vision's](product-context-vision-2026-09.md) publication and audience rules apply: an automatic derivative's audience cannot exceed its inputs', and publication is an explicit act, not a side effect of summarizing.
 
-**What is genuinely new at step 5.** Step 5 is a team server: the same binary run with `--listen` on a machine the team reaches, one store per team, not a multi-tenant service. Identity is the app's own (passkeys and email, federation optional later). If that server is not the owner's machine it has no workspace on disk, so file nodes become uploads with re-upload in place of the watcher. The brief is compiled from the attention of the people in an agent's session, not everyone's, so two people can work one board with different agents without steering each other's context.
+**What is genuinely new at step 5.** ~~Step 5 is a team server: the same binary run with `--listen` on a machine the team reaches, one store per team, not a multi-tenant service. Identity is the app's own (passkeys and email, federation optional later).~~ Superseded 2026-10-19: accounts live in the hosted editions, with identity from the edition (Sites login first, PMX-chosen providers on Cloudflare later). A hosted edition has no workspace on disk, so file nodes become uploads with re-upload in place of the watcher. The brief is compiled from the attention of the people in an agent's session, not everyone's, so two people can work one board with different agents without steering each other's context.
 
 **User-defined knowledge scopes (revised with the maintainer, 2026-10-07).** This extends the 2026-10-05 workspace/personal decision. A workspace defines its own levels and categories; org → team → personal below is the example template, not a fixed structure, and nothing in the product hard-codes those words. Categories are folder properties with one list per workspace (move 13, decided model). The hierarchy organises Markdown knowledge on boards; SQLite remains authoritative and boards remain the wiki. A readable folder export represents that structure, not a second independently editable knowledge store.
 
@@ -734,17 +751,16 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 - **Links are safe in every direction.** A portal or `[[link]]` to unreadable knowledge shows a locked card with no title. A folder's place under org or team never makes personal descendants public; step 5 needs app-enforced membership and per-board roles, not folder-name permissions.
 - **Pins and the brief are per user.** Card pins and board pins (move 0a) become each user's own working set: on a shared board, my pins steer my agent, not yours. The board's README stays the shared default. A user's brief draws only on knowledge they can read across these scopes, never on another user's private boards.
 - **Agents act as their user.** An agent session belongs to one user and has exactly that user's read and write rights across scopes.
-- **Stage the delivery.** Local category folders and lifecycle metadata need neither accounts nor a model. Shared org/team membership, private personal libraries and publication enforcement arrive with step 5, not with Wave 1. Typed classification assistance is a separate longer-term option (move 13), never a prerequisite for either stage. Home, Map and Graph need updated drawings before these scope views are built; the existing two-root HomeTeam drawing is an earlier look ahead.
+- **Stage the delivery.** Local category folders and lifecycle metadata need neither accounts nor a model. Shared org/team membership, private personal libraries and publication enforcement arrive with the hosted version, not with Wave 1. Typed classification assistance is a separate longer-term option (move 13), never a prerequisite for either stage. Home, Map and Graph need updated drawings before these scope views are built; the existing two-root HomeTeam drawing is an earlier look ahead.
 
 **The vision it enables.** A quarterly OKR board with the PM, the team leads and each of their agents on it, every card attributed, every ask answered by the person it was addressed to, and the time scrubber showing how the plan changed and who changed it, reached from a link the PM sent after the workshop.
 
-**The constraints that hold.** Local and self-hosted PMX need no required externals: history and sync are the journal, not a third-party service. Everything in move 7 is mandatory before step 2 opens a port, and MCP-app hosting of third-party apps needs a per-board allowlist once viewers are not all the owner. Org/team/personal scopes do not themselves require multi-tenant hosting or an enterprise governance engine. The first hosted offering follows these team features in Part 4.
+**The constraints that hold.** Local and self-hosted PMX need no required externals: history and sync are the journal, not a third-party service. Self-hosted PMX is single-user; no supported self-hosted multi-user edition is planned. Everything in move 7 is mandatory before any server opens a port beyond loopback, and MCP-app hosting of third-party apps needs a per-board allowlist once viewers are not all the owner. Org/team/personal scopes do not themselves require an enterprise governance engine. Since 2026-10-19 they are built in the hosted version (Part 4), not before it.
 
 ## Part 4: First hosted validation — ChatGPT Sites and plugin distribution
 
-**Direction decided with the maintainer, 2026-10-10.** After the team features
-in Part 3, aim to deliver the first hosted version of PMX Canvas in **ChatGPT
-Sites**, with **OpenAI login**. The **MCP server is hosted there as well**, so
+**Direction decided with the maintainer, 2026-10-10.** Aim to deliver the first
+hosted version of PMX Canvas in **ChatGPT Sites**, with **OpenAI login**. The **MCP server is hosted there as well**, so
 users can reach their boards and context without running a local PMX process
 or a private tunnel.
 
@@ -753,9 +769,35 @@ plugin**, the first distribution channel for reaching users and testing whether
 PMX becomes part of their work. Validate the ChatGPT experience and adoption
 before investing in the full standalone hosted service in Part 5.
 
+**Accounts and team work are built here, for both hosted editions (decided with the
+maintainer, 2026-10-19).** The read-only link, comments, a second writer, accounts, per-board
+roles and org/team/personal scopes moved from Part 3 into the hosted version. Build them once
+in the shared product (see [shared product, separate runtimes](#likely-repository-structure-shared-product-separate-runtimes)):
+roles, membership, scopes, publication and per-board read filtering are shared rules keyed on
+an edition-neutral principal, never on a Sites user ID. Each edition supplies runtime adapters,
+including identity, storage, lifecycle and external capabilities (ADR-002 decisions 2–3). The
+Sites version ships first; the standalone Cloudflare version (Part 5) reuses the domain rules,
+schemas and contracts without depending on Sites. Each edition owns independent records and
+storage, without automatic synchronization; memberships and role assignments never import as
+authority (board copies apply the destination's permissions), while historical attribution
+stays as provenance. Dependency checks establish source separation only: verify supported
+behavior and lifecycle guarantees on Sites, and on standalone Cloudflare when that edition is
+implemented. Cloudflare implementation is not a prerequisite for Sites.
+Prerequisites: move 7's authorization model and the extraction gate's complete slice; the
+journal (move 4) before the second writer. Authenticated identity and per-board permissions
+come before the first hosted link; full account administration and scopes can follow.
+
+**The read-only share link ships here.** It moved
+from Part 3 step 2: a local `--listen` link only reaches colleagues on the owner's network or
+through a tunnel while the owner's machine is awake, the same burden the plugin decision
+rejects for ChatGPT users. The hosted link uses the edition's identity and PMX per-board read
+rules: locked cards for unreadable boards, and briefs and exports that never reach past what
+the viewer may read. Move 7's authorization model is the shared prerequisite. A colleague
+following a link to a live board and seeing it change is a hosted acceptance check.
+
 **Native composer and board context (2026-10-12).** The plugin uses ChatGPT's
 native composer, not a second PMX chat box. PMX supplies board tools and context.
-This acceptance belongs to the hosted pilot after Part 3, not the current local
+This acceptance belongs to the hosted pilot (Part 4), not the current local
 Waves 1–3 checkpoint or renewed full-plugin work on the private tunnel preview.
 The existing Apps bridge already sends selection, pins and board context through
 capability-gated `updateModelContext`, with acknowledgment and retry; keep this
@@ -768,10 +810,12 @@ reads and document the limitation rather than promising automatic context delive
 Other agents should eventually be able to connect directly to the same hosted
 MCP endpoint through **OAuth using the user's OpenAI login**. Both paths act
 as that user and respect the same board roles, knowledge scopes and personal
-privacy established by the team features. External-client OAuth is a separate
+privacy established by the hosted team features. External-client OAuth is a separate
 compatibility goal; its current blocker does not prevent validating the
 ChatGPT version and plugin distribution to an eligible audience first. Public
 distribution remains subject to the separate sharing and submission checks below.
+Validate browser-board sharing separately from plugin installation and connection, for
+each intended audience.
 
 **Technical validation:** a user signs in with OpenAI, creates a durable hosted
 board, and uses it through the ChatGPT plugin. Installation, account connection,
@@ -873,8 +917,8 @@ with a reproducible test journey: query a known friction or failure pattern,
 link it to a proposed fix and regression check, and compare versioned results.
 Use the same loop on real usage as evidence accumulates.
 
-The milestone follows the team features and retains local and self-hosted
-distribution. The assessment below separates documented platform capabilities,
+The milestone includes the team features (since 2026-10-19) and retains local and
+single-user self-hosted distribution. The assessment below separates documented platform capabilities,
 source-level portability and deployed verification; none is interchangeable.
 
 ### Platform evidence and OAuth validation
@@ -895,7 +939,12 @@ permissions; each recipient needs both Site and plugin access and their own
 connection. Pro/personal accounts currently cannot share a Site-hosted plugin
 directly through invitations or a share link. Sharing the Site does not share
 the plugin. Validate an eligible pilot audience and a supported distribution
-route before promising installations beyond the owner. Public directory release
+route before promising installations beyond the owner. Browser access to the Site is a
+separate path: the [Sites sharing docs](https://learn.chatgpt.com/codex/sites/publishing-and-sharing)
+(checked 2026-10-19) list external invitations rolling out to Plus, Pro, Business and
+Enterprise, and optional public publishing, both subject to admin controls. The plugin limit
+is a distribution risk, not an established limit on hosted board links; revalidate both on
+the live platform before relying on them. Public directory release
 is a separate goal, not an automatic consequence of publishing the Site.
 
 The installed **Sites plugin 1.0.1** documents a stateless JSON-RPC `POST /mcp`
@@ -1199,7 +1248,7 @@ standalone service, using Part 4's product metrics alongside user feedback.
 Proceed when that evidence supports the investment; if it
 does not, improve the first version before expanding the hosting scope. There
 is no automatic launch date or adoption threshold invented in this vision.
-Local and self-hosted PMX remain part of the product.
+Local and single-user self-hosted PMX remain part of the product; this service is PMX-managed, not a customer-operated team server.
 
 **Full hosted backup and recovery.** Before users depend on the standalone
 Cloudflare service, establish automated backups of board data and attachments,
