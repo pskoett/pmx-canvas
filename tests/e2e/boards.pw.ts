@@ -1005,6 +1005,143 @@ for (const sameBoard of [false, true]) {
   });
 }
 
+test('high-degree reference footers leave card content and actions usable', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const source = await note(request, 'Index');
+  const sourceBoard = (await boards(request)).activeBoardId!;
+  const target = (await (await request.post('/api/canvas/boards', { data: { name: 'Reference library' } })).json())
+    .board;
+  const batch = await request.post('/api/canvas/batch', {
+    data: {
+      operations: Array.from({ length: 103 }, (_, index) => ({
+        op: 'node.add',
+        args: {
+          destinationBoardId: target.id,
+          type: 'markdown',
+          title: `Evidence ${index}`,
+          content: `Source ${index}`,
+          x: index * 400,
+          y: 100,
+        },
+      })),
+    },
+  });
+  const targets = (await batch.json()).results as Array<{ id: string }>;
+  expect(targets).toHaveLength(103);
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${source}`, {
+        data: {
+          content: `# Index\n\n[[${target.id}#${targets[0].id}|Read evidence]]`,
+          width: 640,
+          height: 480,
+          strictSize: true,
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  for (const node of targets) {
+    expect(
+      (
+        await request.post('/api/canvas/edge', {
+          data: { from: source, to: node.id, toBoardId: target.id, type: 'references' },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${source}"]`);
+  const link = card.getByRole('link', { name: 'Read evidence', exact: true });
+  for (const [width, scale] of [
+    [1440, 1],
+    [1024, 0.68],
+    [600, 0.68],
+    [1920, 1],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await request.post('/api/canvas/viewport', { data: { x: 20, y: 90, scale } });
+    await expect(card.locator('.node-memory-link')).toHaveCount(103);
+    await expect
+      .poll(() =>
+        link.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+        }),
+      )
+      .toBe(true);
+    await expect(card.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+    if (width === 1440) {
+      const before = await card.boundingBox();
+      const references = card.getByRole('region', { name: 'Cross-board references' });
+      await references.hover();
+      await page.mouse.wheel(0, 300);
+      await expect.poll(() => references.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+      await references.focus();
+      await references.press('End');
+      await expect.poll(() => references.evaluate((element) => element.scrollTop)).toBeGreaterThan(2500);
+      await references.press('Home');
+      await expect.poll(() => references.evaluate((element) => element.scrollTop)).toBe(0);
+      expect(await card.boundingBox()).toEqual(before);
+    }
+    const last = card.locator('.node-memory-link').last().getByRole('button');
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    await expect(page.locator(`[data-node-id="${targets[102].id}"]`)).toBeInViewport();
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+    await link.click();
+    await expect(page.locator(`[data-node-id="${targets[0].id}"]`)).toBeInViewport();
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  }
+});
+
+test('reading expanded Markdown preserves exact source while edits save before wiki navigation', async ({
+  page,
+  request,
+}) => {
+  const sourceBoard = (await (await request.post('/api/canvas/boards', { data: { name: 'Source library' } })).json())
+    .board.id as string;
+  const destination = (await (await request.post('/api/canvas/boards', { data: { name: 'Read destination' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  const source = await note(request, 'Exact source');
+  const content = `- One\n- Two\n\n| A | B |\n| --- | --- |\n| Left | Right |\n\n[[${destination.id}|Read destination]]\n`;
+  await request.patch(`/api/canvas/node/${source}`, { data: { content } });
+  const original = await (await request.get(`/api/canvas/node/${source}`)).json();
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${source}"]`);
+  const editor = page.locator('.md-reader-editable');
+  for (const action of ['close', 'navigate']) {
+    await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+    await expect(editor).toContainText('Read destination');
+    await editor.focus();
+    if (action === 'close') {
+      await page.keyboard.press('Control+s');
+      await page.getByTestId('expanded-node').getByRole('button', { name: 'Close', exact: true }).click();
+    } else {
+      await editor.getByRole('link', { name: 'Read destination', exact: true }).click();
+      await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
+    }
+    await expect(page.getByTestId('expanded-node')).toHaveCount(0);
+    const unchanged = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+    expect(unchanged.data.content).toBe(content);
+    expect(unchanged.contentRevision).toBe(original.contentRevision);
+    if (action === 'navigate') {
+      await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+      await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
+    }
+  }
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(editor).toContainText('Read destination');
+  await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Actually edited ');
+  await editor.getByRole('link', { name: 'Read destination', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
+  const edited = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+  expect(edited.data.content).toContain('Actually edited');
+  expect(edited.contentRevision).toBeGreaterThan(original.contentRevision);
+});
+
 test('wiki navigation and human remote-card connections survive renames and retain the source', async ({
   page,
   request,
@@ -1092,13 +1229,14 @@ test('wiki navigation and human remote-card connections survive renames and reta
   await sourceCard.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
   await page.getByRole('button', { name: '</> Source', exact: true }).click();
   const rawSource = page.locator('.md-editor-expanded textarea');
-  // Document serialization drops this final newline on blur. Creating a wiki
-  // board must bind the saved document, not the pre-blur source snapshot.
+  // A real rich edit must save before creating and binding the missing board.
   await rawSource.fill(`${edited.data.content}\n`);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to document', exact: true }).click();
   await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Before creating the board: ');
   const blurSaved = page.waitForResponse(
     (response) => response.url().endsWith(`/api/canvas/node/${claim}`) && response.request().method() === 'PATCH',
   );

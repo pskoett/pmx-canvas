@@ -119,7 +119,7 @@ the same change.
 | [`Tokens.dc.html`](design/Tokens.dc.html) | Typeface, type scale, radii, elevation, one meaning per colour | 0 |
 | [`TokenSystem.dc.html`](design/TokenSystem.dc.html) | The token system today vs proposed: palette, meaning, scale | 0 |
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
-| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), section headings, floating chrome | 0 |
+| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), bounded reference footer, section headings, floating chrome | 0 |
 | [`EmptyState.dc.html`](design/EmptyState.dc.html) | Empty board: Drop files here, Paste a link, Start a note with collaboration guidance, then a separate agent-first path | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
 | [`NearPin.dc.html`](design/NearPin.dc.html) | Near a pin: the dotted “near” chip on a pinned node's unpinned neighbours, tethers on hover, the moment of change, combinations, 600 px; ships with the brief carrying neighbours (title + summary, reason “near <pin>”) | 1 |
@@ -153,6 +153,13 @@ guidance, not an agent-launch button, and remains visible with Agent sessions (B
 With the beta on, the existing Start agent session action sits below that guidance.
 The existing panel, type and colour tokens stay; actions form one readable column, and
 short windows scroll the guide rather than cutting off either starting path.
+
+**Canvas mouse gestures (owner decision, 2026-10-19).** Right-click on empty canvas
+opens the existing creation menu on release. Holding the right button and moving more
+than 5 screen pixels pans; releasing after a drag never opens a menu, even when the
+pointer returns to its starting point. Small hand jitter remains a click. Cancelled
+gestures open nothing. Right-drag over cards, middle-button drag, Space-drag and the
+existing double-click menus remain available. Menu appearance is unchanged.
 
 **Workspace UI opt-ins (owner decision, 2026-10-16).** Main rail **Settings** contains
 **Agent sessions (Beta)** and **Knowledge lifecycle (Beta)**, each with a small switch,
@@ -466,6 +473,14 @@ are view-local, not saved board coordinates. Folders remain independent of links
 connections use the source footer and human More-menu picker, not remote canvas
 lines; auto-arrange remains local and static export retains explicit external
 connection evidence.
+
+**Reference-footer correction (2026-10-18).** Chrome's footer keeps every remote
+connection inside one keyboard-focusable scroll region, capped at 40% of the card
+body and 132 world pixels. Short lists retain their natural height; long lists
+cannot consume the document or its actions. Unmodified wheel and navigation keys
+scroll references instead of moving the canvas. No graph data is collapsed or removed.
+Reading expanded Markdown, closing it or following a link without input preserves
+the exact source and revision. Pending real edits still finish before navigation.
 
 **Acceptance follow-up (2026-10-13).** ContextChip600's collapse order also applies when
 agent names/counts fill a wider bar: fold actions into More before compacting sessions to

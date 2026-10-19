@@ -32,16 +32,17 @@ function getTurndown(): TurndownService {
  *
  *  Two persistence signals:
  *  - `onChange(md)` — fires on every input. Caller typically debounces.
- *  - `onSave(md)`  — fires on ⌘S and blur. Caller should persist immediately
+ *  - `onSave(md)`  — fires on ⌘S and blur. Caller should persist dirty drafts immediately
  *    and cancel any pending debounced save, since `md` is the authoritative
- *    latest content. Both receive freshly-serialized markdown so the caller
- *    never reads a stale state snapshot. */
+ *    latest content: the exact caller draft until input, serialized DOM after it. */
 export function InlineMarkdownEditor({
+  markdown,
   initialHtml,
   className,
   onChange,
   onSave,
 }: {
+  markdown: string;
   initialHtml: string;
   className?: string;
   onChange: (markdown: string) => void;
@@ -49,6 +50,7 @@ export function InlineMarkdownEditor({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
+  const edited = useRef(false);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -87,6 +89,7 @@ export function InlineMarkdownEditor({
   }, []);
 
   const handleInput = useCallback(() => {
+    edited.current = true;
     onChange(serialize());
   }, [onChange, serialize]);
 
@@ -95,8 +98,10 @@ export function InlineMarkdownEditor({
     // focused) reads back an empty tree — saving that would WIPE the document.
     const el = rootRef.current;
     if (!el || !el.isConnected || el.innerHTML === '') return;
-    onSave?.(serialize());
-  }, [onSave, serialize]);
+    // Turndown cannot round-trip source spacing. Until this editor receives
+    // input, flush the caller's exact draft (including edits from Source mode).
+    onSave?.(edited.current ? serialize() : markdown);
+  }, [markdown, onSave, serialize]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useState } from 'preact/hooks';
 import {
   contextPinnedNodeIds,
   edges,
@@ -79,7 +79,7 @@ export function useContextMenu() {
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!menu) return;
     const handleClick = () => setMenu(null);
     const handleKey = (e: KeyboardEvent) => {

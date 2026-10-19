@@ -825,31 +825,59 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               `data.axStep` stamp. */}
             <AxStepControls node={node} />
             {!isGroup && <LifecycleFooter nodeId={node.id} />}
-            {remoteEdges.map((edge) => {
-              const targetBoard = boardList.value.find((board) => board.id === edge.toBoardId);
-              const link = sourceBoard?.links?.find(
-                (link) =>
-                  link.kind === 'card' &&
-                  link.nodeId === node.id &&
-                  link.boardId === edge.toBoardId &&
-                  link.cardId === edge.to,
-              );
-              return (
-                <div class="node-memory-link" key={edge.id}>
-                  <button
-                    type="button"
-                    disabled={!targetBoard || link?.missing === true}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void openMemoryTarget({ boardId: edge.toBoardId!, cardId: edge.to });
-                    }}
-                  >
-                    ↗ {edge.label || edge.type}: {targetBoard?.name ?? 'Missing board'} /{' '}
-                    {link?.cardTitle ?? (link?.missing ? 'Missing card' : 'Loading card…')}
-                  </button>
-                </div>
-              );
-            })}
+            {remoteEdges.length > 0 && (
+              <div
+                class="node-memory-links"
+                role="region"
+                aria-label="Cross-board references"
+                tabIndex={0}
+                onWheel={(event) => {
+                  if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    [
+                      'ArrowUp',
+                      'ArrowDown',
+                      'ArrowLeft',
+                      'ArrowRight',
+                      'Home',
+                      'End',
+                      'PageUp',
+                      'PageDown',
+                      ' ',
+                    ].includes(event.key)
+                  )
+                    event.stopPropagation();
+                }}
+              >
+                {remoteEdges.map((edge) => {
+                  const targetBoard = boardList.value.find((board) => board.id === edge.toBoardId);
+                  const link = sourceBoard?.links?.find(
+                    (link) =>
+                      link.kind === 'card' &&
+                      link.nodeId === node.id &&
+                      link.boardId === edge.toBoardId &&
+                      link.cardId === edge.to,
+                  );
+                  return (
+                    <div class="node-memory-link" key={edge.id}>
+                      <button
+                        type="button"
+                        disabled={!targetBoard || link?.missing === true}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openMemoryTarget({ boardId: edge.toBoardId!, cardId: edge.to });
+                        }}
+                      >
+                        ↗ {edge.label || edge.type}: {targetBoard?.name ?? 'Missing board'} /{' '}
+                        {link?.cardTitle ?? (link?.missing ? 'Missing card' : 'Loading card…')}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
         {/* Group children live in the world layer, not this body. Keep their

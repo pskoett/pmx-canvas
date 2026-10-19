@@ -9444,8 +9444,13 @@ html.is-node-dragging .intent-line-layer {
   flex: 1;
   min-height: 0;
 }
-.node-memory-link {
+.node-memory-links {
   flex-shrink: 0;
+  max-height: min(40%, 132px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.node-memory-link {
   padding: 6px 12px;
   border-top: 1px solid var(--c-line);
 }

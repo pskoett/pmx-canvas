@@ -122,12 +122,18 @@ test.each([
     data: { content: 'See [[B]]', wikiLinks: [{ ref: 'B' }], ...(fileBacked ? { path: 'decision.md' } : {}) },
   };
   const acknowledgements: Array<(response: Response) => void> = [];
+  let savedContent = '';
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input) === '/api/render')
+    if (String(input) === '/api/render') {
+      const { markdown } = JSON.parse(String(init?.body)) as { markdown: string };
       return Response.json({
-        html: renderWikiMarkdown('See [[B]]', wikiLinksFromData(nodes.value.get(source.id)!.data), () => true),
+        html: renderWikiMarkdown(markdown, wikiLinksFromData(nodes.value.get(source.id)!.data), () => true),
       });
-    if (init?.method === 'PATCH') return new Promise<Response>((resolve) => acknowledgements.push(resolve));
+    }
+    if (init?.method === 'PATCH') {
+      savedContent = (JSON.parse(String(init.body)) as { content: string }).content;
+      return new Promise<Response>((resolve) => acknowledgements.push(resolve));
+    }
     if (String(input) === '/api/file/save') return Response.json({ ok: true, updatedAt: '2026-10-11T10:00:00Z' });
     if (String(input).startsWith('/api/file?')) return Response.json({ content: 'See [[B]]' });
     return Response.json({});
@@ -142,14 +148,17 @@ test.each([
   }
   const view = render(<Card />);
   await waitFor(() => expect(view.container.querySelector('a')?.classList.contains('is-unresolved')).toBe(true));
-  fireEvent.blur(view.container.querySelector('[contenteditable]')!);
+  const editor = view.container.querySelector('[contenteditable]')!;
+  editor.append(document.createTextNode(' Updated.'));
+  fireEvent.input(editor);
+  fireEvent.blur(editor);
   await waitFor(() => expect(acknowledgements).toHaveLength(1));
   await act(async () =>
     replay({
       ...source,
       contentRevision: 41,
       linksRevision: 11,
-      data: { ...source.data, wikiLinks: [{ ref: 'B', target: { boardId: 'b' } }] },
+      data: { ...source.data, content: savedContent, wikiLinks: [{ ref: 'B', target: { boardId: 'b' } }] },
     }),
   );
   await waitFor(() => expect(nodes.value.get(source.id)?.data.rendered).toContain('data-wiki-board="b"'));
@@ -266,7 +275,7 @@ test.each([
 });
 
 test('the rich editor preserves wiki references and aliases while editing their visible labels', async () => {
-  const content = 'See [[Old research#Evidence|Read this]] and [[Pending]] and [Ordinary](https://example.com).';
+  const content = 'See [[Old research#Evidence|Read this]] and [[Pending]] and [Ordinary](https://example.com).\n';
   const html = renderWikiMarkdown(
     content,
     [{ ref: 'Old research#Evidence', target: { boardId: 'r1', cardId: 'e1' } }, { ref: 'Pending' }],
@@ -275,6 +284,7 @@ test('the rich editor preserves wiki references and aliases while editing their 
   let saved = '';
   const view = render(
     <InlineMarkdownEditor
+      markdown={content}
       initialHtml={html}
       onChange={(md) => {
         saved = md;
@@ -287,13 +297,13 @@ test('the rich editor preserves wiki references and aliases while editing their 
   const editor = view.container.querySelector('[contenteditable]')!;
   await waitFor(() => expect(editor.querySelectorAll('a')).toHaveLength(3));
   fireEvent.blur(editor);
-  expect(saved).toContain('[[Old research#Evidence|Read this]]');
-  expect(saved).toContain('[[Pending]]');
-  expect(saved).toContain('[Ordinary](https://example.com)');
+  fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+  expect(saved).toBe(content);
   editor.querySelector('a')!.textContent = 'Read fresh';
   fireEvent.input(editor);
   expect(saved).toContain('[[Old research#Evidence|Read fresh]]');
   expect(saved).toContain('[[Pending]]');
+  expect(saved).toContain('[Ordinary](https://example.com)');
   const draftText = editor.querySelector('a')!.firstChild!;
   const range = document.createRange();
   range.setStart(draftText, 4);
@@ -302,6 +312,7 @@ test('the rich editor preserves wiki references and aliases while editing their 
   document.getSelection()!.addRange(range);
   view.rerender(
     <InlineMarkdownEditor
+      markdown={content}
       initialHtml={renderWikiMarkdown(
         content,
         [{ ref: 'Old research#Evidence', target: { boardId: 'r1', cardId: 'e1' } }, { ref: 'Pending' }],

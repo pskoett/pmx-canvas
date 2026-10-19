@@ -320,6 +320,7 @@ export function CanvasViewport({
   const containerRef = usePanZoom({
     viewport,
     disabled: annotationMode,
+    onBackgroundContextMenu: onCanvasContextMenu,
     onViewportChange: (next) => {
       // Don't pan while lassoing — usePanZoom's pointerdown still fires
       // (native listener) before our Preact handler can stopPropagation.
@@ -708,8 +709,8 @@ export function CanvasViewport({
   );
 
   const handleContextMenu = useCallback((e: MouseEvent) => {
-    // Right-click is a pan gesture, never a menu trigger. Suppress the
-    // browser menu whether it lands on the board or bubbles from a node.
+    // usePanZoom distinguishes a background right-click from a right-drag
+    // on release. Suppress the native menu on both press and release.
     e.preventDefault();
   }, []);
 

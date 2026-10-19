@@ -54,7 +54,11 @@ Human review: Home's Review needed count leads to boards and their affected card
 asks for a short note and Checked, still correct. Not now writes nothing. Settings and history
 holds policies, clocks and advanced outcomes. No review policy is informational, not a review task.
 
-At the start of board work, read `canvas://context?consumer=<stable-unique-id>`
+At the start of board work, call `canvas_board { action: "list" }`. If
+`activeBoardId` is null (Home), open the board intended for the task before reading
+its context; do not treat an empty Home brief as an empty library. Opening changes
+the shared workbench. Library-only discovery and background creation need no switch.
+Then read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
 falling back to broader resources. The budget is UTF-16 code units, not tokens.
 Use one stable consumer ID per agent/adapter only when durable deltas are wanted;
@@ -63,7 +67,8 @@ card as title + short summary with why it was pinned and its relations; pinned c
 cards near each pin (reason `near`), then what changed. Boards the human pinned into the working
 set arrive as maps (reason `pinned-board`). On a board larger than the budget, read on with the
 returned `cursor.next` as `since` (a consumer does this for you). A pinned board is context only:
-writes still go to the open board. Decide what you need, then
+it does not select a write destination. Writes default to the open board; supported static
+creation may explicitly use `destinationBoardId` (see below). Decide what you need, then
 pull it in full with `canvas_node { action: "get", board, id, full: true }`.
 
 **Read → check → refresh:** after reading context, inspect `canvas_ax_timeline {
@@ -656,8 +661,9 @@ Home Map uses compact `boards` summaries and loads depth-2 details on selection.
 Map/Graph coalesce live board, layout, pin and reconnect updates without resetting the
 human's camera or selection. Failed reads keep the previous view with **Retry**.
 The human can remain in Map/Graph while an agent opens or edits a board; the server's
-active board still controls agent writes. Explicit **Open board/card** returns the human
-to that board. Do not infer the agent's active board from the human's visible library.
+active board controls default writes, not explicit static destination creation.
+Explicit **Open board/card** returns the human to that board. Do not infer the agent's
+active board from the human's visible library.
 Library context controls show workspace board pins, not controls for the hidden active
 board's cards. Create a portal on the source board with `canvas_node { action: "add",
 type: "board", data: { boardId: "<target-board-id>" } }`.
@@ -690,8 +696,9 @@ updates its alias without changing its target.
 Card-aware Markdown previews carry their captured board ID and discard stale
 responses after navigation, so delayed rendering cannot borrow another board's bindings.
 Native `canvas_edge { action: "add", from, to, toBoardId, type }` connects a
-source on the open board to a remote card (CLI `edge add --from <id> --to <id> --to-board <board-id>`). Humans
-use the source footer and More-menu card picker. Auto-arrange stays local;
+source on the open board (or explicit `destinationBoardId`) to a remote card
+(CLI `edge add --from <id> --to <id> --to-board <board-id>`). Humans use the source
+footer and More-menu card picker. Auto-arrange stays local;
 static export shows external connection evidence, not remote lines.
 Home folders are neutral and independent of links; Map drags persist SQLite
 `mapPosition` (board update accepts `{ x, y }` or `null` to reset). Edges accept open `kind`
@@ -703,14 +710,36 @@ and live/cached/unavailable availability, separately from retrieval timestamps. 
 propagate only through explicit dependencies. An inert provenance `recipe` (tool/input/prompt)
 lets the human ask an agent to refresh; regeneration itself does not validate.
 
-Use `scope: "library"` to search inactive boards without switching. Board cards
-are text-only links through `data.boardId`; they are not direct cross-board card
-edges. `create-from` should be previewed first. It excludes prompt, response,
+Use `scope: "library"` to search inactive boards without switching. Search accepts
+intersecting `boardId` and `folder` filters; a folder includes itself and slash-boundary
+descendants, and `folder: ""` selects unfiled boards. Filters default omitted scope
+to library; explicit `scope: "active"` never widens. Unknown selections return no
+results, and filtering precedes ranking/limit. Search retains term-OR matching,
+not phrase matching. Board cards are text-only links through `data.boardId`; they
+are not direct cross-board card edges. `create-from` should be previewed first. It excludes prompt, response,
 trace, and MCP-app cards; groups and README are optional; creation assigns fresh
 IDs, records `previousBoardId`, copies no pins/AX/history, preserves the original, and leaves the new board
-inactive. Agents can open/switch boards; only the human deletes them. To create
-and populate a board, call `canvas_board { action: "create", name: "Planning" }`,
-then `canvas_board { action: "open", id: "<returned-board-id>" }` (CLI:
+inactive. Agents can open/switch boards; only the human deletes them.
+
+To populate a board without interrupting the human, create it with `canvas_board`,
+then pass its returned ID as `destinationBoardId` to `canvas_node` add,
+`canvas_group` create and `canvas_edge` add. Supported nodes are static Markdown,
+status, context, ledger, trace, diff, Mermaid and plain HTML only. Image/runtime
+creation, generated primitives, intents and updates/removals remain active-board
+operations, not background CRUD. `toBoardId` independently selects an edge's
+remote endpoint; it does not select the source board. In `canvas_batch`, put
+destination/retry fields inside each operation's `args`, not on the batch envelope;
+existing named references work for group members and edge endpoints.
+
+Optional `requestId` identifies one logical creation. Reuse it with the same input
+and destination for retries, including after restart; use a new ID for an intentional
+new creation, even with identical content. Replay returns the original receipt,
+preserving later edits/deletions rather than updating or resurrecting objects.
+Changed-input reuse conflicts. `expectedBoardId` still guards the active board,
+not the destination; refresh stale context instead of bypassing the guard. Scope
+fences and human edit locks still apply. See [Importing context](references/importing-context.md).
+
+For active-board-only work, call `canvas_board { action: "open", id: "<board-id>" }` (CLI:
 `pmx-canvas board open <board-id>`). Verify the returned `activeBoardId` before
 writing. Opening changes the shared visible workbench and subsequent write
 target, not a private agent selection. Recheck after interruptions or another

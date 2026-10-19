@@ -519,15 +519,21 @@ test('right-drag pans over blank canvas and node content without moving or creat
   await expect(page.locator('.canvas-node').filter({ hasText: 'Pan target' })).toBeVisible();
 
   const dragRight = async (x: number, y: number, dx: number, dy: number) => {
+    const card = page.locator('.canvas-node').filter({ hasText: 'Pan target' });
+    const start = await card.boundingBox();
+    if (!start) throw new Error('Pan target is not visible');
     await page.mouse.move(x, y);
     await page.mouse.down({ button: 'right' });
     // The hand appears on hold, before the first movement, even over text.
     await expect(page.locator('.canvas-viewport')).toHaveCSS('cursor', 'grabbing');
     await expect(page.locator('.canvas-node .node-body')).toHaveCSS('cursor', 'grabbing');
     await page.mouse.move(x + dx, y + dy, { steps: 5 });
+    await expect(page.locator('.context-menu')).toHaveCount(0);
     await page.mouse.up({ button: 'right' });
     await expect(page.locator('html')).not.toHaveClass(/is-canvas-panning/);
     await expect(page.locator('.canvas-viewport')).not.toHaveCSS('cursor', 'grabbing');
+    await expect.poll(async () => Math.round((await card.boundingBox())!.x - start.x)).toBe(dx);
+    await expect.poll(async () => Math.round((await card.boundingBox())!.y - start.y)).toBe(dy);
   };
   const before = await currentCanvasState(request);
   const beforeViewport = (await (await request.get('/api/canvas/state')).json()) as {
@@ -549,6 +555,10 @@ test('right-drag pans over blank canvas and node content without moving or creat
   expect(after.nodes).toHaveLength(1);
   expect(after.nodes[0].position).toEqual(before.nodes[0].position);
   await expect(page.locator('.context-menu')).toHaveCount(0);
+  // A completed drag must not suppress the next stationary right-click.
+  await page.mouse.click(1000, 600, { button: 'right' });
+  await expect(page.locator('.context-menu-item').filter({ hasText: 'New note' })).toBeVisible();
+  await page.keyboard.press('Escape');
   const title = page.locator('.canvas-node .node-title');
   await title.click();
   await expect(page.locator('.canvas-node')).toHaveClass(/active/);
@@ -559,6 +569,48 @@ test('right-drag pans over blank canvas and node content without moving or creat
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(title).toHaveText('Renamed from menu');
   await expect.poll(async () => (await currentCanvasState(request)).nodes[0].data.title).toBe('Renamed from menu');
+});
+
+test('cancelled right-clicks and return-to-start drags do not open creation menus', async ({ page, request }) => {
+  await page.goto('/workbench');
+  await expect(page.locator('.empty-state')).toBeVisible();
+  const canvas = page.locator('.canvas-viewport');
+  const menu = page.locator('.context-menu');
+  // Keep clear of the empty-board onboarding buttons, which own their input.
+  expect(await page.evaluate(() => document.elementFromPoint(100, 220)?.classList.contains('canvas-viewport'))).toBe(
+    true,
+  );
+  for (const cancel of ['pointercancel', 'lostpointercapture']) {
+    await page.mouse.move(100, 220);
+    await page.mouse.down({ button: 'right' });
+    await expect(page.locator('html')).toHaveClass(/is-canvas-panning/);
+    await canvas.dispatchEvent(cancel);
+    await page.mouse.up({ button: 'right' });
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/is-canvas-panning/);
+  }
+  await page.mouse.move(100, 220);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(180, 255, { steps: 5 });
+  await page.mouse.move(100, 220, { steps: 5 });
+  await page.mouse.up({ button: 'right' });
+  await expect(menu).toHaveCount(0);
+
+  // The next right-click still works; middle-button drag remains menu-free.
+  await canvas.click({ button: 'right', position: { x: 72, y: 120 } });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  const before = await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform);
+  await page.mouse.move(100, 220);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(160, 250, { steps: 5 });
+  await page.mouse.up({ button: 'middle' });
+  await expect(menu).toHaveCount(0);
+  await expect
+    .poll(() => page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform))
+    .not.toBe(before);
+  expect((await currentCanvasState(request)).nodes).toHaveLength(0);
 });
 
 test('rail and keyboard creates land in the current viewport, not at the board origin', async ({ page, request }) => {
@@ -953,10 +1005,15 @@ test('canvas background context menu exposes user-creatable nodes', async ({ pag
   await page.goto('/workbench');
 
   const viewport = page.locator('.canvas-viewport');
-  await viewport.dblclick({
-    button: 'left',
-    position: { x: 72, y: 120 },
-  });
+  await expect(page.locator('.empty-state')).toBeVisible();
+  const box = await viewport.boundingBox();
+  if (!box) throw new Error('Canvas viewport is not visible');
+  await page.mouse.move(box.x + 72, box.y + 120);
+  await page.mouse.down({ button: 'right' });
+  await expect(page.locator('.context-menu')).toHaveCount(0);
+  // Small hand jitter is still a click, not a pan.
+  await page.mouse.move(box.x + 74, box.y + 121);
+  await page.mouse.up({ button: 'right' });
 
   const menu = page.locator('.context-menu');
   await expect(menu).toBeVisible();

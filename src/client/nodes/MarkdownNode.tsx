@@ -445,6 +445,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // write twice with slightly different content.
   const handleInlineSave = useCallback(
     (md: string) => {
+      if (!draft.dirty.value && md === latestMdRef.current) return;
       draft.dirty.value = true;
       setContent(md);
       latestMdRef.current = md;
@@ -583,7 +584,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           event.stopPropagation();
           const incarnation = boardIncarnation;
           const focused = document.activeElement;
-          // Blur serializes the rich document. Finish that save before the
+          // Blur flushes actual rich edits. Finish that save before the
           // link dialog captures its source or navigation changes boards.
           if (focused instanceof HTMLElement && event.currentTarget.contains(focused)) focused.blur();
           await saveQueue.current;
@@ -596,6 +597,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           {loaded ? (
             <InlineMarkdownEditor
               key={node.id}
+              markdown={content}
               initialHtml={rendered || '<p><br></p>'}
               className="md-reader-content md-reader-editable"
               onChange={handleInlineChange}
