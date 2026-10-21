@@ -3270,6 +3270,105 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
   await expect(reopenedFrame.getByText('Saved manual edit')).toBeVisible();
 });
 
+test('a Source-saved task persists when the card is immediately expanded and closed during its save', async ({
+  page,
+  request,
+}) => {
+  const original =
+    '# Scratch note\n\nOriginal human-test baseline.\n\n- [ ] First checkbox\n- [ ] Second checkbox\n\nUse this card for Source/Document, saves, receipts and conflict tests. You may edit it freely.\n';
+  const appended = `${original}\nBeta saved line.\n- [ ] Persistence checkbox\n`;
+  const expected = appended.replace('- [ ] Persistence checkbox', '- [x] Persistence checkbox');
+  const { id } = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Scratch note', content: original, x: 300, y: 180, width: 650, height: 180 },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const overlay = page.locator('.expanded-overlay-panel');
+  await overlay.getByRole('button', { name: '</> Source', exact: true }).click();
+  await overlay.locator('textarea').fill(appended);
+  const saved = page.waitForResponse(
+    (response) => response.request().method() === 'PATCH' && response.url().endsWith(`/api/canvas/node/${id}`),
+  );
+  await overlay.getByRole('button', { name: 'Save', exact: true }).click();
+  expect((await saved).status()).toBe(200);
+  await overlay.getByRole('button', { name: 'Back to document', exact: true }).click();
+  await page.keyboard.press('Escape');
+
+  let releaseRender!: () => void;
+  const held = new Promise<void>((resolve) => {
+    releaseRender = resolve;
+  });
+  let renderStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    renderStarted = resolve;
+  });
+  await page.route('**/api/render', async (route) => {
+    if (route.request().postDataJSON().markdown === expected) {
+      renderStarted();
+      await held;
+    }
+    await route.continue();
+  });
+  await card.getByRole('checkbox').last().click({ delay: 120 });
+  await started;
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await page.keyboard.press('Escape');
+  releaseRender();
+  await page.unrouteAll({ behavior: 'wait' });
+  await expect.poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).content).toBe(expected);
+  await page.reload();
+  await expect(card.getByRole('checkbox').last()).toBeChecked();
+});
+
+test('expanded task ticking preserves a peer update accepted while the editor is open', async ({ page, request }) => {
+  const { id } = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Peer checklist', content: '- [ ] Original task', x: 300, y: 180 },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  await page
+    .locator(`.canvas-node[data-node-id="${id}"]`)
+    .getByRole('button', { name: 'Expand (focus mode)', exact: true })
+    .click();
+  const editor = page.locator('.expanded-overlay-panel .md-reader-content');
+  await expect(editor.getByRole('checkbox')).toHaveCount(1);
+  expect(
+    (await request.patch(`/api/canvas/node/${id}`, { data: { content: '- [ ] Original task\n- [ ] Peer task' } })).ok(),
+  ).toBe(true);
+  await expect(editor.getByRole('checkbox')).toHaveCount(2);
+  await editor.getByRole('checkbox').first().click();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).content)
+    .toMatch(/-\s+\[x\]\s+Original task/);
+  // Accepted updates must still refresh after a local edit has been saved.
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${id}`, {
+        data: { content: '- [x] Original task\n- [ ] Peer task\n- [ ] Later peer task' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await expect(editor.getByRole('checkbox')).toHaveCount(3);
+  await editor.getByRole('checkbox').last().click();
+  await page.keyboard.press('Escape');
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).content)
+    .toMatch(/-\s+\[x\]\s+Later peer task/);
+  const canonical = (await (await request.get(`/api/canvas/node/${id}`)).json()).content as string;
+  expect(canonical).toMatch(/-\s+\[x\]\s+Original task/);
+  expect(canonical).toMatch(/-\s+\[ \]\s+Peer task/);
+  await page.reload();
+  const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(card.getByRole('checkbox')).toHaveCount(3);
+  await expect(card.getByRole('checkbox').first()).toBeChecked();
+  await expect(card.getByRole('checkbox').nth(1)).not.toBeChecked();
+  await expect(card.getByRole('checkbox').last()).toBeChecked();
+});
+
 test('task checkboxes tick on the CARD and persist to the node content', async ({ page, request }) => {
   const note = (await (
     await request.post('/api/canvas/node', {
