@@ -1,9 +1,11 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { cleanup, render } from '@testing-library/preact';
 import { AttentionToast } from '../../src/client/canvas/AttentionToast.tsx';
 import { resetAttentionBridge, showToast, syncAttentionFromSse } from '../../src/client/state/attention-bridge.ts';
 import { attentionHistory } from '../../src/client/state/attention-store.ts';
 import { activeBoardId } from '../../src/client/state/boards-store.ts';
+
+beforeEach(resetAttentionBridge);
 
 afterEach(() => {
   cleanup();

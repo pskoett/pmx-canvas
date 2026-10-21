@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { ToolRail } from '../../src/client/canvas/ToolRail.tsx';
+import { axSurfaceState } from '../../src/client/state/canvas-store.ts';
+import { resetPresence } from '../../src/client/state/presence-store.ts';
+import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 
 function renderRail(annotationTool: 'pen' | 'text' | 'eraser' | null = null, onSetAnnotationTool = mock(() => {})) {
   return render(
@@ -17,6 +20,12 @@ function renderRail(annotationTool: 'pen' | 'text' | 'eraser' | null = null, onS
     />,
   );
 }
+
+beforeEach(() => {
+  resetPresence();
+  axSurfaceState.value = null;
+  workspaceSettings.value = null;
+});
 
 afterEach(cleanup);
 
