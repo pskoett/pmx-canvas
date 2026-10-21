@@ -700,6 +700,66 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   await expect(page.locator('.canvas-node[data-node-type="html"]')).toHaveCount(1);
 });
 
+test('hidden connection handles do not intercept a neighboring relation label', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  const created = [];
+  for (const [title, x] of [
+    ['Source', 100],
+    ['Target', 1000],
+  ] as const) {
+    created.push(
+      (await (
+        await request.post('/api/canvas/node', {
+          data: { type: 'markdown', title, content: title, x, y: 200, width: 280, height: 140, strictSize: true },
+        })
+      ).json()) as { id: string },
+    );
+  }
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: {
+          from: created[0].id,
+          to: created[1].id,
+          type: 'relation',
+          kind: 'supports',
+          reason: 'The label stays reachable.',
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 0.41 } });
+  await page.goto('/workbench');
+  const pill = page.locator('.edge-pill');
+  await expect(pill).toBeVisible();
+  const point = await pill.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const svg = element.closest('svg')!;
+    const world = new DOMPoint(rect.x + rect.width / 2, rect.y + rect.height / 2).matrixTransform(
+      svg.getScreenCTM()!.inverse(),
+    );
+    return { x: world.x, y: world.y };
+  });
+  // The invisible top handle's 32-screen-pixel grab area covers the label,
+  // but the unrelated card itself is below it.
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Nearby note',
+      content: 'Not connected',
+      x: point.x - 160,
+      y: point.y + 8 / 0.41,
+      width: 320,
+      height: 140,
+      strictSize: true,
+    },
+  });
+  await expect(page.locator('.canvas-node')).toHaveCount(3);
+  const box = (await pill.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText('The label stays reachable.');
+});
+
 test('rich relation kind and reason survive live edits and reload; a human can delete it', async ({
   page,
   request,
@@ -2664,6 +2724,27 @@ test('native step controls on a materialized flow node drive the work item and t
   await expect(step1).toHaveCount(1);
   await expect(step1.locator('.ax-step-controls')).toHaveCount(1);
   await expect(step1).toContainText('Step 1/3');
+
+  await fitCanvas(page);
+  await step1.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const expanded = page.getByTestId('expanded-node');
+  const blocked = expanded.getByRole('button', { name: 'Blocked', exact: true });
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const input of ['pointer', 'keyboard']) {
+      if (input === 'pointer') await blocked.hover();
+      else await blocked.focus();
+      const hint = toolbarTooltip(blocked);
+      await expect(hint).toHaveCSS('opacity', '1');
+      const panel = (await expanded.boundingBox())!;
+      const tip = (await hint.boundingBox())!;
+      expect(tip.x).toBeGreaterThanOrEqual(panel.x);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(panel.x + panel.width);
+    }
+  }
+  await blocked.click();
+  await expect.poll(async () => workStatus(workIds[0])).toBe('blocked');
+  await expanded.getByRole('button', { name: 'Close', exact: true }).click();
 
   // Materialization deliberately lays the flow below its source, without focusing it.
   await fitCanvas(page);
@@ -6133,6 +6214,8 @@ for (const scale of [1, 0.5]) {
       await expect(page.locator('[data-testid="edge-hint"]')).toHaveCount(0);
       expect((await (await request.get('/api/canvas/state')).json()).edges).toHaveLength(0);
 
+      // Reveal the handles again before grabbing their enlarged hit area.
+      await a.hover();
       await page.mouse.move(portBox.x + portBox.width - 4, portBox.y + portBox.height / 2);
       await page.mouse.down();
       await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 5 });

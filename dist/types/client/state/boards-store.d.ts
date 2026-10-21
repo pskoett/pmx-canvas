@@ -98,6 +98,8 @@ export declare function applyBoards(data: {
     boardGeneration?: unknown;
 } | null): void;
 export declare function loadBoards(): Promise<void>;
+/** Reserve navigation before an async save; later navigation cancels the pending jump. */
+export declare function claimNavigation(): () => boolean;
 /** Open a board, or Home with null. */
 export declare function openBoard(id: string | null): Promise<void>;
 /** Used by wiki links, graph nodes and qualified library hits; never focus a stale board's same-ID card. */

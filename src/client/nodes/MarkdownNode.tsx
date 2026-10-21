@@ -11,7 +11,7 @@ import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
 import { InlineMarkdownEditor } from './InlineMarkdownEditor';
 import { isHostedWorkbench } from '../state/workbench-transport';
-import { activeBoardId, boardIncarnation } from '../state/boards-store';
+import { activeBoardId, boardIncarnation, claimNavigation } from '../state/boards-store';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
 function handleWikiClick(e: MouseEvent, nodeId: string): boolean {
@@ -137,6 +137,17 @@ const markdownDrafts = new Map<string, MarkdownDraft>();
 export function hasUnsavedMarkdown(boardId: string, nodeId: string): boolean {
   const draft = markdownDrafts.get(JSON.stringify([boardId, nodeId]));
   return !!draft && (draft.dirty.value || draft.pending.value > 0);
+}
+
+/** After blur, navigate only when this board/card's save has actually succeeded. */
+export async function waitForMarkdownSave(boardId: string | null, nodeId: string): Promise<boolean> {
+  const isCurrentNavigation = claimNavigation();
+  const incarnation = boardIncarnation;
+  const draft = markdownDrafts.get(JSON.stringify([boardId, nodeId]));
+  await draft?.saveQueue.current;
+  return (
+    isCurrentNavigation() && incarnation === boardIncarnation && activeBoardId.value === boardId && !draft?.dirty.value
+  );
 }
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
@@ -582,13 +593,11 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           if (!(event.target as HTMLElement).closest('a.wiki-link')) return;
           event.preventDefault();
           event.stopPropagation();
-          const incarnation = boardIncarnation;
           const focused = document.activeElement;
           // Blur flushes actual rich edits. Finish that save before the
           // link dialog captures its source or navigation changes boards.
           if (focused instanceof HTMLElement && event.currentTarget.contains(focused)) focused.blur();
-          await saveQueue.current;
-          if (incarnation !== boardIncarnation || activeBoardId.value !== boardId || draft.dirty.value) return;
+          if (!(await waitForMarkdownSave(boardId, node.id))) return;
           handleWikiClick(event, node.id);
         }}
       >

@@ -1006,7 +1006,7 @@ for (const sameBoard of [false, true]) {
 }
 
 test('high-degree reference footers leave card content and actions usable', async ({ page, request }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const source = await note(request, 'Index');
   const sourceBoard = (await boards(request)).activeBoardId!;
   const target = (await (await request.post('/api/canvas/boards', { data: { name: 'Reference library' } })).json())
@@ -1052,6 +1052,30 @@ test('high-degree reference footers leave card content and actions usable', asyn
   await page.goto('/workbench');
   const card = page.locator(`[data-node-id="${source}"]`);
   const link = card.getByRole('link', { name: 'Read evidence', exact: true });
+  const checkNavigation = async (id: string) => {
+    const destination = page.locator(`[data-node-id="${id}"]`);
+    // Dense-board loading and focus can outlast the default five-second check.
+    // Require the complete card inside the canvas and reachable by the pointer.
+    await expect
+      .poll(
+        () =>
+          destination.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const canvas = element.closest('.canvas-region')!.getBoundingClientRect();
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.left >= canvas.left &&
+              rect.right <= canvas.right &&
+              rect.top >= canvas.top &&
+              rect.bottom <= canvas.bottom &&
+              element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+            );
+          }),
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+  };
   for (const [width, scale] of [
     [1440, 1],
     [1024, 0.68],
@@ -1086,10 +1110,33 @@ test('high-degree reference footers leave card content and actions usable', asyn
     const last = card.locator('.node-memory-link').last().getByRole('button');
     await last.scrollIntoViewIfNeeded();
     await last.click();
-    await expect(page.locator(`[data-node-id="${targets[102].id}"]`)).toBeInViewport();
+    await checkNavigation(targets[102].id);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+    await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+    const expanded = page.getByTestId('expanded-node');
+    const expandedReferences = expanded.getByRole('region', { name: 'Cross-board references' });
+    await expect(expandedReferences.locator('.node-memory-link')).toHaveCount(103);
+    await expandedReferences.focus();
+    await expandedReferences.press('End');
+    const expandedLast = expandedReferences.getByRole('button').last();
+    await expect(expandedLast).toBeInViewport({ ratio: 1 });
+    expect(
+      await expandedLast.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const clip = element.closest('.node-memory-links')!.getBoundingClientRect();
+        return (
+          rect.top >= clip.top &&
+          rect.bottom <= clip.bottom &&
+          element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+        );
+      }),
+    ).toBe(true);
+    await expect(expanded.locator('.md-reader-editable')).toContainText('Index');
+    await expandedLast.click();
+    await checkNavigation(targets[102].id);
     await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
     await link.click();
-    await expect(page.locator(`[data-node-id="${targets[0].id}"]`)).toBeInViewport();
+    await checkNavigation(targets[0].id);
     await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
   }
 });
@@ -1106,11 +1153,25 @@ test('reading expanded Markdown preserves exact source while edits save before w
   const source = await note(request, 'Exact source');
   const content = `- One\n- Two\n\n| A | B |\n| --- | --- |\n| Left | Right |\n\n[[${destination.id}|Read destination]]\n`;
   await request.patch(`/api/canvas/node/${source}`, { data: { content } });
+  const target = (
+    await (
+      await request.post('/api/canvas/node', {
+        data: { destinationBoardId: destination.id, type: 'markdown', title: 'Remote evidence', content: 'Evidence' },
+      })
+    ).json()
+  ).id as string;
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: { from: source, to: target, toBoardId: destination.id, type: 'references' },
+      })
+    ).ok(),
+  ).toBe(true);
   const original = await (await request.get(`/api/canvas/node/${source}`)).json();
   await page.goto('/workbench');
   const card = page.locator(`[data-node-id="${source}"]`);
   const editor = page.locator('.md-reader-editable');
-  for (const action of ['close', 'navigate']) {
+  for (const action of ['close', 'navigate', 'reference']) {
     await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
     await expect(editor).toContainText('Read destination');
     await editor.focus();
@@ -1118,14 +1179,20 @@ test('reading expanded Markdown preserves exact source while edits save before w
       await page.keyboard.press('Control+s');
       await page.getByTestId('expanded-node').getByRole('button', { name: 'Close', exact: true }).click();
     } else {
-      await editor.getByRole('link', { name: 'Read destination', exact: true }).click();
+      if (action === 'reference') {
+        await page
+          .getByTestId('expanded-node')
+          .getByRole('region', { name: 'Cross-board references' })
+          .getByRole('button')
+          .click();
+      } else await editor.getByRole('link', { name: 'Read destination', exact: true }).click();
       await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
     }
     await expect(page.getByTestId('expanded-node')).toHaveCount(0);
     const unchanged = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
     expect(unchanged.data.content).toBe(content);
     expect(unchanged.contentRevision).toBe(original.contentRevision);
-    if (action === 'navigate') {
+    if (action !== 'close') {
       await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
       await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
     }
@@ -1140,7 +1207,154 @@ test('reading expanded Markdown preserves exact source while edits save before w
   const edited = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
   expect(edited.data.content).toContain('Actually edited');
   expect(edited.contentRevision).toBeGreaterThan(original.contentRevision);
+
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(editor).toContainText('Actually edited');
+  await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Reference edit ');
+  let saveStarted = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/canvas/node/${source}`, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      saveStarted = true;
+      await held;
+    }
+    await route.continue();
+  });
+  try {
+    await page
+      .getByTestId('expanded-node')
+      .getByRole('region', { name: 'Cross-board references' })
+      .getByRole('button')
+      .click();
+    await expect.poll(() => saveStarted).toBe(true);
+    await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
+    release();
+    await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
+    const saved = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+    expect(saved.data.content).toContain('Reference edit');
+    expect(saved.contentRevision).toBeGreaterThan(edited.contentRevision);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(editor).toContainText('Reference edit');
+  await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Refused edit ');
+  await page.route(`**/api/canvas/node/${source}`, (route) =>
+    route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 409, json: { ok: false, error: 'Source changed during this edit.' } })
+      : route.continue(),
+  );
+  await page
+    .getByTestId('expanded-node')
+    .getByRole('region', { name: 'Cross-board references' })
+    .getByRole('button')
+    .click();
+  await expect(page.locator('.attention-toast')).toContainText('Source changed during this edit.');
+  await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
+  await expect(editor).toContainText('Refused edit');
+  const refused = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+  expect(refused.data.content).not.toContain('Refused edit');
+  await page.unrouteAll({ behavior: 'wait' });
 });
+
+for (const linkType of ['reference', 'wiki']) {
+  test(`a later Home click cancels ${linkType} navigation waiting for a Markdown save`, async ({ page, request }) => {
+    const sourceBoard = (await (await request.post('/api/canvas/boards', { data: { name: 'Save source' } })).json())
+      .board.id as string;
+    const destination = (
+      await (await request.post('/api/canvas/boards', { data: { name: 'Save destination' } })).json()
+    ).board.id as string;
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+    const source = await note(request, 'Save before leaving');
+    await request.patch(`/api/canvas/node/${source}`, { data: { content: `[[${destination}|Destination]]` } });
+    const target = (
+      await (
+        await request.post('/api/canvas/node', {
+          data: { destinationBoardId: destination, type: 'markdown', title: 'Destination', content: 'Evidence' },
+        })
+      ).json()
+    ).id as string;
+    await request.post('/api/canvas/edge', {
+      data: { from: source, to: target, toBoardId: destination, type: 'references' },
+    });
+    await page.goto('/workbench');
+    await page
+      .locator(`[data-node-id="${source}"]`)
+      .getByRole('button', { name: 'Expand (focus mode)', exact: true })
+      .click();
+    const editor = page.locator('.md-reader-editable');
+    await expect(editor).toContainText('Destination');
+    await editor.focus();
+    await page.keyboard.press('Home');
+    await page.keyboard.type('Saved before Home ');
+    let releaseSave!: () => void;
+    let releaseHome!: () => void;
+    const heldSave = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    const heldHome = new Promise<void>((resolve) => {
+      releaseHome = resolve;
+    });
+    await page.route(`**/api/canvas/node/${source}`, async (route) => {
+      if (route.request().method() === 'PATCH') await heldSave;
+      await route.continue();
+    });
+    const requestedBoards: Array<string | null> = [];
+    await page.route('**/api/canvas/boards/open', async (route) => {
+      const id = route.request().postDataJSON().id as string | null;
+      requestedBoards.push(id);
+      if (id === null) await heldHome;
+      await route.continue();
+    });
+    try {
+      const saveRequest = page.waitForRequest(
+        (req) => req.method() === 'PATCH' && req.url().endsWith(`/node/${source}`),
+      );
+      if (linkType === 'reference') {
+        await page
+          .getByTestId('expanded-node')
+          .getByRole('region', { name: 'Cross-board references' })
+          .getByRole('button')
+          .click();
+      } else await editor.getByRole('link', { name: 'Destination', exact: true }).click();
+      await saveRequest;
+      await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+      await expect.poll(() => requestedBoards).toEqual([null]);
+      const saveResponse = page.waitForResponse(
+        (res) => res.request().method() === 'PATCH' && res.url().endsWith(`/node/${source}`),
+      );
+      releaseSave();
+      expect((await saveResponse).status()).toBe(200);
+      // Home has not reached the server, so board identity alone cannot cancel the older jump.
+      await expect(page.getByRole('button', { name: /^Board: Save source/ })).toBeVisible();
+      await page.getByTestId('expanded-node').getByRole('button', { name: '</> Source', exact: true }).click();
+      await expect(
+        page.getByTestId('expanded-node').getByRole('button', { name: 'Saved', exact: true }),
+      ).toBeDisabled();
+      releaseHome();
+      await expect(page.getByRole('button', { name: /^Board: Home/ })).toBeVisible();
+      expect(requestedBoards).toEqual([null]);
+      expect((await boards(request)).activeBoardId).toBeNull();
+      const saved = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+      expect(saved.data.content).toContain('Saved before Home');
+    } finally {
+      releaseSave();
+      releaseHome();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+}
 
 test('wiki navigation and human remote-card connections survive renames and retain the source', async ({
   page,
@@ -1749,6 +1963,27 @@ test('Home Map persists human positions and Graph explores without opening a boa
   await request.post('/api/canvas/edge', {
     data: { from: claim, to: evidence, toBoardId: remote.id, type: 'references' },
   });
+  for (let index = 0; index < 4; index++) {
+    const target = (
+      await (
+        await request.post('/api/canvas/node', {
+          data: {
+            destinationBoardId: remote.id,
+            type: 'markdown',
+            title: `Further evidence ${index}`,
+            content: 'Evidence',
+          },
+        })
+      ).json()
+    ).id as string;
+    expect(
+      (
+        await request.post('/api/canvas/edge', {
+          data: { from: claim, to: target, toBoardId: remote.id, type: 'references' },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
   await page.goto('/workbench');
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   const discoveryResponse = page.waitForResponse(
@@ -1851,6 +2086,30 @@ test('Home Map persists human positions and Graph explores without opening a boa
     expect(body.y - (actions.y + actions.height)).toBeGreaterThanOrEqual(8);
     expect((await page.locator('.home-memory-stage').boundingBox())!.height).toBeGreaterThanOrEqual(160);
   }
+  for (const width of [1280, 600]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const height of [280, 380]) {
+      const separator = (await resize.boundingBox())!;
+      const current = (await inspector.boundingBox())!.height;
+      await page.mouse.move(separator.x + 100, separator.y + separator.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(separator.x + 100, separator.y + separator.height / 2 + current - height, { steps: 5 });
+      await page.mouse.up();
+      const last = details.locator('.home-memory-connections li').last();
+      await last.getByRole('button').scrollIntoViewIfNeeded();
+      expect(
+        await last.evaluate((row) => {
+          const scroller = row.closest('.home-memory-detail-body')!;
+          const clip = scroller.getBoundingClientRect();
+          const style = getComputedStyle(scroller);
+          return row.getBoundingClientRect().bottom <= clip.bottom - Number.parseFloat(style.borderBottomWidth);
+        }),
+      ).toBe(true);
+    }
+  }
+  await details.locator('.home-memory-detail-body').evaluate((body) => {
+    body.scrollTop = 0;
+  });
   await expect(page.locator('.home-memory-sidebar')).not.toContainText('Remote Map evidence');
   expect((await boards(request)).activeBoardId).toBeNull();
   await page.getByRole('button', { name: 'Fit view', exact: true }).click();

@@ -483,6 +483,18 @@ scroll references instead of moving the canvas. No graph data is collapsed or re
 Reading expanded Markdown, closing it or following a link without input preserves
 the exact source and revision. Pending real edits still finish before navigation.
 
+**Owner-guide fixes (2026-10-20).** The same reference list follows cards into focus
+mode, above the provenance strip, capped at 132 screen pixels there. It retains every
+target without displacing the document. A refused Markdown save keeps the reader and
+its draft open instead of navigating away. Hidden connection handles do not receive
+pointer hits; their enlarged grab areas activate with the visible handles on hover,
+selection or keyboard focus. Flow-action hints fit the native card or expanded panel,
+whichever actually contains them. The shared Map/Graph inspector reserves one trailing
+pixel so integer scroll extents do not cut the last row's fractional border.
+The guide uses the current Library → Board → Card explorer described above, not the
+removed stationary expansion controls. Dense Fit remains an overview, and unfinished
+Relations/Flows/Uses drawings and unavailable platform checks remain separate from fixes.
+
 **Acceptance follow-up (2026-10-13).** ContextChip600's collapse order also applies when
 agent names/counts fill a wider bar: fold actions into More before compacting sessions to
 their existing initials and popovers. More owns keyboard focus as soon as it opens and

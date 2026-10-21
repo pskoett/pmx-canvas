@@ -632,7 +632,7 @@ body,
   z-index: 10;
   touch-action: none;
   transition: opacity 0.15s;
-  pointer-events: auto;
+  pointer-events: none;
 }
 .node-port::after {
   content: '';
@@ -647,6 +647,7 @@ body,
 .canvas-node.selected .node-port,
 .canvas-node:focus-within .node-port {
   opacity: 1;
+  pointer-events: auto;
 }
 .node-port:hover::after {
   background: var(--c-accent-hover);
@@ -9353,7 +9354,13 @@ html.is-node-dragging .intent-line-layer {
 .home-memory-inspector .home-memory-details small { font-size: 13px; }
 .home-memory-inspector .home-memory-selection-title { padding-right: 180px; }
 .home-memory-inspector .home-memory-selection-title p { margin: 2px 0 8px; }
-.home-memory-inspector .home-memory-detail-body { flex: 1; min-height: 0; overflow: auto; }
+.home-memory-inspector .home-memory-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  /* Integer scroll extents can otherwise clip the final fractional row border. */
+  padding-bottom: 1px;
+}
 .home-memory-inspector .home-memory-detail-body > p { margin: 8px 0; }
 .home-memory-inspector .home-memory-connections { margin-top: 8px; font-size: 14px; }
 .home-memory-inspector .home-memory-details li {
@@ -9434,12 +9441,12 @@ html.is-node-dragging .intent-line-layer {
 .graph-search-results { list-style: none; padding: 0; margin: 8px 0; }
 .graph-search-results .home-button { width: 100%; white-space: normal; text-align: left; height: auto; min-height: 36px; margin: 4px 0; }
 .graph-accounting { color: var(--c-muted); font-size: 13px; line-height: 1.6; }
-.node-body.has-memory-links,
+.node-body:has(> .node-memory-links),
 .node-body:has(> .node-lifecycle-warning) {
   display: flex;
   flex-direction: column;
 }
-.node-body.has-memory-links > :first-child,
+.node-body:has(> .node-memory-links) > :first-child,
 .node-body:has(> .node-lifecycle-warning) > :first-child {
   flex: 1;
   min-height: 0;

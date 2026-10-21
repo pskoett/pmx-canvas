@@ -165,6 +165,12 @@ async function post(action: string, url: string, method: string, body?: unknown)
   });
 }
 
+/** Reserve navigation before an async save; later navigation cancels the pending jump. */
+export function claimNavigation(): () => boolean {
+  const sequence = ++navigationSequence;
+  return () => sequence === navigationSequence;
+}
+
 /** Open a board, or Home with null. */
 export async function openBoard(id: string | null): Promise<void> {
   const sequence = ++openRequestSequence;

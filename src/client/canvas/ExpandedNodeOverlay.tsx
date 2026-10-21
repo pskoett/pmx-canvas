@@ -19,6 +19,7 @@ import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
 import { BoardNode } from '../nodes/BoardNode';
 import { RelationsPanel } from './RelationsPanel';
+import { CrossBoardReferences } from './CrossBoardReferences';
 import { lifecycleTarget, openLifecycle } from '../state/knowledge-store';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import {
@@ -374,6 +375,7 @@ export function ExpandedNodeOverlay() {
           </div>
           {relationsFor === nodeId && <RelationsPanel key={nodeId} nodeId={node.id} />}
         </div>
+        <CrossBoardReferences node={node} />
         {/* AX step controls follow the node into focus mode. Without this,
             expanding a materialized flow step showed only its text — the
             Start/Done/Blocked and loop controls live in CanvasNode's body,

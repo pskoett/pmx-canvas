@@ -126,7 +126,7 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
           label="Stop the loop now"
           body="The stop is persisted on this node, so it survives a refresh and no further step is opened."
           side="up"
-          fitWithin=".node-content"
+          fitWithin=".node-content, .expanded-overlay-panel"
         >
           <button
             type="button"
@@ -145,7 +145,7 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
           label="Run this flow as a loop"
           body="Each completed step opens the next one, and the last step starts the next run — until the run cap is reached or you press Stop."
           side="up"
-          fitWithin=".node-content"
+          fitWithin=".node-content, .expanded-overlay-panel"
         >
           <button
             type="button"
@@ -187,7 +187,7 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
         label="Send a steering message to the agent working this flow"
         side="up"
         align="end"
-        fitWithin=".node-content"
+        fitWithin=".node-content, .expanded-overlay-panel"
       >
         <button
           type="button"
@@ -222,7 +222,7 @@ export function AxStepControls({ node }: { node: CanvasNodeState }) {
             key={action.status}
             label={`Set this step's work item to "${action.status}"`}
             side="up"
-            fitWithin=".node-content"
+            fitWithin=".node-content, .expanded-overlay-panel"
           >
             <button
               type="button"
