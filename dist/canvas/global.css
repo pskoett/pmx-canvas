@@ -558,6 +558,16 @@ body,
   background: var(--c-muted);
 }
 
+/* An owner must never establish a stacking context. Card bodies own their
+   z-order; their sibling port hitboxes sit below every body in the world. */
+.canvas-node-owner {
+  position: absolute;
+  pointer-events: none;
+}
+.canvas-node-owner > .canvas-node {
+  pointer-events: auto;
+}
+
 /* Node card shared styles */
 .canvas-node {
   position: absolute;
@@ -629,36 +639,50 @@ body,
   place-items: center;
   opacity: 0;
   cursor: crosshair;
-  z-index: 10;
+  z-index: var(--node-port-z, -1);
   touch-action: none;
   transition: opacity 0.15s;
   pointer-events: none;
 }
-.node-port::after {
-  content: '';
-  width: calc(4px * var(--node-port-scale, 1));
-  height: calc(4px * var(--node-port-scale, 1));
+.node-port-dot {
+  position: absolute;
+  pointer-events: none;
+  width: calc(8px * var(--node-port-scale, 1));
+  height: calc(8px * var(--node-port-scale, 1));
   border-radius: 50%;
   background: var(--c-accent);
   border: calc(2px * var(--node-port-scale, 1)) solid var(--c-panel);
   box-shadow: 0 0 0 calc(1px * var(--node-port-scale, 1)) var(--c-accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
 }
-.canvas-node:hover .node-port,
-.canvas-node.selected .node-port,
-.canvas-node:focus-within .node-port {
+.canvas-node-owner:hover > .node-port,
+.canvas-node-owner:has(> .canvas-node.selected) > .node-port,
+.canvas-node-owner:focus-within > .node-port {
   opacity: 1;
   pointer-events: auto;
 }
-.node-port:hover::after {
+.canvas-node-owner:hover .node-port-dot,
+.canvas-node.selected .node-port-dot,
+.canvas-node:focus-within .node-port-dot {
+  opacity: 1;
+}
+.canvas-node-owner:has(> .node-port-top:hover) .node-port-dot-top,
+.canvas-node-owner:has(> .node-port-right:hover) .node-port-dot-right,
+.canvas-node-owner:has(> .node-port-bottom:hover) .node-port-dot-bottom,
+.canvas-node-owner:has(> .node-port-left:hover) .node-port-dot-left {
   background: var(--c-accent-hover);
 }
-/* Bias vertical grab areas outward so they do not steal title/footer clicks. */
-.node-port-top    { top: 0; left: 50%; transform: translate(-50%, -75%); }
-.node-port-bottom { bottom: 0; left: 50%; transform: translate(-50%, 75%); }
-.node-port-top::after { transform: translateY(calc(8px * var(--node-port-scale, 1))); }
-.node-port-bottom::after { transform: translateY(calc(-8px * var(--node-port-scale, 1))); }
-.node-port-left   { left: 0; top: 50%; transform: translate(-50%, -50%); }
-.node-port-right  { right: 0; top: 50%; transform: translate(50%, -50%); }
+/* Grab outside the card; even at low zoom its title and controls own their pixels. */
+.node-port-top    { top: 0; left: 50%; transform: translate(-50%, -100%); }
+.node-port-bottom { bottom: 0; left: 50%; transform: translate(-50%, 100%); }
+.node-port-left   { left: 0; top: 50%; transform: translate(-100%, -50%); }
+.node-port-right  { right: 0; top: 50%; transform: translate(100%, -50%); }
+.node-port-dot-top    { top: 0; left: 50%; transform: translate(-50%, -50%); }
+.node-port-dot-bottom { bottom: 0; left: 50%; transform: translate(-50%, 50%); }
+.node-port-dot-left   { left: 0; top: 50%; transform: translate(-50%, -50%); }
+.node-port-dot-right  { right: 0; top: 50%; transform: translate(50%, -50%); }
 
 .canvas-node .node-titlebar {
   display: flex;
@@ -2931,7 +2955,7 @@ body,
 .canvas-node.is-edge-target {
   box-shadow: 0 0 0 2px var(--c-accent), 0 0 0 6px color-mix(in srgb, var(--c-accent) 18%, transparent);
 }
-.canvas-node.is-edge-target .node-port {
+.canvas-node.is-edge-target .node-port-dot {
   opacity: 1;
   background: var(--c-accent);
 }
@@ -3445,7 +3469,13 @@ body,
 /* The resize handle and connect ports carry their own pointer-events: auto,
    which punches through the inert world — a pan started on them never pans. */
 .canvas-viewport.pan-mode .node-resize-handle,
-.canvas-viewport.pan-mode .node-port {
+.canvas-viewport.pan-mode .group-frame-hit,
+.canvas-viewport.pan-mode .edge-pill-hit,
+.canvas-viewport.pan-mode .canvas-node-owner > .node-port,
+.canvas-viewport.pan-mode .canvas-node-owner > .canvas-node,
+.canvas-viewport.pan-mode .canvas-node.group-node .node-titlebar,
+.canvas-viewport.pan-mode .canvas-node.group-node .node-lifecycle-warning,
+.canvas-viewport.pan-mode .canvas-node.group-node .node-memory-links {
   pointer-events: none;
 }
 .canvas-viewport.pan-mode:active {
@@ -4343,6 +4373,9 @@ kbd.toolbar-menu-hint {
 }
 
 /* Auto-fit transition */
+.canvas-node-owner {
+  transition: height 0.2s ease;
+}
 .canvas-node {
   transition: height 0.2s ease, box-shadow 0.15s ease;
 }
@@ -4627,7 +4660,11 @@ html.is-node-resizing .ext-app-preview-catcher {
 /* Authorship lives in the hint. A person's new link keeps its muted
    "not seen by <agent>" state until the agent's next read. */
 .edge-pill {
-  pointer-events: visiblePainted;
+  pointer-events: none;
+}
+.edge-pill-hit {
+  pointer-events: all;
+  cursor: pointer;
 }
 
 .edge-link-mark {
@@ -5668,7 +5705,24 @@ html.is-node-resizing .ext-app-preview-catcher {
     border-color 150ms ease,
     background 150ms ease;
 }
-.canvas-node.group-node:hover {
+.canvas-node-owner > .canvas-node.group-node {
+  /* Only the body's transparent hit target sits below child ports. Keep the
+     frame's visual z-order and its existing chrome/menu elevation unchanged. */
+  pointer-events: none;
+}
+.group-frame-hit {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  pointer-events: auto;
+}
+.canvas-node.group-node .node-titlebar,
+.canvas-node.group-node .node-lifecycle-warning,
+.canvas-node.group-node .node-memory-links {
+  pointer-events: auto;
+}
+.canvas-node.group-node:hover,
+.canvas-node-owner:hover > .canvas-node.group-node {
   border-color: color-mix(in srgb, var(--group-color, var(--c-accent)) 55%, transparent);
 }
 .canvas-node.group-node.active,
@@ -5932,6 +5986,30 @@ html.is-node-resizing .ext-app-preview-catcher {
 }
 .expanded-overlay-panel.is-pinned {
   border-color: color-mix(in srgb, var(--c-pin) 45%, var(--c-line));
+}
+.expanded-overlay-panel .ax-step-dock {
+  /* Its sticky/backdrop-filter context must paint hints above the Source FAB. */
+  z-index: 2;
+}
+.expanded-overlay-panel:has(.ax-step-dock) .md-expanded-document {
+  display: flex;
+  flex-direction: column;
+}
+.expanded-overlay-panel:has(.ax-step-dock) .md-reader {
+  flex: 1;
+  min-height: 0;
+}
+.expanded-overlay-panel:has(.ax-step-dock) .md-edit-fab {
+  /* Keep Source and the document out of the bottom dock's hint area. */
+  position: static;
+  order: -1;
+  align-self: flex-end;
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+.ax-step-dock:has(.toolbar-tooltip-anchor:hover) .toolbar-tooltip-anchor:not(:hover) > :focus-visible + .toolbar-tooltip {
+  /* Pointer exploration temporarily takes precedence without moving keyboard focus. */
+  opacity: 0;
 }
 .expanded-header {
   display: flex;

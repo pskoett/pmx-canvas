@@ -159,7 +159,9 @@ opens the existing creation menu on release. Holding the right button and moving
 than 5 screen pixels pans; releasing after a drag never opens a menu, even when the
 pointer returns to its starting point. Small hand jitter remains a click. Cancelled
 gestures open nothing. Right-drag over cards, middle-button drag, Space-drag and the
-existing double-click menus remain available. Menu appearance is unchanged.
+existing node and background double-click menus remain available. Right-clicking a
+connection line or label opens its menu on release instead of double-click; dragging
+from either still pans without opening a menu. Menu appearance is unchanged.
 
 **Workspace UI opt-ins (owner decision, 2026-10-16).** Main rail **Settings** contains
 **Agent sessions (Beta)** and **Knowledge lifecycle (Beta)**, each with a small switch,
@@ -494,6 +496,21 @@ pixel so integer scroll extents do not cut the last row's fractional border.
 The guide uses the current Library → Board → Card explorer described above, not the
 removed stationary expansion controls. Dense Fit remains an overview, and unfinished
 Relations/Flows/Uses drawings and unavailable platform checks remain separate from fixes.
+
+**Interaction follow-up (2026-10-21).** Visible connection handles keep their 32-screen-pixel
+grab areas outside the card, with the dots still on its edge, so low-zoom headers and pins
+retain their hit targets. Grab areas yield to every card, including neighboring cards,
+but outrank connection labels and lines. Group interiors still select and open their menus,
+below child ports and labels; the frames and labels keep their existing visual stacking.
+Expanded flow documents put Source in a separate row above the reader, clear of the
+bottom dock's action hints; ordinary documents keep their bottom-right Source button.
+Hovering a flow action temporarily
+hides another action's keyboard hint without moving focus; leaving restores the focused hint.
+Card checkbox clicks address parsed Markdown tasks, not fenced/indented examples or raw
+HTML inputs, and change only the selected marker. Polling requests have a ten-second
+headers-and-body deadline, including hosted transports, before the existing reconnect retry;
+recovery does not reload the workbench or discard an unsaved draft. These fixes do not
+establish the cause of the earlier ordinary-checkbox or reconnect incidents.
 
 **Acceptance follow-up (2026-10-13).** ContextChip600's collapse order also applies when
 agent names/counts fill a wider bar: fold actions into More before compacting sessions to

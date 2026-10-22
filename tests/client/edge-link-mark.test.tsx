@@ -60,6 +60,11 @@ function draw(list: CanvasEdge[]): HTMLElement {
     <>
       <EdgeLayer nodes={signal(storeNodes.value)} edges={signal(new Map(list.map((e) => [e.id, e])))} part="lines" />
       <EdgeLayer nodes={signal(storeNodes.value)} edges={signal(new Map(list.map((e) => [e.id, e])))} part="pills" />
+      <EdgeLayer
+        nodes={signal(storeNodes.value)}
+        edges={signal(new Map(list.map((e) => [e.id, e])))}
+        part="pill-hits"
+      />
     </>,
     host,
   );
@@ -103,10 +108,10 @@ describe('link marks', () => {
     render(<EdgeHint />, hintHost);
     const before = draw([agentLink]);
     expect(spark(before)).toBe(0);
-    fireEvent.pointerEnter(before.querySelector('[data-testid="edge-pill"]') as Element);
+    fireEvent.pointerEnter(before.querySelector('[data-testid="edge-pill-hit"]') as Element);
     expect(hintHost.textContent).toContain('Drawn by codex');
     expect(hintHost.textContent).not.toContain('✦');
-    fireEvent.pointerLeave(before.querySelector('[data-testid="edge-pill"]') as Element);
+    fireEvent.pointerLeave(before.querySelector('[data-testid="edge-pill-hit"]') as Element);
     document.body.innerHTML = '';
     applyContextStatus({ links: { a: 12, b: 12 } });
     document.body.appendChild(hintHost);
@@ -114,9 +119,9 @@ describe('link marks', () => {
     const host = draw([agentLink]);
     expect(spark(host)).toBe(0);
     expect(notSeen(host)).toEqual([]);
-    fireEvent.pointerEnter(host.querySelector('[data-testid="edge-pill"]') as Element);
+    fireEvent.pointerEnter(host.querySelector('[data-testid="edge-pill-hit"]') as Element);
     expect(hintHost.textContent).toContain('Drawn by codex');
-    fireEvent.pointerLeave(host.querySelector('[data-testid="edge-pill"]') as Element);
+    fireEvent.pointerLeave(host.querySelector('[data-testid="edge-pill-hit"]') as Element);
 
     // Without a label there is no authorship-only pill; the line still has its hint.
     const bare = draw([{ ...agentLink, label: undefined }]);
@@ -197,7 +202,7 @@ describe('link marks', () => {
     document.body.appendChild(hintHost);
     render(<EdgeHint />, hintHost);
     const host = draw([taken, legacy]);
-    const [pill, legacyPill] = [...host.querySelectorAll('[data-testid="edge-pill"]')] as Element[];
+    const [pill, legacyPill] = [...host.querySelectorAll('[data-testid="edge-pill-hit"]')] as Element[];
     const hint = () => document.querySelector('[data-testid="edge-hint"]')?.textContent ?? null;
     fireEvent.pointerEnter(pill as Element);
     expect(hint()).toContain('a → b');
@@ -219,8 +224,7 @@ describe('link marks', () => {
     storeEdges.value = new Map();
   });
 
-  test('clicking a pill selects its link; double-click opens the link menu (pills sit above group frames)', () => {
-    const opened: string[] = [];
+  test('clicking a pill selects its link (pills sit above group frames)', () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const list = signal(
@@ -228,22 +232,10 @@ describe('link marks', () => {
         ['e1', { id: 'e1', from: 'a', to: 'b', type: 'relation', label: 'supports', revision: 9, changedBy: codex }],
       ]),
     );
-    render(
-      <EdgeLayer
-        nodes={signal(storeNodes.value)}
-        edges={list}
-        part="pills"
-        onEdgeContextMenu={(_e, id) => opened.push(id)}
-      />,
-      host,
-    );
-    const svg = host.querySelector('svg') as SVGElement;
-    expect(svg.style.zIndex).toBe('1');
-    const pill = host.querySelector('[data-testid="edge-pill"]') as Element;
+    render(<EdgeLayer nodes={signal(storeNodes.value)} edges={list} part="pill-hits" />, host);
+    const pill = host.querySelector('[data-testid="edge-pill-hit"]') as Element;
     fireEvent.click(pill);
     expect(selectedEdgeId.value).toBe('e1');
-    fireEvent.dblClick(pill);
-    expect(opened).toEqual(['e1']);
     selectedEdgeId.value = null;
   });
 

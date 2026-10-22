@@ -17,6 +17,7 @@ interface PanZoomOptions {
   onViewportChange: (v: ViewportState) => void;
   onViewportCommit: (v: ViewportState) => void;
   onBackgroundContextMenu?: (e: MouseEvent, worldX: number, worldY: number) => void;
+  onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
   disabled?: boolean;
 }
 
@@ -34,12 +35,19 @@ export function usePanZoom({
   onViewportChange,
   onViewportCommit,
   onBackgroundContextMenu,
+  onEdgeContextMenu,
   disabled = false,
 }: PanZoomOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
-  const rightPress = useRef<{ x: number; y: number; background: boolean; dragged: boolean } | null>(null);
+  const rightPress = useRef<{
+    x: number;
+    y: number;
+    background: boolean;
+    edgeId: string | null;
+    dragged: boolean;
+  } | null>(null);
   const lastPinchDist = useRef(0);
   const wheelCommitTimer = useRef<number | null>(null);
 
@@ -134,7 +142,15 @@ export function usePanZoom({
         return;
       }
       rightPress.current =
-        e.button === 2 ? { x: e.clientX, y: e.clientY, background: e.target === container, dragged: false } : null;
+        e.button === 2
+          ? {
+              x: e.clientX,
+              y: e.clientY,
+              background: e.target === container,
+              edgeId: e.target instanceof Element ? e.target.getAttribute('data-edge-id') : null,
+              dragged: false,
+            }
+          : null;
       isPanning.current = true;
       document.documentElement.classList.add('is-canvas-panning');
       lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -174,17 +190,24 @@ export function usePanZoom({
       if (press && !press.dragged) {
         // Native contextmenu may fire on press or release depending on the OS.
         // Decide here instead, and never open on cancellation or lost capture.
-        if (!disabled && e.type === 'pointerup' && press.background) {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (!rect) return;
-          const v = viewport.value;
-          onBackgroundContextMenu?.(e, (e.clientX - rect.left - v.x) / v.scale, (e.clientY - rect.top - v.y) / v.scale);
+        if (!disabled && e.type === 'pointerup') {
+          if (press.edgeId) onEdgeContextMenu?.(e, press.edgeId);
+          else if (press.background) {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const v = viewport.value;
+            onBackgroundContextMenu?.(
+              e,
+              (e.clientX - rect.left - v.x) / v.scale,
+              (e.clientY - rect.top - v.y) / v.scale,
+            );
+          }
         }
         return;
       }
       onViewportCommit(viewport.value);
     },
-    [disabled, onBackgroundContextMenu, onViewportCommit, viewport],
+    [disabled, onBackgroundContextMenu, onEdgeContextMenu, onViewportCommit, viewport],
   );
 
   // Touch pinch

@@ -249,30 +249,18 @@ interface EdgePathProps {
   dimmed: boolean; // active node exists but this edge is NOT connected
   selected: boolean; // click-selected — Delete removes it
   scale: number; // inverse-viewport compensation, see edgeChromeScale()
-  onContextMenu?: (e: MouseEvent, edgeId: string) => void;
   part: EdgeLayerPart;
 }
 
 /**
  * Lines draw below group frames, so a link never covers a group's header; pills
  * draw in their own layer above the frames, so a link inside a group keeps a
- * hoverable, clickable label (LinkAuthorship.dc.html).
+ * label (LinkAuthorship.dc.html). Transparent pill hits stay below ports without
+ * moving the painted label below the frame's wash.
  */
-export type EdgeLayerPart = 'lines' | 'pills';
+export type EdgeLayerPart = 'lines' | 'pills' | 'pill-hits';
 
-function EdgePath({
-  edge,
-  fromNode,
-  toNode,
-  start,
-  end,
-  focused,
-  dimmed,
-  selected,
-  scale,
-  onContextMenu,
-  part,
-}: EdgePathProps) {
+function EdgePath({ edge, fromNode, toNode, start, end, focused, dimmed, selected, scale, part }: EdgePathProps) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -340,6 +328,26 @@ function EdgePath({
     edgeHint.value = null;
   };
 
+  if (part === 'pill-hits') {
+    if (!mid) return null;
+    return (
+      <rect
+        class="edge-pill-hit"
+        data-testid="edge-pill-hit"
+        data-edge-id={edge.id}
+        x={mid.x - (pillWidth / 2) * labelScale}
+        y={mid.y - 10 * labelScale}
+        width={pillWidth * labelScale}
+        height={20 * labelScale}
+        rx={10 * labelScale}
+        fill="transparent"
+        onClick={select}
+        onPointerEnter={(e) => showHint(e.currentTarget)}
+        onPointerLeave={hideHint}
+      />
+    );
+  }
+
   if (part === 'pills') {
     if (!mid) return null;
     return (
@@ -348,10 +356,6 @@ function EdgePath({
         class="edge-pill"
         data-testid="edge-pill"
         opacity={dimmed && !selected ? 0.35 : 1}
-        onClick={select}
-        onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
-        onPointerEnter={(e) => showHint(e.currentTarget)}
-        onPointerLeave={hideHint}
       >
         <rect
           class="edge-label-bg"
@@ -414,15 +418,15 @@ function EdgePath({
     <g>
       {/* Invisible wide hitbox — the ONE interactive part of the edge layer
           (the svg itself is pointer-events:none): click selects the edge
-          (Delete then removes it), double-click opens the edge menu. */}
+          (Delete then removes it); usePanZoom owns right-click versus drag. */}
       <path
+        data-edge-id={edge.id}
         d={d}
         fill="none"
         stroke="transparent"
         stroke-width={12 * scale}
         style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
         onClick={select}
-        onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
         onPointerEnter={(e) => showHint(e.currentTarget, { x: e.clientX, y: e.clientY })}
         onPointerLeave={hideHint}
       />
@@ -458,11 +462,10 @@ function EdgePath({
 interface EdgeLayerProps {
   nodes: Signal<Map<string, CanvasNodeState>>;
   edges: Signal<Map<string, CanvasEdge>>;
-  onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
   part: EdgeLayerPart;
 }
 
-export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerProps) {
+export function EdgeLayer({ nodes, edges, part }: EdgeLayerProps) {
   const nodeMap = nodes.value;
   const edgeList = Array.from(edges.value.values());
   const focusId = relationFocus.value;
@@ -504,7 +507,7 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
   }
 
   // A drag-to-connect preview must draw on a board with no edges yet.
-  if (edgeList.length === 0 && (part === 'pills' || !draggingEdge.value)) return null;
+  if (edgeList.length === 0 && (part !== 'lines' || !draggingEdge.value)) return null;
 
   const PAD = 96;
   const worldNodes = Array.from(nodeMap.values());
@@ -519,7 +522,7 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
   return (
     <svg
       aria-label={part === 'lines' ? 'Canvas connections' : undefined}
-      aria-hidden={part === 'pills' ? 'true' : undefined}
+      aria-hidden={part !== 'lines' ? 'true' : undefined}
       role={part === 'lines' ? 'img' : undefined}
       viewBox={`${minX} ${minY} ${width} ${height}`}
       width={width}
@@ -528,10 +531,10 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
         position: 'absolute',
         top: `${minY}px`,
         left: `${minX}px`,
-        // Pills sit above group frames (z 0) and below cards (z 1, later in the
-        // DOM); lines stay under the frames. Neither layer takes the pointer
-        // itself; only hit paths and pills do.
-        ...(part === 'pills' ? { zIndex: 1 } : {}),
+        // Painting stays unchanged. Hit priority is card > port > pill > group
+        // interior > line, including raised and nested group frames.
+        zIndex:
+          part === 'pills' ? 1 : part === 'pill-hits' ? 'calc(var(--node-port-z, -1) - 1)' : 'var(--edge-line-z, -5)',
         pointerEvents: 'none',
         overflow: 'visible',
         '--edge-chrome-scale': scale.toFixed(3),
@@ -580,7 +583,6 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
             dimmed={(highlight !== null && !highlight.links.has(edge.id)) || searchDimmed}
             selected={selectedEdgeId.value === edge.id}
             scale={scale}
-            onContextMenu={onEdgeContextMenu}
             part={part}
           />
         );

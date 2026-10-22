@@ -175,6 +175,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
   const titleRef = useRef<HTMLSpanElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const portalTarget =
     node.type === 'board' && typeof node.data.boardId === 'string'
       ? (boardList.value.find((board) => board.id === node.data.boardId) ?? null)
@@ -552,20 +553,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   }
 
   return (
+    // Position/size without a stacking context: sibling ports participate in
+    // the world's lower hit plane, while the card keeps its own z-order.
     <div
-      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}${isGroup && groupMenuOpen ? ' group-menu-open' : ''}`}
-      data-node-type={node.type}
-      data-node-id={node.id}
-      style={nodeStyle}
-      tabIndex={isActive ? 0 : -1}
-      onKeyDown={handleNodeKeyDown}
-      onPointerDown={handlePointerDown}
-      // Shift+click toggles multi-selection; the browser would otherwise extend
-      // a text selection from the previous card across this one.
-      onMouseDown={(e) => {
-        if (e.shiftKey) e.preventDefault();
-      }}
-      onDblClick={handleDblClick}
+      class="canvas-node-owner"
+      style={{ ...nodeStyle, zIndex: 'auto' }}
       onPointerEnter={() => {
         hoveredNodeId.value = node.id;
       }}
@@ -573,14 +565,194 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         if (hoveredNodeId.value === node.id) hoveredNodeId.value = null;
       }}
     >
-      <div class="node-content">
-        {isGroup && (
-          <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
-            <span class="group-name-pill">
+      {isGroup && (
+        <div
+          class="group-frame-hit"
+          aria-hidden="true"
+          style={{ zIndex: `calc(${node.zIndex} - var(--node-hit-offset, 3))` }}
+          onPointerDown={(e) => {
+            handlePointerDown(e);
+            if (e.button === 0 && !e.shiftKey) shellRef.current?.focus({ preventScroll: true });
+          }}
+          onMouseDown={(e) => {
+            // Keep the shell's roving focus instead of the hit target's ancestor.
+            if (e.button === 0 || e.shiftKey) e.preventDefault();
+          }}
+          onDblClick={handleDblClick}
+        />
+      )}
+      <div
+        ref={shellRef}
+        class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}${isGroup && groupMenuOpen ? ' group-menu-open' : ''}`}
+        data-node-type={node.type}
+        data-node-id={node.id}
+        style={{
+          position: 'relative',
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: node.collapsed ? 'auto' : '100%',
+          zIndex: node.zIndex,
+        }}
+        tabIndex={isActive ? 0 : -1}
+        onKeyDown={handleNodeKeyDown}
+        onPointerDown={handlePointerDown}
+        // Shift+click toggles multi-selection; the browser would otherwise extend
+        // a text selection from the previous card across this one.
+        onMouseDown={(e) => {
+          if (e.shiftKey) e.preventDefault();
+        }}
+        onDblClick={handleDblClick}
+      >
+        <div class="node-content">
+          {isGroup && (
+            <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
+              <span class="group-name-pill">
+                {renaming ? (
+                  <input
+                    ref={renameRef}
+                    class="node-title-input group-title-input"
+                    value={title}
+                    onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
+                      if (e.key === 'Escape') setRenaming(false);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span class="group-name">{title}</span>
+                )}
+                <span class="group-count">{groupChildren.length}</span>
+              </span>
+              <span class="group-edge-spacer" />
+              <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
+                <BarHint label="Auto-arrange children" align="end">
+                  <button
+                    type="button"
+                    class="group-action"
+                    aria-label="Auto-arrange children"
+                    disabled={groupChildren.length === 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void addToGroupFromClient(node.id, groupChildren, 'grid');
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      aria-hidden="true"
+                    >
+                      <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+                      <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+                      <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+                      <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+                    </svg>
+                  </button>
+                </BarHint>
+                <BarHint label="Collapse group" align="end">
+                  <button
+                    type="button"
+                    class="group-action"
+                    aria-label="Collapse group"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCollapsed(node.id);
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 10 L8 5 L13 10" />
+                    </svg>
+                  </button>
+                </BarHint>
+                <button
+                  type="button"
+                  class="group-action"
+                  aria-label="Group menu"
+                  aria-expanded={groupMenuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupMenuOpen((open) => !open);
+                  }}
+                >
+                  <IconMore size={14} />
+                </button>
+                {groupMenuOpen && (
+                  <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        setRenaming(true);
+                        requestAnimationFrame(() => renameRef.current?.focus());
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        // Dissolve — the same op an agent's ungroup runs.
+                        removeNode(node.id);
+                        void ungroupFromClient(node.id);
+                      }}
+                    >
+                      Ungroup
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={groupChildren.length === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        addContextPins(groupChildren);
+                      }}
+                    >
+                      Pin all to context
+                    </button>
+                  </div>
+                )}
+              </span>
+            </div>
+          )}
+          {!isGroup && (
+            <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
+              <NodeTypeIcon node={node} pinned={isContextPinned} title={title} fold={chipFold}>
+                {(() => {
+                  const NodeIcon = getNodeIcon(node.type);
+                  return <NodeIcon size={Math.round(14 * chromeScale)} />;
+                })()}
+              </NodeTypeIcon>
+              {/* The kind-colored icon says what type this is (rail-chrome-v2 card
+            shell: icon · title · controls, no type badge). Only the AX status
+            chip joins it, and only when there is a status to show. */}
+              {typeof node.data.axWorkStatus === 'string' && (
+                <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
+              )}
               {renaming ? (
                 <input
                   ref={renameRef}
-                  class="node-title-input group-title-input"
+                  class="node-title-input"
                   value={title}
                   onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
                   onKeyDown={(e) => {
@@ -590,259 +762,125 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span class="group-name">{title}</span>
+                <span ref={titleRef} class="node-title">
+                  {title}
+                </span>
               )}
-              <span class="group-count">{groupChildren.length}</span>
-            </span>
-            <span class="group-edge-spacer" />
-            <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
-              <BarHint label="Auto-arrange children" align="end">
-                <button
-                  type="button"
-                  class="group-action"
-                  aria-label="Auto-arrange children"
-                  disabled={groupChildren.length === 0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void addToGroupFromClient(node.id, groupChildren, 'grid');
-                  }}
-                >
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    aria-hidden="true"
-                  >
-                    <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-                    <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-                    <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-                    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
-                  </svg>
-                </button>
-              </BarHint>
-              <BarHint label="Collapse group" align="end">
-                <button
-                  type="button"
-                  class="group-action"
-                  aria-label="Collapse group"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleCollapsed(node.id);
-                  }}
-                >
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M3 10 L8 5 L13 10" />
-                  </svg>
-                </button>
-              </BarHint>
-              <button
-                type="button"
-                class="group-action"
-                aria-label="Group menu"
-                aria-expanded={groupMenuOpen}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setGroupMenuOpen((open) => !open);
-                }}
-              >
-                <IconMore size={14} />
-              </button>
-              {groupMenuOpen && (
-                <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setGroupMenuOpen(false);
-                      setRenaming(true);
-                      requestAnimationFrame(() => renameRef.current?.focus());
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setGroupMenuOpen(false);
-                      // Dissolve — the same op an agent's ungroup runs.
-                      removeNode(node.id);
-                      void ungroupFromClient(node.id);
-                    }}
-                  >
-                    Ungroup
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={groupChildren.length === 0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setGroupMenuOpen(false);
-                      addContextPins(groupChildren);
-                    }}
-                  >
-                    Pin all to context
-                  </button>
-                </div>
-              )}
-            </span>
-          </div>
-        )}
-        {!isGroup && (
-          <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
-            <NodeTypeIcon node={node} pinned={isContextPinned} title={title} fold={chipFold}>
-              {(() => {
-                const NodeIcon = getNodeIcon(node.type);
-                return <NodeIcon size={Math.round(14 * chromeScale)} />;
-              })()}
-            </NodeTypeIcon>
-            {/* The kind-colored icon says what type this is (rail-chrome-v2 card
-            shell: icon · title · controls, no type badge). Only the AX status
-            chip joins it, and only when there is a status to show. */}
-            {typeof node.data.axWorkStatus === 'string' && (
-              <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
-            )}
-            {renaming ? (
-              <input
-                ref={renameRef}
-                class="node-title-input"
-                value={title}
-                onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
-                  if (e.key === 'Escape') setRenaming(false);
-                }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <span ref={titleRef} class="node-title">
-                {title}
-              </span>
-            )}
-            <NearPinMark node={node} pinned={isContextPinned} fold={chipFold} />
-            <NodeContextMark node={node} pinned={isContextPinned} fold={chipFold} />
-            <div class="node-controls">
-              {isPinned && (
-                <BarHint label="Pinned in place" align="end" fitWithin=".node-content" tapToOpen>
-                  <span class="pin-indicator">⊙</span>
-                </BarHint>
-              )}
-              {/* Expand and the context pin always show; the rest sit behind ⋯ and ×
+              <NearPinMark node={node} pinned={isContextPinned} fold={chipFold} />
+              <NodeContextMark node={node} pinned={isContextPinned} fold={chipFold} />
+              <div class="node-controls">
+                {isPinned && (
+                  <BarHint label="Pinned in place" align="end" fitWithin=".node-content" tapToOpen>
+                    <span class="pin-indicator">⊙</span>
+                  </BarHint>
+                )}
+                {/* Expand and the context pin always show; the rest sit behind ⋯ and ×
               on hover (docs/design/Chrome.dc.html). */}
-              {EXPANDABLE_TYPES.has(node.type) && (
-                <BarHint label="Expand (focus mode)" align="end" fitWithin=".node-content">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      expandNode(node.id);
-                    }}
-                    aria-label="Expand (focus mode)"
+                {EXPANDABLE_TYPES.has(node.type) && (
+                  <BarHint label="Expand (focus mode)" align="end" fitWithin=".node-content">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        expandNode(node.id);
+                      }}
+                      aria-label="Expand (focus mode)"
+                    >
+                      <IconExpand size={14} />
+                    </button>
+                  </BarHint>
+                )}
+                {node.type === 'board' ? (
+                  // A portal's one pin is its board's pin: the linked board joins the
+                  // agent's working set (BoardPins.dc.html), not this card.
+                  portalTarget && <BoardPinButton board={portalTarget} inNodeHeader />
+                ) : (
+                  <BarHint
+                    label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                    align="end"
+                    fitWithin=".node-content"
                   >
-                    <IconExpand size={14} />
-                  </button>
-                </BarHint>
-              )}
-              {node.type === 'board' ? (
-                // A portal's one pin is its board's pin: the linked board joins the
-                // agent's working set (BoardPins.dc.html), not this card.
-                portalTarget && <BoardPinButton board={portalTarget} inNodeHeader />
-              ) : (
-                <BarHint
-                  label={isContextPinned ? 'Remove from context' : 'Add to context'}
-                  align="end"
-                  fitWithin=".node-content"
+                    <button
+                      type="button"
+                      class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleContextPin(node.id);
+                      }}
+                      aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                      aria-pressed={isContextPinned}
+                    >
+                      <span class="ctx-pin-mark">
+                        <IconPin />
+                        {isContextPinned && isAgentPin(node.id) && (
+                          <span class="ctx-pin-agent-dot" aria-hidden="true" />
+                        )}
+                      </span>
+                    </button>
+                  </BarHint>
+                )}
+                <button
+                  type="button"
+                  class="node-hover-control"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onContextMenu?.(e, node.id);
+                  }}
+                  aria-label="More actions"
                 >
-                  <button
-                    type="button"
-                    class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleContextPin(node.id);
-                    }}
-                    aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
-                    aria-pressed={isContextPinned}
-                  >
-                    <span class="ctx-pin-mark">
-                      <IconPin />
-                      {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
-                    </span>
-                  </button>
-                </BarHint>
-              )}
-              <button
-                type="button"
-                class="node-hover-control"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onContextMenu?.(e, node.id);
-                }}
-                aria-label="More actions"
-              >
-                <IconMore size={14} />
-              </button>
-              {/* Report #64: status nodes get the same remove control as every other
+                  <IconMore size={14} />
+                </button>
+                {/* Report #64: status nodes get the same remove control as every other
               node type (backend removal + undo/history handle status uniformly). */}
-              <button
-                type="button"
-                class="node-hover-control"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void removeNodeFromClient(node.id);
-                }}
-                aria-label="Close"
-              >
-                <IconClose size={14} />
-              </button>
+                <button
+                  type="button"
+                  class="node-hover-control"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void removeNodeFromClient(node.id);
+                  }}
+                  aria-label="Close"
+                >
+                  <IconClose size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {!node.collapsed && (
-          <div ref={bodyRef} class="node-body">
-            {children}
-            {/* AX flow step controls — rendered here rather than in a node renderer
+          )}
+          {!node.collapsed && (
+            <div ref={bodyRef} class="node-body">
+              {children}
+              {/* AX flow step controls — rendered here rather than in a node renderer
               because a materialized step can be ANY node type, and because the
               body is what auto-fit measures (a footer outside it would be clipped
               on a content-fitted node). Renders nothing unless the node carries a
               `data.axStep` stamp. */}
-            <AxStepControls node={node} />
-            {!isGroup && <LifecycleFooter nodeId={node.id} />}
-            <CrossBoardReferences node={node} />
-          </div>
-        )}
-        {/* Group children live in the world layer, not this body. Keep their
+              <AxStepControls node={node} />
+              {!isGroup && <LifecycleFooter nodeId={node.id} />}
+              <CrossBoardReferences node={node} />
+            </div>
+          )}
+          {/* Group children live in the world layer, not this body. Keep their
             warning in the frame's bottom chrome, out of the content flex rule. */}
-        {(node.collapsed || isGroup) && <LifecycleFooter nodeId={node.id} />}
+          {(node.collapsed || isGroup) && <LifecycleFooter nodeId={node.id} />}
+        </div>
+        {!node.collapsed && (
+          <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
+        )}
+        {isSelected &&
+          (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+            <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
+          ))}
+        {yieldedNodes.value.has(node.id) && (
+          <span class="node-yield-pill" data-testid="yield-pill">
+            <span class="node-yield-dot" aria-hidden="true" />
+            {yieldedNodes.value.get(node.id)} took over — agent yielded
+          </span>
+        )}
+        {!isGroup &&
+          (['top', 'right', 'bottom', 'left'] as const).map((side) => (
+            <span key={side} class={`node-port-dot node-port-dot-${side}`} aria-hidden="true" />
+          ))}
       </div>
-      {!node.collapsed && (
-        <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
-      )}
-      {isSelected &&
-        (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
-          <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
-        ))}
-      {yieldedNodes.value.has(node.id) && (
-        <span class="node-yield-pill" data-testid="yield-pill">
-          <span class="node-yield-dot" aria-hidden="true" />
-          {yieldedNodes.value.get(node.id)} took over — agent yielded
-        </span>
-      )}
       {/* Connection port handles — visible on hover, drag to connect. Groups
           are frames, not endpoints: no ports (and the edge row sits on the top
           edge where the port would be). */}

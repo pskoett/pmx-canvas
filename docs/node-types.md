@@ -71,6 +71,12 @@ that fits the work — each step adds capability and bundle weight.
 | 2 | `html` | You have/can write self-contained HTML+JS (Chart.js, D3, custom widgets, interactive demos) | None — sandboxed iframe |
 | 3 | `web-artifact` | You need a full React/Tailwind app with shadcn components, routing, or shared state | Build step |
 
+## Markdown tasks
+
+Tick a task directly on its card, including quoted and nested tasks. A card click changes
+only that task's `[ ]` or `[x]` marker, preserving the rest of the source exactly.
+Task-shaped text in code examples and raw HTML checkboxes are not Markdown task controls.
+
 ## File nodes
 
 File nodes display project files with line numbers and language detection.

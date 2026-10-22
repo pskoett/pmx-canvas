@@ -120,6 +120,8 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
 
   await request.patch(`/api/canvas/node/${id}`, { data: { size: { width: 600, height: 480 } } });
   await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeGreaterThan(240);
+  // The frame can grow before its resize event refits the SVG.
+  await expect.poll(async () => (await geometry(svg)).height).toBeGreaterThan(small.height);
   const resized = await geometry(svg);
   expect(resized.height).toBeGreaterThan(small.height);
   expect(resized.bottom).toBeLessThanOrEqual(resized.viewportHeight + 1);

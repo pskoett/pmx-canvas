@@ -855,9 +855,34 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   await expect(page.locator('.relation-dimmed')).toHaveCount(0);
   await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
   const pill = page.locator('.edge-pill').filter({ hasText: 'supports' });
-  await pill.hover();
+  const pillBox = (await pill.boundingBox())!;
+  await page.mouse.move(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2);
   await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText('Measured throughput supports this choice.');
-  await pill.dblclick();
+  const linePoint = await path.evaluate((element) => {
+    const line = element as SVGPathElement;
+    const point = line.getPointAtLength(line.getTotalLength() / 4);
+    return new DOMPoint(point.x, point.y).matrixTransform(line.getScreenCTM()!).toJSON();
+  });
+  for (const point of [linePoint, { x: pillBox.x + pillBox.width / 2, y: pillBox.y + pillBox.height / 2 }]) {
+    await page.mouse.dblclick(point.x, point.y);
+    await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
+    await page.mouse.down({ button: 'right' });
+    await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
+    await page.mouse.up({ button: 'right' });
+    await expect(page.getByLabel('Relation kind', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    const world = page.locator('.canvas-world');
+    const before = await world.evaluate((element) => getComputedStyle(element).transform);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(point.x + 60, point.y + 30, { steps: 6 });
+    await expect.poll(() => world.evaluate((element) => getComputedStyle(element).transform)).not.toBe(before);
+    await page.mouse.move(point.x, point.y, { steps: 6 });
+    await page.mouse.up({ button: 'right' });
+    await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.context-menu')).toHaveCount(0);
+  }
+  await page.mouse.click(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2, { button: 'right' });
   await page.getByLabel('Relation kind', { exact: true }).selectOption('contradicts');
   await page.getByText('Edit why…', { exact: true }).click();
   await page.getByRole('textbox').fill('A second measurement contradicts the assumption.');
@@ -865,7 +890,8 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   await expect(page.getByRole('button', { name: 'contradicts 1', exact: true })).toBeVisible();
   await page.reload();
   const revised = page.locator('.edge-pill').filter({ hasText: 'contradicts' });
-  await revised.hover();
+  const revisedBox = (await revised.boundingBox())!;
+  await page.mouse.move(revisedBox.x + revisedBox.width / 2, revisedBox.y + revisedBox.height / 2);
   await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText(
     'A second measurement contradicts the assumption.',
   );
@@ -879,7 +905,9 @@ test('rich relation kind and reason survive live edits and reload; a human can d
     'Manage shared relation presets in Home.',
   );
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await revised.dblclick();
+  await page.mouse.click(revisedBox.x + revisedBox.width / 2, revisedBox.y + revisedBox.height / 2, {
+    button: 'right',
+  });
   await page.getByText('Delete edge').click();
   await expect(path).toHaveCount(0);
   const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ id: string }> };
@@ -2729,19 +2757,55 @@ test('native step controls on a materialized flow node drive the work item and t
   await step1.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
   const expanded = page.getByTestId('expanded-node');
   const blocked = expanded.getByRole('button', { name: 'Blocked', exact: true });
+  let sourceIntersections = 0;
   for (const width of [600, 1024, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     for (const input of ['pointer', 'keyboard']) {
       if (input === 'pointer') await blocked.hover();
-      else await blocked.focus();
+      else {
+        await page.mouse.move(0, 0);
+        await expanded.getByRole('button', { name: 'Start', exact: true }).focus();
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Tab');
+        await expect(blocked).toBeFocused();
+      }
       const hint = toolbarTooltip(blocked);
       await expect(hint).toHaveCSS('opacity', '1');
       const panel = (await expanded.boundingBox())!;
       const tip = (await hint.boundingBox())!;
       expect(tip.x).toBeGreaterThanOrEqual(panel.x);
       expect(tip.x + tip.width).toBeLessThanOrEqual(panel.x + panel.width);
+      const source = (await expanded.locator('.md-edit-fab').boundingBox())!;
+      const left = Math.max(tip.x, source.x),
+        right = Math.min(tip.x + tip.width, source.x + source.width);
+      const top = Math.max(tip.y, source.y),
+        bottom = Math.min(tip.y + tip.height, source.y + source.height);
+      if (right > left && bottom > top) {
+        sourceIntersections++;
+      }
     }
   }
+  expect(sourceIntersections).toBe(0);
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.mouse.move(0, 0);
+  await expanded.getByRole('button', { name: 'Start', exact: true }).focus();
+  await page.keyboard.press('Tab');
+  const done = expanded.getByRole('button', { name: 'Done', exact: true });
+  await expect(done).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => workStatus(workIds[0])).toBe('done');
+  await blocked.hover();
+  await expect(toolbarTooltip(blocked)).toHaveCSS('opacity', '1');
+  // Hovering another action must not leave the keyboard-focused hint painted
+  // over it. Moving away restores that hint without stealing keyboard focus.
+  await expect(toolbarTooltip(done)).toHaveCSS('opacity', '0');
+  await expect(done).toBeFocused();
+  await page.mouse.move(0, 0);
+  await expect(toolbarTooltip(done)).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Tab');
+  await expect(blocked).toBeFocused();
+  await expect(toolbarTooltip(blocked)).toHaveCSS('opacity', '1');
+  await expect(toolbarTooltip(done)).toHaveCSS('opacity', '0');
   await blocked.click();
   await expect.poll(async () => workStatus(workIds[0])).toBe('blocked');
   await expanded.getByRole('button', { name: 'Close', exact: true }).click();
@@ -3457,6 +3521,53 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
   expect(finalContent?.length ?? 0).toBeGreaterThan(60);
 });
 
+test('ordinary card checkbox changes only the rendered task, not examples or raw HTML', async ({ page, request }) => {
+  const markdown = [
+    '# Source mapping',
+    '',
+    '<template>',
+    '',
+    '> - [ ] hidden template task',
+    '',
+    '</template>',
+    '',
+    '```md',
+    '- [ ] fenced example',
+    '```',
+    '',
+    '<span><input data-pmx-task type="checkbox" disabled></span>',
+    '',
+    '> - [ ] quoted task',
+    '',
+    '    - [ ] indented example',
+    '',
+    '- [X] ordinary task',
+    '- [ ] loose task',
+    '',
+    '  another paragraph',
+  ].join('\n');
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Exact task source', content: markdown, x: 200, y: 160, width: 460, height: 560 },
+  });
+  const note = (await created.json()) as { id: string };
+  await page.goto('/workbench');
+  const card = page.locator(`.canvas-node[data-node-id="${note.id}"]`);
+  const quoted = card.locator('blockquote input[type="checkbox"]');
+  await expect(quoted).toBeEnabled();
+  await quoted.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  const canonical = async () =>
+    ((await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content: string }).content;
+  await expect.poll(canonical).toBe(markdown.replace('> - [ ] quoted task', '> - [x] quoted task'));
+  await page.reload();
+  await expect(quoted).toBeChecked();
+  await expect(card.locator('.node-body span input')).toBeDisabled();
+  await quoted.click();
+  await expect.poll(canonical).toBe(markdown);
+});
+
 test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
@@ -4168,7 +4279,8 @@ test('group context menu updates the group accent color', async ({ page, request
   const group = page.locator('.canvas-node.group-node').filter({ hasText: 'Color group' });
   await expect(group).toHaveCount(1);
 
-  await group.dblclick({ button: 'left' });
+  const bounds = (await group.boundingBox())!;
+  await page.mouse.dblclick(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await page.getByRole('button', { name: 'Set group color to Green' }).click();
 
   await expect
@@ -4239,16 +4351,22 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
 
   // Existing nodes are already mounted before the restore reaches the browser.
   // Wait for the restored geometry, not just their unchanged titles.
-  await expect
-    .poll(() =>
-      groupedGroup.evaluate((el) => ({ x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) })),
-    )
-    .toEqual(beforeGroup.position);
-  await expect
-    .poll(() =>
-      groupedFirst.evaluate((el) => ({ x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) })),
-    )
-    .toEqual(beforeChild.position);
+  const restoredView = (await currentCanvasState(request)).viewport;
+  const canvas = (await page.locator('.canvas-viewport').boundingBox())!;
+  for (const [card, expected] of [
+    [groupedGroup, beforeGroup],
+    [groupedFirst, beforeChild],
+  ] as const) {
+    await expect
+      .poll(async () => {
+        const box = (await card.boundingBox())!;
+        return {
+          x: Math.round((box.x - canvas.x - restoredView.x) / restoredView.scale),
+          y: Math.round((box.y - canvas.y - restoredView.y) / restoredView.scale),
+        };
+      })
+      .toEqual(expected.position);
+  }
   await dragNodeTitlebar(page, groupedGroup, 180, 120);
 
   await expect
@@ -4820,6 +4938,65 @@ test('polling transport boots the board and receives live updates (proxy-safe fa
   // "arrives in N seconds". A genuinely broken transport still fails here.
   await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 25000 });
 });
+
+for (const stalled of ['headers', 'body'] as const) {
+  test(`polling recovers from a failed then stalled ${stalled} request without reloading a draft`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(45000);
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Recovery draft', content: 'Original source.', x: 80, y: 80 },
+    });
+    await page.addInitScript((stalled) => {
+      const original = window.fetch.bind(window);
+      let attempt = 0;
+      const state = { armed: false, pageIdentity: crypto.randomUUID() };
+      Object.assign(window, { pollRecoveryProbe: state });
+      window.fetch = async (input, init) => {
+        if (state.armed && String(input).includes('/api/workbench/poll')) {
+          attempt++;
+          if (attempt === 1) return new Response('', { status: 502 });
+          if (attempt === 2) {
+            if (stalled === 'headers') return new Promise<Response>(() => {});
+            return new Response(new ReadableStream({ start() {} }), {
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        return original(input, init);
+      };
+    }, stalled);
+    await page.goto('/workbench?transport=poll');
+    const card = page.locator('.canvas-node').filter({ hasText: 'Recovery draft' });
+    await card.getByRole('button', { name: 'Edit', exact: true }).click();
+    const expanded = page.getByTestId('expanded-node');
+    await expanded.getByRole('button', { name: '</> Source', exact: true }).click();
+    await expanded.locator('textarea').fill('Unsaved human draft.');
+    const identity = await page.evaluate(() => {
+      const probe = (window as Window & { pollRecoveryProbe: { armed: boolean; pageIdentity: string } })
+        .pollRecoveryProbe;
+      probe.armed = true;
+      return probe.pageIdentity;
+    });
+    await expect(page.getByText('Reconnecting…', { exact: false })).toBeVisible();
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Arrived after recovery', content: 'Real peer update.', x: 500, y: 80 },
+    });
+    await expect(page.locator('.canvas-node').filter({ hasText: 'Arrived after recovery' })).toBeAttached({
+      timeout: 30000,
+    });
+    await expect(page.getByText('Reconnecting…', { exact: false })).toHaveCount(0);
+    await expect(expanded.locator('textarea')).toHaveValue('Unsaved human draft.');
+    expect(
+      await page.evaluate(
+        () => (window as Window & { pollRecoveryProbe: { pageIdentity: string } }).pollRecoveryProbe.pageIdentity,
+      ),
+    ).toBe(identity);
+    const state = await currentCanvasState(request);
+    expect(state.nodes.find((node) => node.data.title === 'Recovery draft')?.data.content).toBe('Original source.');
+  });
+}
 
 test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallback)', async ({ page, request }) => {
   // Nested-iframe hosts (the Amp orb portal embeds the canvas page inside an
@@ -6260,18 +6437,27 @@ test('edge creation: Connect tool drags an edge from a node body, the target lig
   await page.keyboard.press('v');
 });
 
-for (const scale of [1, 0.5]) {
+for (const scale of [1, 0.5, 0.25]) {
   test(`connection handles stay usable at ${scale} zoom and render the HTTP result before polling`, async ({
     page,
     request,
   }, testInfo) => {
+    if (scale === 0.25) {
+      await request.post('/api/canvas/group', {
+        data: { title: 'Free space around grouped ports', x: 60, y: 60, width: 1100, height: 520 },
+      });
+    }
     for (const [title, x, y] of [
       ['Handle A', 120, 120],
       ['Handle B', 680, 220],
     ] as const) {
-      await request.post('/api/canvas/node', {
+      const created = await request.post('/api/canvas/node', {
         data: { type: 'markdown', title, content: 'Connect these notes', x, y, width: 360, height: 220 },
       });
+      if (scale === 0.25 && title === 'Handle A') {
+        const { id } = (await created.json()) as { id: string };
+        expect((await request.patch(`/api/canvas/node/${id}`, { data: { collapsed: true } })).ok()).toBe(true);
+      }
     }
     await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale } });
     await page.addInitScript(() => {
@@ -6281,6 +6467,23 @@ for (const scale of [1, 0.5]) {
     const a = page.locator('.canvas-node').filter({ hasText: 'Handle A' });
     const b = page.locator('.canvas-node').filter({ hasText: 'Handle B' });
     await expect(b).toBeVisible();
+    if (scale === 0.25) {
+      await a.locator('.node-title').click();
+      await expect(a).toHaveClass(/selected/);
+      const before = (await a.boundingBox())!;
+      expect(before.height).toBeLessThan(20);
+      const port = (await a.locator('..').locator('.node-port-right').boundingBox())!;
+      // Holding Space wins even over a selected port; releasing it restores
+      // the same native target for the connection gesture below.
+      await page.keyboard.down('Space');
+      await page.mouse.move(port.x + port.width - 4, port.y + port.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(port.x + port.width + 36, port.y + port.height / 2 + 20, { steps: 8 });
+      await page.mouse.up();
+      await page.keyboard.up('Space');
+      expect((await a.boundingBox())!.x - before.x).toBeGreaterThan(30);
+      expect((await currentCanvasState(request)).edges).toHaveLength(0);
+    }
     // Hold the next poll before dragging. No event can make this assertion pass.
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -6295,13 +6498,13 @@ for (const scale of [1, 0.5]) {
     try {
       await expect.poll(() => blocked).toBe(true);
       await a.hover();
-      const port = a.locator('.node-port-right');
+      const port = a.locator('..').locator('.node-port-right');
       await expect(port).toHaveCSS('opacity', '1');
       const portBox = (await port.boundingBox())!;
       expect(portBox.width).toBeCloseTo(32, 0);
       expect(portBox.height).toBeCloseTo(32, 0);
       const source = (await a.boundingBox())!;
-      expect(Math.abs(portBox.x + portBox.width / 2 - (source.x + source.width))).toBeLessThanOrEqual(1.1);
+      expect(portBox.x).toBeGreaterThanOrEqual(source.x + source.width - 1.1);
       const target = (await b.boundingBox())!;
       // Start outside both the card and visible circle: no clipping of the grab area.
       await page.mouse.move(portBox.x + portBox.width - 4, portBox.y + portBox.height / 2);
@@ -6333,8 +6536,129 @@ for (const scale of [1, 0.5]) {
     }
     await page.reload();
     await expect(page.locator('[id^="edge-path-"]')).toHaveCount(1);
+    if (scale === 1) {
+      expect(
+        (
+          await request.patch(`/api/canvas/node/${await b.getAttribute('data-node-id')}`, { data: { x: 540, y: 120 } })
+        ).ok(),
+      ).toBe(true);
+      await expect.poll(async () => (await b.boundingBox())!.y - (await a.boundingBox())!.y).toBe(0);
+      const existing = (await currentCanvasState(request)).edges[0];
+      expect((await request.patch(`/api/canvas/edge/${existing.id}`, { data: { label: 'supports' } })).ok()).toBe(true);
+      const pill = page.locator('.edge-pill');
+      await expect(pill).toContainText('supports');
+      const created = await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title: 'Handle C', content: 'Another destination', x: 680, y: 520 },
+      });
+      const { id } = (await created.json()) as { id: string };
+      const c = page.locator(`.canvas-node[data-node-id="${id}"]`);
+      await expect(c).toBeVisible();
+      await a.hover();
+      const port = (await a.locator('..').locator('.node-port-right').boundingBox())!;
+      const point = { x: port.x + 3, y: port.y + port.height / 2 };
+      // The existing line and wide label both cross the port. Neither may
+      // take the next native drag, while the uncovered label stays clickable.
+      const label = (await pill.boundingBox())!;
+      expect(label.x).toBeLessThan(point.x);
+      expect(label.x + label.width).toBeGreaterThan(point.x);
+      await page.mouse.move(point.x, point.y, { steps: 8 });
+      expect(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-port'), point)).toBe(
+        true,
+      );
+      const destination = (await c.boundingBox())!;
+      await page.mouse.down();
+      await page.mouse.move(destination.x + destination.width / 2, destination.y + destination.height / 2, {
+        steps: 10,
+      });
+      await page.mouse.up();
+      await expect(page.locator('[id^="edge-path-"]')).toHaveCount(2);
+      await page.mouse.click(port.x + port.width + 3, label.y + label.height / 2);
+      await expect(page.locator(`[id="edge-path-${existing.id}"]`)).toHaveClass(/edge-selected/);
+    }
   });
 }
+
+for (const scale of [0.41, 0.25, 0.15]) {
+  test(`visible low-zoom ports do not own header clicks at ${scale}`, async ({ page, request }) => {
+    const created = await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Header pointer target',
+        content: 'Pin and drag this card.',
+        x: 240,
+        y: 240,
+        width: 340,
+        height: 120,
+      },
+    });
+    const { id } = (await created.json()) as { id: string };
+    await request.post('/api/canvas/viewport', { data: { x: 200, y: 160, scale } });
+    await page.goto('/workbench');
+    const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    const title = card.locator('.node-title');
+    await title.hover();
+    await expect(card.locator('..').locator('.node-port-top')).toHaveCSS('opacity', '1');
+    for (const target of [title, card.locator('.ctx-pin-btn')]) {
+      const box = (await target.boundingBox())!;
+      const x = box.x + box.width / 2,
+        y = box.y + box.height / 2;
+      expect(
+        await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-port'), { x, y }),
+      ).toBe(false);
+    }
+    const pin = card.locator('.ctx-pin-btn');
+    const box = (await pin.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.down();
+    await page.waitForTimeout(100);
+    await page.mouse.up();
+    await expect(pin).toHaveClass(/ctx-pin-active/);
+    const before = (await title.boundingBox())!;
+    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(before.x + before.width / 2 + 35, before.y + before.height / 2 + 25, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(async () => (await title.boundingBox())!.x - before.x).toBeGreaterThan(30);
+    expect((await currentCanvasState(request)).edges).toHaveLength(0);
+    await page.reload();
+    await expect(card.locator('.ctx-pin-btn')).toHaveClass(/ctx-pin-active/);
+  });
+}
+
+test('a hovered neighboring port cannot intercept Close at fifteen percent zoom', async ({ page, request }) => {
+  const create = async (title: string, x: number, y: number, width: number, height: number) => {
+    const response = await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title, content: '', x, y, width, height, data: { strictSize: true } },
+    });
+    return ((await response.json()) as { id: string }).id;
+  };
+  const targetId = await create('Neighbor Close target', 480, 484, 360, 120);
+  const sourceId = await create('Short section label', 200, 300, 1240, 144);
+  await request.post('/api/canvas/viewport', { data: { x: 200, y: 160, scale: 0.15 } });
+  await page.goto('/workbench');
+  const source = page.locator(`.canvas-node[data-node-id="${sourceId}"]`);
+  const target = page.locator(`.canvas-node[data-node-id="${targetId}"]`);
+  // Focus, select and raise the source above its neighbor before approaching
+  // through its bottom port. Neither z-order nor hover may steal Close.
+  await source.focus();
+  await source.locator('.node-title').click();
+  await expect(source).toHaveClass(/selected/);
+  const close = target.locator('button[aria-label="Close"]');
+  const box = (await close.boundingBox())!;
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const sourceBox = (await source.boundingBox())!;
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.move(point.x, point.y, { steps: 15 });
+  const ownsClose = () =>
+    page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'), point);
+  expect(await ownsClose()).toBe('Close');
+  await page.waitForTimeout(700);
+  expect(await ownsClose()).toBe('Close');
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(target).toHaveCount(0);
+  expect((await currentCanvasState(request)).edges).toHaveLength(0);
+});
 
 test('groups v2: membership only on release with the pill, esc keeps it out, collapse to a chip, header actions, G / Shift+G', async ({
   page,

@@ -30,9 +30,19 @@ const blockSkip = /\[[^[\]]*?\]\([^\\()]*(?:\\.[^\\()]*|\([^\\()]*(?:\\.[^\\()]*
 
 /** Marked's inline tokenizer keeps wiki syntax out of code spans/fences and HTML attributes. */
 function parser(render: (token: WikiToken) => string): Marked {
+  let taskIndex = 0;
   return new Marked(
     { gfm: true, breaks: true },
     {
+      renderer: {
+        checkbox({ checked }) {
+          return `<input data-pmx-task="${taskIndex++}" type="checkbox" disabled${checked ? ' checked' : ''}>`;
+        },
+        html({ text }) {
+          // This attribute belongs to generated tasks, never author-supplied HTML.
+          return text.replace(/\bdata-pmx-task\b/gi, 'data-pmx-raw-task');
+        },
+      },
       tokenizer: {
         space() {
           // Lexer installs rules after constructing the tokenizer. Copy rather

@@ -321,6 +321,7 @@ export function CanvasViewport({
     viewport,
     disabled: annotationMode,
     onBackgroundContextMenu: onCanvasContextMenu,
+    onEdgeContextMenu,
     onViewportChange: (next) => {
       // Don't pan while lassoing — usePanZoom's pointerdown still fires
       // (native listener) before our Preact handler can stopPropagation.
@@ -809,6 +810,10 @@ export function CanvasViewport({
     expandedNodeId.value,
     new Set(hiddenByCollapsedGroup.value.keys()),
   );
+  const lowestZ = worldNodes.reduce((lowest, node) => Math.min(lowest, Math.floor(node.zIndex)), 0);
+  const highestZ = worldNodes.reduce((highest, node) => Math.max(highest, Math.ceil(node.zIndex)), 0);
+  // Keep group-body hit order without changing the frames' visual stacking.
+  const hitOffset = highestZ - lowestZ + 3;
   const dropTarget = dragDropTarget.value;
   const dropTargetGroup = dropTarget ? nodes.value.get(dropTarget.groupId) : undefined;
   const draggedNode = dropTarget ? nodes.value.get(dropTarget.nodeId) : undefined;
@@ -877,6 +882,9 @@ export function CanvasViewport({
         style={{
           transform: `matrix(${v.scale}, 0, 0, ${v.scale}, ${v.x}, ${v.y})`,
           transformOrigin: '0 0',
+          '--node-port-z': lowestZ - 1,
+          '--node-hit-offset': hitOffset,
+          '--edge-line-z': lowestZ - hitOffset - 1,
           position: 'absolute',
           top: 0,
           left: 0,
@@ -886,8 +894,9 @@ export function CanvasViewport({
         <IntentLayer />
         <AgentPresenceLayer />
         <HumanPresenceLayer />
-        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={onEdgeContextMenu} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={onEdgeContextMenu} part="pills" />
+        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
+        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
+        <EdgeLayer nodes={nodes} edges={edges} part="pill-hits" />
         {draggingEdge.value && (
           <div
             class="edge-hint-pill"

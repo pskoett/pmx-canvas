@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
-import { marked } from 'marked';
 import { MarkdownNode, toggleTaskMarker } from '../../src/client/nodes/MarkdownNode.tsx';
 import { InlineMarkdownEditor } from '../../src/client/nodes/InlineMarkdownEditor.tsx';
 import { renderWikiMarkdown } from '../../src/server/wiki-links.ts';
@@ -207,7 +206,7 @@ test.each([
         await candidateRender;
       }
       if (acknowledged && markdown === draft) await postSaveRender;
-      return Response.json({ html: await marked.parse(markdown) });
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
     }
     if (init?.method === 'PATCH') {
       savedDrafts.push((JSON.parse(String(init.body)) as { content: string }).content);
@@ -368,6 +367,55 @@ describe('toggleTaskMarker', () => {
 });
 
 test.each([
+  ['```text\n- [ ] code\n```\n\n> - [ ] quoted\n\n- [ ] real', 0, '> - [x] quoted'],
+  ['    - [ ] indented code\n\n- [ ] real', 0, '- [x] real'],
+  ['> ~~~~\n> - [ ] code\n> ~~~\n> - [ ] still code\n> ~~~~\n\n>> - [ ] quoted', 0, '>> - [x] quoted'],
+  ['- parent\n  > - [ ] quoted\n\n- [ ] real', 1, '- [x] real'],
+  ['> 1. [X] repeated\r\n> 2. [ ] repeated\r\n', 0, '> 1. [ ] repeated'],
+  ['- [ ] loose\n\n  paragraph\n\n- [ ] last', 0, '- [x] loose'],
+  ['<input type="checkbox">\n\n- [ ] real', 0, '- [x] real'],
+  ['[x]: /url "\n- [x] hidden\n"\n\n- [x] visible', 0, '- [ ] visible'],
+  ['<span><input data-pmx-task type="checkbox" disabled></span>\n\n- [ ] first\n- [ ] second', 0, '- [x] first'],
+  ['Intro\n\n<template>\n\n> - [ ] hidden\n\n</template>\n\n- [ ] visible', 0, '- [x] visible'],
+] as const)('card checkbox %s maps to its exact source marker', async (markdown, index, changedLine) => {
+  const node: CanvasNodeState = {
+    id: 'source-mapped-task',
+    type: 'markdown',
+    position: { x: 0, y: 0 },
+    size: { width: 360, height: 240 },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    contentRevision: 1,
+    data: { content: markdown },
+  };
+  let saved: string | undefined;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === '/api/render') {
+      const { markdown } = JSON.parse(String(init?.body)) as { markdown: string };
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
+    }
+    if (init?.method === 'PATCH') {
+      saved = (JSON.parse(String(init.body)) as { content: string }).content;
+      return Response.json({ ok: true, contentRevision: 2 });
+    }
+    return Response.json({});
+  }) as typeof fetch;
+  activeBoardId.value = null;
+  nodes.value = new Map([[node.id, node]]);
+  const card = render(<MarkdownNode node={node} />);
+  await waitFor(() => expect(card.container.querySelector('input')).not.toBeNull());
+  const boxes = [...card.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].filter((box) =>
+    box.closest('li'),
+  );
+  fireEvent.click(boxes[index]!);
+  const originalLine = changedLine.replace(/\[([ x])\]/, (_, state: string) => (state === ' ' ? '[X]' : '[ ]'));
+  const sourceLine = markdown.includes(originalLine) ? originalLine : originalLine.replace('[X]', '[x]');
+  const expected = markdown.replace(sourceLine, changedLine);
+  await waitFor(() => expect(saved).toBe(expected));
+});
+
+test.each([
   'before',
   'after',
 ])('an older poll %s the save acknowledgement cannot untick a saved task', async (timing) => {
@@ -392,7 +440,7 @@ test.each([
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input) === '/api/render') {
       const body = JSON.parse(String(init?.body)) as { markdown: string };
-      return Response.json({ html: await marked.parse(body.markdown) });
+      return Response.json({ html: renderWikiMarkdown(body.markdown, [], () => false) });
     }
     if (init?.method === 'PATCH') {
       return new Promise<Response>((resolve) => {
@@ -503,7 +551,7 @@ test('a remounted Document uses the matching shared preview, not another draft H
     if (String(input) === '/api/render') {
       const { markdown } = JSON.parse(String(init?.body)) as { markdown: string };
       if (markdown === a && renders.length < 2) await new Promise<void>((resolve) => renders.push(resolve));
-      return Response.json({ html: await marked.parse(markdown) });
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
     }
     if (init?.method === 'PATCH') {
       saved = (JSON.parse(String(init.body)) as { content: string }).content;
@@ -591,7 +639,7 @@ test.each([
         rendering = true;
         await renderGate;
       }
-      return Response.json({ html: await marked.parse(markdown) });
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
     }
     if (init?.method === 'PATCH')
       return new Promise<Response>((resolve) => {

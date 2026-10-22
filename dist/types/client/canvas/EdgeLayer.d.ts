@@ -15,14 +15,14 @@ export declare function edgeChromeScale(scale: number): number;
 /**
  * Lines draw below group frames, so a link never covers a group's header; pills
  * draw in their own layer above the frames, so a link inside a group keeps a
- * hoverable, clickable label (LinkAuthorship.dc.html).
+ * label (LinkAuthorship.dc.html). Transparent pill hits stay below ports without
+ * moving the painted label below the frame's wash.
  */
-export type EdgeLayerPart = 'lines' | 'pills';
+export type EdgeLayerPart = 'lines' | 'pills' | 'pill-hits';
 interface EdgeLayerProps {
     nodes: Signal<Map<string, CanvasNodeState>>;
     edges: Signal<Map<string, CanvasEdge>>;
-    onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
     part: EdgeLayerPart;
 }
-export declare function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerProps): import("preact/src").JSX.Element | null;
+export declare function EdgeLayer({ nodes, edges, part }: EdgeLayerProps): import("preact/src").JSX.Element | null;
 export {};

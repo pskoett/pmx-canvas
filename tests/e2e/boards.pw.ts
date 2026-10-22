@@ -372,6 +372,18 @@ test('Home Review scopes individual cards, reveals grouped content and docks wit
   request,
 }) => {
   await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  // Folder policies outlive board deletion, including across runner invocations.
+  // This case needs an unclassified sibling even in a reused workspace.
+  for (const path of ['Projects', 'Projects/Child', 'Projects/Child/Long descendant folder']) {
+    expect(
+      (
+        await request.post('/api/canvas/knowledge/folder', {
+          headers: HUMAN,
+          data: { path, categoryId: null, lifecycleOverride: null },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
   const { board: scoped } = await (
     await request.post('/api/canvas/boards', {
       data: { name: 'Scoped evidence', folder: 'Projects/Child/Long descendant folder' },
@@ -1005,6 +1017,52 @@ for (const sameBoard of [false, true]) {
   });
 }
 
+test('group reference controls navigate and the blank frame retains selection', async ({ page, request }) => {
+  const destination = (await (await request.post('/api/canvas/boards', { data: { name: 'Group destination' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: destination.id } });
+  const target = await note(request, 'Remote group evidence');
+  const source = (await (await request.post('/api/canvas/boards', { data: { name: 'Group source' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const neighbour = await note(request, 'Keyboard neighbour', 820, 200);
+  const group = (await (
+    await request.post('/api/canvas/group', {
+      data: { title: 'Reference frame', x: 120, y: 120, width: 600, height: 360 },
+    })
+  ).json()) as { id: string };
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: { from: group.id, to: target, toBoardId: destination.id, type: 'references' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+  const frame = page.locator(`.canvas-node[data-node-id="${group.id}"]`);
+  const reference = frame.getByRole('region', { name: 'Cross-board references' }).getByRole('button');
+  await expect(reference).toContainText('Remote group evidence');
+  const box = (await reference.boundingBox())!;
+  expect(
+    await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-memory-links'), {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    }),
+  ).toBe(true);
+  const bounds = (await frame.boundingBox())!;
+  await page.keyboard.down('Shift');
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.keyboard.up('Shift');
+  await expect(frame).toHaveClass(/selected/);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(frame).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator(`.canvas-node[data-node-id="${neighbour}"]`)).toBeFocused();
+  await reference.click();
+  await expect(page.getByRole('button', { name: /^Board: Group destination/ })).toBeVisible();
+  await expect(page.locator(`.canvas-node[data-node-id="${target}"]`)).toBeVisible();
+});
+
 test('high-degree reference footers leave card content and actions usable', async ({ page, request }) => {
   test.setTimeout(120_000);
   const source = await note(request, 'Index');
@@ -1084,6 +1142,20 @@ test('high-degree reference footers leave card content and actions usable', asyn
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
     await request.post('/api/canvas/viewport', { data: { x: 20, y: 90, scale } });
+    // The HTTP acknowledgement precedes the rendered camera update. Start the
+    // scrolling check only once this fixture's (120,120) card is at that camera.
+    await expect
+      .poll(() =>
+        card.evaluate((element, scale) => {
+          const rect = element.getBoundingClientRect();
+          const canvas = element.closest('.canvas-region')!.getBoundingClientRect();
+          return (
+            Math.abs(rect.left - canvas.left - (120 * scale + 20)) < 0.1 &&
+            Math.abs(rect.top - canvas.top - (120 * scale + 90)) < 0.1
+          );
+        }, scale),
+      )
+      .toBe(true);
     await expect(card.locator('.node-memory-link')).toHaveCount(103);
     await expect
       .poll(() =>

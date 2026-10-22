@@ -89,6 +89,8 @@ const POLL_INTERVAL_MS = 2000;
 const POLL_WAIT_MS = 1000;
 const POLL_LIVE_INTERVAL_MS = 80;
 const POLL_ERROR_INTERVAL_MS = 5000;
+// Bound headers AND body, including host transports that ignore AbortSignal.
+const POLL_REQUEST_TIMEOUT_MS = 10000;
 let pollingMode = false;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let pollAbort: AbortController | null = null;
@@ -1315,6 +1317,8 @@ function startPollingTransport(): () => void {
 
   const pollOnce = async (): Promise<void> => {
     if (generation !== pollGeneration) return;
+    const requestController = new AbortController();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
       const params = new URLSearchParams();
       if (pollSeq !== null) {
@@ -1325,19 +1329,27 @@ function startPollingTransport(): () => void {
       if (sid) params.set('session', sid);
       const query = params.toString();
       const pinsAtRequest = contextPinsRevision;
-      const response = await workbenchFetch(
-        `/api/workbench/poll${query ? `?${query}` : ''}`,
-        longPolling ? { signal: controller.signal } : undefined,
-      );
-      if (generation !== pollGeneration) return;
-      if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
-      const body = (await response.json()) as {
-        ok: boolean;
-        seq: number;
-        snapshot: boolean;
-        sessionId?: string;
-        events: Array<{ event: string; payload: unknown }>;
-      };
+      const body = await Promise.race([
+        (async () => {
+          const response = await workbenchFetch(`/api/workbench/poll${query ? `?${query}` : ''}`, {
+            signal: AbortSignal.any([controller.signal, requestController.signal]),
+          });
+          if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
+          return (await response.json()) as {
+            ok: boolean;
+            seq: number;
+            snapshot: boolean;
+            sessionId?: string;
+            events: Array<{ event: string; payload: unknown }>;
+          };
+        })(),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => {
+            requestController.abort();
+            reject(new Error('poll request timed out'));
+          }, POLL_REQUEST_TIMEOUT_MS);
+        }),
+      ]);
       if (generation !== pollGeneration) return;
       if (!body.ok) throw new Error('poll returned ok: false');
       const priorSession = lastPollSessionId;
@@ -1392,6 +1404,8 @@ function startPollingTransport(): () => void {
       reconnectAttempt.value += 1;
       reconnectDelay.value = POLL_ERROR_INTERVAL_MS;
       pollTimer = setTimeout(() => void pollOnce(), POLL_ERROR_INTERVAL_MS);
+    } finally {
+      clearTimeout(deadline);
     }
   };
   void pollOnce();

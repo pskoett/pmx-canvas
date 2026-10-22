@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { Marked } from 'marked';
 import { signal, type Signal } from '@preact/signals';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconArrowLeft } from '../icons';
@@ -77,7 +78,7 @@ function RenderedMarkdown({
     template.innerHTML = sanitizeMarkdownHtml(html);
     container.append(template.content.cloneNode(true));
     if (onTaskToggleRef.current) {
-      for (const box of container.querySelectorAll('input[type="checkbox"][disabled]')) {
+      for (const box of container.querySelectorAll('input[type="checkbox"][data-pmx-task][disabled]')) {
         box.removeAttribute('disabled');
       }
     }
@@ -93,30 +94,67 @@ function RenderedMarkdown({
     // input alone is a miserable target at zoom and in embedded panes
     // that forward clicks imprecisely.
     let box: HTMLInputElement | null = null;
-    if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+    if (target instanceof HTMLInputElement && target.matches('input[type="checkbox"][data-pmx-task]')) {
       box = target;
     } else {
       const row = target.closest('li');
-      const rowBox = row?.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
+      const rowBox = row?.querySelector<HTMLInputElement>(
+        ':scope > input[data-pmx-task], :scope > p > input[data-pmx-task]',
+      );
       if (rowBox && e.clientX <= rowBox.getBoundingClientRect().right + 6) box = rowBox;
     }
     if (!box) return;
+    // The source/rendered acknowledgement owns the tick, not the native input's
+    // optimistic state, which would otherwise survive a refused or stale click.
+    e.preventDefault();
     e.stopPropagation();
-    const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(box);
-    if (index >= 0) onToggle(index);
+    // Inert template content and HTML tree repair can change the live DOM order.
+    onToggle(Number(box.dataset.pmxTask));
   };
 
   return <div ref={containerRef} class={className} style={style} onClick={handleClick} />;
 }
 
-/** Flip the index-th GFM task marker in the source (document order matches the rendered boxes). */
+const taskParser = new Marked({ gfm: true, breaks: true });
+
+/** Flip exactly one parsed GFM task without reformatting any other source bytes. */
 export function toggleTaskMarker(markdown: string, index: number): string {
-  let seen = -1;
-  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/gm, (match, pre, state, post) => {
-    seen += 1;
-    if (seen !== index) return match;
-    return `${pre}${state === ' ' ? 'x' : ' '}${post}`;
-  });
+  const states = (source: string): boolean[] => {
+    const result: boolean[] = [];
+    taskParser.walkTokens(taskParser.lexer(source), (token) => {
+      if (token.type === 'list_item' && token.task) result.push(!!token.checked);
+    });
+    return result;
+  };
+  const before = states(markdown);
+  if (!Number.isInteger(index) || index < 0 || index >= before.length) return markdown;
+  // Marked has no source offsets, and container tokens strip quote/indentation
+  // prefixes. Probe only list-shaped markers, never reference labels like [x]:
+  // whose mutation can change parsing. Marked decides which candidates are tasks.
+  const markers = [...markdown.matchAll(/(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX]\](?=[ \t]|$)/gm)].map(
+    (match) => match.index + match[0].lastIndexOf('[') + 1,
+  );
+  const flip = (first: number, last: number) => {
+    let source = markdown;
+    for (let i = last; i >= first; i--) {
+      const offset = markers[i];
+      source = source.slice(0, offset) + (source[offset] === ' ' ? 'x' : ' ') + source.slice(offset + 1);
+    }
+    return source;
+  };
+  let first = 0;
+  let last = markers.length - 1;
+  while (first < last) {
+    const middle = Math.floor((first + last) / 2);
+    if (states(flip(first, middle))[index] !== before[index]) last = middle;
+    else first = middle + 1;
+  }
+  const candidate = flip(first, first);
+  const after = states(candidate);
+  return after.length === before.length &&
+    after.every((checked, i) => checked === (i === index ? !before[i] : before[i]))
+    ? candidate
+    : markdown;
 }
 
 // A draft belongs to its qualified card, not the card/overlay component currently
@@ -588,6 +626,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   if (expanded) {
     return (
       <div
+        class="md-expanded-document"
         style={{ height: '100%', position: 'relative' }}
         onClick={async (event) => {
           if (!(event.target as HTMLElement).closest('a.wiki-link')) return;
@@ -635,7 +674,9 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
           // Task checkboxes are live on the card itself — no need to expand to tick one.
           onTaskToggle={(index) => {
-            const next = toggleTaskMarker(content, index);
+            const preview = renderedMdRef.current;
+            if (preview?.html !== rendered || preview.markdown !== latestMdRef.current) return;
+            const next = toggleTaskMarker(preview.markdown, index);
             if (next !== content) handleInlineSave(next);
           }}
         />
