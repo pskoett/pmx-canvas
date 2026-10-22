@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
-import { categorySchema, lifecycleSchema, type Lifecycle } from '../../knowledge-lifecycle.js';
+import { categorySchema, folderPropertiesSchema, lifecycleSchema } from '../../knowledge-lifecycle.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { readTargetBoard } from './boards.js';
 import { lifecycleQualifications, lifecycleSnapshot } from '../../lifecycle-status.js';
@@ -113,12 +113,8 @@ export const lifecycleOperations: Operation[] = [
   defineOperation({
     name: 'knowledge.folder-set',
     mutates: false,
-    input: z.object({
-      path: z.string(),
-      categoryId: z.string().nullable(),
-      lifecycleOverride: lifecycleSchema.nullable(),
-    }),
-    inputShape: { path: z.string(), categoryId: z.string().nullable(), lifecycleOverride: lifecycleSchema.nullable() },
+    input: folderPropertiesSchema,
+    inputShape: folderPropertiesSchema.shape,
     http: { method: 'POST', path: '/api/canvas/knowledge/folder' },
     mcp: {
       toolName: 'canvas_knowledge_folder_set',

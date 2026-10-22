@@ -937,6 +937,94 @@ describe('MCP parity with CLI', () => {
     expect(resource.contents).toHaveLength(1);
   });
 
+  test('context resource refuses a board switch between capture and brief invocation without recording a read', async () => {
+    type ReadLog = { reads: Array<{ resource: string; boardId: string | null }> };
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-context-race-');
+    const daemonPort = await getAvailablePort();
+    const daemonUrl = startCanvasServer({ workspaceRoot, port: daemonPort, autoOpenBrowser: false });
+    if (!daemonUrl) throw new Error('Failed to start daemon for MCP context race test.');
+
+    let intercepted: (() => void) | undefined;
+    let release: (() => void) | undefined;
+    const proxy = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const url = new URL(request.url);
+        if (url.pathname === '/api/canvas/context' && intercepted) {
+          const reached = intercepted;
+          intercepted = undefined;
+          const gate = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          reached();
+          await gate;
+        }
+        return fetch(`${daemonUrl}${url.pathname}${url.search}`, request);
+      },
+    });
+    const attached = await createMcpSessionForWorkspace(workspaceRoot, proxy.port!);
+    cleanup.push(async () => {
+      release?.();
+      await attached.client.close();
+      await closeTransportAndReapChild(attached.transport);
+      proxy.stop(true);
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    });
+    const human = await trustedHumanHeaders(daemonUrl);
+    await attached.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', content: 'Board A context marker' },
+    });
+    const { activeBoardId: boardA } = (await (await fetch(`${daemonUrl}/api/canvas/boards`)).json()) as {
+      activeBoardId: string;
+    };
+    const { board: boardB } = parseJsonText<{ board: { id: string } }>(
+      (await attached.client.callTool({
+        name: 'canvas_board',
+        arguments: { action: 'create', name: 'Race board B' },
+      })) as ToolResultShape,
+    );
+    async function open(boardId: string): Promise<void> {
+      const response = await fetch(`${daemonUrl}/api/canvas/boards/open`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ id: boardId }),
+      });
+      expect(response.status).toBe(200);
+    }
+    async function contextReads(): Promise<ReadLog['reads']> {
+      const log = (await (await fetch(`${daemonUrl}/api/canvas/ax/context-reads`)).json()) as ReadLog;
+      return log.reads.filter((read) => read.resource === 'canvas://context');
+    }
+
+    const reachedBrief = new Promise<void>((resolve) => {
+      intercepted = resolve;
+    });
+    // The proxy gates the brief request only: prepareContextRead has already
+    // captured A, but the registry has not yet executed context.get.
+    const read = attached.client.readResource({ uri: 'canvas://context?budget=50000' }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    await reachedBrief;
+    await open(boardB.id);
+    release?.();
+    const error = await read;
+    expect(await contextReads()).toEqual([]);
+    await open(boardA);
+    expect(await contextReads()).toEqual([]);
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toContain('The active board changed');
+
+    const success = await attached.client.readResource({ uri: 'canvas://context?budget=50000' });
+    const text = success.contents.find((entry): entry is { uri: string; text: string } => 'text' in entry)?.text;
+    expect(text).toContain('Board A context marker');
+    expect(await contextReads()).toEqual([expect.objectContaining({ boardId: boardA })]);
+    await open(boardB.id);
+    expect((await contextReads()).filter((read) => read.boardId === boardB.id)).toEqual([]);
+  });
+
   test('records each MCP context read once, with the client name and pinned delivery (local and daemon-attached)', async () => {
     type ReadLog = {
       reads: Array<{

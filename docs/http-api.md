@@ -85,6 +85,8 @@ refused under a scope fence. Moving or unfiling a board changes inherited lifecy
 cards, so agent folder changes are also refused under a fence; other board metadata is unaffected.
 This checks both the active board's applicable fence and the target board's stored global fence
 or the writer's assigned territory, even when another board or Home is open. It never opens the target.
+Category and folder-policy edits also check stored fences on every board whose effective
+inheritance would change. Unrelated folders and policies hidden by a child category remain editable.
 Card writes target the active board and use the existing expected
 board, scope and human edit-lock guards. Writes emit live knowledge/lifecycle notifications;
 metadata-only edits do not advance content revision or lastEditedBy. Read/delivery clocks,

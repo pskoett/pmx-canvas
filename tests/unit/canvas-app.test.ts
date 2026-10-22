@@ -840,6 +840,109 @@ test('both app profiles leave flow materialization local-only, preserving fenced
   });
 }, 15_000);
 
+test('both app profiles support hosted knowledge and lifecycle editors without elevating authority', async () => {
+  await read();
+  await withAppProfiles(async (app) => {
+    const { board } = await post('/api/canvas/boards', { name: 'Hosted knowledge editors' });
+    await post('/api/canvas/boards/open', { id: board.id });
+    const human = await humanHeaders();
+    await post('/api/canvas/ax/policy', { scope: null }, human);
+    const node = await post('/api/canvas/node', { type: 'markdown', title: 'Review me', x: 100, y: 100 });
+    const inside = await post('/api/canvas/node', { type: 'markdown', title: 'Fence', x: 2000, y: 2000 });
+    const request = (path: string, body: unknown, method = 'POST', boardId = board.id) =>
+      appRequest(app, boardId, path, body, method);
+    const get = async (path: string) => JSON.parse((await request(path, undefined, 'GET')).body);
+    const policy = {
+      decayType: 'reality',
+      rate: 'fast',
+      triggers: ['Source changed'],
+      revalidationMethod: 'Check source',
+    };
+    const category = { ...policy, id: 'hosted-category', name: 'Hosted category', glyph: 'H' };
+    const preset = {
+      id: 'hosted-preset',
+      name: 'Hosted preset',
+      vocabulary: [{ kind: 'backs', ink: 'supports', directed: true }],
+    };
+    const folder = { path: 'Hosted', categoryId: category.id, lifecycleOverride: null };
+    const lifecyclePath = `/api/canvas/node/${node.id}/lifecycle`;
+    const reviewPath = `/api/canvas/node/${node.id}/review`;
+    const restorePath = `${lifecyclePath}/restore`;
+    const review = {
+      outcome: 'retain',
+      evidence: 'Checked source',
+      applied: true,
+      expectedContentRevision: node.contentRevision,
+      expectedSources: {},
+    };
+    const writes = [
+      ['/api/canvas/knowledge/category', { category }, 'POST'],
+      ['/api/canvas/knowledge/folder', folder, 'POST'],
+      ['/api/canvas/knowledge/relation-preset', { preset }, 'POST'],
+      [lifecyclePath, { lifecycleOverride: policy }, 'POST'],
+      [reviewPath, review, 'POST'],
+      [restorePath, { evidence: 'Restore after checking' }, 'POST'],
+      [`/api/canvas/knowledge/category/${category.id}`, {}, 'DELETE'],
+      [`/api/canvas/knowledge/relation-preset/${preset.id}`, {}, 'DELETE'],
+    ] as const;
+    for (const [path, body, method] of writes) {
+      expect((await request(path, body, method, 'stale-board')).status).toBe(409);
+    }
+    expect(await request('/api/canvas/knowledge/category', { category })).toMatchObject({ status: 200 });
+    expect((await request('/api/canvas/knowledge/folder', folder)).status).toBe(200);
+    expect((await request('/api/canvas/knowledge/relation-preset', { preset })).status).toBe(200);
+    const catalog = await get('/api/canvas/knowledge');
+    expect(catalog.categories).toContainEqual(category);
+    expect(catalog.folders).toContainEqual(folder);
+    expect(catalog.relationPresets).toContainEqual(preset);
+    expect((await request(lifecyclePath, { lifecycleOverride: policy })).status).toBe(200);
+    expect((await get(`/api/canvas/node/${node.id}`)).data.lifecycleOverride).toEqual(policy);
+    expect((await request(reviewPath, review)).status).toBe(200);
+    expect((await request(reviewPath, { outcome: 'retire', evidence: 'No longer needed', applied: true })).status).toBe(
+      200,
+    );
+    const retired = await get(lifecyclePath);
+    expect(retired.retired).toBe(true);
+    expect(retired.lastValidation).toBeTruthy();
+    expect(
+      (await request(restorePath, { evidence: 'Needed again', source: 'browser', humanAuthor: true })).status,
+    ).toBe(200);
+    const restored = await get(lifecyclePath);
+    expect(restored.retired).toBe(false);
+    expect(restored.lastValidation).toEqual(retired.lastValidation);
+    expect(
+      restored.records.map((record: { who: { actor: string }; outcome: string }) => [record.outcome, record.who.actor]),
+    ).toEqual([
+      ['retain', 'agent'],
+      ['retire', 'agent'],
+      ['restore', 'agent'],
+    ]);
+    await post('/api/canvas/ax/policy', { scope: { nodeIds: [inside.id], padding: 0 } }, human);
+    for (const [path, body, method] of writes) {
+      const result = await request(path, { ...body, source: 'browser', humanAuthor: true }, method);
+      expect(result.status).toBe(403);
+      expect(result.body).toContain('scope');
+    }
+    await post('/api/canvas/ax/policy', { scope: null }, human);
+    await post('/api/canvas/human-presence', { clientId: 'hosted-lifecycle-lock', grabbingNodeId: node.id }, human);
+    for (const [path, body] of writes.slice(3, 6)) {
+      expect((await request(path, { ...body, humanAuthor: true })).status).toBe(409);
+    }
+    await post('/api/canvas/human-presence', { clientId: 'hosted-lifecycle-lock', left: true }, human);
+    expect(await get(lifecyclePath)).toEqual(restored);
+    expect((await get('/api/canvas/knowledge')).categories).toContainEqual(category);
+    expect((await request(lifecyclePath, { lifecycleOverride: null })).status).toBe(200);
+    expect((await get(`/api/canvas/node/${node.id}`)).data.lifecycleOverride).toBeNull();
+    expect((await request('/api/canvas/knowledge/folder', { ...folder, categoryId: null })).status).toBe(200);
+    expect((await request(`/api/canvas/knowledge/category/${category.id}`, {}, 'DELETE')).status).toBe(200);
+    expect((await request(`/api/canvas/knowledge/relation-preset/${preset.id}`, {}, 'DELETE')).status).toBe(200);
+    const removed = await get('/api/canvas/knowledge');
+    expect(removed.categories.some((item: { id: string }) => item.id === category.id)).toBe(false);
+    expect(removed.relationPresets.some((item: { id: string }) => item.id === preset.id)).toBe(false);
+    expect((await request(`/api/canvas/boards/${board.id}`, { humanAuthor: true }, 'DELETE')).status).toBe(403);
+  });
+}, 30_000);
+
 test('both app profiles refuse undo and redo without replaying excluded held history targets', async () => {
   await withAppProfiles(async (app) => {
     const { board } = await post('/api/canvas/boards', { name: 'History policy' });

@@ -205,6 +205,116 @@ describe('boards over HTTP', () => {
     }
   });
 
+  test.each([
+    'scope',
+    'territory',
+  ] as const)('inactive %s fences inherited category and folder changes, not unrelated workspace edits', async (kind) => {
+    const previousBoardId = (await boards()).activeBoardId;
+    const path = `Inheritance ${kind}`;
+    const category = {
+      id: `inheritance-${kind}`,
+      name: path,
+      glyph: 'I',
+      decayType: 'reality',
+      rate: 'fast',
+      triggers: [],
+      revalidationMethod: 'Check evidence',
+    };
+    const folder = { path, categoryId: category.id, lifecycleOverride: null };
+    await call('POST', '/api/canvas/knowledge/category', HUMAN, { category });
+    await call('POST', '/api/canvas/knowledge/folder', HUMAN, folder);
+    const target = (await call('POST', '/api/canvas/boards', HUMAN, { name: path, folder: `${path}/Child` })).body
+      .board as CanvasBoard;
+    const other = (await call('POST', '/api/canvas/boards', HUMAN, { name: `Other ${kind}` })).body
+      .board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+    const note = await addNote('Protected inheritance', HUMAN);
+    const fence = { nodeIds: [note.body.id], padding: 40 };
+    await call(
+      'POST',
+      '/api/canvas/ax/policy',
+      HUMAN,
+      kind === 'scope' ? { scope: fence } : { agentScopes: { writer: fence } },
+    );
+    try {
+      for (const active of [other.id, null]) {
+        await call('POST', '/api/canvas/boards/open', HUMAN, { id: active });
+        const before = (await call('GET', '/api/canvas/knowledge', AGENT)).body;
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/category', AGENT, {
+              category: { ...category, rate: 'slow' },
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(403);
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/folder', AGENT, {
+              ...folder,
+              categoryId: null,
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(403);
+        const after = (await call('GET', '/api/canvas/knowledge', AGENT)).body;
+        expect(after.categories).toEqual(before.categories);
+        expect(after.folders).toEqual(before.folders);
+        expect((await boards()).activeBoardId).toBe(active);
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/folder', AGENT, {
+              path: `${path} unrelated`,
+              categoryId: null,
+              lifecycleOverride: null,
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/category', AGENT, {
+              category: { ...category, rate: 'slow' },
+              agentId: 'different',
+            })
+          ).status,
+        ).toBe(kind === 'scope' ? 403 : 200);
+        await call('POST', '/api/canvas/knowledge/category', HUMAN, { category });
+        expect(
+          (await call('POST', '/api/canvas/knowledge/category', HUMAN, { category: { ...category, rate: 'slow' } }))
+            .status,
+        ).toBe(200);
+        await call('POST', '/api/canvas/knowledge/category', HUMAN, { category });
+        const childCategory = { ...category, id: `${category.id}-child` };
+        await call('POST', '/api/canvas/knowledge/category', HUMAN, { category: childCategory });
+        await call('POST', '/api/canvas/knowledge/folder', HUMAN, {
+          path: `${path}/Child`,
+          categoryId: childCategory.id,
+          lifecycleOverride: null,
+        });
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/folder', AGENT, {
+              ...folder,
+              categoryId: null,
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(200);
+        await call('POST', '/api/canvas/knowledge/folder', HUMAN, folder);
+        await call('POST', '/api/canvas/knowledge/folder', HUMAN, {
+          path: `${path}/Child`,
+          categoryId: null,
+          lifecycleOverride: null,
+        });
+      }
+    } finally {
+      await call('DELETE', `/api/canvas/boards/${target.id}`, HUMAN);
+      await call('DELETE', `/api/canvas/boards/${other.id}`, HUMAN);
+      await call('POST', '/api/canvas/boards/open', HUMAN, { id: previousBoardId });
+    }
+  });
+
   test('nested folder paths normalize, persist and reject ambiguous segments without changing the board', async () => {
     const created = await call('POST', '/api/canvas/boards', AGENT, {
       name: 'Decision record',

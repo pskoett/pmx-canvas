@@ -266,9 +266,15 @@ cmd(
               if (
                 stopping &&
                 error instanceof Error &&
-                'code' in error &&
-                error.code === 'ERR_INVALID_STATE' &&
-                error.message === 'Invalid state: WebView.cdp: view is closed'
+                (('code' in error &&
+                  error.code === 'ERR_INVALID_STATE' &&
+                  error.message === 'Invalid state: WebView.cdp: view is closed') ||
+                  // Chrome can detach while the final stop call is in flight,
+                  // before WebView marks the view closed. Bun gives this
+                  // rejection no code. Do not ignore it during capture.
+                  (method === 'Page.stopScreencast' &&
+                    !('code' in error) &&
+                    error.message === 'page detached (crashed or closed)'))
               )
                 return;
               captureError ??= error;

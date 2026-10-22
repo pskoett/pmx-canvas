@@ -27,11 +27,12 @@ export interface ReviewCardSummary {
   folder: string | null;
   title: string;
 }
-export interface FolderProperties {
-  path: string;
-  categoryId: string | null;
-  lifecycleOverride: Lifecycle | null;
-}
+export const folderPropertiesSchema = z.object({
+  path: z.string(),
+  categoryId: z.string().nullable(),
+  lifecycleOverride: lifecycleSchema.nullable(),
+});
+export type FolderProperties = z.infer<typeof folderPropertiesSchema>;
 export interface ReviewRecord {
   id: string;
   boardId: string;

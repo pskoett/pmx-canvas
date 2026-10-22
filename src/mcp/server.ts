@@ -554,7 +554,7 @@ export async function startMcpServer(): Promise<void> {
       // the other context resources: the open board, then each pinned board
       // delivered in full.
       const readTarget = await c.prepareContextRead();
-      const document = await c.invoker().invoke('context.get', input);
+      const document = await c.invoker().invoke('context.get', { ...input, expectedBoardId: readTarget.boardId });
       const text = JSON.stringify(document);
       await recordContextRead(c, 'mcp-resource', 'canvas://context', text, readTarget);
       try {

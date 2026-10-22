@@ -353,8 +353,9 @@ Waves 4 and 5 is in [plan 019](plans/plan-019-post-0.9-roadmap.md). The actual A
 native Windows UI and registry-installed execution remain unverified. Dense Fit labels need
 selection/local focus for detail, not a claim of large-library readability. The sketch gaps
 below remain implementation work. The [release gates](RELEASE.md) still apply before a release;
-the owner has not authorized one. Version remains 0.8.2, with no release, tag, publication,
-deployment or version bump. This is implementation status, not release approval.
+the owner authorized review, testing and release of 0.9.0 on 2026-10-22. The release
+candidate includes the acceptance fixes, but that authorization does not turn qualified
+native-host checks or deferred sketch parity into completed work.
 
 **Sketch parity, clarified 2026-10-11.** `Relations`, `Flows` and `Uses` remain the
 vision's target designs, not screenshots of the shipped workbench. The Wave-3

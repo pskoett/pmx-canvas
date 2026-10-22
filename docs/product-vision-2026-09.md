@@ -103,7 +103,8 @@ one explicitly chosen board; editing or deleting a template never silently rewri
 or their connections. On a board, the dropdown is only **All relations + kinds actually
 present**, with counts; there is no Custom vocabulary status. Folder categories and card
 lifecycle remain separate from relation kinds. The acceptance guide follows this distinction
-and retains the owner's results and notes. This is still unreleased 0.8.2, not release approval.
+and retains the owner's results and notes. At that checkpoint this was unreleased work
+based on 0.8.2; the current release authorization is recorded below.
 The shared-Home-presets delivery passed 1,446 unit, 307 client and all 289 headed
 browser cases, plus build/typecheck/lint, coverage and fresh headed CLI/stdio MCP.
 Its [exact-commit CI](https://github.com/pskoett/pmx-canvas/actions/runs/38408653667) passed all
@@ -145,8 +146,9 @@ can be fixed narrowly without pulling the whole batch forward. ChatGPT native-co
 validation and SDK v2 evaluation stay in Part 4, which now carries the team/access work;
 the optional PMX session connection stays a Part 5 decision. No release number is assigned.
 
-**Release status:** still 0.8.2. No release, tag, publication, deployment or version bump is
-authorized; implementation and green CI do not substitute for the owner's acceptance.
+**Release status, 2026-10-22:** the owner authorized review, testing and release of
+0.9.0 with the acceptance fixes. The release gates still apply; green CI does not
+certify the remaining native-host checks or deferred vision work.
 
 **After 0.9.0 (decided with the maintainer, 2026-10-19).** The sequence is: a cleanup release
 (tour debt, large-board costs, the bounded due evaluator), MCP hardening (moves 6a and 1),

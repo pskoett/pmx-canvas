@@ -67,7 +67,9 @@ for (const interruption of ['ctrl-c', 'browser-loss'] as const) {
       '--resolution',
       '640x360',
       '--fps',
-      '5',
+      // A short frame interval exercises stopScreencast while Chrome is
+      // detaching after PTY Ctrl+C, not only after it is already closed.
+      '120',
       '--output',
       video,
       '--chrome-path',

@@ -1,4 +1,5 @@
 import type { Database } from 'bun:sqlite';
+import { z } from 'zod';
 import { type ActorAttribution } from './attribution.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState } from './canvas-state.js';
@@ -12,11 +13,28 @@ export interface ReviewCardSummary {
     folder: string | null;
     title: string;
 }
-export interface FolderProperties {
-    path: string;
-    categoryId: string | null;
-    lifecycleOverride: Lifecycle | null;
-}
+export declare const folderPropertiesSchema: z.ZodObject<{
+    path: z.ZodString;
+    categoryId: z.ZodNullable<z.ZodString>;
+    lifecycleOverride: z.ZodNullable<z.ZodObject<{
+        decayType: z.ZodEnum<{
+            reality: "reality";
+            decision: "decision";
+            dependency: "dependency";
+            relevance: "relevance";
+        }>;
+        rate: z.ZodEnum<{
+            fast: "fast";
+            medium: "medium";
+            slow: "slow";
+            durable: "durable";
+        }>;
+        triggers: z.ZodArray<z.ZodString>;
+        revalidationMethod: z.ZodString;
+        cadenceDays: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+}, z.core.$strip>;
+export type FolderProperties = z.infer<typeof folderPropertiesSchema>;
 export interface ReviewRecord {
     id: string;
     boardId: string;

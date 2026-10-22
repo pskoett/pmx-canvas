@@ -481,6 +481,8 @@ export class PmxCanvas extends EventEmitter {
     style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
+    if (input.expectedBoardId !== undefined && input.expectedBoardId !== canvasState.activeBoardId)
+      throw new Error('The active board changed. Refresh before retrying this action.');
     if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
       const revision = canvasState.getContentRevision().revision;
       const edge = addCanvasEdge(input);
@@ -560,6 +562,8 @@ export class PmxCanvas extends EventEmitter {
     color?: string;
     childLayout?: 'grid' | 'column' | 'flow';
   }): string {
+    if (input.expectedBoardId !== undefined && input.expectedBoardId !== canvasState.activeBoardId)
+      throw new Error('The active board changed. Refresh before retrying this action.');
     if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
       const revision = canvasState.getContentRevision().revision;
       const { id } = createCanvasGroup(input);

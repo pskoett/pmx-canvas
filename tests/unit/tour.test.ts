@@ -241,6 +241,45 @@ describe('driving a tour', () => {
     await expect(go({ step: 'next' })).rejects.toThrow('no tour stops');
   });
 
+  test('tour replacement resets navigation and never returns a nonexistent stop', async () => {
+    const stops = [13, 72, 159].map((x) => ({ target: { viewport: { x, y: -10, scale: 0.5 } } }));
+    await executeOperation('tour.set', { tour: { stops } });
+    await executeOperation('tour.go', { stop: 2 });
+    await executeOperation('tour.set', { tour: { stops: [stops[0]] } });
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: null });
+    expect(await executeOperation('tour.go', { step: 'previous' })).toMatchObject({
+      index: 0,
+      total: 1,
+      stop: stops[0],
+    });
+    await executeOperation('tour.set', { tour: { stops } });
+    expect(await executeOperation('tour.go', { step: 'next' })).toMatchObject({ index: 0, total: 3, stop: stops[0] });
+  });
+
+  test('a board round trip and changes to derived groups reset the tour position', async () => {
+    const a = canvasState.createBoard('Tour A')!.id;
+    canvasState.switchBoard(a);
+    addGroups();
+    await executeOperation('tour.go', { stop: 1 });
+    const b = canvasState.createBoard('Tour B')!.id;
+    canvasState.switchBoard(b);
+    canvasState.switchBoard(a);
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: null });
+    expect(await executeOperation('tour.go', { step: 'next' })).toMatchObject({
+      index: 0,
+      total: 2,
+      stop: { target: { nodeId: 'early' } },
+    });
+    await executeOperation('tour.go', { stop: 1 });
+    canvasState.removeNode('late');
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: null });
+    expect(await executeOperation('tour.go', { step: 'previous' })).toMatchObject({
+      index: 0,
+      total: 1,
+      stop: { target: { nodeId: 'early' } },
+    });
+  });
+
   test('camera moves resolve a fallback viewport and never touch history or writer presence', async () => {
     addGroups();
     // No server is booted here, so attach the (single-slot) recorder ourselves:

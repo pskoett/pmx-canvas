@@ -21,30 +21,34 @@ export interface TourStepResult {
   stop: TourStop;
 }
 
-let cursor: { boardId: string | null; index: number } | null = null;
+let cursor: { boardGeneration: number; tour: string; index: number } | null = null;
 
 export function currentTour(): Tour {
   return canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes);
 }
 
 /** The stop the tour is on for the active board, or null when not touring. */
-export function tourPosition(): number | null {
-  return cursor && cursor.boardId === canvasState.activeBoardId ? cursor.index : null;
+export function tourPosition(tour: Tour = currentTour()): number | null {
+  if (cursor && (cursor.boardGeneration !== canvasState.boardGeneration || cursor.tour !== JSON.stringify(tour))) {
+    cursor = null;
+  }
+  return cursor?.index ?? null;
 }
 
 /** Move the shared cursor. `next`/`previous` clamp at the ends; an explicit index must exist. */
 export function goToTourStop(step: TourStep): TourStepResult {
-  const { stops } = currentTour();
+  const tour = currentTour();
+  const { stops } = tour;
+  const at = tourPosition(tour);
   if (stops.length === 0) {
     throw new OperationError('This board has no tour stops. Save a tour or add groups.', 400);
   }
-  const at = tourPosition();
   let index: number;
   if (step === 'next') index = at === null ? 0 : Math.min(stops.length - 1, at + 1);
-  else if (step === 'previous') index = at === null ? 0 : Math.max(0, at - 1);
+  else if (step === 'previous') index = at === null ? 0 : Math.max(0, Math.min(stops.length - 1, at - 1));
   else if (Number.isInteger(step) && step >= 0 && step < stops.length) index = step;
   else throw new OperationError(`Tour stop ${step} does not exist (stops 0–${stops.length - 1}).`, 400);
-  cursor = { boardId: canvasState.activeBoardId, index };
+  cursor = { boardGeneration: canvasState.boardGeneration, tour: JSON.stringify(tour), index };
   return { index, total: stops.length, stop: stops[index] as TourStop };
 }
 
