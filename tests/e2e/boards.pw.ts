@@ -2521,7 +2521,8 @@ test('Graph drills Library, Board and one-hop Card scenes without opening or pin
   const card = (name: string) => page.getByRole('button', { name: `card: ${name}`, exact: true });
   const world = page.locator('.home-memory-world');
   const details = page.getByRole('complementary', { name: 'Selection details' });
-  await expect(hub('Pricing')).toBeInViewport();
+  // Entry stays at 100%; generated IDs can place Pricing outside the initial viewport.
+  await expect(hub('Pricing')).toHaveCount(1);
   await expect(page.locator('.graph-accounting')).toHaveText(
     '48 links · 38 between boards · 10 inside boards · 0 missing',
   );
@@ -2552,6 +2553,7 @@ test('Graph drills Library, Board and one-hop Card scenes without opening or pin
   });
   await page.getByPlaceholder('Search this graph…').fill('Pricing');
   await page.getByRole('button', { name: 'Pricing', exact: true }).click();
+  await expect(hub('Pricing')).toBeInViewport({ ratio: 1 });
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
   const overviewCamera = await world.getAttribute('style');
   const pricingBox = (await hub('Pricing').boundingBox())!;
