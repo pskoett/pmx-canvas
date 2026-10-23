@@ -31,7 +31,11 @@ test.afterEach(async ({ page }, info) => {
   if (info.status !== info.expectedStatus) {
     await info.attach('hosted-workbench-failure', { body: await page.screenshot(), contentType: 'image/png' });
   }
-  // Drain MCP-backed routes and unload the polling iframe before context/trace teardown.
+  // Quiesce the host first: Playwright can unroute other active handlers when the first one finishes.
+  await page.evaluate(() => {
+    if (window.pmxTestHost) window.pmxTestHost.failReads = true;
+  });
+  await expect.poll(() => page.evaluate(() => window.pmxTestHost?.pendingTools ?? 0)).toBe(0);
   await page.unrouteAll({ behavior: 'wait' });
   await page.goto('about:blank');
 });
