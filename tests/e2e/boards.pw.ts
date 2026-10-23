@@ -2933,6 +2933,12 @@ test('Graph keeps a dense 12-board, 96-card, 111-link library as boards until ex
   await expect(page.locator('.graph-link.is-exact')).toHaveCount(7);
   await expect(page.locator('.graph-node.is-board.is-external')).toHaveCount(11);
   await expect(page.getByRole('button', { name: 'board: Dense board 01', exact: true })).toHaveCount(0);
+  // Board entry restores readable scale; reveal a peripheral card before drilling into it.
+  await page.getByPlaceholder('Search this graph…').fill('Dense board 01 card 1');
+  await page.getByRole('button', { name: 'Dense board 01 card 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'card: Dense board 01 card 1', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
   await page.getByRole('button', { name: 'card: Dense board 01 card 1', exact: true }).click();
   await expect(page.locator('.graph-node.is-board')).toHaveCount(0);
   await expect(page.locator('.graph-node.is-card')).toHaveCount(13);
