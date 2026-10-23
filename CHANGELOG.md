@@ -5,6 +5,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Board creation rejects the removed `--category` flag with a hint to use `--folder`, instead of silently creating an unfiled board.
+- Buffered canvas updates no longer close an open Markdown draft when an older empty layout is superseded in the same poll.
+- Accepted retirements keep Undo when the review dock closes while its follow-up refresh is still loading.
+- Embedded apps no longer override a card's manually resized dimensions with late content measurements.
+
 ## [0.9.0] - 2026-10-22
 
 ### Highlights

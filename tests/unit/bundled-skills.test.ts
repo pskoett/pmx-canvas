@@ -1,8 +1,53 @@
 import { describe, expect, test } from 'bun:test';
+import { z } from 'zod';
 import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
 import { CANVAS_THEMES } from '../../src/shared/themes.ts';
 
 describe('bundled skills', () => {
+  test('behavioral eval catalog has valid definitions, unique identities and shipped fixtures', async () => {
+    const nonempty = z.string().trim().min(1);
+    const definition = z.strictObject({
+      id: z.number().int().positive(),
+      name: nonempty,
+      prompt: nonempty,
+      expected_output: nonempty,
+      files: z.array(nonempty).optional(),
+      assertions: z
+        .array(z.strictObject({ name: nonempty, description: nonempty, type: z.literal('output_check') }))
+        .min(1),
+    });
+    const catalog = z
+      .strictObject({ skill_name: z.literal('pmx-canvas'), evals: z.array(definition).min(1) })
+      .parse(await Bun.file(new URL('../../skills/pmx-canvas/evals/evals.json', import.meta.url)).json());
+
+    expect(new Set(catalog.evals.map((entry) => entry.id)).size).toBe(catalog.evals.length);
+    expect(new Set(catalog.evals.map((entry) => entry.name)).size).toBe(catalog.evals.length);
+    for (const entry of catalog.evals) {
+      expect(new Set(entry.assertions.map((assertion) => assertion.name)).size).toBe(entry.assertions.length);
+      for (const file of entry.files ?? []) {
+        expect(file.startsWith('evals/fixtures/')).toBe(true);
+        expect(file.split('/')).not.toContain('..');
+        expect(await Bun.file(new URL(`../../skills/pmx-canvas/${file}`, import.meta.url)).exists()).toBe(true);
+      }
+    }
+
+    const connectedMemoryEvals = [
+      'folder-cli-without-removed-category',
+      'whole-library-map-versus-full-content-delivery',
+      'durable-background-create-replay',
+      'background-create-conflicts-and-stale-active-guard',
+      'board-qualified-native-relations',
+      'wiki-bindings-survive-renames-without-guessing',
+      'review-evidence-bound-to-checked-content-and-sources',
+      'retirement-excludes-context-until-audited-restore',
+    ];
+    for (const name of connectedMemoryEvals) {
+      const entry = catalog.evals.find((candidate) => candidate.name === name);
+      expect(entry, name).toBeDefined();
+      expect(entry!.assertions.length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
   test('browser workflow theme names match the shipped registry', () => {
     const skill = readBundledSkill('pmx-canvas')!;
     const themeList = skill.match(/nine themes: ([^)]+)\)/)?.[1];

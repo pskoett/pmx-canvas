@@ -28,6 +28,7 @@ import {
   viewport,
 } from '../../src/client/state/canvas-store.ts';
 import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
+import { stopHumanPresence } from '../../src/client/state/human-store.ts';
 import { resetAttentionBridge } from '../../src/client/state/attention-bridge.ts';
 import { attentionHistory } from '../../src/client/state/attention-store.ts';
 import { applySessionReceipt, dismissSessionReceipt, sessionReceipt } from '../../src/client/state/session-store.ts';
@@ -110,6 +111,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stopHumanPresence();
   globalThis.fetch = originalFetch;
   dismissSessionReceipt();
 });

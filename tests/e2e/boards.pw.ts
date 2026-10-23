@@ -1989,7 +1989,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   await page.keyboard.press('m');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.evaluate(() => navigator.clipboard.writeText('https://example.com/not-a-hidden-board-card'));
-  await page.keyboard.press('Control+v');
+  await page.keyboard.press('ControlOrMeta+v');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Keyboard shortcuts', exact: true }).click();
   await expect(page.locator('.shortcut-overlay')).toBeVisible();
@@ -2016,7 +2016,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   await expect(page.getByRole('button', { name: /^Board: Live library/ })).toBeVisible();
   // The same native clipboard gesture still creates a visible card once the board is open.
   await page.locator('.canvas-viewport').click({ position: { x: 10, y: 10 } });
-  await page.keyboard.press('Control+v');
+  await page.keyboard.press('ControlOrMeta+v');
   await expect(page.locator('.canvas-node[data-node-type="webpage"]')).toBeInViewport();
   expect((await (await request.get('/api/canvas/state')).json()).nodes).toHaveLength(3);
 });

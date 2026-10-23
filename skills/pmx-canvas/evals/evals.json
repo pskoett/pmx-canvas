@@ -834,6 +834,230 @@
           "type": "output_check"
         }
       ]
+    },
+    {
+      "id": 36,
+      "name": "folder-cli-without-removed-category",
+      "prompt": "In a verified disposable workspace, use the CLI to create Release notes under Engineering/Canvas, move it to Engineering/Release, then unfile it without opening it. An old script uses board create --category Engineering/Canvas. Check that obsolete command as a negative control; do not silently accept it or create a knowledge category instead. Leave the active board and its cards alone.",
+      "expected_output": "Executes board create \"Release notes\" --folder Engineering/Canvas, captures the returned board ID, uses board folder <id> Engineering/Release and board folder <id> --clear. Reads the library after each step to verify folder and stable identity/content. In the disposable target, --category exits nonzero with the removal diagnostic and creates no board. No board open or category-set substitute occurs; activeBoardId and the original board layout remain unchanged.",
+      "assertions": [
+        {
+          "name": "uses-current-folder-commands",
+          "description": "CLI trace uses --folder on create, the returned ID with positional board folder, and --clear to unfile; successful command results are required, not merely suggested commands",
+          "type": "output_check"
+        },
+        {
+          "name": "verifies-folder-and-identity",
+          "description": "Library reads show Engineering/Canvas, then Engineering/Release, then an empty folder on the same board ID without losing its content",
+          "type": "output_check"
+        },
+        {
+          "name": "rejects-obsolete-category-control",
+          "description": "The isolated --category control exits nonzero with 'The --category flag was removed.' and leaves the library count unchanged; no category-set is used to simulate filing",
+          "type": "output_check"
+        },
+        {
+          "name": "does-not-navigate-to-file",
+          "description": "Before/after reads show unchanged activeBoardId and active layout; the trace contains no board open to perform filing",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "name": "whole-library-map-versus-full-content-delivery",
+      "prompt": "On a disposable library, board A is active and inactive board B has pinned Markdown cards Target and Unread control. Target's decisive sentence is beyond character 280. Show the whole-board connection map, then use the actual Target text to answer its question without opening B. Use one stable consumer. After a human edits Target, refresh just that card. Do map summaries prove you read both cards in full?",
+      "expected_output": "Reads a whole-library graph with projection boards and omitted focus for orientation, then resolves B/Target and explicitly gets its full content with canvas_node {action:get, id, board:B, full:true}. Uses the sentence beyond the summary in its answer. Captures read status before and after graph/full deliveries, checks Target's delivered content revision, then fully rereads Target after the edit. Does not mark Unread control fully read from a graph/compact summary or confuse complete link delivery with full-content delivery. Active A remains unchanged.",
+      "assertions": [
+        {
+          "name": "requests-board-map-not-content-dump",
+          "description": "Trace requests canvas_query graph with projection boards and no focus (or equivalent memory-graph API), and observes board-qualified summaryOnly results rather than using a full layout as the map",
+          "type": "output_check"
+        },
+        {
+          "name": "fetches-and-uses-full-qualified-target",
+          "description": "Trace gets the resolved B/Target with full:true (or equivalent tracked full-node API); the answer uses its seeded sentence beyond 280 characters and read-status evidence records that delivered revision",
+          "type": "output_check"
+        },
+        {
+          "name": "refreshes-only-observed-stale-content",
+          "description": "After the human edit, a new full Target delivery advances its recorded read revision; status deltas show the unread control received no full-content read from map/compact discovery alone",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-active-board-and-read-boundaries",
+          "description": "Before/after activeBoardId and A layout match, no open/write occurs, and full-read claims are backed by deliveries rather than summaryOnly or link-seen state",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "name": "durable-background-create-replay",
+      "prompt": "In an isolated workspace, keep A active while populating inactive B with two static Markdown cards, a group containing them, and a references edge. Use durable request IDs per creation and batch named references. Simulate a lost response after a committed prefix, retry, and restart the disposable daemon before retrying again. With the harness, edit one created card and delete the other on B, return to A, then replay the original requests. Do not recreate deleted work or undo later edits.",
+      "expected_output": "Uses destinationBoardId:B and stable per-operation requestId inside each batch operation's args, resolving group/edge named references. Replays identical inputs after partial completion and restart and compares original receipts/IDs. Later edit/deletion controls are harness-owned, not unsupported background CRUD. Replay returns original receipts without duplicating, overwriting or resurrecting objects. Qualified reads show B's intended surviving state and unchanged A activeBoardId/layout/viewport throughout agent background writes.",
+      "assertions": [
+        {
+          "name": "targets-each-static-creation",
+          "description": "Batch trace puts destinationBoardId and distinct logical requestId in node/group/edge args, uses valid named references, and verifies group membership and qualified edge endpoints on B",
+          "type": "output_check"
+        },
+        {
+          "name": "replays-prefix-and-restart-durably",
+          "description": "Evidence includes a committed prefix with lost response, identical retry after it and after a real isolated daemon restart, stable returned IDs/receipts and no duplicate nodes/groups/edges",
+          "type": "output_check"
+        },
+        {
+          "name": "replay-is-not-reapplication",
+          "description": "After harness edit/deletion and original-input replay, qualified reads retain the later edit and deleted-card absence even though original creation receipts are returned",
+          "type": "output_check"
+        },
+        {
+          "name": "keeps-background-work-off-active-board",
+          "description": "Before/after reads around agent creation/replays show A stays active with identical layout/viewport; no agent board open, active update/remove, runtime creation or background intent is used",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "name": "background-create-conflicts-and-stale-active-guard",
+      "prompt": "In a disposable workspace with A active and B inactive, create a static note on B with requestId logical-note and expectedBoardId A. Test reusing logical-note with changed content and with destination A. Then have the harness switch the active board to C and send a new creation for B using stale expectedBoardId A. Do not force it through. Finally create a genuinely separate identical note with a fresh request ID after checking C. Also test a background file-node creation as an unsupported control.",
+      "expected_output": "Observes conflicts on changed-input and changed-destination reuse without mutating either destination. Stale expectedBoardId guards the actual active board, not B: the new request is refused after the switch to C. Rereads active identity before using expectedBoardId C with a fresh logical ID for the intentional duplicate. Unsupported background file creation fails without side effects. No clearing guards, board switching or blind retries to defeat rejection; C stays active.",
+      "assertions": [
+        {
+          "name": "changed-request-conflicts-without-writes",
+          "description": "Actual changed-content and changed-destination requests using logical-note fail with conflicts, and destination reads prove original content/counts are unchanged",
+          "type": "output_check"
+        },
+        {
+          "name": "stale-guard-requires-reread",
+          "description": "After the harness switch, expectedBoardId A is refused with no creation on B; trace rereads C before any fresh write and does not remove the guard or substitute B as the active identity",
+          "type": "output_check"
+        },
+        {
+          "name": "new-operation-gets-new-identity",
+          "description": "The intentional identical creation uses a new requestId and expectedBoardId C, returns a distinct node ID on B and leaves C active with unchanged layout",
+          "type": "output_check"
+        },
+        {
+          "name": "unsupported-background-control-has-no-effect",
+          "description": "A file-node creation with destinationBoardId B fails as unsupported and qualified reads show no new file or active-board side effect; no active-board fallback is attempted",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "name": "board-qualified-native-relations",
+      "prompt": "In a disposable library A is active, and A and B both contain a card with ID shared. The harness has given A/shared, A/Navigation and B/shared explicit durable lifecycle policies and validated their current content. From A/shared add a depends-on edge to B/shared with reason 'Capacity requires measured throughput'. Add an ordinary references edge from A/Navigation to the same remote source. Read the qualified graph, change B/shared with the harness, and check which dependents become review-due. Keep A active and do not replace the edge with a board portal.",
+      "expected_output": "Resolves the two board identities and uses canvas_edge add with from:shared, to:shared, toBoardId:B, type:depends-on for dependent to prerequisite, preserving reason. Uses a references edge for Navigation. Reads graph and lifecycle qualifications with explicit board identities: the dependency is remote, not a self-loop on A. With explicit durable lifecycle policies in the fixture, the source change makes the dependent due but not the ordinary-reference control. Reads do not open B or mutate its source.",
+      "assertions": [
+        {
+          "name": "writes-qualified-remote-edge",
+          "description": "Actual edge add uses A/shared as source and toBoardId B with target shared; graph endpoints are distinct qualified keys, not bare-ID self-loops or board portal nodes",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-direction-and-reason",
+          "description": "Readback shows depends-on from dependent A/shared to prerequisite B/shared with the exact supplied reason, independently of display style or label",
+          "type": "output_check"
+        },
+        {
+          "name": "distinguishes-navigation-from-validation-dependency",
+          "description": "Before/after lifecycle reads under explicit durable policies show B's semantic change makes A/shared due while the references-only Navigation control stays not due",
+          "type": "output_check"
+        },
+        {
+          "name": "reads-remote-source-without-navigation",
+          "description": "Tool trace and before/after board reads keep A active; agent does not open B, edit its source or create a portal as a substitute for the remote card relation",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "wiki-bindings-survive-renames-without-guessing",
+      "prompt": "In a disposable library, save a source Markdown card on A containing [[Research#Result|evidence]], plus code-span and fenced-code copies of that link. Research uniquely names B and Result uniquely names B's target card. Record the binding, then let the harness rename B and Result and create new objects using the old names. Separately save [[Ambiguous]] when two boards share that name, and [[Future]] before that board exists. After the harness creates Future, read the source without saving, then explicitly save it. Do not open other boards or hand-author wikiLinks metadata.",
+      "expected_output": "Saves through the native Markdown path and inspects server-produced qualified wiki bindings/backlinks. The bound aliased link continues to target B's original card after renames despite old-name replacements; code samples add no relations. Ambiguous links stay unresolved instead of choosing a board. The saved missing Future link remains unresolved on read after creation and resolves only on explicit source save. Does not fabricate binding IDs or switch active boards to resolve references.",
+      "assertions": [
+        {
+          "name": "uses-server-bindings-and-ignores-code",
+          "description": "Save/read trace shows one real qualified Research/Result wiki relation with alias evidence, server-owned data.wikiLinks, and no extra relations for code-span/fenced examples",
+          "type": "output_check"
+        },
+        {
+          "name": "identity-wins-over-renamed-labels",
+          "description": "After harness renames and old-name replacements, graph/backlink or binding readback still identifies the original B/card IDs rather than silently retargeting to replacement names",
+          "type": "output_check"
+        },
+        {
+          "name": "does-not-guess-ambiguous-board",
+          "description": "The saved Ambiguous reference remains explicitly unresolved with no target selected; trace does not rewrite the source to an arbitrary candidate",
+          "type": "output_check"
+        },
+        {
+          "name": "resolution-requires-explicit-save",
+          "description": "Future remains unresolved after a read with the board now present, then resolves on explicit source save; A stays active and no invented wikiLinks metadata is submitted",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "review-evidence-bound-to-checked-content-and-sources",
+      "prompt": "On disposable board A, review Conclusion against its explicit dependency on B/Source. Read the actual content and capture lifecycle observations. Before submission let the harness change Conclusion, then in a separate trial change Source. Submit the captured stale reviews as controls. Do not just copy fresh tokens onto the old note. Recheck the evidence for a successful retain review, and also test an unavailable source, applied:false and blank evidence. In a separate harness-seeded cached-provenance control, compare observedRevision and availability to the current live source rather than treating retrieval time as freshness. Does fetching or regenerating a card alone validate it?",
+      "expected_output": "Reads full qualified content and lifecycle-get, captures the checked content revision and qualification.observations, then supplies them as expectedContentRevision/expectedSources on canvas_node review with outcome retain, applied true and substantive evidence. Both stale trials conflict and leave validation unchanged. A successful review follows real rereads/recomparison, not token replacement, and its stored record identifies checked content/source revisions. Unavailable sources refuse validation; unapplied or empty-evidence outcomes do not renew it. Retrieval, editing and recipe refresh alone never validate.",
+      "assertions": [
+        {
+          "name": "checks-content-and-observed-sources-before-review",
+          "description": "Trace delivers full Conclusion and qualified B/Source content and lifecycle observations before sending retain/applied:true with nonempty evidence, expectedContentRevision and expectedSources from the checked versions",
+          "type": "output_check"
+        },
+        {
+          "name": "stale-evidence-cannot-renew-validation",
+          "description": "Separate harness content-change and source-change trials reject captured stale reviews with conflicts and preserve lastValidation; no unchecked new revision tokens are pasted onto the old evidence",
+          "type": "output_check"
+        },
+        {
+          "name": "successful-record-binds-rechecked-versions",
+          "description": "After actual full rereads and evidence comparison, successful review readback records the checked contentRevision and sourceRevisions; fetching/editing/refreshing alone leaves lastValidation unchanged",
+          "type": "output_check"
+        },
+        {
+          "name": "nonvalidating-controls-do-not-renew",
+          "description": "Unavailable-source review is refused, and applied:false and blank-evidence controls do not advance lastValidation; observed cached-source revision/availability is not misrepresented as a fresh live check",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "retirement-excludes-context-until-audited-restore",
+      "prompt": "On disposable A, pin Obsolete and Keep. Give Obsolete an explicit durable lifecycle policy and validate its current content with evidence, then retire it. Check the brief, pinned context, search and direct read. Read and edit Obsolete and apply a retain review: should any of these unretire it? Finally make an unvalidated content edit, explicitly restore it with reason 'Needed for follow-up', and check its eligibility and review status. B has the same card ID as Obsolete; do not change B.",
+      "expected_output": "Uses canvas_node review outcome retire/applied true and expectedBoardId A. Retired Obsolete is absent from briefs and pinned-context delivery while search/direct reads retain it marked retired; Keep stays delivered. Read/edit/retain do not reverse retirement. Explicit lifecycle-restore with evidence reverses retirement, makes the still-pinned card eligible again, but leaves lastValidation bound to the older checked revision so the final edited content remains review-due. Board-qualified checks confirm B's same-ID card and lifecycle history are unchanged.",
+      "assertions": [
+        {
+          "name": "retirement-excludes-delivery-not-storage",
+          "description": "After retire/applied:true, brief and pinned-context results omit A/Obsolete while Keep remains; qualified direct read/search still find Obsolete marked retired rather than deleted",
+          "type": "output_check"
+        },
+        {
+          "name": "ordinary-actions-cannot-unretire",
+          "description": "Actual read, content edit and applied retain review leave the retirement flag set and Obsolete excluded from context delivery",
+          "type": "output_check"
+        },
+        {
+          "name": "restore-is-audited-not-validation",
+          "description": "After a final unvalidated semantic edit, lifecycle-restore records 'Needed for follow-up', clears retired and restores context eligibility without advancing lastValidation; the current revision remains due",
+          "type": "output_check"
+        },
+        {
+          "name": "lifecycle-identity-is-board-qualified",
+          "description": "Writes use expectedBoardId A; before/after reads of B's same-ID card show unchanged content, retirement and review records, with A still active",
+          "type": "output_check"
+        }
+      ]
     }
   ]
 }

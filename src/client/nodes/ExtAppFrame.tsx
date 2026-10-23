@@ -1016,6 +1016,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
 
       // Register handlers BEFORE connect
       bridge.onsizechange = async ({ height }) => {
+        const currentNode = nodes.value.get(nodeId);
+        // Late app measurements must not undo an explicit manual card size.
+        if (!currentNode || currentNode.data.userResized === true) return {};
         if (shouldApplyExtAppSizeChange(height, expandedNodeId.value === nodeId)) {
           const hostDimensions = resolveExtAppContainerDimensions(iframe.parentElement ?? iframe, {
             width: node.size.width,
@@ -1023,7 +1026,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           });
           const inlineFrameHeight = resolveExtAppInlineFrameHeight(height, hostDimensions.height);
           iframe.style.height = `${inlineFrameHeight}px`;
-          const currentSize = nodes.value.get(nodeId)?.size ?? node.size;
+          const currentSize = currentNode.size;
           const nodeHeight = Math.max(currentSize.height, inlineFrameHeight + AUTO_FIT_TITLEBAR_HEIGHT);
           if (Math.abs(nodeHeight - currentSize.height) > 8) {
             resizeNode(nodeId, { width: currentSize.width, height: nodeHeight });
@@ -1031,8 +1034,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
               window.clearTimeout(sizePersistTimerRef.current);
             }
             sizePersistTimerRef.current = window.setTimeout(() => {
-              persistLayout({ recordHistory: false });
               sizePersistTimerRef.current = null;
+              const latest = nodes.value.get(nodeId);
+              if (latest && latest.data.userResized !== true) persistLayout({ recordHistory: false });
             }, 0);
           }
         }

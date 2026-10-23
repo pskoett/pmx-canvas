@@ -58,7 +58,7 @@ import {
   tabAgentKey,
 } from './intent-bridge';
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
-import { applyHumanSnapshot, humanClientId, startHumanPresence } from './human-store';
+import { applyHumanSnapshot, humanClientId, startHumanPresence, stopHumanPresence } from './human-store';
 import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
 import { activityLens, applySessionReceipt, dismissSessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
@@ -502,7 +502,6 @@ function handleAgentSessionEnded(data: Record<string, unknown>): void {
   applySessionReceipt(data);
 }
 
-let stopHumanPresence: (() => void) | null = null;
 let boardResyncGeneration = 0;
 let layoutRevision = 0;
 let pendingBoardLayout: Record<string, unknown> | null = null;
@@ -586,8 +585,8 @@ function handleConnected(data: Record<string, unknown>): void {
   // Human collaborators (phase 8): announce this tab and read who else is here.
   // An `?agent=<key>` tab is an AGENT's view — it must not heartbeat a human
   // guest cursor (its writes already book as the agent).
-  stopHumanPresence?.();
-  if (!tabAgentKey && !isHostedWorkbench()) stopHumanPresence = startHumanPresence();
+  stopHumanPresence();
+  if (!tabAgentKey && !isHostedWorkbench()) startHumanPresence();
   void requestJson<Partial<HumanPresenceSnapshot> | null>(
     'fetchHumanPresence',
     '/api/canvas/human-presence',
@@ -1378,7 +1377,32 @@ function startPollingTransport(): () => void {
       // normalization still arrive even though the event cursor advances past the old batch.
       const acceptPins = pinsAtRequest === contextPinsRevision && contextPinsPendingWrites === 0;
       let skippedPins = false;
+      // Full layouts in a buffered poll can predate an HTTP refresh. Replaying
+      // an obsolete empty layout would detach a live editor before its card
+      // reappears. Keep the last snapshot across bookkeeping frames only:
+      // commands (focus, tours, deltas, etc.) still need their preceding layout.
+      const supersededLayouts = new Set<(typeof body.events)[number]>();
+      if (!body.snapshot && hasInitialServerLayout.value) {
+        let previousLayout: (typeof body.events)[number] | undefined;
+        for (const entry of body.events) {
+          const data = entry.payload as Record<string, unknown>;
+          const sameActivation =
+            data.catalogEpoch === catalogEpoch &&
+            data.boardGeneration === boardGeneration &&
+            (entry.event === 'boards-changed' ? data.activeBoardId : data.boardId) === activeBoardId.value;
+          if (entry.event === 'canvas-layout-update' && sameActivation) {
+            if (previousLayout) supersededLayouts.add(previousLayout);
+            previousLayout = entry;
+          } else if (
+            !(entry.event === 'boards-changed' && sameActivation) &&
+            !['agent-presence', 'human-presence', 'ax-intent', 'ax-intent-clear'].includes(entry.event)
+          ) {
+            previousLayout = undefined;
+          }
+        }
+      }
       for (const entry of body.events) {
+        if (supersededLayouts.has(entry)) continue;
         if (entry.event === 'context-pins-changed' && !acceptPins) {
           skippedPins = true;
           continue;
@@ -1411,6 +1435,7 @@ function startPollingTransport(): () => void {
   void pollOnce();
 
   return () => {
+    stopHumanPresence();
     pollGeneration += 1;
     pollingMode = false;
     pollSeq = null;
@@ -1511,6 +1536,7 @@ export function connectSSE(): () => void {
   };
 
   return () => {
+    stopHumanPresence();
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

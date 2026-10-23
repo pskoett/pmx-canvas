@@ -3229,6 +3229,40 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
       return resized.size.width > initialNode.size.width && resized.size.height > initialNode.size.height;
     })
     .toBe(true);
+
+  const manualSize = (await currentCanvasState(request)).nodes.find((node) => node.id === initialNode.id)?.size;
+  if (!manualSize) throw new Error('Manually resized app missing from canvas state.');
+  // An app can report its natural height after the user has sized its card.
+  // Use the real protocol, then a ping barrier and paint ticks so the host has
+  // processed the notification and any deferred geometry write before checking.
+  await appNode
+    .locator('iframe')
+    .contentFrame()
+    .locator('body')
+    .evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        const id = 'manual-resize-barrier';
+        const onMessage = (event: MessageEvent) => {
+          if (event.source !== window.parent || event.data?.id !== id) return;
+          window.removeEventListener('message', onMessage);
+          resolve();
+        };
+        window.addEventListener('message', onMessage);
+        window.parent.postMessage(
+          { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { height: 900 } },
+          '*',
+        );
+        window.parent.postMessage({ jsonrpc: '2.0', method: 'ping', id }, '*');
+      });
+    });
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  await expect(appNode).toHaveCSS('width', `${manualSize.width}px`);
+  await expect(appNode).toHaveCSS('height', `${manualSize.height}px`);
+  expect((await currentCanvasState(request)).nodes.find((node) => node.id === initialNode.id)?.size).toEqual(
+    manualSize,
+  );
 });
 
 test('MCP App fullscreen dimensions settle after layout and edits persist (#62)', async ({ page, request }) => {
@@ -4929,14 +4963,34 @@ test('polling transport boots the board and receives live updates (proxy-safe fa
   // Bootstrap: the snapshot's canvas-layout-update renders the existing node.
   await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Boot Node' })).toBeVisible();
 
-  // Live path: a node added AFTER boot arrives through incremental polls.
-  await request.post('/api/canvas/node', {
-    data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
+  // Hold the next poll before reading it so create, focus and the final layout
+  // share one batch. Coalescing must not discard the layout needed by focus.
+  let captured = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
   });
-  // Generous ceiling: the poll cycle is 2s, but under full-suite CPU load the
-  // rounds stretch — the contract is "arrives via incremental polls", not
-  // "arrives in N seconds". A genuinely broken transport still fails here.
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 25000 });
+  await page.route('**/api/workbench/poll?*', async (route) => {
+    captured = true;
+    await held;
+    await route.fulfill({ response: await route.fetch() });
+  });
+  try {
+    await expect.poll(() => captured).toBe(true);
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
+      })
+    ).json();
+    expect((await request.post('/api/canvas/focus', { data: { id, noPan: true } })).ok()).toBe(true);
+    release();
+    const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    await expect(card).toBeVisible();
+    await expect(card).toHaveClass(/\bactive\b/);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });
 
 for (const stalled of ['headers', 'body'] as const) {
@@ -5149,7 +5203,11 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
   await page.goto('/workbench');
   for (const width of [1280, 1024, 600, 390, 1920]) {
     await page.setViewportSize({ width, height: 900 });
-    const more = page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true });
+    const more = page.getByRole('button', {
+      name: 'More: export, present, zoom, fit',
+      exact: true,
+      includeHidden: true,
+    });
     const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
     await expect
       .poll(() =>
@@ -5163,16 +5221,19 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
         ),
       )
       .toBe(true);
-    if (await more.isVisible()) {
-      await more.click();
-      await expect(page.getByRole('menuitem', { name: /Export/ })).toBeVisible();
+    // Resolve the visible action during click's actionability checks, not in
+    // an earlier visibility sample that can precede the resize observer.
+    await more.or(fit).filter({ visible: true }).click();
+    const menuExport = page.getByRole('menuitem', { name: /Export/ });
+    const exported = page.getByRole('button', { name: 'Export', exact: true });
+    await expect(menuExport.or(exported).filter({ visible: true })).toBeVisible();
+    if (await menuExport.isVisible()) {
+      await expect(menuExport).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(more).toHaveAttribute('aria-expanded', 'false');
     } else {
-      const exported = page.getByRole('button', { name: 'Export', exact: true });
       const bounds = (await exported.boundingBox())!;
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-      await fit.click();
     }
   }
   await page.setViewportSize({ width: 600, height: 900 });
@@ -7663,21 +7724,41 @@ test.describe('workspace beta settings', () => {
         await released;
         await route.fulfill({ response });
       });
+      let releaseRefresh!: () => void;
+      const refreshGate = new Promise<void>((resolve) => {
+        releaseRefresh = resolve;
+      });
+      let refreshHeld = false;
+      if (outcome === 'retire') {
+        await page.route('**/api/canvas/knowledge', async (route) => {
+          const response = await route.fetch();
+          refreshHeld = true;
+          await refreshGate;
+          await route.fulfill({ response });
+        });
+      }
       try {
         await review.getByRole('button', { name: 'Record review', exact: true }).click();
         await saved;
         await setWorkspaceFeatures(request, { knowledgeLifecycle: false });
         await expect(review).toBeHidden();
         if (outcome === 'retain') await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+        const acknowledged = page.waitForResponse(
+          (response) => response.url().endsWith(`/api/canvas/node/${id}/review`) && response.ok(),
+        );
         release();
-        await page.unrouteAll({ behavior: 'wait' });
+        await acknowledged;
         if (outcome === 'retire') await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
         if (outcome === 'retain') {
           await expect(review.getByLabel('What did you check?')).toHaveValue('');
           await expect(review.getByRole('button', { name: 'Checked, still correct', exact: true })).toBeDisabled();
           await expect(review).not.toContainText('Last checked: Unknown');
         } else {
+          await expect.poll(() => refreshHeld).toBe(true);
+          // Closing the dock while post-save reads are in flight must not lose the accepted write's Undo.
           await review.getByRole('button', { name: 'Close review', exact: true }).click();
+          releaseRefresh();
+          await page.unrouteAll({ behavior: 'wait' });
           await expect(page.getByRole('button', { name: 'Undo retirement', exact: true })).toBeVisible();
         }
         const detail = await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json();
@@ -7692,6 +7773,8 @@ test.describe('workspace beta settings', () => {
         }
       } finally {
         release();
+        releaseRefresh();
+        await page.unrouteAll({ behavior: 'wait' });
       }
     });
   }

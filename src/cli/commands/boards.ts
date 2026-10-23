@@ -102,6 +102,7 @@ cmd(
   async (args) => {
     const { positional, flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('board create');
+    if ('category' in flags) die('The --category flag was removed.', 'Use --folder <folder> instead.');
     const name = positional.join(' ').trim();
     if (!name) die('Usage: pmx-canvas board create <name> [--folder <folder>]');
     const folder = getStringFlag(flags, 'folder');

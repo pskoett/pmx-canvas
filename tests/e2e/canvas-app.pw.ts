@@ -27,6 +27,14 @@ test.beforeAll(async ({ baseURL }) => {
   if (!('text' in resource)) throw new Error('Missing app HTML');
   appHtml = resource.text;
 });
+test.afterEach(async ({ page }, info) => {
+  if (info.status !== info.expectedStatus) {
+    await info.attach('hosted-workbench-failure', { body: await page.screenshot(), contentType: 'image/png' });
+  }
+  // Drain MCP-backed routes and unload the polling iframe before context/trace teardown.
+  await page.unrouteAll({ behavior: 'wait' });
+  await page.goto('about:blank');
+});
 test.afterAll(async () => {
   await client?.close();
   await transport?.close();
@@ -213,6 +221,73 @@ test('real source editor keeps a refused draft when another writer changes the n
   await capture(page, 'workbench-app-conflict.png');
 });
 
+test('a hosted poll replays current layout without closing an open draft on superseded empty layouts', async ({
+  page,
+  request,
+}) => {
+  const { seq } = await (await request.get('/api/workbench/poll')).json();
+  await board(request, 'Buffered layouts');
+  const id = await note(request, 'Draft survives replay');
+  const app = await mount(page);
+  await app.locator(`.canvas-node[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+  await app.getByRole('button', { name: '</> Source', exact: true }).click();
+  const editor = app.locator('.md-editor-expanded textarea');
+  await editor.fill('Unsaved draft across buffered layouts');
+  let captured = false;
+  let replayed = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/test-tool', async (route) => {
+    const input = route.request().postDataJSON() as { name: string; arguments?: Record<string, unknown> };
+    const replay = !replayed && String(input.arguments?.path).startsWith('/api/workbench/poll?');
+    const result = await client.callTool(
+      replay ? { ...input, arguments: { ...input.arguments, path: `/api/workbench/poll?since=${seq}` } } : input,
+    );
+    if (replay) {
+      const response = result._meta?.response as { body: string };
+      const body = JSON.parse(response.body) as {
+        snapshot: boolean;
+        events: Array<{ event: string; payload: { layout?: { nodes: Array<{ id: string }> } } }>;
+      };
+      expect(body.snapshot).toBe(false);
+      const layouts = body.events.filter((entry) => entry.event === 'canvas-layout-update');
+      expect(layouts.some((entry) => entry.payload.layout?.nodes.length === 0)).toBe(true);
+      expect(layouts.at(-1)?.payload.layout?.nodes.some((node) => node.id === id)).toBe(true);
+      captured = true;
+      await held;
+    }
+    await route.fulfill({ json: result });
+    if (replay) replayed = true;
+  });
+  try {
+    await expect.poll(() => captured).toBe(true);
+    await app.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect
+      .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).data.content)
+      .toBe('Unsaved draft across buffered layouts');
+    await editor.fill('Second save after an older layout');
+    release();
+    await expect.poll(() => replayed).toBe(true);
+    // Cross a subsequent request so assertions observe replay, not the pre-delivery DOM.
+    await page.waitForRequest((request) => {
+      if (!request.url().endsWith('/test-tool')) return false;
+      return String(request.postDataJSON().arguments?.path).startsWith('/api/workbench/poll?');
+    });
+    await expect(editor).toHaveValue('Second save after an older layout');
+    await app.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect
+      .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).data.content)
+      .toBe('Second save after an older layout');
+    // A final removal must still close the editor, rather than retaining a deleted card.
+    expect((await request.delete(`/api/canvas/node/${id}`)).ok()).toBe(true);
+    await expect(app.getByTestId('expanded-node')).toHaveCount(0);
+  } finally {
+    release();
+  }
+});
+
 test('a hosted post-save render keeps a newer agent edit and a retryable human draft', async ({ page, request }) => {
   await board(request, 'Hosted save reconciliation');
   const id = await note(request, 'Checked decision');
@@ -265,8 +340,6 @@ test('a hosted post-save render keeps a newer agent edit and a retryable human d
     expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
   } finally {
     release();
-    await page.unrouteAll({ behavior: 'wait' });
-    await page.goto('about:blank');
   }
 });
 
@@ -489,35 +562,41 @@ for (const snapshot of [false, true]) {
       }
       await route.fulfill({ json: result });
     });
-    await pin.click();
-    await expect.poll(() => captured).toBe(true);
-    const chip = app.getByTestId('context-chip');
-    await chip.click();
-    await app.getByRole('button', { name: 'Clear all', exact: true }).click();
-    await expect.poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds).toEqual([]);
-    // Observe the whole replay window, not an optimistic sample before the old reply lands.
-    const staysClear = chip.evaluate(
-      (element) =>
-        new Promise<boolean>((resolve) => {
-          const end = performance.now() + 700;
-          const sample = () => {
-            if (!element.textContent?.includes('Nothing in context')) return resolve(false);
-            if (performance.now() >= end) return resolve(true);
-            requestAnimationFrame(sample);
-          };
-          sample();
-        }),
-    );
-    release();
-    expect(await staysClear).toBe(true);
-    await page.keyboard.press('Escape');
-    await pin.click();
-    await expect
-      .poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds)
-      .toEqual([id]);
-    await request.post('/api/canvas/context-pins', { data: { nodeIds: [peerId], mode: 'set' } });
-    await expect(app.locator(`.canvas-node[data-node-id="${peerId}"] .ctx-pin-btn`)).toHaveClass(/ctx-pin-active/);
-    await expect(pin).not.toHaveClass(/ctx-pin-active/);
+    try {
+      await pin.click();
+      await expect.poll(() => captured).toBe(true);
+      const chip = app.getByTestId('context-chip');
+      await chip.click();
+      await app.getByRole('button', { name: 'Clear all', exact: true }).click();
+      await expect
+        .poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds)
+        .toEqual([]);
+      // Observe the whole replay window, not an optimistic sample before the old reply lands.
+      const staysClear = chip.evaluate(
+        (element) =>
+          new Promise<boolean>((resolve) => {
+            const end = performance.now() + 700;
+            const sample = () => {
+              if (!element.textContent?.includes('Nothing in context')) return resolve(false);
+              if (performance.now() >= end) return resolve(true);
+              requestAnimationFrame(sample);
+            };
+            sample();
+          }),
+      );
+      release();
+      expect(await staysClear).toBe(true);
+      await page.keyboard.press('Escape');
+      await pin.click();
+      await expect
+        .poll(async () => (await (await request.get('/api/canvas/pinned-context')).json()).nodeIds)
+        .toEqual([id]);
+      await request.post('/api/canvas/context-pins', { data: { nodeIds: [peerId], mode: 'set' } });
+      await expect(app.locator(`.canvas-node[data-node-id="${peerId}"] .ctx-pin-btn`)).toHaveClass(/ctx-pin-active/);
+      await expect(pin).not.toHaveClass(/ctx-pin-active/);
+    } finally {
+      release();
+    }
   });
 }
 

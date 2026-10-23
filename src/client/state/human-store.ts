@@ -146,12 +146,23 @@ export function takeOverNode(nodeId: string, title: string): void {
 }
 
 let heartbeat: ReturnType<typeof setInterval> | null = null;
+let leave: (() => void) | null = null;
+
+export function stopHumanPresence(): void {
+  if (heartbeat) clearInterval(heartbeat);
+  heartbeat = null;
+  if (pending) clearTimeout(pending);
+  pending = null;
+  if (leave) window.removeEventListener('pagehide', leave);
+  leave = null;
+}
 
 /** Announce this tab and keep it alive; renews a held grab. Call once per connection. */
-export function startHumanPresence(): () => void {
+export function startHumanPresence(): void {
+  stopHumanPresence();
   post({ cursor: lastCursor, grabbingNodeId: grabbingNodeId.value });
   heartbeat = setInterval(() => post({ grabbingNodeId: grabbingNodeId.value }), 3000);
-  const leave = () => {
+  leave = () => {
     try {
       navigator.sendBeacon?.(
         '/api/canvas/human-presence',
@@ -162,11 +173,6 @@ export function startHumanPresence(): () => void {
     }
   };
   window.addEventListener('pagehide', leave);
-  return () => {
-    if (heartbeat) clearInterval(heartbeat);
-    heartbeat = null;
-    window.removeEventListener('pagehide', leave);
-  };
 }
 
 export function resetHumanPresence(): void {
