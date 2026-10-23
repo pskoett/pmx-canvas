@@ -1,6 +1,6 @@
 {
   "name": "pmx-canvas",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Spatial canvas workbench for coding agents — infinite 2D canvas with agent-native CLI, MCP integration, nodes, edges, file watching, and snapshots",
   "type": "module",
   "main": "./src/server/index.ts",
@@ -123,6 +123,6 @@
   },
   "homepage": "https://github.com/pskoett/pmx-canvas#readme",
   "engines": {
-    "bun": ">=1.4.2"
+    "bun": ">=1.4.4"
   }
 }

@@ -4,11 +4,16 @@ Use this reference when the `pmx-canvas` skill is installed but the `pmx-canvas`
 
 ## Prerequisites and version
 
-The examples pin **PMX Canvas 0.9.1**, which requires **Bun >=1.4.2** even when
+The examples pin **PMX Canvas 0.9.2**, which requires **Bun >=1.4.4** even when
 installed through npm: the CLI runs through Bun, not Node. Check `bun --version`
 first. If missing or older, follow the [Bun installation instructions](https://bun.sh/docs/installation)
 with the user's authorization. Ensure Bun is on the MCP host's PATH as well as the
 interactive shell's; use an absolute `bun`/`bunx` executable path if needed.
+
+Bun 1.4.4 fixes the Brotli decoder vulnerability CVE-2026-111497. Updating the
+PMX package does not update Bun; upgrade the runtime and restart existing PMX/MCP
+processes. Development and build tooling should use Node 24.22.1 or a newer patched
+release on a supported Node line.
 
 Install/configure only when requested. After an intentional runtime upgrade, sync the
 skill from that installed package and restart existing server/MCP processes as described
@@ -17,11 +22,11 @@ in `SKILL.md`. Do not pair newer checkout guidance with an older runtime unknowi
 ## Install from npm
 
 ```bash
-npm install -g pmx-canvas@0.9.1
+npm install -g pmx-canvas@0.9.2
 pmx-canvas --version
 ```
 
-Without a global install, use `bunx pmx-canvas@0.9.1` in place of `pmx-canvas` in
+Without a global install, use `bunx pmx-canvas@0.9.2` in place of `pmx-canvas` in
 the commands below. Do not use unpinned `bunx pmx-canvas` for a version-specific check.
 
 ## Choose the workspace and target
@@ -91,7 +96,7 @@ discards empty env values, remove `PMX_CANVAS_URL` from its launch environment i
   "mcpServers": {
     "canvas": {
       "command": "bunx",
-      "args": ["pmx-canvas@0.9.1", "--mcp"],
+      "args": ["pmx-canvas@0.9.2", "--mcp"],
       "env": {
         "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
         "PMX_CANVAS_PORT": "14313",
@@ -135,7 +140,7 @@ Amp executes, not only on the user's laptop. Merge this into that workspace's
   "amp.mcpServers": {
     "canvas": {
       "command": "bunx",
-      "args": ["pmx-canvas@0.9.1", "--mcp"],
+      "args": ["pmx-canvas@0.9.2", "--mcp"],
       "includeTools": ["canvas_*"],
       "env": {
         "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
@@ -169,7 +174,7 @@ The agent must not run this approval itself or move the command to global settin
 `--mcp-config` to bypass workspace trust. Approval authorizes execution of this MCP
 command; it is not a new Canvas import consent or permission to mutate arbitrary boards.
 After approval, reload MCP connections (`reload_mcp` in Amp) and require `connected`.
-Discover `canvas` tools with `tool_search`; for the full unfiltered 0.9.1 server there
+Discover `canvas` tools with `tool_search`; for the full unfiltered 0.9.2 server there
 are 24 tools. If still absent, inspect the server status, command/PATH and target instead
 of reinstalling blindly. See [Amp MCP documentation](https://ampcode.com/docs/customize/mcp).
 

@@ -5,6 +5,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-10-23
+
+### Fixed
+
+- Require Bun 1.4.4 or newer for the Brotli security fix; upgrade Bun and restart running PMX processes as well as updating the package.
+- Development and release environments use patched Bun 1.4.4 and Node 24.22.1 runtimes.
+
 ## [0.9.1] - 2026-10-23
 
 ### Fixed
