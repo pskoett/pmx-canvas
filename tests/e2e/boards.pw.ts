@@ -3381,6 +3381,7 @@ test.describe('save and board ownership boundaries', () => {
       await page.locator('.expanded-close').click();
       await page.getByRole('button', { name: /^Board: Switch owner B/ }).click();
       await page.getByRole('menuitem', { name: /^Switch owner A/ }).click();
+      await expect(card.locator('.node-title')).toHaveText('Switch owner A');
       await card.getByRole('button', { name: 'Edit', exact: true }).click();
       await page.getByRole('button', { name: '</> Source', exact: true }).click();
       await expect(page.locator('textarea')).toHaveValue(draft);
