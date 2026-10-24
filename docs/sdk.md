@@ -36,6 +36,13 @@ Missing/stale validating preconditions fail. Reviewed content must persist befor
 record. Read, edit, refresh and explicit retirement restore never renew validation; historical
 records retain their reviewed revision, and legacy unversioned evidence remains unknown.
 
+## Board tours
+
+`canvas.getTour()` returns the tour directly. Read stops from `canvas.getTour().stops`.
+When no tour is saved, stops come from group reading order.
+`canvas.setTour(tourOrNull)` saves the tour or resets it to derived group order.
+See the [tour contract](http-api.md#board-tours) for navigation and camera moves.
+
 ## Quick example
 
 `canvas.addNode` also accepts `destinationBoardId`, `requestId`, and

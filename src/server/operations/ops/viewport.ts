@@ -13,7 +13,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { tourSchema, derivedTour, rectSchema, cameraSchema, tourStopSchema } from '../../../shared/tour.js';
+import { tourSchema, rectSchema, cameraSchema, tourStopSchema } from '../../../shared/tour.js';
 import { canvasState } from '../../canvas-state.js';
 import {
   arrangeCanvasNodes,
@@ -23,7 +23,7 @@ import {
   setClientViewportSize,
 } from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
-import { exitTour, goToTourStop, moveCamera, tourPosition } from '../../tour-control.js';
+import { currentTour, exitTour, goToTourStop, moveCamera } from '../../tour-control.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { closeNodeAppSession, isRecord } from './nodes.js';
 
@@ -329,11 +329,7 @@ const tourGetOperation = defineOperation({
     toolName: 'canvas_get_tour',
     description: 'Read the board tour, deriving groups in reading order when absent.',
   },
-  handler: () => ({
-    tour: canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes),
-    derived: !canvasState.getTour(),
-    position: tourPosition(),
-  }),
+  handler: () => currentTour(),
 });
 
 // ── tour.go / tour.exit / camera.move ────────────────────────

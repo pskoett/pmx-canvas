@@ -533,6 +533,11 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
   await page.goto(workbench);
   await page.waitForFunction(() => window.pmxCapture?.ready());
   await expect(page.locator('.top-bar')).toBeVisible();
+  const layoutWrites: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/canvas/update')
+      layoutWrites.push(request.postData() ?? '');
+  });
   const world = page.locator('.canvas-world');
   const scaleNow = () => world.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
   const inView = async (title: string) => {
@@ -606,4 +611,7 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
   });
   await move;
   await expect.poll(() => inView('Agent stop two'), { timeout: 500 }).toBe(true);
+  // Include delayed layout persistence after the final camera has painted.
+  await page.waitForTimeout(600);
+  expect(layoutWrites, 'Navigation must not rewrite any card geometry').toEqual([]);
 });

@@ -57,7 +57,7 @@ on its source board. It appears as a `portal` edge in `canvas://graph`, independ
 
 ## Board tours
 
-`canvas_view { action: "get-tour" }` returns `{ tour, derived }`, using group
+`canvas_view { action: "get-tour" }` returns `{ tour, derived, position }`, using group
 reading order when there is no saved tour. `canvas_view { action: "set-tour",
 tour: { stops: [...] } }` persists an ordered tour; `tour: null` resets it.
 `canvas_view { action: "tour-go", stop: 0 }` (or `step: "next" | "previous"`)

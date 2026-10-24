@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { type Camera, type Tour, type TourStop } from '../shared/tour.js';
+import type { Camera, Tour, TourStop } from '../shared/tour.js';
 import { type TourStep, type TourStepResult } from './tour-control.js';
 export type { Tour, TourStop } from '../shared/tour.js';
 export type { TourStep, TourStepResult } from './tour-control.js';
@@ -22,7 +22,7 @@ import type { HtmlPrimitiveKind } from './html-primitives.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
 import { type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import type { DiagramPresetOpenInput } from './diagram-presets.js';
-import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } from '../json-render/server.js';
+import type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 import type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus } from './server.js';
 /**
  * Node object returned by the SDK's create/get methods. It is the fully

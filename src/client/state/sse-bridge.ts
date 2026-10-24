@@ -14,7 +14,6 @@ import {
   axSurfaceState,
   bringToFront,
   cancelViewportAnimation,
-  commitViewport,
   canvasTheme,
   connectionStatus,
   contextPinsRevision,
@@ -55,6 +54,7 @@ import {
   reportClientViewportSize,
   requestJson,
   tabAgentKey,
+  updateViewportFromClient,
 } from './intent-bridge';
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
 import { applyHumanSnapshot, humanClientId, startHumanPresence, stopHumanPresence } from './human-store';
@@ -1121,7 +1121,14 @@ function handleCanvasCameraMove(data: Record<string, unknown>): void {
   try {
     // The presentation camera is local; otherwise the end camera becomes the
     // board viewport — unrecorded, so a camera move is never an undo step.
-    playStop(stop.data, presenting.value ? undefined : (end) => commitViewport(end, { recordHistory: false }));
+    playStop(
+      stop.data,
+      presenting.value
+        ? undefined
+        : (end) => {
+            void updateViewportFromClient(end, { recordHistory: false });
+          },
+    );
   } catch {
     // Target not in this tab's layout yet: take the server's resolved camera.
     const fallback = cameraSchema.safeParse(data.viewport);

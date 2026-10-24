@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { z } from 'zod';
 import { normalizeBoardFolder } from '../shared/boards.js';
+import { memoryKey, type MemoryTarget } from '../shared/memory-graph.js';
 import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
@@ -46,6 +47,16 @@ export interface ReviewRecord {
   contentRevision: number | null;
   sourceRevisions?: Record<string, number | null>;
 }
+
+// SQLite trim defaults to ASCII space; match JavaScript evidence.trim(), including Unicode whitespace.
+const evidenceWhitespace =
+  '\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+const validationPredicate = `json_extract(value, '$.applied') = 1
+  AND json_extract(value, '$.outcome') IN ('retain', 'revise', 'externalize')
+  AND trim(json_extract(value, '$.evidence'), '${evidenceWhitespace}') <> ''`;
+const retirementPredicate = `(json_extract(value, '$.outcome') = 'restore'
+  OR (json_extract(value, '$.applied') = 1 AND json_extract(value, '$.outcome') = 'retire'))`;
+const indexedDatabases = new WeakSet<Database>();
 
 export type KnowledgeInput =
   | { action: 'list' }
@@ -238,6 +249,61 @@ export class KnowledgeLifecycle {
       return { ...resolved, lifecycle: null, lifecycleSource: 'unknown' as const, lifecycleSourceFolder: null };
     }
     return resolved;
+  }
+
+  private indexedDb(): Database {
+    const db = this.db();
+    if (!indexedDatabases.has(db)) {
+      db.exec(`CREATE INDEX IF NOT EXISTS review_latest_validation ON review_records
+        (board_id, node_id, sequence DESC) WHERE ${validationPredicate};
+        CREATE INDEX IF NOT EXISTS review_latest_retirement ON review_records
+        (board_id, node_id, sequence DESC) WHERE ${retirementPredicate};
+        CREATE INDEX IF NOT EXISTS lifecycle_incoming_sources ON edges (to_board_id, to_node)
+        WHERE COALESCE(kind, type) IN ('derived-from', 'contradicts', 'supersedes');`);
+      indexedDatabases.add(db);
+    }
+    return db;
+  }
+
+  /** Stored owners of semantic sources; the caller overlays the active board's unsaved edges. */
+  incomingSourceBoards(target: MemoryTarget, activeBoardId: string | null): string[] {
+    return this.indexedDb()
+      .query<{ board_id: string }, [string, string | null, string | null]>(
+        `SELECT DISTINCT board_id FROM edges WHERE to_board_id = ? AND to_node = ?
+       AND board_id IS NOT ? AND COALESCE(kind, type) IN ('derived-from', 'contradicts', 'supersedes')`,
+      )
+      .all(target.boardId, target.cardId ?? null, activeBoardId)
+      .map((row) => row.board_id);
+  }
+
+  /** One indexed latest validation and retirement per card, never its full audit history. */
+  reviewSummaries(targets: MemoryTarget[]): Map<string, { lastValidation: ReviewRecord | null; retired: boolean }> {
+    if (!targets.length) return new Map();
+    const rows = this.indexedDb()
+      .query<{ boardId: string; nodeId: string; validation: string | null; retirement: string | null }, [string]>(
+        `WITH targets AS (
+         SELECT json_extract(value, '$.boardId') AS boardId, json_extract(value, '$.cardId') AS nodeId
+         FROM json_each(?)
+       ) SELECT boardId, nodeId,
+         (SELECT value FROM review_records WHERE board_id = boardId AND node_id = nodeId
+          AND ${validationPredicate} ORDER BY sequence DESC LIMIT 1) AS validation,
+         (SELECT json_extract(value, '$.outcome') FROM review_records WHERE board_id = boardId AND node_id = nodeId
+          AND ${retirementPredicate} ORDER BY sequence DESC LIMIT 1) AS retirement
+       FROM targets`,
+      )
+      .all(JSON.stringify(targets));
+    return new Map(
+      rows.map((row) => {
+        const record: ReviewRecord | null = row.validation ? JSON.parse(row.validation) : null;
+        return [
+          memoryKey({ boardId: row.boardId, cardId: row.nodeId }),
+          {
+            lastValidation: record ? { ...record, contentRevision: record.contentRevision ?? null } : null,
+            retired: row.retirement === 'retire',
+          },
+        ];
+      }),
+    );
   }
 
   reviews(boardId: string, nodeId: string) {

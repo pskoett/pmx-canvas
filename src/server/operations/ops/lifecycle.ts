@@ -3,8 +3,7 @@ import { canvasState } from '../../canvas-state.js';
 import { categorySchema, folderPropertiesSchema, lifecycleSchema } from '../../knowledge-lifecycle.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { readTargetBoard } from './boards.js';
-import { lifecycleQualifications, lifecycleSnapshot } from '../../lifecycle-status.js';
-import { memoryKey } from '../../../shared/memory-graph.js';
+import { lifecycleQualification, lifecycleSnapshot } from '../../lifecycle-status.js';
 import { folderAncestors } from '../../../shared/boards.js';
 import { relationPresetSchema } from '../../../shared/relations.js';
 
@@ -155,9 +154,7 @@ export const lifecycleOperations: Operation[] = [
         contentRevision: node.contentRevision ?? 0,
         ...canvasState.knowledge.resolveCard(folder, node),
         ...canvasState.knowledge.reviews(read.boardId, input.id),
-        qualification: lifecycleQualifications(Date.now(), [{ boardId: read.boardId, cardId: input.id }])[
-          memoryKey({ boardId: read.boardId, cardId: input.id })
-        ],
+        qualification: lifecycleQualification({ boardId: read.boardId, cardId: input.id }),
       };
     },
   }),
@@ -216,8 +213,7 @@ export const lifecycleOperations: Operation[] = [
       if (!canvasState.getNode(input.id) || !canvasState.activeBoardId)
         throw new OperationError('Card not found.', 404);
       const observations =
-        lifecycleQualifications()[memoryKey({ boardId: canvasState.activeBoardId, cardId: input.id })]?.observations ??
-        {};
+        lifecycleQualification({ boardId: canvasState.activeBoardId, cardId: input.id })?.observations ?? {};
       const validates =
         input.applied && input.evidence.trim() && ['retain', 'revise', 'externalize'].includes(input.outcome);
       if (validates) {

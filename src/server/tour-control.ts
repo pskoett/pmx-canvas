@@ -21,14 +21,22 @@ export interface TourStepResult {
   stop: TourStop;
 }
 
+export interface TourState {
+  tour: Tour;
+  derived: boolean;
+  position: number | null;
+}
+
 let cursor: { boardGeneration: number; tour: string; index: number } | null = null;
 
-export function currentTour(): Tour {
-  return canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes);
+export function currentTour(): TourState {
+  const saved = canvasState.getTour();
+  const tour = saved ?? derivedTour(canvasState.nodeGeometry());
+  return { tour, derived: !saved, position: tourPosition(tour) };
 }
 
 /** The stop the tour is on for the active board, or null when not touring. */
-export function tourPosition(tour: Tour = currentTour()): number | null {
+function tourPosition(tour: Tour): number | null {
   if (cursor && (cursor.boardGeneration !== canvasState.boardGeneration || cursor.tour !== JSON.stringify(tour))) {
     cursor = null;
   }
@@ -37,9 +45,8 @@ export function tourPosition(tour: Tour = currentTour()): number | null {
 
 /** Move the shared cursor. `next`/`previous` clamp at the ends; an explicit index must exist. */
 export function goToTourStop(step: TourStep): TourStepResult {
-  const tour = currentTour();
+  const { tour, position: at } = currentTour();
   const { stops } = tour;
-  const at = tourPosition(tour);
   if (stops.length === 0) {
     throw new OperationError('This board has no tour stops. Save a tour or add groups.', 400);
   }
@@ -67,13 +74,15 @@ export function moveCamera(input: unknown): { stop: TourStop; viewport: Camera }
     throw new OperationError('Give exactly one of nodeId, rect {x,y,width,height} or viewport {x,y,scale}.', 400);
   }
   const stop = parsed.data;
-  if ('nodeId' in stop.target && !canvasState.getNode(stop.target.nodeId)) {
-    throw new OperationError(`Node "${stop.target.nodeId}" not found.`, 404);
+  const nodes = 'nodeId' in stop.target ? canvasState.nodeGeometry() : [];
+  const target = stop.target;
+  if ('nodeId' in target && !nodes.some((node) => node.id === target.nodeId)) {
+    throw new OperationError(`Node "${target.nodeId}" not found.`, 404);
   }
   const size = getClientViewportSize() ?? { width: 1440, height: 900 };
   let viewport: Camera;
   try {
-    viewport = resolveStop(stop, canvasState.getLayout().nodes, size.width, size.height);
+    viewport = resolveStop(stop, nodes, size.width, size.height);
   } catch (error) {
     throw new OperationError(error instanceof Error ? error.message : String(error), 400);
   }

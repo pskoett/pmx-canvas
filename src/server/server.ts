@@ -2483,16 +2483,19 @@ async function handleRender(req: Request): Promise<Response> {
   // The editor sends its draft through this same endpoint. Only changed/unsaved
   // text may resolve titles; persisted text must replay even unresolved bindings.
   const persisted = node?.type === 'markdown' && node.data.content === markdown;
-  const initializedRefs =
-    node?.type === 'markdown' && node.data.wikiLinks !== undefined && typeof node.data.content === 'string'
-      ? wikiReferences(node.data.content)
-      : [];
-  const refs = wikiReferences(markdown).filter(
-    (ref) => !initializedRefs.includes(ref) || previous.some((link) => link.ref === ref),
-  );
-  const needsResolution = !persisted && refs.some((ref) => !previous.some((link) => link.ref === ref && link.target));
-  const catalog = needsResolution ? canvasState.wikiCatalog() : [];
-  const links = persisted ? previous : refs.map((ref) => resolveWikiLinks(`[[${ref}]]`, previous, catalog)[0]);
+  let links = previous;
+  if (!persisted) {
+    const initializedRefs =
+      node?.type === 'markdown' && node.data.wikiLinks !== undefined && typeof node.data.content === 'string'
+        ? wikiReferences(node.data.content)
+        : [];
+    const refs = wikiReferences(markdown).filter(
+      (ref) => !initializedRefs.includes(ref) || previous.some((link) => link.ref === ref),
+    );
+    const needsResolution = refs.some((ref) => !previous.some((link) => link.ref === ref && link.target));
+    const catalog = needsResolution ? canvasState.wikiCatalog() : [];
+    links = refs.map((ref) => resolveWikiLinks(`[[${ref}]]`, previous, catalog)[0]);
+  }
   const targets = new Map<string, ReturnType<typeof canvasState.readBoard>>();
   const html = renderWikiMarkdown(normalizeMarkdownExternalUrls(markdown), links, (target) => {
     if (!targets.has(target.boardId)) targets.set(target.boardId, canvasState.readBoard(target.boardId, false));

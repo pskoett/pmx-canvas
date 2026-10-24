@@ -768,31 +768,19 @@ export function animateViewport(
   duration = 300,
   options: { recordHistory?: boolean } = {},
 ): void {
-  if (animationId !== null) cancelAnimationFrame(animationId);
-
   const from = { ...viewport.value };
-  const start = performance.now();
-
-  function tick(now: number) {
-    const elapsed = now - start;
-    const t = Math.min(1, elapsed / duration);
-    const e = easeOutCubic(t);
-
-    viewport.value = {
-      x: from.x + (target.x - from.x) * e,
-      y: from.y + (target.y - from.y) * e,
-      scale: from.scale + (target.scale - from.scale) * e,
-    };
-
-    if (t < 1) {
-      animationId = requestAnimationFrame(tick);
-    } else {
-      animationId = null;
-      commitViewport(target, options);
-    }
-  }
-
-  animationId = requestAnimationFrame(tick);
+  animateCameraPath(
+    (t) => {
+      const e = easeOutCubic(t);
+      return {
+        x: from.x + (target.x - from.x) * e,
+        y: from.y + (target.y - from.y) * e,
+        scale: from.scale + (target.scale - from.scale) * e,
+      };
+    },
+    duration,
+    () => commitViewport(target, options),
+  );
 }
 
 /**

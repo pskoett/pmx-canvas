@@ -2863,6 +2863,16 @@ class CanvasStateManager {
     return node ? structuredClone(this.nodeForRead(node)) : undefined;
   }
 
+  /** Camera targets need geometry, not hydrated documents, frames or image blobs. */
+  nodeGeometry(): Array<Pick<CanvasNodeState, 'id' | 'type' | 'position' | 'size'>> {
+    return Array.from(this.nodes.values(), ({ id, type, position, size }) => ({
+      id,
+      type,
+      position: { ...position },
+      size: { ...size },
+    }));
+  }
+
   /** Who made and last edited each card, and its content revision — no content, no copies. */
   nodeStamps(): Array<Pick<CanvasNodeState, 'id' | 'createdBy' | 'lastEditedBy' | 'contentRevision'>> {
     return [...this.nodes.values()].map(({ id, createdBy, lastEditedBy, contentRevision }) => ({

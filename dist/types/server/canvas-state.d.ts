@@ -432,6 +432,8 @@ declare class CanvasStateManager {
     updateNode(id: string, patch: Partial<CanvasNodeState>, savedWikiLinks?: WikiLink[] | null): void;
     removeNode(id: string): void;
     getNode(id: string): CanvasNodeState | undefined;
+    /** Camera targets need geometry, not hydrated documents, frames or image blobs. */
+    nodeGeometry(): Array<Pick<CanvasNodeState, 'id' | 'type' | 'position' | 'size'>>;
     /** Who made and last edited each card, and its content revision — no content, no copies. */
     nodeStamps(): Array<Pick<CanvasNodeState, 'id' | 'createdBy' | 'lastEditedBy' | 'contentRevision'>>;
     getNodeForPersistence(id: string): CanvasNodeState | undefined;

@@ -20,6 +20,7 @@ import {
   setOperationEventEmitter,
 } from '../../src/server/operations/registry.js';
 import { exitTour } from '../../src/server/tour-control.js';
+import { PmxCanvas } from '../../src/server/index.js';
 import {
   createTestWorkspace,
   getAvailablePort,
@@ -220,6 +221,10 @@ describe('driving a tour', () => {
 
   test('next/previous walk the derived tour, clamp at the ends and broadcast each stop', async () => {
     addGroups();
+    const sdk = new PmxCanvas();
+    expect(sdk.getTour()).toEqual({
+      stops: [{ target: { nodeId: 'early' } }, { target: { nodeId: 'late' } }],
+    });
     const go = (input: Record<string, unknown>) => executeOperation('tour.go', input) as Promise<{ index: number }>;
     expect((await go({ step: 'previous' })).index).toBe(0);
     expect((await go({ step: 'next' })).index).toBe(1);
@@ -232,12 +237,14 @@ describe('driving a tour', () => {
       { index: 0, total: 2, stop: { target: { nodeId: 'early' } }, present: false },
     ]);
     expect(((await executeOperation('tour.get', {})) as { position: number }).position).toBe(0);
+    expect(await executeOperation('tour.get', {})).toEqual({ tour: sdk.getTour(), derived: true, position: 0 });
     await executeOperation('tour.exit', {});
     expect(emitted.at(-1)?.event).toBe('canvas-tour-exit');
     expect(((await executeOperation('tour.get', {})) as { position: number | null }).position).toBeNull();
     await expect(go({ stop: 2 })).rejects.toThrow('does not exist');
     await expect(go({ stop: 0, step: 'next' })).rejects.toThrow('exactly one');
     canvasState.setTour({ stops: [] });
+    expect(sdk.getTour()).toEqual({ stops: [] });
     await expect(go({ step: 'next' })).rejects.toThrow('no tour stops');
   });
 

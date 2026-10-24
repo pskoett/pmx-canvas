@@ -1,10 +1,11 @@
 # Plan 019: After 0.9.0
 
-**Status (2026-10-19):** proposed sequence, agreed in direction with the maintainer. Nothing
-here is started. 0.9.0 itself (the CHANGELOG's Unreleased section) still needs the owner's
-acceptance and release approval; this plan begins once it ships. Version numbers below are
-proposals, not assignments; each release still needs explicit approval and the
-[release gates](../RELEASE.md).
+**Status (2026-10-24):** 0.9.0–0.9.2 are released. The maintainer authorized review,
+testing and release of the patch-only 0.9.3 cleanup after the prerequisite fixes reached
+`origin/main` at `bed57fe9a4b79bd54f8b5ee51cefd65fec3dbe1a`. The SDK tour return shape
+stays unchanged. MCP hardening and SDK tour result parity move to 0.10 on SDK v1.
+Later version numbers are proposals, not publication approval; every release must pass
+the [release gates](../RELEASE.md).
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),
 [design.md build plan](../design.md#build-plan) (Waves 4, 5, Later),
 [plan 009](plan-009-tech-debt-backlog.md) (open debt),
@@ -21,7 +22,7 @@ measured; the maintainer carries that risk rather than reinstating an earlier ga
 
 | Step | Proposed version | Scope | Vision | Size |
 |---|---|---|---|---|
-| 1 | 0.9.1 | Cleanup: tour debt, large-board costs, bounded due evaluator, MCP reconnect, lint | 12, 1 | S–M |
+| 1 | 0.9.3 | Cleanup: tour debt, large-board costs, bounded due evaluator, MCP reconnect, lint | 12, 1 | S–M |
 | 2 | 0.10 | MCP hardening: contracts, annotations, cancellation, resource subscriptions | 6a, 1 | M |
 | 3 | 0.11 | One frame host, portal-layer mount, Wave-0 design pass | 5, 9 | M–L |
 | 4 | 0.12 | Wave 5: agent output as nodes, make/inline board, group drill-in, relations sketch parity | 3, 0 | L |
@@ -31,9 +32,65 @@ measured; the maintainer carries that risk rather than reinstating an earlier ga
 Each step starts after the previous release ships, except that a concrete defect found in
 use can be fixed narrowly in a patch release without pulling later scope forward.
 
-## Step 1: 0.9.1 cleanup
+## Step 1: 0.9.3 cleanup
 
 Debt deliberately kept out of 0.9.0, plus measured performance leads.
+
+**Local checkpoint, 2026-10-24 (not release approval):**
+- Camera moves now persist only the viewport. A headed browser regression failed on the
+  baseline's two full-card geometry writes, then passed without them; the complete seven-case
+  presentation/recording file passes. Both camera paths use one animation driver while retaining
+  their existing interpolation. Tour resolution reads geometry without hydrating card contents.
+- Tour reads share one result builder. HTTP and MCP return `{ tour, derived, position }`;
+  the SDK preserves its existing direct tour result (`.stops`). Result-shape parity is
+  deferred to 0.10 because changing the SDK to `.tour.stops` breaks callers.
+- `bun run scripts/probe-mcp-reconnect.ts` opened 12 local stdio fixture apps concurrently,
+  then restored them through five server restarts and queried every replacement session's live
+  tool catalog. All 60 restored sessions passed, with no `-32001` timeout. The native-host/remote
+  backend failure remains open; this probe is not evidence that it is fixed.
+- Saved Markdown skips unused reference parsing; saved targets, unresolved links, drafts and
+  inline images retain their behavior. The measurements below leave serialization, offscreen
+  rendering and SSE unchanged because each needs a separate contract or lifecycle decision.
+- Lifecycle-get, node-get and review qualification use the dependency/portal closure, including
+  incoming cross-board sources and unsaved active-board edges. Latest evidence and retirement
+  summaries use indexed queries; requested audit history remains complete. Home counts are
+  unchanged. **Deferred:** aggregate-only Home reads, per-card storage reads within closure boards,
+  and whole-library mutation broadcasts. The current Home client consumes `knowledge.list.cards`.
+- Lint passes with 55 warnings and 12 infos, down from 63 warnings and 12 infos. Eight unused
+  import diagnostics were removed in the touched SDK module. Remaining diagnostics are listed below.
+- Combined checkout verification passed: `bun run build`, `bun run typecheck`, `bun run test`
+  (1,503 tests), `bun run test:client` (332 tests), and
+  `xvfb-run -a bash scripts/run-playwright.sh --headed` (333 tests). The final node-get
+  integration assertion also passed its 32-case relation suite, typecheck and lint. The inspected
+  tour recording shows both stops and the restored editor after exit. These are local source
+  checks, not release smoke, CI, installed-adapter or native-host verification. The patch-only
+  decision is settled; release gates are being run against the final 0.9.3 candidate.
+
+**Reproducible measurements (local Bun 1.4.4, synthetic data):**
+
+| Workload and command | Before | After | Limits |
+|---|---|---|---|
+| 12 Markdown cards, five decodable 400×300 PNGs, 2,459,314 source bytes; `bun run scripts/benchmark-markdown-load.ts --browser --expect-no-reference-lex` | 24 extra reference parses scanning 4,918,628 bytes | Zero extra reference parses; all 12 normalized HTML hashes match | Three warmups and nine HTTP samples; headed Chromium at 1440×900, 2×, one warmup and three reloads. Timing varied on the shared orb, so no board-load speedup claim |
+| Same Markdown board, public state serialization | 4,927,936 bytes | Unchanged | 2,460,294 bytes are duplicated top-level content; removing that alias is only a counterfactual measurement |
+| Same Markdown board, offscreen rendering | Six offscreen POSTs, 508,608 source bytes | Unchanged | All 12 cards render; all five images decode |
+| Same Markdown board, one-character edit | First layout SSE frame: 2,466,713 bytes, 12 nodes | Unchanged | First frame only, not total event traffic |
+| 12 boards × 24 cards × 32 reviews; `bun run scripts/benchmark-lifecycle.ts` | 13 board reads and 9,248 full-history records per request | Two board reads and 32 records per request | One independent inactive-card request; all 32 requested audit records returned. Closure boards still load whole board bodies |
+| Same lifecycle workload, warm medians from three independent runs | 16.016 / 14.938 / 16.648 ms | 0.832 / 1.101 / 0.609 ms | Five warmups and 20 samples per run. First request initializes indexes and was not consistently faster; no cold-start claim |
+
+Remove `--expect-no-reference-lex` when running the Markdown script against the baseline.
+Both benchmarks isolate their databases in disposable workspaces. Dependency-heavy lifecycle
+behavior is covered by cycle, provenance, missing-source and cross-board tests, not this timing workload.
+
+**Remaining lint diagnostics:** `bunx --no-install biome check . --max-diagnostics=200`
+lists the exact locations. These remain outside the narrow behavioral fixes:
+
+| Diagnostics | Count | Reason retained |
+|---|---:|---|
+| Unused imports / variables / parameters / private members | 11 / 8 / 6 / 1 | Spread across unrelated client, server and test modules; remove with their owning cleanup |
+| Optional-chain suggestions | 23 | Existing style suggestions, including untouched regions of changed files |
+| Literal template placeholders | 3 | Tests intentionally exercise literal `${…}` text |
+| Global `isNaN`, confusing `void`, comma operator | 1 each | Existing chart coercion, frame callback and presence expressions need individual semantic review |
+| Infos: template strings / switch cases / index lookup / config deprecation | 6 / 3 / 2 / 1 | Non-gating style/config follow-up, no rule disabled |
 
 - **Tour debt** ([vision move 12](../product-vision-2026-09.md#12-tours-the-board-is-the-presentation-m)):
   a tour camera move saves every node's layout (`commitViewport` → `persistLayout` from the SSE
@@ -55,8 +112,8 @@ Debt deliberately kept out of 0.9.0, plus measured performance leads.
 **Done when**
 - A tour step changes the viewport and writes no node layout: a test asserts the intended
   viewport change and that no layout-persistence write occurs during `tour go`/`next`
-  (unchanged positions alone would also pass a needless identical rewrite). SDK, HTTP and MCP
-  return the same tour shape, including position. One camera-animation path remains.
+  (unchanged positions alone would also pass a needless identical rewrite). The SDK keeps its
+  existing tour shape; result-shape parity moves to step 2. One camera-animation path remains.
 - Each WI-01 amplifier has a reproducible measurement script and a before/after number on the
   same workload, per the measurement rules in `CLAUDE.md`; unimplicated ones are recorded, not changed.
 - A one-card lifecycle request on a board with populated review histories reads only its
@@ -77,6 +134,8 @@ and move 1's context delivery, on the current SDK v1.
    for long operations where the host supports it; partial outcomes reported honestly.
 5. Resource subscriptions: advertise the capability, track subscribed URIs per connection,
    notify only subscribers. Explicit context reads keep working for hosts without them.
+6. Align SDK tour reads with HTTP/MCP `{ tour, derived, position }`; document the breaking
+   change from `.stops` to `.tour.stops` at this minor-version boundary.
 
 Candidates, not automatic scope: `canvas_help { op }`, `session.start`, per-action schemas.
 

@@ -1,13 +1,13 @@
 import { EventEmitter } from 'node:events';
-import { derivedTour, type Camera, type Tour, type TourStop } from '../shared/tour.js';
-import { exitTour, goToTourStop, moveCamera, type TourStep, type TourStepResult } from './tour-control.js';
+import type { Camera, Tour, TourStop } from '../shared/tour.js';
+import { currentTour, exitTour, goToTourStop, moveCamera, type TourStep, type TourStepResult } from './tour-control.js';
 export type { Tour, TourStop } from '../shared/tour.js';
 export type { TourStep, TourStepResult } from './tour-control.js';
 import { agentPresence } from './agent-presence.js';
 import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
-import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
-import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
+import { canvasState } from './canvas-state.js';
+import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
 import { applyAxInteraction, type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
 import { intentRegistry } from './intent-registry.js';
@@ -46,12 +46,12 @@ import { workbenchToken } from './workbench-auth.js';
 import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
 import { onFileNodeChanged } from './file-watcher.js';
-import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
+import { findOpenCanvasPosition } from './placement.js';
 import { overlapsAny } from '../shared/placement.js';
 import { buildSpatialContext } from './spatial-analysis.js';
 import { searchCanvasNodes } from './operations/ops/query.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
-import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
   addCanvasNode,
   addCanvasEdge,
@@ -90,12 +90,7 @@ import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
 import { contextReadFromPayload } from './context-reads.js';
-import {
-  buildHtmlPrimitive,
-  getHtmlPrimitiveSemanticMetadata,
-  isHtmlPrimitiveKind,
-  listHtmlPrimitiveDescriptors,
-} from './html-primitives.js';
+import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata } from './html-primitives.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import {
   buildWebArtifactOnCanvas,
@@ -104,15 +99,7 @@ import {
 } from './web-artifacts.js';
 import { closeMcpAppSession, type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import type { DiagramPresetOpenInput } from './diagram-presets.js';
-import {
-  buildGraphSpec,
-  GRAPH_NODE_SIZE,
-  JSON_RENDER_NODE_SIZE,
-  normalizeAndValidateJsonRenderSpec,
-  type GraphNodeInput,
-  type JsonRenderNodeInput,
-  type JsonRenderSpec,
-} from '../json-render/server.js';
+import type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 import {
   startCanvasServer,
   stopCanvasServer,
@@ -126,15 +113,8 @@ import {
   screenshotCanvasAutomationWebView,
   emitPrimaryWorkbenchEvent,
   setPrimaryWorkbenchCanvasPromptHandler,
-  setPrimaryWorkbenchAutoOpenEnabled,
-  consumePrimaryWorkbenchIntents,
 } from './server.js';
-import type {
-  CanvasAutomationWebViewOptions,
-  CanvasAutomationWebViewStatus,
-  PrimaryWorkbenchCanvasPromptRequest,
-  PrimaryWorkbenchIntent,
-} from './server.js';
+import type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus } from './server.js';
 
 /**
  * Node object returned by the SDK's create/get methods. It is the fully
@@ -633,7 +613,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   getTour(): Tour {
-    return canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes);
+    return currentTour().tour;
   }
 
   setTour(tour: Tour | null): void {

@@ -25,8 +25,70 @@ export function lifecycleQualifications(
   return lifecycleSnapshot(now, atUse).cards;
 }
 
+/** A card being inspected is in use, including its transitive sources and portal contents. */
+export function lifecycleQualification(target: MemoryTarget, now = Date.now()): LifecycleQualification | undefined {
+  return lifecycleSnapshot(now, [target], target).cards[memoryKey(target)];
+}
+
+/** Read closure boards once; never activate them or flush the active board to discover edges. */
+function dependencyClosure(target: MemoryTarget) {
+  const reads = new Map<string, ReturnType<typeof canvasState.readBoard>>();
+  const nodes = new Map<string, CanvasNodeState>();
+  const dependencies = new Map<string, MemoryTarget[]>();
+  const selected = new Set<string>();
+  const queue: MemoryTarget[] = [target];
+  const read = (boardId: string) => {
+    if (!reads.has(boardId)) {
+      const board = canvasState.readBoard(boardId, false);
+      reads.set(boardId, board);
+      for (const node of board?.layout.nodes ?? []) nodes.set(memoryKey({ boardId, cardId: node.id }), node);
+      for (const edge of board?.layout.edges ?? []) {
+        const end = relationSourceEnd(edge);
+        if (!end) continue;
+        const from = { boardId, cardId: edge.from };
+        const to = { boardId: edge.toBoardId ?? boardId, cardId: edge.to };
+        const key = memoryKey(end === 'from' ? to : from);
+        const sources = dependencies.get(key) ?? [];
+        sources.push(end === 'from' ? from : to);
+        dependencies.set(key, sources);
+      }
+    }
+    return reads.get(boardId);
+  };
+  const activeBoardId = canvasState.activeBoardId;
+  const incomingActive = new Set(
+    canvasState
+      .getEdges()
+      .flatMap((edge) =>
+        edge.toBoardId && relationSourceEnd(edge) === 'from'
+          ? [memoryKey({ boardId: edge.toBoardId, cardId: edge.to })]
+          : [],
+      ),
+  );
+  for (const current of queue) {
+    const key = memoryKey(current);
+    if (selected.has(key)) continue;
+    selected.add(key);
+    const board = read(current.boardId);
+    if (!current.cardId) {
+      for (const node of board?.layout.nodes ?? []) queue.push({ boardId: current.boardId, cardId: node.id });
+      continue;
+    }
+    const node = nodes.get(key);
+    if (!node) continue;
+    const provenance = normalizeCanvasNodeData(node.type, node.data).provenance as CanvasNodeProvenance | undefined;
+    queue.push(...(provenance?.sources ?? []).map(({ boardId, cardId }) => ({ boardId, cardId })));
+    if (node.type === 'board' && typeof node.data.boardId === 'string') queue.push({ boardId: node.data.boardId });
+    const owners = new Set([current.boardId, ...canvasState.knowledge.incomingSourceBoards(current, activeBoardId)]);
+    if (activeBoardId && incomingActive.has(key)) owners.add(activeBoardId);
+    for (const owner of owners) read(owner);
+    queue.push(...(dependencies.get(key) ?? []));
+  }
+  return { reads, selected };
+}
+
 /** Compact queue metadata and qualifications come from the same authoritative read. */
-export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = []) {
+export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = [], only?: MemoryTarget) {
   const result: Record<string, LifecycleQualification> = {};
   const cards = new Map<string, CanvasNodeState>();
   const validations = new Map<string, ReviewRecord | null>();
@@ -34,26 +96,36 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = []) 
   const portals = new Map<string, string>();
   const policies = new Map<string, Lifecycle | null>();
   const used = new Set<string>();
-  const reads = canvasState.listBoards().map((board) => ({ board, read: canvasState.readBoard(board.id, false) }));
+  const boards = canvasState.listBoards();
+  const closure = only ? dependencyClosure(only) : null;
+  const reads = boards
+    .filter((board) => !closure || closure.reads.has(board.id))
+    .map((board) => ({
+      board,
+      read: closure ? closure.reads.get(board.id) : canvasState.readBoard(board.id, false),
+    }));
+  const targets = reads
+    .flatMap(({ board, read }) => (read?.layout.nodes ?? []).map((node) => ({ boardId: board.id, cardId: node.id })))
+    .filter((target) => !closure || closure.selected.has(memoryKey(target)));
+  const summaries = canvasState.databasePath ? canvasState.knowledge.reviewSummaries(targets) : null;
   const catalog = canvasState.databasePath
     ? canvasState.knowledge.list()
     : { categories: [], folders: [], relationPresets: [] };
   const session =
     agentPresence.reviewSessionStartedAt() ??
     Date.parse(
-      reads.find(({ board }) => board.id === canvasState.activeBoardId)?.board.lastOpenedAt ??
+      boards.find((board) => board.id === canvasState.activeBoardId)?.lastOpenedAt ??
         new Date(processStartedAt).toISOString(),
     );
   for (const { board, read } of reads) {
     const seen = new Map(canvasState.getNodeReadStatus(board.id).map((status) => [status.nodeId, status]));
     for (const node of read?.layout.nodes ?? []) {
       const key = memoryKey({ boardId: board.id, cardId: node.id });
+      if (closure && !closure.selected.has(key)) continue;
       cards.set(key, node);
       const { lifecycle } = canvasState.knowledge.resolveCard(board.folder, node, catalog);
       policies.set(key, lifecycle);
-      const { lastValidation, retired } = canvasState.databasePath
-        ? canvasState.knowledge.reviews(board.id, node.id)
-        : { lastValidation: null, retired: false };
+      const { lastValidation, retired } = summaries?.get(key) ?? { lastValidation: null, retired: false };
       validations.set(key, lastValidation);
       const lastRead = seen.get(node.id);
       const pinned = read!.state.contextPins.includes(node.id);
@@ -218,7 +290,7 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = []) 
   for (const { board, read } of reads) {
     for (const node of read?.layout.nodes ?? []) {
       const status = result[memoryKey({ boardId: board.id, cardId: node.id })];
-      if (status.retired || !(status.due || status.sources.length)) continue;
+      if (!status || status.retired || !(status.due || status.sources.length)) continue;
       reviewCards.push({
         boardId: board.id,
         cardId: node.id,

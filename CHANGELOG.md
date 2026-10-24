@@ -5,12 +5,17 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-10-24
+
 ### Fixed
 
 - Expanded Markdown keeps Source clear of the text at narrow widths and while scrolling.
 - Knowledge review, category, relation preset and board-copy forms work in script-only hosted workbenches without extra sandbox permissions.
 - Delayed startup reads no longer hide active agent sessions or bring ended sessions back into the top bar.
 - Copilot instructions request delivery during the active turn instead of defaulting to the next-turn queue.
+- Agent camera moves no longer rewrite every card's position and size, and tour navigation avoids loading card contents.
+- Saved Markdown skips repeated link parsing while preserving images and saved link targets.
+- Single-card lifecycle checks avoid unrelated boards, and review queues no longer load every card's full audit history.
 
 ## [0.9.2] - 2026-10-23
 

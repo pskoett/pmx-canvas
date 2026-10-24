@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { z } from 'zod';
+import { type MemoryTarget } from '../shared/memory-graph.js';
 import { type ActorAttribution } from './attribution.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState } from './canvas-state.js';
@@ -182,7 +183,7 @@ export declare class KnowledgeLifecycle {
             cadenceDays?: number | undefined;
         } | null;
         lifecycleSourceFolder: string | null;
-        lifecycleSource: "unknown" | "card" | "folder";
+        lifecycleSource: "card" | "unknown" | "folder";
     };
     resolveCard(folderPath: string | null, node: Pick<CanvasNodeState, 'type' | 'data'>, catalog?: {
         categories: KnowledgeCategory[];
@@ -208,8 +209,16 @@ export declare class KnowledgeLifecycle {
             cadenceDays?: number | undefined;
         } | null;
         lifecycleSourceFolder: string | null;
-        lifecycleSource: "unknown" | "card" | "folder";
+        lifecycleSource: "card" | "unknown" | "folder";
     };
+    private indexedDb;
+    /** Stored owners of semantic sources; the caller overlays the active board's unsaved edges. */
+    incomingSourceBoards(target: MemoryTarget, activeBoardId: string | null): string[];
+    /** One indexed latest validation and retirement per card, never its full audit history. */
+    reviewSummaries(targets: MemoryTarget[]): Map<string, {
+        lastValidation: ReviewRecord | null;
+        retired: boolean;
+    }>;
     reviews(boardId: string, nodeId: string): {
         records: ReviewRecord[];
         retired: boolean;

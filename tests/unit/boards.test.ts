@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
-import type { KnowledgeResults } from '../../src/server/knowledge-lifecycle.ts';
+import type { KnowledgeResults, LifecycleResults } from '../../src/server/knowledge-lifecycle.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { runCanvasBatchOperation } from '../../src/server/operations/index.ts';
 import { executeOperation, isEmitSuppressed } from '../../src/server/operations/registry.ts';
@@ -444,8 +444,21 @@ test('knowledge review queue joins authoritative titles and board-qualified stat
     type: 'board',
     data: { title: 'Source-only warning', boardId: first.id },
   });
+  for (let r = 0; r < 24; r++)
+    canvasState.knowledge.record(second.id, 'shared', {
+      outcome: r % 2 ? 'retain' : 'unresolved',
+      applied: true,
+      evidence: r % 2 ? '\t\n\u00a0\u2003\ufeff' : `Unresolved evidence ${r}`,
+    });
   const before = await executeOperation('node.lifecycle-get', { id: 'shared', board: second.id });
-  const catalog = (await executeOperation('knowledge.list', {})) as KnowledgeResults['list'];
+  const history = spyOn(canvasState.knowledge, 'reviews');
+  let catalog: KnowledgeResults['list'];
+  try {
+    catalog = (await executeOperation('knowledge.list', {})) as KnowledgeResults['list'];
+    expect(history).not.toHaveBeenCalled();
+  } finally {
+    history.mockRestore();
+  }
   expect(catalog.reviewCards).toHaveLength(3);
   expect(catalog.reviewCards).toEqual(
     expect.arrayContaining([
@@ -467,6 +480,25 @@ test('knowledge review queue joins authoritative titles and board-qualified stat
     ]),
   );
   expect(JSON.stringify(catalog.reviewCards)).not.toContain('Large content');
+  // Home's folder scope must use a path boundary, exclude retired cards, and include portal warnings.
+  const counts = (folder: string) => {
+    const boards = new Set(
+      canvasState
+        .listBoards()
+        .filter((board) => !folder || board.folder === folder || board.folder?.startsWith(`${folder}/`))
+        .map((board) => board.id),
+    );
+    const cards = Object.entries(catalog.cards)
+      .filter(([key]) => boards.has(JSON.parse(key)[0]))
+      .map(([, card]) => card);
+    return {
+      review: cards.filter((card) => !card.retired && (card.due || card.sources.length)).length,
+      unknown: cards.filter((card) => card.unknown).length,
+    };
+  };
+  expect(counts('')).toEqual({ review: 3, unknown: 2 });
+  expect(counts('Projects')).toEqual({ review: 1, unknown: 0 });
+  expect(counts('ProjectsElsewhere')).toEqual({ review: 2, unknown: 2 });
   expect(await executeOperation('node.lifecycle-get', { id: 'shared', board: second.id })).toEqual(before);
   expect(canvasState.activeBoardId).toBe(second.id);
 });
@@ -518,7 +550,15 @@ test('audited reviews separate application, evidence, retirement, restoration an
   const a = canvasState.createBoard('A')!;
   canvasState.switchBoard(a.id);
   canvasState.addNode(note('shared', 'A'));
-  const read = () => executeOperation('node.lifecycle-get', { id: 'shared', board: a.id });
+  const read = async () => {
+    const result = (await executeOperation('node.lifecycle-get', {
+      id: 'shared',
+      board: a.id,
+    })) as LifecycleResults['get'];
+    expect(result.qualification.retired).toBe(result.retired);
+    expect(result.qualification.lastValidatedAt).toBe(result.lastValidation?.when ?? null);
+    return result;
+  };
   const review = (outcome: string, applied: boolean, evidence: string) =>
     executeOperation(
       'node.review',
@@ -545,6 +585,8 @@ test('audited reviews separate application, evidence, retirement, restoration an
   expect(await read()).toMatchObject({
     lastValidation: { evidence: 'source v1', who: { actor: 'agent', source: 'sdk', agentId: 'reviewer' } },
   });
+  await review('revise', true, '\t\n\u00a0\u2003\ufeff');
+  expect(await read()).toMatchObject({ lastValidation: { evidence: 'source v1' } });
   await review('retire', false, 'not applied');
   expect(await read()).toMatchObject({ retired: false });
   await review('retire', true, 'superseded');

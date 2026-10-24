@@ -99,7 +99,8 @@ offset mid-move without changing endpoints. Tours allow at most 1000 stops.
 Tours persist with the board and snapshots, participate in undo, and clear with
 the board. A file containing `null` resets the tour: when none is saved, groups
 are sorted by y, then x, then ID. A saved empty `stops` array deliberately has no
-stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`.
+stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`, which returns
+the tour directly; read stops from `.stops`.
 
 ### Driving a tour (agents)
 

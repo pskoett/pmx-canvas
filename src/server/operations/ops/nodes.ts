@@ -55,8 +55,7 @@ import {
 import { WEBPAGE_NODE_DEFAULT_SIZE, normalizeWebpageUrl } from '../../webpage-node.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 import { readTargetBoard } from './boards.js';
-import { lifecycleQualifications } from '../../lifecycle-status.js';
-import { memoryKey } from '../../../shared/memory-graph.js';
+import { lifecycleQualification } from '../../lifecycle-status.js';
 
 // ── Node types ────────────────────────────────────────────────
 // Single definition site for the basic node-type list: drives the HTTP type
@@ -1005,9 +1004,7 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
     const full = includeBlobs === true || includeBlobs === 'true';
     const qualify = (node: CanvasNodeState, boardId: string | null) => ({
       ...(full ? serializeCanvasNode(node) : serializeCanvasNodeWithBlobSummaries(node)),
-      qualification: boardId
-        ? lifecycleQualifications(Date.now(), [{ boardId, cardId: id }])[memoryKey({ boardId, cardId: id })]
-        : undefined,
+      qualification: boardId ? lifecycleQualification({ boardId, cardId: id }) : undefined,
     });
     if (typeof board === 'string' && board.trim()) {
       const target = readTargetBoard(board, full);

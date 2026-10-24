@@ -15,9 +15,12 @@ export interface TourStepResult {
     total: number;
     stop: TourStop;
 }
-export declare function currentTour(): Tour;
-/** The stop the tour is on for the active board, or null when not touring. */
-export declare function tourPosition(tour?: Tour): number | null;
+export interface TourState {
+    tour: Tour;
+    derived: boolean;
+    position: number | null;
+}
+export declare function currentTour(): TourState;
 /** Move the shared cursor. `next`/`previous` clamp at the ends; an explicit index must exist. */
 export declare function goToTourStop(step: TourStep): TourStepResult;
 export declare function exitTour(): void;

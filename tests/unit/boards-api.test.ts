@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Marked } from 'marked';
 import type { CanvasBoard } from '../../src/server/canvas-db.ts';
 import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
@@ -507,6 +508,33 @@ describe('boards over HTTP', () => {
       expect(canvasState.getNode(note)?.data.wikiLinks).toEqual([]);
       expect(catalog).not.toHaveBeenCalled();
     } finally {
+      catalog.mockRestore();
+    }
+  });
+
+  test('persisted Markdown renders inline images and saved bindings without reference-only lexing', async () => {
+    const target = canvasState.createBoard('Render lex target')!;
+    const image = `data:image/png;base64,${Buffer.alloc(300_000, 123).toString('base64')}`;
+    const content = `[[Render lex target|Saved]] [[Render lex pending]]\n\n![Figure](${image} "Keep image")`;
+    const note = String((await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content })).body.id);
+    canvasState.updateBoard(target.id, { name: 'Renamed lex target' });
+    canvasState.createBoard('Render lex target');
+    const pending = canvasState.createBoard('Render lex pending')!;
+    // Marked.parse uses its internal Lexer; this method is the extra reference-only pass.
+    const lexer = spyOn(Marked.prototype, 'lexer');
+    const catalog = spyOn(canvasState, 'wikiCatalog');
+    try {
+      const rendered = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+      expect(rendered.status).toBe(200);
+      expect(rendered.body.html).toContain(`src="${image}" alt="Figure" title="Keep image"`);
+      expect(rendered.body.html).toContain(`data-wiki-board="${target.id}"`);
+      expect(rendered.body.html).toContain('>Saved</a>');
+      expect(rendered.body.html).toContain('data-wiki-ref="Render lex pending"');
+      expect(rendered.body.html).not.toContain(`data-wiki-board="${pending.id}"`);
+      expect(catalog).not.toHaveBeenCalled();
+      expect(lexer).not.toHaveBeenCalled();
+    } finally {
+      lexer.mockRestore();
       catalog.mockRestore();
     }
   });
