@@ -137,6 +137,14 @@ describe('tool rail tooltips', () => {
     fireEvent.click(getByRole('menuitemcheckbox', { name: /Minimap/ }));
     expect(toggles.minimap).toHaveBeenCalledTimes(1);
     expect(queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(settings);
+    expect(queryByRole('tooltip')).toBeNull();
+
+    // Returning focus after a menu action stays quiet; a fresh hover still explains the control.
+    fireEvent.pointerEnter(settings);
+    expect(queryByRole('tooltip')?.textContent).toContain('Settings');
+    fireEvent.pointerLeave(settings);
+    expect(queryByRole('tooltip')).toBeNull();
 
     fireEvent.click(settings);
     fireEvent.click(getByText('Theme'));
