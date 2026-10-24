@@ -54,6 +54,51 @@ interface ReferenceCase {
 const addNode = (data: Record<string, unknown>) => (request: APIRequestContext) =>
   postId(request, '/api/canvas/node', data);
 
+test('expanded Markdown keeps visible text clear of Source at every scroll position', async ({ page, request }) => {
+  await resetBoard(request);
+  const content = `${Array.from({ length: 45 }, (_, i) => `Paragraph ${i + 1}. The recorded capacity value is ${105 + i}.`).join('\n\n')}\n\nEND OF DOCUMENT`;
+  const id = await postId(request, '/api/canvas/node', {
+    type: 'markdown',
+    title: 'Long document',
+    content,
+    x: 80,
+    y: 80,
+    width: 440,
+    height: 320,
+  });
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const reader = page.locator('.md-reader');
+  await expect(reader).toContainText('END OF DOCUMENT');
+  const obscured = await reader.evaluate(async (element) => {
+    const failures: string[] = [];
+    for (let top = 0; ; top += element.clientHeight / 2) {
+      element.scrollTop = top;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const viewport = element.getBoundingClientRect();
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        for (const word of text.textContent!.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(text, word.index!);
+          range.setEnd(text, word.index! + word[0].length);
+          const rect = range.getBoundingClientRect();
+          if (rect.top < viewport.top || rect.bottom > viewport.bottom || !rect.width) continue;
+          const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+          if (!hit || !element.contains(hit)) failures.push(word[0]);
+        }
+      }
+      if (element.scrollTop + element.clientHeight >= element.scrollHeight - 1) break;
+    }
+    return failures;
+  });
+  expect(obscured).toEqual([]);
+  await expect(reader.getByText('END OF DOCUMENT', { exact: true })).toBeInViewport();
+  await page.getByRole('button', { name: '</> Source', exact: true }).click();
+  await expect(page.locator('.md-editor-expanded textarea')).toHaveValue(content);
+});
+
 /** Asserts a sentinel inside the node's iframe document, and that the iframe itself is in the pane. */
 async function framePainted(node: Locator, sentinel: (frame: ReturnType<Locator['frameLocator']>) => Locator) {
   await expect(node.locator('iframe').first()).toBeInViewport();

@@ -77,6 +77,9 @@ Tick a task directly on its card, including quoted and nested tasks. A card clic
 only that task's `[ ]` or `[x]` marker, preserving the rest of the source exactly.
 Task-shaped text in code examples and raw HTML checkboxes are not Markdown task controls.
 
+Expand a Markdown card to read and edit the full document. Source stays outside the
+scrolling text, below ordinary documents and above documents with flow actions.
+
 ## File nodes
 
 File nodes display project files with line numbers and language detection.

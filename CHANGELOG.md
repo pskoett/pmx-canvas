@@ -5,6 +5,12 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Expanded Markdown keeps Source clear of the text at narrow widths and while scrolling.
+- Knowledge review, category, relation preset and board-copy forms work in script-only hosted workbenches without extra sandbox permissions.
+- Delayed startup reads no longer hide active agent sessions or bring ended sessions back into the top bar.
+
 ## [0.9.2] - 2026-10-23
 
 ### Fixed

@@ -4050,8 +4050,14 @@ kbd.toolbar-menu-hint {
 }
 
 /* ── Markdown reader mode (expanded view) ──────────────────── */
+.md-expanded-document {
+  display: flex;
+  flex-direction: column;
+}
+
 .md-reader {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   justify-content: center;
@@ -4205,11 +4211,11 @@ kbd.toolbar-menu-hint {
   background: var(--c-surface-subtle);
 }
 
-/* Source-mode FAB in expanded document view */
+/* Source stays below the scroll viewport, never over the document text. */
 .md-edit-fab {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
+  align-self: flex-end;
+  flex-shrink: 0;
+  margin: 16px;
   padding: 8px 18px;
   font-size: 13px;
   font-weight: 600;
@@ -5991,21 +5997,10 @@ html.is-node-resizing .ext-app-preview-catcher {
   /* Its sticky/backdrop-filter context must paint hints above the Source FAB. */
   z-index: 2;
 }
-.expanded-overlay-panel:has(.ax-step-dock) .md-expanded-document {
-  display: flex;
-  flex-direction: column;
-}
-.expanded-overlay-panel:has(.ax-step-dock) .md-reader {
-  flex: 1;
-  min-height: 0;
-}
 .expanded-overlay-panel:has(.ax-step-dock) .md-edit-fab {
   /* Keep Source and the document out of the bottom dock's hint area. */
-  position: static;
   order: -1;
-  align-self: flex-end;
-  flex-shrink: 0;
-  margin-bottom: 16px;
+  margin: 0 0 16px;
 }
 .ax-step-dock:has(.toolbar-tooltip-anchor:hover) .toolbar-tooltip-anchor:not(:hover) > :focus-visible + .toolbar-tooltip {
   /* Pointer exploration temporarily takes precedence without moving keyboard focus. */

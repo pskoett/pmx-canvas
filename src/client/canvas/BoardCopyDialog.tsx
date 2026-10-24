@@ -7,6 +7,7 @@ import {
   type BoardSummary,
 } from '../state/boards-store';
 import { useFocusTrap } from './use-focus-trap';
+import { submitWithoutNavigation } from './submit-without-navigation';
 
 export function BoardCopyDialog({ board, onClose }: { board: BoardSummary; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -63,7 +64,7 @@ export function BoardCopyDialog({ board, onClose }: { board: BoardSummary; onClo
         aria-labelledby="board-copy-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <form onSubmit={submit}>
+        <form onClick={submitWithoutNavigation} onSubmit={submit}>
           <h2 id="board-copy-title">Create from {board.name}</h2>
           <label class="board-copy-field">
             Board name

@@ -1,9 +1,9 @@
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
 import { type AgentActivityEntry, type AgentPresence, type AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 /**
- * Agent presence (rail-chrome-v2 phase 2). Fed by the server's `agent-presence`
- * SSE snapshot (every change, including TTL expiry) and the connect-time read,
- * so this store never runs its own expiry ticker.
+ * Agent presence (rail-chrome-v2 phase 2). Fed by the server's ordered
+ * `agent-presence` frames: a connect snapshot and every change, including TTL
+ * expiry, over SSE or polling. This store never runs its own expiry ticker.
  *
  * `sessionActive` is the ONE selector every agent surface reads — the session
  * panel, command bar, presence layer, and top-bar chip all mount on it.

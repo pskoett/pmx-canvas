@@ -20,6 +20,7 @@ import {
 import { sendSteering } from '../state/session-store';
 import { hasUnsavedMarkdown } from '../nodes/MarkdownNode';
 import { cleanLifecycle, DEFAULT_LIFECYCLE, LifecycleFields } from './LifecycleFields';
+import { submitWithoutNavigation } from './submit-without-navigation';
 
 export function LifecyclePanel() {
   const target = lifecycleTarget.value;
@@ -264,6 +265,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 <form
                   class="lifecycle-quick-review"
                   noValidate
+                  onClick={submitWithoutNavigation}
                   onSubmit={(event) => {
                     event.preventDefault();
                     void recordReview('retain', true).then((ok) => {
@@ -345,6 +347,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 · category belongs to the folder
               </p>
               <form
+                onClick={submitWithoutNavigation}
                 onSubmit={(event) => {
                   event.preventDefault();
                   void mutate('/lifecycle', { lifecycleOverride: override ? cleanLifecycle(policy) : null });
@@ -446,6 +449,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
               ) : (
                 <form
                   class="lifecycle-review"
+                  onClick={submitWithoutNavigation}
                   onSubmit={(event) => {
                     event.preventDefault();
                     void recordReview(outcome, applied);

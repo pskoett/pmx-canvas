@@ -504,7 +504,9 @@ retain their hit targets. Grab areas yield to every card, including neighboring 
 but outrank connection labels and lines. Group interiors still select and open their menus,
 below child ports and labels; the frames and labels keep their existing visual stacking.
 Expanded flow documents put Source in a separate row above the reader, clear of the
-bottom dock's action hints; ordinary documents keep their bottom-right Source button.
+bottom dock's action hints. Ordinary documents keep Source at the bottom right in a
+reserved row below the scroll viewport, so it cannot cover text at narrow widths
+or intermediate scroll positions (0.9.2 review follow-up, 2026-10-24).
 Hovering a flow action temporarily
 hides another action's keyboard hint without moving focus; leaving restores the focused hint.
 Card checkbox clicks address parsed Markdown tasks, not fenced/indented examples or raw

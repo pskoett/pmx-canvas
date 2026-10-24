@@ -1,4 +1,3 @@
-import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasNodeState } from '../types';
 /**
  * Per-tab identity: an AGENT driving the workbench UI from its own pane opens
@@ -156,8 +155,6 @@ export interface AxInteractionResponse {
 }
 /** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
 export declare function fetchAxSurfaceState(): Promise<unknown>;
-/** Connect-time agent-presence read; live updates arrive as `agent-presence` SSE frames. */
-export declare function fetchAgentPresence(): Promise<Partial<AgentPresenceSnapshot> | null>;
 /** Ask the server to open a node's surface in the system browser. */
 export declare function openNodeInSystemBrowserRequest(nodeId: string, url?: string): Promise<{
     ok: boolean;

@@ -50,7 +50,6 @@ import {
 import { applyContextStatus, refreshContextStatus } from './context-status-store';
 import { refreshContextChip } from './context-chip-store';
 import {
-  fetchAgentPresence,
   fetchAxSurfaceState,
   fetchCanvasState,
   reportClientViewportSize,
@@ -577,9 +576,8 @@ function handleConnected(data: Record<string, unknown>): void {
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
   reloadIfServerUpgraded(data.version, data.bundleStamp);
-  // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
-  // keep it live from here on.
-  void fetchAgentPresence().then(applyPresenceSnapshot);
+  // Both transports send an ordered `agent-presence` connect snapshot, then
+  // live frames. A separate HTTP read can arrive late and overwrite newer state.
   void refreshContextStatus();
   refreshContextChip();
   // Human collaborators (phase 8): announce this tab and read who else is here.

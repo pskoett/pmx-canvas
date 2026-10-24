@@ -1,7 +1,6 @@
 import { canvasArea, canvasFitInsets } from '../canvas/canvas-area';
 import { showToast } from './attention-bridge';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
-import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
 import { activeBoardId, boardsLoaded } from './boards-store';
@@ -399,11 +398,6 @@ export interface AxInteractionResponse {
 /** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
 export async function fetchAxSurfaceState(): Promise<unknown> {
   return requestJson<unknown>('fetchAxSurfaceState', '/api/canvas/ax/surface-snapshot', null);
-}
-
-/** Connect-time agent-presence read; live updates arrive as `agent-presence` SSE frames. */
-export async function fetchAgentPresence(): Promise<Partial<AgentPresenceSnapshot> | null> {
-  return requestJson<Partial<AgentPresenceSnapshot> | null>('fetchAgentPresence', '/api/canvas/ax/presence', null);
 }
 
 /** Ask the server to open a node's surface in the system browser. */

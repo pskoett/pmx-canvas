@@ -8,6 +8,7 @@ import { requestJson } from '../state/intent-bridge';
 import { cleanLifecycle, DEFAULT_LIFECYCLE, LifecycleFields } from './LifecycleFields';
 import { useFocusTrap } from './use-focus-trap';
 import { ChoiceMenu } from './ChoiceMenu';
+import { submitWithoutNavigation } from './submit-without-navigation';
 
 export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose: () => void }) {
   const enabled = knowledgeLifecycleEnabled.value;
@@ -158,6 +159,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
           <p>Knowledge settings unavailable. Close and retry.</p>
         ) : folder ? (
           <form
+            onClick={submitWithoutNavigation}
             onSubmit={async (event) => {
               event.preventDefault();
               if (!knowledgeLifecycleEnabled.value || busy) return;
@@ -286,6 +288,7 @@ export function KnowledgeDialog({ folder, onClose }: { folder?: string; onClose:
                 <form
                   class="category-inspector"
                   noValidate
+                  onClick={submitWithoutNavigation}
                   onSubmit={async (event) => {
                     event.preventDefault();
                     if (!knowledgeLifecycleEnabled.value || busy) return;

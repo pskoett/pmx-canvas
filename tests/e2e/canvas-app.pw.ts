@@ -89,6 +89,83 @@ async function capture(page: Page, name: string) {
   await page.screenshot({ path: join(process.env.PMX_APP_SCREENSHOTS, name) });
 }
 
+test('hosted lifecycle, category and preset forms save without native form permission', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  const boardId = await board(request, 'Sandboxed forms');
+  const categoryName = `Hosted facts ${boardId}`;
+  const presetName = `Hosted checks ${boardId}`;
+  const copyName = `Hosted copy ${boardId}`;
+  const id = await note(request, 'Checked capacity');
+  const app = await mount(page);
+  await expect(page.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
+  const blocked: string[] = [];
+  page.on('console', (message) => {
+    if (message.text().includes('Blocked form submission')) blocked.push(message.text());
+  });
+  const card = app.locator(`[data-node-id="${id}"]`);
+  await card.hover();
+  await card.getByRole('button', { name: 'More actions' }).click();
+  await app.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+  const review = app.getByRole('dialog', { name: 'Review card', exact: true });
+  await review.getByText('Settings and history', { exact: true }).click();
+  await review.getByLabel('Set a card lifecycle override').check();
+  await review.getByLabel('Cadence in days').fill('7');
+  await review.getByLabel('How to check').fill('Compare the retained capacity source.');
+  await review.getByRole('button', { name: 'Save lifecycle', exact: true }).click();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle?.cadenceDays)
+    .toBe(7);
+  await review.getByLabel('What did you check?').fill('Capacity matches the retained source: 149.');
+  await review.getByRole('button', { name: 'Checked, still correct', exact: true }).click();
+  await expect(review).toHaveCount(0);
+  expect((await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lastValidation.evidence).toBe(
+    'Capacity matches the retained source: 149.',
+  );
+  await app.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await app.getByRole('button', { name: 'Categories', exact: true }).first().click();
+  const categories = app.getByRole('dialog', { name: 'Categories', exact: true });
+  await categories.getByRole('button', { name: 'Add category', exact: true }).click();
+  await categories.getByLabel('Name', { exact: true }).fill(categoryName);
+  await categories.getByRole('tab', { name: 'Review policy' }).click();
+  await categories.getByLabel('How to check').fill('Compare source values.');
+  await categories.getByRole('button', { name: 'Save category', exact: true }).click();
+  await expect(categories.getByRole('status')).toContainText('Category saved');
+  expect(
+    (await (await request.get('/api/canvas/knowledge')).json()).categories.some(
+      (entry: { name: string }) => entry.name === categoryName,
+    ),
+  ).toBe(true);
+  await categories.getByRole('button', { name: 'Close settings' }).click();
+  await app.getByRole('button', { name: 'Relation presets', exact: true }).click();
+  const presets = app.getByRole('dialog', { name: 'Workspace relation presets' });
+  await presets.getByRole('button', { name: 'Add preset', exact: true }).click();
+  await presets.getByRole('button', { name: 'Add kind', exact: true }).click();
+  await presets.getByLabel('Kind 1', { exact: true }).fill('checks');
+  // Native required validation still applies; Enter in an input submits once valid.
+  await presets.getByRole('button', { name: 'Save preset', exact: true }).click();
+  await expect(presets.getByLabel('Name', { exact: true })).toBeFocused();
+  await presets.getByLabel('Name', { exact: true }).fill(presetName);
+  await presets.getByLabel('Name', { exact: true }).press('Enter');
+  await expect(presets.getByRole('status')).toContainText('Preset saved for the workspace');
+  expect(
+    (await (await request.get('/api/canvas/knowledge')).json()).relationPresets.find(
+      (entry: { name: string }) => entry.name === presetName,
+    ).vocabulary,
+  ).toEqual([{ kind: 'checks', ink: 'related', directed: true }]);
+  await page.keyboard.press('Escape');
+  await expect(presets).toHaveCount(0);
+  const sourceRow = app.locator(`[data-testid="home-board"][data-board-id="${boardId}"]`);
+  await sourceRow.getByRole('button', { name: 'Sandboxed forms', exact: true }).click();
+  await app.getByRole('button', { name: /More: move, rename/ }).click();
+  await app.getByRole('menuitem', { name: 'Create from…' }).click();
+  const copy = app.getByRole('dialog', { name: 'Create from Sandboxed forms' });
+  await copy.getByLabel('Board name').fill(copyName);
+  await copy.getByRole('button', { name: 'Create board', exact: true }).click();
+  await expect(copy).toHaveCount(0);
+  await expect(app.getByTestId('home-board').filter({ hasText: copyName })).toBeVisible();
+  expect(blocked).toEqual([]);
+});
+
 test('hosted Markdown cannot execute in the document that owns the MCP bridge', async ({ page, request }) => {
   await board(request, 'Markdown boundary');
   const { id } = await (

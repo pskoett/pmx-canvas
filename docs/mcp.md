@@ -170,6 +170,10 @@ in the user's browser. Standalone Markdown edits carry captured board/content
 revisions; a refused save keeps the current editor draft. Copy that draft before
 closing the editor or switching boards; unsaved drafts do not survive remounts.
 
+Knowledge review, categories, relation presets and board-copy forms handle saves
+in JavaScript, including Enter and input validation. They do not require the
+outer host to grant `allow-forms`; the SDK test host keeps `sandbox="allow-scripts"`.
+
 **Host constraints still apply.** Native PMX controls work without child frames.
 HTML, Mermaid, JSON/graph and nested app renderers need the host to permit local
 `srcdoc` frames. The portable MCP Apps default with empty `frameDomains` is
