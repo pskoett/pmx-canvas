@@ -189,3 +189,101 @@ describe('GitHub Copilot canvas adapter targeting', () => {
     }
   });
 });
+
+type SteeringPath = 'panel' | 'action' | 'pump';
+
+async function steeringHarness(path: SteeringPath, session?: Parameters<typeof loadCopilotCanvas>[1]) {
+  let available = path !== 'panel';
+  const writes: string[] = [];
+  const fetchImpl: typeof fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0], options?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/health') {
+        if (!available) throw new Error('Server unavailable');
+        return Response.json({ ok: true, workspace: process.cwd() });
+      }
+      if (options?.method === 'POST') writes.push(url.pathname);
+      if (url.pathname === '/api/canvas/ax/delivery/pending') {
+        return Response.json({
+          pending: [{ id: 'steer-mode', message: 'Use the checked source', createdAt: new Date().toISOString() }],
+        });
+      }
+      return Response.json({ ok: true });
+    },
+    { preconnect: fetch.preconnect },
+  );
+  const adapter = loadCopilotCanvas(fetchImpl, session);
+  const opened = path === 'panel' ? await adapter.open({ instanceId: 'steering', input: { autoStart: false } }) : null;
+  available = true;
+  if (opened) {
+    // The fallback panel must rediscover its target before it can mirror instructions.
+    const status = await (await fetch(`${opened.url}status`)).json();
+    expect(status.ok).toBe(true);
+  }
+  return {
+    writes,
+    close: () => adapter.onClose({ instanceId: 'steering' }),
+    async send() {
+      if (opened) {
+        const response = await fetch(`${opened.url}send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: 'Use the checked source' }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+        expect(result.ok).toBe(true);
+      } else if (path === 'action') {
+        const instruction = adapter.actions.find((candidate) => candidate.name === 'send_instruction')!;
+        expect(await instruction.handler({ input: { prompt: 'Use the checked source' } })).toEqual({ ok: true });
+      } else {
+        await adapter.runSteeringOnce();
+      }
+      // Settle the action's asynchronous timeline mirror before checking side effects.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    },
+  };
+}
+
+describe('Copilot immediate steering', () => {
+  for (const path of ['panel', 'action', 'pump'] as const) {
+    test(`${path} requests immediate delivery and does not acknowledge a refused send`, async () => {
+      let fail = true;
+      const requests: Array<{ prompt: string; mode?: string }> = [];
+      const harness = await steeringHarness(path, {
+        send: async (options) => {
+          requests.push(options);
+          if (fail) throw new Error('Host refused the send');
+          return 'accepted-message';
+        },
+      });
+      try {
+        await expect(harness.send()).rejects.toThrow('Host refused the send');
+        expect(harness.writes).toEqual([]);
+        fail = false;
+        await harness.send();
+        expect(requests).toEqual([
+          { prompt: 'Use the checked source', mode: 'immediate' },
+          { prompt: 'Use the checked source', mode: 'immediate' },
+        ]);
+        expect(harness.writes).toEqual([
+          path === 'pump' ? '/api/canvas/ax/delivery/steer-mode/mark' : '/api/canvas/ax/steer',
+        ]);
+      } finally {
+        await harness.close();
+      }
+    });
+  }
+
+  for (const path of ['panel', 'action'] as const) {
+    test(`${path} refuses instructions before a Copilot session is available`, async () => {
+      const harness = await steeringHarness(path);
+      try {
+        await expect(harness.send()).rejects.toThrow('Copilot session is unavailable');
+        expect(harness.writes).toEqual([]);
+      } finally {
+        await harness.close();
+      }
+    });
+  }
+});

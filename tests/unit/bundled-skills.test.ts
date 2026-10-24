@@ -54,6 +54,26 @@ describe('bundled skills', () => {
     expect(themeList?.split(',').map((theme) => theme.trim())).toEqual([...CANVAS_THEMES]);
   });
 
+  test('routine AX state recipe explicitly excludes context', () => {
+    const skill = readBundledSkill('pmx-canvas')!;
+    const recipe = skill.match(/\*\*Token hygiene\.\*\*[\s\S]*?`canvas_ax_state (\{[^}]+\})`/)?.[1];
+    expect(recipe).toBeDefined();
+    expect(recipe).toMatch(/action:\s*"get"/);
+    expect(recipe).toMatch(/includeContext:\s*false\b/);
+  });
+
+  test('Copilot adapter documentation links work outside the repository skill layout', async () => {
+    const guide = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/github-copilot-app-adapter.md', import.meta.url),
+    ).text();
+    for (const document of ['agent-plugin.md', 'ax-host-adapter-contract.md']) {
+      const target = [...guide.matchAll(/\]\(([^)]+)\)/g)].find((match) => match[1]!.endsWith(`/${document}`))?.[1];
+      expect(target).toBeDefined();
+      expect(target).toBe(`https://github.com/pskoett/pmx-canvas/blob/main/docs/${document}`);
+      expect(await Bun.file(new URL(`../../docs/${document}`, import.meta.url)).exists()).toBe(true);
+    }
+  });
+
   test('installation pins and runtime prerequisite match the package version', async () => {
     const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
     const guide = await Bun.file(

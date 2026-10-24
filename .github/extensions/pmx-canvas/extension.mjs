@@ -312,7 +312,11 @@ async function startPanelServer(instanceId, ctx, pmx) {
                     jsonResponse(res, 400, { ok: false, error: "prompt is required" });
                     return;
                 }
-                await copilotSession?.send({ prompt: body.prompt });
+                if (!copilotSession) {
+                    jsonResponse(res, 503, { ok: false, error: "Copilot session is unavailable." });
+                    return;
+                }
+                await copilotSession.send({ prompt: body.prompt, mode: "immediate" });
                 // Explicit user instruction from the panel → mirror onto the AX
                 // timeline as a steering message (fire-and-forget).
                 const target = await verifiedEntryTarget(entry);
@@ -635,7 +639,8 @@ const pmxCanvas = createCanvas({
             handler: async (ctx) => {
                 const prompt = typeof ctx.input?.prompt === "string" ? ctx.input.prompt.trim() : "";
                 if (!prompt) throw new CanvasError("prompt_required", "prompt is required");
-                await copilotSession?.send({ prompt });
+                if (!copilotSession) throw new CanvasError("copilot_unavailable", "Copilot session is unavailable.");
+                await copilotSession.send({ prompt, mode: "immediate" });
                 // Mirror the explicit user instruction onto the AX timeline as a
                 // steering message (fire-and-forget). This is an explicit action
                 // flow, never a sync from the prompt hook.
@@ -867,7 +872,8 @@ sessionWorkspaceRoot = resolve((await copilotSession.rpc.metadata.snapshot()).wo
 steeringDeliveryPump = createSteeringDeliveryPump({
     consumer: "copilot",
     claim: claimCopilotSteering,
-    send: async (message) => await copilotSession.send({ prompt: message }),
+    // The SDK defaults to enqueue; canvas steering must target the active turn.
+    send: async (message) => await copilotSession.send({ prompt: message, mode: "immediate" }),
     mark: markCopilotSteering,
     getPresence: getCopilotPresence,
     setPresence: async (patch) => await postPresence(sessionWorkspaceRoot, patch),

@@ -10,6 +10,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Expanded Markdown keeps Source clear of the text at narrow widths and while scrolling.
 - Knowledge review, category, relation preset and board-copy forms work in script-only hosted workbenches without extra sandbox permissions.
 - Delayed startup reads no longer hide active agent sessions or bring ended sessions back into the top bar.
+- Copilot instructions request delivery during the active turn instead of defaulting to the next-turn queue.
 
 ## [0.9.2] - 2026-10-23
 

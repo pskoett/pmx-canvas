@@ -389,9 +389,9 @@ If the documented receipts or warnings are unexpectedly absent, do not guess aro
 payload reads: verify that the CLI/MCP host and daemon use the same 0.7 installation and workspace,
 restart the matching daemon after upgrade, and re-check `/health`.
 
-**Token hygiene.** For routine state checks use `canvas_ax_state { action: "get" }` WITHOUT
-`includeContext` — the full AX context payload is ~10× larger; request it only when you are
-actually consuming context.
+**Token hygiene.** For routine state checks use
+`canvas_ax_state { action: "get", includeContext: false }` to omit the serialized AX context.
+Omitting `includeContext` defaults to `true`; request full context only when actually consuming it.
 
 ## Context Pins
 

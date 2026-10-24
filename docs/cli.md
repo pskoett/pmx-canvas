@@ -593,6 +593,14 @@ pmx-canvas copilot install-extension --dry-run   # Preview target, writes nothin
 pmx-canvas copilot install-extension --yes        # Install/overwrite into .github/extensions/pmx-canvas/
 ```
 
+After updating the adapter, start a new Copilot project session to load it.
+Panel instructions, `send_instruction` and canvas steering request the SDK's
+`immediate` mode: during an active turn, Copilot receives them before its next
+model call, without aborting an executing tool. If the turn has already ended,
+the SDK queues the instruction instead. A successful send means the host accepted
+the instruction, not that the model has consumed it. Failed sends are not marked
+delivered; the delivery pump retries them.
+
 ## Skill sync
 
 Refresh the pmx-canvas skill copies **already installed** in this workspace.
