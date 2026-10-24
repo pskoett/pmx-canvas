@@ -37,6 +37,7 @@ const graphTemplate = new ContextUriTemplate('graph', ['focus', 'depth']);
 const resourceEvents = new Set([
   'context-pins-changed',
   'boards-changed',
+  'knowledge-changed',
   'ax-state-changed',
   'ax-event-created',
   'canvas-layout-update',

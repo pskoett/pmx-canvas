@@ -340,6 +340,7 @@ function requiredMcpFields(op: Operation): string[] {
 
 /** Registry metadata only: never boots a canvas or records a content read. */
 export function registerOperationHelpTool(server: McpServer): void {
+  const folded = compositeFoldedOpNames();
   server.registerTool(
     'canvas_help',
     {
@@ -360,13 +361,13 @@ export function registerOperationHelpTool(server: McpServer): void {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     ({ op: name }) => {
-      const operations = listOperations().filter((op) => op.mcp);
+      const operations = listOperations().filter((op) => op.mcp || folded.has(op.name));
       if (name === undefined) {
         const result = { operations: operations.map((op) => op.name).sort() };
         return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: { result } };
       }
       const op = operations.find((op) => op.name === name);
-      if (!op?.mcp) {
+      if (!op) {
         return {
           content: [{ type: 'text', text: `Unknown MCP operation "${name}". Omit op to list available operations.` }],
           isError: true,
@@ -376,7 +377,7 @@ export function registerOperationHelpTool(server: McpServer): void {
       const publicName = (field: string) =>
         Object.entries(composite?.fieldRemap ?? {}).find(([, original]) => original === field)?.[0] ?? field;
       const shape = Object.fromEntries(
-        Object.entries({ ...op.inputShape, ...op.mcp.extraShape }).map(([field, schema]) => [
+        Object.entries({ ...op.inputShape, ...op.mcp?.extraShape }).map(([field, schema]) => [
           publicName(field),
           schema,
         ]),
@@ -410,8 +411,8 @@ export function registerOperationHelpTool(server: McpServer): void {
       }
       const result = {
         operation: name,
-        tool: composite?.toolName ?? op.mcp.toolName,
-        description: op.mcp.description,
+        tool: composite?.toolName ?? op.mcp!.toolName,
+        description: op.mcp?.description ?? composite!.description,
         inputSchema,
       };
       return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: { result } };

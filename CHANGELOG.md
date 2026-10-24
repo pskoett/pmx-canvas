@@ -3,11 +3,14 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.10.0] - 2026-10-24
 
 ### Breaking
 
 - SDK tour reads return `{ tour, derived, position }`; read stops from `.getTour().tour.stops` instead of `.getTour().stops`.
+- SDK approval, elicitation and mode waits reject on cancellation; handle cancellation separately from a pending timeout result.
+- Live MCP resource notifications require an explicit subscription; subscribe again after reconnecting.
+- Rejected `canvas_ax_interaction` calls return `isError: true`; handle them as tool errors.
 
 ### Added
 
@@ -17,7 +20,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
-- MCP discovery uses smaller output schemas while preserving result validation.
+- MCP discovery shares equivalent output schemas while preserving result validation.
+
+### Fixed
+
+- Toggling the minimap closes the Settings tooltip without losing keyboard focus.
 
 ## [0.9.3] - 2026-10-24
 

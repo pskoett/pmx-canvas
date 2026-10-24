@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, getAvailablePort, removeTestWorkspace, waitForCondition } from './helpers.ts';
 import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { listOperations } from '../../src/server/operations/registry.ts';
+import { compositeToolDefinitions } from '../../src/server/operations/composites.ts';
 
 interface TextContentItem {
   type: string;
@@ -181,6 +183,13 @@ describe('MCP parity with CLI', () => {
     expect(listed).toContain('node.add');
     expect(listed).not.toContain('import.commit');
     expect(listed).toEqual([...new Set(listed)].sort());
+    const publicOperations = new Set([
+      ...listOperations()
+        .filter((op) => op.mcp)
+        .map((op) => op.name),
+      ...compositeToolDefinitions.flatMap((tool) => tool.memberOps ?? Object.values(tool.actions)),
+    ]);
+    expect(listed).toEqual([...publicOperations].sort());
     for (const op of listed) await help(op);
     for (const op of ['import.commit', 'not.an.operation', 'canvas_screenshot']) {
       const reply = CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: { op } }));
@@ -337,13 +346,38 @@ describe('MCP parity with CLI', () => {
     remoteUpdates.length = 0;
     const board = await local.client.callTool({
       name: 'canvas_board',
-      arguments: { action: 'create', name: 'Library-only change' },
+      arguments: { action: 'create', name: 'Library-only change', folder: 'Policy' },
     });
     expect(board.isError).not.toBe(true);
     for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
     // Creating an unopened board changes context without changing active nodes.
     expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
     expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    const category = {
+      id: 'subscription-policy',
+      name: 'Policy',
+      glyph: 'P',
+      decayType: 'reality',
+      rate: 'fast',
+      triggers: ['source changed'],
+      revalidationMethod: 'check source',
+    };
+    for (const args of [
+      { action: 'category-set', category },
+      { action: 'folder-set', path: 'Policy', categoryId: category.id, lifecycleOverride: null },
+      { action: 'category-set', category: { ...category, rate: 'durable' } },
+    ]) {
+      // Drain the previous operation before checking each policy-only invalidation.
+      await Bun.sleep(100);
+      localUpdates.length = 0;
+      remoteUpdates.length = 0;
+      const changed = await local.client.callTool({ name: 'canvas_board', arguments: args });
+      expect(changed.isError).not.toBe(true);
+      for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+      expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+      expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+      expect(await reads()).toBe(before);
+    }
     localUpdates.length = 0;
     remoteUpdates.length = 0;
     const moved = await fetch(`${base}/api/canvas/camera/move`, {

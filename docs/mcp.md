@@ -786,20 +786,9 @@ interaction against the node's effective capabilities.
 
 ## Change notifications
 
-The MCP server emits `notifications/resources/updated` whenever canvas state
-changes:
-
-- Pin changes notify `canvas://pinned-context`, `canvas://ax`, and `canvas://ax-context`
-- AX focus changes notify `canvas://ax` and `canvas://ax-context`
-- Canvas-bound AX mutations (work items, approval gates, review annotations,
-  host capability) notify `canvas://ax`, `canvas://ax-work`, and `canvas://ax-context`
-- AX timeline mutations (agent-events, evidence, steering) notify
-  `canvas://ax-timeline` and `canvas://ax-context`
-- All mutations notify `canvas://layout`, `canvas://summary`,
-  `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, and `canvas://graph`
-
-This closes the human-to-agent loop: spatial curation in the browser becomes
-an immediate signal in the agent's context.
+Notifications require an explicit subscription to each live resource URI. See
+[Resource subscriptions](#resource-subscriptions-010) for connection lifetime,
+reconnection and broad cache invalidation. Receiving a notification is not a content read.
 
 ## Codex App Adapter
 

@@ -1,10 +1,9 @@
 # Plan 019: After 0.9.0
 
 **Status (2026-10-24):** 0.9.3 is released to npm and GitHub, with fresh registry smoke
-passing. The maintainer approved implementing step 2, MCP hardening and SDK tour
-result parity for 0.10 on SDK v1. Hardening and the Settings tooltip fix are pushed;
-the subsequently approved operation-help and schema-size additions are local.
-0.10 publication is not authorized.
+passing. Step 2, MCP hardening and SDK tour result parity on SDK v1, is implemented
+and pushed with the Settings tooltip fix, operation help and schema-size reduction.
+The maintainer authorized review, testing and release of 0.10.0; release gates are in progress.
 Later version numbers are proposals, not publication approval; every release must pass
 the [release gates](../RELEASE.md).
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),

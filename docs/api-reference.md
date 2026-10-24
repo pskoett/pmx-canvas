@@ -18,7 +18,7 @@ The `diagram` action of `canvas_app` is a thin preset in `src/server/diagram-pre
 
 15 static canvas resources: `canvas://boards`, `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-timeline`, `canvas://ax-work`, `canvas://ax-pending-steering`, `canvas://ax-delivery`, `canvas://skills`; two canvas resource templates: `canvas://context{?budget,consumer,since}` and `canvas://graph{?focus,depth}`. Bundled skills additionally register per-skill `canvas://skills/<name>` resources and the `skill://{name}/{+path}` file template.
 
-Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, and `canvas://graph`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
+Resource change notifications: subscribe to each live URI to receive `notifications/resources/updated` when canvas state or knowledge policies change. Notifications invalidate cached data without reading it. Subscriptions belong to the connection; subscribe again after reconnecting. See [Resource subscriptions](mcp.md#resource-subscriptions-010).
 
 ### AX Primitives (host-agnostic)
 
