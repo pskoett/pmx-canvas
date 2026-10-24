@@ -30,7 +30,11 @@ import { AX_SOURCES } from '../server/operations/ops/ax-shared.js';
 import { describeCanvasSchema, stopCanvasServer } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
-import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
+import {
+  registerOperationTools,
+  registerCompositeTools,
+  registerOperationHelpTool,
+} from '../server/operations/index.js';
 import { agentSourceLabel } from '../server/operations/invoker.js';
 import { contextReadFromPayload, pinnedBoardReads, graphReads } from '../server/context-reads.js';
 import type { MemoryGraph } from '../shared/memory-graph.js';
@@ -168,6 +172,7 @@ export function createMcpServer(): McpServer {
   // as standalone tools in v0.3.0; they remain reachable via their composite
   // and canvas_batch. Remaining standalone tool names and compact/full payload
   // behavior are frozen (tests/unit/mcp-tool-freeze.test.ts, operation-parity.test.ts).
+  registerOperationHelpTool(server);
   registerOperationTools(server, ensureCanvas);
 
   // ── Composite (action-discriminated) tools (plan-006) ───────────

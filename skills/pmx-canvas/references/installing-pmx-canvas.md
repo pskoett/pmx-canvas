@@ -174,8 +174,8 @@ The agent must not run this approval itself or move the command to global settin
 `--mcp-config` to bypass workspace trust. Approval authorizes execution of this MCP
 command; it is not a new Canvas import consent or permission to mutate arbitrary boards.
 After approval, reload MCP connections (`reload_mcp` in Amp) and require `connected`.
-Discover `canvas` tools with `tool_search`; for the full unfiltered 0.9.3 server there
-are 24 tools. If still absent, inspect the server status, command/PATH and target instead
+Discover `canvas` tools with `tool_search`; the full unfiltered 0.9.3 server has 24 tools;
+the 0.10 candidate adds `canvas_help` for 25. If still absent, inspect the server status, command/PATH and target instead
 of reinstalling blindly. See [Amp MCP documentation](https://ampcode.com/docs/customize/mcp).
 
 ### Verify native tools, then steering

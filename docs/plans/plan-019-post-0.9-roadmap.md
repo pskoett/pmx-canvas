@@ -2,7 +2,9 @@
 
 **Status (2026-10-24):** 0.9.3 is released to npm and GitHub, with fresh registry smoke
 passing. The maintainer approved implementing step 2, MCP hardening and SDK tour
-result parity for 0.10 on SDK v1. These changes are local; 0.10 publication is not authorized.
+result parity for 0.10 on SDK v1. Hardening and the Settings tooltip fix are pushed;
+the subsequently approved operation-help and schema-size additions are local.
+0.10 publication is not authorized.
 Later version numbers are proposals, not publication approval; every release must pass
 the [release gates](../RELEASE.md).
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),
@@ -22,7 +24,7 @@ measured; the maintainer carries that risk rather than reinstating an earlier ga
 | Step | Proposed version | Scope | Vision | Size |
 |---|---|---|---|---|
 | 1 | 0.9.3 | Cleanup: tour debt, large-board costs, bounded due evaluator, MCP reconnect, lint | 12, 1 | S–M |
-| 2 | 0.10 | MCP hardening: contracts, annotations, cancellation, resource subscriptions | 6a, 1 | M |
+| 2 | 0.10 | MCP hardening, operation help and bounded discovery-schema reduction | 6a, 1 | M |
 | 3 | 0.11 | One frame host, portal-layer mount, Wave-0 design pass | 5, 9 | M–L |
 | 4 | 0.12 | Wave 5: agent output as nodes, make/inline board, group drill-in, relations sketch parity | 3, 0 | L |
 | 5 | later | Trust (M half), journal, concurrent boards, binary | 7, 4, 8 | L–XL |
@@ -139,9 +141,54 @@ and move 1's context delivery, on the current SDK v1.
   record reads or advance cursors. A library-only-change regression failed before integration
   and passes with the shared event source.
 - SDK `getTour()` now returns `{ tour, derived, position }`; `.tour.stops` is documented as
-  the minor-version breaking change. No SDK/dependency upgrade, extra tools or frame-host work.
+  the minor-version breaking change. No SDK/dependency upgrade or frame-host work.
 
-**Verification:** build and typecheck pass; `bun run test` passes 1,544 tests and
+**Approved follow-up, 2026-10-24:** `canvas_help { op }` derives one operation's
+public arguments, required fields, routing selectors and guidance from the registry.
+Omitting `op` lists MCP registry names; internal/human-only and non-registry tools are
+excluded. Metadata reads neither boot a canvas nor record content delivery. The catalog
+now has 25 tools. Conditional handler validation still applies; no lazy host discovery
+or smaller input schemas are claimed.
+
+Equivalent success schemas shared by identity are grouped within each tool. Distinct
+payload contracts, error branches and batch partial receipts remain unchanged. Two
+real stdio measurements with `bun run scripts/measure-mcp-catalog.ts` were byte-identical:
+the previous 24-tool candidate's 144,680 UTF-8 JSON bytes become 137,381 for the same
+tools (7,299 fewer, 5.05%). Existing output schemas drop from 77,105 to 69,806 bytes.
+Adding help costs 1,156 catalog bytes including its separator: 138,537 bytes total,
+6,143 fewer than the previous candidate (4.25%). Input-schema byte counts are unchanged.
+This remains larger than published 0.9.3's 65,219 bytes. Bytes are not tokens, latency
+or measured agent effectiveness. `session.start` and composite-input redesign remain deferred.
+
+**Follow-up verification:** build, typecheck and `bun run test` pass (1,546 tests).
+Real SDK stdio checks enumerate help for every exposed registry operation, validate
+required fields, aliases and gate selectors, and create/remove a card using returned
+arguments. Schema controls reject mismatched operations, malformed receipts and extra
+envelope fields while accepting extensible payloads. Lint passes with 55 warnings and
+12 infos. The first combined run caught a second frozen tool list still expecting 24;
+that assertion now includes help. Test-fixture/typecheck failures were corrected, with
+first-failure logs retained.
+
+**Full candidate rerun requested by the maintainer:** `bun run test:coverage` passes
+1,546 tests (67.27% lines, 73.62% functions, above the 60%/64% floors);
+`bun run test:client` passes 332; `xvfb-run -a bash scripts/run-playwright.sh --headed`
+passes all 333 desktop and 600/1024/1920 reference cases. Headed `test:e2e-cli`,
+`release:smoke`, `pack:dry-run`, build, typecheck, lint and generated-catalog mirror
+checks pass. A fresh packed MCP consumer discovers 25 tools, reads help without
+creating state, and validates add/get results. Its allowed dependency versions
+(SDK 1.32.2, Zod 4.6.7 versus checkout 1.28.0/4.3.6) encode nullable primitive schemas
+as type arrays instead of `anyOf`. The initial byte-identity assertion failed;
+comparison passes when only that equivalent encoding is normalized. No dependency changed.
+
+The live portal serves the exact rebuilt bundle. Real stdio help-guided calls and
+headed browser checks pass human pin → notification → explicit read → rendered edit,
+unsubscribe, numeric progress tokens, cancelled approval waits, partial batch receipts
+and refresh persistence. Both minimap toggles leave no tooltip and preserve Settings
+focus. The first recording encoder fell behind; a later recording with the large suite
+finished and a smaller viewport succeeded and was inspected frame by frame.
+Native Amp/Copilot acceptance, Windows/macOS and remote/native reconnect remain unverified.
+
+**Initial hardening verification:** build and typecheck pass; `bun run test` passes 1,544 tests and
 `bun run test:client` passes 332. `xvfb-run -a bash scripts/run-playwright.sh --headed`
 passes 333 cases; three pin/viewport/polling controls also pass after the final local
 subscription event hook. `bun run release:smoke` passes on a disposable packed install,
@@ -162,12 +209,12 @@ this candidate; no dependency or reconnect fix is claimed here.
 
 **Discovery cost:** `bun run scripts/measure-mcp-catalog.ts` measures UTF-8 bytes of the
 real SDK client's `tools/list` JSON in a disposable stdio workspace, without canvas reads.
-The 0.9.3 baseline is 65,219 bytes; the local candidate is 144,680 bytes, both 24 tools.
-Output schemas contribute 77,105 bytes. This is an increase in discovery overhead, not a
+The 0.9.3 baseline is 65,219 bytes; the initial hardening candidate was 144,680 bytes, both 24 tools.
+Output schemas contributed 77,105 bytes before the follow-up above. This is an increase in discovery overhead, not a
 claim of cheaper prompts or a token estimate. Existing result text is unchanged; structured
 results duplicate that projection for machine consumers. Host-specific prompt costs are unmeasured.
 
-| Tool | 0.9.3 bytes | Local candidate bytes |
+| Tool | 0.9.3 bytes | Initial hardening bytes |
 |---|---:|---:|
 | `canvas_pin_nodes` | 782 | 2227 |
 | `canvas_invoke_command` | 804 | 2312 |
@@ -206,7 +253,9 @@ results duplicate that projection for machine consumers. Host-specific prompt co
 6. Align SDK tour reads with HTTP/MCP `{ tour, derived, position }`; document the breaking
    change from `.stops` to `.tour.stops` at this minor-version boundary.
 
-Candidates, not automatic scope: `canvas_help { op }`, `session.start`, per-action schemas.
+7. Approved follow-up: `canvas_help { op }` and bounded output-schema deduplication, as above.
+
+Candidates, not automatic scope: `session.start`, composite-input redesign.
 
 **Done when**
 - Representative read and mutation results validate against their advertised schemas.

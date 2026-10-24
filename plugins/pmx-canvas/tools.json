@@ -1,6 +1,86 @@
 {
   "tools": [
     {
+      "name": "canvas_help",
+      "description": "Look up an MCP operation by registry name (e.g. node.add, ax.approval.request). Returns its public tool, argument schema and guidance. Omit op to list operation names. Does not execute operations or read canvas content.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "inputSchema": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "operation",
+                  "tool",
+                  "description",
+                  "inputSchema"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
       "name": "canvas_pin_nodes",
       "description": "Pin nodes to include them in the agent context. Pinned nodes appear in the canvas://pinned-context resource. The human can also pin nodes by clicking in the browser.",
       "inputSchema": {
@@ -1980,7 +2060,13 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "board.list"
+                    "enum": [
+                      "board.list",
+                      "board.open",
+                      "board.update",
+                      "board.pin",
+                      "board.unpin"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -2040,52 +2126,10 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "board.get"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "board": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "minLength": 1
-                          }
-                        },
-                        "required": [
-                          "id"
-                        ],
-                        "additionalProperties": {}
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "board"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "board.create"
+                    "enum": [
+                      "board.get",
+                      "board.create"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -2244,126 +2288,6 @@
                         "additionalProperties": {}
                       }
                     ]
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "board.open"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "activeBoardId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "boards": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "id"
-                          ],
-                          "additionalProperties": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "activeBoardId",
-                      "boards"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "board.update"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "activeBoardId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "boards": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "id"
-                          ],
-                          "additionalProperties": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "activeBoardId",
-                      "boards"
-                    ],
-                    "additionalProperties": {}
                   }
                 },
                 "required": [
@@ -2632,126 +2556,6 @@
                     "required": [
                       "ok",
                       "folder"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "board.pin"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "activeBoardId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "boards": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "id"
-                          ],
-                          "additionalProperties": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "activeBoardId",
-                      "boards"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "board.unpin"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "activeBoardId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "boards": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "id"
-                          ],
-                          "additionalProperties": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "activeBoardId",
-                      "boards"
                     ],
                     "additionalProperties": {}
                   }
@@ -3240,7 +3044,10 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "node.add"
+                    "enum": [
+                      "node.add",
+                      "node.update"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -3342,78 +3149,6 @@
                     "required": [
                       "id",
                       "type"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "node.update"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "id": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "nodeId": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "node": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "type": {
-                            "type": "string"
-                          },
-                          "contentRevision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "linksRevision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "type"
-                        ],
-                        "additionalProperties": {}
-                      },
-                      "contentRevision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "id"
                     ],
                     "additionalProperties": {}
                   }
@@ -4113,7 +3848,10 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "jsonrender.add"
+                    "enum": [
+                      "jsonrender.add",
+                      "graph.add"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -4259,78 +3997,6 @@
                       "specVersion",
                       "applied",
                       "skipped"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "graph.add"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "id": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "nodeId": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "node": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "type": {
-                            "type": "string"
-                          },
-                          "contentRevision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "linksRevision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "type"
-                        ],
-                        "additionalProperties": {}
-                      },
-                      "contentRevision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "id"
                     ],
                     "additionalProperties": {}
                   }
@@ -5171,50 +4837,10 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "canvas.undo"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "description": {
-                        "type": "string"
-                      },
-                      "canUndo": {
-                        "type": "boolean"
-                      },
-                      "canRedo": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok",
-                      "description",
-                      "canUndo",
-                      "canRedo"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "canvas.redo"
+                    "enum": [
+                      "canvas.undo",
+                      "canvas.redo"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -5826,7 +5452,11 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "tour.set"
+                    "enum": [
+                      "tour.set",
+                      "tour.exit",
+                      "annotation.remove"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -5998,37 +5628,6 @@
                       "index",
                       "total",
                       "stop"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "tour.exit"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
                     ],
                     "additionalProperties": {}
                   }
@@ -6365,37 +5964,6 @@
                     "required": [
                       "ok",
                       "cleared"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "annotation.remove"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
                     ],
                     "additionalProperties": {}
                   }
@@ -7637,42 +7205,11 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "webview.status"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "supported": {
-                        "type": "boolean"
-                      },
-                      "active": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "supported",
-                      "active"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "webview.start"
+                    "enum": [
+                      "webview.status",
+                      "webview.start",
+                      "webview.resize"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -7743,41 +7280,6 @@
                       "ok",
                       "stopped",
                       "webview"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "webview.resize"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "supported": {
-                        "type": "boolean"
-                      },
-                      "active": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "supported",
-                      "active"
                     ],
                     "additionalProperties": {}
                   }
@@ -8154,7 +7656,13 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "ax.get"
+                    "enum": [
+                      "ax.get",
+                      "ax.policy.set",
+                      "ax.host-capability.report",
+                      "ax.presence.get",
+                      "ax.presence.set"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -8217,130 +7725,6 @@
                     "required": [
                       "ok",
                       "focus"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "ax.policy.set"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "ax.host-capability.report"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "ax.presence.get"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "ax.presence.set"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
                     ],
                     "additionalProperties": {}
                   }
@@ -9606,7 +8990,10 @@
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "const": "ax.timeline.get"
+                    "enum": [
+                      "ax.timeline.get",
+                      "ax.reads.list"
+                    ]
                   },
                   "outcome": {
                     "type": "string",
@@ -9756,37 +9143,6 @@
                     "required": [
                       "ok",
                       "steering"
-                    ],
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "operation",
-                  "outcome",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "operation": {
-                    "type": "string",
-                    "const": "ax.reads.list"
-                  },
-                  "outcome": {
-                    "type": "string",
-                    "const": "success"
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "ok"
                     ],
                     "additionalProperties": {}
                   }

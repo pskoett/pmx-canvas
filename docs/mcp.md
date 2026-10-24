@@ -1,14 +1,35 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **24 tools**, **15 static canvas
+PMX Canvas ships an MCP stdio server with **25 tools**, **15 static canvas
 resources**, and two canvas resource templates, plus per-skill resources at
 `canvas://skills/<name>` and the `skill://{name}/{+path}` template. The server emits
 `notifications/resources/updated` to subscribed connections when canvas state changes.
 This uses MCP SDK v1, not SDK v2.
 
+## Operation help (0.10)
+
+Call `canvas_help {}` for the sorted registry names exposed through MCP, then
+`canvas_help { op: "node.add" }` for one operation's public `tool`, `description`
+and JSON `inputSchema`. The schema includes required fields, public field names
+and constant routing selectors (`action`, and `kind` for gates). For example,
+`ax.approval.request` maps to `canvas_ax_gate` with `kind: "approval"`,
+`action: "request"` and the optional `approvalAction` field.
+
+Text contains the JSON result; structured content wraps it in `{ result }`.
+Unknown names, internal/human-only operations and non-registry tools such as
+`canvas_screenshot` return text-only `isError`; use `tools/list` for those tools.
+Help reads registry metadata only: it never starts a canvas, writes state, records
+a content read or advances a cursor. It is read-only and idempotent.
+
+Help derives its schema and guidance from the operation registry, not from live
+board state. Handlers still enforce conditional requirements and authorization.
+Existing input schemas stay in `tools/list`; help does not enable lazy discovery
+in hosts. Repeated equivalent output branches are grouped within each tool,
+preserving operation/payload validation and partial-error receipts.
+
 ## Tool results and effect hints (0.10)
 
-All 24 tools advertise an object `outputSchema`. Registry-backed tools return
+All 25 tools advertise an object `outputSchema`. Registry-dispatched tools return
 `structuredContent.result = { operation, outcome, data }`. `operation` names the
 dispatched action (for example `node.add`), `outcome` is `success`, `error` or
 `partial`, and `data` is the existing compact tool result. Prose results use
@@ -144,12 +165,12 @@ Add to your agent's MCP config:
 }
 ```
 
-The canvas auto-starts on first tool call.
+The canvas auto-starts on first canvas operation, not on `canvas_help`.
 
 ## Private MCP App preview
 
 `pmx-canvas --mcp-app` runs a **separate, experimental stdio profile**; the
-24-tool `--mcp` profile above is unchanged. Build from this checkout first:
+25-tool `--mcp` profile above is separate. Build from this checkout first:
 
 ```bash
 bun run build
@@ -419,7 +440,7 @@ Single-card and layout reads record delivered content, not incident relations.
 Use a complete graph or brief relation entry to acknowledge those relations.
 Reads never mark full card content read or
 switch the workbench. Pull needed cards in full separately.
-No new tool is added: the tool count stays 24.
+These reads add no tools beyond the catalog listed above.
 
 Library search is `canvas_query { action: "search", query: "auth", scope:
 "library" }`. It returns board/card IDs and never switches the active board.
@@ -552,13 +573,14 @@ agent intends to publish its own cursor or attention target.
 
 ## Standalone tools
 
-6 tools that intentionally stay outside the composites — folding them would
+7 tools that intentionally stay outside the composites — folding them would
 hurt (distinct callers, binary payloads, trust-boundary or execution-intent
 semantics). See [Migration reference](#migration-reference) below for the
 legacy tools the composites replaced.
 
 | Tool | Description |
 |------|-------------|
+| `canvas_help` | List MCP registry operations or fetch one operation's public arguments and guidance (`op` optional); no canvas access |
 | `canvas_batch` | Run a batch of canvas operations with `$ref` support |
 | `canvas_pin_nodes` | Pin nodes to include in agent context (`nodeIds`, `mode` set/add/remove, optional `reason` shown to the human) |
 | `canvas_invoke_command` | Invoke a registry command (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`); records a `command` agent-event, unknown names rejected |

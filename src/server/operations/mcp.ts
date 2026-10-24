@@ -338,6 +338,87 @@ function requiredMcpFields(op: Operation): string[] {
   return keys;
 }
 
+/** Registry metadata only: never boots a canvas or records a content read. */
+export function registerOperationHelpTool(server: McpServer): void {
+  server.registerTool(
+    'canvas_help',
+    {
+      description:
+        'Look up an MCP operation by registry name (e.g. node.add, ax.approval.request). Returns its public tool, argument schema and guidance. Omit op to list operation names. Does not execute operations or read canvas content.',
+      inputSchema: z.object({ op: z.string().min(1).optional() }),
+      outputSchema: z.object({
+        result: z.union([
+          z.strictObject({ operations: z.array(z.string()) }),
+          z.strictObject({
+            operation: z.string(),
+            tool: z.string(),
+            description: z.string(),
+            inputSchema: z.record(z.string(), z.unknown()),
+          }),
+        ]),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    ({ op: name }) => {
+      const operations = listOperations().filter((op) => op.mcp);
+      if (name === undefined) {
+        const result = { operations: operations.map((op) => op.name).sort() };
+        return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: { result } };
+      }
+      const op = operations.find((op) => op.name === name);
+      if (!op?.mcp) {
+        return {
+          content: [{ type: 'text', text: `Unknown MCP operation "${name}". Omit op to list available operations.` }],
+          isError: true,
+        };
+      }
+      const composite = compositeToolDefinitions.find((def) => compositeMemberOps(def).includes(name));
+      const publicName = (field: string) =>
+        Object.entries(composite?.fieldRemap ?? {}).find(([, original]) => original === field)?.[0] ?? field;
+      const shape = Object.fromEntries(
+        Object.entries({ ...op.inputShape, ...op.mcp.extraShape }).map(([field, schema]) => [
+          publicName(field),
+          schema,
+        ]),
+      );
+      if (composite?.resolveOp) {
+        // Resolve the same kind/action matrix used by composite dispatch.
+        const kinds = composite.extraDiscriminatorShape?.kind;
+        if (!(kinds instanceof z.ZodEnum)) throw new Error(`Missing kind enum for ${composite.toolName}.`);
+        for (const kind of kinds.options) {
+          for (const action of composite.actionEnum ?? []) {
+            if (composite.resolveOp({ kind: String(kind), action }) === name) {
+              shape.kind = z.literal(kind);
+              shape.action = z.literal(action);
+            }
+          }
+        }
+      } else if (composite) {
+        const action = Object.entries(composite.actions).find(([, operation]) => operation === name)![0];
+        shape.action = z.literal(action);
+      }
+      const inputSchema = z.toJSONSchema(z.looseObject(shape), { target: 'draft-7', io: 'input' });
+      // Mirror dispatch's required-name alternatives rather than demanding both names.
+      for (const [field, aliases] of Object.entries(REQUIRED_FIELD_ALIASES[name] ?? {})) {
+        const key = publicName(field);
+        if (!inputSchema.required?.includes(key)) continue;
+        inputSchema.required = inputSchema.required.filter((required) => required !== key);
+        inputSchema.allOf = [
+          ...(inputSchema.allOf ?? []),
+          { anyOf: [key, ...aliases.map(publicName)].map((alternative) => ({ required: [alternative] })) },
+        ];
+      }
+      const result = {
+        operation: name,
+        tool: composite?.toolName ?? op.mcp.toolName,
+        description: op.mcp.description,
+        inputSchema,
+      };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: { result } };
+    },
+  );
+}
+
 /**
  * Register composite (action-discriminated) MCP tools (plan-006). Each action
  * dispatches to a registered operation, reusing that op's `mcp.buildInput` and

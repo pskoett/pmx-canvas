@@ -13,6 +13,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - MCP tools provide validated structured results and annotations describing their possible effects.
 - MCP clients can cancel waits and subscribe to live canvas resources without receiving unrelated subscriptions.
+- Agents can use `canvas_help` to look up one operation's arguments without opening or reading a board.
+
+### Changed
+
+- MCP discovery uses smaller output schemas while preserving result validation.
 
 ## [0.9.3] - 2026-10-24
 

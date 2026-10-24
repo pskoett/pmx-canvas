@@ -431,9 +431,14 @@ When you do set a color (group/graph), use this palette consistently to convey m
 ## MCP Tools Reference
 
 PMX Canvas exposes **18 action-discriminated composites** (the whole recommended surface) plus
-**6 first-class standalones** — 24 tools total. The composites fold the older
+**7 first-class standalones** — 25 tools total. The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
+
+`canvas_help {}` lists MCP registry operation names. `canvas_help { op: "node.add" }`
+returns that operation's public tool, description and JSON argument schema, including
+routing selectors and required fields. It does not start or read a canvas. Handlers still
+enforce conditional requirements. Non-registry tools use `tools/list` instead.
 
 > **Legacy single-purpose tools were removed in v0.3.0.** The old names (`canvas_add_node`,
 > `canvas_update_node`, `canvas_request_approval`, `canvas_add_work_item`, …) are no longer
@@ -531,7 +536,7 @@ AX excerpts and annotation anchors, including `canvas://ax-context` and
 or brief relation entry instead.
 Single-card and layout reads record content delivery, not incident relations.
 Reads never switch boards or record full content reads. Pull cards in full
-when needed. Counts stay 24 tools, 15 static canvas resources; there are now two
+when needed. Counts are 25 tools, 15 static canvas resources; there are now two
 canvas templates, context and graph, besides the skill file template.
 
 Markdown save resolves `[[Board]]`, `[[Board#Card]]`, and `|alias` forms into
@@ -1126,8 +1131,9 @@ Spec elements support an `on` map (`on.press`, `on.change`, …) binding events 
 
 ## MCP results and cancellation (0.10)
 
-The 24-tool catalog remains on MCP SDK v1. Each tool advertises `outputSchema`
-and effect annotations. Registry-backed tools expose
+The 25-tool catalog remains on MCP SDK v1. Each tool advertises `outputSchema`
+and effect annotations. Help returns `structuredContent.result` with operation
+metadata (or the name list); it records no content reads. Registry-dispatched tools expose
 `structuredContent.result = { operation, outcome, data }`, where `outcome` is
 `success`, `error` or `partial`; `data` matches the existing compact text JSON,
 or `{message}` for prose. Exceptions use `operation: null`; they do not prove no

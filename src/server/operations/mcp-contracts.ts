@@ -210,6 +210,9 @@ const errorData = z.strictObject({ message: z.string() });
 const formattedErrorData = z.looseObject({ ok: z.literal(false), error: z.string() });
 
 export function operationOutputSchema(operations: string[]) {
+  // Shared schema identity proves equivalent validation without comparing or
+  // rewriting JSON Schema. Keep distinct contracts tied to their operations.
+  const successGroups = new Map<ZodType, string[]>();
   const variants: ZodType[] = operations.flatMap((operation): ZodType[] => {
     if (operation === 'canvas.batch')
       return [
@@ -225,14 +228,20 @@ export function operationOutputSchema(operations: string[]) {
           data: batch.options[1].extend({ results: z.array(batchEntry).min(1) }),
         }),
       ];
-    return [
-      z.strictObject({
-        operation: z.literal(operation),
-        outcome: z.literal('success'),
-        data: payloadSchema(operation),
-      }),
-    ];
+    const schema = payloadSchema(operation);
+    const group = successGroups.get(schema);
+    if (group) group.push(operation);
+    else successGroups.set(schema, [operation]);
+    return [];
   });
+  for (const [data, names] of successGroups)
+    variants.push(
+      z.strictObject({
+        operation: names.length === 1 ? z.literal(names[0]) : z.enum(names),
+        outcome: z.literal('success'),
+        data,
+      }),
+    );
   const formattedErrors = operations.filter((operation) => operation !== 'canvas.batch');
   if (formattedErrors.length)
     variants.push(

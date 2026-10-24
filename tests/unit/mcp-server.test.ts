@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
 import {
   CallToolResultSchema,
   ProgressNotificationSchema,
   ResourceUpdatedNotificationSchema,
   type ProgressNotification,
 } from '@modelcontextprotocol/sdk/types.js';
-import { writeFileSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, getAvailablePort, removeTestWorkspace, waitForCondition } from './helpers.ts';
@@ -142,6 +143,82 @@ afterEach(async () => {
 });
 
 describe('MCP parity with CLI', () => {
+  test('operation help discovers callable arguments without starting or reading a canvas', async () => {
+    const { client, transport, workspaceRoot } = await createMcpSession();
+    cleanup.push(async () => {
+      await client.close();
+      await closeTransportAndReapChild(transport);
+      removeTestWorkspace(workspaceRoot);
+    });
+    const { tools } = await client.listTools();
+    const tool = tools.find((entry) => entry.name === 'canvas_help')!;
+    expect(tool.annotations).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    });
+    const validator = new AjvJsonSchemaValidator();
+    const help = async (op: string) => {
+      const reply = CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: { op } }));
+      expect(reply.isError).not.toBe(true);
+      expect(validator.getValidator(tool.outputSchema!)(reply.structuredContent).valid).toBe(true);
+      const result = parseJsonText<{
+        operation: string;
+        tool: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+      }>(reply);
+      expect(reply.structuredContent).toEqual({ result });
+      expect(result.operation).toBe(op);
+      expect(result.description.length).toBeGreaterThan(0);
+      expect(tools.some((entry) => entry.name === result.tool)).toBe(true);
+      return { ...result, validate: validator.getValidator(result.inputSchema) };
+    };
+    const listed = parseJsonText<{ operations: string[] }>(
+      CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: {} })),
+    ).operations;
+    expect(listed).toContain('node.add');
+    expect(listed).not.toContain('import.commit');
+    expect(listed).toEqual([...new Set(listed)].sort());
+    for (const op of listed) await help(op);
+    for (const op of ['import.commit', 'not.an.operation', 'canvas_screenshot']) {
+      const reply = CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: { op } }));
+      expect(reply.isError).toBe(true);
+      expect(textOf(reply)).toContain('Unknown MCP operation');
+    }
+    const remove = await help('node.remove');
+    expect(remove.tool).toBe('canvas_node');
+    expect(remove.validate({ action: 'remove', id: 'node-a' }).valid).toBe(true);
+    expect(remove.validate({ action: 'remove' }).valid).toBe(false);
+    expect(remove.validate({ action: 'get', id: 'node-a' }).valid).toBe(false);
+    const edge = await help('edge.remove');
+    expect(edge.validate({ action: 'remove', edge_id: 'edge-a' }).valid).toBe(true);
+    expect(edge.validate({ action: 'remove', id: 'edge-a' }).valid).toBe(true);
+    expect(edge.validate({ action: 'remove' }).valid).toBe(false);
+    const approval = await help('ax.approval.request');
+    expect(approval.tool).toBe('canvas_ax_gate');
+    const args = { kind: 'approval', action: 'request', approvalAction: 'test.delete', title: 'Delete test card' };
+    expect(approval.validate(args).valid).toBe(true);
+    expect(approval.validate({ ...args, kind: 'mode' }).valid).toBe(false);
+    expect(approval.validate({ ...args, title: undefined }).valid).toBe(false);
+    expect(approval.validate({ ...args, approvalAction: 7 }).valid).toBe(false);
+    const pin = await help('pin.set');
+    expect(pin.tool).toBe('canvas_pin_nodes');
+    expect(pin.validate({ nodeIds: ['node-a'], mode: 'set' }).valid).toBe(true);
+    expect(pin.validate({ mode: 'set' }).valid).toBe(false);
+    // Every metadata lookup, including errors, leaves no DB, daemon, or cursor files.
+    expect(readdirSync(workspaceRoot)).toEqual([]);
+    const add = await help('node.add');
+    const create = { action: 'add', type: 'markdown', content: '# Help-guided call', title: 'Help' };
+    expect(add.validate(create).valid).toBe(true);
+    const created = CallToolResultSchema.parse(await client.callTool({ name: add.tool, arguments: create }));
+    expect(created.isError).not.toBe(true);
+    const node = parseJsonText<{ id: string }>(created);
+    const removed = await client.callTool({ name: remove.tool, arguments: { action: 'remove', id: node.id } });
+    expect(removed.isError).not.toBe(true);
+  }, 30000);
+
   test('stdio cancellation and progress cross both local and daemon-attached operation paths', async () => {
     const local = await createMcpSession();
     cleanup.push(async () => {
@@ -333,8 +410,8 @@ describe('MCP parity with CLI', () => {
     // into the canvas_snapshot composite and removed the 6 deprecated snapshot
     // standalones. Registry ops folded into a composite are not registered as
     // standalone tools (see `compositeFoldedOpNames` in
-    // src/server/operations/composites.ts). This list is the 23-tool surface:
-    // 17 action-discriminated composites + 6 standalones.
+    // src/server/operations/composites.ts). This list is the 25-tool surface:
+    // 18 action-discriminated composites + 7 standalones.
     const expectedTools = [
       // Composites (plan-006/plan-007/plan-008).
       'canvas_node',
@@ -354,6 +431,7 @@ describe('MCP parity with CLI', () => {
       'canvas_intent',
       'canvas_board',
       // Standalones.
+      'canvas_help',
       'canvas_batch',
       'canvas_pin_nodes',
       'canvas_invoke_command',

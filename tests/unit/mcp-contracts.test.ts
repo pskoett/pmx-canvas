@@ -120,6 +120,91 @@ describe('registry MCP output contracts', () => {
     expect(() => operationToolAnnotations('unreviewed-tool')).toThrow('Missing MCP annotation audit');
   });
 
+  test('shared success contracts preserve operation/payload pairing and envelope strictness', async () => {
+    const { tools } = await session();
+    const cases = [
+      {
+        tool: 'canvas_board',
+        operations: ['board.list', 'board.open', 'board.update', 'board.pin', 'board.unpin'],
+        data: { ok: true, activeBoardId: null, boards: [{ id: 'board' }] },
+        wrongOperations: ['board.get', 'board.create', 'board.create-from', 'knowledge.list'],
+      },
+      {
+        tool: 'canvas_board',
+        operations: ['board.get', 'board.create', 'board.create-from'],
+        data: { ok: true, board: { id: 'board' } },
+        wrongOperations: ['board.list', 'board.open', 'board.update', 'board.pin', 'board.unpin'],
+      },
+      {
+        tool: 'canvas_node',
+        operations: ['node.add', 'node.update'],
+        data: { ok: true, id: 'node', contentRevision: 1 },
+        wrongOperations: ['node.get', 'node.remove', 'node.lifecycle-get'],
+      },
+      {
+        tool: 'canvas_render',
+        operations: ['jsonrender.add', 'graph.add'],
+        data: { ok: true, id: 'node' },
+        wrongOperations: ['jsonrender.stream', 'schema.describe'],
+      },
+      {
+        tool: 'canvas_webview',
+        operations: ['webview.status', 'webview.start', 'webview.resize'],
+        data: { supported: false, active: false },
+        wrongOperations: ['webview.stop', 'webview.evaluate'],
+      },
+      {
+        tool: 'canvas_view',
+        operations: ['tour.set', 'tour.exit', 'annotation.remove'],
+        data: { ok: true },
+        wrongOperations: ['tour.get', 'tour.go', 'camera.move', 'view.fit', 'node.focus', 'canvas.clear'],
+      },
+      {
+        tool: 'canvas_ax_state',
+        operations: ['ax.get', 'ax.policy.set', 'ax.host-capability.report', 'ax.presence.get', 'ax.presence.set'],
+        data: { ok: true },
+        wrongOperations: ['ax.focus.set'],
+      },
+      {
+        tool: 'canvas_ax_timeline',
+        operations: ['ax.timeline.get', 'ax.reads.list'],
+        data: { ok: true },
+        wrongOperations: ['ax.event.record', 'ax.evidence.add', 'ax.steer', 'ax.reads.status'],
+      },
+      {
+        tool: 'canvas_history',
+        operations: ['canvas.undo', 'canvas.redo'],
+        data: { ok: true, description: 'Changed', canUndo: false, canRedo: true },
+        wrongOperations: ['node.add'],
+      },
+    ];
+    for (const { tool, operations, data, wrongOperations } of cases) {
+      const validate = new AjvJsonSchemaValidator().getValidator(
+        tools.find((entry) => entry.name === tool)!.outputSchema!,
+      );
+      for (const operation of operations) {
+        const result = { operation, outcome: 'success', data };
+        expect(validate({ result }).valid, operation).toBe(true);
+        expect(validate({ result: { ...result, data: { ...data, extension: 'retained' } } }).valid).toBe(true);
+        expect(validate({ result: { ...result, data: {} } }).valid).toBe(false);
+        expect(validate({ result, extra: true }).valid).toBe(false);
+        expect(validate({ result: { ...result, extra: true } }).valid).toBe(false);
+        expect(validate({ result: { ...result, outcome: 'partial' } }).valid).toBe(false);
+        expect(validate({ result: { operation, outcome: 'error', data: { message: 'Failed' } } }).valid).toBe(true);
+        expect(
+          validate({ result: { operation, outcome: 'error', data: { ok: false, error: 'Failed', id: 'receipt' } } })
+            .valid,
+        ).toBe(true);
+      }
+      for (const operation of [...wrongOperations, 'unknown.operation'])
+        expect(validate({ result: { operation, outcome: 'success', data } }).valid, operation).toBe(false);
+      expect(validate({ result: { operation: null, outcome: 'error', data: { message: 'Exception' } } }).valid).toBe(
+        true,
+      );
+      expect(validate({ result: { operation: null, outcome: 'success', data } }).valid).toBe(false);
+    }
+  });
+
   test('node IDs, revisions and payload types reject invalid output and mismatched operations', async () => {
     const { call, tools } = await session();
     const created = await call('canvas_node', {
@@ -208,7 +293,7 @@ describe('registry MCP output contracts', () => {
   });
 
   test('batch errors preserve completed outcomes, references and cancellation fields', async () => {
-    const { call } = await session();
+    const { call, tools } = await session();
     const result = await call(
       'canvas_batch',
       {
@@ -231,6 +316,24 @@ describe('registry MCP output contracts', () => {
     const receipt = invalid!.result as { data: { failedIndex: unknown } };
     receipt.data.failedIndex = 'one';
     expect(operationOutputSchema(['canvas.batch']).safeParse(invalid).success).toBe(false);
+    const validate = new AjvJsonSchemaValidator().getValidator(
+      tools.find((tool) => tool.name === 'canvas_batch')!.outputSchema!,
+    );
+    for (const outcome of ['success', 'error', 'partial']) {
+      const envelope = { result: { operation: 'canvas.batch', outcome, data } };
+      expect(validate(envelope).valid).toBe(outcome === 'partial');
+      expect(operationOutputSchema(['canvas.batch']).safeParse(envelope).success).toBe(outcome === 'partial');
+      const empty = { result: { operation: 'canvas.batch', outcome, data: { ...data, results: [], refs: {} } } };
+      expect(validate(empty).valid).toBe(outcome === 'error');
+      expect(operationOutputSchema(['canvas.batch']).safeParse(empty).success).toBe(outcome === 'error');
+      const success = { result: { operation: 'canvas.batch', outcome, data: { ok: true, results: [], refs: {} } } };
+      expect(validate(success).valid).toBe(outcome === 'success');
+      expect(operationOutputSchema(['canvas.batch']).safeParse(success).success).toBe(outcome === 'success');
+    }
+    expect(validate(invalid).valid).toBe(false);
+    expect(
+      validate({ result: { operation: 'canvas.batch', outcome: 'error', data: { message: 'No receipt' } } }).valid,
+    ).toBe(false);
   });
 
   test('representative composite reads, writes, prose, arrays and formatter follow-ups', async () => {

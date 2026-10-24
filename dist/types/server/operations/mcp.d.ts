@@ -12,6 +12,8 @@ export interface OperationToolHost extends OperationMcpToolHost {
     recordContextRead(read: ContextReadInput): Promise<void>;
 }
 export declare function registerOperationTools(server: McpServer, getHost: () => Promise<OperationToolHost>): void;
+/** Registry metadata only: never boots a canvas or records a content read. */
+export declare function registerOperationHelpTool(server: McpServer): void;
 /**
  * Register composite (action-discriminated) MCP tools (plan-006). Each action
  * dispatches to a registered operation, reusing that op's `mcp.buildInput` and

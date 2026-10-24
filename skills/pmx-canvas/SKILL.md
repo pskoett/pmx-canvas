@@ -264,9 +264,14 @@ json-render, a graph, or an HTML primitive is sufficient.
 
 ## Current MCP Composites
 
-The live MCP surface is **24 tools**: the 18 composites below plus 6 standalones. This table is
+The live MCP surface is **25 tools**: the 18 composites below plus 7 standalones. This table is
 kept in sync with the server's composite registry; `tools/list` on a fresh `pmx-canvas --mcp` is
 always authoritative, independent of the installed release version.
+
+Use `canvas_help {}` to list MCP registry operation names, then `canvas_help { op: "node.add" }`
+for that operation's public tool, argument schema and guidance. Help does not start or read a
+canvas. The schema includes routing selectors and required fields; handlers still enforce
+conditional requirements. Use `tools/list` for non-registry tools such as `canvas_screenshot`.
 
 | Composite | Actions |
 |-----------|---------|
@@ -303,7 +308,7 @@ Important routing:
 As of v0.3.0, the 57 legacy single-purpose tools from the v0.2 compatibility window are removed.
 The composites above plus the retained standalones are now the whole MCP surface: `canvas_batch`,
 `canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_interaction`, `canvas_ingest_activity`, and
-`canvas_invoke_command`. Snapshots are the `canvas_snapshot` composite (actions
+`canvas_invoke_command`, plus `canvas_help`. Snapshots are the `canvas_snapshot` composite (actions
 `save | list | restore | restore-node | delete | gc | diff`); the 6 legacy snapshot standalones were removed in
 v0.4.0 after their deprecated 0.3.x window.
 
@@ -683,7 +688,7 @@ Single-card and layout reads record content delivery, not incident relations.
 Graph cards and complete brief relations carry a captured `linksRevision`: reads
 acknowledge that version, not later changes. Brief delivery is qualified by source board.
 Reads never switch boards or mark full content read; pull needed cards in full separately. MCP remains
-24 tools and 15 static canvas resources, with two canvas templates (context/graph).
+25 tools and 15 static canvas resources, with two canvas templates (context/graph).
 
 Markdown saves bind `[[Board]]`, `[[Board#Card]]`, and `|alias` forms to durable
 IDs; code spans/fences are ignored. Ambiguous/missing targets never guess or
