@@ -85,5 +85,7 @@ export {
   type Operation,
   type OperationContext,
   type OperationDefinition,
+  type OperationExecutionOptions,
   type OperationErrorStatus,
+  type OperationProgress,
 } from './types.js';

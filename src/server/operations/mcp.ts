@@ -9,9 +9,17 @@
  */
 import { z, type ZodRawShape, type ZodTypeAny } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { getOperation, listOperations } from './registry.js';
 import { agentSourceLabel, type OperationInvoker } from './invoker.js';
-import { OperationError, type Operation, type OperationMcpToolHost } from './types.js';
+import { OperationError, type Operation, type OperationMcpToolHost, type OperationExecutionOptions } from './types.js';
+import {
+  operationOutputSchema,
+  operationToolAnnotations,
+  operationToolError,
+  structuredOperationResult,
+} from './mcp-contracts.js';
 import {
   CONTEXT_READ_OPS,
   contextReadFromPayload,
@@ -28,23 +36,51 @@ export interface OperationToolHost extends OperationMcpToolHost {
   recordContextRead(read: ContextReadInput): Promise<void>;
 }
 
+function executionOptions(extra: RequestHandlerExtra<ServerRequest, ServerNotification>): OperationExecutionOptions {
+  const progressToken = extra._meta?.progressToken;
+  return {
+    signal: extra.signal,
+    ...(progressToken !== undefined
+      ? {
+          onProgress: (progress: Parameters<NonNullable<OperationExecutionOptions['onProgress']>>[0]) =>
+            extra.sendNotification({ method: 'notifications/progress', params: { ...progress, progressToken } }),
+        }
+      : {}),
+  };
+}
+
 async function invokeMcpOperation(
   host: OperationToolHost,
   op: Operation,
   opInput: Record<string, unknown>,
   formatInput: Record<string, unknown>,
   consumer: string | null,
+  options: OperationExecutionOptions,
 ) {
+  options.signal?.throwIfAborted();
   const board = typeof opInput.board === 'string' && opInput.board.trim() ? opInput.board.trim() : undefined;
   const readTarget = CONTEXT_READ_OPS.has(op.name) ? await host.prepareContextRead(board) : null;
   if (readTarget?.boardId && 'board' in op.inputShape) {
     opInput = { ...opInput, board: readTarget.boardId };
     formatInput = { ...formatInput, board: readTarget.boardId };
   }
-  const result = await host.invoker().invoke(op.name, opInput);
-  const formatted = op.mcp?.formatResult
-    ? await op.mcp.formatResult(result, formatInput, host)
-    : { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+  options.signal?.throwIfAborted();
+  const invoker = host.invoker();
+  const result = await invoker.invoke(op.name, opInput, options);
+  // Preserve the host receiver, and bind options to formatter follow-up reads
+  // (history flags, snapshot summary, streaming node metadata).
+  const formatterHost: OperationMcpToolHost = {
+    getPinnedNodeIds: (target) => host.getPinnedNodeIds(target),
+    invoker: () => ({ invoke: (name, input, followUp) => invoker.invoke(name, input, { ...options, ...followUp }) }),
+  };
+  const formatted = structuredOperationResult(
+    op.name,
+    op.mcp?.formatResult
+      ? await op.mcp.formatResult(result, formatInput, formatterHost)
+      : { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] },
+  );
+  // Do not throwIfAborted here: batch may already have returned a partial
+  // outcome, and cancellation must never erase completed work from the reply.
   if (readTarget) {
     const text = formatted.content
       .filter((item): item is Extract<(typeof formatted.content)[number], { type: 'text' }> => item.type === 'text')
@@ -116,17 +152,24 @@ export function registerOperationTools(server: McpServer, getHost: () => Promise
         // finding A). Loose parsing forwards unknown keys to the op layer,
         // the single authority on dead-field rejection, HTTP and MCP alike.
         inputSchema: z.looseObject({ ...op.inputShape, ...(tool.extraShape ?? {}) }),
+        outputSchema: operationOutputSchema([op.name]),
+        annotations: operationToolAnnotations(tool.toolName),
       },
-      async (input: Record<string, unknown>) => {
+      async (input: Record<string, unknown>, extra) => {
         try {
           const host = await getHost();
+          extra.signal.throwIfAborted();
           const opInput = tool.buildInput ? tool.buildInput(input) : input;
-          return await invokeMcpOperation(host, op, opInput, input, server.server.getClientVersion()?.name ?? null);
+          return await invokeMcpOperation(
+            host,
+            op,
+            opInput,
+            input,
+            server.server.getClientVersion()?.name ?? null,
+            executionOptions(extra),
+          );
         } catch (error) {
-          return {
-            content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
-            isError: true,
-          };
+          return operationToolError(error);
         }
       },
     );
@@ -317,10 +360,16 @@ export function registerCompositeTools(
     // must reach the op layer's dead-field rejection instead of being stripped.
     server.registerTool(
       def.toolName,
-      { description: def.description, inputSchema: z.looseObject(buildCompositeShape(def)) },
-      async (input: Record<string, unknown>) => {
+      {
+        description: def.description,
+        inputSchema: z.looseObject(buildCompositeShape(def)),
+        outputSchema: operationOutputSchema(compositeMemberOps(def)),
+        annotations: operationToolAnnotations(def.toolName),
+      },
+      async (input: Record<string, unknown>, extra) => {
         try {
           const host = await getHost();
+          extra.signal.throwIfAborted();
           const opName = resolveCompositeOp(def, input);
           const op = getOperation(opName);
           // Strip the composite discriminators (action + any extra, e.g. `kind`)
@@ -335,12 +384,16 @@ export function registerCompositeTools(
             );
           }
           const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
-          return await invokeMcpOperation(host, op, opInput, rest, server.server.getClientVersion()?.name ?? null);
+          return await invokeMcpOperation(
+            host,
+            op,
+            opInput,
+            rest,
+            server.server.getClientVersion()?.name ?? null,
+            executionOptions(extra),
+          );
         } catch (error) {
-          return {
-            content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
-            isError: true,
-          };
+          return operationToolError(error);
         }
       },
     );

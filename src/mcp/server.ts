@@ -27,7 +27,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { AX_SOURCES } from '../server/operations/ops/ax-shared.js';
-import { canvasState, describeCanvasSchema, stopCanvasServer } from '../server/index.js';
+import { describeCanvasSchema, stopCanvasServer } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
@@ -45,11 +45,7 @@ import {
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
 import { registerSkillExtension } from './skills.js';
 import { ContextUriTemplate } from './context-uri-template.js';
-
-let canvas: CanvasAccess | null = null;
-let resourceNotificationServer: McpServer | null = null;
-let localResourceNotificationsStarted = false;
-let remoteResourceNotificationsBaseUrl: string | null = null;
+import { registerResourceSubscriptions } from './resource-subscriptions.js';
 
 // Resolved from the sibling package.json so it stays accurate through bunx,
 // global npm installs, and repo-local runs (no hard-coded string, no build
@@ -69,115 +65,6 @@ function structuredSchemaDescription(): string {
   return Object.entries(routing)
     .map(([type, tool]) => `${type}: ${tool}`)
     .join(', ');
-}
-
-async function ensureCanvas(): Promise<CanvasAccess> {
-  if (!canvas) {
-    canvas = await createCanvasAccess();
-  } else {
-    canvas = await refreshCanvasAccess(canvas);
-  }
-  startResourceNotifications(canvas);
-  return canvas;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}
-
-function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-timeline' = 'nodes'): void {
-  const server = resourceNotificationServer;
-  if (!server) return;
-  try {
-    if (type === 'pins' || type === 'nodes') {
-      server.server.sendResourceUpdated({ uri: 'canvas://pinned-context' });
-    }
-    if (type === 'pins' || type === 'ax') {
-      server.server.sendResourceUpdated({ uri: 'canvas://ax' });
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-context' });
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-timeline' });
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-work' });
-    }
-    if (type === 'ax-timeline') {
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-timeline' });
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-context' });
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-pending-steering' });
-      server.server.sendResourceUpdated({ uri: 'canvas://ax-delivery' });
-    }
-    server.server.sendResourceUpdated({ uri: 'canvas://layout' });
-    server.server.sendResourceUpdated({ uri: 'canvas://boards' });
-    server.server.sendResourceUpdated({ uri: 'canvas://summary' });
-    server.server.sendResourceUpdated({ uri: 'canvas://context' });
-    server.server.sendResourceUpdated({ uri: 'canvas://graph' });
-    server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
-    server.server.sendResourceUpdated({ uri: 'canvas://history' });
-    server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
-  } catch (error) {
-    console.debug('[mcp] resource notification failed', error);
-  }
-}
-
-function handleRemoteSseFrame(frame: string): void {
-  const eventLine = frame.split('\n').find((line) => line.startsWith('event: '));
-  const event = eventLine?.slice('event: '.length).trim() ?? '';
-  if (!event || event === 'connected' || event === 'ping') return;
-  sendCanvasResourceNotifications(
-    // boards-changed covers board pins and switches, both of which change pinned context.
-    event === 'context-pins-changed' || event === 'boards-changed'
-      ? 'pins'
-      : event === 'ax-state-changed'
-        ? 'ax'
-        : event === 'ax-event-created'
-          ? 'ax-timeline'
-          : 'nodes',
-  );
-}
-
-async function watchRemoteCanvasEvents(baseUrl: string): Promise<void> {
-  const decoder = new TextDecoder();
-  while (true) {
-    try {
-      const response = await fetch(`${baseUrl}/api/workbench/events`);
-      if (!response.ok || !response.body) {
-        await sleep(1_000);
-        continue;
-      }
-
-      const reader = response.body.getReader();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop() ?? '';
-        for (const frame of frames) handleRemoteSseFrame(frame);
-      }
-    } catch (error) {
-      console.debug('[mcp] remote canvas event stream failed', error);
-    }
-    await sleep(1_000);
-  }
-}
-
-function startResourceNotifications(c: CanvasAccess): void {
-  const server = resourceNotificationServer;
-  if (!server) return;
-
-  if (c.remoteBaseUrl) {
-    if (remoteResourceNotificationsBaseUrl !== c.remoteBaseUrl) {
-      remoteResourceNotificationsBaseUrl = c.remoteBaseUrl;
-      void watchRemoteCanvasEvents(c.remoteBaseUrl);
-    }
-    return;
-  }
-
-  if (localResourceNotificationsStarted) return;
-  localResourceNotificationsStarted = true;
-
-  canvasState.onChange((type) => {
-    sendCanvasResourceNotifications(type);
-  });
 }
 
 function encodeBase64(bytes: Uint8Array): string {
@@ -219,7 +106,7 @@ function buildSummaryFromLayout(
   };
 }
 
-export async function startMcpServer(): Promise<void> {
+export function createMcpServer(): McpServer {
   const server = new McpServer(
     { name: 'pmx-canvas', version: readPackageVersion() },
     {
@@ -227,7 +114,19 @@ export async function startMcpServer(): Promise<void> {
         'Bundled workbench guidance: skill://pmx-canvas/SKILL.md. Discover skills via skills/list when supported, or canvas://skills; read files through resources/read. Skill delivery does not grant permission to execute bundled scripts.',
     },
   );
-  resourceNotificationServer = server;
+  let canvas: Promise<CanvasAccess> | undefined;
+  const subscriptions = registerResourceSubscriptions(server, ensureCanvas);
+  async function ensureCanvas(): Promise<CanvasAccess> {
+    canvas = canvas ? canvas.then(refreshCanvasAccess) : createCanvasAccess();
+    try {
+      const access = await canvas;
+      subscriptions.attach(access);
+      return access;
+    } catch (error) {
+      canvas = undefined;
+      throw error;
+    }
+  }
   registerSkillExtension(server);
 
   /**
@@ -282,36 +181,58 @@ export async function startMcpServer(): Promise<void> {
   // tool; the 6 snapshot standalones are deprecated in v0.3.0 and fold into it.)
   registerCompositeTools(server, ensureCanvas);
 
-  server.tool(
+  const interactionResult = z.looseObject({
+    ok: z.literal(true),
+    type: z.enum(AX_INTERACTION_TYPES),
+    sourceNodeId: z.string(),
+    primitive: z.unknown(),
+  });
+  server.registerTool(
     'canvas_ax_interaction',
-    'Submit a node-originated AX interaction: a capability-gated, validated event from an eligible node that maps onto an AX operation (work item, evidence, approval, review, focus, steering, event). Returns { ok: false, code } if the node type/metadata does not allow the interaction type or the payload is invalid.',
     {
-      type: z
-        .enum(AX_INTERACTION_TYPES)
-        .describe('Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set.'),
-      sourceNodeId: z.string().describe('The node emitting the interaction.'),
-      payload: z
-        .record(z.string(), z.unknown())
-        .optional()
-        .describe('Type-specific payload, e.g. {"title":"..."} for ax.work.create.'),
-      sourceSurface: z.enum(['native-node', 'json-render', 'html-node', 'mcp-app', 'adapter']).optional(),
-      correlationId: z.string().optional(),
-      source: z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.'),
+      description:
+        'Submit a capability-gated node AX interaction (work, evidence, approval, review, focus, steering or event). Rejected interactions return isError with { ok: false, code, error }.',
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      outputSchema: interactionResult,
+      inputSchema: {
+        type: z
+          .enum(AX_INTERACTION_TYPES)
+          .describe('Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set.'),
+        sourceNodeId: z.string().describe('The node emitting the interaction.'),
+        payload: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe('Type-specific payload, e.g. {"title":"..."} for ax.work.create.'),
+        sourceSurface: z.enum(['native-node', 'json-render', 'html-node', 'mcp-app', 'adapter']).optional(),
+        correlationId: z.string().optional(),
+        source: z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.'),
+      },
     },
-    async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source }) => {
+    async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source }, extra) => {
       try {
         const c = await ensureCanvas();
-        const result = await c.submitAxInteraction(
+        extra.signal.throwIfAborted();
+        const result = await c.invoker().invoke(
+          'ax.interaction.submit',
           {
             type,
             sourceNodeId,
             ...(payload ? { payload } : {}),
             ...(sourceSurface ? { sourceSurface } : {}),
             ...(correlationId ? { correlationId } : {}),
+            source: source ?? 'mcp',
           },
-          { source: source ?? 'mcp' },
+          { signal: extra.signal },
         );
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+        const failure = z
+          .object({ ok: z.literal(false), status: z.number(), code: z.string(), error: z.string() })
+          .safeParse(result);
+        const body = failure.success ? failure.data : interactionResult.parse(result);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(body) }],
+          // SDK clients validate structuredContent even on isError results.
+          ...(failure.success ? { isError: true } : { structuredContent: body }),
+        };
       } catch (error) {
         return {
           content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
@@ -328,69 +249,85 @@ export async function startMcpServer(): Promise<void> {
   // canvas_resolve_mode migrated to the operation registry (plan-007 Slice B
   // wave 2): src/server/operations/ops/ax-work.ts.
 
-  server.tool(
+  const activityResult = z.object({
+    ok: z.literal(true),
+    event: z.looseObject({ id: z.string() }),
+    workItem: z.looseObject({ id: z.string() }).nullable(),
+    evidence: z.looseObject({ id: z.string() }).nullable(),
+    review: z.looseObject({ id: z.string() }).nullable(),
+  });
+  server.registerTool(
     'canvas_ingest_activity',
-    'Ingest a normalized agent activity (a tool/session event your harness forwards) so the board reacts automatically — primitive A, makes AX bidirectional. Always records a timeline event; kind-driven default reactions (overridable per call via `reactions`): failure/error → work item (blocked) + review finding + evidence (logs); tool-result + outcome:"success" → evidence (tool-result); everything else (tool-start, session-*, command, note) → event only. Set any reaction to false to suppress it, or to an object to override its fields. Returns { event, workItem, evidence, review }.',
     {
-      kind: z.enum([
-        'tool-start',
-        'tool-result',
-        'failure',
-        'error',
-        'session-start',
-        'session-end',
-        'command',
-        'note',
-      ]),
-      title: z.string(),
-      summary: z.string().optional(),
-      outcome: z.enum(['success', 'failure']).optional(),
-      ref: z
-        .string()
-        .optional()
-        .describe('A file path, URL, or commit the activity refers to (used as the review file anchor for failures).'),
-      nodeIds: z.array(z.string()).optional(),
-      data: z.record(z.string(), z.unknown()).optional(),
-      reactions: z
-        .object({
-          workItem: z
-            .union([
-              z.literal(false),
-              z.object({
-                status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled']).optional(),
-                detail: z.string().nullable().optional(),
-              }),
-            ])
-            .optional(),
-          evidence: z
-            .union([
-              z.literal(false),
-              z.object({
-                kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']).optional(),
-                body: z.string().nullable().optional(),
-              }),
-            ])
-            .optional(),
-          review: z
-            .union([
-              z.literal(false),
-              z.object({
-                severity: z.enum(['info', 'warning', 'error']).optional(),
-                kind: z.enum(['comment', 'finding']).optional(),
-                anchorType: z.enum(['node', 'file', 'region']).optional(),
-                nodeId: z.string().nullable().optional(),
-              }),
-            ])
-            .optional(),
-        })
-        .optional()
-        .describe('Override or suppress the kind-driven default reactions.'),
-      source: z.enum(AX_SOURCES).optional(),
+      description:
+        'Ingest a harness activity. Always records an event. failure/error also creates blocked work, a review and log evidence; successful tool-result creates evidence. Override or suppress defaults with reactions. Returns IDs and records for event, workItem, evidence and review.',
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      outputSchema: activityResult,
+      inputSchema: {
+        kind: z.enum([
+          'tool-start',
+          'tool-result',
+          'failure',
+          'error',
+          'session-start',
+          'session-end',
+          'command',
+          'note',
+        ]),
+        title: z.string(),
+        summary: z.string().optional(),
+        outcome: z.enum(['success', 'failure']).optional(),
+        ref: z
+          .string()
+          .optional()
+          .describe(
+            'A file path, URL, or commit the activity refers to (used as the review file anchor for failures).',
+          ),
+        nodeIds: z.array(z.string()).optional(),
+        data: z.record(z.string(), z.unknown()).optional(),
+        reactions: z
+          .object({
+            workItem: z
+              .union([
+                z.literal(false),
+                z.object({
+                  status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled']).optional(),
+                  detail: z.string().nullable().optional(),
+                }),
+              ])
+              .optional(),
+            evidence: z
+              .union([
+                z.literal(false),
+                z.object({
+                  kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']).optional(),
+                  body: z.string().nullable().optional(),
+                }),
+              ])
+              .optional(),
+            review: z
+              .union([
+                z.literal(false),
+                z.object({
+                  severity: z.enum(['info', 'warning', 'error']).optional(),
+                  kind: z.enum(['comment', 'finding']).optional(),
+                  anchorType: z.enum(['node', 'file', 'region']).optional(),
+                  nodeId: z.string().nullable().optional(),
+                }),
+              ])
+              .optional(),
+          })
+          .optional()
+          .describe('Override or suppress the kind-driven default reactions.'),
+        source: z.enum(AX_SOURCES).optional(),
+      },
     },
-    async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }) => {
+    async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }, extra) => {
       try {
         const c = await ensureCanvas();
-        const result = await c.ingestActivity(
+        extra.signal.throwIfAborted();
+        const result = await c.invoker().invoke(
+          'ax.activity.ingest',
           {
             kind,
             title,
@@ -400,10 +337,12 @@ export async function startMcpServer(): Promise<void> {
             ...(nodeIds !== undefined ? { nodeIds } : {}),
             ...(data !== undefined ? { data } : {}),
             ...(reactions !== undefined ? { reactions } : {}),
+            source: source ?? 'mcp',
           },
-          { source: source ?? 'mcp' },
+          { signal: extra.signal },
         );
-        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, ...result }) }] };
+        const body = activityResult.parse(result);
+        return { content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body };
       } catch (error) {
         return {
           content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
@@ -430,25 +369,50 @@ export async function startMcpServer(): Promise<void> {
   // binary image payload, which the registry's JSON wire shape does not model.
 
   // ── canvas_screenshot ─────────────────────────────────────────
-  server.tool(
+  const screenshotResult = z.object({
+    bytes: z.number().int().nonnegative(),
+    backend: z.enum(['webkit', 'chrome']).nullable(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  });
+  server.registerTool(
     'canvas_screenshot',
-    'Capture a screenshot from the active Bun.WebView automation session. Returns both an MCP image payload and JSON metadata. Requires an active automation session started via canvas_webview with action "start".',
     {
-      format: z
-        .enum(['png', 'jpeg', 'webp'])
-        .optional()
-        .describe('Screenshot format (default depends on Bun; png recommended)'),
-      quality: z.number().optional().describe('Optional quality for lossy formats'),
+      description:
+        'Capture an image and metadata from the active Bun.WebView session. Start it with canvas_webview action "start" first.',
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      outputSchema: screenshotResult,
+      inputSchema: {
+        format: z
+          .enum(['png', 'jpeg', 'webp'])
+          .optional()
+          .describe('Screenshot format (default depends on Bun; png recommended)'),
+        quality: z.number().optional().describe('Optional quality for lossy formats'),
+      },
     },
-    async ({ format, quality }) => {
-      const c = await ensureCanvas();
+    async ({ format, quality }, extra) => {
       try {
-        const bytes = await c.screenshotAutomationWebView({
-          ...(format ? { format } : {}),
-          ...(typeof quality === 'number' ? { quality } : {}),
-        });
+        const c = await ensureCanvas();
+        extra.signal.throwIfAborted();
+        const bytes = await c.screenshotAutomationWebView(
+          {
+            ...(format ? { format } : {}),
+            ...(typeof quality === 'number' ? { quality } : {}),
+          },
+          extra.signal,
+        );
+        extra.signal.throwIfAborted();
         const status = await c.getAutomationWebViewStatus();
+        const metadata = screenshotResult.parse({
+          bytes: bytes.byteLength,
+          backend: status.backend,
+          width: status.width,
+          height: status.height,
+          mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png',
+        });
         return {
+          structuredContent: metadata,
           content: [
             {
               type: 'image',
@@ -457,17 +421,7 @@ export async function startMcpServer(): Promise<void> {
             },
             {
               type: 'text',
-              text: JSON.stringify(
-                {
-                  bytes: bytes.byteLength,
-                  backend: status.backend,
-                  width: status.width,
-                  height: status.height,
-                  mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png',
-                },
-                null,
-                2,
-              ),
+              text: JSON.stringify(metadata),
             },
           ],
         };
@@ -1015,6 +969,11 @@ export async function startMcpServer(): Promise<void> {
   // canvas_validate migrated to the operation registry (plan-008 Wave 1):
   // src/server/operations/ops/validate.ts.
 
+  return server;
+}
+
+export async function startMcpServer(): Promise<void> {
+  const server = createMcpServer();
   // Connect via stdio
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -1024,7 +983,9 @@ export async function startMcpServer(): Promise<void> {
   // orphaned — the auto-started canvas server and its timers keep the event
   // loop alive forever. stopCanvasServer() checkpoints the SQLite DB before
   // exit and is a no-op when this process only attached to a remote daemon.
+  const disposeSubscriptions = server.server.onclose;
   const shutdown = (): void => {
+    disposeSubscriptions?.();
     try {
       stopCanvasServer();
       process.exit(0);

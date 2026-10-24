@@ -1,8 +1,16 @@
 import { EventEmitter } from 'node:events';
 import type { Camera, Tour, TourStop } from '../shared/tour.js';
-import { currentTour, exitTour, goToTourStop, moveCamera, type TourStep, type TourStepResult } from './tour-control.js';
+import {
+  currentTour,
+  exitTour,
+  goToTourStop,
+  moveCamera,
+  type TourState,
+  type TourStep,
+  type TourStepResult,
+} from './tour-control.js';
 export type { Tour, TourStop } from '../shared/tour.js';
-export type { TourStep, TourStepResult } from './tour-control.js';
+export type { TourState, TourStep, TourStepResult } from './tour-control.js';
 import { agentPresence } from './agent-presence.js';
 import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
@@ -612,8 +620,8 @@ export class PmxCanvas extends EventEmitter {
     );
   }
 
-  getTour(): Tour {
-    return currentTour().tour;
+  getTour(): TourState {
+    return currentTour();
   }
 
   setTour(tour: Tour | null): void {

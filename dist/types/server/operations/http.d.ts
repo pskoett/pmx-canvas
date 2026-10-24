@@ -1,3 +1,13 @@
+import { type OperationProgress } from './types.js';
+/** Opt-in NDJSON; the terminal frame retains the ordinary HTTP status/body. */
+export type OperationStreamFrame = {
+    type: 'progress';
+    progress: OperationProgress;
+} | {
+    type: 'result';
+    status: number;
+    body: unknown;
+};
 export declare function matchOperationPath(template: string, pathname: string): Record<string, string> | null;
 /**
  * Shared body reader: preserves the parsed JSON value as-is (object, array,

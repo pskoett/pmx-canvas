@@ -1124,10 +1124,37 @@ Use native `json-render` and `graph` nodes when the output should stay fully ins
 
 Spec elements support an `on` map (`on.press`, `on.change`, …) binding events to actions (`{ action, params }`) — built-in actions (`setState`, `pushState`, …) or, when named after an AX interaction type, a capability-gated AX emit. e.g. a Button with `on: { press: { action: 'ax.work.create', params: { title: '…' } } }` lets a human turn a panel control into a tracked work item; the viewer forwards it to the canvas, which validates and submits it server-side (clamped to the node's own id). See **Node AX Interactions** above.
 
+## MCP results and cancellation (0.10)
+
+The 24-tool catalog remains on MCP SDK v1. Each tool advertises `outputSchema`
+and effect annotations. Registry-backed tools expose
+`structuredContent.result = { operation, outcome, data }`, where `outcome` is
+`success`, `error` or `partial`; `data` matches the existing compact text JSON,
+or `{message}` for prose. Exceptions use `operation: null`; they do not prove no
+writes occurred. Interaction, activity-ingestion and screenshot tools instead
+use direct structured objects matching their schemas. Check `isError` and domain
+outcomes. A composite's annotations cover all its actions, not just reads.
+
+Cancellation releases supported AX waits, aborts webpage fetches before late
+content writes, and stops subsequent batch operations. Completed writes remain;
+batch partial results retain `results` and `refs`. A created webpage can remain
+with `fetch.cancelled: true`. External app builds/runtime calls and local WebView
+captures are not interruptible mid-call. After a disconnect, inspect state before
+retrying because the response may not arrive. `_meta.progressToken` enables batch
+and supported AX wait progress notifications, including through the daemon connection. Without
+a token, calls return their normal result without progress notifications.
+
 ## MCP Resources
 
 These resources give you read access to canvas intelligence. Read them to understand
 what the human has set up and what they're focusing on.
+
+As of 0.10, live resource updates require `resources/subscribe` on each connection.
+Subscribe to the exact URI you read, including context/graph query parameters;
+`resources/unsubscribe` stops it, and reconnecting requires a new subscription.
+Notifications invalidate cached data but do not deliver content, record a read, or
+advance a consumer cursor. Explicit `resources/read` remains available without
+subscriptions. Static schema and bundled skills do not support subscriptions.
 
 | Resource | What it provides |
 |----------|-----------------|

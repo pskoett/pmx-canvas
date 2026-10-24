@@ -3,8 +3,69 @@
 PMX Canvas ships an MCP stdio server with **24 tools**, **15 static canvas
 resources**, and two canvas resource templates, plus per-skill resources at
 `canvas://skills/<name>` and the `skill://{name}/{+path}` template. The server emits
-`notifications/resources/updated` when canvas state changes — humans pin
-nodes in the browser, agents are notified immediately.
+`notifications/resources/updated` to subscribed connections when canvas state changes.
+This uses MCP SDK v1, not SDK v2.
+
+## Tool results and effect hints (0.10)
+
+All 24 tools advertise an object `outputSchema`. Registry-backed tools return
+`structuredContent.result = { operation, outcome, data }`. `operation` names the
+dispatched action (for example `node.add`), `outcome` is `success`, `error` or
+`partial`, and `data` is the existing compact tool result. Prose results use
+`data.message`. Exceptions use `operation: null`, `outcome: "error"` and
+`data.message`; this does not guarantee that nothing changed before the exception.
+Batch failures retain completed `results` and `refs`, with `partial` when at least
+one entry completed. Check both `isError` and the outcome before using a result.
+
+The three handwritten tools keep direct structured objects: `canvas_ax_interaction`
+returns its accepted interaction, `canvas_ingest_activity` its event and reaction
+records, and `canvas_screenshot` capture metadata alongside model-visible image
+content. Their errors are text-only `isError` replies. Existing model-facing text
+and compact/full projections remain unchanged; structured results do not introduce
+additional full-card or UI payloads. Inspect the advertised schema for each tool.
+
+All tools declare `readOnlyHint`, `destructiveHint`, `idempotentHint` and
+`openWorldHint`. Composite hints cover every action, not only their read actions.
+`canvas_query` is not read-only because context reads can advance a durable
+consumer cursor. Hints describe effects; they grant no permission or retry guarantee.
+
+## Cancellation and progress (0.10)
+
+MCP cancellation reaches the operation layer in both local and daemon-attached
+connections. Supported AX waits release their listeners and timers immediately;
+batches stop before the next operation and keep completed writes. Webpage fetches
+receive the signal and stop before writing fetched content after cancellation.
+Cancellation does not roll back a created node or other completed mutations.
+If webpage creation already committed, its receipt retains `fetch.cancelled: true`.
+External app builds/runtime calls and local WebView captures are not interruptible
+mid-call; do not treat cancellation as proof that those side effects stopped.
+
+Calls supplying `_meta.progressToken` receive `notifications/progress` at batch
+entry boundaries and supported AX wait start/completion, with `progress`, optional
+`total`, optional `message` and the same token. This works over the daemon bridge
+as well as local stdio. No token means
+no progress notifications. A host that aborts its connection may not receive a
+partial result; inspect canvas state before retrying. See the
+[HTTP streaming contract](http-api.md#operation-cancellation-and-progress-010).
+
+## Resource subscriptions (0.10)
+
+The server advertises `resources.subscribe`. Send `resources/subscribe` with an
+exact live URI, then `resources/unsubscribe` to stop. Subscriptions belong to the
+connection and disappear on close; reconnecting clients must subscribe again.
+
+Live resources are `canvas://layout`, `boards`, `summary`, `context`, `graph`,
+`spatial-context`, `history`, `code-graph`, `pinned-context`, `ax`, `ax-context`,
+`ax-timeline`, `ax-work`, `ax-pending-steering` and `ax-delivery` (each with the
+`canvas://` prefix). Parameterized context and graph URIs are supported, for example
+`canvas://context?consumer=my-agent&budget=3000`; notifications echo the exact
+subscribed URI. Static schema and bundled skill resources do not support subscriptions.
+
+Notifications invalidate cached data, not deliver it. Read the resource when needed.
+They can be broader than the underlying change, and daemon reconnection invalidates
+subscribed resources to cover missed events. Notification delivery does not record
+a context read or advance a consumer cursor. Explicit `resources/read` works without
+subscriptions, including on hosts that do not use this capability.
 
 > **Consolidation complete (plan-006/008).** The MCP surface shrank from 84
 > tools to 22: 16 action-discriminated **composites** (recommended — see

@@ -1,16 +1,11 @@
 import { type CanvasLayout, type CanvasNodeState, type PmxCanvas } from '../server/index.js';
-import type { PmxAxSource } from '../server/ax-state.js';
 import type { ContextReadInput } from '../server/context-reads.js';
 import { type OperationInvoker } from '../server/operations/index.js';
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
-type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
-type SubmitAxInteractionResult = ReturnType<PmxCanvas['submitAxInteraction']>;
 type GetPendingSteeringResult = ReturnType<PmxCanvas['getPendingSteering']>;
 type ListElicitationsResult = ReturnType<PmxCanvas['listElicitations']>;
 type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
-type IngestActivityInput = Parameters<PmxCanvas['ingestActivity']>[0];
-type IngestActivityResult = ReturnType<PmxCanvas['ingestActivity']>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
@@ -38,18 +33,12 @@ export interface CanvasAccess {
     listWorkItems(): Promise<ListWorkItemsResult>;
     listApprovalGates(): Promise<ListApprovalGatesResult>;
     listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
-    submitAxInteraction(input: SubmitAxInteractionInput, options?: {
-        source?: PmxAxSource;
-    }): Promise<SubmitAxInteractionResult>;
     getPendingSteering(options?: {
         consumer?: string;
         limit?: number;
     }): Promise<GetPendingSteeringResult>;
     listElicitations(): Promise<ListElicitationsResult>;
     listModeRequests(): Promise<ListModeRequestsResult>;
-    ingestActivity(input: IngestActivityInput, options?: {
-        source?: PmxAxSource;
-    }): Promise<IngestActivityResult>;
     getPolicy(): Promise<GetPolicyResult>;
     getHistory(): Promise<HistoryResult>;
     getPinnedNodeIds(board?: string): Promise<string[]>;
@@ -62,7 +51,7 @@ export interface CanvasAccess {
     runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
     getCodeGraph(): Promise<CodeGraphResult>;
     getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
-    screenshotAutomationWebView(options?: AutomationScreenshotOptions): Promise<Uint8Array>;
+    screenshotAutomationWebView(options?: AutomationScreenshotOptions, signal?: AbortSignal): Promise<Uint8Array>;
 }
 export declare function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasAccess>;
 /**

@@ -341,7 +341,7 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
     // `consumer` is a loop-safety scope, not a source label — never defaulted.
     formatResult: axJsonResult,
   },
-  handler: async (input) => {
+  handler: async (input, ctx) => {
     const consumer = typeof input.consumer === 'string' ? input.consumer : undefined;
     // A claim is proof this consumer polls steering — its presence (session or
     // external writer) becomes a legitimate composer steer target.
@@ -363,7 +363,7 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
       // Long-poll: hosts that cannot be woken from outside (Copilot, Codex —
       // their model runs only while the host gives it a turn) park here and
       // wake the moment steering lands, instead of burning the turn polling.
-      await waitForAxCondition({ ready: () => readPending().length > 0, timeoutMs });
+      await waitForAxCondition({ ready: () => readPending().length > 0, timeoutMs, signal: ctx.signal });
       pending = readPending();
     }
     // The MCP tool aggregated pendingActivity; one wire body now serves it over

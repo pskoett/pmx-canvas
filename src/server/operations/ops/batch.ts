@@ -44,6 +44,7 @@ export interface BatchEnvelope {
   refs: Record<string, unknown>;
   failedIndex?: number;
   error?: string;
+  cancelled?: boolean;
 }
 
 const SUPPORTED_BATCH_OPS = new Set([
@@ -220,7 +221,7 @@ function shapeBatchEntry(op: string, result: unknown, creationReceipt = false): 
   return body;
 }
 
-async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
+async function runBatch(operations: BatchEntry[], ctx: OperationContext): Promise<BatchEnvelope> {
   const refs: Record<string, unknown> = {};
   const results: Array<Record<string, unknown>> = [];
 
@@ -231,6 +232,15 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       return { ok: false, failedIndex: index, error: `Operation ${index} has invalid args.`, results, refs };
     }
     try {
+      ctx.signal?.throwIfAborted();
+      if (ctx.onProgress) {
+        const boardGeneration = canvasState.boardGeneration;
+        await ctx.onProgress({ progress: index, total: operations.length, message: operation.op });
+        if (canvasState.boardGeneration !== boardGeneration) {
+          throw new Error('The board changed while the batch was running.');
+        }
+      }
+      ctx.signal?.throwIfAborted();
       if (!SUPPORTED_BATCH_OPS.has(operation.op)) {
         return {
           ok: false,
@@ -259,35 +269,43 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       // ghost-cursor exemption for batch operations). No `fromWorkbench`: the
       // browser never issues batches, so inner writes are agent writes and the
       // scope fence applies to each of them.
-      const pending = executeOperation(dispatch.name, dispatch.args, { suppressAutoGhost: true });
+      const pending = executeOperation(dispatch.name, dispatch.args, {
+        suppressAutoGhost: true,
+        signal: ctx.signal,
+        onProgress: ctx.onProgress
+          ? (progress) => ctx.onProgress!({ progress: index, total: operations.length, message: progress.message })
+          : undefined,
+      });
       // The first write may synchronously open a board from Home. Capture after
       // dispatch, then refuse to continue a partially completed batch elsewhere.
       const boardGeneration = canvasState.boardGeneration;
       const raw = await pending;
-      if (canvasState.boardGeneration !== boardGeneration) {
-        throw new Error('The board changed while the batch was running.');
-      }
+      const boardChanged = canvasState.boardGeneration !== boardGeneration;
       const result = shapeBatchEntry(
         operation.op,
         raw,
-        ['node.add', 'group.create', 'edge.add'].includes(operation.op) &&
-          (args.requestId !== undefined || args.destinationBoardId !== undefined),
+        boardChanged ||
+          (['node.add', 'group.create', 'edge.add'].includes(operation.op) &&
+            (args.requestId !== undefined || args.destinationBoardId !== undefined)),
       );
       results.push(result);
       if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {
         refs[operation.assign] = result;
       }
+      if (boardChanged) throw new Error('The board changed while the batch was running.');
     } catch (error) {
       return {
         ok: false,
         failedIndex: index,
         error: error instanceof Error ? error.message : String(error),
+        ...(ctx.signal?.aborted ? { cancelled: true } : {}),
         results,
         refs,
       };
     }
   }
 
+  await ctx.onProgress?.({ progress: operations.length, total: operations.length, message: 'Batch complete' });
   return { ok: true, results, refs };
 }
 
@@ -356,6 +374,7 @@ function compactBatchResult(result: BatchEnvelope): Record<string, unknown> {
     ok: result.ok,
     ...(result.failedIndex !== undefined ? { failedIndex: result.failedIndex } : {}),
     ...(result.error ? { error: result.error } : {}),
+    ...(result.cancelled ? { cancelled: true } : {}),
     results: result.results.map((entry) => compactBatchValue(entry)),
     refs: Object.fromEntries(Object.entries(result.refs).map(([key, value]) => [key, compactBatchValue(value)])),
   };
@@ -406,7 +425,7 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
     // Suppress every per-entry SSE frame (auto layout emit + each handler's
     // ctx.emit). After the loop completes, emit ONE final canvas-layout-update.
     const revision = canvasState.getContentRevision().revision;
-    const envelope = await runWithSuppressedEmits(() => runBatch(operations));
+    const envelope = await runWithSuppressedEmits(() => runBatch(operations, ctx));
     if (
       revision !== canvasState.getContentRevision().revision ||
       operations.some(

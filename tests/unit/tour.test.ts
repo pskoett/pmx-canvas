@@ -223,7 +223,9 @@ describe('driving a tour', () => {
     addGroups();
     const sdk = new PmxCanvas();
     expect(sdk.getTour()).toEqual({
-      stops: [{ target: { nodeId: 'early' } }, { target: { nodeId: 'late' } }],
+      tour: { stops: [{ target: { nodeId: 'early' } }, { target: { nodeId: 'late' } }] },
+      derived: true,
+      position: null,
     });
     const go = (input: Record<string, unknown>) => executeOperation('tour.go', input) as Promise<{ index: number }>;
     expect((await go({ step: 'previous' })).index).toBe(0);
@@ -237,14 +239,15 @@ describe('driving a tour', () => {
       { index: 0, total: 2, stop: { target: { nodeId: 'early' } }, present: false },
     ]);
     expect(((await executeOperation('tour.get', {})) as { position: number }).position).toBe(0);
-    expect(await executeOperation('tour.get', {})).toEqual({ tour: sdk.getTour(), derived: true, position: 0 });
+    expect(sdk.getTour().position).toBe(0);
+    expect(await executeOperation('tour.get', {})).toEqual(sdk.getTour());
     await executeOperation('tour.exit', {});
     expect(emitted.at(-1)?.event).toBe('canvas-tour-exit');
     expect(((await executeOperation('tour.get', {})) as { position: number | null }).position).toBeNull();
     await expect(go({ stop: 2 })).rejects.toThrow('does not exist');
     await expect(go({ stop: 0, step: 'next' })).rejects.toThrow('exactly one');
     canvasState.setTour({ stops: [] });
-    expect(sdk.getTour()).toEqual({ stops: [] });
+    expect(sdk.getTour()).toEqual({ tour: { stops: [] }, derived: false, position: null });
     await expect(go({ step: 'next' })).rejects.toThrow('no tour stops');
   });
 

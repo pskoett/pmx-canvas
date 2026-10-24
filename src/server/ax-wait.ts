@@ -23,27 +23,32 @@ export async function waitForAxResolution<T extends { status: string }>(opts: {
   timeoutMs: number;
   signal?: AbortSignal;
 }): Promise<AxWaitResult<T>> {
+  opts.signal?.throwIfAborted();
   const { read, isResolved } = opts;
   const timeoutMs = Math.max(0, Math.min(opts.timeoutMs, AX_WAIT_MAX_MS));
   const pendingOf = (v: T | null): boolean => (v ? !isResolved(v) : false);
 
   const current = read();
-  if (!current || isResolved(current) || timeoutMs === 0 || opts.signal?.aborted) {
+  if (!current || isResolved(current) || timeoutMs === 0) {
     return { value: current, pending: pendingOf(current) };
   }
 
-  return new Promise<AxWaitResult<T>>((resolve) => {
+  return new Promise<AxWaitResult<T>>((resolve, reject) => {
     let done = false;
     const finish = (): void => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       dispose();
-      opts.signal?.removeEventListener('abort', onSettle);
+      opts.signal?.removeEventListener('abort', onAbort);
+      if (opts.signal?.aborted) {
+        reject(opts.signal.reason);
+        return;
+      }
       const v = read();
       resolve({ value: v, pending: pendingOf(v) });
     };
-    const onSettle = finish;
+    const onAbort = finish;
     const check = (type: string): void => {
       if (type !== 'ax') return;
       const v = read();
@@ -51,7 +56,8 @@ export async function waitForAxResolution<T extends { status: string }>(opts: {
     };
     const timer = setTimeout(finish, timeoutMs);
     const dispose = canvasState.onChange(check);
-    opts.signal?.addEventListener('abort', onSettle, { once: true });
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    if (opts.signal?.aborted) finish();
   });
 }
 
@@ -67,17 +73,24 @@ export async function waitForAxCondition(opts: {
   ready: () => boolean;
   timeoutMs: number;
   channel?: string;
+  signal?: AbortSignal;
 }): Promise<void> {
+  opts.signal?.throwIfAborted();
   const timeoutMs = Math.max(0, Math.min(opts.timeoutMs, AX_WAIT_MAX_MS));
   if (timeoutMs === 0 || opts.ready()) return;
   const channel = opts.channel ?? 'ax-timeline';
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     let done = false;
     const finish = (): void => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       dispose();
+      opts.signal?.removeEventListener('abort', finish);
+      if (opts.signal?.aborted) {
+        reject(opts.signal.reason);
+        return;
+      }
       resolve();
     };
     const check = (type: string): void => {
@@ -85,5 +98,7 @@ export async function waitForAxCondition(opts: {
     };
     const timer = setTimeout(finish, timeoutMs);
     const dispose = canvasState.onChange(check);
+    opts.signal?.addEventListener('abort', finish, { once: true });
+    if (opts.signal?.aborted) finish();
   });
 }

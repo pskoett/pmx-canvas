@@ -1,9 +1,8 @@
 # Plan 019: After 0.9.0
 
-**Status (2026-10-24):** 0.9.0–0.9.2 are released. The maintainer authorized review,
-testing and release of the patch-only 0.9.3 cleanup after the prerequisite fixes reached
-`origin/main` at `bed57fe9a4b79bd54f8b5ee51cefd65fec3dbe1a`. The SDK tour return shape
-stays unchanged. MCP hardening and SDK tour result parity move to 0.10 on SDK v1.
+**Status (2026-10-24):** 0.9.3 is released to npm and GitHub, with fresh registry smoke
+passing. The maintainer approved implementing step 2, MCP hardening and SDK tour
+result parity for 0.10 on SDK v1. These changes are local; 0.10 publication is not authorized.
 Later version numbers are proposals, not publication approval; every release must pass
 the [release gates](../RELEASE.md).
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),
@@ -124,6 +123,76 @@ lists the exact locations. These remain outside the narrow behavioral fixes:
 
 [Vision move 6a](../product-vision-2026-09.md#6a-make-the-tool-surface-cheap-s--staged-follow-up)
 and move 1's context delivery, on the current SDK v1.
+
+**Local implementation checkpoint (2026-10-24):**
+- All 24 tools advertise output schemas and explicit effect hints. Registry results use
+  `{ result: { operation, outcome, data } }`; handwritten interaction, activity and screenshot
+  tools retain their direct objects. Existing model-facing text/projections stay unchanged.
+  Schemas distinguish batch success, empty failure and retained partial outcomes.
+- Cancellation reaches AX waits and webpage I/O through local and HTTP invokers. Batches
+  retain completed receipts and stop before subsequent operations. Progress is opt-in through
+  MCP tokens and HTTP NDJSON. External runtime/build calls and local WebView captures remain
+  noninterruptible mid-call. Disconnects may lose the response, never undo completed writes.
+- Subscriptions belong to each connection, include exact parameterized URIs, and dispose
+  on unsubscribe/close. Local state and workbench events cover library-only changes as well
+  as active nodes; remote SSE reconnects invalidate subscribed resources. Notifications never
+  record reads or advance cursors. A library-only-change regression failed before integration
+  and passes with the shared event source.
+- SDK `getTour()` now returns `{ tour, derived, position }`; `.tour.stops` is documented as
+  the minor-version breaking change. No SDK/dependency upgrade, extra tools or frame-host work.
+
+**Verification:** build and typecheck pass; `bun run test` passes 1,544 tests and
+`bun run test:client` passes 332. `xvfb-run -a bash scripts/run-playwright.sh --headed`
+passes 333 cases; three pin/viewport/polling controls also pass after the final local
+subscription event hook. `bun run release:smoke` passes on a disposable packed install,
+not a registry publication. Lint passes with the same 55 warnings and 12 infos; generated
+tool catalogs match. Real stdio tests cover local and daemon-attached progress/cancellation
+and resource isolation. Initial test typing/SDK error-envelope failures and the red
+library-notification regression were corrected; this is not a first-run-green claim.
+Native 0.10 host acceptance, Windows/macOS and remote/native reconnect remain unverified.
+Bounded simplify/harden review found no further blockers and made no additional changes.
+
+**Independent baseline evidence:** the
+[0.9.3 test thread](https://ampcode.com/threads/T-01a048cf-adb3-71bd-a7c6-472053b691d1)
+reports no new confirmed functional defect after reruns, including installed SDK direct-tour
+compatibility and native Amp pin/read/edit/ack acceptance. It does not establish 0.10 MCP
+structured-output, cancellation or subscription conformance. Its low-severity KaTeX advisory,
+unresolved first-run coverage timeout and remote/native reconnect gap remain separate from
+this candidate; no dependency or reconnect fix is claimed here.
+
+**Discovery cost:** `bun run scripts/measure-mcp-catalog.ts` measures UTF-8 bytes of the
+real SDK client's `tools/list` JSON in a disposable stdio workspace, without canvas reads.
+The 0.9.3 baseline is 65,219 bytes; the local candidate is 144,680 bytes, both 24 tools.
+Output schemas contribute 77,105 bytes. This is an increase in discovery overhead, not a
+claim of cheaper prompts or a token estimate. Existing result text is unchanged; structured
+results duplicate that projection for machine consumers. Host-specific prompt costs are unmeasured.
+
+| Tool | 0.9.3 bytes | Local candidate bytes |
+|---|---:|---:|
+| `canvas_pin_nodes` | 782 | 2227 |
+| `canvas_invoke_command` | 804 | 2312 |
+| `canvas_batch` | 1367 | 5184 |
+| `canvas_import` | 1152 | 4251 |
+| `canvas_snapshot` | 2238 | 6365 |
+| `canvas_board` | 5859 | 14803 |
+| `canvas_node` | 8184 | 13485 |
+| `canvas_render` | 6321 | 11165 |
+| `canvas_edge` | 2186 | 4423 |
+| `canvas_group` | 1953 | 4532 |
+| `canvas_history` | 494 | 2430 |
+| `canvas_view` | 4341 | 12821 |
+| `canvas_query` | 2476 | 7000 |
+| `canvas_app` | 4729 | 7496 |
+| `canvas_webview` | 1810 | 4834 |
+| `canvas_ax_state` | 4462 | 7652 |
+| `canvas_ax_work` | 2074 | 4527 |
+| `canvas_ax_gate` | 2417 | 8285 |
+| `canvas_ax_timeline` | 2637 | 6135 |
+| `canvas_ax_delivery` | 1366 | 3284 |
+| `canvas_intent` | 3127 | 5453 |
+| `canvas_ax_interaction` | 1460 | 1969 |
+| `canvas_ingest_activity` | 2341 | 2872 |
+| `canvas_screenshot` | 604 | 1140 |
 
 1. Remeasure `tools/list` size per tool before any schema change.
 2. `outputSchema` + `structuredContent` for stable results (IDs, revisions, mutation

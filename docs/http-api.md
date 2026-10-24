@@ -3,6 +3,37 @@
 REST endpoints for all canvas operations + an SSE event stream. Works from
 any language. Default base URL: `http://localhost:4313`.
 
+## Operation cancellation and progress (0.10)
+
+Registry-backed operation routes use the request's abort signal. Disconnecting
+stops supported AX waits, cancels webpage fetching and prevents later batch
+operations from starting. Completed writes remain. Cancellation is cooperative:
+external app builds/runtime calls and local WebView captures cannot be interrupted
+mid-call. A standalone cancelled operation returns HTTP 499 with
+`{ "ok": false, "cancelled": true, "error": "Operation cancelled." }` when the
+connection still permits a response. An interrupted batch retains completed
+`results` and `refs` in its partial-failure body and adds `cancelled: true`.
+Disconnected clients must inspect state before retrying; they may never receive
+that body. Cancellation is not rollback.
+
+Send `Accept: application/x-ndjson` to opt into batch and supported AX wait progress
+over the operation response stream. Each newline-delimited JSON frame is one of:
+
+```json
+{"type":"progress","progress":{"progress":1,"total":3,"message":"node.add"}}
+{"type":"result","status":200,"body":{"ok":true,"results":[],"refs":{}}}
+```
+
+The examples show frame shapes, not one complete batch. The terminal `result`
+frame carries the ordinary operation status and body; the stream's HTTP 200 does
+not establish operation success. Without this header, routes keep their ordinary
+JSON status/body. Early validation errors may still be ordinary JSON. The
+in-process and HTTP operation invokers accept optional `{ signal, onProgress }`;
+the HTTP invoker negotiates this stream only when given a progress callback.
+
+AX wait routes accept `timeoutMs` as well as the direct-HTTP `waitMs` parameter;
+`timeoutMs` takes precedence when both are supplied.
+
 ## Knowledge lifecycle data (plan 017 slice 1)
 
 The slice-1 data contract now also drives the workbench, due engine and qualified agent context.

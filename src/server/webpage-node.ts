@@ -386,34 +386,37 @@ export function checkWebpageHop(originScope: AddressScope, hopScope: AddressScop
 
 export async function fetchWebpageSnapshot(
   inputUrl: string,
-  options: { resolveHost?: ResolveHost; timeoutMs?: number } = {},
+  options: { resolveHost?: ResolveHost; timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<WebpageSnapshot> {
+  options.signal?.throwIfAborted();
   const url = normalizeWebpageUrl(inputUrl);
   const controller = new AbortController();
+  const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const resolveHost = options.resolveHost ?? ((host) => lookup(host, { all: true }));
 
   try {
     // Redirects are followed by hand so every hop's host is checked before it is fetched.
-    let resolved = await abortable(resolveHop(new URL(url), resolveHost), controller.signal);
+    let resolved = await abortable(resolveHop(new URL(url), resolveHost), signal);
     const originScope = resolved.scope;
     let hopUrl = url;
     let response: Response;
     for (let hop = 0; ; hop++) {
       checkWebpageHop(originScope, resolved.scope, hopUrl);
-      response = await requestHop(new URL(hopUrl), resolved, controller.signal);
+      response = await requestHop(new URL(hopUrl), resolved, signal);
       const location = response.headers.get('location');
       if (response.status < 300 || response.status >= 400 || !location) break;
       await response.body?.cancel();
       if (hop === MAX_REDIRECTS) throw new WebpageFetchError(`Too many redirects while fetching ${url}.`);
       hopUrl = normalizeWebpageUrl(new URL(location, hopUrl).toString());
-      resolved = await abortable(resolveHop(new URL(hopUrl), resolveHost), controller.signal);
+      resolved = await abortable(resolveHop(new URL(hopUrl), resolveHost), signal);
     }
 
     const contentType = response.headers.get('content-type');
     const responseUrl = hopUrl;
     const body = await readBoundedBody(response);
+    signal.throwIfAborted();
 
     if (!response.ok) {
       throw new WebpageFetchError(`Request failed with ${response.status} ${response.statusText}`.trim(), {
@@ -450,6 +453,8 @@ export async function fetchWebpageSnapshot(
       frameBlockedReason,
     };
   } catch (error) {
+    // Caller cancellation is not a fetch failure or our internal timeout.
+    options.signal?.throwIfAborted();
     if (error instanceof WebpageFetchError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
       throw new WebpageFetchError(`Timed out after ${timeoutMs}ms while fetching ${url}.`);

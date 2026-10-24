@@ -189,6 +189,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_ax_interaction'",
         cliCommand: "'ax interaction',",
         accessMethod: 'submitAxInteraction(',
+        migrated: true,
       },
       {
         label: 'steering-delivery',

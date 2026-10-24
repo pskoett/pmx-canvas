@@ -5,6 +5,15 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Breaking
+
+- SDK tour reads return `{ tour, derived, position }`; read stops from `.getTour().tour.stops` instead of `.getTour().stops`.
+
+### Added
+
+- MCP tools provide validated structured results and annotations describing their possible effects.
+- MCP clients can cancel waits and subscribe to live canvas resources without receiving unrelated subscriptions.
+
 ## [0.9.3] - 2026-10-24
 
 ### Fixed

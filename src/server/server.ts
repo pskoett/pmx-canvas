@@ -930,6 +930,15 @@ let workbenchEventSeq = 0;
 const workbenchEventRing: Array<{ seq: number; event: string; payload: PrimaryWorkbenchEventPayload }> = [];
 const workbenchPollWaiters = new Set<() => void>();
 let remoteEdgesSignature = '';
+const workbenchEventListeners = new Set<(event: string) => void>();
+
+/** In-process invalidation observers share the same events as daemon SSE clients. */
+export function onWorkbenchEvent(listener: (event: string) => void): () => void {
+  workbenchEventListeners.add(listener);
+  return () => {
+    workbenchEventListeners.delete(listener);
+  };
+}
 
 function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload): void {
   let remoteEdgesChanged = false;
@@ -975,6 +984,7 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
       syncCanvasBrowserOpenedFromSubscribers();
     }
   }
+  for (const listener of workbenchEventListeners) listener(event);
   if (remoteEdgesChanged) emitPrimaryWorkbenchEvent('boards-changed', boardsPayload());
 }
 

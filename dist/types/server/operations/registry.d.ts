@@ -1,4 +1,4 @@
-import { type Operation } from './types.js';
+import { type Operation, type OperationExecutionOptions } from './types.js';
 export declare function registerOperation(op: Operation): void;
 export declare function getOperation(name: string): Operation;
 export declare function listOperations(): Operation[];
@@ -12,7 +12,7 @@ export declare function getOperationEventEmitter(): OperationEventEmitter | null
 export declare function isEmitSuppressed(): boolean;
 /** Suppress this call chain's per-entry frames; the batch emits its final frame afterward. */
 export declare function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T>;
-export interface ExecuteOperationMeta {
+export interface ExecuteOperationMeta extends OperationExecutionOptions {
     /**
      * Skip the synthesized auto-ghost: set by the workbench's own HTTP calls
      * (a human dragging a node is not agent activity) and by canvas.batch for

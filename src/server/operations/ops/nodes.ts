@@ -633,6 +633,7 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
 
   const extraData = isRecord(body.data) ? body.data : undefined;
   const geometry = resolveCreateGeometry(body);
+  ctx.signal?.throwIfAborted();
   const { id, node, sizeAdjustment } = addCanvasNode({
     type: 'webpage',
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
@@ -648,7 +649,21 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
   // registry emits the final layout update after the handler returns.
   ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
   const boardGeneration = canvasState.boardGeneration;
-  const refreshed = await refreshCanvasWebpageNode(id);
+  let refreshed: Awaited<ReturnType<typeof refreshCanvasWebpageNode>>;
+  try {
+    refreshed = await refreshCanvasWebpageNode(id, { signal: ctx.signal });
+  } catch (error) {
+    if (!ctx.signal?.aborted) throw error;
+    // Creation already committed. Return its receipt without writing an error
+    // status; batches retain this node and stop before their next entry.
+    return {
+      node,
+      extras: {
+        fetch: { ok: false, cancelled: true, error: 'Webpage fetch cancelled.' },
+        ...(sizeAdjustment ? { sizeAdjustment } : {}),
+      },
+    };
+  }
   if (canvasState.boardGeneration !== boardGeneration) {
     throw new OperationError('The board changed while the webpage was loading.', 409);
   }
@@ -1186,7 +1201,7 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
           throw new OperationError(error instanceof Error ? error.message : 'Invalid webpage URL.');
         }
       }
-      const result = await refreshCanvasWebpageNode(id, { ...(url ? { url } : {}) });
+      const result = await refreshCanvasWebpageNode(id, { ...(url ? { url } : {}), signal: ctx.signal });
       return result as unknown as Record<string, unknown>;
     }
 
@@ -1442,7 +1457,7 @@ const nodeRefreshOperation = defineOperation<z.infer<typeof nodeRefreshSchema>, 
     }
     // Legacy wire: the layout update fires after every completed refresh
     // attempt, success or failure (the node may have partial refresh state).
-    const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
+    const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}), signal: ctx.signal });
     ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
     return result as unknown as Record<string, unknown>;
   },

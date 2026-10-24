@@ -38,8 +38,11 @@ records retain their reviewed revision, and legacy unversioned evidence remains 
 
 ## Board tours
 
-`canvas.getTour()` returns the tour directly. Read stops from `canvas.getTour().stops`.
-When no tour is saved, stops come from group reading order.
+`canvas.getTour()` returns `{ tour, derived, position }`, matching HTTP and MCP.
+Read stops from `canvas.getTour().tour.stops`. `derived` is true when stops come
+from group reading order rather than a saved tour. `position` is the current
+stop index, or null outside a tour.
+This is a breaking change in 0.10: replace `.getTour().stops` with `.getTour().tour.stops`.
 `canvas.setTour(tourOrNull)` saves the tour or resets it to derived group order.
 See the [tour contract](http-api.md#board-tours) for navigation and camera moves.
 

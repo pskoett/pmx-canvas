@@ -29,7 +29,19 @@ export class OperationError extends Error {
   }
 }
 
-export interface OperationContext {
+export interface OperationProgress {
+  progress: number;
+  total?: number;
+  message?: string;
+}
+
+/** Cooperative cancellation: completed writes are never rolled back. */
+export interface OperationExecutionOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: OperationProgress) => void | Promise<void>;
+}
+
+export interface OperationContext extends OperationExecutionOptions {
   /** Emit a workbench SSE event (e.g. extra `canvas-layout-update` frames, focus, viewport). */
   emit(event: string, payload?: Record<string, unknown>): void;
 }
@@ -67,7 +79,9 @@ export interface OperationMcpToolHost {
    * Used by formatters that need a follow-up read (undo/redo history flags,
    * restore summary).
    */
-  invoker(): { invoke(name: string, input: Record<string, unknown>): Promise<unknown> };
+  invoker(): {
+    invoke(name: string, input: Record<string, unknown>, options?: OperationExecutionOptions): Promise<unknown>;
+  };
 }
 
 export interface OperationMcpTool {

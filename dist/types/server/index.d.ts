@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 import type { Camera, Tour, TourStop } from '../shared/tour.js';
-import { type TourStep, type TourStepResult } from './tour-control.js';
+import { type TourState, type TourStep, type TourStepResult } from './tour-control.js';
 export type { Tour, TourStop } from '../shared/tour.js';
-export type { TourStep, TourStepResult } from './tour-control.js';
+export type { TourState, TourStep, TourStepResult } from './tour-control.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
@@ -163,7 +163,7 @@ export declare class PmxCanvas extends EventEmitter {
     ungroupNodes(groupId: string, options?: {
         intentId?: string;
     }): boolean;
-    getTour(): Tour;
+    getTour(): TourState;
     setTour(tour: Tour | null): void;
     /** Present a tour stop (index, `next` or `previous`) in the workbench. Not recorded in undo history. */
     goToTourStop(step: TourStep, options?: {

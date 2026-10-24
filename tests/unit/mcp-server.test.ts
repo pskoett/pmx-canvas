@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import {
+  CallToolResultSchema,
+  ProgressNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  type ProgressNotification,
+} from '@modelcontextprotocol/sdk/types.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace, waitForCondition } from './helpers.ts';
 import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 
@@ -136,6 +142,180 @@ afterEach(async () => {
 });
 
 describe('MCP parity with CLI', () => {
+  test('stdio cancellation and progress cross both local and daemon-attached operation paths', async () => {
+    const local = await createMcpSession();
+    cleanup.push(async () => {
+      await local.client.close();
+      await closeTransportAndReapChild(local.transport);
+      removeTestWorkspace(local.workspaceRoot);
+    });
+    // Start the daemon before the second connection discovers it.
+    await local.client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown' } });
+    const remote = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await remote.client.close();
+      await closeTransportAndReapChild(remote.transport);
+    });
+    for (const client of [local.client, remote.client]) {
+      await client.listTools();
+      const requested = await client.callTool({
+        name: 'canvas_ax_gate',
+        arguments: { kind: 'approval', action: 'request', title: 'Cancellation control' },
+      });
+      expect(requested.isError).not.toBe(true);
+      const { approvalGate } = parseJsonText<{ approvalGate: { id: string } }>(requested as ToolResultShape);
+      const progress: Array<ProgressNotification['params']> = [];
+      client.setNotificationHandler(ProgressNotificationSchema, ({ params }) => {
+        progress.push(params);
+      });
+      const controller = new AbortController();
+      const waiting = client.callTool(
+        {
+          name: 'canvas_ax_gate',
+          arguments: { kind: 'approval', action: 'await', id: approvalGate.id, timeoutMs: 30000 },
+          _meta: { progressToken: 'wait-control' },
+        },
+        CallToolResultSchema,
+        { signal: controller.signal },
+      );
+      const rejected = waiting.catch((error: unknown) => error);
+      await waitForCondition(() =>
+        progress.some((item) => item.progressToken === 'wait-control' && item.progress === 0),
+      );
+      controller.abort();
+      expect(await rejected).toBeInstanceOf(Error);
+      // Cancellation must not resolve the gate or poison the next request.
+      const gate = await client.callTool({
+        name: 'canvas_ax_gate',
+        arguments: { kind: 'approval', action: 'await', id: approvalGate.id, timeoutMs: 0 },
+      });
+      expect(parseJsonText<{ pending: boolean }>(gate as ToolResultShape).pending).toBe(true);
+      progress.length = 0;
+      const batch = await client.callTool({
+        name: 'canvas_batch',
+        arguments: { operations: [{ op: 'node.add', args: { type: 'markdown', content: 'After cancellation' } }] },
+        _meta: { progressToken: 0 },
+      });
+      expect(batch.isError).not.toBe(true);
+      expect(parseJsonText<{ results: unknown[] }>(batch as ToolResultShape).results).toHaveLength(1);
+      expect(progress).toContainEqual({ progressToken: 0, progress: 1, total: 1, message: 'Batch complete' });
+    }
+  }, 30000);
+
+  test('subscriptions isolate local and remote connections, never count as reads, and stop on unsubscribe', async () => {
+    const local = await createMcpSession();
+    cleanup.push(async () => {
+      await local.client.close();
+      await closeTransportAndReapChild(local.transport);
+      removeTestWorkspace(local.workspaceRoot);
+    });
+    const base = `http://127.0.0.1:${local.port}`;
+    const localUpdates: string[] = [];
+    local.client.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
+      localUpdates.push(params.uri);
+    });
+    expect(local.client.getServerCapabilities()?.resources?.subscribe).toBe(true);
+    const added = await local.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', content: 'Subscription control' },
+    });
+    expect(added.isError).not.toBe(true);
+    await local.client.ping();
+    expect(localUpdates).toEqual([]);
+
+    const remote = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await remote.client.close();
+      await closeTransportAndReapChild(remote.transport);
+    });
+    const remoteUpdates: string[] = [];
+    remote.client.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
+      remoteUpdates.push(params.uri);
+    });
+    const contextUri = 'canvas://context?consumer=subscription-test&budget=3000';
+    const reads = async () => (await (await fetch(`${base}/api/canvas/ax/context-reads`)).json()).reads.length;
+    const before = await reads();
+    await local.client.subscribeResource({ uri: 'canvas://layout' });
+    await remote.client.subscribeResource({ uri: contextUri });
+    // Remote SSE connection produces a resynchronization invalidation on attach.
+    for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+    expect(remoteUpdates).toContain(contextUri);
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    const mutate = async () => {
+      const response = await fetch(`${base}/api/canvas/viewport`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 37, y: -91, scale: 0.7 }),
+      });
+      expect(response.ok).toBe(true);
+      await local.client.ping();
+      await Bun.sleep(100);
+    };
+    await mutate();
+    expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+    expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    expect(await reads()).toBe(before);
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    const board = await local.client.callTool({
+      name: 'canvas_board',
+      arguments: { action: 'create', name: 'Library-only change' },
+    });
+    expect(board.isError).not.toBe(true);
+    for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+    // Creating an unopened board changes context without changing active nodes.
+    expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+    expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    const moved = await fetch(`${base}/api/canvas/camera/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ viewport: { x: 81, y: -32, scale: 0.5 }, duration: 0 }),
+    });
+    expect(moved.ok).toBe(true);
+    for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+    expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+    expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    await remote.client.readResource({ uri: contextUri });
+    expect(await reads()).toBeGreaterThan(before);
+    // Reading a subscribed resource must not start a notification/read feedback loop.
+    await Bun.sleep(100);
+    const countAfterRead = remoteUpdates.length;
+    await Bun.sleep(100);
+    expect(remoteUpdates).toHaveLength(countAfterRead);
+    await local.client.unsubscribeResource({ uri: 'canvas://layout' });
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    await mutate();
+    expect(localUpdates).toEqual([]);
+    expect(remoteUpdates).toContain(contextUri);
+    await remote.client.unsubscribeResource({ uri: contextUri });
+    remoteUpdates.length = 0;
+    await mutate();
+    expect(remoteUpdates).toEqual([]);
+    await expect(local.client.subscribeResource({ uri: 'canvas://context?unknown=1' })).rejects.toThrow();
+    await expect(local.client.subscribeResource({ uri: 'canvas://missing' })).rejects.toThrow();
+    await remote.client.subscribeResource({ uri: contextUri });
+    await remote.client.close();
+    await closeTransportAndReapChild(remote.transport);
+    const reconnected = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await reconnected.client.close();
+      await closeTransportAndReapChild(reconnected.transport);
+    });
+    const reconnectUpdates: string[] = [];
+    reconnected.client.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
+      reconnectUpdates.push(params.uri);
+    });
+    await reconnected.client.readResource({ uri: contextUri });
+    await mutate();
+    expect(reconnectUpdates).toEqual([]);
+    // Explicit reads remain available without subscriptions.
+    expect((await local.client.readResource({ uri: 'canvas://layout' })).contents.length).toBe(1);
+  }, 30000);
+
   test('exposes the expected CLI parity surface via MCP tools and resources', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
@@ -189,6 +369,15 @@ describe('MCP parity with CLI', () => {
       expect(toolNames.has(tool)).toBe(true);
     }
     expect(toolNames.size).toBe(expectedTools.length);
+    for (const tool of tools.tools) {
+      expect(tool.outputSchema?.type, tool.name).toBe('object');
+      expect(typeof tool.annotations?.readOnlyHint, tool.name).toBe('boolean');
+      expect(typeof tool.annotations?.destructiveHint, tool.name).toBe('boolean');
+      expect(typeof tool.annotations?.idempotentHint, tool.name).toBe('boolean');
+      expect(typeof tool.annotations?.openWorldHint, tool.name).toBe('boolean');
+    }
+    expect(tools.tools.find((tool) => tool.name === 'canvas_screenshot')?.annotations?.readOnlyHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'canvas_ingest_activity')?.annotations?.readOnlyHint).toBe(false);
 
     // The tools folded by composites in v0.3.0 must NOT be registered standalone.
     const removedTools = [
@@ -356,17 +545,17 @@ describe('MCP parity with CLI', () => {
     });
 
     // Primitive A: a forwarded failure auto-reacts (work item + review + evidence).
+    const activity = await session.client.callTool({
+      name: 'canvas_ingest_activity',
+      arguments: { kind: 'failure', title: 'build failed', summary: 'tsc error', source: 'copilot' },
+    });
     const ingested = parseJsonText<{
       ok: boolean;
       workItem: { status: string } | null;
       review: { severity: string } | null;
       evidence: { kind: string } | null;
-    }>(
-      (await session.client.callTool({
-        name: 'canvas_ingest_activity',
-        arguments: { kind: 'failure', title: 'build failed', summary: 'tsc error', source: 'copilot' },
-      })) as ToolResultShape,
-    );
+    }>(activity as ToolResultShape);
+    expect(activity.structuredContent).toEqual(ingested);
     expect(ingested.workItem?.status).toBe('blocked');
     expect(ingested.review?.severity).toBe('error');
     expect(ingested.evidence?.kind).toBe('logs');
