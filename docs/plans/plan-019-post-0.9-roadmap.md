@@ -1,10 +1,9 @@
 # Plan 019: After 0.9.0
 
-**Status (2026-10-24):** 0.9.3 is released to npm and GitHub, with fresh registry smoke
-passing. Step 2, MCP hardening and SDK tour result parity on SDK v1, is implemented
-and pushed with the Settings tooltip fix, operation help and schema-size reduction.
-The maintainer authorized review, testing and release of 0.10.0; release gates are in progress.
-Later version numbers are proposals, not publication approval; every release must pass
+**Status (2026-10-25):** 0.10.0 is released. Step 3 is implemented and pushed,
+with fresh post-push reviews and all five CI jobs passing. The maintainer authorized
+release of 0.11.0; release metadata and publication gates follow the checkpoint below.
+Versions after 0.11 remain proposals, not publication approval; every release must pass
 the [release gates](../RELEASE.md).
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),
 [design.md build plan](../design.md#build-plan) (Waves 4, 5, Later),
@@ -269,7 +268,23 @@ Candidates, not automatic scope: `session.start`, composite-input redesign.
 [Vision moves 5 and 9](../product-vision-2026-09.md#5-keep-every-node-type-unify-how-they-render-m),
 [design.md Wave 4](../design.md#build-plan).
 
-**Local implementation checkpoint (not a release):** the maintainer's 2026-10-25
+**Pre-release checkpoint (2026-10-25):** Peter authorized commit, push, review/test
+and release. The reconciled implementation is on `main` in
+[`e92b885f`](https://github.com/pskoett/pmx-canvas/commit/e92b885f711891ec33a9e704630d71fac048ce62),
+including the explicitly authorized historical 0.10 reports and control-room artifact.
+Fresh post-push Oracle and Claude reviews found no runtime blocker. The first CI
+run exposed seven import-order-dependent Markdown tests: `preact/compat` maps
+`onBlur` to `focusout`, while synthetic blur emitted only one event. The test-only
+repair uses native focus transitions and preserves every assertion. Both local
+orders pass 359 tests; [exact-head CI](https://github.com/pskoett/pmx-canvas/actions/runs/40224062810)
+for [`5a1c2696`](https://github.com/pskoett/pmx-canvas/commit/5a1c269632841091f2f199f7a36a169635d0639b)
+passes all five jobs, including 380 browser cases, Windows and macOS units. Frozen
+install, headed CLI coverage, packed release smoke and pack dry-run also pass.
+No failed checks were waived. Native WKWebView, retained memory and post-repair
+performance remain unverified. The checkpoints below retain earlier evidence and
+delivery state; they do not override this later authorization or CI result.
+
+**Historical local implementation checkpoint (before release authorization):** the maintainer's 2026-10-25
 correction removes the third target's alternate grid and experimental CSS zoom.
 The native board and its contents scale proportionally using the original matrix.
 The other visual improvements and Markdown README-menu override remain in scope.

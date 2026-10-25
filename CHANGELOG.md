@@ -3,19 +3,32 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## [0.11.0] - 2026-10-25
+
+### Breaking
+
+- Removed `/api/canvas/debug/ext-app-recovery` with automatic viewer recovery; use the viewer's visible Retry control after a loading failure.
+
+### Added
+
+- Card menus offer Copy JSON for supported HTML primitives, including their current interactive state, replacing the Copy prompt header button.
+- HTTP, MCP and SDK tour commands accept an optional presenter fence to prevent superseded navigation from moving the board.
 
 ### Changed
 
 - Markdown cards can become frameless section headings, and fit and focus leave room for floating controls.
 - Cards, charts and dashboards share canvas typography, spacing and all nine themes without repeated chart titles.
+- The board and its contents scale proportionally at every zoom.
 - Viewer previews load automatically near the viewport at every zoom and stay mounted when panned out of view.
+- Mermaid diagrams render directly on the canvas with its theme colours.
 - Markdown's Set as README action lives in ⋯, while its README identifier and Edit action stay visible.
 - Present explains saved tours and group-derived stops on hover and keyboard focus.
 
 ### Fixed
 
 - Failed viewer replacements keep the last painted view and offer one explicit Retry.
+- JSON and graph viewers preserve drafts across theme changes and transitions into and out of expanded view.
+- Webpage previews do not inherit MCP clipboard permissions.
 - Work cards keep complete status labels and reachable controls without accidental scrollbars.
 - Relation labels move clear of cards while staying connected to their lines.
 - Static exports preserve section headings, named themes and compact chart layouts without repeated titles.
