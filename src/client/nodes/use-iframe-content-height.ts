@@ -22,33 +22,34 @@ export function useIframeContentHeight(
   node: CanvasNodeState,
   iframeRef: { current: HTMLIFrameElement | null },
   frameToken: string,
-): void {
+): () => void {
   useEffect(() => {
     if (!frameToken) return undefined;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let pendingHeight: number | null = null;
-    let lastMeasurement: { height: number; width: number; chrome: number } | null = null;
+    let pending: { frame: HTMLIFrameElement; height: number } | null = null;
+    let lastMeasurement: { frame: HTMLIFrameElement; height: number; width: number; chrome: number } | null = null;
     const held = () =>
       grabbingNodeId.value === node.id || otherHumans.value.some((human) => human.grabbingNodeId === node.id);
     function apply() {
       timer = null;
-      if (held() || pendingHeight === null) return;
-      const reported = pendingHeight;
-      pendingHeight = null;
+      if (held() || pending === null) return;
+      const { frame, height: reported } = pending;
+      pending = null;
+      if (frame !== iframeRef.current) return;
       const current = nodes.value.get(node.id);
-      const frame = iframeRef.current;
-      const card = frame?.closest<HTMLElement>('.canvas-node');
-      if (!current || !frame || !card) return;
+      const card = frame.closest<HTMLElement>('.canvas-node');
+      if (!current || !card) return;
       const chrome = card.offsetHeight - frame.clientHeight;
       // Undo changes the viewport, which makes the reporter resend unchanged
-      // content. Do not replay that growth; new content/width/chrome may fit again.
+      // content. A replacement document owns a fresh fit even at the same size.
       if (
-        lastMeasurement?.height === reported &&
+        lastMeasurement?.frame === frame &&
+        lastMeasurement.height === reported &&
         lastMeasurement.width === current.size.width &&
         lastMeasurement.chrome === chrome
       )
         return;
-      lastMeasurement = { height: reported, width: current.size.width, chrome };
+      lastMeasurement = { frame, height: reported, width: current.size.width, chrome };
       const target = computeContentGrowHeight(current, reported, chrome);
       if (target === null) return;
       const position = contentFitPosition(current, target, Array.from(nodes.value.values()));
@@ -62,18 +63,19 @@ export function useIframeContentHeight(
     }
     function schedule() {
       if (timer !== null) clearTimeout(timer);
-      timer = pendingHeight !== null && !held() ? setTimeout(apply, 300) : null;
+      timer = pending !== null && !held() ? setTimeout(apply, 300) : null;
     }
     const dispose = effect(() => {
       held();
       schedule();
     });
     function onMessage(event: MessageEvent) {
-      if (event.source !== iframeRef.current?.contentWindow) return;
+      const frame = iframeRef.current;
+      if (!frame || event.source !== frame.contentWindow) return;
       const d = event.data as { source?: string; type?: string; token?: string; height?: unknown } | null;
       if (!d || d.source !== 'pmx-canvas-frame' || d.type !== 'content-height' || d.token !== frameToken) return;
       if (typeof d.height !== 'number' || !Number.isFinite(d.height) || d.height <= 0) return;
-      pendingHeight = d.height;
+      pending = { frame, height: d.height };
       schedule();
     }
     window.addEventListener('message', onMessage);
@@ -83,4 +85,13 @@ export function useIframeContentHeight(
       if (timer !== null) clearTimeout(timer);
     };
   }, [node.id, frameToken]);
+  // Pending documents can report before promotion, when they are deliberately
+  // not the active ref. Ask the promoted document for a fresh measurement.
+  return () => {
+    if (!frameToken) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      { source: 'pmx-canvas-frame', type: 'measure-content', token: frameToken },
+      '*',
+    );
+  };
 }

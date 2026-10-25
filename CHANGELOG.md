@@ -28,7 +28,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - Failed viewer replacements keep the last painted view and offer one explicit Retry.
 - JSON and graph viewers preserve drafts across theme changes and transitions into and out of expanded view.
-- Undoing automatic viewer growth keeps the restored card size until its content changes again.
+- Repeated viewer measurements no longer reverse Undo or a smaller height; changed content dimensions or a replaced or reopened viewer can fit again.
 - Webpage previews do not inherit MCP clipboard permissions.
 - Work cards keep complete status labels and reachable controls without accidental scrollbars.
 - Relation labels move clear of cards while staying connected to their lines.

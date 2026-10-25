@@ -395,6 +395,10 @@ Fitting waits for local or remote human grabs to end. A growing ungrouped,
 screen-unpinned card moves downward if needed to leave a 24px gap from neighboring
 cards, without moving those neighbors. A relocation records one undo step for
 both size and position; height-only adjustments do not add undo entries.
+Repeated measurements from the same document do not reverse Undo or a smaller
+height set by another writer. Changed content dimensions, width or chrome can
+fit again. Replacing or reopening the viewer starts a fresh measurement, so this
+suppression does not survive reload, collapse/reopen or a board switch.
 Grouped or screen-pinned cards retain their positions. Collapsed cards and cards
 marked `strictSize` or `userResized` are not automatically resized. Hosted MCP
 apps and webpage viewers do not use this authored-content fitting behavior.

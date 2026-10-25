@@ -2297,7 +2297,7 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   const { id } = await response.json();
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Slotted task card' });
-  const frame = node.frameLocator('iframe');
+  const frame = node.frameLocator('iframe:not([inert])');
   await expect(frame.locator('[data-pmx-card-slot="header"]')).toHaveText('Release checklist');
   await expect(frame.getByText('Replaced heading')).toHaveCount(0);
   await expect(frame.locator('[data-pmx-card-slot="footer"] button')).toHaveText('Load checklist');
@@ -2354,11 +2354,24 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   await expect.poll(async () => (await readNode()).position).toEqual(after.position);
   await expect.poll(async () => (await readNode()).size).toEqual(after.size);
   await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(after.size.height, 0);
+  // A replacement document with the same natural height must not inherit the
+  // old document's suppression after another Undo.
+  await request.post('/api/canvas/undo');
+  await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
+  await page.waitForTimeout(1200);
+  const replacementSpec = {
+    ...before.data.spec,
+    state: { tasks: Array.from({ length: 16 }, (_, i) => ({ title: `Replacement item ${i + 1}` })) },
+  };
+  expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: replacementSpec } })).ok()).toBe(true);
+  await expect(frame.getByText('Replacement item 16', { exact: true })).toHaveCount(1);
+  await expect.poll(async () => (await readNode()).size).toEqual(after.size);
+  await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(after.size.height, 0);
   // Center the moved card for rendered inspection without altering node geometry.
   await request.post('/api/canvas/viewport', {
     data: { x: 20 - after.position.x, y: 40 - after.position.y, scale: 1 },
   });
-  await expect(frame.getByText('Checklist item 16', { exact: true })).toBeVisible();
+  await expect(frame.getByText('Replacement item 16', { exact: true })).toBeVisible();
   const measured = await frame
     .locator('body')
     .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));

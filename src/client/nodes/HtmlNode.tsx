@@ -79,7 +79,7 @@ export function HtmlNode({
 
   // Grow the node to fit the surface's reported content height (grow-only, gated).
   // Never in the expanded overlay — there the surface fills the large overlay frame.
-  useIframeContentHeight(node, iframeRef, expanded ? '' : frameToken);
+  const measureContent = useIframeContentHeight(node, iframeRef, expanded ? '' : frameToken);
 
   // Phase 3 HTML bridge — the shared sandboxed-surface trust boundary (M2).
   useAxSurfaceBridge({ enabled: true, token: axToken, nodeId: node.id, sourceSurface: 'html-node', iframeRef });
@@ -124,6 +124,7 @@ export function HtmlNode({
   }, [autoFocus, surfaceSrc]);
 
   const handleFrameLoad = () => {
+    measureContent();
     iframeRef.current?.contentWindow?.postMessage(
       {
         source: HTML_SURFACE_PUSH_SOURCE,

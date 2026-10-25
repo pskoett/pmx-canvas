@@ -87,7 +87,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   // overlay frame (fill-down), not sit at its intrinsic in-canvas height.
   const contentFit = shouldContentFitIframeNode(node) && !expanded;
   const frameToken = useMemo(() => (contentFit ? `frame-${crypto.randomUUID()}` : ''), [contentFit]);
-  useIframeContentHeight(node, iframeRef, frameToken);
+  const measureContent = useIframeContentHeight(node, iframeRef, frameToken);
 
   // AX emits forwarded by the json-render viewer — the shared sandboxed-surface
   // trust boundary (M2).
@@ -223,6 +223,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
             return restoreViewerRuntimeState(node, stateToken, frame.contentWindow, signal);
         }}
         onLoad={() => {
+          measureContent();
           pushAxState();
           pushTheme();
         }}

@@ -13,4 +13,4 @@ import type { CanvasNodeState } from '../types';
  */
 export declare function useIframeContentHeight(node: CanvasNodeState, iframeRef: {
     current: HTMLIFrameElement | null;
-}, frameToken: string): void;
+}, frameToken: string): () => void;
