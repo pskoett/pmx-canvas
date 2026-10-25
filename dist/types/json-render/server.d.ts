@@ -1,3 +1,4 @@
+import type { CanvasThemeName } from '../shared/themes.js';
 export interface JsonRenderSpec {
     root: string;
     elements: Record<string, unknown>;
@@ -95,7 +96,7 @@ export declare function readJsonRenderBundle(): Promise<{
 export declare function buildJsonRenderViewerHtml(options: {
     title: string;
     spec: JsonRenderSpec;
-    theme?: 'dark' | 'light' | 'high-contrast';
+    theme?: CanvasThemeName | 'dark' | 'light';
     display?: 'expanded' | 'site';
     devtools?: boolean;
     nodeId?: string;

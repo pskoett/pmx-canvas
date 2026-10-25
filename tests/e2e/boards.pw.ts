@@ -86,6 +86,44 @@ async function expectReadableGraphLabels(page: Page, count: number) {
   ).toEqual([]);
 }
 
+test('missing board cards can retry relinking and open the chosen board', async ({ page, request }) => {
+  const target = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Recovered destination' }, headers: HUMAN })
+  ).json();
+  expect((await request.post('/api/canvas/boards', { data: { name: 'Source board' }, headers: HUMAN })).ok()).toBe(
+    true,
+  );
+  const created = await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'board', title: 'Missing link', data: { boardId: 'deleted-board' } },
+      headers: HUMAN,
+    })
+  ).json();
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${created.id}"]`);
+  await expect(card.getByText('Board not found')).toBeVisible();
+  await card.getByRole('button', { name: 'Link to board…', exact: true }).click();
+  await page.route(
+    `**/api/canvas/node/${created.id}`,
+    async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Test outage' }),
+      });
+    },
+    { times: 1 },
+  );
+  await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
+  await expect(card.getByRole('status')).toHaveText('Could not relink this card. Try again.');
+  await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
+  await expect(card.getByRole('status')).toHaveCount(0);
+  await expect(card.getByText('Recovered destination', { exact: true })).toBeVisible();
+  await card.getByRole('button', { name: 'Open board', exact: true }).click();
+  await expect(page.locator('.board-switcher-button')).toContainText('Recovered destination');
+  expect((await boards(request)).activeBoardId).toBe(target.board.id);
+});
+
 test('Home manages shared relation presets while board filters show only existing connections', async ({
   page,
   request,
@@ -564,8 +602,9 @@ test('a refused browser write displays its reason and retains it in history', as
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto('/workbench');
   const reason = 'This note is being edited by another person. Try again after they finish.';
+  let refuse = true;
   await page.route(`**/api/canvas/node/${id}`, async (route) => {
-    if (route.request().method() !== 'DELETE') return route.continue();
+    if (!refuse || route.request().method() !== 'DELETE') return route.continue();
     await route.fulfill({ status: 409, json: { ok: false, error: reason } });
   });
   await page.locator(`[data-node-id="${id}"] .node-title`).click();
@@ -577,7 +616,8 @@ test('a refused browser write displays its reason and retains it in history', as
   await toast.click();
   await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText(reason);
   await page.getByRole('button', { name: 'Collapse changes panel' }).click();
-  await page.unrouteAll();
+  // Keep interception stable while the workbench has a long poll in flight.
+  refuse = false;
   await page.locator(`[data-node-id="${id}"] .node-title`).click();
   await page.keyboard.press('Delete');
   await expect(page.locator(`[data-node-id="${id}"]`)).toHaveCount(0);
@@ -673,12 +713,46 @@ test('board menu dismisses on canvas and card clicks; README and link actions st
   await switcher.click();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
-  const designation = card.getByRole('button', { name: 'Set as README', exact: true });
-  await designation.click();
-  await expect(card.getByRole('button', { name: 'README', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  expect((await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId).toBe(id);
-  await card.getByRole('button', { name: 'README', exact: true }).press('Enter');
-  await expect(designation).toHaveAttribute('aria-pressed', 'false');
+  await expect(card.getByRole('button', { name: /README/ })).toHaveCount(0);
+  await page.mouse.move(10, 10);
+  await card.focus();
+  const more = card.getByRole('button', { name: 'More actions' });
+  const actions = page.getByRole('menu', { name: 'Node actions' });
+  await card.press('Shift+F10');
+  await expect(actions.getByRole('menuitem', { name: 'Focus', exact: true })).toBeFocused();
+  const designation = actions.getByRole('menuitem', { name: 'Set as README', exact: true });
+  for (let i = 0; i < 20 && !(await designation.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await expect(designation).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(actions).toHaveCount(0);
+  await expect(card).toBeFocused();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId)
+    .toBe(id);
+  await expect(card.getByText('README', { exact: true })).toBeVisible();
+  await more.click();
+  await expect(actions.getByRole('menuitem', { name: 'Remove as README', exact: true })).toBeVisible();
+  await expect(designation).toHaveCount(0);
+  await page.mouse.move(10, 10);
+  await page.keyboard.press('Escape');
+  await expect(more).toBeFocused();
+  await more.press('Enter');
+  const removal = actions.getByRole('menuitem', { name: 'Remove as README', exact: true });
+  for (let i = 0; i < 20 && !(await removal.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('Tab');
+  }
+  await expect(removal).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(actions).toHaveCount(0);
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId)
+    .toBeNull();
+  await expect(card.getByText('README', { exact: true })).toHaveCount(0);
+  await more.click();
+  await expect(designation).toBeVisible();
+  await page.keyboard.press('Escape');
   const body = await card.locator('.md-card-content').boundingBox();
   const footer = await card.locator('.md-card-actions').boundingBox();
   expect(body!.y + body!.height).toBeLessThanOrEqual(footer!.y + 1);
@@ -691,6 +765,84 @@ test('board menu dismisses on canvas and card clicks; README and link actions st
   await expect(card).toBeFocused();
   await page.getByRole('button', { name: 'Open board', exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: /^Board: Linked destination/ })).toBeVisible();
+});
+
+test('README identification follows agent reassignment and clearing, including narrow headings', async ({
+  page,
+  request,
+}) => {
+  const first = await note(request, 'Introduction', 100, 100);
+  const second = await note(request, 'Heading introduction', 480, 100);
+  const board = (await boards(request)).activeBoardId!;
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${second}`, {
+        data: { data: { display: 'heading' }, size: { width: 280, height: 180 }, strictSize: true },
+      })
+    ).ok(),
+  ).toBe(true);
+  await page.goto('/workbench');
+  for (const id of [first, second, null]) {
+    expect((await request.patch(`/api/canvas/boards/${board}`, { data: { readmeNodeId: id } })).ok()).toBe(true);
+    await expect(page.locator('.node-readme-mark')).toHaveCount(id ? 1 : 0);
+    if (!id) continue;
+    const marker = page.locator(`[data-node-id="${id}"] .node-readme-mark`);
+    await expect(marker).toBeVisible();
+    await page.mouse.move(10, 10);
+    const bounds = await marker.boundingBox();
+    const header = await page.locator(`[data-node-id="${id}"] .node-titlebar`).boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(header!.x);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(header!.x + header!.width);
+    expect(await marker.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+  await expect(page.locator(`[data-node-id="${second}"]`)).toHaveClass(/heading-node/);
+});
+
+test('Present explains saved tours and group stops on hover and keyboard focus at both bar widths', async ({
+  page,
+  request,
+}) => {
+  await note(request, 'Presentation guidance');
+  await page.goto('/workbench');
+  const present = page.getByRole('button', { name: 'Present', exact: true });
+  const wideHint = page.locator('#present-hint');
+  await expect(present).toHaveAccessibleDescription(/A presentation follows either a saved tour or the board’s groups/);
+  await expect(present).toHaveAccessibleDescription(/Saved tour: ask your agent to define the stops and their order/);
+  await expect(present).toHaveAccessibleDescription(/card, a group, a rectangular area, or a specific camera position/);
+  await expect(present).toHaveAccessibleDescription(/It doesn’t automatically visit every card/);
+  await present.hover();
+  await expect(wideHint).toHaveCSS('opacity', '1');
+  await page.mouse.move(10, 500);
+  await expect(wideHint).toHaveCSS('opacity', '0');
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(present).toBeFocused();
+  await expect(wideHint).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Tab');
+  await expect(wideHint).toHaveCSS('opacity', '0');
+  for (const width of [600, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    const more = page.getByRole('button', { name: 'More: export, present, zoom, fit' });
+    await more.click();
+    await page.keyboard.press('ArrowDown');
+    const item = page.getByRole('menuitem', { name: 'Present board', exact: true });
+    await expect(item).toBeFocused();
+    await expect(item).toHaveAccessibleDescription(/Saved tour: ask your agent to define the stops and their order/);
+    await expect(item).toHaveAccessibleDescription(/ordered top-to-bottom, then left-to-right/);
+    const hint = page.locator('#present-menu-hint');
+    await expect(hint).toBeVisible();
+    const bounds = await hint.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(700);
+    await page.keyboard.press('ArrowDown');
+    await expect(hint).toBeHidden();
+    await item.hover();
+    await expect(hint).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(hint).toHaveCount(0);
+    await expect(more).toBeFocused();
+  }
 });
 
 test('the logo opens Home by click and keyboard without losing board content', async ({ page, request }) => {

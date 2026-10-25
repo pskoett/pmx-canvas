@@ -17,7 +17,11 @@ afterEach(() => {
 function Harness({ node }: { node: CanvasNodeState }) {
   const ref = useRef<HTMLIFrameElement>(null);
   useIframeContentHeight(node, ref, 'test-token');
-  return <iframe ref={ref} title="measured" />;
+  return (
+    <div class="canvas-node">
+      <iframe ref={ref} title="measured" />
+    </div>
+  );
 }
 
 for (const remote of [false, true]) {
@@ -62,6 +66,8 @@ for (const remote of [false, true]) {
       ];
     else grabbingNodeId.value = node.id;
     const frame = container.querySelector('iframe')!;
+    Object.defineProperty(container.querySelector('.canvas-node')!, 'offsetHeight', { value: 280 });
+    Object.defineProperty(frame, 'clientHeight', { value: 241 });
     const report = (height: number) =>
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -77,7 +83,7 @@ for (const remote of [false, true]) {
     if (remote) humans.value = [];
     else grabbingNodeId.value = null;
     await waitFor(() => expect(writes).toHaveLength(1));
-    expect(nodes.value.get(node.id)?.size.height).toBe(661);
+    expect(nodes.value.get(node.id)?.size.height).toBe(639);
     expect(nodes.value.get(node.id)?.position).toEqual({ x: 100, y: 724 });
     expect(writes[0]?.updates).toHaveLength(1);
     expect(writes[0]?.updates[0]?.id).toBe(node.id);

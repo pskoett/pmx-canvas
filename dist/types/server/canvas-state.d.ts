@@ -170,6 +170,7 @@ export interface CanvasNodeUpdate {
         height: number;
     };
     collapsed?: boolean;
+    zIndex?: number;
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 /** Name for a board nobody named yet: when it was made, to the minute. */
@@ -740,4 +741,5 @@ declare class CanvasStateManager {
     releaseGroupChildren(groupId: string): boolean;
     clear(): void;
 }
+export declare const boardCatalogEpoch: `${string}-${string}-${string}-${string}-${string}`;
 export declare const canvasState: CanvasStateManager;

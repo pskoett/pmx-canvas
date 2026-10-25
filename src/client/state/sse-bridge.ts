@@ -2,7 +2,7 @@ import { findOpenCanvasPosition } from '../utils/placement.js';
 import { refreshKnowledge } from './knowledge-store';
 import { applyWorkspaceSettings } from './workspace-settings';
 import { cameraSchema, tourStopSchema } from '../../shared/tour.js';
-import { ownsCamera, playStop, presentationError, presenting, presentStop, recordingCamera } from './presentation';
+import { applyTourExit, applyTourStep, ownsCamera, playStop, presenting, recordingCamera } from './presentation';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, NodeActor } from '../types';
@@ -176,7 +176,7 @@ function ensureMarkdownNode(path: string, title: string): void {
     const node = makeNode(id, 'markdown', { path, title, content: '', rendered: '' });
     node.position = placement;
     addNode(node);
-    focusNode(id);
+    focusNode(id, { persistStacking: false });
   }
 }
 
@@ -199,7 +199,7 @@ function ensureMcpAppNode(data: Record<string, unknown>): void {
     updateNodeData(id, data);
   } else {
     addNode(makeNode(id, 'mcp-app', data));
-    focusNode(id);
+    focusNode(id, { persistStacking: false });
   }
 }
 
@@ -260,7 +260,7 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
     ),
   );
   addNode(node);
-  focusNode(id, { recordHistory: false });
+  focusNode(id, { recordHistory: false, persistStacking: false });
 }
 
 function findExtAppNodeId(toolCallId: string): string | null {
@@ -849,7 +849,7 @@ function handleCanvasPromptCreated(data: Record<string, unknown>): void {
         ),
       ),
     );
-    focusNode(nodeId);
+    focusNode(nodeId, { persistStacking: false });
   }
 
   // Add flow edge from parent → prompt if parent exists
@@ -888,7 +888,7 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
       threadStatus: 'streaming',
       _activeResponseId: responseNodeId,
     });
-    focusNode(promptNodeId);
+    focusNode(promptNodeId, { persistStacking: false });
     return;
   }
 
@@ -921,7 +921,7 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
     });
   }
 
-  focusNode(responseNodeId);
+  focusNode(responseNodeId, { persistStacking: false });
 }
 
 function handleCanvasResponseDelta(data: Record<string, unknown>): void {
@@ -1078,10 +1078,10 @@ function handleCanvasFocusNode(data: Record<string, unknown>): void {
   const nodeId = data.nodeId as string;
   if (nodeId && nodes.value.has(nodeId)) {
     if (data.noPan === true) {
-      bringToFront(nodeId);
+      bringToFront(nodeId, false);
       return;
     }
-    focusNode(nodeId);
+    focusNode(nodeId, { persistStacking: false });
   }
 }
 
@@ -1093,6 +1093,12 @@ function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
   const x = typeof viewport.x === 'number' ? viewport.x : 0;
   const y = typeof viewport.y === 'number' ? viewport.y : 0;
   const scale = typeof viewport.scale === 'number' ? viewport.scale : 1;
+  // The catalog may still be holding the initial layout. Its older camera
+  // must not overwrite this later event when the board identity arrives.
+  const pendingLayout = pendingBoardLayout?.layout as Record<string, unknown> | undefined;
+  if (pendingLayout) {
+    pendingBoardLayout = { ...pendingBoardLayout, layout: { ...pendingLayout, viewport: { x, y, scale } } };
+  }
   cancelViewportAnimation();
   replaceViewport({ x, y, scale });
 }
@@ -1100,18 +1106,11 @@ function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
 // Tour steps and camera moves animate locally; a deterministic capture owns
 // its camera outright and ignores both.
 function handleCanvasTourStep(data: Record<string, unknown>): void {
-  if (recordingCamera.value) return;
-  // A human stepping in one tab moves tabs already presenting; only a
-  // `present` step (the agent's default) starts presenting elsewhere.
-  if (!presenting.value && data.present !== true) return;
-  const stop = tourStopSchema.safeParse(data.stop);
-  if (stop.success) presentStop(stop.data);
+  applyTourStep(data);
 }
 
-function handleCanvasTourExit(): void {
-  if (recordingCamera.value) return;
-  presenting.value = false;
-  presentationError.value = '';
+function handleCanvasTourExit(data: Record<string, unknown>): void {
+  applyTourExit(data);
 }
 
 function handleCanvasCameraMove(data: Record<string, unknown>): void {

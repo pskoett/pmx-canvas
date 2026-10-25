@@ -217,9 +217,15 @@ content auto-height or indirect parent-group reflow after editing a child.
   update and are included in snapshots/undo. They are board-wide writes under a scope fence.
 - `POST /api/canvas/tour/go` with `{ "stop": 2 }` or `{ "step": "next" | "previous" }`
   (plus optional `"present": false`) moves the shared tour cursor →
-  `{ ok, index, total, stop }`; 400 when the stop does not exist or the board has no stops.
+  `{ ok, index, total, stop, catalogEpoch, boardGeneration, sequence }`;
+  400 when the stop does not exist or the board has no stops.
   Broadcasts `canvas-tour-step`; idle workbenches start presenting unless `present` is false.
+  Response and event share the same monotonically increasing `sequence` within the
+  server's `catalogEpoch`. Viewers accept only newer steps for their current epoch
+  and board generation, so delayed echoes cannot rewind or replay the camera.
 - `POST /api/canvas/tour/exit` leaves presentation in every viewer (`canvas-tour-exit`).
+  Returns `{ ok, catalogEpoch, boardGeneration, sequence }`; the event shares that
+  identity and the step sequence, so an old exit cannot dismiss a newer presentation.
 - `POST /api/canvas/camera/move` with exactly one of `nodeId`, `rect: { x, y, width, height }`
   or `viewport: { x, y, scale }`, plus optional `duration`, `easing`, `padding`, `pullback`
   → `{ ok, stop, viewport }`. Broadcasts `canvas-camera-move`; browsers ease to the target in
@@ -228,6 +234,29 @@ content auto-height or indirect parent-group reflow after editing a child.
 
 Tour steps and camera moves are navigation: no undo entry, no agent-presence write, no
 scope-fence check.
+
+`tour/go` and `tour/exit` accept optional `presenter: { clientId, intent,
+catalogEpoch, boardGeneration }`. The workbench assigns each document a random ID
+and each gesture an increasing positive safe-integer intent. The server rejects
+an old activation or an intent no newer than that document's accepted watermark
+with `{ ok: true, superseded: true }`, without moving the cursor or emitting an event.
+A structurally valid newer command supersedes older ones even if its stop is missing.
+This lets Present proceed while an earlier Exit request is stalled, without that
+late Exit stopping the restart. Resume reads cannot outlive their originating intent.
+
+This is latest-intent-wins, not FIFO: reversed relative Next requests can coalesce.
+Different documents, including a reload, remain independent; unfenced agent calls
+and other documents still act in server arrival order. Reload is not cancellation
+of an old document's pending request. A board activation retains at most 4096
+document IDs, refusing new IDs with 409 rather than evicting an ordering record.
+Switching boards resets that limit; requests stamped with the old activation still
+cannot apply. The SDK exposes the same fence through `goToTourStop(step,
+{ presenter })` and `exitTour(presenter)`; fenced go may return `{ superseded: true }`.
+
+Presentation's Back/Next buttons share this cursor with keyboard and agent navigation.
+They sit beside Exit at the top; hover/focus tooltips show the shortcuts. Node and
+rectangle targets fit below those controls, while explicit viewport targets remain
+exact. Presentation does not change the saved board viewport.
 
 The [tour model and recording walkthrough](cli.md#tour-and-presentation) describes
 targets, duration, easing, padding, and pullback. Open `/workbench?present=1` to hide
@@ -388,6 +417,14 @@ stored once per file. Live MCP apps become placeholders; local file contents
 are left out unless `includeFiles` is true. Files are written to `exports/`
 beside the database. Built-app files are only embedded when they are regular,
 bounded-size files inside the board's owned `.pmx-canvas/artifacts/` directory.
+Exports retain saved card positions and sizes, heading display, and the board's
+named theme. Charts and dashboards use embedded card layout without repeating
+the shell title; explicit chart heights remain unchanged. Viewer bundles, palette
+CSS and shell fonts are embedded. Read-only exports omit live work controls.
+When running from source, run `bun run build` before exporting. Export requires
+the complete built viewer assets, `surface-theme.css`, and the font files referenced
+by `global.css`; the installed package includes them. A missing asset tree is not
+a supported text-only export mode.
 The preview manifest lists card links, remote images, and statically visible
 network destinations in embedded HTML. Imported source-linked Markdown is also
 excluded unless `includeDerivedText=true`, independently of `includeFiles`;
@@ -461,6 +498,13 @@ opening that board or changing where writes go. This is supported by
 `/api/canvas/spatial-context`, and `/api/canvas/pinned-context`. Unknown boards
 return 404. Omit `board` to read the active board. Live AX session/delivery reads
 and fixed MCP resources continue to describe the open board.
+
+The workbench's `POST /api/canvas/update` accepts `{updates: [{id, position?, size?,
+collapsed?, zIndex?}], expectedBoardId?, recordHistory?}`. `zIndex` is finite and
+persists stacking without changing geometry. The workbench raises a group and its
+children together, keeping the frame below its children. Title-bar gestures save
+stacking and geometry together on release. Layout notifications and reloads retain
+that order.
 
 ```bash
 # Get canvas state
@@ -612,6 +656,10 @@ hosted MCP App still refuses file-linked edits. This is not a crash-recovery dis
 
 Replacing a JSON-render node's `spec` preserves its current title; include `title`
 to rename it explicitly. A new authored spec still resets the viewer's local drafts.
+
+Markdown nodes accept `data: { "display": "heading" | "card" }` on creation and
+update. Heading display removes the card frame and uses its title as a section
+label; it does not alter content, position, or pin membership.
 
 Mermaid nodes accept `data: { "fit": "contain" | "none" }` on both
 `POST /api/canvas/node` and `PATCH /api/canvas/node/:id`. The default, `contain`,
@@ -1294,6 +1342,8 @@ all consume this stream. Auto-reconnect with exponential backoff.
 
 The direct workbench's `connected` snapshot renews its per-process
 `workbenchToken` (also embedded in boot HTML) over both SSE and polling.
+It is followed by `boards-changed` before the layout, so later tour commands
+already have a board identity even when the separate catalog HTTP read is delayed.
 A same-bundle daemon restart does not reload the page or discard an open draft.
 Registered writes and file saves marked as workbench calls with a supplied stale capability
 return 409 until reconnect renews it; they are never silently recorded as agent

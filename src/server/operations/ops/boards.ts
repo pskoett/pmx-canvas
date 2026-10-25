@@ -12,11 +12,10 @@
  *
  * This module must never import server.ts or index.ts.
  */
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { normalizeBoardFolder } from '../../../shared/boards.js';
 import { relationVocabularySchema } from '../../../shared/relations.js';
-import { canvasState, type CanvasLayout } from '../../canvas-state.js';
+import { boardCatalogEpoch, canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { BRIEF_SUMMARY_LENGTH } from '../../context-brief.js';
@@ -25,7 +24,6 @@ import { defineOperation, OperationError, type Operation, type OperationContext 
 
 /** The most cards a Home thumbnail draws (the largest first); the rest are noise at that size. */
 const PREVIEW_CARDS = 24;
-export const boardCatalogEpoch = randomUUID();
 let catalogRevision = 0;
 let reloadRevision = 0;
 

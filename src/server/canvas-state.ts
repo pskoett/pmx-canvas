@@ -364,6 +364,7 @@ export interface CanvasNodeUpdate {
   position?: { x: number; y: number };
   size?: { width: number; height: number };
   collapsed?: boolean;
+  zIndex?: number;
 }
 
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
@@ -3220,6 +3221,9 @@ class CanvasStateManager {
       if (update.collapsed !== undefined && update.collapsed !== existing.collapsed) {
         nextPatch.collapsed = update.collapsed;
       }
+      if (update.zIndex !== undefined && update.zIndex !== existing.zIndex) {
+        nextPatch.zIndex = update.zIndex;
+      }
       if (Object.keys(nextPatch).length === 0) {
         skipped++;
         continue;
@@ -3977,4 +3981,5 @@ class CanvasStateManager {
 // Module-level singleton — safe because Bun is single-threaded and this
 // module is imported once per process. Agent tools and the HTTP server share
 // the same instance; no locking needed.
+export const boardCatalogEpoch = randomUUID();
 export const canvasState = new CanvasStateManager();

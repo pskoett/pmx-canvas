@@ -49,13 +49,16 @@ export function ResponseNode({ node, expanded = false }: { node: CanvasNodeState
 
   return (
     <div class="response-node-inner" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div class="thread-turn-role" style={{ color: 'var(--c-agent)' }}>
+        ✦ Agent
+      </div>
       {/* Streaming indicator */}
       {isStreaming && (
         <div
           class="response-streaming-bar"
           style={{
             height: '2px',
-            background: 'linear-gradient(90deg, transparent, var(--c-accent), transparent)',
+            background: 'linear-gradient(90deg, transparent, var(--c-agent), transparent)',
             animation: 'response-stream-pulse 1.5s ease-in-out infinite',
             borderRadius: '1px',
             marginBottom: '4px',
@@ -100,10 +103,9 @@ export function ResponseNode({ node, expanded = false }: { node: CanvasNodeState
       >
         <span
           style={{
-            fontSize: '10px',
-            textTransform: 'uppercase',
+            fontSize: 'var(--fs-meta)',
             fontWeight: 600,
-            color: isStreaming ? 'var(--c-accent)' : isComplete ? 'var(--c-ok)' : 'var(--c-muted)',
+            color: isStreaming ? 'var(--c-agent)' : isComplete ? 'var(--c-ok)' : 'var(--c-muted)',
           }}
         >
           {isStreaming ? 'Streaming…' : isComplete ? 'Complete' : status}
@@ -115,8 +117,8 @@ export function ResponseNode({ node, expanded = false }: { node: CanvasNodeState
             style={{
               padding: '3px 10px',
               fontSize: '11px',
-              background: 'rgba(70,182,255,0.1)',
-              border: '1px solid rgba(70,182,255,0.3)',
+              background: 'var(--c-panel-soft)',
+              border: '1px solid var(--c-line)',
               borderRadius: 'var(--radius-sm)',
               color: 'var(--c-accent)',
               cursor: 'pointer',

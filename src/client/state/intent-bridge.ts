@@ -250,6 +250,7 @@ export async function pushCanvasUpdate(
     position?: { x: number; y: number };
     size?: { width: number; height: number };
     collapsed?: boolean;
+    zIndex?: number;
   }>,
   options: { recordHistory?: boolean } = {},
 ): Promise<void> {

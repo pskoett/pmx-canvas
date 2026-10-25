@@ -8,17 +8,36 @@
  *
  * This module must never import server.ts or index.ts.
  */
-import { derivedTour, resolveStop, tourStopSchema, type Camera, type Tour, type TourStop } from '../shared/tour.js';
-import { canvasState } from './canvas-state.js';
+import {
+  derivedTour,
+  resolveStop,
+  tourPresenterSchema,
+  tourStopSchema,
+  type Camera,
+  type Tour,
+  type TourPresenter,
+  type TourStop,
+} from '../shared/tour.js';
+import { boardCatalogEpoch, canvasState } from './canvas-state.js';
 import { getClientViewportSize } from './canvas-operations.js';
 import { OperationError } from './operations/types.js';
 
 export type TourStep = number | 'next' | 'previous';
 
-export interface TourStepResult {
+export interface TourDelivery {
+  catalogEpoch: string;
+  boardGeneration: number;
+  sequence: number;
+}
+
+export interface TourStepResult extends TourDelivery {
   index: number;
   total: number;
   stop: TourStop;
+}
+
+export interface TourSuperseded {
+  superseded: true;
 }
 
 export interface TourState {
@@ -28,6 +47,35 @@ export interface TourState {
 }
 
 let cursor: { boardGeneration: number; tour: string; index: number } | null = null;
+// One order for both HTTP acknowledgements and event delivery in this server run.
+let sequence = 0;
+let presenterGeneration = -1;
+const presenterIntents = new Map<string, number>();
+
+function claimPresenter(presenter: TourPresenter | undefined): boolean {
+  if (presenter === undefined) return true;
+  const { clientId, intent, catalogEpoch, boardGeneration } = tourPresenterSchema.parse(presenter);
+  if (catalogEpoch !== boardCatalogEpoch || boardGeneration !== canvasState.boardGeneration) return false;
+  if (presenterGeneration !== boardGeneration) {
+    presenterIntents.clear();
+    presenterGeneration = boardGeneration;
+  }
+  const previous = presenterIntents.get(clientId);
+  if (previous !== undefined && intent <= previous) return false;
+  // Never evict an identity: that would make its delayed requests valid again.
+  if (previous === undefined && presenterIntents.size >= 4096)
+    throw new OperationError(
+      'Too many presentation documents on this board activation. Reopen the board to continue.',
+      409,
+    );
+  // Even a later invalid stop supersedes older commands. Claim before resolving it.
+  presenterIntents.set(clientId, intent);
+  return true;
+}
+
+function nextDelivery(): TourDelivery {
+  return { catalogEpoch: boardCatalogEpoch, boardGeneration: canvasState.boardGeneration, sequence: ++sequence };
+}
 
 export function currentTour(): TourState {
   const saved = canvasState.getTour();
@@ -44,7 +92,10 @@ function tourPosition(tour: Tour): number | null {
 }
 
 /** Move the shared cursor. `next`/`previous` clamp at the ends; an explicit index must exist. */
-export function goToTourStop(step: TourStep): TourStepResult {
+export function goToTourStop(step: TourStep): TourStepResult;
+export function goToTourStop(step: TourStep, presenter: TourPresenter | undefined): TourStepResult | TourSuperseded;
+export function goToTourStop(step: TourStep, presenter?: TourPresenter): TourStepResult | TourSuperseded {
+  if (!claimPresenter(presenter)) return { superseded: true };
   const { tour, position: at } = currentTour();
   const { stops } = tour;
   if (stops.length === 0) {
@@ -56,11 +107,20 @@ export function goToTourStop(step: TourStep): TourStepResult {
   else if (Number.isInteger(step) && step >= 0 && step < stops.length) index = step;
   else throw new OperationError(`Tour stop ${step} does not exist (stops 0–${stops.length - 1}).`, 400);
   cursor = { boardGeneration: canvasState.boardGeneration, tour: JSON.stringify(tour), index };
-  return { index, total: stops.length, stop: stops[index] as TourStop };
+  return {
+    ...nextDelivery(),
+    index,
+    total: stops.length,
+    stop: stops[index] as TourStop,
+  };
 }
 
-export function exitTour(): void {
+export function exitTour(): TourDelivery;
+export function exitTour(presenter: TourPresenter | undefined): TourDelivery | TourSuperseded;
+export function exitTour(presenter?: TourPresenter): TourDelivery | TourSuperseded {
+  if (!claimPresenter(presenter)) return { superseded: true };
   cursor = null;
+  return nextDelivery();
 }
 
 /**

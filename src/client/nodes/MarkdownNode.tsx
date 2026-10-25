@@ -6,7 +6,7 @@ import { IconArrowLeft } from '../icons';
 import { expandNode, nodes, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
-import { activeBoard, setBoardReadme, openMemoryTarget, boardList } from '../state/boards-store';
+import { openMemoryTarget, boardList } from '../state/boards-store';
 import { showToast } from '../state/attention-bridge';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
@@ -189,7 +189,6 @@ export async function waitForMarkdownSave(boardId: string | null, nodeId: string
 }
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
-  const board = activeBoard();
   const boardId = activeBoardId.value;
   const draftKey = JSON.stringify([boardId, node.id]);
   const draft = useMemo(() => {
@@ -523,7 +522,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     <div
       style={{
         padding: '4px 8px',
-        fontSize: '10px',
+        fontSize: 'var(--fs-meta)',
         background: 'color-mix(in srgb, var(--c-ok) 10%, transparent)',
         color: 'var(--c-ok)',
         borderBottom: '1px solid color-mix(in srgb, var(--c-ok) 20%, transparent)',
@@ -699,21 +698,13 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           {String((node.data.source as Record<string, unknown>).reference ?? 'Location not supplied')}
         </div>
       )}
-      <div class="md-card-actions">
-        {board && (
-          <button
-            type="button"
-            class="md-readme-btn"
-            aria-pressed={board.readmeNodeId === node.id}
-            onClick={() => void setBoardReadme(board.id, board.readmeNodeId === node.id ? null : node.id)}
-          >
-            {board.readmeNodeId === node.id ? 'README' : 'Set as README'}
+      {node.data.display !== 'heading' && (
+        <div class="md-card-actions">
+          <button type="button" class="md-card-edit" onClick={() => expandNode(node.id)}>
+            Edit
           </button>
-        )}
-        <button type="button" class="md-card-edit" onClick={() => expandNode(node.id)}>
-          Edit
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

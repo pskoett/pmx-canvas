@@ -116,12 +116,51 @@ test('literal form values render bound; unbindable values warn', async ({ page, 
 });
 
 for (const mode of ['src', 'srcdoc']) {
+  test(`generic query-themed viewers follow scheme changes (${mode})`, async ({ page, request }, info) => {
+    await page.route('**/query-viewer?*', async (route) => {
+      const theme = new URL(route.request().url()).searchParams.get('theme');
+      await route.fulfill({
+        contentType: 'text/html',
+        body: `<!doctype html><html><body style="background:${theme === 'light' ? '#fff' : '#111'};color:${theme === 'light' ? '#111' : '#fff'}"><h1>Viewer scheme: ${theme}</h1></body></html>`,
+      });
+    });
+    const response = await request.post('/api/canvas/node', {
+      data: {
+        type: 'mcp-app',
+        title: 'Query-themed viewer',
+        data: { url: '/query-viewer', ...(mode === 'srcdoc' ? { viewerType: 'web-artifact' } : {}) },
+        x: 100,
+        y: 100,
+        width: 600,
+        height: 300,
+        strictSize: true,
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const { id } = await response.json();
+    expect((await request.post('/api/canvas/theme', { data: { theme: 'harbor' } })).ok()).toBe(true);
+    await page.goto(`/workbench?iframe-mode=${mode}`);
+    const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    const viewer = node.frameLocator('iframe:not([inert])');
+    await expect(viewer.getByRole('heading')).toHaveText('Viewer scheme: dark');
+    expect((await request.post('/api/canvas/theme', { data: { theme: 'sepia' } })).ok()).toBe(true);
+    await expect(viewer.getByRole('heading')).toHaveText('Viewer scheme: light');
+    await page.screenshot({ path: info.outputPath(`generic-${mode}-light.png`) });
+    expect((await request.post('/api/canvas/theme', { data: { theme: 'ember' } })).ok()).toBe(true);
+    await expect(viewer.getByRole('heading')).toHaveText('Viewer scheme: dark');
+    await page.screenshot({ path: info.outputPath(`generic-${mode}-dark.png`) });
+  });
+
   test(`focus mode preserves JSON drafts and lists in both directions (${mode})`, async ({ page, request }, info) => {
     const spec = {
       root: 'root',
       state: { draft: 'Initial', tasks: [{ title: 'Initial item' }] },
       elements: {
-        root: { type: 'Stack', props: {}, children: ['input', 'echo', 'more', 'fewer', 'list'] },
+        root: {
+          type: 'Card',
+          props: { title: 'Focus-state regression' },
+          children: ['input', 'echo', 'more', 'fewer', 'list'],
+        },
         input: { type: 'Input', props: { label: 'Draft', value: { $bindState: '/draft' } } },
         echo: { type: 'Text', props: { text: { $state: '/draft' } } },
         more: {
@@ -181,6 +220,16 @@ for (const mode of ['src', 'srcdoc']) {
       await expect(inline.getByText(/^Loaded item \d+$/)).toHaveCount(16);
       await expect.poll(async () => (await readNode()).size.height).toBeGreaterThan(340);
       await inline.getByLabel('Draft', { exact: true }).fill('DRAFT-MUST-SURVIVE');
+      await request.post('/api/canvas/theme', { data: { theme: 'sepia' } });
+      await expect(inline.locator('html')).toHaveAttribute('data-theme', 'sepia');
+      const rootTitle = inline.getByText('Focus-state regression', { exact: true });
+      await expect(rootTitle).toBeHidden();
+      await request.patch(`/api/canvas/node/${id}`, { data: { title: 'Renamed canvas card' } });
+      await expect(rootTitle).toBeVisible();
+      await request.patch(`/api/canvas/node/${id}`, { data: { title: 'Focus-state regression' } });
+      await expect(rootTitle).toBeHidden();
+      await expect(inline.getByLabel('Draft', { exact: true })).toHaveValue('DRAFT-MUST-SURVIVE');
+      await expect(inline.getByText(/^Loaded item \d+$/)).toHaveCount(16);
       await node.getByLabel('Expand (focus mode)').click();
       const overlay = page.locator('.expanded-overlay-panel');
       const expanded = overlay.frameLocator('iframe');

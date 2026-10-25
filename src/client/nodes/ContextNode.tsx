@@ -61,15 +61,7 @@ export function normalizeContextCardDisplay(card: ContextCard): ContextCardDispl
         : card.state === 'invalid'
           ? 'Invalid'
           : 'Loaded';
-  return {
-    title,
-    summary,
-    pathDisplay,
-    category,
-    sourceKind,
-    status,
-    required: card.required === true,
-  };
+  return { title, summary, pathDisplay, category, sourceKind, status, required: card.required === true };
 }
 
 function asTrimmedString(value: unknown): string {
@@ -85,17 +77,9 @@ function stripHtmlToText(value: string): string {
 
 export function normalizeContextNodeFallback(nodeData: Record<string, unknown>): ContextNodeFallbackDisplay | null {
   const title = asTrimmedString(nodeData.title);
-  const content = asTrimmedString(nodeData.content);
-  const rendered = stripHtmlToText(asTrimmedString(nodeData.rendered));
-  const summary = content || rendered;
+  const summary = asTrimmedString(nodeData.content) || stripHtmlToText(asTrimmedString(nodeData.rendered));
   const path = asTrimmedString(nodeData.path);
-
-  if (!title && !summary && !path) return null;
-  return {
-    title: title || 'Context',
-    summary,
-    path,
-  };
+  return title || summary || path ? { title: title || 'Context', summary, path } : null;
 }
 
 export function normalizePinnedContextDisplay(node: CanvasNodeState): PinnedContextDisplay {
@@ -106,13 +90,12 @@ export function normalizePinnedContextDisplay(node: CanvasNodeState): PinnedCont
     asTrimmedString(node.data.description) ||
     asTrimmedString(node.data.pageTitle) ||
     '';
-  const path = asTrimmedString(node.data.path) || asTrimmedString(node.data.url);
   return {
     id: node.id,
     title,
     summary,
     kind: TYPE_LABELS[node.type] ?? node.type,
-    path,
+    path: asTrimmedString(node.data.path) || asTrimmedString(node.data.url),
   };
 }
 
@@ -121,13 +104,6 @@ function formatTokens(n: number | null): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return `${Math.round(n)}`;
-}
-
-function usageBarColor(utilization: number): string {
-  if (utilization >= 0.95) return 'var(--c-danger)';
-  if (utilization >= 0.85) return 'var(--c-warn)';
-  if (utilization >= 0.7) return 'var(--c-warn)';
-  return 'var(--c-accent)';
 }
 
 export function ContextNode({
@@ -141,41 +117,57 @@ export function ContextNode({
 }) {
   const cards = (node.data.cards as ContextCard[]) ?? [];
   const auxTabs = (node.data.auxTabs as Array<{ id: string; url: string; reason?: string }>) ?? [];
-  const pinnedContext = pinnedNodes.map(normalizePinnedContextDisplay);
-  const hasPinnedContext = pinnedContext.length > 0;
-  const currentTokens = typeof node.data.currentTokens === 'number' ? node.data.currentTokens : null;
-  const tokenLimit = typeof node.data.tokenLimit === 'number' ? node.data.tokenLimit : null;
-  const utilization = typeof node.data.utilization === 'number' ? node.data.utilization : null;
-  const messagesLength = typeof node.data.messagesLength === 'number' ? node.data.messagesLength : null;
-  const percent = utilization !== null ? Math.max(0, Math.min(100, Math.round(utilization * 100))) : null;
-  const barColor = usageBarColor(utilization ?? 0);
-  const fallback =
-    !hasPinnedContext && cards.length === 0 && auxTabs.length === 0 ? normalizeContextNodeFallback(node.data) : null;
-
-  const openCard = async (card: ContextCard): Promise<void> => {
-    const path = typeof card.path === 'string' ? card.path.trim() : '';
-    if (!path) return;
-    await openWorkbenchFile(path);
-  };
-
+  const pinned = pinnedNodes.map(normalizePinnedContextDisplay);
+  const fallback = !pinned.length && !cards.length && !auxTabs.length ? normalizeContextNodeFallback(node.data) : null;
+  const current = typeof node.data.currentTokens === 'number' ? node.data.currentTokens : null;
+  const limit = typeof node.data.tokenLimit === 'number' ? node.data.tokenLimit : null;
+  const percent =
+    typeof node.data.utilization === 'number' ? Math.max(0, Math.min(100, Math.round(node.data.utilization * 100))) : 0;
+  const rows = pinned.length
+    ? pinned.map((item) => ({
+        ...item,
+        tags: item.kind,
+        state: 'Pinned',
+        openPath: item.path.startsWith('/') ? item.path : '',
+      }))
+    : cards.map((card) => {
+        const item = normalizeContextCardDisplay(card);
+        return {
+          ...item,
+          id: card.key ?? item.pathDisplay ?? item.title,
+          path: item.pathDisplay,
+          openPath: card.path ?? '',
+          state: item.status,
+          tags: [item.category, item.sourceKind, item.required ? 'Required' : ''].filter(Boolean).join(' · '),
+        };
+      });
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: expanded ? '10px' : '6px',
-        fontSize: expanded ? '14px' : '12px',
-        maxWidth: expanded ? '760px' : undefined,
-        margin: expanded ? '0 auto' : undefined,
-        width: expanded ? '100%' : undefined,
-        padding: expanded ? '8px 0' : undefined,
-      }}
-    >
-      {/* AX: focus the agent on this context node */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+    <div class={`context-node${expanded ? ' context-node-expanded' : ''}`}>
+      <div class="context-node-toolbar">
+        {limit !== null && limit > 0 && (
+          <span class="context-usage">
+            <span
+              class="context-usage-track"
+              role="meter"
+              aria-label="Token usage"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+            >
+              <span
+                style={{
+                  width: `${percent}%`,
+                  background: percent >= 95 ? 'var(--c-danger)' : percent >= 70 ? 'var(--c-warn)' : 'var(--c-pin)',
+                }}
+              />
+            </span>
+            {percent}% · {formatTokens(current)} / {formatTokens(limit)} tokens
+            {typeof node.data.messagesLength === 'number' && <> · {node.data.messagesLength} messages</>}
+          </span>
+        )}
         <BarHint
           label="Point the agent at this node"
-          body="Sets it as the agent's current AX focus, so the agent pulls it into context to work on next — a one-click alternative to pinning."
+          body="Sets it as the agent's current AX focus."
           align="end"
           fitWithin=".node-content"
         >
@@ -183,8 +175,8 @@ export function ContextNode({
             type="button"
             class="ax-node-action"
             style={axNodeActionButtonStyle}
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               void runNodeAxInteraction(node, 'ax.focus.set', undefined, 'Focus set');
             }}
           >
@@ -192,356 +184,56 @@ export function ContextNode({
           </button>
         </BarHint>
       </div>
-
-      {tokenLimit !== null && tokenLimit > 0 && (
-        <div style={{ marginBottom: '8px' }}>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              color: 'var(--c-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: '6px',
-            }}
-          >
-            Token Usage
-          </div>
-          <div
-            style={{
-              height: '6px',
-              background: 'var(--c-surface-hover)',
-              borderRadius: '3px',
-              overflow: 'hidden',
-              marginBottom: '4px',
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: `${Math.min(100, (utilization ?? 0) * 100)}%`,
-                background: barColor,
-                borderRadius: '3px',
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
-            {percent}% — {formatTokens(currentTokens)} / {formatTokens(tokenLimit)} tokens
-            {messagesLength !== null && <> · {messagesLength} messages</>}
-          </div>
+      {rows.length > 0 && (
+        <div class="context-node-label">
+          {pinned.length ? 'Pinned context' : 'Context'} ({rows.length})
         </div>
       )}
-
-      {hasPinnedContext && (
-        <div>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              color: 'var(--c-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: '6px',
-            }}
-          >
-            Pinned Context ({pinnedContext.length})
+      {rows.map((row) => (
+        <div class="context-row" key={row.id}>
+          <div class="context-row-title">
+            <strong>{row.title}</strong>
+            <span class={['Missing', 'Stale', 'Invalid'].includes(row.state) ? 'context-row-warning' : ''}>
+              {row.state === 'Loaded' ? '✓ ' : row.state === 'Pinned' ? '⊙ ' : '⚠ '}
+              {row.state}
+            </span>
           </div>
-          {pinnedContext.map((display) => (
-            <div
-              key={display.id}
-              style={{
-                padding: '6px 8px',
-                background: 'var(--c-surface-subtle)',
-                borderRadius: '6px',
-                marginBottom: '4px',
-                borderLeft: '2px solid var(--c-accent)',
-              }}
-            >
-              <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>{display.title}</div>
-              {display.summary && (
-                <div
-                  style={{
-                    color: 'var(--c-muted)',
-                    fontSize: '10px',
-                    lineHeight: 1.45,
-                    marginBottom: '4px',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {display.summary}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
-                <span
-                  style={{
-                    fontSize: '9px',
-                    padding: '1px 4px',
-                    background: 'var(--c-surface-hover)',
-                    color: 'var(--c-text-soft)',
-                    borderRadius: '3px',
-                    display: 'inline-block',
-                  }}
-                >
-                  {display.kind}
-                </span>
-              </div>
-              {display.path && (
-                <div style={{ marginTop: '6px' }}>
-                  <div
-                    style={{
-                      color: 'var(--c-dim)',
-                      fontSize: '10px',
-                      wordBreak: 'break-all',
-                      marginBottom: '6px',
-                    }}
-                  >
-                    {display.path}
-                  </div>
-                  {display.path.startsWith('/') && (
-                    <button
-                      type="button"
-                      onClick={() => void openWorkbenchFile(display.path)}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '10px',
-                        background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
-                        border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
-                        borderRadius: '4px',
-                        color: 'var(--c-text-soft)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Open in canvas
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+          <div class="context-row-meta">{row.tags}</div>
+          {row.summary && <div class="context-row-summary">{row.summary}</div>}
+          {row.path && <div class="context-row-meta">{row.path}</div>}
+          {row.openPath && (
+            <button type="button" class="context-row-open" onClick={() => void openWorkbenchFile(row.openPath)}>
+              Open in canvas
+            </button>
+          )}
         </div>
-      )}
-
-      {!hasPinnedContext && cards.length > 0 && (
-        <div>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              color: 'var(--c-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: '6px',
-            }}
-          >
-            Context ({cards.length})
-          </div>
-          {cards.map((card) => {
-            const display = normalizeContextCardDisplay(card);
-            return (
-              <div
-                key={card.key ?? display.pathDisplay ?? display.title}
-                style={{
-                  padding: '6px 8px',
-                  background: 'var(--c-surface-subtle)',
-                  borderRadius: '6px',
-                  marginBottom: '4px',
-                  borderLeft: '2px solid var(--c-accent)',
-                }}
-              >
-                <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>{display.title}</div>
-                <div
-                  style={{
-                    color: 'var(--c-muted)',
-                    fontSize: '10px',
-                    lineHeight: 1.45,
-                    marginBottom: '4px',
-                  }}
-                >
-                  {display.summary}
-                </div>
-                {display.pathDisplay && (
-                  <div style={{ color: 'var(--c-dim)', fontSize: '10px', wordBreak: 'break-all' }}>
-                    {display.pathDisplay}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
-                  <span
-                    style={{
-                      fontSize: '9px',
-                      padding: '1px 4px',
-                      background: 'color-mix(in srgb, var(--c-accent) 10%, transparent)',
-                      color: 'var(--c-accent)',
-                      borderRadius: '3px',
-                      display: 'inline-block',
-                    }}
-                  >
-                    {display.status}
-                  </span>
-                  {display.category && (
-                    <span
-                      style={{
-                        fontSize: '9px',
-                        padding: '1px 4px',
-                        background: 'var(--c-surface-hover)',
-                        color: 'var(--c-text-soft)',
-                        borderRadius: '3px',
-                        display: 'inline-block',
-                      }}
-                    >
-                      {display.category}
-                    </span>
-                  )}
-                  <span
-                    style={{
-                      fontSize: '9px',
-                      padding: '1px 4px',
-                      background: 'var(--c-surface-hover)',
-                      color: 'var(--c-text-soft)',
-                      borderRadius: '3px',
-                      display: 'inline-block',
-                    }}
-                  >
-                    {display.sourceKind}
-                  </span>
-                  {display.required && (
-                    <span
-                      style={{
-                        fontSize: '9px',
-                        padding: '1px 4px',
-                        background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
-                        color: 'var(--c-accent)',
-                        borderRadius: '3px',
-                        display: 'inline-block',
-                      }}
-                    >
-                      Required
-                    </span>
-                  )}
-                </div>
-                {card.path && (
-                  <div style={{ marginTop: '6px' }}>
-                    <button
-                      type="button"
-                      onClick={() => void openCard(card)}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '10px',
-                        background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
-                        border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
-                        borderRadius: '4px',
-                        color: 'var(--c-text-soft)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Open in canvas
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {!hasPinnedContext && auxTabs.length > 0 && (
-        <div>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              color: 'var(--c-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: '6px',
-              marginTop: cards.length > 0 ? '8px' : 0,
-            }}
-          >
-            References ({auxTabs.length})
-          </div>
+      ))}
+      {!pinned.length && auxTabs.length > 0 && (
+        <>
+          <div class="context-node-label">References ({auxTabs.length})</div>
           {auxTabs.map((tab) => (
-            <a
-              key={tab.id}
-              href={tab.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'block',
-                padding: '4px 8px',
-                color: 'var(--c-accent)',
-                fontSize: '11px',
-                textDecoration: 'none',
-                borderRadius: '4px',
-                marginBottom: '2px',
-                wordBreak: 'break-all',
-              }}
-            >
+            <a class="context-row" key={tab.id} href={tab.url} target="_blank" rel="noopener noreferrer">
               {tab.url}
-              {tab.reason && (
-                <span style={{ color: 'var(--c-dim)', fontSize: '10px', marginLeft: '6px' }}>({tab.reason})</span>
-              )}
+              {tab.reason && <span class="context-row-meta"> ({tab.reason})</span>}
             </a>
           ))}
-        </div>
+        </>
       )}
-
       {fallback && (
-        <div
-          style={{
-            padding: '8px 10px',
-            background: 'var(--c-surface-subtle)',
-            borderRadius: '6px',
-            borderLeft: '2px solid var(--c-accent)',
-          }}
-        >
-          <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '4px' }}>{fallback.title}</div>
-          {fallback.summary && (
-            <div
-              style={{
-                color: 'var(--c-text-soft)',
-                fontSize: '11px',
-                lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {fallback.summary}
-            </div>
-          )}
+        <div class="context-row">
+          <strong>{fallback.title}</strong>
+          {fallback.summary && <div class="context-row-summary">{fallback.summary}</div>}
           {fallback.path && (
-            <div style={{ marginTop: '6px' }}>
-              <div
-                style={{
-                  color: 'var(--c-dim)',
-                  fontSize: '10px',
-                  wordBreak: 'break-all',
-                  marginBottom: '6px',
-                }}
-              >
-                {fallback.path}
-              </div>
-              <button
-                type="button"
-                onClick={() => void openWorkbenchFile(fallback.path)}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: '10px',
-                  background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--c-accent) 25%, transparent)',
-                  borderRadius: '4px',
-                  color: 'var(--c-text-soft)',
-                  cursor: 'pointer',
-                }}
-              >
+            <>
+              <div class="context-row-meta">{fallback.path}</div>
+              <button type="button" class="context-row-open" onClick={() => void openWorkbenchFile(fallback.path)}>
                 Open in canvas
               </button>
-            </div>
+            </>
           )}
         </div>
       )}
-
-      {!hasPinnedContext && !fallback && cards.length === 0 && auxTabs.length === 0 && (
-        <div style={{ color: 'var(--c-dim)', fontStyle: 'italic' }}>No context loaded</div>
-      )}
+      {!rows.length && !auxTabs.length && !fallback && <div class="context-row-meta">No context loaded</div>}
     </div>
   );
 }

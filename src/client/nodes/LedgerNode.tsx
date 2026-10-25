@@ -27,22 +27,36 @@ export function LedgerNode({ node }: { node: CanvasNodeState }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
       {lines.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {lines.map((line, i) => (
-            <div
-              key={i}
-              style={{
-                padding: '3px 0',
-                borderBottom: i < lines.length - 1 ? '1px solid rgba(45,55,90,0.3)' : 'none',
-                color: 'var(--c-text)',
-                fontFamily: 'var(--font-code)',
-                fontSize: '11px',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}
-            >
-              {line}
-            </div>
-          ))}
+          {lines.map((line, i) => {
+            const timed = /^(\d{2}:\d{2}(?::\d{2})?)\s+(.+)$/.exec(line);
+            return (
+              <div
+                key={i}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: timed ? '44px 1fr' : '1fr',
+                  gap: '10px',
+                  padding: '3px 0',
+                  color: 'var(--c-text)',
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: 'var(--fs-ui)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {timed ? (
+                  <>
+                    <span style={{ fontFamily: 'var(--font-code)', fontSize: 'var(--fs-meta)', color: 'var(--c-dim)' }}>
+                      {timed[1]}
+                    </span>
+                    <span>{timed[2]}</span>
+                  </>
+                ) : (
+                  line
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       {entries.map(([key, value]) => (
@@ -53,7 +67,7 @@ export function LedgerNode({ node }: { node: CanvasNodeState }) {
             justifyContent: 'space-between',
             gap: '8px',
             padding: '3px 0',
-            borderBottom: '1px solid rgba(45,55,90,0.3)',
+            borderBottom: '1px solid var(--c-line)',
           }}
         >
           <span style={{ color: 'var(--c-muted)', fontSize: '11px', flexShrink: 0 }}>

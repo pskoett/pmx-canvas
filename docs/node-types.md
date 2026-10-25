@@ -1,9 +1,9 @@
 # Node types
 
-`board` is a native text-only link. Set `data.boardId` to the durable target ID. Its header pin pins the
+`board` is a native link with a lightweight board thumbnail. Set `data.boardId` to the durable target ID. Its header pin pins the
 linked board into the agent's working set (`canvas_board { action: "pin" }`), not the portal card.
 Titles resolve from that ID, so renames and folder moves are safe; deleted
-targets render explicitly as missing. It is not an iframe or a cross-board card
+targets render explicitly as missing, with **Link to board…** to choose a replacement. It is not an iframe or a cross-board card
 edge. Static exports lock the card and intentionally do not embed the target
 title or summary, so exporting this board does not disclose another board.
 
@@ -32,7 +32,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `html` | Self-contained HTML/JS in a sandboxed iframe |
 | `web-artifact` | Bundled React/Tailwind artifact (full single-file app) |
 | `group` | Spatial container/frame around other nodes |
-| `board` | Text-only link to another board, with its README summary and navigation |
+| `board` | Lightweight thumbnail link to another board, with its README summary and navigation |
 
 Creation applies per-type frame defaults and readability minimums. When a
 dimension is defaulted or clamped, HTTP and MCP create responses include a
@@ -47,6 +47,11 @@ response warns about the distinction.
 
 Thread node types `prompt` and `response` exist internally for agent
 conversation rendering and are not created through public APIs.
+
+The spatial board and its content scale proportionally at every zoom, without
+switching layouts. Iframe previews mount automatically near the viewport and
+remain mounted to preserve arbitrary app state. There is no lifetime preview cap;
+memory use grows with the viewers visited. Board links and Mermaid render inline.
 
 Full node reads expose server-owned `createdBy`, `lastEditedBy`, and
 `contentRevision`. Authors distinguish human, agent, system, and unknown;
@@ -72,6 +77,15 @@ that fits the work — each step adds capability and bundle weight.
 | 3 | `web-artifact` | You need a full React/Tailwind app with shadcn components, routing, or shared state | Build step |
 
 ## Markdown tasks
+
+Use **Display as heading** in a Markdown card's context menu for a frameless section
+label. Its title becomes the heading and its content remains below it. **Display as card**
+restores the frame; this does not change the content or context pins. Agents can set
+`data.display` to `"heading"` or `"card"` through ordinary node creation or updates.
+**Set as README** in the card's ⋯ menu designates the board's existing README field;
+the current README instead offers **Remove as README** to clear it. A quiet **README**
+word stays visible in the designated card's header, including heading display.
+**Edit** stays visible below ordinary Markdown. Heading display has no footer.
 
 Tick a task directly on its card, including quoted and nested tasks. A card click changes
 only that task's `[ ]` or `[x]` marker, preserving the rest of the source exactly.
@@ -118,6 +132,9 @@ different type by extension:
   log can never exhaust memory.
 
 ## Mermaid nodes
+
+Diagrams render inline with the canvas palette, rather than in an iframe. Invalid
+source shows a visible error and **Retry**. Native WebKit hosts remain best-effort.
 
 Mermaid diagrams default to `data.fit: "contain"`: when the diagram overflows
 the available body, it shrinks uniformly until the entire diagram fits. Small
@@ -215,6 +232,12 @@ For any other MCP App, call `canvas_app { action: "open-mcp-app" }` directly
 with the server's transport, tool name, and arguments.
 
 ## json-render nodes
+
+Embedded dashboards and charts inherit all nine named canvas themes. Their root
+card fills the viewer without an extra panel or shadow. A root title identical to
+the canvas card title is hidden; distinct authored titles and descriptions remain.
+Theme changes preserve viewer-local inputs. A failed replacement keeps the last
+painted document and offers **Retry** instead of repeatedly reloading it.
 
 `json-render` nodes turn structured JSON specs into rendered UI panels
 (dashboards, tables, forms, cards) without writing HTML. PMX Canvas ships the
@@ -430,6 +453,14 @@ review sheet, PR writeup, code walkthrough, system map, design sheet,
 component gallery, interaction prototype, flowchart, SVG illustration set,
 presentation, explainer, status report, incident report, triage board, config
 editor, or prompt tuner.
+
+The card's ⋯ menu offers **Copy JSON** for primitives with JSON export (all except
+the custom `presentation` template). It copies the mounted document's current
+state, including interactive edits, rather than the original server data.
+Open the viewer first; unavailable/reloading content or denied clipboard access
+shows a failure message. Copy prompt and the shared inner-header copy buttons are
+removed. Primitive-specific actions such as Copy diff and Copy SVG remain.
+Ordinary HTML nodes do not receive this menu item.
 
 Omitted fields may use the template's examples. Explicit empty arrays, empty
 strings, or `null` mean “show nothing”: the field's section, heading, and

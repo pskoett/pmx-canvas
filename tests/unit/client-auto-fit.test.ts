@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  AUTO_FIT_BODY_PADDING,
   AUTO_FIT_MAX_HEIGHT_IFRAME,
   AUTO_FIT_TITLEBAR_HEIGHT,
   computeAutoFitHeight,
@@ -100,8 +99,8 @@ describe('iframe content-fit (grow-only)', () => {
 
   test('ignores non-finite surface measurements', () => {
     const node = makeNode({ type: 'json-render' });
-    expect(computeContentGrowHeight(node, Infinity)).toBeNull();
-    expect(computeContentGrowHeight(node, NaN)).toBeNull();
+    expect(computeContentGrowHeight(node, Infinity, 39)).toBeNull();
+    expect(computeContentGrowHeight(node, NaN, 39)).toBeNull();
   });
 
   test('authored surfaces are content-fit eligible; scrolling/unbounded ones are not', () => {
@@ -124,25 +123,27 @@ describe('iframe content-fit (grow-only)', () => {
     expect(shouldContentFitIframeNode(makeNode({ type: 'graph', collapsed: true }))).toBe(false);
   });
 
-  test('grows to fit when content is taller, accounting for titlebar + body padding (the #48 fix)', () => {
+  test('grows using measured chrome, including a compensated low-zoom header', () => {
     const graph = makeNode({ type: 'graph', size: { width: 420, height: 300 } });
-    // +titlebar +body-padding so the content fully clears (no residual inner scrollbar).
-    expect(computeContentGrowHeight(graph, 360)).toBe(360 + AUTO_FIT_TITLEBAR_HEIGHT + AUTO_FIT_BODY_PADDING);
+    expect(computeContentGrowHeight(graph, 360, 39)).toBe(399);
+    expect(computeContentGrowHeight(graph, 360, 78)).toBe(438);
   });
 
   test('grow-only: never shrinks when content already fits', () => {
     const graph = makeNode({ type: 'graph', size: { width: 420, height: 520 } });
-    expect(computeContentGrowHeight(graph, 200)).toBeNull(); // content shorter → no shrink
-    expect(computeContentGrowHeight(graph, 440)).toBeNull(); // 440+37+24 ≈ 501 ≤ 520 → already fits
+    expect(computeContentGrowHeight(graph, 200, 39)).toBeNull(); // content shorter → no shrink
+    expect(computeContentGrowHeight(graph, 481, 39)).toBeNull(); // full-height viewer → stable
   });
 
   test('caps growth at the iframe ceiling', () => {
     const graph = makeNode({ type: 'graph', size: { width: 420, height: 300 } });
-    expect(computeContentGrowHeight(graph, 5000)).toBe(AUTO_FIT_MAX_HEIGHT_IFRAME);
+    expect(computeContentGrowHeight(graph, 5000, 39)).toBe(AUTO_FIT_MAX_HEIGHT_IFRAME);
   });
 
   test('returns null for exempt / ineligible nodes', () => {
-    expect(computeContentGrowHeight(makeNode({ type: 'graph', data: { strictSize: true } }), 900)).toBeNull();
-    expect(computeContentGrowHeight(makeNode({ type: 'webpage', size: { width: 400, height: 300 } }), 900)).toBeNull();
+    expect(computeContentGrowHeight(makeNode({ type: 'graph', data: { strictSize: true } }), 900, 39)).toBeNull();
+    expect(
+      computeContentGrowHeight(makeNode({ type: 'webpage', size: { width: 400, height: 300 } }), 900, 39),
+    ).toBeNull();
   });
 });

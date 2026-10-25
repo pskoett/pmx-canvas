@@ -17,6 +17,7 @@ import { HtmlNode } from '../nodes/HtmlNode';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
+import { ViewerHost } from '../nodes/ViewerHost';
 import {
   activeNodeId,
   cancelViewportAnimation,
@@ -111,9 +112,10 @@ class WorldNode extends Component<{
 
   render() {
     const { node, onContextMenu } = this.props;
+    const viewer = ['html', 'mcp-app', 'json-render', 'graph', 'webpage', 'mermaid'].includes(node.type);
     return (
       <CanvasNode node={node} onContextMenu={onContextMenu}>
-        {renderNodeContent(node)}
+        {viewer ? <ViewerHost node={node}>{renderNodeContent(node)}</ViewerHost> : renderNodeContent(node)}
       </CanvasNode>
     );
   }
@@ -873,9 +875,8 @@ export function CanvasViewport({
                   : 'default',
       }}
     >
-      {/* D4: CSS matrix(a,b,c,d,tx,ty) — scale uniformly (a=d=scale, b=c=0)
-          then translate (tx=v.x, ty=v.y). transformOrigin: '0 0' ensures
-          the scale pivot is the top-left corner of the world layer. */}
+      {/* Scale the complete spatial world proportionally, including iframe
+          contents. CSS zoom changes embedded viewport semantics in WebKit. */}
       <div
         ref={worldRef}
         class="canvas-world"
@@ -894,9 +895,7 @@ export function CanvasViewport({
         <IntentLayer />
         <AgentPresenceLayer />
         <HumanPresenceLayer />
-        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pill-hits" />
+        <EdgeLayer nodes={nodes} edges={edges} />
         {draggingEdge.value && (
           <div
             class="edge-hint-pill"

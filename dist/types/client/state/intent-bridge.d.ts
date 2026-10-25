@@ -76,6 +76,7 @@ export declare function pushCanvasUpdate(updates: Array<{
         height: number;
     };
     collapsed?: boolean;
+    zIndex?: number;
 }>, options?: {
     recordHistory?: boolean;
 }): Promise<void>;

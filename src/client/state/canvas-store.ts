@@ -637,18 +637,22 @@ export function resizeNode(id: string, size: { width: number; height: number }):
   updateNode(id, { size });
 }
 
-export function bringToFront(id: string): void {
+export function bringToFront(id: string, persist = true): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
-  batch(() => {
-    updateNode(id, { zIndex: maxZ++ });
-    // A group is a frame: it must never stack above its own children.
-    if (existing.type === 'group' && Array.isArray(existing.data.children)) {
-      for (const childId of existing.data.children) {
-        if (typeof childId === 'string' && nodes.value.has(childId)) updateNode(childId, { zIndex: maxZ++ });
-      }
+  const updates = [{ id, zIndex: maxZ++ }];
+  // A group is a frame: it must never stack above its own children.
+  if (existing.type === 'group' && Array.isArray(existing.data.children)) {
+    for (const childId of existing.data.children) {
+      if (typeof childId === 'string' && nodes.value.has(childId)) updates.push({ id: childId, zIndex: maxZ++ });
     }
+  }
+  batch(() => {
+    for (const update of updates) updateNode(update.id, { zIndex: update.zIndex });
   });
+  // Title-bar gestures commit stacking with geometry at pointer-up. A separate
+  // drag-start write would broadcast an old layout over the in-progress move.
+  if (persist) void pushCanvasUpdate(updates, { recordHistory: false });
   activeNodeId.value = id;
 }
 
@@ -820,14 +824,17 @@ export function cancelViewportAnimation(): void {
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = 'pmx-canvas-layout';
 
-export function persistLayout(options: { recordHistory?: boolean } = {}): void {
+export function persistLayout(options: { recordHistory?: boolean; raisedNodeId?: string } = {}): void {
   try {
     const allNodes = Array.from(nodes.value.values());
+    const raised = options.raisedNodeId ? nodes.value.get(options.raisedNodeId) : undefined;
+    const raisedChildren = raised?.type === 'group' && Array.isArray(raised.data.children) ? raised.data.children : [];
     const nodeUpdates = allNodes.map((n) => ({
       id: n.id,
       position: n.position,
       size: n.size,
       collapsed: n.collapsed,
+      ...(n.id === raised?.id || raisedChildren.includes(n.id) ? { zIndex: n.zIndex } : {}),
     }));
     const layout = {
       viewport: viewport.value,
@@ -931,7 +938,7 @@ export function fitAll(containerW: number, containerH: number): void {
 }
 
 // ── Focus node ────────────────────────────────────────────────
-export function focusNode(id: string, options: { recordHistory?: boolean } = {}): void {
+export function focusNode(id: string, options: { recordHistory?: boolean; persistStacking?: boolean } = {}): void {
   const node = nodes.value.get(id);
   if (!node) return;
   const v = viewport.value;
@@ -959,7 +966,7 @@ export function focusNode(id: string, options: { recordHistory?: boolean } = {})
     300,
     options,
   );
-  bringToFront(id);
+  bringToFront(id, options.persistStacking !== false);
 }
 
 // ── Cycle focus ───────────────────────────────────────────────
@@ -969,7 +976,6 @@ export function cycleActiveNode(direction: 1 | -1 = 1): void {
   const currentIdx = activeNodeId.value ? all.indexOf(activeNodeId.value) : -1;
   const nextIdx = (currentIdx + direction + all.length) % all.length;
   const nextId = all[nextIdx];
-  bringToFront(nextId);
   focusNode(nextId);
 }
 

@@ -3,6 +3,24 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Markdown cards can become frameless section headings, and fit and focus leave room for floating controls.
+- Cards, charts and dashboards share canvas typography, spacing and all nine themes without repeated chart titles.
+- Viewer previews load automatically near the viewport at every zoom and stay mounted when panned out of view.
+- Markdown's Set as README action lives in ⋯, while its README identifier and Edit action stay visible.
+- Present explains saved tours and group-derived stops on hover and keyboard focus.
+
+### Fixed
+
+- Failed viewer replacements keep the last painted view and offer one explicit Retry.
+- Work cards keep complete status labels and reachable controls without accidental scrollbars.
+- Relation labels move clear of cards while staying connected to their lines.
+- Static exports preserve section headings, named themes and compact chart layouts without repeated titles.
+- Close slopegraph labels stay readable without moving their data points.
+
 ## [0.10.0] - 2026-10-24
 
 ### Breaking

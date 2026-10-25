@@ -3,8 +3,177 @@
  * the way a colleague would — straight from disk — and check it works.
  */
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { CANVAS_THEMES, CANVAS_THEME_META } from '../../src/shared/themes.js';
 
 const HUMAN = { 'x-pmx-workbench': '1' };
+
+const demo = JSON.parse(readFileSync('src/server/demo-state.json', 'utf8')) as {
+  nodes: Array<{
+    id: string;
+    type: string;
+    size: { width: number; height: number };
+    data: { title: string; graphConfig?: Record<string, unknown>; spec?: unknown };
+  }>;
+};
+
+for (const theme of CANVAS_THEMES) {
+  test(`export card geometry, compact plots and headings in ${theme}`, async ({ page, request }, testInfo) => {
+    test.setTimeout(90_000);
+    await request.post('/api/canvas/clear', { headers: HUMAN });
+    await request.post('/api/canvas/theme', { headers: HUMAN, data: { theme } });
+    const graphs = demo.nodes.filter(
+      (node) =>
+        node.type === 'graph' &&
+        (theme === 'harbor' ||
+          ['graph-sparkline', 'graph-dot-plot', 'graph-bullet', 'graph-slopegraph'].includes(node.id)),
+    );
+    const expected = [];
+    for (const [index, node] of graphs.entries()) {
+      const x = (index % 4) * 560,
+        y = 180 + Math.floor(index / 4) * 500;
+      const response = await request.post('/api/canvas/graph', {
+        headers: HUMAN,
+        data: {
+          ...node.data.graphConfig,
+          x,
+          y,
+          width: node.size.width,
+          nodeHeight: node.size.height,
+          strictSize: true,
+        },
+      });
+      expect(response.ok(), await response.text()).toBe(true);
+      expected.push({ title: node.data.title, x, y, ...node.size });
+    }
+    const dashboard = demo.nodes.find((node) => node.id === 'json-dashboard')!;
+    const dashboardY = 180 + Math.ceil(graphs.length / 4) * 500;
+    const response = await request.post('/api/canvas/json-render', {
+      headers: HUMAN,
+      data: {
+        title: 'Dashboard shell',
+        spec: dashboard.data.spec,
+        x: 0,
+        y: dashboardY,
+        width: dashboard.size.width,
+        height: dashboard.size.height,
+        strictSize: true,
+      },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    await request.post('/api/canvas/node', {
+      headers: HUMAN,
+      data: {
+        type: 'markdown',
+        title: 'Charts and structured UI',
+        content: 'Compact graphs retain their authored sizes.',
+        data: { display: 'heading' },
+        x: 0,
+        y: 0,
+        width: 520,
+        height: 144,
+        strictSize: true,
+      },
+    });
+
+    const exported = await request.post('/api/canvas/export', { headers: HUMAN, data: {} });
+    expect(exported.ok()).toBe(true);
+    const { path } = await exported.json();
+    const network: string[] = [];
+    page.on('request', (req) => {
+      if (/^https?:/.test(req.url())) network.push(req.url());
+    });
+    await page.context().setOffline(true);
+    await page.goto(`file://${path}`);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    const color = await page.evaluate((hex) => {
+      const probe = document.createElement('span');
+      probe.style.color = hex;
+      document.body.append(probe);
+      const result = getComputedStyle(probe).color;
+      probe.remove();
+      return result;
+    }, CANVAS_THEME_META[theme].swatchBg);
+    await expect(page.locator('body')).toHaveCSS('background-color', color);
+    const heading = page.locator('.card.heading');
+    await expect(heading).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(heading).toHaveCSS('box-shadow', 'none');
+    await expect(heading.locator('.card-title')).toHaveCSS('font-size', '20px');
+
+    for (const node of expected) {
+      const card = page
+        .locator('.card')
+        .filter({ has: page.getByRole('button', { name: `Expand ${node.title}`, exact: true }) });
+      expect(await card.evaluate((el) => [el.style.left, el.style.top, el.style.width, el.style.height])).toEqual([
+        `${node.x}px`,
+        `${node.y}px`,
+        `${node.width}px`,
+        `${node.height}px`,
+      ]);
+      await expect(card.locator('.card-title')).toHaveCSS('height', '37px');
+      const viewer = card.frameLocator('iframe');
+      await expect(viewer.locator('.pmx-chart svg').first()).toBeVisible();
+      await expect(viewer.locator('[data-slot="card-title"]')).toBeHidden();
+      await expect(viewer.locator('.pmx-viewer-root > [data-slot="card"]')).toHaveCSS('padding', '12px 14px');
+      await expect(viewer.locator('html')).toHaveAttribute('data-theme', theme);
+      await expect(viewer.locator('html')).toHaveAttribute('data-canvas-theme', '');
+      expect(
+        await viewer.locator('body').evaluate(() => ({
+          width: document.documentElement.scrollWidth - innerWidth,
+          height: document.documentElement.scrollHeight - innerHeight,
+        })),
+      ).toEqual({ width: 0, height: 0 });
+      await expect(card.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
+      if (node.title.startsWith('slopegraph')) {
+        for (const anchor of ['start', 'end']) {
+          const labels = await viewer
+            .locator(`.pmx-chart__slopegraph-svg g > text[text-anchor="${anchor}"]`)
+            .evaluateAll((elements) =>
+              elements
+                .map((el) => {
+                  const box = el.getBoundingClientRect();
+                  return { top: box.top, bottom: box.bottom };
+                })
+                .sort((a, b) => a.top - b.top),
+            );
+          expect(labels).toHaveLength(4);
+          for (let i = 1; i < labels.length; i++) expect(labels[i].top).toBeGreaterThanOrEqual(labels[i - 1].bottom);
+        }
+      }
+    }
+    const spark = page.locator('.card').filter({ hasText: 'sparkline — build time' });
+    await expect(spark.frameLocator('iframe').locator('.pmx-chart__sparkline-svg')).toHaveCSS('height', '36px');
+    const dash = page.locator('.card[data-node-type="json-render"]');
+    await expect(dash.frameLocator('iframe').locator('[data-slot="card-title"]').first()).toBeVisible();
+    await expect(dash.frameLocator('iframe').locator('[data-slot="card"]')).toHaveCount(3);
+
+    for (const width of [600, 1024, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('button', { name: 'Fit board' }).click();
+      await expect(heading).toBeInViewport();
+      await expect(spark).toBeInViewport();
+      const before = await spark.boundingBox();
+      await page.getByRole('button', { name: 'Zoom in' }).click();
+      expect((await spark.boundingBox())!.width).toBeCloseTo(before!.width * 1.25, 1);
+      await page.getByRole('button', { name: 'Fit board' }).click();
+      if (width === 1920) await page.screenshot({ path: testInfo.outputPath(`cards-${theme}.png`) });
+    }
+    const beforePan = await heading.boundingBox();
+    await page.mouse.move(8, 70);
+    await page.mouse.down();
+    await page.mouse.move(68, 110);
+    await page.mouse.up();
+    expect((await heading.boundingBox())!.x).toBeCloseTo(beforePan!.x + 60, 1);
+    await spark.locator('.card-title').click();
+    await expect(page.locator('#overlay-body').frameLocator('iframe').locator('.pmx-chart__sparkline-svg')).toHaveCSS(
+      'height',
+      '36px',
+    );
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#overlay')).toBeHidden();
+    expect(network).toEqual([]);
+  });
+}
 
 test('export a board from the top bar and open the file with no server', async ({ page, request }) => {
   await request.post('/api/canvas/clear', { headers: HUMAN });
@@ -260,7 +429,12 @@ for (const scheme of ['light', 'dark']) {
     await expect(card('html').frameLocator('iframe').getByRole('heading', { name: 'Report widget' })).toBeVisible();
     await expect(card('mermaid').frameLocator('iframe').locator('svg')).toBeVisible();
     await expect(card('json-render').frameLocator('iframe').getByText('3 teams reviewed')).toBeVisible();
+    await expect(card('json-render').frameLocator('iframe').getByText('Report summary')).toBeVisible();
     await expect(card('graph').frameLocator('iframe').locator('.recharts-bar-rectangle')).toHaveCount(2);
+    await expect(card('graph').frameLocator('iframe').locator('.recharts-responsive-container')).toHaveCSS(
+      'height',
+      '220px',
+    );
     for (const type of ['html', 'mermaid', 'json-render', 'graph']) {
       await expect(card(type).locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
       expect((await card(type).locator('iframe').boundingBox())!.height).toBeGreaterThan(70);

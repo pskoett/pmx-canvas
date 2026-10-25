@@ -2,6 +2,7 @@ import { test, expect, chromium, type Page, type TestInfo } from '@playwright/te
 import { spawn } from 'node:child_process';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { renderedCamera } from './workspace-fixture.js';
 
 // Orb HTML defaults to 2 s polling for the portal proxy. Keep direct-server
 // animation tests explicit; the same suite can also exercise portal polling.
@@ -325,6 +326,370 @@ test('presentation right-drag interrupts the tour locally and exposes an exit bu
   await expect(page.locator('.top-bar')).toBeVisible();
 });
 
+test('a superseded startup explains the stopped request before the new catalog arrives', async ({
+  page,
+  request,
+}, info) => {
+  const created = await (await request.post('/api/canvas/boards', { data: { name: 'Presentation ownership' } })).json();
+  const id = created.board.id;
+  await request.post('/api/canvas/boards/open', { data: { id } });
+  await request.post('/api/canvas/tour', {
+    data: { tour: { stops: [{ target: { viewport: { x: 0, y: 0, scale: 1 } }, duration: 0 }] } },
+  });
+  let holdCatalog = false;
+  await page.route('**/api/workbench/poll**', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (holdCatalog) body.events = body.events.filter((entry: { event: string }) => entry.event !== 'boards-changed');
+    await route.fulfill({ response, json: body });
+  });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested = false;
+  await page.route('**/api/canvas/tour/go', async (route) => {
+    requested = true;
+    await held;
+    await route.fulfill({ response: await route.fetch() });
+  });
+  try {
+    await page.goto('/workbench?transport=poll&present=1');
+    await expect.poll(() => requested).toBe(true);
+    holdCatalog = true;
+    await request.post('/api/canvas/boards/open', { data: { id } });
+    release();
+    await expect(page.getByRole('alert')).toContainText('superseded');
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+    await page.screenshot({ path: info.outputPath('superseded-start.png') });
+    await page.getByRole('button', { name: 'Exit presentation', exact: true }).click();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  } finally {
+    release();
+    holdCatalog = false;
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
+test('a remote tour starts while the separate initial catalog request is held', async ({ page, request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await request.post('/api/canvas/clear', { headers });
+  const response = await request.post('/api/canvas/node', {
+    headers,
+    data: { type: 'markdown', title: 'Early tour target', content: 'Visible stop', x: 1900, y: 800 },
+  });
+  const { id } = await response.json();
+  await request.post('/api/canvas/tour', {
+    headers,
+    data: { tour: { stops: [{ target: { nodeId: id }, duration: 0 }] } },
+  });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let catalogRequested = false;
+  let tourDelivered = false;
+  await page.route('**/api/canvas/boards', async (route) => {
+    const response = await route.fetch();
+    catalogRequested = true;
+    await held;
+    await route.fulfill({ response });
+  });
+  await page.route('**/api/workbench/poll*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response });
+    if (body.events.some((entry: { event: string }) => entry.event === 'canvas-tour-step')) tourDelivered = true;
+  });
+  try {
+    await page.goto('/workbench?transport=poll');
+    await expect.poll(() => catalogRequested).toBe(true);
+    expect((await request.post('/api/canvas/tour/go', { data: { stop: 0, present: true } })).ok()).toBe(true);
+    await expect.poll(() => tourDelivered).toBe(true);
+    release();
+    const exit = page.getByRole('button', { name: 'Exit presentation', exact: true });
+    await expect(exit).toBeVisible();
+    const target = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    await expect(target).toBeInViewport({ ratio: 1 });
+    await exit.click();
+    await expect(exit).toHaveCount(0);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
+for (const size of [
+  { width: 1440, height: 900 },
+  { width: 600, height: 700 },
+  { width: 360, height: 300 },
+  { width: 600, height: 700, dropTourEvents: true },
+]) {
+  test(`presentation buttons share the cursor and keep content clear at ${size.width}x${size.height}${size.dropTourEvents ? ' without tour echoes' : ''}`, async ({
+    page,
+    request,
+  }) => {
+    let dropTourEvents = !!size.dropTourEvents;
+    type TourEvent = { event: string; payload: Record<string, unknown> };
+    const delayed: TourEvent[] = [];
+    const replay: TourEvent[] = [];
+    let replayed = 0;
+    const echo = async (event: TourEvent) => {
+      const count = replayed + 1;
+      replay.push(event);
+      await expect.poll(() => replayed).toBe(count);
+      await page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      );
+    };
+    if (size.dropTourEvents) {
+      await page.route('**/api/workbench/poll*', async (route) => {
+        const response = await route.fetch({
+          url: route
+            .request()
+            .url()
+            .replace(/waitMs=\d+/, 'waitMs=0'),
+        });
+        const body = await response.json();
+        if (dropTourEvents)
+          body.events = body.events.filter((entry: TourEvent) => {
+            if (!['canvas-tour-step', 'canvas-tour-exit'].includes(entry.event)) return true;
+            delayed.push(entry);
+            return false;
+          });
+        const injected = replay.splice(0);
+        body.events.push(...injected);
+        await route.fulfill({ response, json: body });
+        replayed += injected.length;
+      });
+    }
+    const url = size.dropTourEvents ? '/workbench?transport=poll' : workbench;
+    const headers = { 'x-pmx-workbench': '1' };
+    await request.post('/api/canvas/clear', { headers });
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const node = await request.post('/api/canvas/node', {
+        headers,
+        data: {
+          type: 'markdown',
+          title: `Stop ${i + 1}`,
+          content: 'Whole card stays visible',
+          x: i * 1000,
+          y: i * 300,
+          width: 440,
+          height: 300,
+        },
+      });
+      ids.push((await node.json()).id);
+    }
+    const tour = { stops: ids.map((nodeId) => ({ target: { nodeId }, duration: 0, padding: 8 })) };
+    await request.post('/api/canvas/tour', { headers, data: { tour } });
+    const before = await (await request.get('/api/canvas/state')).json();
+    await page.setViewportSize(size);
+    await page.goto(`${url}&present=1`);
+    const back = page.getByRole('button', { name: 'Back', exact: true });
+    const next = page.getByRole('button', { name: 'Next', exact: true });
+    const exit = page.getByRole('button', { name: 'Exit presentation', exact: true });
+    const at = async (index: number) => {
+      await expect.poll(async () => (await (await request.get('/api/canvas/tour')).json()).position).toBe(index);
+      await expect
+        .poll(async () =>
+          page.evaluate((id) => {
+            const card = document.querySelector(`.canvas-node[data-node-id="${id}"]`)?.getBoundingClientRect();
+            const controls = document.querySelector('.presentation-controls')?.getBoundingClientRect();
+            if (!card || !controls) return false;
+            return (
+              card.left >= 0 &&
+              card.right <= innerWidth &&
+              card.top >= controls.bottom + 11 &&
+              card.bottom <= innerHeight &&
+              controls.left >= 0 &&
+              controls.right <= innerWidth
+            );
+          }, ids[index]),
+        )
+        .toBe(true);
+    };
+    await expect(next).toBeEnabled();
+    await expect(back).toBeDisabled();
+    await at(0);
+    await expect(page.locator('.presentation-guidance')).toHaveCount(0);
+    for (const [button, id, shortcut] of [
+      [back, 'presentation-back-hint', '← / ↑'],
+      [next, 'presentation-next-hint', '→ / ↓ / Space'],
+      [exit, 'presentation-exit-hint', 'Esc'],
+    ] as const) {
+      await expect(button).toHaveAttribute('aria-describedby', id);
+      await button.hover({ force: true });
+      await expect(page.locator(`#${id}`)).toHaveCSS('opacity', '1');
+      await page.mouse.move(2, size.height - 2);
+      await page.keyboard.press('Tab');
+      await button.focus();
+      const tip = page.locator(`#${id}`);
+      await expect(tip).toHaveCSS('opacity', '1');
+      await expect(tip).toContainText(shortcut);
+      const box = (await tip.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+      await page.keyboard.press('Tab');
+      await expect(tip).toHaveCSS('opacity', '0');
+    }
+    await next.click();
+    await at(1);
+    await back.click();
+    await at(0);
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await at(1);
+    // Background focus exercises Space as navigation, not native button activation.
+    await page.locator('.presentation-navigation').click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press('Space');
+    await at(2);
+    await expect(next).toBeDisabled();
+    if (size.dropTourEvents) {
+      await expect.poll(() => delayed.some((entry) => entry.payload.index === 2)).toBe(true);
+      const camera = await renderedCamera(page);
+      // Deliver old echoes separately, not a batch that could hide a rewind.
+      for (const event of [...delayed]) {
+        await echo(event);
+        expect(await renderedCamera(page)).toEqual(camera);
+        await expect(next).toBeDisabled();
+      }
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route('**/api/canvas/tour/go', async (route) => {
+        const response = await route.fetch();
+        await held;
+        await route.fulfill({ response });
+      });
+      await back.click();
+      await expect.poll(async () => (await (await request.get('/api/canvas/tour')).json()).position).toBe(1);
+      await echo(delayed.find((entry) => entry.payload.index === 2)!);
+      expect(await renderedCamera(page)).toEqual(camera);
+      release();
+      await at(1);
+      await page.unroute('**/api/canvas/tour/go');
+      await next.click();
+      await at(2);
+    }
+    await page.keyboard.press('ArrowLeft');
+    await at(1);
+    dropTourEvents = false;
+    await request.post('/api/canvas/tour/go', { data: { stop: 0 } });
+    await at(0);
+    await expect(back).toBeDisabled();
+    if (size.dropTourEvents) {
+      // A late HTTP acknowledgement must not undo a newer shared agent step.
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route('**/api/canvas/tour/go', async (route) => {
+        const response = await route.fetch();
+        await held;
+        await route.fulfill({ response });
+      });
+      await next.click();
+      await at(1);
+      await request.post('/api/canvas/tour/go', { data: { stop: 2 } });
+      await at(2);
+      const acknowledged = page.waitForResponse('**/api/canvas/tour/go');
+      release();
+      await acknowledged;
+      await page.unroute('**/api/canvas/tour/go');
+      await expect(next).toBeDisabled();
+      await at(2);
+      dropTourEvents = true;
+      await page.keyboard.press('Escape');
+      await expect(exit).toHaveCount(0);
+      await expect.poll(() => delayed.some((entry) => entry.event === 'canvas-tour-exit')).toBe(true);
+      const oldExit = delayed.find((entry) => entry.event === 'canvas-tour-exit')!;
+      let releaseRestart!: () => void;
+      const restarted = new Promise<void>((resolve) => {
+        releaseRestart = resolve;
+      });
+      await page.route('**/api/canvas/tour/go', async (route) => {
+        const response = await route.fetch();
+        await restarted;
+        await route.fulfill({ response });
+      });
+      await page.goto(`${url}&present=1`);
+      await expect.poll(async () => (await (await request.get('/api/canvas/tour')).json()).position).toBe(0);
+      await echo(oldExit);
+      await expect(exit).toHaveCount(0);
+      const restartEcho = () =>
+        delayed.find(
+          (entry) =>
+            entry.event === 'canvas-tour-step' && Number(entry.payload.sequence) > Number(oldExit.payload.sequence),
+        );
+      await expect.poll(restartEcho).toBeDefined();
+      await echo(restartEcho()!);
+      await expect(exit).toHaveCount(0);
+      releaseRestart();
+      await expect(exit).toBeVisible();
+      await at(0);
+      await page.unroute('**/api/canvas/tour/go');
+      await echo(oldExit);
+      await expect(exit).toBeVisible();
+      await at(0);
+      await request.post('/api/canvas/tour/exit', { data: {} });
+      await expect.poll(() => delayed.filter((entry) => entry.event === 'canvas-tour-exit').length).toBe(2);
+      await echo(delayed.filter((entry) => entry.event === 'canvas-tour-exit')[1]);
+      await expect(exit).toHaveCount(0);
+    }
+    if (size.width === 1440) {
+      let releaseExit!: () => void;
+      let exitResult: unknown;
+      const heldExit = new Promise<void>((resolve) => {
+        releaseExit = resolve;
+      });
+      await page.route('**/api/canvas/tour/exit', async (route) => {
+        await heldExit;
+        const response = await route.fetch();
+        exitResult = await response.json();
+        await route.fulfill({ response });
+      });
+      try {
+        await exit.click();
+        const restarted = page.waitForResponse('**/api/canvas/tour/go');
+        await page.getByRole('button', { name: 'Present', exact: true }).click();
+        // The restart must complete even if the old exit never gets a response.
+        await restarted;
+        await at(0);
+        const retired = page.waitForResponse('**/api/canvas/tour/exit');
+        releaseExit();
+        await retired;
+        expect(exitResult).toEqual({ ok: true, superseded: true });
+        await at(0);
+        await expect(exit).toBeVisible();
+        await expect(back).toBeDisabled();
+        await next.click();
+        await at(1);
+      } finally {
+        releaseExit();
+        await page.unroute('**/api/canvas/tour/exit');
+      }
+    }
+    await page.keyboard.press('Escape');
+    await expect(exit).toHaveCount(0);
+    const after = await (await request.get('/api/canvas/state')).json();
+    expect(after.nodes).toEqual(before.nodes);
+    expect(after.edges).toEqual(before.edges);
+    expect(after.viewport).toEqual(before.viewport);
+    expect(after.tour).toEqual(tour);
+    await request.post('/api/canvas/tour', { headers, data: { tour: { stops: [] } } });
+    await page.goto(`${url}&present=1`);
+    await expect(page.locator('.presentation-error')).toContainText('no tour stops');
+    await expect(back).toBeDisabled();
+    await expect(next).toBeDisabled();
+    await exit.click();
+    await expect(exit).toHaveCount(0);
+  });
+}
+
 test('tour framing, keyboard exit, painted frames and CLI recording', async ({ page, request }, testInfo) => {
   test.setTimeout(90_000);
   const headers = { 'x-pmx-workbench': '1' };
@@ -386,7 +751,11 @@ test('tour framing, keyboard exit, painted frames and CLI recording', async ({ p
   await forward;
   await page.waitForTimeout(600);
   const lastBox = await last.boundingBox();
-  expect(lastBox!.y).toBeCloseTo(50, 0);
+  expect(lastBox!.y).toBeGreaterThanOrEqual(
+    (await page.locator('.presentation-controls').boundingBox())!.y +
+      (await page.locator('.presentation-controls').boundingBox())!.height +
+      11,
+  );
   expect(lastBox!.x + lastBox!.width).toBeLessThan(1440);
   await page.screenshot({ path: testInfo.outputPath('presentation.png') });
   const backward = delivered(page);
@@ -398,23 +767,19 @@ test('tour framing, keyboard exit, painted frames and CLI recording', async ({ p
   await expect(page.locator('.tool-rail')).toBeVisible();
   await page.getByRole('button', { name: 'Present', exact: true }).click();
   await expect(page.locator('.tool-rail')).toBeHidden();
-  // The capture acknowledgement is followed by a DOM-level matrix check, not
+  // The capture acknowledgement is followed by a rendered camera check, not
   // just an assertion on the model's tuple.
   const camera = { x: 140, y: 80, scale: 0.5 };
   await page.goto(`${workbench}&present=1&capture=1`);
   await page.waitForFunction(() => window.pmxCapture?.ready());
   await expect(page.getByRole('button', { name: 'Exit presentation', exact: true })).toBeHidden();
   await page.evaluate((camera) => window.pmxCapture!.frame(camera), camera);
-  expect(await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform)).toBe(
-    'matrix(0.5, 0, 0, 0.5, 140, 80)',
-  );
+  expect(await renderedCamera(page)).toEqual(camera);
   const viewportUpdate = delivered(page, 'canvas-viewport-update');
   await request.post('/api/canvas/viewport', { headers, data: { x: -500, y: -500, scale: 2 } });
   await viewportUpdate;
   await page.waitForTimeout(100);
-  expect(await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform)).toBe(
-    'matrix(0.5, 0, 0, 0.5, 140, 80)',
-  );
+  expect(await renderedCamera(page)).toEqual(camera);
 
   const frames = testInfo.outputPath('frames');
   const args = [
@@ -538,8 +903,7 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/canvas/update')
       layoutWrites.push(request.postData() ?? '');
   });
-  const world = page.locator('.canvas-world');
-  const scaleNow = () => world.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
+  const scaleNow = async () => (await renderedCamera(page)).scale;
   const inView = async (title: string) => {
     const box = (await page.locator('.canvas-node').filter({ hasText: title }).boundingBox())!;
     return box.x >= 0 && box.y >= 0 && box.x + box.width <= 1440 && box.y + box.height <= 900;
@@ -562,7 +926,7 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
         // painted frame and require the same distinct scales and pull-back.
         const end = performance.now() + (location.search.includes('transport=poll') ? 4000 : 1500);
         const tick = () => {
-          out.push(new DOMMatrix(getComputedStyle(world).transform).a);
+          out.push(new DOMMatrixReadOnly(getComputedStyle(world).transform).a);
           if (performance.now() < end) requestAnimationFrame(tick);
           else resolve(out);
         };
@@ -594,11 +958,8 @@ test('an agent drives the tour and eases the camera without undo entries; reduce
   await expect
     .poll(async () => {
       const saved = (await (await request.get('/api/canvas/state')).json()).viewport;
-      const painted = await world.evaluate((el) => {
-        const m = new DOMMatrix(getComputedStyle(el).transform);
-        return { x: m.e, y: m.f, scale: m.a };
-      });
-      return ['x', 'y', 'scale'].every((k) => Math.abs(saved[k] - painted[k as 'x']) < 0.01);
+      const painted = await renderedCamera(page);
+      return ['x', 'y', 'scale'].every((k) => Math.abs(saved[k] - painted[k as 'x']) < 0.05);
     })
     .toBe(true);
   expect(await history()).toEqual(before);

@@ -1,6 +1,5 @@
 import { type CanvasLayout } from '../../canvas-state.js';
 import { type Operation } from '../types.js';
-export declare const boardCatalogEpoch: `${string}-${string}-${string}-${string}-${string}`;
 export declare function boardsPayload(reloaded?: boolean): Record<string, unknown>;
 /** Read a board without opening it. Omitted board preserves the active-board contract. */
 export declare function readTargetBoard(boardId?: unknown, includeBlobs?: boolean): {

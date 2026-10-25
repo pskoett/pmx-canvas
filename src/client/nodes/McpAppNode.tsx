@@ -1,11 +1,9 @@
-import type { RefObject } from 'preact';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { canvasThemeScheme } from '../../shared/themes.js';
 import type { CanvasNodeState } from '../types';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
-import { showToast } from '../state/attention-bridge';
-import { iframeMode } from '../state/iframe-mode';
+import { RefreshingViewerFrame } from './ViewerFrame';
 import { shouldContentFitIframeNode } from '../canvas/auto-fit';
 import { ExtAppFrame } from './ExtAppFrame';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
@@ -16,6 +14,7 @@ import { isHostedWorkbench } from '../state/workbench-transport';
 
 function withViewerParams(
   url: string,
+  theme: string,
   expanded: boolean,
   specVersion?: number,
   axToken?: string,
@@ -28,9 +27,7 @@ function withViewerParams(
   try {
     const hosted = isHostedWorkbench() && url.startsWith('/');
     const resolved = new URL(url, hosted ? 'https://pmx.invalid' : window.location.origin);
-    // The json-render viewer + artifacts understand dark/light — collapse named
-    // themes (sepia → light, midnight/arctic/ember/forest → dark) to a scheme.
-    resolved.searchParams.set('theme', canvasThemeScheme(canvasTheme.value));
+    resolved.searchParams.set('theme', theme);
     if (expanded) resolved.searchParams.set('display', 'expanded');
     // Streaming json-render nodes bump specVersion as patches accumulate; including
     // it in the src reloads the iframe so it re-reads the latest accumulated spec.
@@ -59,139 +56,6 @@ export function isSameOriginFrameDocumentUrl(url: string, origin = window.locati
   } catch {
     return false;
   }
-}
-
-type ViewerFrameSource = { src?: string; srcdoc?: string };
-
-/**
- * Keep the last painted viewer in front while its replacement navigates. Viewer
- * specs are immutable documents, so updates normally change `?v=` and reload the
- * iframe; putting the new document behind the old one conceals Chromium's white
- * navigation paint without suppressing rendering. Wait for restore and render commit,
- * then two animation frames before the old viewer is removed.
- */
-export function RefreshingViewerFrame({
-  source,
-  iframeRef,
-  onLoad,
-  onDocumentLoad,
-  title,
-  className = 'mcp-app-frame',
-  sandbox = 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox',
-  allow = 'clipboard-read; clipboard-write',
-  tabIndex,
-}: {
-  source: ViewerFrameSource;
-  iframeRef: RefObject<HTMLIFrameElement>;
-  onLoad: () => void;
-  onDocumentLoad?: (frame: HTMLIFrameElement, signal: AbortSignal) => void | Promise<boolean | 'cancelled' | void>;
-  title: string;
-  className?: string;
-  sandbox?: string;
-  allow?: string;
-  tabIndex?: number;
-}) {
-  const sourceKey = source.src ?? source.srcdoc ?? '';
-  const [painted, setPainted] = useState({ key: sourceKey, source, attempt: 0 });
-  const [pending, setPending] = useState<{ key: string; source: ViewerFrameSource; attempt: number } | null>(null);
-  const promotionRef = useRef(0);
-  const readiness = useRef(new Set<AbortController>());
-
-  useLayoutEffect(() => {
-    promotionRef.current += 1;
-    for (const controller of readiness.current) controller.abort();
-    readiness.current.clear();
-    if (!sourceKey || sourceKey === painted.key) {
-      setPending(null);
-      return;
-    }
-    if (!painted.key) {
-      setPainted({ key: sourceKey, source, attempt: 0 });
-      return;
-    }
-    setPending({ key: sourceKey, source, attempt: 0 });
-  }, [sourceKey, painted.key]);
-
-  useEffect(
-    () => () => {
-      promotionRef.current += 1;
-      for (const controller of readiness.current) controller.abort();
-      readiness.current.clear();
-    },
-    [],
-  );
-
-  const frame = (entry: { key: string; source: ViewerFrameSource; attempt: number }, isPending: boolean) => (
-    <iframe
-      key={`${entry.key}:${entry.attempt}`}
-      ref={isPending ? undefined : iframeRef}
-      {...entry.source}
-      class={className}
-      sandbox={sandbox}
-      allow={allow}
-      tabIndex={tabIndex}
-      inert={isPending}
-      aria-hidden={isPending ? true : undefined}
-      loading={iframeMode.value === 'srcdoc' ? undefined : 'lazy'}
-      onLoad={async (event) => {
-        // Seed runtime state while a replacement is still behind the painted
-        // frame, and wait until that document has committed its rendered UI.
-        const token = isPending ? ++promotionRef.current : promotionRef.current;
-        const loadedFrame = event.currentTarget;
-        const controller = new AbortController();
-        readiness.current.add(controller);
-        const ready = onDocumentLoad?.(loadedFrame, controller.signal);
-        const loaded = ready ? await ready : undefined;
-        readiness.current.delete(controller);
-        if (promotionRef.current !== token || loaded === 'cancelled') return;
-        if (loaded === false) {
-          if (entry.attempt === 0) {
-            const retry = { ...entry, attempt: 1 };
-            if (isPending) setPending(retry);
-            else setPainted(retry);
-          } else {
-            if (isPending) setPending(null);
-            showToast(
-              'remove',
-              'Viewer could not load',
-              `${isPending ? 'Keeping the last view. ' : ''}Reload to retry.`,
-            );
-          }
-          return;
-        }
-        if (!isPending) {
-          onLoad();
-          return;
-        }
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            if (promotionRef.current !== token) return;
-            iframeRef.current = loadedFrame;
-            setPainted(entry);
-            setPending(null);
-            onLoad();
-          }),
-        );
-      }}
-      style={{
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        height: '100%',
-        visibility: 'visible',
-        zIndex: isPending ? 0 : 1,
-        background: 'var(--c-panel-soft)',
-      }}
-      title={title}
-    />
-  );
-
-  return (
-    <div class="mcp-app-frame-stack">
-      {frame(painted, false)}
-      {pending && frame(pending, true)}
-    </div>
-  );
 }
 
 export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
@@ -257,15 +121,38 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
     () => (isJsonViewer ? `ui-${crypto.randomUUID()}` : ''),
     [isJsonViewer, specVersion, node.data.url],
   );
-  const url = withViewerParams(
-    (node.data.url as string) || '',
-    expanded,
-    specVersion,
-    axToken || undefined,
-    isAxViewer ? node.id : undefined,
-    frameToken || undefined,
-    contentFit,
-    stateToken || undefined,
+  const theme = canvasTheme.value;
+  const urlTheme = isJsonViewer ? null : canvasThemeScheme(theme);
+  const pushTheme = () => {
+    if (!isJsonViewer) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: HTML_SURFACE_PUSH_SOURCE,
+        type: 'theme-update',
+        token: stateToken,
+        theme: node.data.theme ?? theme,
+        title: node.data.title,
+      },
+      '*',
+    );
+  };
+  useEffect(pushTheme, [theme, stateToken, node.data.theme, node.data.title]);
+  // Only JSON/graph understand theme messages and retain drafts across themes.
+  // Generic viewers consume a dark/light query and navigate when it changes.
+  const url = useMemo(
+    () =>
+      withViewerParams(
+        (node.data.url as string) || '',
+        urlTheme ?? theme,
+        expanded,
+        specVersion,
+        axToken || undefined,
+        isAxViewer ? node.id : undefined,
+        frameToken || undefined,
+        contentFit,
+        stateToken || undefined,
+      ),
+    [node.data.url, urlTheme, expanded, specVersion, axToken, node.id, frameToken, contentFit, stateToken],
   );
   // src vs fetch()+srcdoc, decided by the boot-wide embed probe (Amp portals).
   // External viewer URLs always stay src — the hook passes them through.
@@ -295,7 +182,9 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
         >
           {url}
         </a>
-        {sourceServer && <div style={{ color: 'var(--c-dim)', fontSize: '10px' }}>Source: {sourceServer}</div>}
+        {sourceServer && (
+          <div style={{ color: 'var(--c-dim)', fontSize: 'var(--fs-meta)' }}>Source: {sourceServer}</div>
+        )}
       </div>
     );
   }
@@ -313,7 +202,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
         <div
           style={{
             padding: '4px 8px',
-            fontSize: '10px',
+            fontSize: 'var(--fs-meta)',
             background: 'color-mix(in srgb, var(--c-warn) 10%, transparent)',
             color: 'var(--c-warn)',
             borderBottom: '1px solid color-mix(in srgb, var(--c-warn) 15%, transparent)',
@@ -328,11 +217,15 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
       <RefreshingViewerFrame
         source={surfaceFrame}
         iframeRef={iframeRef}
+        allow="clipboard-read; clipboard-write"
         onDocumentLoad={(frame, signal) => {
           if (stateToken && frame.contentWindow)
-            return restoreViewerRuntimeState(node.id, stateToken, frame.contentWindow, signal);
+            return restoreViewerRuntimeState(node, stateToken, frame.contentWindow, signal);
         }}
-        onLoad={pushAxState}
+        onLoad={() => {
+          pushAxState();
+          pushTheme();
+        }}
         title={`MCP App: ${sourceServer}`}
       />
     </div>

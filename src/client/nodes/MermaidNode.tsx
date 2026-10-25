@@ -1,82 +1,93 @@
-import { useEffect, useMemo, useRef } from 'preact/hooks';
-import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
-import { canvasTheme } from '../state/canvas-store';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { renderMermaid } from '../mermaid-render';
+import { canvasTheme, nodes, updateNode } from '../state/canvas-store';
+import { pushCanvasUpdate } from '../state/intent-bridge';
+import { computeContentGrowHeight, contentFitPosition } from '../canvas/auto-fit';
 import type { CanvasNodeState } from '../types';
-import { nodeSurfaceUrl, surfaceContentHash } from './surface-url';
-import { useIframeContentHeight } from './use-iframe-content-height';
-import { useSurfaceFrame } from './use-surface-frame';
 
-/**
- * Mermaid diagram node — a display-only iframe surface. The server renders the
- * surface document (escaped diagram source + /canvas/mermaid-entry.js) at
- * /api/canvas/surface/:id; the iframe and "Open as site" share that one render
- * path, exactly like html nodes. Minimal subset of HtmlNode: theme push and
- * content-height growth, no AX bridge, no presentation mode.
- */
 export function MermaidNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const theme = canvasTheme.value;
-  // Stable per-mount nonce that authorizes parent → iframe theme-update messages.
-  const themeToken = useMemo(() => `theme-${crypto.randomUUID()}`, []);
-  // Per-mount nonce for the content-height reporter (node grows to fit content).
-  const frameToken = useMemo(() => `frame-${crypto.randomUUID()}`, []);
+  const container = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const source = typeof node.data.content === 'string' ? node.data.content : '';
-  const fit = node.data.fit === 'none' ? 'none' : 'contain';
-  const v = useMemo(() => surfaceContentHash(`${fit}:${source}`), [source, fit]);
+  const theme = canvasTheme.value;
+  const fit = node.data.fit !== 'none';
+  // Fit is layout, not content: it resizes the painted SVG in place. Re-rendering
+  // on a fit change replaced the element and left a detached SVG mid-update.
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
 
-  // `theme` is intentionally excluded from the deps: live theme changes are
-  // pushed via postMessage below (no reload), while `v` reloads the frame when
-  // the diagram source changes.
-  const surfaceSrc = useMemo(
-    () => (source ? nodeSurfaceUrl(node.id, { theme, themeToken, v, frameToken }) : ''),
-    [source, themeToken, v, node.id, frameToken],
-  );
-
-  // src vs fetch()+srcdoc, decided by the boot-wide embed probe (Amp portals).
-  const surfaceFrame = useSurfaceFrame(surfaceSrc);
-
-  // Grow the node to fit the surface's reported content height (grow-only, gated).
-  // Never in the expanded overlay — there the surface fills the large overlay frame.
-  useIframeContentHeight(node, iframeRef, expanded ? '' : frameToken);
-
-  const pushTheme = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        source: HTML_SURFACE_PUSH_SOURCE,
-        type: 'theme-update',
-        token: themeToken,
-        theme,
-      },
-      '*',
-    );
+  const fitDiagram = () => {
+    const element = container.current;
+    const svg = element?.querySelector('svg');
+    const box = svg?.viewBox.baseVal;
+    if (!element || !svg || !box?.width || !box.height) return;
+    const scale = fitRef.current ? Math.min(1, element.clientWidth / box.width, element.clientHeight / box.height) : 1;
+    svg.style.maxWidth = 'none';
+    svg.style.width = `${box.width * scale}px`;
+    svg.style.height = `${box.height * scale}px`;
+    svg.style.margin = fitRef.current ? '0 auto' : '0';
   };
 
-  useEffect(pushTheme, [theme, themeToken]);
+  const growToDiagram = () => {
+    const element = container.current;
+    const box = element?.querySelector('svg')?.viewBox.baseVal;
+    const current = nodes.value.get(node.id);
+    if (expanded || !element || !box?.width || !current) return;
+    const naturalHeight = box.height * (fitRef.current ? Math.min(1, element.clientWidth / box.width) : 1);
+    const card = element.closest<HTMLElement>('.canvas-node')!;
+    const height = computeContentGrowHeight(current, naturalHeight, card.offsetHeight - element.clientHeight);
+    if (height === null) return;
+    const position = contentFitPosition(current, height, Array.from(nodes.value.values()));
+    const patch = { size: { width: current.size.width, height }, position };
+    updateNode(node.id, patch);
+    void pushCanvasUpdate([{ id: node.id, ...patch }], { recordHistory: false });
+  };
 
-  if (!source) {
-    return <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>No diagram source set</div>;
-  }
+  useEffect(() => {
+    let cancelled = false;
+    const element = container.current;
+    if (!element || !source) return;
+    const observer = new ResizeObserver(fitDiagram);
+    observer.observe(element);
+    const render = async () => {
+      try {
+        const svg = await renderMermaid(source);
+        if (cancelled) return;
+        element.innerHTML = svg;
+        setError('');
+        element.querySelector('svg')?.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        fitDiagram();
+        growToDiagram();
+      } catch (failure) {
+        if (!cancelled) setError(failure instanceof Error ? failure.message : String(failure));
+      }
+    };
+    void render();
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [source, theme, expanded, attempt]);
 
-  // SECURITY: sandbox stays `allow-scripts` ONLY — same tier as html surfaces
-  // (see HtmlNode for the full rationale); the surface route sends a matching
-  // CSP sandbox header.
+  // Same commit as data-fit, so the attribute and the painted size never disagree.
+  useLayoutEffect(() => {
+    fitDiagram();
+    growToDiagram();
+  }, [fit]);
+
+  if (!source) return <div class="viewer-placeholder">No diagram source set</div>;
   return (
-    <iframe
-      ref={iframeRef}
-      class="html-node-frame"
-      title={typeof node.data.title === 'string' ? node.data.title : 'Mermaid diagram'}
-      sandbox="allow-scripts"
-      {...surfaceFrame}
-      onLoad={pushTheme}
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: expanded ? '70vh' : '0',
-        border: 'none',
-        background: 'var(--c-bg)',
-        borderRadius: '6px',
-        display: 'block',
-      }}
-    />
+    <div class="mermaid-viewer" data-fit={fit ? 'contain' : 'none'}>
+      <div ref={container} class="mermaid-diagram" />
+      {error && (
+        <div class="viewer-fallback" role="status">
+          <span>{error}</span>
+          <button type="button" onClick={() => setAttempt(attempt + 1)}>
+            Retry
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

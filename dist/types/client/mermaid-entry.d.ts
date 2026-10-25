@@ -5,7 +5,6 @@
  * HTML-escaped diagram source in `<pre class="mermaid-source">`; this script
  * reads it back via textContent, renders it to SVG, and re-renders when the
  * parent canvas live-switches the theme (the theme bridge toggles the document's
- * `data-theme` attribute). Keeping mermaid out of the main SPA bundle keeps the
- * canvas boot lean — only mermaid-node surfaces pay for the library.
+ * `data-theme` attribute). Standalone views and exports share the canvas renderer.
  */
 export {};

@@ -1,18 +1,21 @@
 import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { IconClose } from '../icons';
-import { workbenchFetch } from '../state/workbench-transport';
+import {
+  AppBridge,
+  PostMessageTransport,
+  buildAllowAttribute,
+  McpUiHostStylesSchema,
+} from '@modelcontextprotocol/ext-apps/app-bridge';
+import { useEffect, useMemo, useRef } from 'preact/hooks';
 import {
   AX_SURFACE_ACK_SOURCE,
   AX_SURFACE_EMIT_SOURCE,
-  EXT_APP_BOOT_BEACON_SOURCE,
-  EXT_APP_PAINT_PROBE_SOURCE,
+  HTML_SURFACE_PUSH_SOURCE,
 } from '../../shared/ax-surface-protocol.js';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
 import { canvasThemeScheme } from '../../shared/themes.js';
+import { AUTO_FIT_TITLEBAR_HEIGHT } from '../canvas/auto-fit';
 import {
   canvasTheme,
   collapseExpandedNode,
@@ -22,24 +25,13 @@ import {
   persistLayout,
   resizeNode,
 } from '../state/canvas-store';
+import { workbenchFetch } from '../state/workbench-transport';
 import type { CanvasNodeState } from '../types';
-import { AUTO_FIT_TITLEBAR_HEIGHT } from '../canvas/auto-fit';
 import { useIframeDocument } from './iframe-document-url';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
+import { RefreshingViewerFrame, waitForViewerPaint } from './ViewerFrame';
 
-type McpUiTheme = 'light' | 'dark';
-
-type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
-type ExtAppFrameStatus = 'loading' | 'ready' | 'done';
-/** Paint probe outcome: only a content-carrying tick counts as painted. */
-export type PaintProbeVerdict = 'content-verified' | 'tick-no-content' | 'timeout';
-
-interface ExtAppHostDimensionsTarget {
-  clientWidth?: number;
-  clientHeight?: number;
-  getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>;
-}
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const response = await workbenchFetch(url, {
@@ -47,179 +39,17 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = (await response.json()) as {
-    ok: boolean;
-    result?: T;
-    error?: string;
-  };
+  const json = (await response.json()) as { ok: boolean; result?: T; error?: string };
   if (!json.ok) throw new Error(json.error ?? `Request failed: ${url}`);
   return json.result as T;
 }
 
-/**
- * Finding F (0.2.4): detect a WebKit-only host — Safari or a WKWebView (e.g. the
- * GitHub Copilot app's embedded panel). Blink engines (Chrome / Chromium / Edge /
- * the Codex browser, all of which carry a Chrome/Chromium/CriOS/Edg token) and
- * Android WebView are excluded, as is Gecko (no `AppleWebKit`). Used to gate the
- * one-time ext-app iframe repaint remount to the only engine that exhibits the
- * present-at-load black-tile paint race, so the remount is a strict no-op
- * everywhere we can test (Chrome / Codex / Playwright).
- */
-export function isWebKitOnlyHost(userAgent: string): boolean {
-  return /AppleWebKit/.test(userAgent) && !/Chrome|Chromium|CriOS|Edg|Android/.test(userAgent);
-}
-
-/**
- * Finding N (0.4.7 report): the GitHub Copilot panel's WKWebView reports
- * `document.visibilityState === 'hidden'` CONTINUOUSLY — the workbench document
- * never transitions to 'visible' even with the panel open and on-screen. Two
- * things break as a result: the `visibilitychange` re-arm below can never fire
- * (there is no transition to listen for), and `paint-ok` becomes a false green —
- * the app document happily answers the double-rAF paint probe while the
- * compositor still shows black. The instrumented trail from that session carries
- * `visibility: "hidden"` on essentially every recovery event.
- *
- * So: when the document CLAIMS hidden but the frame is demonstrably on-screen,
- * do not trust the claim — spend one more recovery round as if visible. A host
- * that ever reports 'visible' has a working signal and is left to the
- * visibilitychange path, which keeps a genuinely backgrounded panel quiet.
- */
-export function shouldAssumeVisibleRearm(options: {
-  userAgent: string;
-  visibilityState: string;
-  rect: { top: number; left: number; bottom: number; right: number; width: number; height: number };
-  viewport: { width: number; height: number };
-  alreadyRearmed: boolean;
-}): boolean {
-  const { userAgent, visibilityState, rect, viewport, alreadyRearmed } = options;
-  if (alreadyRearmed) return false;
-  if (!isWebKitOnlyHost(userAgent)) return false;
-  if (visibilityState !== 'hidden') return false;
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  return rect.bottom > 0 && rect.right > 0 && rect.top < viewport.height && rect.left < viewport.width;
-}
-
-// Finding F (0.2.5, reworked 0.3.1): BOOT-AWARE serialized WebKit remount queue.
-// The black tile is a cold-hydration BURST problem — a single ext-app repaints fine
-// into an idle panel (like a live-created node, or expand+close), but several
-// compositing at once overwhelm WebKit and all stay black. The 0.2.5 fixed-stagger
-// slots (450ms apart) were NOT boot-aware: each recovery remount reboots the app
-// (~1-2s for Excalidraw), so N staggered remounts overlapped into a fresh burst and
-// the per-node one-shot flag was spent — exactly the multi-app reload blackout the
-// 0.3.1 report shows. This queue runs remounts strictly one at a time: each entry
-// performs its remount, then waits for that app's GENUINE initialized handshake
-// (or a bounded timeout for an app that never boots) plus a settle delay before the
-// next entry fires — so every remount lands in an idle panel, which is the
-// empirically always-successful recovery (what expand+close does manually).
-// Settle covers the scene DRAW: the app's initialized handshake fires before the
-// replayed tool result arrives and the scene is painted, so the queue waits for the
-// settled signal (bootstrap chain incl. tool-result send complete) plus this pause.
-export const WEBKIT_REMOUNT_SETTLE_MS = 1000;
-const WEBKIT_BOOT_TIMEOUT_MS = 7000;
-
-export interface WebkitRemountTask {
-  /** Perform the remount. Return false if the node no longer needs it (skips the boot wait). */
-  remount: () => boolean;
-  /** Resolves when the remounted app genuinely boots AND finishes its bootstrap replay, or after a bounded timeout. */
-  awaitBoot: () => Promise<void>;
-}
-
-// Bounded recovery trail readable via `webview evaluate` / devtools
-// (window.__PMX_EXTAPP_LOG). The WebKit compositor dropout is otherwise
-// unobservable from page JS — this is the only diagnostic surface.
-export function extAppRecoveryLog(nodeId: string, event: string): void {
-  if (typeof window === 'undefined') return;
-  const host = window as unknown as { __PMX_EXTAPP_LOG?: Array<{ t: number; nodeId: string; event: string }> };
-  host.__PMX_EXTAPP_LOG ??= [];
-  if (host.__PMX_EXTAPP_LOG.length < 500) host.__PMX_EXTAPP_LOG.push({ t: Date.now(), nodeId, event });
-  queueExtAppRecoveryReport({ t: Date.now(), nodeId, event });
-}
-
-// Mirror the recovery trail to the daemon (batched, fire-and-forget) so a host
-// panel without devtools access — the Copilot WKWebView, exactly where the
-// black tiles happen — still yields an actionable trace: agents read it back
-// via GET /api/canvas/debug/ext-app-recovery (0.3.2 report Finding N).
-const extAppReportQueue: Array<{ t: number; nodeId: string; event: string; visibility?: string }> = [];
-let extAppReportTimer: ReturnType<typeof setTimeout> | null = null;
-function queueExtAppRecoveryReport(entry: { t: number; nodeId: string; event: string }): void {
-  extAppReportQueue.push({
-    ...entry,
-    ...(typeof document !== 'undefined' ? { visibility: document.visibilityState } : {}),
-  });
-  if (extAppReportTimer) return;
-  extAppReportTimer = setTimeout(() => {
-    extAppReportTimer = null;
-    const entries = extAppReportQueue.splice(0);
-    if (entries.length === 0) return;
-    void workbenchFetch('/api/canvas/debug/ext-app-recovery', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries }),
-    }).catch(() => {
-      // Diagnostics only — never let reporting failures affect recovery.
-    });
-  }, 1500);
-}
-
-let webkitRemountChain: Promise<void> = Promise.resolve();
-export function enqueueWebkitRemount(task: WebkitRemountTask): void {
-  webkitRemountChain = webkitRemountChain
-    .then(async () => {
-      if (!task.remount()) return;
-      await task.awaitBoot();
-      await new Promise((resolve) => setTimeout(resolve, WEBKIT_REMOUNT_SETTLE_MS));
-    })
-    .catch(() => {});
-}
-
-export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string {
-  const html = typeof node.data.html === 'string' ? node.data.html : '';
-  const serverName = typeof node.data.serverName === 'string' ? node.data.serverName : '';
-  const appSessionId = typeof node.data.appSessionId === 'string' ? node.data.appSessionId : '';
-  const sessionStatus = typeof node.data.sessionStatus === 'string' ? node.data.sessionStatus : '';
-  return `${node.id}:${retryKey}:${serverName}:${appSessionId}:${sessionStatus}:${html}`;
-}
-
-export function resolveExtAppDisplayModeRequest(
-  requestedMode: DisplayMode,
-  isExpanded: boolean,
-): { nextMode: DisplayMode; shouldExpand: boolean; shouldCollapse: boolean } {
-  if (requestedMode === 'fullscreen') {
-    return {
-      nextMode: 'fullscreen',
-      shouldExpand: !isExpanded,
-      shouldCollapse: false,
-    };
-  }
-
-  if (requestedMode === 'inline') {
-    return {
-      nextMode: 'inline',
-      shouldExpand: false,
-      shouldCollapse: isExpanded,
-    };
-  }
-
+export function resolveExtAppDisplayModeRequest(requestedMode: DisplayMode, isExpanded: boolean) {
   return {
     nextMode: requestedMode,
-    shouldExpand: false,
-    shouldCollapse: false,
+    shouldExpand: requestedMode === 'fullscreen' && !isExpanded,
+    shouldCollapse: requestedMode === 'inline' && isExpanded,
   };
-}
-
-export async function sendExtAppBootstrapState(
-  bridge: ExtAppBridgeNotifications,
-  toolInput: Record<string, unknown>,
-  toolResult: CallToolResult | undefined,
-): Promise<void> {
-  await bridge.sendToolInput({ arguments: toolInput });
-  if (toolResult) {
-    await bridge.sendToolResult(toolResult);
-  }
-}
-
-export function resolveExtAppSandbox(value: unknown): string {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : DEFAULT_EXT_APP_SANDBOX;
 }
 
 export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): string {
@@ -227,6 +57,19 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
 (function () {
   const PMX_AX_TOKEN = ${JSON.stringify(axToken)};
   const PMX_AX_NODE_ID = ${JSON.stringify(nodeId)};
+  window.addEventListener('message', function (event) {
+    const m = event.data;
+    if (event.source !== parent || !m || m.source !== 'pmx-viewer-theme' || m.token !== PMX_AX_TOKEN) return;
+    for (const [name, value] of Object.entries(m.variables)) document.documentElement.style.setProperty(name, value);
+  });
+  window.addEventListener('message', function (event) {
+    const m = event.data;
+    if (event.source !== parent || !m || m.source !== '${HTML_SURFACE_PUSH_SOURCE}' || m.token !== PMX_AX_TOKEN || m.type !== 'check-ready') return;
+    parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'mounted', token: PMX_AX_TOKEN }, '*');
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'ready', token: PMX_AX_TOKEN }, '*');
+    }); });
+  });
   window.PMX_AX = window.PMX_AX || {};
   const pending = new Map();
   const ackListeners = [];
@@ -241,9 +84,7 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
       }, 10000);
       pending.set(correlationId, function (result) { clearTimeout(timer); resolve(result); });
       window.parent.postMessage({
-        source: '${AX_SURFACE_EMIT_SOURCE}',
-        token: PMX_AX_TOKEN,
-        nodeId: PMX_AX_NODE_ID,
+        source: '${AX_SURFACE_EMIT_SOURCE}', token: PMX_AX_TOKEN, nodeId: PMX_AX_NODE_ID,
         correlationId: correlationId,
         interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
       }, '*');
@@ -254,7 +95,7 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
   };
   window.addEventListener('message', function (event) {
     const m = event.data;
-    if (!m || m.source !== '${AX_SURFACE_ACK_SOURCE}' || m.token !== PMX_AX_TOKEN) return;
+    if (event.source !== window.parent || !m || m.source !== '${AX_SURFACE_ACK_SOURCE}' || m.token !== PMX_AX_TOKEN) return;
     const result = m.result || { ok: false };
     const resolver = m.correlationId ? pending.get(m.correlationId) : undefined;
     if (resolver) { pending.delete(m.correlationId); resolver(result); }
@@ -267,132 +108,16 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
 </script>`;
 }
 
-/**
- * Boot beacon injected into EVERY ext-app document (not gated on AX): posts one
- * parent message the moment the iframe's scripts execute. This is the liveness
- * signal the WebKit never-booted watchdog keys on — it distinguishes an app
- * that is alive but boots via the 1200ms bootstrap fallback (e.g. a non-SDK
- * widget that never sends ui/notifications/initialized) from a dead window
- * whose scripts never ran. Without it, the watchdog treated every
- * fallback-booted app as never-booted and remounted it up to the attempt cap —
- * a reboot/flicker loop for exactly the apps the fallback exists to support
- * (0.3.2 pre-release review). The token scopes the message to this component;
- * the host also checks event.source against the live iframe.
- */
-export function buildExtAppBootBeaconScript(frameToken: string, nodeId: string): string {
-  return `<script data-pmx-canvas-boot-beacon>
-(function () {
-  var TOKEN = ${JSON.stringify(frameToken)};
-  var NODE_ID = ${JSON.stringify(nodeId)};
-  window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID }, '*');
-  // Paint-tick answers (Finding N): a double rAF only fires when this frame's
-  // rendering pipeline is actually running — a frame whose layer WebKit never
-  // composites stays silent, and that silence drives the parent's recovery
-  // ladder. One unsolicited tick at boot, then on-demand answers to probes.
-  // Content oracle v2 (Finding N, 0.5.1 reopen): a LAID-OUT canvas passed the
-  // 0.5.1 oracle even when nothing was ever drawn into it — Excalidraw mounts
-  // its canvas element the moment React renders, so blank cream tiles read
-  // paint-ok (content-verified), the ladder concluded success, and Retry
-  // never engaged (Copilot 0.5.1 report: A/C/E cream with a green trail).
-  // The oracle now samples the canvas's PIXELS: a readable main drawing
-  // surface with uniform pixels is not content, whatever shell chrome or
-  // boilerplate text the document laid out around it.
-  function canvasInk(el) {
-    try {
-      if (!el.width || !el.height) return 'blank';
-      var sw = Math.min(96, el.width);
-      var sh = Math.min(64, el.height);
-      var probe = document.createElement('canvas');
-      probe.width = sw;
-      probe.height = sh;
-      var ctx = probe.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return 'unknown';
-      ctx.drawImage(el, 0, 0, sw, sh);
-      var d = ctx.getImageData(0, 0, sw, sh).data;
-      var r = d[0], g = d[1], b = d[2], a = d[3];
-      for (var i = 4; i < d.length; i += 4) {
-        if (Math.abs(d[i] - r) > 3 || Math.abs(d[i + 1] - g) > 3 || Math.abs(d[i + 2] - b) > 3 || Math.abs(d[i + 3] - a) > 3) return 'ink';
-      }
-      return 'blank';
-    } catch (e) {
-      return 'unknown'; // tainted or WebGL-unreadable: pixels cannot be judged
-    }
-  }
-  function contentVerdict() {
-    try {
-      var canvases = document.querySelectorAll('canvas');
-      var blankMain = false;
-      var unreadable = false;
-      for (var i = 0; i < canvases.length; i++) {
-        var r = canvases[i].getBoundingClientRect();
-        if (r.width <= 8 || r.height <= 8) continue;
-        var ink = canvasInk(canvases[i]);
-        if (ink === 'ink') return { content: true, detail: 'ink' };
-        if (ink === 'unknown') unreadable = true;
-        else if (r.width >= 160 && r.height >= 120) blankMain = true;
-      }
-      // A readable, never-painted main surface vetoes everything below:
-      // toolbar icons and shell text around a blank drawing surface is
-      // exactly the false green the human reports as an empty cream tile.
-      if (blankMain) return { content: false, detail: 'blank-canvas' };
-      if (unreadable) return { content: true, detail: 'canvas-unreadable' };
-      var svgs = document.querySelectorAll('svg');
-      for (var j = 0; j < svgs.length; j++) {
-        var sr = svgs[j].getBoundingClientRect();
-        if (sr.width > 8 && sr.height > 8 && svgs[j].querySelector('path, rect, circle, ellipse, line, polyline, polygon, text, image, use')) {
-          return { content: true, detail: 'svg' };
-        }
-      }
-      var body = document.body;
-      if (body && body.innerText && body.innerText.trim().length > 0) return { content: true, detail: 'text' };
-      return { content: false, detail: 'empty' };
-    } catch (e) {
-      return { content: false, detail: 'probe-error' };
-    }
-  }
-  function sendPaintTick() {
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        var v = contentVerdict();
-        window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID, kind: 'paint-tick', content: v.content, detail: v.detail }, '*');
-      });
-    });
-  }
-  window.addEventListener('message', function (event) {
-    var m = event.data;
-    if (m && m.source === '${EXT_APP_PAINT_PROBE_SOURCE}' && m.token === TOKEN) sendPaintTick();
-  });
-  sendPaintTick();
-})();
-</script>`;
-}
-
-/**
- * Base styles injected into every ext-app document (Finding Q, 0.3.4 report):
- * apps aspect-fit their drawn surface to the frame width, and on narrow/tall
- * tiles the leftover region shows the app document's own body background —
- * pure black for the hosted Excalidraw bundle, in every engine. Making the
- * app document transparent lets the host iframe's theme background
- * (var(--c-panel)) show through the letterbox instead. Background only — app
- * content, its drawn scene, and its own foreground styling are untouched.
- */
 export function buildExtAppSurfaceBaseStyles(): string {
-  return '<style data-pmx-canvas-ext-app-base>html, body { background: transparent !important; }</style>';
+  return '<style data-pmx-canvas-ext-app-base>html, body { background: var(--c-panel, transparent) !important; }</style>';
 }
 
-export function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string {
-  if (!axBridgeScript) return html;
-  const headMatch = /<head\b[^>]*>/i.exec(html);
-  if (headMatch?.index !== undefined) {
-    const insertAt = headMatch.index + headMatch[0].length;
-    return `${html.slice(0, insertAt)}${axBridgeScript}${html.slice(insertAt)}`;
-  }
-  const bodyMatch = /<body\b[^>]*>/i.exec(html);
-  if (bodyMatch?.index !== undefined) {
-    const insertAt = bodyMatch.index + bodyMatch[0].length;
-    return `${html.slice(0, insertAt)}${axBridgeScript}${html.slice(insertAt)}`;
-  }
-  return `${axBridgeScript}${html}`;
+export function injectExtAppAxBridgeScript(html: string, script: string): string {
+  if (!script) return html;
+  const head = /<head\b[^>]*>/i.exec(html) ?? /<body\b[^>]*>/i.exec(html);
+  if (!head) return `${script}${html}`;
+  const end = head.index + head[0].length;
+  return `${html.slice(0, end)}${script}${html.slice(end)}`;
 }
 
 function positiveDimension(value: number, fallback: number): number {
@@ -402,9 +127,16 @@ function positiveDimension(value: number, fallback: number): number {
 }
 
 export function resolveExtAppContainerDimensions(
-  target: ExtAppHostDimensionsTarget | null | undefined,
+  target:
+    | {
+        clientWidth?: number;
+        clientHeight?: number;
+        getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>;
+      }
+    | null
+    | undefined,
   fallback: { width: number; height: number },
-): { width: number; height: number } {
+) {
   const rect = target?.getBoundingClientRect();
   return {
     width: positiveDimension(target?.clientWidth ?? 0, positiveDimension(rect?.width ?? 0, fallback.width)),
@@ -416,1186 +148,275 @@ export function shouldApplyExtAppSizeChange(height: unknown, isExpanded: boolean
   return typeof height === 'number' && Number.isFinite(height) && height > 0 && !isExpanded;
 }
 
-export function resolveExtAppInlineFrameHeight(appHeight: number, hostHeight: number): number {
-  return Math.max(positiveDimension(appHeight, 1), positiveDimension(hostHeight, 1));
+// The MCP scheme remains dark/light, but apps also receive the complete canvas
+// palette and the SDK's standard style aliases without a document reload.
+function canvasVariables() {
+  const computed = getComputedStyle(document.documentElement);
+  const variables: Record<string, string> = {};
+  for (const name of Array.from(computed)) {
+    if (/^--(c-|font-|fs-|space-|r-|e-)/.test(name)) variables[name] = computed.getPropertyValue(name).trim();
+  }
+  return variables;
+}
+
+function hostStyles() {
+  const computed = getComputedStyle(document.documentElement);
+  const variables: Record<string, string> = {};
+  const aliases: Record<string, string> = {
+    '--color-background-primary': '--c-panel',
+    '--color-background-secondary': '--c-panel-soft',
+    '--color-text-primary': '--c-text',
+    '--color-text-secondary': '--c-text-soft',
+    '--color-border-primary': '--c-line',
+    '--font-sans': '--font-ui',
+    '--font-mono': '--font-code',
+  };
+  for (const [name, token] of Object.entries(aliases)) variables[name] = computed.getPropertyValue(token).trim();
+  return McpUiHostStylesSchema.parse({ variables });
 }
 
 export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const bridgeRef = useRef<AppBridge | null>(null);
-  const transportRef = useRef<PostMessageTransport | null>(null);
-  const sizePersistTimerRef = useRef<number | null>(null);
-  const latestToolInputRef = useRef<Record<string, unknown>>({});
-  const latestToolResultRef = useRef<CallToolResult | undefined>(undefined);
-  const toolResultSentRef = useRef(false);
-  const lastSentToolResultRef = useRef<CallToolResult | undefined>(undefined);
-  const toolResultSendingRef = useRef<Promise<void> | null>(null);
-  const bridgeReadyRef = useRef(false);
-  const themeUnsubRef = useRef<(() => void) | null>(null);
-  const webkitRemountAttemptsRef = useRef(0);
-  // Paint oracle (Finding N): resolvers waiting for the frame's next paint-tick,
-  // each handed the tick's content verdict + the oracle's reason for it.
-  const paintTickWaitersRef = useRef<Array<(tick: { content: boolean; detail: string }) => void>>([]);
-  // Last tick's oracle detail (ink / blank-canvas / svg / text / …) for the
-  // recovery trail — the label is the diagnostic the field reports read.
-  const lastPaintDetailRef = useRef<string>('');
-  // Genuine boot signal: set ONLY when the app completes the ui/initialize
-  // handshake (bridge.oninitialized) — NOT by the 1200ms bootstrap fallback,
-  // which flips status via notifications that resolve even into a dead iframe.
-  const appInitializedRef = useRef(false);
-  // Liveness signal from the injected boot beacon: the CURRENT frame's scripts
-  // executed. Proves "alive" for apps that boot via the fallback path without
-  // ever sending initialized; a dead window never beacons.
-  const appScriptsRanRef = useRef(false);
-  const bootWaitersRef = useRef<Array<() => void>>([]);
-  const remountQueuedRef = useRef(false);
-  // Recovery ran while the document was hidden (compositing suppressed) — re-arm
-  // one fresh remount round when the panel becomes visible (Finding N).
-  const bootedWhileHiddenRef = useRef(false);
-  // Finding N (0.4.7): at most one "assume visible" round per frame lifetime, so
-  // a host that is hidden forever cannot turn the re-arm into a remount loop.
-  const assumeVisibleRearmDoneRef = useRef(false);
-  const unmountedRef = useRef(false);
-  const [status, setStatus] = useState<ExtAppFrameStatus>('loading');
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
-  // WebKit paint ladder state: overlay holds until paint is confirmed; when the
-  // ladder exhausts its budget the tile shows an explicit Retry instead of
-  // silent black (Finding N).
-  const [paintPending, setPaintPending] = useState(false);
-  const [recoveryExhausted, setRecoveryExhausted] = useState(false);
-  // Serialized initial mount (Finding N): on WebKit, present-at-load ext-apps
-  // boot strictly one at a time through the shared queue — the cold-hydration
-  // BURST is what overwhelms the compositor. Everywhere else, mount instantly.
-  const [mountGranted, setMountGranted] = useState(
-    () =>
-      expanded ||
-      typeof navigator === 'undefined' ||
-      typeof window === 'undefined' ||
-      !isWebKitOnlyHost(navigator.userAgent),
+  const connections = useRef(
+    new Map<HTMLIFrameElement, { flush: () => void; theme: () => void; loaded: () => Promise<boolean> }>(),
   );
-
-  const html = node.data.html as string | null;
-  const serverName = node.data.serverName as string | undefined;
+  const latest = useRef(node);
+  latest.current = node;
+  const html = typeof node.data.html === 'string' ? node.data.html : '';
   const appSessionId = node.data.appSessionId as string | undefined;
-  const toolInput = (node.data.toolInput as Record<string, unknown> | undefined) ?? {};
-  const toolResult = node.data.toolResult as CallToolResult | undefined;
-  const toolName = (node.data.toolName as string) ?? 'ext-app';
-  const toolDefinition = node.data.toolDefinition as Tool | undefined;
-  const rawToolCallId = node.data.toolCallId;
-  const toolCallId: RequestId | undefined =
-    typeof rawToolCallId === 'string' || typeof rawToolCallId === 'number' ? rawToolCallId : undefined;
   const resourceMeta = node.data.resourceMeta as
-    | {
-        csp?: Record<string, unknown>;
-        permissions?: Record<string, unknown>;
-      }
+    | { csp?: Record<string, unknown>; permissions?: Record<string, unknown> }
     | undefined;
-  const sessionStatus = node.data.sessionStatus as string | undefined;
-  const sessionError = node.data.sessionError as string | undefined;
-  const maxHeight = node.size.height;
-  const nodeId = node.id;
-  const frameKey = getExtAppBridgeInitKey(node, retryKey);
-  const iframeSandbox = resolveExtAppSandbox(null);
-  // Phase 6 — opt-in ext-app AX bridge. When the node sets data.axCapabilities.enabled,
-  // inject window.PMX_AX into the app HTML and accept emits below (server re-validates).
-  const axCaps = node.data.axCapabilities as { enabled?: boolean } | undefined;
-  const axEnabled = axCaps?.enabled === true && typeof html === 'string' && html.length > 0;
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
-  const axBridgeScript = axEnabled ? buildExtAppAxBridgeScript(axToken, nodeId) : '';
-  // The boot beacon precedes the AX bridge so it runs first at parse time; it
-  // shares the per-component token (used purely to authenticate the message).
-  const bootBeaconScript =
-    typeof html === 'string' && html.length > 0 ? buildExtAppBootBeaconScript(axToken, nodeId) : '';
-  const iframeDocument = useIframeDocument(
-    injectExtAppAxBridgeScript(html ?? '', buildExtAppSurfaceBaseStyles() + bootBeaconScript + axBridgeScript),
-    iframeSandbox,
+  const axEnabled = (node.data.axCapabilities as { enabled?: boolean } | undefined)?.enabled === true;
+  const documentHtml = injectExtAppAxBridgeScript(
+    html,
+    buildExtAppSurfaceBaseStyles() + buildExtAppAxBridgeScript(axToken, node.id),
   );
+  const frameDocument = useIframeDocument(documentHtml, DEFAULT_EXT_APP_SANDBOX);
+  useAxSurfaceBridge({ enabled: axEnabled, token: axToken, nodeId: node.id, sourceSurface: 'mcp-app', iframeRef });
 
-  useEffect(() => {
-    function onBootBeacon(event: MessageEvent) {
-      if (event.source !== iframeRef.current?.contentWindow) return;
-      const data = event.data as { source?: string; token?: string; nodeId?: string; kind?: string } | null;
-      if (!data || data.source !== EXT_APP_BOOT_BEACON_SOURCE || data.token !== axToken || data.nodeId !== nodeId)
-        return;
-      appScriptsRanRef.current = true;
-      if (data.kind === 'paint-tick') {
-        const tickData = data as { content?: unknown; detail?: unknown };
-        const tick = {
-          content: tickData.content === true,
-          detail: typeof tickData.detail === 'string' ? tickData.detail : '',
-        };
-        for (const waiter of paintTickWaitersRef.current.splice(0)) waiter(tick);
-      }
-    }
-    window.addEventListener('message', onBootBeacon);
-    return () => window.removeEventListener('message', onBootBeacon);
-  }, [axToken, nodeId]);
+  const sessionMessage =
+    node.data.sessionStatus === 'error'
+      ? `Live session unavailable. Showing saved content. Reopen the app to restore interactivity.${node.data.sessionError ? ` (${node.data.sessionError})` : ''}`
+      : 'Reconnecting saved app session…';
 
-  // Acquire a serialized mount slot (Finding N). Reuses the boot-aware queue:
-  // the next present-at-load app's iframe is not even created until this one
-  // has settled (or timed out), so every WebKit boot lands in an idle panel —
-  // the empirically always-successful condition. The expanded overlay instance
-  // and non-WebKit hosts mount immediately (mountGranted starts true).
-  useEffect(() => {
-    if (mountGranted) return;
-    enqueueWebkitRemount({
-      remount: () => {
-        if (unmountedRef.current) return false;
-        extAppRecoveryLog(nodeId, 'mount-slot');
-        setMountGranted(true);
-        return true;
-      },
-      awaitBoot: () =>
-        new Promise<void>((resolve) => {
-          const timer = window.setTimeout(finish, WEBKIT_BOOT_TIMEOUT_MS);
-          function finish() {
-            window.clearTimeout(timer);
-            resolve();
-          }
-          bootWaitersRef.current.push(finish);
-        }),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Ext-app AX emits — the shared sandboxed-surface trust boundary (M2).
-  useAxSurfaceBridge({ enabled: axEnabled, token: axToken, nodeId, sourceSurface: 'mcp-app', iframeRef });
-
-  // Enqueue one serialized remount attempt for this node (Finding F recovery).
-  // Attempts are capped so a persistently-failing app degrades to the manual
-  // fallback (expand+close / Retry) instead of remount-looping forever.
-  const WEBKIT_MAX_REMOUNT_ATTEMPTS = 3;
-  const scheduleWebkitRemount = (reason: string): boolean => {
-    if (webkitRemountAttemptsRef.current >= WEBKIT_MAX_REMOUNT_ATTEMPTS) {
-      extAppRecoveryLog(nodeId, `remount-cap-hit (${reason})`);
-      return false;
-    }
-    if (remountQueuedRef.current) return true; // an attempt is already queued and has not run yet
-    webkitRemountAttemptsRef.current += 1;
-    remountQueuedRef.current = true;
-    extAppRecoveryLog(nodeId, `remount-queued #${webkitRemountAttemptsRef.current} (${reason})`);
-    enqueueWebkitRemount({
-      remount: () => {
-        remountQueuedRef.current = false;
-        if (unmountedRef.current || (!expanded && expandedNodeId.value === nodeId)) {
-          extAppRecoveryLog(nodeId, 'remount-skipped');
-          // The ladder left paintPending set on the promise that this remount
-          // would re-enter it via the new frame's settle path. A skip means
-          // that never happens — release the overlay here, or the tile spins
-          // "Finishing paint…" forever with no Retry (the expanded overlay
-          // mounts its own frame, and closing it re-runs the inline ladder).
-          setPaintPending(false);
-          return false;
-        }
-        // Stamp visibility at RUN time, not schedule time: the serialized queue
-        // can hold this slot for many seconds, and what decides whether the
-        // repaint can composite is the document's visibility when the remount
-        // actually executes (the Finding N re-arm keys on this flag). Covers
-        // every scheduling path (post-boot repaint, boot watchdog, re-arm).
-        bootedWhileHiddenRef.current = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-        extAppRecoveryLog(nodeId, `remount-run #${webkitRemountAttemptsRef.current}`);
-        // Back to 'loading' so the connecting overlay covers this recovery
-        // remount's boot window too (the fallback boot flipped status to
-        // ready/done even when the previous frame was dead — without this the
-        // overlay only ever covered the INITIAL boot, not recovery).
-        setStatus('loading');
-        setRetryKey((k) => k + 1);
-        return true;
-      },
-      awaitBoot: () =>
-        new Promise<void>((resolve) => {
-          const timer = window.setTimeout(finish, WEBKIT_BOOT_TIMEOUT_MS);
-          function finish() {
-            window.clearTimeout(timer);
-            resolve();
-          }
-          bootWaitersRef.current.push(finish);
-        }),
-    });
-    return true;
-  };
-
-  // ── Paint oracle + recovery ladder (Finding N, 0.4.5 report) ────────────
-  // The old stack keyed recovery off "settled" (bridge ready + bootstrap
-  // replayed) and blind-remounted every booted app once. But Finding N is a
-  // COMPOSITOR failure after all those signals look healthy — the DOM
-  // recovers, the painted layer stays black, and the blind remount both
-  // missed real failures and rebooted healthy apps. The oracle: ask the app
-  // document for a double-rAF paint-tick. A frame whose rendering pipeline is
-  // live answers within a frame or two; silence is the paint-fail signal.
-  // Ladder on silence: soft-expand cycle (the automatic analogue of the
-  // user-proven enlarge+close — a real container size change forces WebKit to
-  // allocate a fresh layer texture, discarding the stale black one) → probe
-  // again → serialized remount (bounded by the shared attempt cap) → explicit
-  // Retry affordance. Never silent eternal black. WebKit inline frames only.
-  const PAINT_TICK_TIMEOUT_MS = 1500;
-  const probePaint = (): Promise<PaintProbeVerdict> =>
-    new Promise((resolve) => {
-      const contentWindow = iframeRef.current?.contentWindow;
-      if (!contentWindow || unmountedRef.current) {
-        resolve('timeout');
-        return;
-      }
-      let settled = false;
-      const timer = window.setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        resolve('timeout');
-      }, PAINT_TICK_TIMEOUT_MS);
-      paintTickWaitersRef.current.push((tick) => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timer);
-        lastPaintDetailRef.current = tick.detail;
-        // A tick without content is NOT paint-ok: the rAF pipeline runs while
-        // the document is empty cream / never composited (Finding N reopen).
-        resolve(tick.content ? 'content-verified' : 'tick-no-content');
-      });
-      contentWindow.postMessage({ source: EXT_APP_PAINT_PROBE_SOURCE, token: axToken }, '*');
-    });
-
-  // Bounded wait for the frame's content oracle to turn green — the mount
-  // queue's release gate (guidance: never green-light the NEXT app while the
-  // previous document is still contentless; D-then-E was the repro).
-  const awaitContentVerified = async (maxMs: number): Promise<boolean> => {
-    const deadline = Date.now() + maxMs;
-    while (Date.now() < deadline && !unmountedRef.current) {
-      if ((await probePaint()) === 'content-verified') return true;
-      await new Promise((resolve) => window.setTimeout(resolve, 400));
-    }
-    return false;
-  };
-
-  // Force a real layer reallocation: grow the iframe's box meaningfully for two
-  // frames, then restore. Invisible under the paint-pending overlay.
-  const runSoftExpandCycle = (): Promise<void> =>
-    new Promise((resolve) => {
-      const frame = iframeRef.current;
-      if (!frame) {
-        resolve();
-        return;
-      }
-      const previousWidth = frame.style.width;
-      const previousHeight = frame.style.height;
-      frame.style.width = '140%';
-      frame.style.height = '140%';
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          frame.style.width = previousWidth;
-          frame.style.height = previousHeight;
-          extAppRecoveryLog(nodeId, 'soft-expand-cycle');
-          resolve();
-        });
-      });
-    });
-
-  // Finding N (0.4.7): the Copilot WKWebView never reports 'visible', so the
-  // visibilitychange re-arm below is dead code there and the ladder's own
-  // paint-ok cannot be trusted. When the document claims hidden but this frame
-  // is on-screen, spend one more full recovery round with a fresh budget —
-  // the same round the visibilitychange path would have run.
-  const ASSUME_VISIBLE_REARM_DELAY_MS = 600;
-  const maybeAssumeVisibleRearm = (): void => {
-    if (typeof document === 'undefined' || typeof navigator === 'undefined' || typeof window === 'undefined') return;
-    const frame = iframeRef.current;
-    if (!frame || unmountedRef.current) return;
-    if (
-      !shouldAssumeVisibleRearm({
-        userAgent: navigator.userAgent,
-        visibilityState: document.visibilityState,
-        rect: frame.getBoundingClientRect(),
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        alreadyRearmed: assumeVisibleRearmDoneRef.current,
-      })
-    )
-      return;
-    assumeVisibleRearmDoneRef.current = true;
-    // Re-check after a beat: a host whose visibility signal merely lagged the
-    // panel opening resolves itself here, and the visibilitychange path owns it.
-    window.setTimeout(() => {
-      if (unmountedRef.current || document.visibilityState === 'visible') return;
-      webkitRemountAttemptsRef.current = 0;
-      setRecoveryExhausted(false);
-      bootedWhileHiddenRef.current = false;
-      extAppRecoveryLog(nodeId, 'assume-visible-rearm');
-      scheduleWebkitRemount('assume-visible');
-    }, ASSUME_VISIBLE_REARM_DELAY_MS);
-  };
-
-  // A paint-ok collected while the document claims hidden proves only that the
-  // app's rAF pipeline is alive — NOT that anything composited (Finding N,
-  // 0.4.7). Say so in the trail instead of recording an unqualified success.
-  // The [detail] bracket names WHAT the oracle verified (ink / svg / text) so
-  // field reports can distinguish pixel-verified greens from weaker ones.
-  const paintOkLabel = (suffix = ''): string => {
-    const detail = lastPaintDetailRef.current ? ` [${lastPaintDetailRef.current}]` : '';
-    return typeof document !== 'undefined' && document.visibilityState === 'hidden'
-      ? `paint-ok (content-verified)${detail}${suffix} (host hidden)`
-      : `paint-ok (content-verified)${detail}${suffix}`;
-  };
-
-  const runPaintLadder = async (): Promise<void> => {
-    // Runs for the EXPANDED instance too (Finding N reopen: expanded C was a
-    // black frame with no recovery — the ladder used to early-return here).
-    if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
-    if (!isWebKitOnlyHost(navigator.userAgent)) return;
-    setPaintPending(true);
-    let verdict = await probePaint();
-    if (verdict === 'content-verified') {
-      extAppRecoveryLog(nodeId, paintOkLabel());
-      setPaintPending(false);
-      maybeAssumeVisibleRearm();
-      return;
-    }
-    extAppRecoveryLog(
-      nodeId,
-      verdict === 'tick-no-content'
-        ? `paint-fail (tick without content: ${lastPaintDetailRef.current || 'unknown'})`
-        : 'paint-fail (no tick)',
-    );
-    await runSoftExpandCycle();
-    verdict = await probePaint();
-    if (verdict === 'content-verified') {
-      extAppRecoveryLog(nodeId, paintOkLabel(' (after soft-expand)'));
-      setPaintPending(false);
-      maybeAssumeVisibleRearm();
-      return;
-    }
-    if (unmountedRef.current) return;
-    // A contentless-but-alive app may still be DRAWING its scene: give the
-    // oracle a bounded settle before burning a remount attempt on it.
-    if (verdict === 'tick-no-content' && (await awaitContentVerified(3_000))) {
-      extAppRecoveryLog(nodeId, paintOkLabel(' (after content wait)'));
-      setPaintPending(false);
-      maybeAssumeVisibleRearm();
-      return;
-    }
-    if (unmountedRef.current) return;
-    // The remounted frame re-enters this ladder from its own settle path.
-    if (!scheduleWebkitRemount('paint-fail')) {
-      extAppRecoveryLog(nodeId, 'recovery-exhausted');
-      setPaintPending(false);
-      setRecoveryExhausted(true);
-      maybeAssumeVisibleRearm();
-    }
-  };
-
-  // Finding N (0.3.2 report): the Copilot panel can load the canvas while the
-  // WKWebView document is HIDDEN (panel backgrounded/occluded). WebKit suppresses
-  // compositing for hidden documents, so the whole serialized recovery above can
-  // run to completion without ever producing a visible paint — and nothing
-  // retried once the panel was shown, which is why tiles stayed black until a
-  // manual expand+close (necessarily performed while visible). When the document
-  // becomes visible again, re-arm ONE fresh serialized remount round for frames
-  // whose recovery ran while hidden.
-  useEffect(() => {
-    if (expanded) return;
-    if (typeof document === 'undefined' || typeof navigator === 'undefined' || typeof window === 'undefined') return;
-    if (!isWebKitOnlyHost(navigator.userAgent)) return;
-    function onVisibilityChange() {
-      if (document.visibilityState !== 'visible') return;
-      if (!bootedWhileHiddenRef.current || unmountedRef.current) return;
-      bootedWhileHiddenRef.current = false;
-      // Fresh visibility = fresh recovery budget: the hidden-run attempts were
-      // spent without a chance of compositing.
-      webkitRemountAttemptsRef.current = 0;
-      setRecoveryExhausted(false);
-      extAppRecoveryLog(nodeId, 'visible-again-rearm');
-      scheduleWebkitRemount('visible-after-hidden-boot');
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, nodeId]);
-
-  // Never-booted watchdog (0.3.2): an iframe whose scripts never ran in the burst
-  // shows no error — the bootstrap fallback flips status via notifications that
-  // resolve into a dead window, so the tile just stays black. "Alive" is either
-  // boot signal from the CURRENT frame: the genuine initialize handshake, or the
-  // injected boot beacon (which covers apps that boot via the fallback without
-  // ever sending initialized — remounting those was a flicker loop, and checking
-  // bridgeReadyRef instead would be wrong: the fallback sets it blindly, dead
-  // window or not). Only a frame with NEITHER signal is retried through the
-  // serialized queue (bounded by the shared attempt cap).
-  const WEBKIT_BOOT_WATCHDOG_MS = 6000;
-  useEffect(() => {
-    // Covers the expanded instance too — its fresh iframe was black with no
-    // recovery at all (Finding N reopen, expanded C).
-    if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
-    if (!isWebKitOnlyHost(navigator.userAgent)) return;
-    if (!iframeDocument.ready || !mountGranted) return;
-    const timer = window.setTimeout(() => {
-      if (appInitializedRef.current || appScriptsRanRef.current || unmountedRef.current) return;
-      scheduleWebkitRemount('boot-watchdog');
-    }, WEBKIT_BOOT_WATCHDOG_MS);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frameKey, iframeDocument.ready, expanded, mountGranted]);
-
-  useEffect(
-    () => () => {
-      unmountedRef.current = true;
-      for (const waiter of bootWaitersRef.current.splice(0)) waiter();
-      for (const waiter of paintTickWaitersRef.current.splice(0)) waiter({ content: false, detail: 'unmounted' });
-    },
-    [],
-  );
-
-  // MCP apps only understand dark/light — collapse named themes to their scheme.
-  const toMcpTheme = (theme: string): McpUiTheme => canvasThemeScheme(theme);
-  const isExpanded = expanded || expandedNodeId.value === nodeId;
-
-  latestToolInputRef.current = toolInput;
-  latestToolResultRef.current = toolResult;
-
-  // Finding U (0.4.2 report): a stressed reconnect can leave sessionStatus
-  // 'error' (e.g. "MCP error -32001: Request timed out") while the cached app
-  // document still renders fine below. When content IS available, present the
-  // error as a degraded-interactivity notice, not a full-alarm banner over a
-  // working diagram.
-  const sessionErrorWithContent = sessionStatus === 'error' && typeof html === 'string' && html.length > 0;
-  const sessionUnavailableMessage =
-    sessionStatus === 'error'
-      ? sessionErrorWithContent
-        ? `Live session unavailable — showing saved content. Reopen the app to restore interactivity.${sessionError ? ` (${sessionError})` : ''}`
-        : (sessionError ?? 'Saved app session is unavailable. Reopen the app to restore interactivity.')
-      : 'Reconnecting saved app session...';
-
-  const flushToolResult = (bridge: AppBridge | null): Promise<void> | null => {
-    const pendingToolResult = latestToolResultRef.current;
-    if (!bridge || !bridgeReadyRef.current || !pendingToolResult) {
-      return null;
-    }
-    // Skip when the content is unchanged. Updates from callServerTool
-    // (e.g. Excalidraw saving edits) produce a new reference via SSE and
-    // must be forwarded to keep other clients in sync — but SSE layout
-    // updates *also* mint new references when nothing in the tool result
-    // has actually changed (e.g. after the widget's own updateModelContext
-    // call), which would echo the result back and cause the widget to
-    // re-render mid-interaction (see: Counter fixture click instability).
-    // Deep-equality via structural compare handles both cases: new content
-    // is forwarded, unchanged content is suppressed.
-    if (lastSentToolResultRef.current === pendingToolResult) {
-      return null;
-    }
-    if (lastSentToolResultRef.current && extAppToolResultsMatch(lastSentToolResultRef.current, pendingToolResult)) {
-      lastSentToolResultRef.current = pendingToolResult;
-      return null;
-    }
-    if (toolResultSendingRef.current) return toolResultSendingRef.current;
-    const sendPromise = bridge
-      .sendToolResult(pendingToolResult)
-      .then(() => {
-        lastSentToolResultRef.current = pendingToolResult;
-        toolResultSentRef.current = true;
-        setStatus('done');
-      })
-      .catch((err) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(`Tool result delivery failed: ${msg}`);
-        throw err;
-      })
-      .finally(() => {
-        toolResultSendingRef.current = null;
-      });
-    toolResultSendingRef.current = sendPromise;
-    return sendPromise;
-  };
-
-  // Initialize as soon as HTML is mounted; some apps send initialize before iframe load fires.
-  useEffect(() => {
-    if (!html || !iframeDocument.ready || !mountGranted) return;
-    const iframe = iframeRef.current;
-    if (!iframe) return;
+  const connect = (iframe: HTMLIFrameElement, reportFailure: () => void) => {
     let disposed = false;
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-    let repaintNudgeTimer: ReturnType<typeof setTimeout> | null = null;
-    let hostContextResizeObserver: ResizeObserver | null = null;
-    let hostContextRaf: number | null = null;
-    let readyNudgeRaf: number | null = null;
-    toolResultSentRef.current = false;
-    lastSentToolResultRef.current = undefined;
-    toolResultSendingRef.current = null;
-    bridgeReadyRef.current = false;
-    // New frame = new boot attempt: both boot signals belong to the CURRENT
-    // iframe (the beacon listener also pins event.source to the live element).
-    // The queue's awaitBoot waits on this frame's handshake.
-    appInitializedRef.current = false;
-    appScriptsRanRef.current = false;
-
-    const clearFallbackTimer = (): void => {
-      if (!fallbackTimer) return;
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
+    let resizeRaf = 0;
+    let persistTimer = 0;
+    let initialized = false;
+    let inputSent = false;
+    let lastSent: CallToolResult | undefined;
+    let sending: Promise<void> | undefined;
+    let finishBoot!: (ready: boolean) => void;
+    const ready = new Promise<boolean>((resolve) => {
+      finishBoot = resolve;
+    });
+    let bootTimer: ReturnType<typeof setTimeout>;
+    const context = () => ({
+      theme: canvasThemeScheme(canvasTheme.value),
+      styles: hostStyles(),
+      platform: 'web' as const,
+      containerDimensions: resolveExtAppContainerDimensions(iframe, latest.current.size),
+      displayMode: expanded ? ('fullscreen' as const) : ('inline' as const),
+      locale: navigator.language,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      ...(node.data.toolDefinition
+        ? { toolInfo: { id: node.data.toolCallId as RequestId | undefined, tool: node.data.toolDefinition as Tool } }
+        : {}),
+    });
+    const bridge = new AppBridge(
+      null,
+      { name: 'PMX Canvas', version: '1.0.0' },
+      {
+        openLinks: {},
+        serverTools: { listChanged: false },
+        serverResources: { listChanged: false },
+        logging: {},
+        updateModelContext: { text: {}, structuredContent: {} },
+      },
+      { hostContext: context() },
+    );
+    const transport = new PostMessageTransport(iframe.contentWindow!, iframe.contentWindow!);
+    const fail = (failure: unknown) => {
+      if (disposed) return;
+      clearTimeout(bootTimer);
+      finishBoot(false);
+      console.error('Ext-app connection failed', failure);
+      reportFailure();
     };
-
-    const init = async () => {
-      if (!html) return;
-      const contentWindow = iframe.contentWindow;
-      if (!contentWindow) {
-        throw new Error('Ext-app iframe window is unavailable');
+    const flushToolResult = (): Promise<void> | undefined => {
+      if (disposed || !inputSent) return;
+      if (sending) return sending;
+      const sendLatest = async () => {
+        while (!disposed) {
+          const result = latest.current.data.toolResult as CallToolResult | undefined;
+          if (!result || (lastSent && extAppToolResultsMatch(lastSent, result))) return;
+          await bridge.sendToolResult(result);
+          lastSent = result;
+        }
+      };
+      sending = sendLatest().finally(() => {
+        sending = undefined;
+      });
+      return sending;
+    };
+    const sendContext = () => {
+      if (disposed) return;
+      iframe.contentWindow?.postMessage(
+        { source: 'pmx-viewer-theme', token: axToken, variables: canvasVariables() },
+        '*',
+      );
+      if (!initialized) return;
+      bridge.setHostContext(context());
+      void Promise.resolve(bridge.sendHostContextChange(context())).catch(fail);
+    };
+    const boot = async () => {
+      if (disposed || initialized) return;
+      initialized = true;
+      clearTimeout(bootTimer);
+      sendContext();
+      await bridge.sendToolInput({ arguments: (latest.current.data.toolInput as Record<string, unknown>) ?? {} });
+      inputSent = true;
+      await flushToolResult();
+      if (disposed) return;
+      finishBoot(true);
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = requestAnimationFrame(sendContext);
+      });
+    };
+    bridge.oninitialized = () => {
+      void boot().catch(fail);
+    };
+    bridge.onsizechange = async ({ height }) => {
+      const current = nodes.value.get(node.id);
+      if (!current || current.data.userResized === true) return {};
+      if (shouldApplyExtAppSizeChange(height, expanded || expandedNodeId.value === node.id)) {
+        const next = Math.max(current.size.height, height + AUTO_FIT_TITLEBAR_HEIGHT);
+        if (next - current.size.height > 8) {
+          resizeNode(node.id, { width: current.size.width, height: next });
+          clearTimeout(persistTimer);
+          persistTimer = window.setTimeout(() => persistLayout({ recordHistory: false }), 0);
+        }
       }
-
-      const buildHostContext = (
-        displayMode: DisplayMode = expandedNodeId.value === nodeId ? 'fullscreen' : 'inline',
-      ) => ({
-        theme: toMcpTheme(canvasTheme.value),
-        platform: 'web' as const,
-        containerDimensions: resolveExtAppContainerDimensions(iframe, {
-          width: node.size.width,
-          height: maxHeight,
-        }),
-        displayMode,
-        locale: navigator.language,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        ...(toolDefinition
-          ? {
-              toolInfo: {
-                id: toolCallId,
-                tool: toolDefinition,
-              },
-            }
+      return {};
+    };
+    bridge.onopenlink = async ({ url }) => {
+      window.open(url, '_blank', 'noopener');
+      return {};
+    };
+    bridge.onsandboxready = async () => {
+      await bridge.sendSandboxResourceReady({
+        html: documentHtml,
+        sandbox: DEFAULT_EXT_APP_SANDBOX,
+        ...(resourceMeta?.csp ? { csp: resourceMeta.csp } : {}),
+        ...(resourceMeta?.permissions ? { permissions: resourceMeta.permissions } : {}),
+      });
+    };
+    bridge.onrequestdisplaymode = async ({ mode }) => {
+      const request = resolveExtAppDisplayModeRequest(mode, expanded);
+      if (request.shouldExpand) expandNode(node.id);
+      if (request.shouldCollapse) collapseExpandedNode();
+      return { mode: request.nextMode };
+    };
+    bridge.oncalltool = async (params) => {
+      if (!appSessionId) throw new Error(sessionMessage);
+      return postJson<CallToolResult>('/api/ext-app/call-tool', {
+        sessionId: appSessionId,
+        nodeId: node.id,
+        serverName: node.data.serverName,
+        toolName: params.name,
+        arguments: params.arguments ?? {},
+      });
+    };
+    bridge.setRequestHandler(ListToolsRequestSchema, async () =>
+      appSessionId ? postJson<ListToolsResult>('/api/ext-app/list-tools', { sessionId: appSessionId }) : { tools: [] },
+    );
+    bridge.onlistresources = async () =>
+      appSessionId ? postJson('/api/ext-app/list-resources', { sessionId: appSessionId }) : { resources: [] };
+    bridge.onlistresourcetemplates = async () =>
+      appSessionId
+        ? postJson('/api/ext-app/list-resource-templates', { sessionId: appSessionId })
+        : { resourceTemplates: [] };
+    bridge.onreadresource = async ({ uri }) => {
+      if (!appSessionId) throw new Error(sessionMessage);
+      return postJson('/api/ext-app/read-resource', { sessionId: appSessionId, uri });
+    };
+    bridge.onlistprompts = async () =>
+      appSessionId ? postJson('/api/ext-app/list-prompts', { sessionId: appSessionId }) : { prompts: [] };
+    bridge.onupdatemodelcontext = async (params) => {
+      if (!appSessionId) return {};
+      await postJson('/api/ext-app/model-context', {
+        nodeId: node.id,
+        ...(Array.isArray(params.content) ? { content: params.content } : {}),
+        ...(params.structuredContent && typeof params.structuredContent === 'object'
+          ? { structuredContent: params.structuredContent }
           : {}),
       });
-
-      const scheduleHostContextUpdate = () => {
-        if (hostContextRaf !== null) return;
-        hostContextRaf = requestAnimationFrame(() => {
-          hostContextRaf = null;
-          if (disposed || !bridgeReadyRef.current) return;
-          bridge.setHostContext?.(buildHostContext());
-        });
-      };
-
-      // Re-deliver host context once the iframe has been laid out and painted.
-      // Canvas-backed widgets (e.g. Excalidraw) size their drawing surface from
-      // containerDimensions at first render; the single handshake-time delivery
-      // can land before the embedded frame has settled, leaving a black canvas
-      // until an expand/collapse forces a reflow. A double rAF lands after
-      // layout+paint, and sendHostContextChange always delivers (setHostContext
-      // would diff-suppress the identical context just sent at handshake).
-      const nudgeHostContextAfterLayout = () => {
-        if (readyNudgeRaf !== null) return;
-        readyNudgeRaf = requestAnimationFrame(() => {
-          readyNudgeRaf = requestAnimationFrame(() => {
-            readyNudgeRaf = null;
-            if (disposed || !bridgeReadyRef.current) return;
-            void bridge.sendHostContextChange?.(buildHostContext());
-          });
-        });
-      };
-
-      // Finding N: run the paint oracle + recovery ladder after the app has had
-      // its post-settle draw window. Scheduled past the remount queue's settle
-      // pause so the probe measures the frame AFTER the scene draw.
-      const schedulePaintLadder = () => {
-        if (!isWebKitOnlyHost(navigator.userAgent)) return;
-        if (repaintNudgeTimer) clearTimeout(repaintNudgeTimer);
-        repaintNudgeTimer = setTimeout(() => {
-          repaintNudgeTimer = null;
-          if (disposed) return;
-          void runPaintLadder();
-        }, WEBKIT_REMOUNT_SETTLE_MS + 200);
-      };
-
-      const bridge = new AppBridge(
-        null,
-        { name: 'PMX Canvas', version: '1.0.0' },
-        {
-          openLinks: {},
-          serverTools: { listChanged: false },
-          serverResources: { listChanged: false },
-          logging: {},
-          updateModelContext: { text: {}, structuredContent: {} },
-        },
-        {
-          hostContext: buildHostContext(isExpanded ? 'fullscreen' : 'inline'),
-        },
-      );
-
-      // Register handlers BEFORE connect
-      bridge.onsizechange = async ({ height }) => {
-        const currentNode = nodes.value.get(nodeId);
-        // Late app measurements must not undo an explicit manual card size.
-        if (!currentNode || currentNode.data.userResized === true) return {};
-        if (shouldApplyExtAppSizeChange(height, expandedNodeId.value === nodeId)) {
-          const hostDimensions = resolveExtAppContainerDimensions(iframe.parentElement ?? iframe, {
-            width: node.size.width,
-            height: maxHeight,
-          });
-          const inlineFrameHeight = resolveExtAppInlineFrameHeight(height, hostDimensions.height);
-          iframe.style.height = `${inlineFrameHeight}px`;
-          const currentSize = currentNode.size;
-          const nodeHeight = Math.max(currentSize.height, inlineFrameHeight + AUTO_FIT_TITLEBAR_HEIGHT);
-          if (Math.abs(nodeHeight - currentSize.height) > 8) {
-            resizeNode(nodeId, { width: currentSize.width, height: nodeHeight });
-            if (sizePersistTimerRef.current !== null) {
-              window.clearTimeout(sizePersistTimerRef.current);
-            }
-            sizePersistTimerRef.current = window.setTimeout(() => {
-              sizePersistTimerRef.current = null;
-              const latest = nodes.value.get(nodeId);
-              if (latest && latest.data.userResized !== true) persistLayout({ recordHistory: false });
-            }, 0);
-          }
-        }
-        return {};
-      };
-
-      bridge.onopenlink = async ({ url }) => {
-        window.open(url, '_blank', 'noopener');
-        return {};
-      };
-
-      bridge.onsandboxready = async () => {
-        await bridge.sendSandboxResourceReady({
-          // Same Finding Q base styles for the sandbox-proxy path: the inner
-          // resource document is the one that letterboxes on narrow tiles.
-          html: injectExtAppAxBridgeScript(html, buildExtAppSurfaceBaseStyles()),
-          sandbox: DEFAULT_EXT_APP_SANDBOX,
-          ...(resourceMeta?.csp ? { csp: resourceMeta.csp } : {}),
-          ...(resourceMeta?.permissions ? { permissions: resourceMeta.permissions } : {}),
-        });
-      };
-
-      // Handle native fullscreen requests from the widget (e.g. Excalidraw expand button)
-      bridge.onrequestdisplaymode = async ({ mode }) => {
-        const { nextMode, shouldExpand, shouldCollapse } = resolveExtAppDisplayModeRequest(mode, isExpanded);
-        if (shouldExpand) {
-          expandNode(nodeId);
-        } else if (shouldCollapse) {
-          collapseExpandedNode();
-        }
-        return { mode: nextMode };
-      };
-
-      // Proxy callServerTool back to PMX server
-      bridge.oncalltool = async (params) => {
-        if (!appSessionId) {
-          throw new Error(sessionUnavailableMessage);
-        }
-        try {
-          const result = await postJson<CallToolResult>('/api/ext-app/call-tool', {
-            sessionId: appSessionId,
-            nodeId,
-            serverName,
-            toolName: params.name,
-            arguments: params.arguments ?? {},
-          });
-          setError(null);
-          return result;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          setError(`Tool call failed: ${msg}`);
-          throw err;
-        }
-      };
-
-      bridge.setRequestHandler(ListToolsRequestSchema, async () => {
-        if (!appSessionId) {
-          return { tools: [] } satisfies ListToolsResult;
-        }
-        return postJson<ListToolsResult>('/api/ext-app/list-tools', { sessionId: appSessionId });
-      });
-
-      bridge.onlistresources = async () =>
-        appSessionId ? postJson('/api/ext-app/list-resources', { sessionId: appSessionId }) : { resources: [] };
-
-      bridge.onlistresourcetemplates = async () =>
-        appSessionId
-          ? postJson('/api/ext-app/list-resource-templates', { sessionId: appSessionId })
-          : { resourceTemplates: [] };
-
-      bridge.onreadresource = async (params) => {
-        if (!appSessionId) {
-          throw new Error(sessionUnavailableMessage);
-        }
-        return postJson('/api/ext-app/read-resource', {
-          sessionId: appSessionId,
-          uri: params.uri,
-        });
-      };
-
-      bridge.onlistprompts = async () =>
-        appSessionId ? postJson('/api/ext-app/list-prompts', { sessionId: appSessionId }) : { prompts: [] };
-
-      bridge.onupdatemodelcontext = async (params) => {
-        if (!appSessionId) return {};
-        await postJson('/api/ext-app/model-context', {
-          nodeId,
-          ...(Array.isArray(params.content) ? { content: params.content } : {}),
-          ...(params.structuredContent && typeof params.structuredContent === 'object'
-            ? { structuredContent: params.structuredContent }
-            : {}),
-        });
-        return {};
-      };
-
-      const transport = new PostMessageTransport(contentWindow, contentWindow);
-
-      bridge.oninitialized = () => {
-        if (disposed) return;
-        clearFallbackTimer();
-        bridgeReadyRef.current = true;
-        appInitializedRef.current = true;
-        extAppRecoveryLog(nodeId, 'initialized');
-        setStatus('ready');
-        setError(null);
-        void Promise.resolve(bridge.sendHostContextChange(buildHostContext(isExpanded ? 'fullscreen' : 'inline')))
-          .then(() => sendExtAppBootstrapState(bridge, latestToolInputRef.current, undefined))
-          .then(() => flushToolResult(bridge))
-          .then(() => {
-            // Settled: handshake + bootstrap replay delivered — the app draws its
-            // scene right after this. Release the remount queue (which then adds
-            // its own settle pause covering the draw) only from this genuine path;
-            // the bootstrap fallback never releases it (a dead iframe must run the
-            // queue's bounded timeout instead of green-lighting the next remount).
-            // Release the mount queue only once this document's CONTENT
-            // oracle is green (bounded): a settled-but-empty app must not
-            // green-light the next mount slot (D-then-E repro, Finding N
-            // reopen). WebKit only — elsewhere the oracle race doesn't exist.
-            const releaseQueue = () => {
-              for (const waiter of bootWaitersRef.current.splice(0)) waiter();
-            };
-            if (typeof navigator !== 'undefined' && isWebKitOnlyHost(navigator.userAgent)) {
-              void awaitContentVerified(4_000).then((verified) => {
-                extAppRecoveryLog(
-                  nodeId,
-                  verified
-                    ? 'settled (content-verified)'
-                    : `settled (content-timeout${lastPaintDetailRef.current ? `: ${lastPaintDetailRef.current}` : ''})`,
-                );
-                releaseQueue();
-              });
-            } else {
-              extAppRecoveryLog(nodeId, 'settled');
-              releaseQueue();
-            }
-            nudgeHostContextAfterLayout();
-            schedulePaintLadder();
-          })
-          .catch((err) => {
-            const msg = err instanceof Error ? err.message : String(err);
-            setError(`Bridge bootstrap failed: ${msg}`);
-          });
-      };
-
-      // Fallback bootstrap for widgets whose initialized notification arrives late
-      // or never fires. This keeps standards-based apps usable even when the host
-      // handshake timing differs across SDK versions.
-      fallbackTimer = setTimeout(() => {
-        if (disposed || bridgeReadyRef.current) return;
-        const bootstrapToolResult = latestToolResultRef.current;
-        const hostContext = buildHostContext(isExpanded ? 'fullscreen' : 'inline');
-        bridgeReadyRef.current = true;
-        bridge.setHostContext?.(hostContext);
-        void Promise.resolve(bridge.sendHostContextChange(hostContext))
-          .then(() => sendExtAppBootstrapState(bridge, latestToolInputRef.current, bootstrapToolResult))
-          .then(() => {
-            toolResultSentRef.current = Boolean(bootstrapToolResult);
-            if (bootstrapToolResult) {
-              lastSentToolResultRef.current = bootstrapToolResult;
-            }
-            setStatus(bootstrapToolResult ? 'done' : 'ready');
-            setError(null);
-            nudgeHostContextAfterLayout();
-            schedulePaintLadder();
-            // Release the serialized queue's boot wait — but ONLY when the boot
-            // beacon proved this frame's scripts ran. A live non-SDK app (never
-            // sends initialized) would otherwise hold every later mount slot
-            // for the full boot timeout; a dead window still runs it.
-            if (appScriptsRanRef.current) {
-              extAppRecoveryLog(nodeId, 'settled (fallback)');
-              for (const waiter of bootWaitersRef.current.splice(0)) waiter();
-            }
-          })
-          .catch((err) => {
-            const msg = err instanceof Error ? err.message : String(err);
-            setError(`Bridge bootstrap fallback failed: ${msg}`);
-          });
-      }, 1200);
-
-      await bridge.connect(transport);
-      if (disposed) {
-        clearFallbackTimer();
-        await transport.close();
-        return;
-      }
-      bridgeRef.current = bridge;
-      transportRef.current = transport;
-      hostContextResizeObserver = new ResizeObserver(scheduleHostContextUpdate);
-      hostContextResizeObserver.observe(iframe);
-      if (iframe.parentElement) hostContextResizeObserver.observe(iframe.parentElement);
-
-      // Propagate theme changes to ext-app iframe. Read current expanded state
-      // at fire time so the widget keeps its fullscreen/inline context accurate.
-      let firstFire = true;
-      themeUnsubRef.current = canvasTheme.subscribe((newTheme) => {
-        if (firstFire) {
-          firstFire = false;
-          return;
-        }
-        if (disposed) return;
-        bridge.setHostContext?.({
-          ...buildHostContext(),
-          theme: toMcpTheme(newTheme),
-        });
-        void bridge.sendHostContextChange?.(buildHostContext());
-      });
-
-      void flushToolResult(bridge);
+      return {};
     };
-
-    init().catch((err) => {
-      clearFallbackTimer();
-      console.error('[ext-app] Bridge init failed:', err);
-      setError(err?.message ?? 'Bridge initialization failed');
+    connections.current.set(iframe, {
+      loaded: () => {
+        // Some apps consume notifications without sending initialized. Start
+        // their one bootstrap only after scripts loaded, never before listeners.
+        if (!initialized)
+          bootTimer = setTimeout(() => {
+            void boot().catch(fail);
+          }, 1200);
+        return ready;
+      },
+      flush: () => {
+        void flushToolResult()?.catch(fail);
+      },
+      theme: sendContext,
     });
-
+    void bridge.connect(transport).catch(fail);
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(sendContext);
+    });
+    observer.observe(iframe);
+    const unsubscribe = canvasTheme.subscribe(sendContext);
     return () => {
       disposed = true;
-      clearFallbackTimer();
-      if (repaintNudgeTimer) {
-        clearTimeout(repaintNudgeTimer);
-        repaintNudgeTimer = null;
-      }
-      hostContextResizeObserver?.disconnect();
-      hostContextResizeObserver = null;
-      if (hostContextRaf !== null) {
-        cancelAnimationFrame(hostContextRaf);
-        hostContextRaf = null;
-      }
-      if (readyNudgeRaf !== null) {
-        cancelAnimationFrame(readyNudgeRaf);
-        readyNudgeRaf = null;
-      }
-      bridgeReadyRef.current = false;
-      toolResultSendingRef.current = null;
-      themeUnsubRef.current?.();
-      themeUnsubRef.current = null;
-      if (sizePersistTimerRef.current !== null) {
-        window.clearTimeout(sizePersistTimerRef.current);
-        sizePersistTimerRef.current = null;
-      }
-      bridgeRef.current = null;
-      if (transportRef.current) {
-        transportRef.current.close().catch((closeError) => {
-          console.error('[ext-app] transport close failed:', closeError);
-        });
-        transportRef.current = null;
-      }
+      clearTimeout(bootTimer);
+      finishBoot(false);
+      clearTimeout(persistTimer);
+      cancelAnimationFrame(resizeRaf);
+      observer.disconnect();
+      unsubscribe();
+      connections.current.delete(iframe);
+      void bridge.close().catch(() => {});
     };
-  }, [frameKey, iframeDocument.key, mountGranted]);
+  };
 
-  // Forward tool result when it arrives after bridge is ready
   useEffect(() => {
-    if (toolResult && bridgeRef.current && (status === 'ready' || status === 'done')) {
-      void flushToolResult(bridgeRef.current);
-    }
-  }, [toolResult, status]);
-
-  // Keep the widget's displayMode in sync when the host expands or collapses
-  // the node. Without this, a widget that opened in inline mode would never
-  // learn that it is now fullscreen (and vice versa), so features gated on
-  // fullscreen (like Excalidraw's edit mode) would not activate on the same
-  // click that triggered the expansion.
-  useEffect(() => {
-    const bridge = bridgeRef.current;
-    if (iframeRef.current) {
-      iframeRef.current.style.height = '100%';
-    }
-    if (!bridge || !bridgeReadyRef.current) return undefined;
-    // Measure + send AFTER the expand/collapse overlay has laid out (double rAF).
-    // Measuring synchronously here reads the iframe at its OLD inline size, so an app
-    // like Excalidraw reflows bound text against stale dimensions and clips the start
-    // of labels in expanded mode (report #62). A double rAF lands after layout+paint so
-    // resolveExtAppContainerDimensions reads the real expanded frame.
-    let raf1: number | null = null;
-    let raf2: number | null = null;
-    raf1 = requestAnimationFrame(() => {
-      raf1 = null;
-      raf2 = requestAnimationFrame(() => {
-        raf2 = null;
-        if (!bridgeReadyRef.current) return;
-        const hostContext = {
-          theme: toMcpTheme(canvasTheme.value),
-          platform: 'web' as const,
-          containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
-            width: node.size.width,
-            height: maxHeight,
-          }),
-          displayMode: isExpanded ? ('fullscreen' as const) : ('inline' as const),
-          locale: navigator.language,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        };
-        bridge.setHostContext?.(hostContext);
-        void bridge.sendHostContextChange?.(hostContext);
-      });
-    });
-    return () => {
-      if (raf1 !== null) cancelAnimationFrame(raf1);
-      if (raf2 !== null) cancelAnimationFrame(raf2);
-    };
-  }, [isExpanded, maxHeight]);
-
-  // Loading state — HTML not yet fetched
-  if (!html) {
-    return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--c-muted)',
-          fontSize: '13px',
-          flexDirection: 'column',
-          gap: '8px',
-        }}
-      >
-        <div style={{ opacity: 0.6 }}>Loading {toolName} viewer...</div>
-        <div
-          style={{
-            width: '24px',
-            height: '24px',
-            border: '2px solid var(--c-line)',
-            borderTopColor: 'var(--c-muted)',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }}
-        />
-        <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-      </div>
-    );
-  }
+    for (const connection of connections.current.values()) connection.flush();
+  }, [node.data.toolResult]);
 
   return (
-    <div
-      style={{
-        flex: 1,
-        width: '100%',
-        height: '100%',
-        minWidth: 0,
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {sessionStatus && sessionStatus !== 'ready' && (
-        <div
-          style={{
-            padding: '6px 10px',
-            fontSize: '11px',
-            background:
-              sessionStatus === 'error' && !sessionErrorWithContent
-                ? 'color-mix(in srgb, var(--c-danger) 12%, transparent)'
-                : 'color-mix(in srgb, var(--c-warn) 10%, transparent)',
-            color: sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger)' : 'var(--c-warn)',
-            borderBottom: `1px solid ${
-              sessionStatus === 'error' && !sessionErrorWithContent
-                ? 'color-mix(in srgb, var(--c-danger) 12%, transparent)'
-                : 'color-mix(in srgb, var(--c-warn) 15%, transparent)'
-            }`,
-          }}
-        >
-          {sessionUnavailableMessage}
-        </div>
+    <div class="ext-app-viewer">
+      {node.data.sessionStatus && node.data.sessionStatus !== 'ready' && (
+        <div class="ext-app-session-notice">⚠ {sessionMessage}</div>
       )}
-      {error && (
-        <div
-          style={{
-            padding: '6px 10px',
-            fontSize: '11px',
-            background: 'color-mix(in srgb, var(--c-danger) 12%, transparent)',
-            color: 'var(--c-danger)',
-            borderBottom: '1px solid color-mix(in srgb, var(--c-danger) 12%, transparent)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <span>⚠</span>
-          <span style={{ flex: 1 }}>{error}</span>
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              setStatus('loading');
-              setRetryKey((k) => k + 1);
-            }}
-            style={{
-              background: 'var(--c-surface-hover)',
-              border: '1px solid color-mix(in srgb, var(--c-danger) 12%, transparent)',
-              borderRadius: '3px',
-              color: 'var(--c-danger)',
-              cursor: 'pointer',
-              fontSize: '10px',
-              padding: '1px 6px',
-            }}
-          >
-            Retry
-          </button>
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            aria-label="Dismiss error"
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--c-danger)',
-              cursor: 'pointer',
-              fontSize: '13px',
-              padding: '0 2px',
-            }}
-          >
-            <IconClose size={14} />
-          </button>
-        </div>
-      )}
-      {/* Iframe stack: the widget renders a preview; when not expanded, a
-          transparent click-catcher sits on top so the first click always
-          expands the node. Without this, widgets like Excalidraw show their
-          own "Edit" button inline, which triggers a fullscreen request and
-          remounts the iframe in the overlay — forcing the user to click Edit
-          a second time to actually enter edit mode. Routing all inline clicks
-          to "expand" makes the flow "open → edit" instead of "edit → expand → edit". */}
-      <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 0, height: '100%' }}>
-        {mountGranted && (
-          <iframe
-            key={frameKey}
-            ref={iframeRef}
-            {...iframeDocument.attributes}
-            sandbox={iframeSandbox}
-            allow={buildAllowAttribute(resourceMeta?.permissions)}
-            // NB: do NOT add the `.mcp-app-frame` GPU-layer class (translateZ(0)) here —
-            // it creates a stacking context that breaks the AX emit→ack round-trip in the
-            // expanded ext-app overlay (#55 e2e).
-            style={{
-              flex: 1,
-              width: '100%',
-              height: '100%',
-              minHeight: 0,
-              border: 'none',
-              background: 'var(--c-panel)',
-              // Keep the expanded frame in Chromium's pointer hit-test tree from
-              // its first paint. Toggling none → auto when boot completes can
-              // leave the compositor routing the first click to the parent even
-              // though DOM hit testing and Playwright both resolve the button.
-              // The loading sibling is non-interactive; inline frames remain
-              // guarded by the preview catcher below.
-              pointerEvents: isExpanded ? 'auto' : 'none',
-            }}
-            title={`Ext App: ${toolName}`}
-          />
-        )}
-        {/* Recovery exhausted (Finding N): the paint ladder ran out of budget.
-            Never leave a silent black tile — offer an explicit Retry with a
-            fresh recovery budget (a manual retry mirrors the user-proven
-            expand+close in an idle panel). */}
-        {recoveryExhausted && !error && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              background: 'var(--c-panel)',
-              color: 'var(--c-warn)',
-              fontSize: '12px',
-            }}
-          >
-            <div>App surface failed to paint.</div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                extAppRecoveryLog(nodeId, 'manual-retry');
-                webkitRemountAttemptsRef.current = 0;
-                setRecoveryExhausted(false);
-                setStatus('loading');
-                setRetryKey((k) => k + 1);
-              }}
-              style={{
-                background: 'var(--c-surface-hover)',
-                border: '1px solid color-mix(in srgb, var(--c-warn) 15%, transparent)',
-                borderRadius: '4px',
-                color: 'var(--c-warn)',
-                cursor: 'pointer',
-                fontSize: '11px',
-                padding: '3px 10px',
-              }}
-            >
-              Retry
-            </button>
-          </div>
-        )}
-        {/* Connecting overlay: an opaque sibling ABOVE the iframe while this
-            frame boots — and, on WebKit, until the paint oracle confirms the
-            frame actually composited (Finding N). Sibling DOM always paints,
-            so the boot + recovery window reads as an intentional loading
-            state instead of a broken black tile. pointer-events pass through
-            so the expand click-catcher keeps working. */}
-        {(status === 'loading' || paintPending) && !error && !recoveryExhausted && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              background: 'var(--c-panel)',
-              color: 'var(--c-muted)',
-              fontSize: '12px',
-              pointerEvents: 'none',
-            }}
-          >
-            <div
-              style={{
-                width: '22px',
-                height: '22px',
-                border: '2px solid var(--c-line)',
-                borderTopColor: 'var(--c-muted)',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-              }}
-            />
-            <div>{status === 'loading' ? `Connecting to ${toolName}...` : 'Finishing paint...'}</div>
-            <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-          </div>
-        )}
-        {/* Suppressed while the recovery card is up: the catcher is rendered
-            last and would paint over the centred Retry button, swallowing the
-            click that is the ladder's only actionable terminal rung. */}
-        {!isExpanded && !(recoveryExhausted && !error) && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              expandNode(nodeId);
-            }}
-            class="ext-app-preview-catcher"
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: '56px',
-              bottom: '56px',
-              left: 0,
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              margin: 0,
-              cursor: 'zoom-in',
-            }}
-            aria-label="Open full view to edit"
-          />
-        )}
-      </div>
+      <RefreshingViewerFrame
+        source={frameDocument}
+        identity={JSON.stringify([node.id, node.data.serverName, appSessionId, node.data.sessionStatus])}
+        iframeRef={iframeRef}
+        onMount={connect}
+        onDocumentLoad={async (frame, signal) => {
+          const connection = connections.current.get(frame);
+          if (!connection || !(await connection.loaded()) || signal.aborted) return false;
+          connection.theme();
+          return waitForViewerPaint(frame, axToken, signal);
+        }}
+        onOpen={expanded ? undefined : () => expandNode(node.id)}
+        sandbox={DEFAULT_EXT_APP_SANDBOX}
+        allow={buildAllowAttribute(resourceMeta?.permissions)}
+        className="ext-app-frame"
+        title={`Ext App: ${node.data.toolName ?? 'ext-app'}`}
+      />
     </div>
   );
 }

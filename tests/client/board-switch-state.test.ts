@@ -496,6 +496,27 @@ describe('board switch client state', () => {
     expect([...nodes.value.keys()]).toEqual(['restored']);
   });
 
+  test('a focus camera arriving before the catalog survives the buffered initial layout', () => {
+    globalThis.fetch = Object.assign(() => new Promise<Response>(() => {}), { preconnect: originalFetch.preconnect });
+    boardsLoaded.value = false;
+    const fresh = { ...boardPayload('B'), catalogEpoch: 'focus-before-catalog', boardGeneration: 1 };
+    EVENT_HANDLERS.connected({ catalogEpoch: fresh.catalogEpoch });
+    const snapshot = { ...layout('heading'), viewport: { x: 266, y: -47, scale: 1 } };
+    const frame = { catalogEpoch: fresh.catalogEpoch, boardGeneration: 1, boardId: 'B', layout: snapshot };
+    EVENT_HANDLERS['canvas-layout-update'](frame);
+    const focused = { x: 64, y: 96, scale: 1 };
+    EVENT_HANDLERS['canvas-viewport-update']({ viewport: focused });
+    EVENT_HANDLERS['canvas-focus-node']({ nodeId: 'heading' });
+    applyBoards(fresh);
+    expect(nodes.value.has('heading')).toBe(true);
+    expect(viewport.value).toEqual(focused);
+    EVENT_HANDLERS['canvas-layout-update'](frame);
+    expect(viewport.value).toEqual(focused);
+    const next = { x: 70, y: 110, scale: 0.8 };
+    EVENT_HANDLERS['canvas-viewport-update']({ viewport: next });
+    expect(viewport.value).toEqual(next);
+  });
+
   test.each([
     true,
     false,

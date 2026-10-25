@@ -5148,6 +5148,38 @@
               "previous"
             ]
           },
+          "presenter": {
+            "description": "Document intent order and expected board activation",
+            "type": "object",
+            "properties": {
+              "clientId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "intent": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "catalogEpoch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "boardGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "clientId",
+              "intent",
+              "catalogEpoch",
+              "boardGeneration"
+            ]
+          },
           "present": {
             "description": "Start presenting in viewers that are not presenting yet (default true; false only moves presenting viewers)",
             "type": "boolean"
@@ -5454,7 +5486,6 @@
                     "type": "string",
                     "enum": [
                       "tour.set",
-                      "tour.exit",
                       "annotation.remove"
                     ]
                   },
@@ -5494,142 +5525,249 @@
                     "const": "success"
                   },
                   "data": {
-                    "type": "object",
-                    "properties": {
-                      "ok": {
-                        "type": "boolean"
-                      },
-                      "index": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      },
-                      "total": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      },
-                      "stop": {
+                    "anyOf": [
+                      {
                         "type": "object",
                         "properties": {
-                          "target": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "nodeId": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  }
-                                },
-                                "required": [
-                                  "nodeId"
-                                ],
-                                "additionalProperties": false
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "rect": {
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "catalogEpoch": {
+                            "type": "string"
+                          },
+                          "boardGeneration": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "sequence": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "stop": {
+                            "type": "object",
+                            "properties": {
+                              "target": {
+                                "anyOf": [
+                                  {
                                     "type": "object",
                                     "properties": {
-                                      "x": {
-                                        "type": "number"
-                                      },
-                                      "y": {
-                                        "type": "number"
-                                      },
-                                      "width": {
-                                        "type": "number",
-                                        "exclusiveMinimum": 0
-                                      },
-                                      "height": {
-                                        "type": "number",
-                                        "exclusiveMinimum": 0
+                                      "nodeId": {
+                                        "type": "string",
+                                        "minLength": 1
                                       }
                                     },
                                     "required": [
-                                      "x",
-                                      "y",
-                                      "width",
-                                      "height"
+                                      "nodeId"
                                     ],
                                     "additionalProperties": false
-                                  }
-                                },
-                                "required": [
-                                  "rect"
-                                ],
-                                "additionalProperties": false
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "viewport": {
+                                  },
+                                  {
                                     "type": "object",
                                     "properties": {
-                                      "x": {
-                                        "type": "number"
-                                      },
-                                      "y": {
-                                        "type": "number"
-                                      },
-                                      "scale": {
-                                        "type": "number",
-                                        "exclusiveMinimum": 0
+                                      "rect": {
+                                        "type": "object",
+                                        "properties": {
+                                          "x": {
+                                            "type": "number"
+                                          },
+                                          "y": {
+                                            "type": "number"
+                                          },
+                                          "width": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0
+                                          },
+                                          "height": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0
+                                          }
+                                        },
+                                        "required": [
+                                          "x",
+                                          "y",
+                                          "width",
+                                          "height"
+                                        ],
+                                        "additionalProperties": false
                                       }
                                     },
                                     "required": [
-                                      "x",
-                                      "y",
-                                      "scale"
+                                      "rect"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "viewport": {
+                                        "type": "object",
+                                        "properties": {
+                                          "x": {
+                                            "type": "number"
+                                          },
+                                          "y": {
+                                            "type": "number"
+                                          },
+                                          "scale": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0
+                                          }
+                                        },
+                                        "required": [
+                                          "x",
+                                          "y",
+                                          "scale"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "viewport"
                                     ],
                                     "additionalProperties": false
                                   }
-                                },
-                                "required": [
-                                  "viewport"
-                                ],
-                                "additionalProperties": false
+                                ]
+                              },
+                              "duration": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 3600
+                              },
+                              "easing": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "ease-in-out",
+                                  "ease-out"
+                                ]
+                              },
+                              "padding": {
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              "pullback": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 4
                               }
-                            ]
-                          },
-                          "duration": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 3600
-                          },
-                          "easing": {
-                            "type": "string",
-                            "enum": [
-                              "linear",
-                              "ease-in-out",
-                              "ease-out"
-                            ]
-                          },
-                          "padding": {
-                            "type": "number",
-                            "minimum": 0
-                          },
-                          "pullback": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 4
+                            },
+                            "required": [
+                              "target"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
-                          "target"
+                          "ok",
+                          "catalogEpoch",
+                          "boardGeneration",
+                          "sequence",
+                          "index",
+                          "total",
+                          "stop"
+                        ],
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "boolean",
+                            "const": true
+                          },
+                          "superseded": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "superseded"
                         ],
                         "additionalProperties": false
                       }
-                    },
-                    "required": [
-                      "ok",
-                      "index",
-                      "total",
-                      "stop"
-                    ],
-                    "additionalProperties": {}
+                    ]
+                  }
+                },
+                "required": [
+                  "operation",
+                  "outcome",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "const": "tour.exit"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "const": "success"
+                  },
+                  "data": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "catalogEpoch": {
+                            "type": "string"
+                          },
+                          "boardGeneration": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "sequence": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "catalogEpoch",
+                          "boardGeneration",
+                          "sequence"
+                        ],
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "boolean",
+                            "const": true
+                          },
+                          "superseded": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "superseded"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
                   }
                 },
                 "required": [

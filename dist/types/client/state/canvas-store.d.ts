@@ -120,7 +120,7 @@ export declare function resizeNode(id: string, size: {
     width: number;
     height: number;
 }): void;
-export declare function bringToFront(id: string): void;
+export declare function bringToFront(id: string, persist?: boolean): void;
 export declare function toggleCollapsed(id: string): void;
 export declare function setViewport(v: Partial<ViewportState>): void;
 export declare function replaceViewport(next: ViewportState): void;
@@ -161,11 +161,13 @@ export declare function animateCameraPath(frameAt: (t: number) => ViewportState,
 export declare function cancelViewportAnimation(): void;
 export declare function persistLayout(options?: {
     recordHistory?: boolean;
+    raisedNodeId?: string;
 }): void;
 export declare function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null;
 export declare function fitAll(containerW: number, containerH: number): void;
 export declare function focusNode(id: string, options?: {
     recordHistory?: boolean;
+    persistStacking?: boolean;
 }): void;
 export declare function cycleActiveNode(direction?: 1 | -1): void;
 export declare function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void;

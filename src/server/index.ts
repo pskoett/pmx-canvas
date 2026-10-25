@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { Camera, Tour, TourStop } from '../shared/tour.js';
+import type { Camera, Tour, TourPresenter, TourStop } from '../shared/tour.js';
 import {
   currentTour,
   exitTour,
@@ -8,9 +8,10 @@ import {
   type TourState,
   type TourStep,
   type TourStepResult,
+  type TourSuperseded,
 } from './tour-control.js';
-export type { Tour, TourStop } from '../shared/tour.js';
-export type { TourState, TourStep, TourStepResult } from './tour-control.js';
+export type { Tour, TourPresenter, TourStop } from '../shared/tour.js';
+export type { TourState, TourStep, TourStepResult, TourSuperseded } from './tour-control.js';
 import { agentPresence } from './agent-presence.js';
 import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
@@ -631,16 +632,25 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Present a tour stop (index, `next` or `previous`) in the workbench. Not recorded in undo history. */
-  goToTourStop(step: TourStep, options?: { present?: boolean }): TourStepResult {
-    const result = goToTourStop(step);
-    emitPrimaryWorkbenchEvent('canvas-tour-step', { ...result, present: options?.present !== false });
+  goToTourStop(step: TourStep, options?: { present?: boolean; presenter?: undefined }): TourStepResult;
+  goToTourStop(
+    step: TourStep,
+    options: { present?: boolean; presenter?: TourPresenter },
+  ): TourStepResult | TourSuperseded;
+  goToTourStop(
+    step: TourStep,
+    options?: { present?: boolean; presenter?: TourPresenter },
+  ): TourStepResult | TourSuperseded {
+    const result = goToTourStop(step, options?.presenter);
+    if (!('superseded' in result))
+      emitPrimaryWorkbenchEvent('canvas-tour-step', { ...result, present: options?.present !== false });
     return result;
   }
 
   /** Leave presentation in every viewer. */
-  exitTour(): void {
-    exitTour();
-    emitPrimaryWorkbenchEvent('canvas-tour-exit', {});
+  exitTour(presenter?: TourPresenter): void {
+    const result = exitTour(presenter);
+    if (!('superseded' in result)) emitPrimaryWorkbenchEvent('canvas-tour-exit', { ...result });
   }
 
   /** Ease the camera to a node, world rect or viewport. Not recorded in undo history. */

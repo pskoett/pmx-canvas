@@ -812,13 +812,12 @@ function page(input: {
   * { box-sizing: border-box; }
   body { margin: 0; padding: 22px; background: radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent, #4a9eff) 18%, transparent), transparent 34rem), var(--color-bg, #0b0f14); color: var(--color-text, #e8edf2); font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif); }
   .shell { max-width: 1160px; margin: 0 auto; }
-  header.hero { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; margin-bottom: 20px; }
+  header.hero { margin-bottom: 20px; }
   .kicker { color: var(--color-accent, #4a9eff); text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
   h1 { margin: 5px 0 8px; font-size: clamp(28px, 4vw, 46px); line-height: .95; letter-spacing: -.04em; }
   h2 { margin: 0 0 12px; font-size: 19px; letter-spacing: -.02em; }
   h3 { margin: 0 0 8px; font-size: 15px; }
   p { color: var(--color-text-secondary, #aeb8c2); margin: 0 0 12px; }
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   button { border: 1px solid var(--color-border, #263241); background: var(--color-panel, #111821); color: var(--color-text, #e8edf2); border-radius: 999px; padding: 8px 12px; font: inherit; cursor: pointer; }
   button:hover { border-color: var(--color-accent, #4a9eff); transform: translateY(-1px); }
   table { width: 100%; border-collapse: collapse; color: var(--color-text-secondary, #aeb8c2); font-size: 13px; }
@@ -861,20 +860,20 @@ function page(input: {
   .slide h2 { font-size: clamp(30px, 5vw, 58px); line-height: .95; }
   .preview { white-space: pre-wrap; min-height: 220px; }
   .figure svg { width: 100%; min-height: 220px; border-radius: 14px; background: color-mix(in srgb, var(--color-bg, #0b0f14) 86%, white); border: 1px solid var(--color-border, #263241); }
-  @media (max-width: 760px) { body { padding: 14px; } header.hero, .two, .three { grid-template-columns: 1fr; } .actions { justify-content: flex-start; } .sticky { position: static; } }
+  @media (max-width: 760px) { body { padding: 14px; } .two, .three { grid-template-columns: 1fr; } .sticky { position: static; } }
 </style>
 </head>
 <body>
 <div class="shell">
   <header class="hero">
     <div><div class="kicker">PMX HTML primitive / ${escapeHtml(input.kind)}</div><h1>${escapeHtml(input.title)}</h1><p>${escapeHtml(input.summary)}</p></div>
-    <div class="actions"><button type="button" data-copy-json>Copy JSON</button><button type="button" data-copy-prompt>Copy prompt</button></div>
   </header>
   ${input.body}
 </div>
 <script type="application/json" id="pmx-data">${safeJson(input.data)}</script>
 <script>
 const PMX_DATA = JSON.parse(document.getElementById('pmx-data').textContent);
+window.__pmxGetCopyJson = () => PMX_DATA;
 function fallbackCopy(text) {
   const el = document.createElement('textarea');
   el.value = text;
@@ -890,11 +889,6 @@ async function copyText(text) {
   if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
   else fallbackCopy(text);
 }
-document.querySelector('[data-copy-json]')?.addEventListener('click', () => {
-  const payload = typeof window.__pmxGetCopyJson === 'function' ? window.__pmxGetCopyJson() : PMX_DATA;
-  copyText(JSON.stringify(payload, null, 2));
-});
-document.querySelector('[data-copy-prompt]')?.addEventListener('click', () => copyText('Use this PMX Canvas HTML primitive output as context:\\n\\n' + JSON.stringify(PMX_DATA, null, 2)));
 ${input.script ?? ''}
 </script>
 </body>

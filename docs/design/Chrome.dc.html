@@ -13,7 +13,7 @@
 body{margin:0}
 </style>
 </helmet>
-<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: 500px repeat(2, minmax(0, 1fr)); gap: 40px">
+<div style="width: 1440px; height: 1360px; box-sizing: border-box; padding: 40px 48px; background: #081524; color: #e6eef7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.5; display: grid; grid-template-columns: 500px repeat(2, minmax(0, 1fr)); gap: 40px">
 
 <section style="display: flex; flex-direction: column; gap: 14px">
 <div><h2 style="margin: 0; font-size: 15px; font-weight: 600">7 · Tool rail in a 690px-tall window</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">20 buttons need 850px. Settings-type tools move into one menu.</p></div>
@@ -62,7 +62,7 @@ body{margin:0}
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 14px">
-<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">8 · Node header</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Expand and the context pin always show; ⋯ on hover opens the existing node menu (now with Open in new tab), and Set as README stays in the markdown footer.</p></div>
+<div><h2 style="margin: 0; font-size: 15px; font-weight: 600">8 · Node header</h2><p style="margin: 2px 0 0; font-size: 12px; color: #8ea3bd">Expand and the context pin always show; ⋯ on hover or keyboard focus opens the node menu. Set as README lives here, becoming Remove as README on the current README. Edit stays visible below Markdown.</p></div>
 
 <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7d94">Today</span>
 <div style="border-radius: 12px 12px 8px 8px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 0 0 1px rgba(244,197,66,0.3), 0 8px 24px rgba(244,197,66,0.1); overflow: hidden">
@@ -78,7 +78,8 @@ body{margin:0}
 <div style="border-radius: 10px; border: 1px solid #1b2c44; background: #0f1d31; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.24); overflow: hidden">
 <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid #1b2c44">
 <svg width="16" height="16" viewBox="0 0 24 24" style="color: #8ea3bd; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"><path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 10h8M8 14h5"></path></svg>
-<span style="flex: 1; font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span>
+<span style="flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 600">PMX Canvas — guided tour</span>
+<span style="flex-shrink: 0; font-size: 11px; color: #8ea3bd">README</span>
 <button aria-label="Expand (Enter)" style="width: 22px; height: 22px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="13" height="13" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"></path></svg></button>
 <button aria-label="Add to context (P)" style="width: 18px; height: 18px; box-sizing: border-box; border: 1.5px solid #6b7d94; border-radius: 999px; padding: 0; background: transparent; color: #b9c6d6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="10" height="10" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 4h6l-.8 5.5 2.8 3H7l2.8-3zM12 12.5V20"></path></svg></button>
 <!-- Reserve the hover-action slots: revealing More/Close must not move the pin. -->
@@ -111,7 +112,8 @@ body{margin:0}
 <div style="height: 236px; display: flex; flex-direction: column; border: 1px solid #1b2c44; border-radius: 10px; overflow: hidden; background: #0f1d31">
 <div style="flex-shrink: 0; height: 36px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid #1b2c44; font-size: 12px; font-weight: 600">Research index</div>
 <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
-<div style="flex: 1; min-height: 0; padding: 10px 12px; overflow: auto; font-size: 13px; color: #b9c6d6">Read the source, then follow <a href="#reference-footer" style="color: #e6eef7">the evidence</a>.<div style="margin-top: 20px; font-size: 12px; color: #8ea3bd">Set as README <span style="float: right">Edit</span></div></div>
+<div style="flex: 1; min-height: 0; padding: 10px 12px; overflow: auto; font-size: 13px; color: #b9c6d6">Read the source, then follow <a href="#reference-footer" style="color: #e6eef7">the evidence</a>.</div>
+<div style="flex-shrink: 0; border-top: 1px solid #1b2c44; padding: 6px 36px 6px 8px; text-align: right"><button style="border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; background: transparent; color: #8ea3bd; font: 500 11px 'IBM Plex Sans', sans-serif">Edit</button></div>
 <div id="reference-footer" role="region" aria-label="Cross-board references" tabindex="0" style="flex-shrink: 0; max-height: min(40%, 132px); overflow: auto; overscroll-behavior: contain">
 <div style="padding: 6px 12px; border-top: 1px solid #1b2c44; font-size: 12px; color: #b9c6d6">↗ references: Research / Interview notes</div>
 <div style="padding: 6px 12px; border-top: 1px solid #1b2c44; font-size: 12px; color: #b9c6d6">↗ references: Research / Findings</div>
@@ -174,11 +176,35 @@ body{margin:0}
 <span style="font-size: 11px; color: #8ea3bd">Fit and focus keep a lane clear for floating chrome.</span>
 </div>
 </div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Present · hover / keyboard focus</h2>
+<p style="margin: 0; font-size: 11px; color: #8ea3bd">2026-10-25: the button describes this tooltip with aria-describedby. In the narrow ⋯ menu, the same text appears in flow below Present so the scrolling menu cannot clip it.</p>
+<div role="tooltip" style="max-width: 240px; padding: 10px 12px; border: 1px solid #2a4566; border-radius: 10px; background: #0f1d31; color: #b9c6d6; font-size: 12px; line-height: 1.35">
+<strong style="color: #e6eef7">Present board</strong>
+<p>A presentation follows either a saved tour or the board’s groups.</p>
+<p>Saved tour: ask your agent to define the stops and their order. Each stop can focus on a card, a group, a rectangular area, or a specific camera position.</p>
+<p style="margin-bottom: 0">No saved tour: every group becomes a stop, ordered top-to-bottom, then left-to-right. It doesn’t automatically visit every card.</p>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Presentation · navigation</h2>
+<p style="margin: 0; font-size: 11px; color: #8ea3bd">Owner decision, 2026-10-25: Back and Next sit beside Exit at the top-right. Instructions appear only in hover/focus tooltips, never in a corner panel. End buttons stay focusable but unavailable; their descriptions remain accessible.</p>
+<div style="position: relative; height: 180px; border: 1px solid #1b2c44; border-radius: 10px; background: #081524">
+<div style="position: absolute; top: 16px; right: 16px; display: flex; gap: 8px">
+<button style="padding: 8px 14px; min-height: 38px; border: 1px solid #8ea3bd; border-radius: 8px; background: #0f1d31; color: #e6eef7; font: inherit; font-weight: 600; opacity: .5" aria-disabled="true">Back</button>
+<button style="padding: 8px 14px; min-height: 38px; border: 1px solid #8ea3bd; border-radius: 8px; background: #0f1d31; color: #e6eef7; font: inherit; font-weight: 600">Next</button>
+<button style="padding: 8px 14px; min-height: 38px; border: 1px solid #8ea3bd; border-radius: 8px; background: #0f1d31; color: #e6eef7; font: inherit; font-weight: 600">Exit presentation</button>
+</div>
+<div style="position: absolute; top: 66px; right: 16px; width: 168px; padding: 10px 12px; border: 1px solid #2a4566; border-radius: 10px; background: #0f1d31; box-shadow: 0 14px 36px #0006; font-size: 12px"><strong>Next stop</strong><br><span style="color: #8ea3bd">→ / ↓ / Space</span></div>
+</div>
+<p style="margin: 0; font-size: 11px; color: #8ea3bd">Back: Previous stop, ← / ↑. Next: Next stop, → / ↓ / Space. Exit: Exit presentation, Esc. Fit clears the top controls; exact camera targets and recording remain exact.</p>
+</div>
 </section>
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1360}}'>
 class Component extends DCLogic {
   renderVals() {
     var P = {
@@ -245,7 +271,7 @@ class Component extends DCLogic {
       optIn('Trace', 'Show execution traces. Turning off keeps existing traces and never starts an agent.', false, false),
       setting('Send feedback', '', 'Share feedback about PMX Canvas.')
     ];
-    var nodeMenu = [m('Focus', ''), m('Rename…', ''), m('Collapse', ''), m('Open in new tab', '', true), msep, m('Delete', '⌫')];
+    var nodeMenu = [m('Focus', ''), m('Rename…', ''), m('Collapse', ''), m('Open in new tab', ''), msep, m('Set as README', '', true), msep, m('Delete', '⌫')];
     var oldIcons = [{ d: P.ctx }, { d: P.ask }, { d: P.open }, { d: P.expand }, { d: P.chevron }, { d: P.close }];
     return { railToday: railToday, railNew: railNew, settings: settings, nodeMenu: nodeMenu, oldIcons: oldIcons };
   }

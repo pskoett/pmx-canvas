@@ -22,7 +22,6 @@ export type EdgeLayerPart = 'lines' | 'pills' | 'pill-hits';
 interface EdgeLayerProps {
     nodes: Signal<Map<string, CanvasNodeState>>;
     edges: Signal<Map<string, CanvasEdge>>;
-    part: EdgeLayerPart;
 }
-export declare function EdgeLayer({ nodes, edges, part }: EdgeLayerProps): import("preact/src").JSX.Element | null;
+export declare function EdgeLayer({ nodes, edges }: EdgeLayerProps): import("preact/src").JSX.Element | null;
 export {};

@@ -21,14 +21,16 @@ export function StatusSummary({ node }: { node: CanvasNodeState }) {
           flexShrink: 0,
         }}
       />
-      <span style={{ color: phaseColor, fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>{phase}</span>
+      <span style={{ color: phaseColor, fontSize: 'var(--fs-meta)', fontWeight: 600 }}>
+        {phase.charAt(0).toUpperCase() + phase.slice(1)}
+      </span>
       {activeTool && (
-        <span style={{ color: 'var(--c-agent)', fontSize: '10px', fontFamily: 'var(--font-code)' }}>
+        <span style={{ color: 'var(--c-agent)', fontSize: 'var(--fs-meta)', fontFamily: 'var(--font-code)' }}>
           ⚙ {activeTool}
         </span>
       )}
       {subagent && subagent.state !== 'completed' && (
-        <span style={{ color: 'var(--c-subagent)', fontSize: '10px' }}>⠉ {subagent.name}</span>
+        <span style={{ color: 'var(--c-subagent)', fontSize: 'var(--fs-meta)' }}>⠉ {subagent.name}</span>
       )}
     </span>
   );

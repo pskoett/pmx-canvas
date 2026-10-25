@@ -39,6 +39,14 @@ import {
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 import { agentSessionsEnabled } from '../state/workspace-settings';
 
+const PRESENT_DESCRIPTION = (
+  <span style={{ whiteSpace: 'pre-line' }}>
+    {
+      'A presentation follows either a saved tour or the board’s groups.\n\nSaved tour: ask your agent to define the stops and their order. Each stop can focus on a card, a group, a rectangular area, or a specific camera position.\n\nNo saved tour: every group becomes a stop, ordered top-to-bottom, then left-to-right. It doesn’t automatically visit every card.'
+    }
+  </span>
+);
+
 /**
  * The attached session's chip (rail-chrome-v2 phase 3): phase-colored, with a
  * dot that pulses while the agent thinks or runs a tool. Renders ONLY while a
@@ -481,12 +489,16 @@ export function TopBar() {
               )}
               {activeBoardId.value && (
                 <BarHint
+                  id="present-hint"
                   label="Present board"
-                  body="Arrow keys or Space step through stops; Esc exits. Without a saved tour, groups are read top-to-bottom, left-to-right."
+                  body={PRESENT_DESCRIPTION}
+                  align="end"
+                  fitWithin="body"
                 >
                   <button
                     type="button"
                     class="present-button"
+                    aria-describedby="present-hint"
                     onClick={() => {
                       void startPresentation();
                     }}
@@ -592,14 +604,17 @@ function TopBarMore({ boardOpen, onFit }: { boardOpen: boolean; onFit: () => voi
             </button>
           )}
           {boardOpen && (
-            <button
-              type="button"
-              role="menuitem"
-              class="toolbar-menu-item"
-              onClick={run(() => void startPresentation())}
-            >
-              Present board
-            </button>
+            <BarHint id="present-menu-hint" label="Present board" body={PRESENT_DESCRIPTION}>
+              <button
+                type="button"
+                role="menuitem"
+                class="toolbar-menu-item"
+                aria-describedby="present-menu-hint"
+                onClick={run(() => void startPresentation())}
+              >
+                Present board
+              </button>
+            </BarHint>
           )}
           <button type="button" role="menuitem" class="toolbar-menu-item" onClick={run(() => zoomByFactor(1.25))}>
             Zoom in

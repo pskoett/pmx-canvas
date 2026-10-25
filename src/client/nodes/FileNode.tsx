@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { createPortal } from 'preact/compat';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'preact/hooks';
 import { BarHint } from '../canvas/BarHint';
 import { IconPlusCircle, IconRefresh } from '../icons';
 import { delimiterForPath, parseDelimitedText } from '../../shared/delimited-text';
@@ -85,6 +86,10 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
   const [loading, setLoading] = useState(!cachedContent && !!filePath && !servesBytes);
   const [error, setError] = useState<string | null>(null);
   const [bytesVersion, setBytesVersion] = useState(0);
+  const [header, setHeader] = useState<Element | null>(null);
+  useLayoutEffect(() => {
+    setHeader(expanded ? null : document.querySelector(`[data-file-toolbar="${node.id}"]`));
+  }, [node.id, expanded]);
 
   // Load file content on mount or when path changes
   useEffect(() => {
@@ -202,6 +207,101 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
     return <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>No file path set</div>;
   }
 
+  const toolbar = (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        minWidth: 0,
+        padding: expanded ? '6px 10px' : 0,
+        flexShrink: 0,
+      }}
+    >
+      <div class="file-toolbar-metadata">
+        <span
+          style={{
+            fontSize: 'var(--fs-meta)',
+            padding: '1px 5px',
+            background: 'var(--c-panel-soft)',
+            color: 'var(--c-muted)',
+            borderRadius: 'var(--r-control)',
+            fontWeight: 600,
+          }}
+        >
+          {lang}
+        </span>
+        {(expanded || title !== filePath.split(/[\\/]/).pop()) && (
+          <span
+            style={{
+              color: 'var(--c-text-soft)',
+              fontSize: expanded ? 'var(--fs-ui)' : 'var(--fs-meta)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flex: 1,
+            }}
+          >
+            {expanded ? filePath : filePath.split(/[\\/]/).pop()}
+          </span>
+        )}
+        {lineCount !== undefined && (
+          <span style={{ color: 'var(--c-dim)', fontSize: 'var(--fs-meta)', flexShrink: 0 }}>{lineCount} lines</span>
+        )}
+        {expanded && updatedAt && (
+          <span style={{ color: 'var(--c-dim)', fontSize: 'var(--fs-meta)', flexShrink: 0 }}>
+            {new Date(updatedAt).toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+      <BarHint label="Mark this file as AX evidence" align="end" fitWithin=".node-content">
+        <button
+          type="button"
+          class="ax-node-action"
+          aria-label="Mark this file as AX evidence"
+          onClick={(e) => {
+            e.stopPropagation();
+            void runNodeAxInteraction(
+              node,
+              'ax.evidence.add',
+              { kind: 'file', title: filePath.split('/').pop() || filePath, ref: filePath },
+              'Marked as evidence',
+            );
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--c-muted)',
+            cursor: 'pointer',
+            padding: '2px 4px',
+            fontSize: '12px',
+            flexShrink: 0,
+          }}
+        >
+          <IconPlusCircle size={14} />
+        </button>
+      </BarHint>
+      <BarHint label="Reload file" align="end" fitWithin=".node-content">
+        <button
+          type="button"
+          onClick={handleReload}
+          aria-label="Reload file"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--c-muted)',
+            cursor: 'pointer',
+            padding: '2px 4px',
+            fontSize: '12px',
+            flexShrink: 0,
+          }}
+        >
+          <IconRefresh size={14} />
+        </button>
+      </BarHint>
+    </div>
+  );
+
   return (
     <div
       style={{
@@ -209,99 +309,10 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
         flexDirection: 'column',
         height: '100%',
         fontFamily: 'var(--font-code)',
-        fontSize: expanded ? '13px' : '11px',
+        fontSize: expanded ? '13px' : 'var(--fs-ui)',
       }}
     >
-      {/* Header bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 10px',
-          borderBottom: '1px solid var(--c-line)',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            fontSize: '9px',
-            padding: '1px 5px',
-            background: 'color-mix(in srgb, var(--c-accent) 12%, transparent)',
-            color: 'var(--c-accent)',
-            borderRadius: '3px',
-            fontWeight: 600,
-          }}
-        >
-          {lang}
-        </span>
-        <span
-          style={{
-            color: 'var(--c-text-soft)',
-            fontSize: expanded ? '12px' : '10px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-          }}
-        >
-          {filePath}
-        </span>
-        {lineCount !== undefined && (
-          <span style={{ color: 'var(--c-dim)', fontSize: '10px', flexShrink: 0 }}>{lineCount} lines</span>
-        )}
-        {updatedAt && (
-          <span style={{ color: 'var(--c-dim)', fontSize: '10px', flexShrink: 0 }}>
-            {new Date(updatedAt).toLocaleTimeString()}
-          </span>
-        )}
-        <BarHint label="Mark this file as AX evidence" align="end" fitWithin=".node-content">
-          <button
-            type="button"
-            class="ax-node-action"
-            aria-label="Mark this file as AX evidence"
-            onClick={(e) => {
-              e.stopPropagation();
-              void runNodeAxInteraction(
-                node,
-                'ax.evidence.add',
-                { kind: 'file', title: filePath.split('/').pop() || filePath, ref: filePath },
-                'Marked as evidence',
-              );
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--c-muted)',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              fontSize: '12px',
-              flexShrink: 0,
-            }}
-          >
-            <IconPlusCircle size={14} />
-          </button>
-        </BarHint>
-        <BarHint label="Reload file" align="end" fitWithin=".node-content">
-          <button
-            type="button"
-            onClick={handleReload}
-            aria-label="Reload file"
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--c-muted)',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              fontSize: '12px',
-              flexShrink: 0,
-            }}
-          >
-            <IconRefresh size={14} />
-          </button>
-        </BarHint>
-      </div>
-
+      {header ? createPortal(toolbar, header) : toolbar}
       {/* Content area */}
       <div
         style={{

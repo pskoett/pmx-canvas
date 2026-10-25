@@ -23,13 +23,13 @@ describe('StatusNode render', () => {
     const { getByText } = render(
       <StatusNode node={makeStatusNode({ phase: 'running', detail: 'compiling client' })} />,
     );
-    expect(getByText('running')).toBeTruthy();
+    expect(getByText('Running')).toBeTruthy();
     expect(getByText('compiling client')).toBeTruthy();
   });
 
   test('falls back to idle when no phase data is present', () => {
     const { getByText } = render(<StatusNode node={makeStatusNode({})} />);
-    expect(getByText('idle')).toBeTruthy();
+    expect(getByText('Idle')).toBeTruthy();
   });
 
   test('shows the active tool row only while a tool is running', () => {

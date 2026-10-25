@@ -1,4 +1,4 @@
-import { boardList } from '../state/boards-store';
+import { activeBoard, boardList } from '../state/boards-store';
 import { cardQualification, effectiveLifecycleFilter as lifecycleFilter } from '../state/knowledge-store';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { relationHighlight } from '../state/relation-store';
@@ -50,7 +50,7 @@ import { AxStepControls } from '../nodes/AxStepControls';
 import { getNodeIcon, IconChevronRight, IconClose, IconMore, IconExpand, IconPin } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
-import { AUTO_FIT_TITLEBAR_HEIGHT, computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
+import { computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
 import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
@@ -87,44 +87,6 @@ export function nearestNodeInDirection(
     }
   }
   return best;
-}
-
-/** Fraction of a node's height the title bar may occupy before it starts
- *  crowding out the content it is labelling. */
-const MAX_TITLEBAR_HEIGHT_RATIO = 0.4;
-/** Fraction of a node's width the fixed title-bar chrome may occupy before it
- *  starts eating the node's NAME. */
-const MAX_TITLEBAR_CHROME_WIDTH_RATIO = 0.55;
-/** Unscaled width of everything in the bar that is not the title: type icon,
- *  status/type pill, the control cluster, and the gaps between them. */
-const TITLEBAR_CHROME_BASE_WIDTH = 175;
-
-/**
- * How much to enlarge node chrome (title bar, badges, icons) when zoomed out so
- * it stays legible. Full inverse compensation is capped at 2.2x — but the cap
- * alone ignored the node it is drawn on, so on SHORT nodes the growing bar ate
- * the body: a 116px-tall section label at 46% zoom gave the title bar 72% of the
- * node and left 14px for text that needed 41, so the markdown was simply cut off.
- * The scale is therefore also bounded by the node's own height, keeping the bar
- * under MAX_TITLEBAR_HEIGHT_RATIO of it. Tall nodes are unaffected (their height
- * never binds); pass height 0 for collapsed/auto-height nodes to skip the bound.
- */
-export function nodeChromeScale(viewportScale: number, nodeHeight: number, nodeWidth = 0): number {
-  if (!Number.isFinite(viewportScale) || viewportScale >= 1) return 1;
-  const zoomScale = Math.min(2.2, 1 / Math.max(viewportScale, 0.01));
-  let bounded = zoomScale;
-  if (Number.isFinite(nodeHeight) && nodeHeight > 0) {
-    bounded = Math.min(bounded, (nodeHeight * MAX_TITLEBAR_HEIGHT_RATIO) / AUTO_FIT_TITLEBAR_HEIGHT);
-  }
-  // Width matters as much as height: the icon, pill and control cluster are all
-  // flex-shrink: 0, so the NAME is the only thing that gives way. Unbounded, a
-  // 360px step node at 52% zoom spent 100 of 187 bar pixels on controls alone and
-  // the title collapsed to nothing. Bound the scale so the fixed chrome can never
-  // take more than MAX_TITLEBAR_CHROME_WIDTH_RATIO of the node.
-  if (Number.isFinite(nodeWidth) && nodeWidth > 0) {
-    bounded = Math.min(bounded, (nodeWidth * MAX_TITLEBAR_CHROME_WIDTH_RATIO) / TITLEBAR_CHROME_BASE_WIDTH);
-  }
-  return Math.max(1, bounded);
 }
 
 /** A header title keeps at least this much room, or all of it when shorter (HeaderMarks.dc.html). */
@@ -217,7 +179,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       document.removeEventListener('keydown', escListener.current);
       escListener.current = null;
     }
-    persistLayout();
+    persistLayout({ raisedNodeId: node.id });
     // Membership changes ONLY here, and only while the pill was showing.
     const target = dragDropTarget.value;
     endDropTracking();
@@ -308,7 +270,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         toggleSelected(node.id);
         return;
       }
-      bringToFront(node.id);
+      bringToFront(node.id, false);
       // User wins (phase 8): hold the node for the drag; an agent mid-edit yields.
       reportHumanGrab(node.id);
       noteNearAtGrab(node.id);
@@ -359,6 +321,15 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && target !== e.currentTarget && target.closest('input, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        const more = shellRef.current?.querySelector<HTMLButtonElement>('.node-hover-control[aria-haspopup="menu"]');
+        if (more) {
+          e.preventDefault();
+          e.stopPropagation();
+          more.click();
+        }
+        return;
+      }
       const dir = ARROW_DIRS[e.key];
       if (dir) {
         e.preventDefault();
@@ -445,10 +416,14 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isTrace = node.type === 'trace';
   const isTraceRunning = isTrace && node.data.status === 'running';
   const isGroup = node.type === 'group';
+  const isHeading = node.type === 'markdown' && node.data.display === 'heading';
+  const graphType = (node.data.graphConfig as { graphType?: string } | undefined)?.graphType;
   const isStrictSize = node.data.strictSize === true;
   const viewportScale = Math.max(viewport.value.scale, 0.01);
-  const chromeScale = nodeChromeScale(viewportScale, node.collapsed ? 0 : node.size.height, node.size.width);
-  const chipFold = useHeaderFold(titleRef, headerChip(node, isContextPinned), title, node.size.width, chromeScale);
+  // Text alone may grow within the fixed header line. Enlarging the whole bar
+  // resizes embedded viewports and reflows their content while zooming.
+  const titleScale = Math.min(1.2, Math.max(1, 1 / viewportScale));
+  const chipFold = useHeaderFold(titleRef, headerChip(node, isContextPinned), title, node.size.width, titleScale);
 
   const groupColor = isGroup && node.data.color ? (node.data.color as string) : undefined;
   const nodeStyle: Record<string, string | number> = {
@@ -457,7 +432,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     width: `${node.size.width}px`,
     height: node.collapsed ? 'auto' : `${node.size.height}px`,
     zIndex: node.zIndex,
-    '--node-chrome-scale': chromeScale.toFixed(3),
+    '--node-title-scale': titleScale.toFixed(3),
     '--node-port-scale': (1 / viewportScale).toFixed(3),
     ...(groupColor ? { '--group-color': groupColor } : {}),
   };
@@ -477,6 +452,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isTrace ? 'trace-node' : '',
     isTraceRunning ? 'trace-running' : '',
     isGroup ? 'group-node' : '',
+    isHeading ? 'heading-node' : '',
     isStrictSize ? 'strict-size' : '',
     isAgentMutating ? 'agent-mutating' : '',
     sessionChromeActive.value && sessionEditedIds.value.has(node.id) ? 'session-edited' : '',
@@ -623,7 +599,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 ) : (
                   <span class="group-name">{title}</span>
                 )}
-                <span class="group-count">{groupChildren.length}</span>
+                <span class="group-count">
+                  {groupChildren.length} {groupChildren.length === 1 ? 'node' : 'nodes'}
+                </span>
               </span>
               <span class="group-edge-spacer" />
               <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
@@ -740,7 +718,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               <NodeTypeIcon node={node} pinned={isContextPinned} title={title} fold={chipFold}>
                 {(() => {
                   const NodeIcon = getNodeIcon(node.type);
-                  return <NodeIcon size={Math.round(14 * chromeScale)} />;
+                  return <NodeIcon size={14} />;
                 })()}
               </NodeTypeIcon>
               {/* The kind-colored icon says what type this is (rail-chrome-v2 card
@@ -765,6 +743,14 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 <span ref={titleRef} class="node-title">
                   {title}
                 </span>
+              )}
+              {activeBoard()?.readmeNodeId === node.id && <span class="node-readme-mark">README</span>}
+              {node.type === 'graph' && graphType && <span class="node-header-meta">{graphType}</span>}
+              {node.type === 'file' && <div class="node-file-toolbar" data-file-toolbar={node.id} />}
+              {node.type === 'status' && typeof node.data.updatedAt === 'string' && (
+                <time class="node-header-meta" dateTime={node.data.updatedAt}>
+                  {new Date(node.data.updatedAt).toLocaleTimeString()}
+                </time>
               )}
               <NearPinMark node={node} pinned={isContextPinned} fold={chipFold} />
               <NodeContextMark node={node} pinned={isContextPinned} fold={chipFold} />
@@ -827,6 +813,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                     onContextMenu?.(e, node.id);
                   }}
                   aria-label="More actions"
+                  aria-haspopup="menu"
                 >
                   <IconMore size={14} />
                 </button>

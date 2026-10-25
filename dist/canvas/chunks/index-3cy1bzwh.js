@@ -1,0 +1,2 @@
+import{e,t,k}from"./index-1r72hdzb.js";var J=e((i,o,r,n)=>{i.attr("class",r);let{width:h,height:a,x:w,y:x}=u(i,o);k(i,a,h,n);let c=m(w,x,h,a,o);i.attr("viewBox",c),t.debug(`viewBox configured: ${c} with padding: ${o}`)},"setupViewPortForSVG"),u=e((i,o)=>{let r=i.node()?.getBBox()||{width:0,height:0,x:0,y:0};return{width:r.width+o*2,height:r.height+o*2,x:r.x,y:r.y}},"calculateDimensionsWithPadding"),m=e((i,o,r,n,h)=>`${i-h} ${o-h} ${r} ${n}`,"createViewBox");
+export{J};

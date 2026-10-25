@@ -75,11 +75,9 @@ if [[ -f "${REPO_ROOT}/LICENSE" ]]; then
   cp "${REPO_ROOT}/LICENSE" "${PACKAGE_STAGING}/package/LICENSE"
 fi
 cp -R "${REPO_ROOT}/src" "${PACKAGE_STAGING}/package/src"
-mkdir -p "${PACKAGE_STAGING}/package/dist/canvas" "${PACKAGE_STAGING}/package/dist/json-render"
-cp "${REPO_ROOT}/dist/canvas/index.js" "${PACKAGE_STAGING}/package/dist/canvas/index.js"
-cp "${REPO_ROOT}/dist/canvas/global.css" "${PACKAGE_STAGING}/package/dist/canvas/global.css"
-cp "${REPO_ROOT}/dist/json-render/index.js" "${PACKAGE_STAGING}/package/dist/json-render/index.js"
-cp "${REPO_ROOT}/dist/json-render/index.css" "${PACKAGE_STAGING}/package/dist/json-render/index.css"
+mkdir -p "${PACKAGE_STAGING}/package/dist"
+cp -R "${REPO_ROOT}/dist/canvas" "${PACKAGE_STAGING}/package/dist/canvas"
+cp -R "${REPO_ROOT}/dist/json-render" "${PACKAGE_STAGING}/package/dist/json-render"
 TARBALL="pmx-canvas-published-consumer.tgz"
 tar -czf "${PACK_DIR}/${TARBALL}" -C "${PACKAGE_STAGING}" package
 

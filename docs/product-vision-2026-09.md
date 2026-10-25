@@ -522,6 +522,15 @@ shared AX bridge. Preserve authored drafts, input state, offscreen replacements 
 painted-refresh handoff in the current browser cases. Chromium passes do not establish native
 Copilot/WebKit paint; keep that limitation explicit until separately exercised.
 
+**Zoom direction (owner decision, 2026-10-25).** The alternate zoomed-out overview
+is dropped, not deferred. Zoom always shows the native spatial board with its actual
+contents, card positions, groups and connections. Do not replace it with a title/type
+grid, list or other view at a zoom threshold. Card bodies and embedded content scale
+proportionally with the board, without content enlargement or zoom-induced reflow.
+Only header text may receive a modest, bounded readability adjustment. This supersedes
+the alternate overview and content-scaling proposals in earlier drawings and plans;
+the remaining shared-viewer and visual-consistency work stays in scope.
+
 ### 6a. Make the tool surface cheap (S) — staged follow-up
 
 **Current status, 2026-10-12:** direction accepted, not implemented or a gate for

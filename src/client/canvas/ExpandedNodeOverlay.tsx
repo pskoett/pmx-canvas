@@ -242,8 +242,7 @@ export function ExpandedNodeOverlay() {
     };
   }, [handlePresentationKeyDown, presentationExitToken, presenting]);
 
-  // Focus trap (item 18): restore to the node this overlay opened from — its
-  // world element is unmounted while expanded and remounted on close.
+  // Restore to the same spatial card at every zoom.
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreToNode = useCallback(
     () => (nodeId ? document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`) : null),

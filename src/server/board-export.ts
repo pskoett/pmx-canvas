@@ -12,7 +12,7 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Marked, Renderer, type RendererThis, type Tokens } from 'marked';
-import { canvasThemeScheme } from '../shared/themes.js';
+import { canvasThemeScheme, normalizeCanvasThemeName, type CanvasThemeName } from '../shared/themes.js';
 import { delimiterForPath, parseDelimitedText } from '../shared/delimited-text.js';
 import { buildJsonRenderViewerHtml, escapeInlineScriptSource, readJsonRenderBundle } from '../json-render/server.js';
 import type { JsonRenderSpec } from '../json-render/server.js';
@@ -58,6 +58,7 @@ interface ExportCard {
   w: number;
   h: number;
   group?: true;
+  heading?: true;
   html?: string;
   frame?: string;
 }
@@ -66,7 +67,7 @@ interface Collected {
   manifest: ExportManifest;
   cards: ExportCard[];
   edges: CanvasEdge[];
-  scheme: 'dark' | 'light';
+  theme: CanvasThemeName;
   needsJsonRender: boolean;
   needsMermaid: boolean;
 }
@@ -207,9 +208,7 @@ async function collect(
   const read = canvasState.readBoard(boardId);
   if (!read) return null;
   const { board, state } = read;
-  const theme = canvasThemeScheme(state.theme ?? canvasState.theme);
-  // Exports collapse to a scheme; surface documents take the theme that draws it.
-  const surfaceTheme = theme === 'light' ? 'daylight' : 'harbor';
+  const theme = normalizeCanvasThemeName(state.theme ?? canvasState.theme);
   const remoteImages = new Set<string>();
   const links = new Set<string>();
   const frameNetworkDestinations = new Set<string>();
@@ -278,6 +277,7 @@ async function collect(
         card.group = true;
         break;
       case 'markdown':
+        if (data.display === 'heading') card.heading = true;
         card.html = `<div class="md">${await markdown.parse(text(data.content))}</div>`;
         break;
       case 'status':
@@ -385,8 +385,7 @@ async function collect(
         const html = text(data.html) || text(data.content);
         collectFrameNetworkDestinations(html, frameNetworkDestinations);
         manifest.frames += 1;
-        if (withFrames)
-          card.frame = buildHtmlSurfaceDocument(html, { theme: surfaceTheme, title, inlineThemeCss: themeCss });
+        if (withFrames) card.frame = buildHtmlSurfaceDocument(html, { theme, title, inlineThemeCss: themeCss });
         break;
       }
       case 'mermaid':
@@ -398,7 +397,7 @@ async function collect(
               '<script src="/canvas/mermaid-entry.js"></script>',
               `<script src="${MERMAID_SRC}"></script>`,
             ),
-            { theme: surfaceTheme, title, inlineThemeCss: themeCss },
+            { theme, title, inlineThemeCss: themeCss },
           );
         }
         break;
@@ -415,7 +414,8 @@ async function collect(
             title,
             spec: data.spec as JsonRenderSpec,
             theme,
-            display: 'site',
+            // The saved card owns the viewport, just as on the live canvas.
+            // Omitting display selects embedded layout and its duplicate-title policy.
           });
         }
         break;
@@ -444,7 +444,7 @@ async function collect(
   manifest.links = [...links];
   manifest.frameNetworkDestinations = [...frameNetworkDestinations];
   manifest.embeddedCodeCanAccessNetwork = manifest.frames > 0;
-  return { manifest, cards, edges: state.edges, scheme: theme, needsJsonRender, needsMermaid };
+  return { manifest, cards, edges: state.edges, theme, needsJsonRender, needsMermaid };
 }
 
 /** What an export of `boardId` would put in the file, without building it. */
@@ -467,7 +467,7 @@ export async function buildBoardExport(
 ): Promise<{ html: string; manifest: ExportManifest } | null> {
   const collected = await collect(boardId, includeFiles, true, includeDerivedText);
   if (!collected) return null;
-  const { manifest, cards, edges: snapshotEdges, scheme, needsJsonRender, needsMermaid } = collected;
+  const { manifest, cards, edges: snapshotEdges, theme, needsJsonRender, needsMermaid } = collected;
 
   // Store each viewer bundle once; frames reference it by placeholder.
   const assets: Record<string, string> = {};
@@ -496,7 +496,7 @@ export async function buildBoardExport(
   const exportedAt = new Date().toISOString();
   const html = exportPage({
     title: manifest.boardName,
-    scheme,
+    theme,
     exportedAt,
     board: { cards, edges },
     assets,
@@ -536,7 +536,7 @@ export function exportsFolder(): string | null {
 
 function exportPage(input: {
   title: string;
-  scheme: 'dark' | 'light';
+  theme: CanvasThemeName;
   exportedAt: string;
   board: {
     cards: ExportCard[];
@@ -545,14 +545,22 @@ function exportPage(input: {
   assets: Record<string, string>;
 }): string {
   const date = new Date(input.exportedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  // Use the workbench's shipped faces and shared palette without offline requests.
+  const fonts = (readAsset('global.css').match(/@font-face\s*\{[^}]*\}/g) ?? [])
+    .join('\n')
+    .replace(
+      /url\("fonts\/([\w.-]+\.woff2)"\)/g,
+      (_, file: string) =>
+        `url("data:font/woff2;base64,${readFileSync(join(canvasBundleDir(), 'fonts', file)).toString('base64')}")`,
+    );
   return `<!doctype html>
-<html lang="en" data-scheme="${input.scheme}">
+<html lang="en" data-scheme="${canvasThemeScheme(input.theme)}" data-theme="${input.theme}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="PMX Canvas">
 <title>${escapeHtml(input.title)}</title>
-<style>${EXPORT_CSS}</style>
+<style>${fonts}\n${readAsset('surface-theme.css')}\n${EXPORT_CSS}</style>
 </head>
 <body>
 <header class="bar">
@@ -574,10 +582,9 @@ function exportPage(input: {
 }
 
 const EXPORT_CSS = `
-:root{--bg:#0b1016;--panel:#121a23;--line:#263241;--text:#e8edf2;--soft:#9aa7b4;--accent:#4bbcff;--add:#2ea66f;--del:#e25d6e}
-[data-scheme=light]{--bg:#f4f6f8;--panel:#ffffff;--line:#d5dbe1;--text:#17202a;--soft:#5b6875;--accent:#0a6fc2;--add:#1c7a4f;--del:#b3263a}
+:root{--bg:var(--c-bg);--panel:var(--c-panel);--line:var(--c-line);--text:var(--c-text);--soft:var(--c-muted);--accent:var(--c-accent);--add:var(--c-ok);--del:var(--c-danger)}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.6 var(--font-ui)}
 .bar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);z-index:5}
 .bar .name{display:flex;flex-direction:column;min-width:0}
 .bar .name strong,.bar .name span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -592,12 +599,16 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 #edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 #edges line{stroke:var(--soft);stroke-width:1.5}
 #edges text{fill:var(--soft);font-size:12px;text-anchor:middle}
-.card{position:absolute;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.card{position:absolute;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-node);overflow:hidden;box-shadow:var(--e-1)}
 .card.group{background:color-mix(in srgb,var(--accent) 5%,transparent);border-style:dashed;box-shadow:none}
-.card-title{position:relative;flex-shrink:0;width:100%;text-align:left;padding:12px 42px 12px 18px;font-weight:600;font-size:13px;border:0;border-bottom:1px solid var(--line);border-radius:0;cursor:zoom-in;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:color-mix(in srgb,var(--soft) 5%,var(--panel))}
+.card-title{position:relative;flex-shrink:0;width:100%;text-align:left;padding:7px 38px 7px 12px;font-weight:600;font-size:12px;line-height:22px;border:0;border-bottom:1px solid var(--line);border-radius:0;cursor:zoom-in;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent}
 button.card-title:after{content:'↗';position:absolute;right:16px;color:var(--soft);font-size:16px}
 .card.group .card-title{border-bottom:none;cursor:default;color:var(--soft)}
-.card-body{flex:1;min-height:0;min-width:0;overflow:auto;padding:20px;overflow-wrap:anywhere;overscroll-behavior:contain;cursor:auto}
+.card-body{flex:1;min-height:0;min-width:0;overflow:auto;padding:10px 14px;font-size:var(--fs-ui);color:var(--c-text-soft);overflow-wrap:anywhere;overscroll-behavior:contain;cursor:auto}
+.card.heading{background:transparent;border-color:transparent;box-shadow:none}
+.card.heading .card-title{padding:8px 38px 0 16px;border:0;font-size:var(--fs-heading);line-height:28px;letter-spacing:-.01em}
+.card.heading .card-body{padding:0 16px 8px;color:var(--soft)}
+.card.heading:not(:hover):not(:focus-within) .card-title:after{visibility:hidden}
 .card-body>:first-child,.md>:first-child{margin-top:0}.card-body>:last-child,.md>:last-child{margin-bottom:0}
 .card iframe,#overlay-body iframe{flex:1;min-height:0;width:100%;height:100%;border:0;background:var(--bg)}
 .md h1,.md h2,.md h3,.md h4,.md h5,.md h6{margin:1.4em 0 .6em;line-height:1.3;font-weight:650;letter-spacing:-.02em}
@@ -607,7 +618,7 @@ button.card-title:after{content:'↗';position:absolute;right:16px;color:var(--s
 .md input[type=checkbox]{accent-color:var(--accent);margin-right:.5em}
 .md blockquote{margin:1em 0;padding:10px 16px;border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel));color:var(--soft)}
 .md blockquote>:last-child{margin-bottom:0}.md hr{border:0;border-top:1px solid var(--line);margin:24px 0}
-.md code,pre{font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;tab-size:2}
+.md code,pre{font:13px/1.65 var(--font-code);tab-size:2}
 .md :not(pre)>code{padding:2px 5px;border:1px solid var(--line);border-radius:4px;background:color-mix(in srgb,var(--soft) 8%,var(--panel))}
 pre{margin:0 0 16px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--soft) 5%,var(--panel));white-space:pre;overflow:auto;overflow-wrap:normal;overscroll-behavior:contain}
 .prose{white-space:pre-wrap}.table-scroll{width:100%;max-width:100%;overflow:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px;overscroll-behavior:contain}
@@ -629,7 +640,7 @@ details{margin-top:16px}summary{cursor:pointer;color:var(--soft);margin-bottom:1
 #overlay .sheet{width:min(1100px,100%);height:min(90vh,100%);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 #overlay .sheet>header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
 #overlay-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-#overlay-body .card-body{padding:28px 32px}#overlay-body .md{max-width:960px;margin:0 auto}
+#overlay-body .card-body{padding:28px 32px;font-size:15px}#overlay-body .md{max-width:960px;margin:0 auto}
 @media(max-width:600px){#overlay{padding:8px}#overlay .sheet{height:100%}#overlay-body .card-body{padding:18px}.bar{padding:0 10px}.bar .name span{display:none}}
 `;
 
@@ -660,7 +671,7 @@ const body = (card) => {
 const ordered = [...board.cards].sort((a, b) => (b.group ? 1 : 0) - (a.group ? 1 : 0));
 for (const card of ordered) {
   const el = document.createElement('section');
-  el.className = 'card' + (card.group ? ' group' : '');
+  el.className = 'card' + (card.group ? ' group' : '') + (card.heading ? ' heading' : '');
   el.dataset.nodeId = card.id;
   el.dataset.nodeType = card.kind;
   Object.assign(el.style, { left: card.x + 'px', top: card.y + 'px', width: card.w + 'px', height: card.h + 'px' });

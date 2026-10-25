@@ -6,6 +6,7 @@ import { applySpecPatch, parseSpecStreamLine, type Spec, type SpecStreamLine } f
 import { allComponentDefinitions, catalog, validateShadcnElementProps, type JsonRenderIssue } from './catalog.js';
 import { findUnknownDirectiveKey, isDynamicPropValue } from './directives.js';
 import { contentHeightReporterTag } from '../shared/content-height-reporter.js';
+import type { CanvasThemeName } from '../shared/themes.js';
 
 export interface JsonRenderSpec {
   root: string;
@@ -1030,7 +1031,7 @@ export async function readJsonRenderBundle(): Promise<{ js: string; css: string 
 export async function buildJsonRenderViewerHtml(options: {
   title: string;
   spec: JsonRenderSpec;
-  theme?: 'dark' | 'light' | 'high-contrast';
+  theme?: CanvasThemeName | 'dark' | 'light';
   display?: 'expanded' | 'site';
   devtools?: boolean;
   nodeId?: string;
@@ -1076,7 +1077,7 @@ export async function buildJsonRenderViewerHtml(options: {
     const heightReporter = options.frameToken ? contentHeightReporterTag(options.frameToken) : '';
     return buildAppHtml({
       title: options.title,
-      css: cssBundle,
+      css: `${readFileSync(join(import.meta.dir, '../client/theme/surface-theme.css'), 'utf-8')}\n${cssBundle}`,
       js: escapeInlineScriptSource(boot),
       head: `<meta name="color-scheme" content="light dark" />${heightReporter}`,
     });

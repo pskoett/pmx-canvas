@@ -18,37 +18,10 @@ import { axNodeActionButtonStyle, runNodeAxInteraction } from './ax-node-actions
  */
 
 /**
- * The rows sit in a dock stuck to the bottom of the scrollable node body: a step
- * node is short (360x200 as materialized), so a control row that simply followed
- * the content scrolled out of sight. Sticky keeps it reachable at any node height
- * while still being INSIDE the body, which is what auto-fit measures.
+ * The rows sit in `.ax-step-dock`, a footer that stays reachable at the bottom of
+ * the node body (global.css). On a card it shares one footer row with the card's
+ * own actions; in the expanded overlay it is a sticky bar under the document.
  */
-/**
- * The dock reads as a real footer toolbar rather than stray text at the bottom
- * edge. It bleeds to the container's edges via negative margins (`.node-body`
- * has 12px padding; the expanded overlay's content area has 16px, and the dock
- * is a sibling of that area, so it starts flush) and then re-applies its own
- * padding — otherwise the first label sits hard against the left edge and looks
- * clipped. `--c-panel-overlay` separates it from the content above it.
- */
-const dockStyle = {
-  position: 'sticky',
-  // Bleed OUT of the container's padding so the bar spans edge to edge, then
-  // re-apply padding inside it. These are two different numbers: in a node body
-  // the dock sits INSIDE 12px of padding and must pull back out of it, while in
-  // the expanded overlay it is a sibling of the padded content area and is
-  // already flush — bleeding there would push it off the panel.
-  bottom: 'calc(-1 * var(--ax-dock-bleed, 12px))',
-  marginTop: '12px',
-  marginLeft: 'calc(-1 * var(--ax-dock-bleed, 12px))',
-  marginRight: 'calc(-1 * var(--ax-dock-bleed, 12px))',
-  marginBottom: 'calc(-1 * var(--ax-dock-bleed, 12px))',
-  padding: '9px var(--ax-dock-pad, 12px) 10px',
-  background: 'var(--c-panel-overlay)',
-  borderTop: '1px solid var(--c-line)',
-  backdropFilter: 'blur(6px)',
-} as const;
-
 const rowStyle = {
   display: 'flex',
   alignItems: 'center',
@@ -57,7 +30,7 @@ const rowStyle = {
 } as const;
 
 const labelStyle = {
-  fontSize: '10px',
+  fontSize: 'var(--fs-meta)',
   color: 'var(--c-muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -160,47 +133,50 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
           </button>
         </BarHint>
       )}
-      <input
-        class="ax-flow-steer-input"
-        value={message}
-        placeholder="Steer the agent…"
-        aria-label="Steer the agent"
-        onInput={(e) => setMessage((e.target as HTMLInputElement).value)}
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter') return;
-          e.stopPropagation();
-          void handleSteer();
-        }}
-        style={{
-          flex: '1 1 120px',
-          minWidth: '90px',
-          fontSize: '10px',
-          padding: '3px 6px',
-          borderRadius: '4px',
-          border: '1px solid var(--c-line)',
-          background: 'var(--c-panel-overlay)',
-          color: 'var(--c-text)',
-        }}
-      />
-      <BarHint
-        label="Send a steering message to the agent working this flow"
-        side="up"
-        align="end"
-        fitWithin=".node-content, .expanded-overlay-panel"
-      >
-        <button
-          type="button"
-          class="ax-node-action"
-          style={axNodeActionButtonStyle}
-          onClick={(e) => {
+      {/* The draft and its send button wrap as one unit, never a lone Steer. */}
+      <span style={{ display: 'flex', gap: '6px', flex: '1 1 140px', minWidth: 0 }}>
+        <input
+          class="ax-flow-steer-input"
+          value={message}
+          placeholder="Steer the agent…"
+          aria-label="Steer the agent"
+          onInput={(e) => setMessage((e.target as HTMLInputElement).value)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
             e.stopPropagation();
             void handleSteer();
           }}
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            fontSize: 'var(--fs-meta)',
+            padding: '3px 6px',
+            borderRadius: '4px',
+            border: '1px solid var(--c-line)',
+            background: 'var(--c-panel-overlay)',
+            color: 'var(--c-text)',
+          }}
+        />
+        <BarHint
+          label="Send a steering message to the agent working this flow"
+          side="up"
+          align="end"
+          fitWithin=".node-content, .expanded-overlay-panel"
         >
-          Steer
-        </button>
-      </BarHint>
+          <button
+            type="button"
+            class="ax-node-action"
+            style={axNodeActionButtonStyle}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleSteer();
+            }}
+          >
+            Steer
+          </button>
+        </BarHint>
+      </span>
     </div>
   );
 }
@@ -212,7 +188,7 @@ export function AxStepControls({ node }: { node: CanvasNodeState }) {
   const status = mirroredStatus(node.data);
 
   return (
-    <div class="ax-step-dock" style={dockStyle}>
+    <div class="ax-step-dock">
       <div class="ax-step-controls" style={rowStyle}>
         <span class="ax-step-position" style={labelStyle}>
           Step {step.index}/{step.total}

@@ -20,6 +20,7 @@ export function BarPortal({ children }: { children: VNode }) {
  * `title` hints, which are delay-gated and never render in embedded panes.
  */
 export function BarHint({
+  id,
   label,
   shortcut,
   body,
@@ -29,10 +30,12 @@ export function BarHint({
   fitWithin,
   children,
 }: {
+  /** Optional description target for the control's aria-describedby. */
+  id?: string;
   label: string;
   shortcut?: string;
-  /** One or two plain sentences under the label — the explanation a native `title` used to hide. */
-  body?: string;
+  /** Explanatory text, optionally split into readable paragraphs. */
+  body?: ComponentChildren;
   align?: 'start' | 'center' | 'end';
   /** Which way the tooltip opens. Bars at the bottom of the region open 'up'. */
   side?: 'down' | 'up';
@@ -73,7 +76,7 @@ export function BarHint({
       onFocusIn={fitWithin ? fit : undefined}
     >
       {children}
-      <span class="toolbar-tooltip" role="tooltip">
+      <span id={id} class="toolbar-tooltip" role="tooltip">
         <span class="toolbar-tooltip-label">{label}</span>
         {body && <span class="toolbar-tooltip-body">{body}</span>}
         {shortcut && (

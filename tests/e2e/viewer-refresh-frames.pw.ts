@@ -144,6 +144,77 @@ for (const { theme, os, dark } of cases) {
 }
 
 for (const mode of ['src', 'srcdoc']) {
+  test(`a late initial JSON load cannot overwrite the revised spec's form state (${mode})`, async ({
+    page,
+    request,
+  }) => {
+    const spec = (value: string) => ({
+      root: 'field',
+      state: { value },
+      elements: { field: { type: 'Input', props: { label: 'Revision value', value: { $bindState: '/value' } } } },
+    });
+    const { id } = await (
+      await request.post('/api/canvas/json-render', {
+        data: { title: 'Document ownership', x: 100, y: 100, spec: spec('Old authored value') },
+      })
+    ).json();
+    let releaseReplacement!: () => void;
+    const replacement = new Promise<void>((resolve) => {
+      releaseReplacement = resolve;
+    });
+    await page.addInitScript((id) => {
+      if (window !== window.parent) return;
+      let held = false;
+      document.addEventListener(
+        'load',
+        (event) => {
+          const frame = event.target;
+          if (
+            held ||
+            !(frame instanceof HTMLIFrameElement) ||
+            frame.closest('.canvas-node')?.getAttribute('data-node-id') !== id
+          )
+            return;
+          held = true;
+          frame.dataset.heldLoad = 'true';
+          event.stopImmediatePropagation();
+        },
+        true,
+      );
+    }, id);
+    let documents = 0;
+    await page.route('**/api/canvas/json-render/view?**', async (route) => {
+      if (new URL(route.request().url()).searchParams.get('nodeId') !== id) return route.continue();
+      const response = await route.fetch();
+      if (++documents > 1) await replacement;
+      await route.fulfill({ response });
+    });
+    try {
+      await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+      await page.goto(`/workbench?iframe-mode=${mode}`, { waitUntil: 'domcontentloaded' });
+      const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
+      const painted = node.frameLocator('iframe:not([inert])');
+      await expect(node.locator('iframe[data-held-load]')).toHaveCount(1);
+      expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('New authored value') } })).ok()).toBe(
+        true,
+      );
+      await expect.poll(() => documents).toBe(2);
+      await node.locator('iframe[data-held-load]').evaluate((frame) => frame.dispatchEvent(new Event('load')));
+      // The retained document can finish painting, without gaining ownership
+      // of the new spec's drafts while its replacement is still loading.
+      await expect(node.locator('.viewer-fallback')).toHaveCount(0);
+      await painted.getByLabel('Revision value').fill('Old user draft');
+      releaseReplacement();
+      await expect(painted.getByLabel('Revision value')).toHaveValue('New authored value');
+      await expect(node.locator('iframe')).toHaveCount(1);
+      await painted.getByLabel('Revision value').fill('New user input');
+      await expect(painted.getByLabel('Revision value')).toHaveValue('New user input');
+    } finally {
+      releaseReplacement();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+
   test(`graph data and spec patches refresh the painted viewer (${mode})`, async ({ page, request }) => {
     const { id } = await (
       await request.post('/api/canvas/graph', {
@@ -164,7 +235,9 @@ for (const mode of ['src', 'srcdoc']) {
     await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
     await page.goto(`/workbench?iframe-mode=${mode}`);
     const painted = page.locator(`[data-node-id="${id}"]`).frameLocator('iframe:not([inert])');
-    await expect(painted.getByText('Initial graph', { exact: true })).toBeVisible();
+    await expect(page.locator(`[data-node-id="${id}"] .node-title`)).toHaveText('Initial graph');
+    await expect(painted.getByText('Initial graph', { exact: true })).toBeHidden();
+    await expect(painted.getByText('A', { exact: true })).toBeVisible();
     expect(
       (
         await request.patch(`/api/canvas/node/${id}`, {
@@ -178,7 +251,7 @@ for (const mode of ['src', 'srcdoc']) {
         })
       ).ok(),
     ).toBe(true);
-    await expect(painted.getByText('Changed graph', { exact: true })).toBeVisible();
+    await expect(page.locator(`[data-node-id="${id}"] .node-title`)).toHaveText('Changed graph');
     await expect(painted.getByText('C', { exact: true })).toBeVisible();
     expect(
       (
@@ -190,8 +263,31 @@ for (const mode of ['src', 'srcdoc']) {
     await expect(painted.getByText('Replacement spec', { exact: true })).toBeVisible();
   });
 
-  test(`failed HTML refresh retries once, keeps painted content, and recovers (${mode})`, async ({ page, request }) => {
+  test(`failed HTML refresh keeps painted content until explicit retry (${mode})`, async ({ page, request }, info) => {
     test.setTimeout(60_000);
+    // Hold the initial paint acknowledgement until a replacement has failed.
+    // Seeing document text alone does not mean the host has received that reply.
+    await page.addInitScript(() => {
+      if (window === window.parent) return;
+      let held: MessageEvent | undefined;
+      let released = false;
+      window.addEventListener('message', (event: MessageEvent) => {
+        if (event.source !== window.parent) return;
+        if (event.data?.releaseInitialPaint === true) {
+          released = true;
+          if (held) window.dispatchEvent(new MessageEvent('message', { data: held.data, source: held.source }));
+        } else if (
+          !released &&
+          event.data?.source === 'pmx-canvas-html-node' &&
+          event.data?.type === 'check-ready' &&
+          document.querySelector('h1')?.textContent === 'Last healthy HTML'
+        ) {
+          event.stopImmediatePropagation();
+          held = event;
+          document.documentElement.dataset.paintHeld = 'true';
+        }
+      });
+    });
     const html = (text: string) => `<main><h1>${text}</h1></main>`;
     const response = await request.post('/api/canvas/node', {
       data: {
@@ -218,20 +314,32 @@ for (const mode of ['src', 'srcdoc']) {
     const node = page.locator(`[data-node-id="${id}"]`);
     const painted = node.frameLocator('iframe:not([inert])');
     await expect(painted.getByText('Last healthy HTML', { exact: true })).toBeVisible();
+    await expect(painted.locator('html')).toHaveAttribute('data-paint-held', 'true');
     failReplacement = true;
     expect((await request.patch(`/api/canvas/node/${id}`, { data: { html: html('Unavailable HTML') } })).ok()).toBe(
       true,
     );
-    await expect(page.locator('.attention-toast')).toContainText('Keeping the last view. Reload to retry.', {
+    await expect.poll(() => failures).toBe(1);
+    await node.locator('iframe:not([inert])').evaluate((frame: HTMLIFrameElement) => {
+      frame.contentWindow?.postMessage({ releaseInitialPaint: true }, '*');
+    });
+    await expect(node.locator('.viewer-fallback')).toContainText('Keeping the last view.', {
       timeout: 30_000,
     });
-    await expect(node.locator('iframe')).toHaveCount(1);
     await expect(painted.getByText('Last healthy HTML', { exact: true })).toBeVisible();
-    expect(failures).toBe(mode === 'srcdoc' ? 3 : 2);
+    const content = (await painted.getByText('Last healthy HTML', { exact: true }).boundingBox())!;
+    const banner = (await node.locator('.viewer-fallback').boundingBox())!;
+    expect(content.y + content.height).toBeLessThanOrEqual(banner.y);
+    await page.screenshot({ path: info.outputPath('retained-html.png') });
+    expect(failures).toBe(1);
     failReplacement = false;
+    await node.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(painted.getByText('Unavailable HTML', { exact: true })).toBeVisible();
+    await expect(node.locator('.viewer-fallback')).toHaveCount(0);
     expect((await request.patch(`/api/canvas/node/${id}`, { data: { html: html('Recovered HTML') } })).ok()).toBe(true);
     await expect(painted.getByText('Recovered HTML', { exact: true })).toBeVisible();
     await expect(node.locator('iframe')).toHaveCount(1);
+    await page.screenshot({ path: info.outputPath('recovered-html.png') });
   });
 
   test(`healthy offscreen viewers keep their replacement until painted (${mode})`, async ({ page, request }) => {
@@ -277,28 +385,11 @@ for (const mode of ['src', 'srcdoc']) {
     await expect(page.locator('.attention-toast').filter({ hasText: 'Viewer could not load' })).toHaveCount(0);
   });
 
-  test(`failed viewer refresh retries once, keeps painted content, and recovers (${mode})`, async ({
+  test(`failed viewer refresh keeps painted content until explicit retry (${mode})`, async ({
     page,
     request,
   }, info) => {
     test.setTimeout(60_000);
-    if (mode === 'srcdoc') {
-      // Visible content can precede the runtime's ready acknowledgement. Hold
-      // that acknowledgement so an update deterministically cancels the handoff.
-      await page.addInitScript(() => {
-        if (window !== window.parent) return;
-        window.addEventListener('message', (event) => {
-          if (
-            event.data?.source === 'pmx-canvas-json-state' &&
-            event.data?.type === 'ready' &&
-            !document.documentElement.dataset.readyHeld
-          ) {
-            event.stopImmediatePropagation();
-            document.documentElement.dataset.readyHeld = 'true';
-          }
-        });
-      });
-    }
     const spec = (text: string) => ({
       root: 'text',
       elements: { text: { type: 'Text', props: { text } } },
@@ -332,8 +423,10 @@ for (const mode of ['src', 'srcdoc']) {
     const node = page.locator(`.canvas-node[data-node-id="${id}"]`);
     const painted = node.frameLocator('iframe:not([inert])');
     await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
+    // A visible iframe DOM is not proof that the host has removed its loading
+    // overlay. Establish an acknowledged, painted view before replacing it.
+    await expect(node.locator('.viewer-fallback')).toHaveCount(0);
     const original = await node.locator('iframe:not([inert])').elementHandle();
-    if (mode === 'srcdoc') await expect(page.locator('html')).toHaveAttribute('data-ready-held', 'true');
     failReplacement = true;
     expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Unavailable update') } })).ok()).toBe(
       true,
@@ -352,15 +445,21 @@ for (const mode of ['src', 'srcdoc']) {
         releaseReplacement();
       }
     }
-    await expect(page.locator('.attention-toast')).toContainText('Viewer could not load', { timeout: 30_000 });
-    await expect(page.locator('.attention-toast')).toContainText('Keeping the last view. Reload to retry.');
-    await expect(node.locator('iframe')).toHaveCount(1);
+    await expect(node.locator('.viewer-fallback')).toContainText('Viewer could not load', { timeout: 30_000 });
+    await expect(node.locator('.viewer-fallback')).toContainText('Keeping the last view.');
     await expect(painted.getByText('Last healthy view', { exact: true })).toBeVisible();
-    // Srcdoc first fetches the failed document, then falls back to src. The
-    // replacement itself retries exactly once, never promotes the error page.
-    expect(failures).toBe(mode === 'srcdoc' ? 3 : 2);
+    // Iframe DOM visibility alone ignores an opaque parent banner covering it.
+    const retainedText = (await painted.getByText('Last healthy view', { exact: true }).boundingBox())!;
+    const notice = (await node.locator('.viewer-fallback').boundingBox())!;
+    expect(retainedText.y + retainedText.height).toBeLessThanOrEqual(notice.y);
+    // Preparation and navigation failures share one explicit Retry. Never
+    // try a second load path or promote the error page.
+    expect(failures).toBe(1);
     await page.screenshot({ path: info.outputPath(`viewer-failed-${mode}.png`) });
     failReplacement = false;
+    await node.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(painted.getByText('Unavailable update', { exact: true })).toBeVisible();
+    await expect(node.locator('.viewer-fallback')).toHaveCount(0);
     expect(
       (await request.patch(`/api/canvas/node/${id}`, { data: { spec: spec('Recovered healthy view') } })).ok(),
     ).toBe(true);

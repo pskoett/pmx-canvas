@@ -1039,7 +1039,8 @@ describe('canvas server HTTP API', () => {
     expect(created.size).toEqual(created.primitive.defaultSize);
     expect(created.data.htmlPrimitive).toBe('choice-grid');
     expect(created.data.description).toContain('Side-by-side options');
-    expect(created.data.html).toContain('Copy JSON');
+    expect(created.data.html).not.toContain('data-copy-json');
+    expect(created.data.html).not.toContain('data-copy-prompt');
     expect(created.data.html).toContain('Use HTML');
 
     const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>(
@@ -2596,51 +2597,6 @@ describe('canvas server HTTP API', () => {
     expect(missingHead.status).toBe(404);
   });
 
-  test('ext-app recovery debug endpoint validates, clamps, and trims reports', async () => {
-    const report = (body: string) =>
-      fetch(`${baseUrl}/api/canvas/debug/ext-app-recovery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-
-    // Malformed JSON follows the repo-wide 400 contract.
-    const malformed = await report('{"entries": [');
-    expect(malformed.status).toBe(400);
-    expect(((await malformed.json()) as { error?: string }).error).toContain('Malformed');
-
-    // A non-array entries field is rejected.
-    const nonArray = await report(JSON.stringify({ entries: 'nope' }));
-    expect(nonArray.status).toBe(400);
-
-    // Entries round-trip, clamped to the known trail shape with bounded strings.
-    const posted = await report(
-      JSON.stringify({
-        entries: [{ t: 123, nodeId: 'node-a', event: 'x'.repeat(5000), visibility: 'hidden', junk: 'dropped' }],
-      }),
-    );
-    expect(posted.status).toBe(200);
-    const read = await fetch(`${baseUrl}/api/canvas/debug/ext-app-recovery`);
-    expect(read.status).toBe(200);
-    const { entries } = (await read.json()) as { entries: Array<Record<string, unknown>> };
-    const entry = entries.at(-1);
-    expect(entry?.t).toBe(123);
-    expect(entry?.nodeId).toBe('node-a');
-    expect((entry?.event as string).length).toBe(300);
-    expect(entry?.visibility).toBe('hidden');
-    expect(entry?.junk).toBeUndefined();
-
-    // The in-memory log is trimmed by count (500 max) no matter how much is posted.
-    for (let i = 0; i < 6; i += 1) {
-      const batch = Array.from({ length: 100 }, (_, j) => ({ t: i * 100 + j, nodeId: 'trim', event: 'e' }));
-      expect((await report(JSON.stringify({ entries: batch }))).status).toBe(200);
-    }
-    const trimmed = (await (await fetch(`${baseUrl}/api/canvas/debug/ext-app-recovery`)).json()) as {
-      entries: unknown[];
-    };
-    expect(trimmed.entries.length).toBeLessThanOrEqual(500);
-  });
-
   test('workbench poll transport: snapshot bootstrap, incremental events, stale-since recovery', async () => {
     // Proxy-safe transport (Amp orb portals): each poll is a short-lived JSON
     // response. A fresh poller (no `since`) gets the SAME connect snapshot the
@@ -2655,6 +2611,9 @@ describe('canvas server HTTP API', () => {
     expect(first.snapshot).toBe(true);
     const snapshotEvents = first.events.map((entry) => entry.event);
     expect(snapshotEvents).toContain('connected');
+    // The ordered snapshot establishes board ownership before any layout or
+    // later tour event, without depending on the separate catalog HTTP read.
+    expect(snapshotEvents[1]).toBe('boards-changed');
     expect(snapshotEvents).toContain('canvas-layout-update');
     expect(snapshotEvents).toContain('context-pins-changed');
 

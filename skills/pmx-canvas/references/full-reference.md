@@ -555,10 +555,15 @@ Once the board list has loaded, all workbench context-pin writes send the captur
 `expectedBoardId`; a server-side board switch returns 409 instead of changing
 another board's pins. Receipt pin actions require reopening the owning board.
 
-Embedded JSON/graph runtime readiness waits up to 10 seconds after document load
-and retries a failed handoff once while retaining the last painted document.
-After another failure, the error toast/history say **Reload to retry**; a later
-healthy authored update can recover. This is not an overall network-load timeout.
+Embedded previews mount automatically near the viewport at every zoom and remain
+mounted to preserve arbitrary app state. There is no lifetime preview cap. Mermaid renders
+inline, without an iframe. JSON/graph viewers inherit all nine named canvas themes
+and keep form drafts when the theme changes. During replacement, the pending
+document temporarily coexists with its painted predecessor.
+
+A network load or missing JSON runtime times out after 10 seconds and offers a
+visible **Retry**, retaining the last painted document during replacement.
+An already mounted offscreen runtime may wait for paint without being timed out.
 
 Native edge add accepts optional `toBoardId`: `from` is on the open source board,
 `to` is a card on the target board. CLI: `pmx-canvas edge add --from <source> --to <target>

@@ -7,6 +7,7 @@ import {
   type Locator,
   type Page,
   setWorkspaceFeatures,
+  renderedCamera,
 } from './workspace-fixture.js';
 import { fileURLToPath } from 'node:url';
 import { RELATION_PRESETS } from '../../src/shared/relations.js';
@@ -451,7 +452,7 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
   const node = (title: string) => page.locator('.canvas-node').filter({ hasText: title });
 
   await expect(node('All Types Markdown')).toContainText('Markdown renderer body');
-  await expect(node('All Types Status')).toContainText('testing');
+  await expect(node('All Types Status')).toContainText('Testing');
   await expect(node('All Types Status')).toContainText('status renderer message');
   // Docking is explicit (0.4.6 orb feedback #1): a created context node renders
   // ON THE CANVAS, not as an invisible HUD pill. This is the regression guard —
@@ -564,7 +565,7 @@ test('right-drag pans over blank canvas and node content without moving or creat
   await expect(page.locator('.canvas-node')).toHaveClass(/active/);
   await expect(page.locator('.context-menu')).toHaveCount(0);
   await title.dblclick();
-  await page.getByRole('button', { name: 'Rename…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Rename…', exact: true }).click();
   await page.getByPlaceholder('Node title').fill('Renamed from menu');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(title).toHaveText('Renamed from menu');
@@ -601,14 +602,14 @@ test('cancelled right-clicks and return-to-start drags do not open creation menu
   await expect(menu).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
-  const before = await page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform);
+  const before = await page.locator('.canvas-world').evaluate((el) => el.getBoundingClientRect().x);
   await page.mouse.move(100, 220);
   await page.mouse.down({ button: 'middle' });
   await page.mouse.move(160, 250, { steps: 5 });
   await page.mouse.up({ button: 'middle' });
   await expect(menu).toHaveCount(0);
   await expect
-    .poll(() => page.locator('.canvas-world').evaluate((el) => getComputedStyle(el).transform))
+    .poll(() => page.locator('.canvas-world').evaluate((el) => el.getBoundingClientRect().x))
     .not.toBe(before);
   expect((await currentCanvasState(request)).nodes).toHaveLength(0);
 });
@@ -873,10 +874,10 @@ test('rich relation kind and reason survive live edits and reload; a human can d
     await page.keyboard.press('Escape');
 
     const world = page.locator('.canvas-world');
-    const before = await world.evaluate((element) => getComputedStyle(element).transform);
+    const before = await world.evaluate((element) => element.getBoundingClientRect().x);
     await page.mouse.down({ button: 'right' });
     await page.mouse.move(point.x + 60, point.y + 30, { steps: 6 });
-    await expect.poll(() => world.evaluate((element) => getComputedStyle(element).transform)).not.toBe(before);
+    await expect.poll(() => world.evaluate((element) => element.getBoundingClientRect().x)).not.toBe(before);
     await page.mouse.move(point.x, point.y, { steps: 6 });
     await page.mouse.up({ button: 'right' });
     await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
@@ -1026,8 +1027,8 @@ test('double-click Delete: a node deletes; a frame deletes with its children sta
   const node = page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' }).first();
   await node.dblclick({ button: 'left', position: { x: 80, y: 60 } });
   const menu = page.locator('.context-menu');
-  await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
-  await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(menu.getByRole('menuitem', { name: 'Delete', exact: true })).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' })).toHaveCount(
     0,
   );
@@ -1035,7 +1036,7 @@ test('double-click Delete: a node deletes; a frame deletes with its children sta
   // A member leaves its frame from the context menu (the drag-out gesture's discoverable twin).
   const member = page.locator('.canvas-node').filter({ hasText: 'Member' }).first();
   await member.dblclick({ button: 'left', position: { x: 80, y: 60 } });
-  await menu.getByRole('button', { name: 'Remove from “Doomed frame”' }).click();
+  await menu.getByRole('menuitem', { name: 'Remove from “Doomed frame”' }).click();
   await expect
     .poll(async () => {
       const state = (await (await request.get(`/api/canvas/node/${b.id}`)).json()) as { data: Record<string, unknown> };
@@ -1050,7 +1051,7 @@ test('double-click Delete: a node deletes; a frame deletes with its children sta
     .filter({ hasText: 'Doomed frame' })
     .locator('.group-edge-row')
     .dblclick({ button: 'left', position: { x: 200, y: 6 } });
-  await menu.getByRole('button', { name: 'Delete frame (children stay)' }).click();
+  await menu.getByRole('menuitem', { name: 'Delete frame (children stay)' }).click();
   await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Member' })).toHaveCount(1);
   expect(
@@ -1965,6 +1966,7 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'AX ack ext app' });
   await expect(node).toHaveCount(1);
+  await expect(node.locator('.viewer-fallback')).toHaveCount(0);
   await node.getByLabel('Open full view to edit').click();
   const expandedNode = page.locator('.expanded-overlay-panel').filter({ hasText: 'AX ack ext app' });
   await expect(expandedNode).toHaveCount(1);
@@ -1972,6 +1974,137 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
   // Same early iframe pointer-routing race as the HTML bridge tests above.
   await frame.getByRole('button', { name: 'emit' }).press('Enter');
   await expect(frame.locator('#st')).toHaveText('queued OK');
+});
+
+test('ext-app previews share card stacking, pan input and presentation visibility', async ({ page, request }) => {
+  const app = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'mcp-app',
+        title: 'Stacked app',
+        x: 100,
+        y: 100,
+        width: 440,
+        height: 320,
+        data: {
+          mode: 'ext-app',
+          html: '<p>Preview body</p><input value="Draft survives">',
+          sessionStatus: 'ready',
+          userResized: true,
+        },
+      },
+    })
+  ).json();
+  const note = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Stacked note',
+        content: 'Native card above app',
+        x: 350,
+        y: 190,
+        width: 360,
+        height: 230,
+      },
+    })
+  ).json();
+  await request.post('/api/canvas/update', {
+    data: {
+      updates: [
+        { id: app.id, zIndex: 100 },
+        { id: note.id, zIndex: 101 },
+      ],
+    },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench?transport=sse');
+  const appCard = page.locator(`[data-node-id="${app.id}"]`);
+  const noteCard = page.locator(`[data-node-id="${note.id}"]`);
+  await expect(page.frameLocator('iframe.ext-app-frame').getByText('Preview body')).toBeVisible();
+  const topCard = () =>
+    noteCard.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return document
+        .elementFromPoint(rect.x + 30, rect.y + 80)
+        ?.closest('[data-node-id]')
+        ?.getAttribute('data-node-id');
+    });
+  await expect.poll(topCard).toBe(note.id);
+  await appCard.locator('.node-title').click();
+  await expect.poll(topCard).toBe(app.id);
+  const noteBox = (await noteCard.boundingBox())!;
+  await page.mouse.click(noteBox.x + 240, noteBox.y + 14);
+  await expect.poll(topCard).toBe(note.id);
+  const box = (await appCard.boundingBox())!;
+  await page.mouse.move(box.x + 80, box.y + 120);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(async () => (await appCard.boundingBox())!.width).toBeGreaterThan(box.width);
+  const before = (await appCard.boundingBox())!;
+  await page.keyboard.down(' ');
+  await page.mouse.move(before.x + 80, before.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 140, before.y + 150, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up(' ');
+  await expect.poll(async () => Math.round((await appCard.boundingBox())!.x - before.x)).toBe(60);
+  await expect(page.locator('.expanded-overlay-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Present', exact: true }).click();
+  await expect(page.locator('.app-shell')).toHaveClass(/is-presenting/);
+  await expect(page.frameLocator('iframe.ext-app-frame').getByText('Preview body')).toBeVisible();
+});
+
+test('ext-app bootstrap delivers input without initialized and camera changes keep its document', async ({
+  page,
+  request,
+}) => {
+  const html = `<input value="initial"><p id="result">Waiting</p><script>
+    window.addEventListener('message', (event) => {
+      if(event.source !== parent) return;
+      if(event.data.method === 'ui/notifications/tool-input') document.querySelector('#result').textContent = event.data.params.arguments.message;
+    });
+    </script>`;
+  const { id } = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'mcp-app',
+        title: 'Bootstrap app',
+        x: -80,
+        y: 60,
+        width: 440,
+        height: 320,
+        data: {
+          mode: 'ext-app',
+          html,
+          toolInput: { message: 'Input delivered' },
+          sessionStatus: 'ready',
+          userResized: true,
+        },
+      },
+    })
+  ).json();
+  await request.post('/api/canvas/viewport', { data: { x: 160, y: 40, scale: 1 } });
+  await page.goto('/workbench?transport=sse');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  const frame = page.frameLocator('iframe.ext-app-frame');
+  await expect(frame.locator('#result')).toHaveText('Input delivered');
+  await expect(card.locator('.viewer-fallback')).toHaveCount(0);
+  await frame.locator('input').evaluate((input) => {
+    input.value = 'Draft retained';
+  });
+  const original = await page.locator('iframe.ext-app-frame').elementHandle();
+  for (const scale of [0.41, 1.5, 2, 1]) {
+    await request.post('/api/canvas/viewport', { data: { x: 220, y: 80, scale } });
+    await expect.poll(async () => (await card.boundingBox())!.width).toBeCloseTo(480 * scale, 1);
+    await expect(frame.locator('input')).toHaveValue('Draft retained');
+    expect(
+      await page.locator('iframe.ext-app-frame').evaluate((current, previous) => current === previous, original),
+    ).toBe(true);
+    const area = (await page.locator('.canvas-viewport').boundingBox())!;
+    expect((await card.boundingBox())!.x).toBeCloseTo(area.x + 220 - 80 * scale, 1);
+  }
+  const saved = await (await request.get(`/api/canvas/node/${id}`)).json();
+  expect(saved.position).toEqual({ x: -80, y: 60 });
+  expect(saved.size).toEqual({ width: 480, height: 320 });
 });
 
 test('#61: hosted ext-app nodes are not openable as a standalone site', async ({ page, request }) => {
@@ -1998,7 +2131,7 @@ test('#61: hosted ext-app nodes are not openable as a standalone site', async ({
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Ext app no open-as-site' });
   await expect(node).toHaveCount(1);
-  await node.hover();
+  await node.locator('.node-titlebar').hover();
   await node.getByRole('button', { name: 'More actions' }).click();
   await expect(page.locator('.context-menu-item').filter({ hasText: 'Collapse' })).toBeVisible();
   await expect(page.locator('.context-menu-item').filter({ hasText: 'Open in new tab' })).toHaveCount(0);
@@ -2172,6 +2305,10 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   // Wait for the initial measurement to settle before placing a neighbor below it.
   await page.waitForTimeout(600);
   const before = await readNode();
+  // A full-width viewer has no outer body padding. Counting the old padding
+  // makes each viewport-height report grow the card again, even without edits.
+  await page.waitForTimeout(1000);
+  expect((await readNode()).size).toEqual(before.size);
   const neighborY = before.position.y + before.size.height + 32;
   const neighborResponse = await request.post('/api/canvas/node', {
     data: {
@@ -2221,6 +2358,15 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
     .locator('body')
     .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));
   expect(measured.content).toBeLessThanOrEqual(measured.viewport + 2);
+  await request.post('/api/canvas/viewport', { data: { x: 20, y: 40 - after.position.y * 0.5, scale: 0.5 } });
+  await page.waitForTimeout(1000);
+  const zoomed = await readNode();
+  await page.waitForTimeout(1000);
+  expect((await readNode()).size).toEqual(zoomed.size);
+  const zoomedBody = await frame
+    .locator('body')
+    .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));
+  expect(zoomedBody.content).toBeLessThanOrEqual(zoomedBody.viewport + 2);
   await node.screenshot({ path: testInfo.outputPath('slotted-card.png') });
   await page.reload();
   await expect.poll(async () => (await readNode()).position).toEqual(after.position);
@@ -2849,13 +2995,111 @@ test('native step controls on a materialized flow node drive the work item and t
   for (const id of [panelId, ...stepIds]) await request.delete(`/api/canvas/node/${id}`);
 });
 
-test('file node evidence control records AX evidence', async ({ page, request }) => {
-  await request.post('/api/canvas/node', {
-    data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 640, y: 260 },
+test('step cards keep one compact footer and a complete status at common widths and zooms', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'html-primitive', kind: 'ax-flow', title: 'Step layout e2e', x: 0, y: 0 },
   });
+  const panelId = ((await created.json()) as { id: string }).id;
+  const materialized = await request.post('/api/canvas/ax/interaction', {
+    data: {
+      type: 'ax.flow.materialize',
+      sourceNodeId: panelId,
+      sourceSurface: 'html-node',
+      payload: { title: 'Layout flow', steps: [{ title: 'Reproduce' }, { title: 'Fix' }], loop: { enabled: true } },
+    },
+  });
+  const flow = (await materialized.json()) as { primitive: { steps: Array<{ nodeId: string }> } };
+  const [anchor, step] = flow.primitive.steps.map((s) => s.nodeId);
+  await page.goto('/workbench');
+  const card = page.locator(`.canvas-node[data-node-id="${step}"]`);
+  for (const width of [360, 440]) {
+    for (const id of [anchor, step]) {
+      await request.patch(`/api/canvas/node/${id}`, { data: { size: { width, height: 240 }, strictSize: true } });
+    }
+    await request.post('/api/canvas/focus', { data: { id: step } });
+    await page
+      .locator(`.canvas-node[data-node-id="${step}"]`)
+      .getByRole('button', { name: 'Start', exact: true })
+      .click();
+    await expect(card.locator('.node-ax-status')).toHaveText('in-progress');
+    for (const scale of [1, 0.73]) {
+      await request.post('/api/canvas/focus', { data: { id: step } });
+      await request.post('/api/canvas/viewport', { data: { x: 40, y: 40, scale } });
+      for (const id of [anchor, step]) {
+        const layout = await page.locator(`.canvas-node[data-node-id="${id}"]`).evaluate((node) => {
+          const body = node.querySelector('.node-body')!;
+          const chip = node.querySelector('.node-ax-status')!;
+          const dock = node.querySelector('.ax-step-dock')!.getBoundingClientRect();
+          const edit = node.querySelector('.md-card-edit')!.getBoundingClientRect();
+          return {
+            bodyOverflow: [body.scrollWidth - body.clientWidth, body.scrollHeight - body.clientHeight],
+            chipClipped: chip.scrollWidth > chip.clientWidth,
+            footerRow: Math.abs(dock.top - edit.top) < 12,
+            footerInside: dock.bottom <= body.getBoundingClientRect().bottom + 1,
+          };
+        });
+        // No sideways or vertical scrollbar on the card, and Edit shares the step footer row.
+        expect(layout).toEqual({ bodyOverflow: [0, 0], chipClipped: false, footerRow: true, footerInside: true });
+      }
+    }
+  }
+  for (const id of [panelId, anchor, step]) await request.delete(`/api/canvas/node/${id}`);
+});
+
+test('file node evidence control records AX evidence', async ({ page, request }) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 80, y: 160 },
+  });
+  const { id } = (await created.json()) as { id: string };
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.setViewportSize({ width: 600, height: 720 });
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'evidence-file.ts' });
   await expect(node).toHaveCount(1);
+  for (const width of [320, 440]) {
+    await request.patch(`/api/canvas/node/${id}`, { data: { size: { width, height: 240 } } });
+    await expect(node).toHaveCSS('width', `${width}px`);
+    for (const name of ['Mark this file as AX evidence', 'Reload file']) {
+      const action = node.getByRole('button', { name, exact: true });
+      const hint = toolbarTooltip(action);
+      for (const input of ['pointer', 'keyboard']) {
+        if (input === 'pointer') await action.hover();
+        else {
+          await page.mouse.move(40, 100);
+          // Global Tab cycles board cards. Check this control's keyboard-focus
+          // appearance without assuming native Tab traversal inside the card.
+          await page.keyboard.press('Shift');
+          await action.focus();
+          await expect(action).toBeFocused();
+        }
+        await expect(hint).toHaveCSS('opacity', '1');
+        // Opacity and DOM bounds alone pass even when an ancestor clips the hint.
+        // Enable hit testing briefly to check its painted extent on all four sides.
+        expect(
+          await hint.evaluate((element) => {
+            const box = element.getBoundingClientRect();
+            const previous = element.style.pointerEvents;
+            element.style.pointerEvents = 'auto';
+            const points = [
+              [box.left + 3, box.top + box.height / 2],
+              [box.right - 3, box.top + box.height / 2],
+              [box.left + box.width / 2, box.top + 3],
+              [box.left + box.width / 2, box.bottom - 3],
+            ];
+            const painted = points.every(([x, y]) => element.contains(document.elementFromPoint(x!, y!)));
+            element.style.pointerEvents = previous;
+            return painted;
+          }),
+        ).toBe(true);
+        await page.mouse.move(40, 100);
+        await page.getByRole('button', { name: 'Select (V)', exact: true }).focus();
+        await expect(hint).toHaveCSS('opacity', '0');
+      }
+    }
+  }
   await node.getByLabel('Mark this file as AX evidence').click();
 
   await expect
@@ -3053,7 +3297,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   // covered by an `ext-app-preview-catcher` overlay so a stray click on the
   // canvas doesn't trigger tool calls. The test opens the fullscreen view
   // before proxying calls, matching the intended human interaction path.
-  await appNode.locator('.ext-app-preview-catcher').click();
+  await appNode.getByRole('button', { name: 'Open full view to edit' }).click();
 
   // Once expanded, the iframe is re-parented into the ExpandedNodeOverlay
   // (`.expanded-overlay-panel`), so the test follows it there for the
@@ -3066,12 +3310,9 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
     .poll(async () => frame.locator('body').evaluate((body) => body.scrollHeight - body.clientHeight))
     .toBe(0);
 
-  // The widget's auto-resize notifications can make the iframe's reported
-  // bounds waver by a pixel across measurements while it settles, which the
-  // default click-stability check reads as motion. The button's *logical*
-  // position is fine; `force: true` bypasses the stability wait without
-  // changing click semantics.
-  await frame.getByRole('button', { name: 'Increment' }).click({ force: true });
+  // Content can exist before the host's loading overlay clears. An ordinary
+  // click must wait until the button actually receives pointer input.
+  await frame.getByRole('button', { name: 'Increment' }).click();
   await expect(frame.locator('#count')).toHaveText('3');
 
   await expect
@@ -3092,6 +3333,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   // exercises the inline iframe (count persisted via appModelContext).
   await expandedPanel.locator('.expanded-close').click();
   await expect(expandedPanel).toHaveCount(0);
+  await expect(appNode.frameLocator('iframe:not([inert])').locator('#count')).toHaveText('3');
   const inlineFill = await appNode.evaluate((node) => {
     const iframe = node.querySelector('iframe');
     const host = iframe?.parentElement;
@@ -3143,20 +3385,14 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
 
   const hitTarget = await handle.evaluate((element) => {
     const handleRect = element.getBoundingClientRect();
-    const nodeRect = element.closest('.canvas-node')?.getBoundingClientRect();
-    const iframe = element.closest('.canvas-node')?.querySelector('iframe');
-    const previewCatcher = element.closest('.canvas-node')?.querySelector('.ext-app-preview-catcher');
-    const previewRect = previewCatcher?.getBoundingClientRect();
+    const node = element.closest('.canvas-node');
+    const nodeRect = node?.getBoundingClientRect();
     if (!nodeRect) throw new Error('Resize handle is not inside a canvas node.');
     const hit = document.elementFromPoint(nodeRect.right - 4, nodeRect.bottom - 4);
     return {
       width: handleRect.width,
       height: handleRect.height,
       cursor: getComputedStyle(element).cursor,
-      iframePointerEvents: iframe ? getComputedStyle(iframe).pointerEvents : null,
-      previewCatcherLeavesResizeCorner: previewRect
-        ? previewRect.right <= nodeRect.right - 48 && previewRect.bottom <= nodeRect.bottom - 48
-        : null,
       hitIsHandle: hit === element || element.contains(hit),
     };
   });
@@ -3164,8 +3400,6 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
     width: 32,
     height: 32,
     cursor: 'nwse-resize',
-    iframePointerEvents: 'none',
-    previewCatcherLeavesResizeCorner: true,
     hitIsHandle: true,
   });
 
@@ -3289,34 +3523,11 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
   await expect(appNode).toHaveCount(1);
 
   const panel = page.locator('.expanded-overlay-panel');
-  // Opening the fullscreen overlay races the ext-app bridge handshake: the
-  // iframe's content can begin parsing before the parent registers its
-  // postMessage listener, which loses the iframe's `ui/initialize` request
-  // and leaves `app.connect()` hanging. The fixture then receives the
-  // fallback `tool-input` notification with `hostContext === null` and
-  // renders the counter view permanently. Each remount is independent, so
-  // close-and-reopen retries kick a fresh iframe through the handshake. The
-  // helper polls the editor view for up to ~15s with that retry loop.
+  // The shared host must initialize on the first mount, without close/reopen
+  // recovery or bootstrap notifications sent before the SDK is ready.
   const openFullscreenEditor = async () => {
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      if (attempt > 1) {
-        await panel
-          .locator('.expanded-close')
-          .click({ timeout: 2_000 })
-          .catch(() => {});
-      }
-      await appNode.locator('.ext-app-preview-catcher').click();
-      try {
-        await expect(panel.frameLocator('iframe').getByText('Fixture Editor')).toBeVisible({
-          timeout: 5_000,
-        });
-        return;
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    throw lastError;
+    await appNode.getByRole('button', { name: 'Open full view to edit' }).click();
+    await expect(panel.frameLocator('iframe').getByText('Fixture Editor')).toBeVisible();
   };
 
   await openFullscreenEditor();
@@ -3361,8 +3572,6 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
     .toBe('Saved manual edit');
 
   await panel.locator('.expanded-close').click();
-  // The same handshake race can hit the reopened iframe, so use the retry
-  // helper here too.
   await openFullscreenEditor();
   const reopenedFrame = panel.frameLocator('iframe');
   await expect(reopenedFrame.getByText('Saved manual edit')).toBeVisible();
@@ -3752,12 +3961,8 @@ test('zooming promotes the world layer, settling demotes it so text re-rasters c
   await page.goto('/workbench');
   const willChange = () =>
     page.evaluate(() => (document.querySelector('.canvas-world') as HTMLElement | null)?.style.willChange ?? '');
-  // A zoom promotes the layer for the duration of the gesture (the zoom
-  // button animates ~250ms, so the promoted window is comfortably observable)…
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect.poll(willChange, { timeout: 1000 }).toBe('transform');
-  // …and the settle debounce demotes it — a PERMANENT will-change pinned a
-  // cached raster the compositor stretched, blurring node headlines at high zoom.
   await expect.poll(willChange, { timeout: 3000 }).toBe('auto');
 });
 
@@ -3884,9 +4089,8 @@ test('iframe-backed graph and json-render nodes avoid the sandbox escape warning
 });
 
 test('graph nodes content-fit to a stable size across expand and close', async ({ page, request }) => {
-  // Created at nodeHeight 380, but the chart + title need more than that — content-fit
-  // grows the node (grow-only) so nothing clips ("nodes = size of content"). Width is
-  // the stable lever (stays 480); the explicit nodeHeight is a floor, not a cap.
+  // The chart alone exceeds the 380px card floor. A 240px chart now fits without
+  // growth because the duplicate title and extra panel padding are gone.
   const createResponse = await request.post('/api/canvas/graph', {
     data: {
       title: 'Stable graph frame',
@@ -3901,7 +4105,7 @@ test('graph nodes content-fit to a stable size across expand and close', async (
       y: 220,
       width: 480,
       nodeHeight: 380,
-      height: 240,
+      height: 500,
     },
   });
   const created = (await createResponse.json()) as { id: string };
@@ -3924,6 +4128,11 @@ test('graph nodes content-fit to a stable size across expand and close', async (
   // Persistence need not wait for the CSS resize transition to finish.
   await expect.poll(async () => (await graphNode.boundingBox())?.width).toBeCloseTo(480, 0);
   await expect.poll(async () => (await graphNode.boundingBox())?.height).toBeCloseTo(fit.height, 0);
+  const content = await graphNode
+    .frameLocator('iframe')
+    .locator('body')
+    .evaluate((body) => ({ height: body.scrollHeight, viewport: window.innerHeight }));
+  expect(content.height).toBeLessThanOrEqual(content.viewport + 2);
 
   await graphNode.getByLabel('Expand (focus mode)').click();
   await expect(page.locator('.expanded-overlay-panel')).toBeVisible();
@@ -3944,6 +4153,8 @@ test('graph nodes content-fit to a stable size across expand and close', async (
       return box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
     })
     .toBe(`480x${Math.round(fit.height)}`);
+  await page.waitForTimeout(1000);
+  expect(await fetchSize()).toEqual(fit);
 });
 
 test('expanded graph nodes stretch chart content to the overlay frame', async ({ page, request }) => {
@@ -4251,7 +4462,7 @@ test('header controls stay under the pointer when hover actions appear', async (
   }
 });
 
-test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }, info) => {
+test('zoomed-out headers keep body space stable and controls clickable', async ({ page, request }, info) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
@@ -4259,41 +4470,28 @@ test('zoomed-out node chrome keeps usable action hit targets', async ({ page, re
       content: 'Zoomed-out controls should stay hittable',
       x: 180,
       y: 180,
+      strictSize: true,
     },
   });
 
   await request.post('/api/canvas/viewport', {
-    data: { x: 0, y: 0, scale: 0.56 },
+    data: { x: 0, y: 0, scale: 1 },
   });
 
   await page.goto('/workbench');
 
   const note = page.locator('.canvas-node').filter({ hasText: 'Zoom chrome note' });
   await expect(note).toHaveCount(1);
+  const bodyHeight = await note.locator('.node-body').evaluate((body) => body.clientHeight);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 0.56 } });
+  await expect.poll(async () => (await renderedCamera(page)).scale).toBe(0.56);
+  expect(await note.locator('.node-body').evaluate((body) => body.clientHeight)).toBe(bodyHeight);
   await note.hover();
-
-  const controlSizes = await note.locator('.node-controls button').evaluateAll((buttons) => {
-    return buttons.map((button) => {
-      const rect = button.getBoundingClientRect();
-      return {
-        title: button.getAttribute('aria-label'),
-        width: rect.width,
-        height: rect.height,
-      };
-    });
-  });
-
-  for (const title of ['Add to context', 'Expand (focus mode)', 'Close']) {
-    const control = controlSizes.find((button) => button.title === title);
-    expect(control, `expected ${title} control to exist`).toBeDefined();
-    expect(control?.width ?? 0, `${title} width`).toBeGreaterThanOrEqual(20);
-    expect(control?.height ?? 0, `${title} height`).toBeGreaterThanOrEqual(20);
-  }
-  // SVG controls must retain the same zoom compensation as the button/text chrome.
-  for (const icon of await note.locator('.node-controls button svg').all()) {
-    expect((await icon.boundingBox())!.width).toBeGreaterThanOrEqual(12);
-  }
+  await note.getByLabel('Add to context', { exact: true }).click();
+  await expect(note.getByLabel('Remove from context', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('node-control-icons.png') });
+  await note.getByLabel('Expand (focus mode)', { exact: true }).click();
+  await expect(page.locator('.expanded-overlay-panel')).toContainText('Zoomed-out controls should stay hittable');
 });
 
 test('group context menu updates the group accent color', async ({ page, request }) => {
@@ -4641,6 +4839,48 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
   await fourthPage.close();
 });
 
+test('server focus raises locally in both tabs without human stacking writes', async ({ page, browser, request }) => {
+  const ids: string[] = [];
+  for (const [i, title] of ['Focus first', 'Focus second'].entries()) {
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title, content: title, x: 120 + i * 420, y: 120, width: 360, height: 180 },
+      })
+    ).json();
+    ids.push(id);
+  }
+  const peer = await (await trackedContext(browser)).newPage();
+  const stackingWriters: string[] = [];
+  for (const [tab, name] of [
+    [page, 'local'],
+    [peer, 'peer'],
+  ] as const) {
+    tab.on('request', (req) => {
+      if (!req.url().endsWith('/api/canvas/update') || req.method() !== 'POST') return;
+      const body = req.postDataJSON() as { updates?: Array<{ zIndex?: number }> };
+      if (body.updates?.some((update) => update.zIndex !== undefined)) stackingWriters.push(name);
+    });
+    await tab.goto(`http://127.0.0.1:${playwrightPort}/workbench?transport=sse`);
+    await expect(tab.locator('.canvas-node')).toHaveCount(2);
+  }
+  for (const [id, noPan] of [
+    [ids[0], true],
+    [ids[1], false],
+  ] as const) {
+    expect((await request.post('/api/canvas/focus', { data: { id, noPan } })).ok()).toBe(true);
+    for (const tab of [page, peer]) await expect(tab.locator(`[data-node-id="${id}"]`)).toHaveClass(/\bactive\b/);
+    // Include the completed camera animation and its layout echo, not only
+    // the first active-class frame before asynchronous writes can arrive.
+    await page.waitForTimeout(500);
+    expect(stackingWriters).toEqual([]);
+  }
+  // The same title-bar gesture is a human action in just the originating tab.
+  await page.locator(`[data-node-id="${ids[1]}"] .node-title`).click();
+  await expect.poll(() => stackingWriters).toEqual(['local']);
+  await page.waitForTimeout(300);
+  expect(stackingWriters).toEqual(['local']);
+});
+
 test('server-side focus updates the browser viewport', async ({ page, request }) => {
   await setWorkspaceFeatures(request, { agentSessions: true });
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -4711,16 +4951,7 @@ test('authoritative viewport updates from the server override browser startup st
 
   await page.goto('/workbench');
 
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const viewport = document.querySelector(
-          '.canvas-viewport > div[style*="position: absolute"]',
-        ) as HTMLElement | null;
-        return viewport?.style.transform ?? null;
-      });
-    })
-    .toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
+  await expect.poll(() => renderedCamera(page)).toEqual({ x: 120, y: -80, scale: 1.5 });
 });
 
 test('a delayed own camera echo cannot cancel a newer zoom; peers and agent cameras still apply', async ({
@@ -5320,7 +5551,7 @@ test('plain title-bar click selects only that node; shift-click adds; drag moves
   for (const [i, title] of ['Sel A', 'Sel B', 'Sel C'].entries()) {
     const created = (await (
       await request.post('/api/canvas/node', {
-        data: { type: 'markdown', title, content: title, x: 120 + i * 260, y: 80, width: 220, height: 120 },
+        data: { type: 'markdown', title, content: title, x: 120 + i * 400, y: 80, width: 360, height: 180 },
       })
     ).json()) as { id: string };
     ids.push(created.id);
@@ -5378,6 +5609,58 @@ test('plain title-bar click selects only that node; shift-click adds; drag moves
   await expect(bar).toHaveCount(0);
 });
 
+test('a paused title drag survives delayed stacking echoes and persists its final position', async ({
+  page,
+  request,
+}) => {
+  const { id } = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Keep this move',
+        content: 'Held drag',
+        x: 120,
+        y: 120,
+        width: 400,
+        height: 240,
+      },
+    })
+  ).json();
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/canvas/update', async (route) => {
+    const body = route.request().postDataJSON() as {
+      updates?: Array<{ zIndex?: number; position?: { x: number; y: number } }>;
+    };
+    if (body.updates?.every((update) => update.zIndex !== undefined && !update.position)) await held;
+    await route.continue();
+  });
+  await page.goto('/workbench?transport=sse');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await expect(card.getByText('Held drag')).toBeVisible();
+  const before = (await card.boundingBox())!;
+  await page.mouse.move(before.x + 140, before.y + 14);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(before.x + 230, before.y + 74, { steps: 5 });
+    await expect.poll(async () => Math.round((await card.boundingBox())!.x - before.x)).toBe(90);
+  } finally {
+    release();
+  }
+  // Let any drag-start stacking response arrive while the pointer is held
+  // still. Releasing it must not commit the stale server position.
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).position)
+    .toEqual({ x: 210, y: 180 });
+  await expect.poll(async () => Math.round((await card.boundingBox())!.x - before.x)).toBe(90);
+  await expect.poll(async () => Math.round((await card.boundingBox())!.y - before.y)).toBe(60);
+});
+
 test('select tool lassos on background drag; pan tool and Space pan instead', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Lasso A', content: 'a', x: 120, y: 80, width: 200, height: 120 },
@@ -5402,18 +5685,14 @@ test('select tool lassos on background drag; pan tool and Space pan instead', as
   await expect(page.locator('.selection-bar')).toHaveCount(0);
 
   // Held Space: the same drag pans the viewport instead of selecting.
-  const worldBefore = await page.evaluate(
-    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
-  );
+  const worldBefore = await page.evaluate(() => document.querySelector('.canvas-world')!.getBoundingClientRect().x);
   await page.keyboard.down(' ');
   await page.mouse.move(400, 300);
   await page.mouse.down();
   await page.mouse.move(560, 380, { steps: 5 });
   await page.mouse.up();
   await page.keyboard.up(' ');
-  const worldAfterSpace = await page.evaluate(
-    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
-  );
+  const worldAfterSpace = await page.evaluate(() => document.querySelector('.canvas-world')!.getBoundingClientRect().x);
   expect(worldAfterSpace).not.toBe(worldBefore);
   await expect(page.locator('.selection-bar')).toHaveCount(0);
   // Panning must not zoom.
@@ -5431,7 +5710,7 @@ test('select tool lassos on background drag; pan tool and Space pan instead', as
   await page.mouse.move(nodeBox.x + 120, nodeBox.y + 90, { steps: 5 });
   await page.mouse.up();
   const worldAfterPanTool = await page.evaluate(
-    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
+    () => document.querySelector('.canvas-world')!.getBoundingClientRect().x,
   );
   expect(worldAfterPanTool).not.toBe(worldAfterSpace);
   const after = (await (await request.get('/api/canvas/state')).json()) as {
@@ -6617,11 +6896,15 @@ for (const scale of [1, 0.5, 0.25]) {
       await a.hover();
       const port = (await a.locator('..').locator('.node-port-right').boundingBox())!;
       const point = { x: port.x + 3, y: port.y + port.height / 2 };
-      // The existing line and wide label both cross the port. Neither may
-      // take the next native drag, while the uncovered label stays clickable.
+      // The line crosses the port, while collision placement keeps its label
+      // clear. Neither may take the next native drag.
       const label = (await pill.boundingBox())!;
-      expect(label.x).toBeLessThan(point.x);
-      expect(label.x + label.width).toBeGreaterThan(point.x);
+      expect(
+        label.x + label.width <= port.x ||
+          label.x >= port.x + port.width ||
+          label.y + label.height <= port.y ||
+          label.y >= port.y + port.height,
+      ).toBe(true);
       await page.mouse.move(point.x, point.y, { steps: 8 });
       expect(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-port'), point)).toBe(
         true,
@@ -6633,13 +6916,13 @@ for (const scale of [1, 0.5, 0.25]) {
       });
       await page.mouse.up();
       await expect(page.locator('[id^="edge-path-"]')).toHaveCount(2);
-      await page.mouse.click(port.x + port.width + 3, label.y + label.height / 2);
+      await page.locator(`.edge-pill-hit[data-edge-id="${existing.id}"]`).click();
       await expect(page.locator(`[id="edge-path-${existing.id}"]`)).toHaveClass(/edge-selected/);
     }
   });
 }
 
-for (const scale of [0.41, 0.25, 0.15]) {
+for (const scale of [0.41, 0.25]) {
   test(`visible low-zoom ports do not own header clicks at ${scale}`, async ({ page, request }) => {
     const created = await request.post('/api/canvas/node', {
       data: {
@@ -6686,7 +6969,7 @@ for (const scale of [0.41, 0.25, 0.15]) {
   });
 }
 
-test('a hovered neighboring port cannot intercept Close at fifteen percent zoom', async ({ page, request }) => {
+test('a hovered neighboring port cannot intercept Close at the detail threshold', async ({ page, request }) => {
   const create = async (title: string, x: number, y: number, width: number, height: number) => {
     const response = await request.post('/api/canvas/node', {
       data: { type: 'markdown', title, content: '', x, y, width, height, data: { strictSize: true } },
@@ -6695,7 +6978,7 @@ test('a hovered neighboring port cannot intercept Close at fifteen percent zoom'
   };
   const targetId = await create('Neighbor Close target', 480, 484, 360, 120);
   const sourceId = await create('Short section label', 200, 300, 1240, 144);
-  await request.post('/api/canvas/viewport', { data: { x: 200, y: 160, scale: 0.15 } });
+  await request.post('/api/canvas/viewport', { data: { x: 200, y: 160, scale: 0.25 } });
   await page.goto('/workbench');
   const source = page.locator(`.canvas-node[data-node-id="${sourceId}"]`);
   const target = page.locator(`.canvas-node[data-node-id="${targetId}"]`);
@@ -6749,7 +7032,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
 
   const frame = page.locator('.canvas-node.group-node').filter({ hasText: 'State layer' });
   await expect(frame.locator('.group-name')).toHaveText('State layer');
-  await expect(frame.locator('.group-count')).toHaveText('0');
+  await expect(frame.locator('.group-count')).toHaveText('0 nodes');
   const looseNode = page.locator('.canvas-node').filter({ hasText: 'Loose note' });
 
   // Drag the loose node over the frame and press Esc: the pill disappears and
@@ -6787,7 +7070,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
           .children,
     )
     .toEqual([loose.id]);
-  await expect(frame.locator('.group-count')).toHaveText('1');
+  await expect(frame.locator('.group-count')).toHaveText('1 node');
 
   // Drag it fully out: the inverse pill, and it leaves on release.
   await grab();
@@ -6818,7 +7101,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
     .locator('.canvas-node.group-node')
     .filter({ has: page.locator('.group-name', { hasText: /^Group$/ }) })
     .first();
-  await expect(made.locator('.group-count')).toHaveText('2');
+  await expect(made.locator('.group-count')).toHaveText('2 nodes');
   expect(second.id).toBeTruthy();
 
   await fitCanvas(page);
@@ -6864,7 +7147,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(1);
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(made.locator('.group-count')).toHaveText('2');
+  await expect(made.locator('.group-count')).toHaveText('2 nodes');
 
   // Delete removes the selection from the keyboard; Backspace does the same for the focused node.
   await page
@@ -6957,7 +7240,7 @@ test('ungroup is the same action for the human and the agent: dissolve, children
   await page.keyboard.press('ControlOrMeta+z');
   await expect(
     page.locator('.canvas-node.group-node').filter({ hasText: 'H group' }).locator('.group-count'),
-  ).toHaveText('2');
+  ).toHaveText('2 nodes');
   await page.keyboard.press('ControlOrMeta+z');
   await expect(chips).toHaveCount(2);
   await expect(page.locator('.canvas-node').filter({ hasText: 'G A' })).toHaveCount(0);
@@ -7204,7 +7487,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   const card = page.locator(`[data-node-id="${id}"]`);
   await card.hover();
   await card.getByRole('button', { name: 'More actions' }).click();
-  await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+  await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Review card', exact: true });
   await dialog.getByText('Settings and history', { exact: true }).click();
   await expect(dialog.getByText('No evidence-backed validation')).toBeVisible();
@@ -7363,7 +7646,7 @@ test('a delayed review does not dismiss a reopened review or discard its new not
   const open = async () => {
     await card.hover();
     await card.getByRole('button', { name: 'More actions' }).click();
-    await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+    await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
   };
   await open();
   const dialog = page.getByRole('dialog', { name: 'Review card' });
@@ -7515,7 +7798,7 @@ test.describe('workspace beta settings', () => {
     const card = page.locator(`[data-node-id="${id}"]`);
     await card.hover();
     await card.getByRole('button', { name: 'More actions' }).click();
-    await expect(page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true })).toBeHidden();
+    await expect(page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true })).toBeHidden();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
     await expect(page.getByRole('button', { name: 'Categories', exact: true })).toBeHidden();
@@ -7536,7 +7819,7 @@ test.describe('workspace beta settings', () => {
       const peerCard = peer.locator(`[data-node-id="${id}"]`);
       await peerCard.hover();
       await peerCard.getByRole('button', { name: 'More actions' }).click();
-      const review = peer.locator('.context-menu').getByRole('button', { name: 'Review', exact: true });
+      const review = peer.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true });
       if (lifecycleOn) await expect(review).toBeVisible();
       else await expect(review).toBeHidden();
       await peer.keyboard.press('Escape');
@@ -7645,7 +7928,7 @@ test.describe('workspace beta settings', () => {
     const card = page.locator(`[data-node-id="${id}"]`);
     await card.hover();
     await card.getByRole('button', { name: 'More actions' }).click();
-    await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+    await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
     const review = page.getByRole('dialog', { name: 'Review card', exact: true });
     await review.getByLabel('What did you check?').fill('Keep this unsaved observation');
     // Review narrows the canvas independently of the window breakpoint.
@@ -7704,7 +7987,7 @@ test.describe('workspace beta settings', () => {
       const card = page.locator(`[data-node-id="${id}"]`);
       await card.hover();
       await card.getByRole('button', { name: 'More actions' }).click();
-      await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+      await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
       const review = page.getByRole('dialog', { name: 'Review card', exact: true });
       await review.getByLabel('What did you check?').fill('One deliberate human check');
       await review.getByText('Settings and history', { exact: true }).click();

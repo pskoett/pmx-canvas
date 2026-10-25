@@ -71,7 +71,12 @@ export function useFocusTrap(
       // from (focus mode unmounts the node while expanded) names the element
       // to return to, which may only exist after the next frame.
       if (restoreTo) {
-        requestAnimationFrame(() => restoreTo()?.focus());
+        requestAnimationFrame(() => {
+          // A newly opened menu owns focus before this deferred return runs.
+          if (document.activeElement === document.body || root.contains(document.activeElement)) {
+            restoreTo()?.focus();
+          }
+        });
       } else if (previous && document.contains(previous) && previous !== document.body) {
         previous.focus();
       }

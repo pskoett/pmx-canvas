@@ -35,8 +35,10 @@ export function useIframeContentHeight(
       const reported = pendingHeight;
       pendingHeight = null;
       const current = nodes.value.get(node.id);
-      if (!current) return;
-      const target = computeContentGrowHeight(current, reported);
+      const frame = iframeRef.current;
+      const card = frame?.closest<HTMLElement>('.canvas-node');
+      if (!current || !frame || !card) return;
+      const target = computeContentGrowHeight(current, reported, card.offsetHeight - frame.clientHeight);
       if (target === null) return;
       const position = contentFitPosition(current, target, Array.from(nodes.value.values()));
       const moved = position.x !== current.position.x || position.y !== current.position.y;

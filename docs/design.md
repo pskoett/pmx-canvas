@@ -87,8 +87,8 @@ Components reference tokens only. Raw colour values live only in the theme files
 - Tints are derived — `color-mix(in srgb, var(--c-pin) 12%, transparent)` — so the 22 alpha
   copies, `--c-warn-alt` and `--c-glow-accent` go.
 - `--c-thinking` becomes `--c-agent`.
-- **Kinds carry no colour.** Type icons use `--c-muted`; the glyph tells the kind, plus the kind
-  word on zoomed-out tiles (Zoom board). Minimap rects and group-chip kind dots are neutral, and
+- **Kinds carry no colour.** Type icons use `--c-muted`; the glyph tells the kind.
+  Minimap rects and group-chip kind dots are neutral, and
   only meaning colours mark them (pinned, agent at work). `KIND_COLOR`, `--kind-accent` and
   `--c-purple` go. Nine kind hues cannot all stay clear of ten meaning colours in nine themes,
   and every hue a kind borrows is one a meaning loses.
@@ -141,7 +141,7 @@ the same change.
 | [`Flows.dc.html`](design/Flows.dc.html) | Data lineage with staleness, what a finding rests on, opening a group | 3, 5 |
 | [`Uses.dc.html`](design/Uses.dc.html) | One relation layer for research, dependencies, decisions and agent flows | 3 |
 | [`Types1.dc.html`](design/Types1.dc.html)–[`Types3.dc.html`](design/Types3.dc.html) | Every node type, today vs proposed | 0, 4 |
-| [`Zoom.dc.html`](design/Zoom.dc.html) | Fit-all readability when frames are unmounted | 4 |
+| [`Zoom.dc.html`](design/Zoom.dc.html) | Native spatial scaling at every zoom, maintainer override 2026-10-25 | 4 |
 | [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
@@ -377,7 +377,7 @@ workflow. A demo of existing features must not be used to claim full sketch pari
 | **1. Context made visible** — its curation evaluation moved to the end of the plan (2026-10-19) | Part 1 bet, moves 0a, 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node and per board as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board pins (`board_pins`, tiered brief, `canvas_board pin/unpin`) and Home's pinned-boards section | What the agent did with context, Nodes in context, Board pins, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
 | **2. Connected memory views** — implemented, verification gates apply | Moves 0, 14 | One board/card projection for Home, links/backlinks, brief discovery and `canvas://graph{?focus,depth}`; saved wiki ID bindings, direct cross-board card edges, previous-board chains, persisted Map positions | Home Map, Home Graph (deviations below) | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
-| **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |
+| **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; native proportional canvas at every zoom | Node types 1–3, Zoom | Viewers use the canvas palette and fill their authored space; approaching a viewer mounts it automatically and retains its state when panning away; no alternate grid or lifetime preview cap |
 | **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
 | **Later: hosted version** | Part 4 (moved from Part 3, 2026-10-19) | Read-only link, comments, second writer, accounts and roles; org → team → personal scopes with configurable categories and per-user pins; built once for the ChatGPT Sites and later Cloudflare editions | HomeTeam is the earlier two-root look ahead; updated scope/category drawings are required before building, retaining explicit publication and locked cards for unreadable boards | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal reaches a wider audience without explicit publication |
 
@@ -629,6 +629,171 @@ Lifecycle600 and Restore supply the review-state drawings beyond Lineage. This a
 curation evaluation after its remaining features. Local categories and lifecycle data work
 without a model; Jev-style classification is optional longer-term assistance, not a dependency
 of Wave 3 or the org/team/personal structure.
+
+## 0.11 implementation notes
+
+Chrome §9–10 and Types1–3 drive the section-heading, header, typography and viewer
+pass. Fit and focus reserve a 44 px screen-space top lane. JSON viewers inherit the
+named canvas palette; only duplicate root titles disappear. Mermaid renders inline.
+File-header metadata may clip within its own text container, but Reload and AX
+evidence actions and their hover/focus hints stay outside that clip (Types1).
+The maintainer's 2026-10-25 decision supersedes the earlier reading-flow footer:
+**Set as README** lives only in the card's ⋯ menu, becoming **Remove as README**
+for the current README. The agent normally assigns it; this menu is the human override.
+The designated card keeps a quiet, always-visible **README** word in its header,
+including heading-display Markdown. It uses neutral metadata ink, not pin blue or
+selection styling; the title yields before this identifier truncates.
+Ordinary Markdown keeps its visible **Edit** action; heading display has no footer.
+Chrome and Types1 reflect this decision. The menu takes keyboard focus, supports
+arrows and Tab, and restores the opener on activation or Escape.
+**Present** explains saved tours versus group-derived stops on hover and keyboard
+focus, with an accessible description. The narrow ⋯ menu shows the same explanation
+in flow below Present rather than clipping a floating tooltip. Chrome records the
+owner's exact copy; no tour behavior changes. Its saved-tour instruction says
+**ask your agent to define the stops**, not that a visual human tour editor exists.
+During presentation, **Back** and **Next** sit beside **Exit presentation** at
+the top-right, following the existing shared server cursor. The owner's final
+placement decision puts instructions only in each button's hover/focus tooltip:
+Previous stop (← / ↑), Next stop (→ / ↓ / Space), Exit presentation (Esc).
+There is no lower-left instruction panel. Unavailable end buttons remain focusable
+for their descriptions. Node/rectangle fitting reserves the controls' measured
+height; explicit camera targets and deterministic recordings remain unchanged.
+HTML primitives put **Copy JSON** in the card's ⋯ menu, not their inner header;
+**Copy prompt** is removed. JSON comes from the current mounted document, including
+unsaved interactive edits, through the nonce-bound sandbox bridge. Unloaded or
+replaced documents and denied clipboard access report failure, not stale data or
+success. Raw HTML and the custom presentation primitive have no JSON-export menu
+action. Primitive-specific Copy diff, Copy SVG and similar controls stay in place.
+The maintainer's 2026-10-25 correction rejects the experimental CSS zoom, content
+enlargement and alternate overview. The original world matrix scales cards,
+embedded contents, groups and connections proportionally at every zoom. Only title
+text grows, up to 1.2× inside a fixed 22 px header line. Header controls, padding and
+body space stay fixed in world pixels; enlarging the whole header would resize the
+iframe viewport and reflow charts while zooming. Card bodies never counter-scale.
+All cards share the same stacking and input boundary. A separate
+ext-app portal was rejected in review because it covered higher cards, bypassed
+pan gestures, and disappeared during presentation. The common world also owns
+clipping when a dock resizes the canvas. Headed Linux WebKit reproduced CSS zoom
+shrinking the iframe's internal layout and retaining stale dimensions through
+zoom transitions. Restoring the matrix keeps inner widths stable in the same probe.
+Native WKWebView compositor health remains unverified, not established by that result.
+Automatic previews mount on first approach at any scale, then retain their
+documents to preserve arbitrary app state. The rejected lifetime cap starved later
+board regions. Memory now grows with visited viewers. Visible viewers start loading
+automatically without a shared bootstrap queue or per-card clicks. A slow document
+does not hold another card's loading slot.
+Each loading replacement temporarily coexists with its painted document.
+
+The demo gives ordinary standalone charts the full authored card height instead
+of imposing a smaller plot-height cap. Compact chart types keep compact cards:
+the 36 px sparkline sits in a 120 px card, four dot-plot rows in 240 px, three bullet
+rows in 260 px, and the slopegraph in 300 px. These are demo authoring choices,
+not enforced sizes on user cards. Explicit chart `height` still caps content,
+independently of `nodeHeight`. Dashboard and form stacks explicitly use stretch
+alignment; the catalog's start-aligned default is unchanged, as are compact action
+buttons. Work-item controls must fit their authored cards without accidental
+overflow or truncated status. Enlarging the demo to 440×300 did not meet that
+requirement and is not acceptance evidence. The card body now scrolls only its
+content when needed; step controls and Edit share one fixed footer row. The full
+status word takes priority over the title. Steering input and send button wrap
+together. Expanded documents keep their sticky footer. The demo returns to a
+240 px height, with 360 and 440 px widths exercised in both Chromium and WebKit.
+Bodies still shrink proportionally.
+
+Static exports use the same embedded chart layout and named palettes, retain
+heading display, and match the live 37 px card header. Fonts and shared palette
+CSS are embedded for offline use. Saved positions, sizes and specs are unchanged;
+live work controls are intentionally absent. Export is a separate acceptance
+surface, not established by live canvas checks. Close slopegraph labels separate
+without moving data endpoints; short same-ink leaders retain their association
+(Types3). An explicitly overcrowded chart still requires adequate authored height.
+
+Relation labels keep their curve midpoint when clear. Otherwise the pill and its
+hit area move together to nearby open space, avoiding cards, group headers,
+connection handles and earlier labels. A dashed leader in the relation's ink
+ties it back to the curve. Card positions, curve routing and stacking do not
+change. Font measurements determine pill width. Dense boards can still require
+panning to a displaced label; labels remain hidden below the existing 35% floor.
+
+`ViewerHost` owns preview admission, without a second positioning or recovery path.
+`RefreshingViewerFrame` owns document loading, the painted replacement handoff and
+Retry. HTML readiness and the ext-app protocol use that host; JSON additionally
+restores its viewer-local state before promotion. The ext-app adapter no longer
+has a separate paint/recovery ladder. Document preparation failures do not fall
+back to another transport that the embedding probe already rejected.
+Ext-app protocol bootstrap runs once after initialization, or after the loaded
+document's bounded notification-only bootstrap interval. The host waits for
+input/result delivery and paint before declaring it ready; bootstrap errors use
+the same Retry as other loading failures.
+Webpages show cached text until an explicit live-preview request; Mermaid
+and native board thumbnails render inline. Mermaid's inline
+and standalone/export renderers share their palette, serialization and sanitizer.
+Inline rendering uses Mermaid's strict security mode and DOMPurify, including
+sanitized `foreignObject` labels, instead of the old diagram iframe sandbox.
+Mermaid is the exception to the static-import rule: the SPA loads it on the first
+diagram, using hashed chunks from the same server. A six-Markdown-card cold-boot
+probe requested only the entry and its small shared chunk, not Mermaid's 3.46 MB.
+With Bun 1.4.4, headed Chromium 145, 4× CPU throttling and five alternating fresh
+contexts per variant, the baseline median was 1,423.9 ms and the candidate median
+1,349.1 ms to six populated cards plus two animation frames. Ranges overlap
+(1,277.3–1,484.7 ms versus 1,315.2–1,510.1 ms), so this is not a speedup claim.
+The baseline is 0.10.0 rebuilt with the same compiler; both variants use current
+CSS and local intercepted responses, not a network or native-host benchmark.
+Reproduce with `DISPLAY=:99 node scripts/benchmark-canvas-boot.mjs <disposable-server-url> <baseline-index.js>`.
+The populated-board check uses `scripts/benchmark-populated-canvas.mjs`, the same
+70-card fixture and 18% camera, headed Chromium 145 at 1440×900, and three cold-cache
+loads plus three warm reloads per build, with other browsers and tests stopped.
+All 33 visible viewers rendered. The final comparison found baseline 0.10.0 at
+6.71–7.67 s cold and 7.17–7.32 s warm; the candidate took 7.59–8.19 s cold and
+8.00–8.39 s warm. This remains a loading cost, not an orb-only explanation or a
+speedup. Main-page long tasks totalled 4.43–4.87 s on the candidate versus
+3.46–4.20 s on baseline. Each chart document contains about 1.49 MB decoded
+(baseline 1.47 MB). Parent Resource Timing alone misses baseline iframe bytes
+and can duplicate candidate navigation bytes; do not compare or sum those totals.
+The script records frame resources separately. Removing the provisional four-document queue produced overlapping
+completion ranges and a later first viewer; the simpler independent loading path
+avoids cross-card blocking, not a claimed performance win. Warm-load aborted
+presence requests are recorded separately from viewer failures; no viewer failed.
+At the default 52% camera there are no visible iframe viewers. The candidate's
+board appeared in 0.67–0.70 s cold and 0.52–0.65 s warm versus baseline's
+1.08–1.32 s and 1.06–1.36 s. That measures deferred offscreen work, not faster
+viewer rendering. Local document responses were 2–6 ms. Portal-URL checks use
+Amp's local hairpin forwarding inside this orb, so they do not measure external
+portal transport or the user's connection. These are instrumented local readiness
+timings, not native paint latency. Linux WebKit's full fit-all load exceeded this orb's memory limit
+on both baseline and candidate; narrower populated-row checks are separate evidence.
+The self-contained MCP App cannot fetch those chunks: its document includes
+Mermaid and grows from about 1.32 MB to 4.78 MB uncompressed. This is an introduced delivery
+cost, not eliminated debt or measured native performance. Keeping one renderer
+and an offline-capable MCP document is the tradeoff; native boot remains unmeasured.
+The bundle audit found one Mermaid core, one shared renderer and one DOMPurify,
+not an embedded copy of the standalone viewer. The old standalone Mermaid bundle
+already weighed 3,492,157 bytes; moving its renderer inline brings that dependency
+tree into the self-contained MCP host. The dependency graph contains different
+major versions of `marked`, `layout-base` and `cose-base` required by Mermaid's
+renderers; forcing aliases would not be a safe deduplication. Inspect the graph
+with `bun build src/client/mcp-app/index.tsx --target=browser --format=iife --minify --metafile=/tmp/mcp-meta.json --outfile=/tmp/mcp.js`.
+Removing the payload from MCP startup requires a different script-delivery/CSP
+contract or a reduced diagram catalog, rather than deleting a duplicate host.
+Static export checks separately cover all twelve graph variants, compact plots,
+all nine named themes and 600, 1024 and 1920 px widths in headed Chromium.
+The populated 70-card export matches live saved geometry and renders offline
+without HTTP(S) requests; bounded Linux WebKit checks cover the compact chart
+section and dashboard. Linked boards and live MCP apps retain honest unavailable
+placeholders. Arbitrary user HTML can still contain external requests.
+
+There is no threshold-triggered grid or list. Zoom's revised drawing keeps the
+same positions, sizes, groups, connections and native content at every scale.
+Fit-all is for orientation; zoom or expand to read details. The earlier overview's
+scrolling and overlay-clearance fixes are superseded by its complete removal.
+
+Visual audit: Harbor headings use the drawing's 20 px semibold `#e6eef7` on
+`#081524` (15.69:1). The initial dim capture had the existing relation-focus
+highlight active, which applies 0.35 opacity to unrelated cards; Escape clears
+that view state. A neighboring card outside a 600 px viewport is spatially
+clipped, not internally truncated: focusing it restores the complete title.
+Expanded pin hints remain while their button has keyboard `:focus-visible`, even
+after pointer movement; Tab away dismisses the hint after its fade transition.
 
 ## Definition of done for any design work
 

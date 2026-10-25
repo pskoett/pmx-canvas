@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
-import { useCallback, useLayoutEffect, useState } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
   contextPinnedNodeIds,
   edges,
@@ -28,8 +28,9 @@ import {
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
+import { canCopyPrimitiveJson, copyPrimitiveJson } from '../nodes/primitive-copy';
 import { askText } from './TextPrompt';
-import { activeBoard, boardIncarnation } from '../state/boards-store';
+import { activeBoard, boardIncarnation, setBoardReadme } from '../state/boards-store';
 import { openLifecycle } from '../state/knowledge-store';
 import { RELATION_KINDS, relationKind } from '../../shared/relations.js';
 import { EXPANDABLE_TYPES } from '../types';
@@ -62,7 +63,9 @@ export function useContextMenu() {
   const openNodeMenu = useCallback((e: MouseEvent, nodeId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ kind: 'node', x: e.clientX, y: e.clientY, nodeId });
+    const trigger = e.detail === 0 && e.target instanceof Element ? e.target.closest('button') : null;
+    const bounds = trigger?.getBoundingClientRect();
+    setMenu({ kind: 'node', x: bounds?.left ?? e.clientX, y: bounds?.bottom ?? e.clientY, nodeId });
   }, []);
 
   const openCanvasMenu = useCallback((e: MouseEvent, canvasX: number, canvasY: number) => {
@@ -113,6 +116,21 @@ const GROUP_COLOR_PRESETS = [
 ] as const;
 
 export function ContextMenu({ menu, onClose }: ContextMenuProps) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = root.current;
+    const trigger = document.activeElement;
+    element?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    return () => {
+      if (element?.contains(document.activeElement) && trigger instanceof HTMLElement && trigger.isConnected) {
+        // Card controls hide when the menu takes focus. Reveal the opener
+        // through its card before restoring focus to the button itself.
+        trigger.closest<HTMLElement>('.canvas-node')?.focus({ preventScroll: true });
+        trigger.focus({ preventScroll: true });
+      }
+    };
+  }, [menu]);
+
   let items: MenuItem[];
   if (menu.kind === 'node') {
     const node = nodes.value.get(menu.nodeId);
@@ -215,6 +233,9 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
 
   return (
     <div
+      ref={root}
+      role="menu"
+      aria-label={menu.kind === 'node' ? 'Node actions' : menu.kind === 'edge' ? 'Edge actions' : 'Canvas actions'}
       class="context-menu"
       style={{
         position: 'fixed',
@@ -224,6 +245,27 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => {
+        if (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) onClose();
+      }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        } else if (e.target instanceof HTMLButtonElement && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+          e.preventDefault();
+          const controls = [...e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input, select')];
+          const index = controls.indexOf(e.target);
+          const next =
+            e.key === 'Home'
+              ? 0
+              : e.key === 'End'
+                ? controls.length - 1
+                : (index + (e.key === 'ArrowUp' ? -1 : 1) + controls.length) % controls.length;
+          controls[next]?.focus();
+        }
+      }}
     >
       {items.map((item) => {
         const baseKey = item.separator
@@ -251,6 +293,8 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           <button
             key={itemKey}
             type="button"
+            role="menuitem"
+            disabled={!item.action}
             class={`context-menu-item${item.danger ? ' is-danger' : ''}`}
             onClick={() => {
               item.action?.();
@@ -622,6 +666,22 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   items.push({ separator: true });
 
   // Type-specific
+  if (canCopyPrimitiveJson(node)) {
+    items.push({ label: 'Copy JSON', action: () => void copyPrimitiveJson(node.id) });
+  }
+  if (node.type === 'markdown') {
+    items.push({
+      label: node.data.display === 'heading' ? 'Display as card' : 'Display as heading',
+      action: () =>
+        void updateNodeFromClient(node.id, { data: { display: node.data.display === 'heading' ? 'card' : 'heading' } }),
+    });
+    const board = activeBoard();
+    if (board)
+      items.push({
+        label: board.readmeNodeId === node.id ? 'Remove as README' : 'Set as README',
+        action: () => void setBoardReadme(board.id, board.readmeNodeId === node.id ? null : node.id),
+      });
+  }
   if ((node.type === 'markdown' || node.type === 'file' || node.type === 'image') && localPath) {
     items.push({
       label: 'Open in browser',

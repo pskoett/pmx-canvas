@@ -11,7 +11,7 @@ import {
   tourSchema,
 } from '../../src/shared/tour.js';
 import { parseRecordOptions } from '../../src/cli/commands/record.js';
-import { canvasState } from '../../src/server/canvas-state.js';
+import { boardCatalogEpoch, canvasState } from '../../src/server/canvas-state.js';
 import { saveCanvasSnapshotWithReuse, setClientViewportSize } from '../../src/server/canvas-operations.js';
 import { agentPresence } from '../../src/server/agent-presence.js';
 import {
@@ -19,7 +19,7 @@ import {
   getOperationEventEmitter,
   setOperationEventEmitter,
 } from '../../src/server/operations/registry.js';
-import { exitTour } from '../../src/server/tour-control.js';
+import { exitTour, type TourStepResult } from '../../src/server/tour-control.js';
 import { PmxCanvas } from '../../src/server/index.js';
 import {
   createTestWorkspace,
@@ -72,6 +72,24 @@ describe('board tour', () => {
         JSON.parse((result.content as Array<{ type: string; text?: string }>).find((c) => c.type === 'text')!.text!);
       const went = await client.callTool({ name: 'canvas_view', arguments: { action: 'tour-go', step: 'next' } });
       expect(text(went)).toMatchObject({ ok: true, index: 0, total: 1 });
+      const delivery = text(went) as TourStepResult;
+      const presenter = {
+        clientId: 'mcp-presenter',
+        intent: 2,
+        catalogEpoch: delivery.catalogEpoch,
+        boardGeneration: delivery.boardGeneration,
+      };
+      const fenced = { name: 'canvas_view', arguments: { action: 'tour-go', stop: 0, presenter } };
+      expect(text(await client.callTool(fenced))).toMatchObject({ ok: true, index: 0 });
+      const duplicate = await client.callTool(fenced);
+      expect(duplicate.isError).not.toBe(true);
+      expect(text(duplicate)).toEqual({ ok: true, superseded: true });
+      const oldExit = await client.callTool({
+        name: 'canvas_view',
+        arguments: { action: 'tour-exit', presenter: { ...presenter, intent: 1 } },
+      });
+      expect(oldExit.isError).not.toBe(true);
+      expect(text(oldExit)).toEqual({ ok: true, superseded: true });
       const moved = await client.callTool({
         name: 'canvas_view',
         arguments: { action: 'move', viewport: { x: 5, y: 6, scale: 0.5 }, duration: 0 },
@@ -204,6 +222,97 @@ describe('driving a tour', () => {
     canvasState.addNode(makeNode({ id: 'early', type: 'group', position: { x: 0, y: 0 } }));
   };
 
+  test('newer document intents supersede delayed exits and duplicate relative steps', async () => {
+    addGroups();
+    const presenter = {
+      clientId: 'document-a',
+      intent: 2,
+      catalogEpoch: boardCatalogEpoch,
+      boardGeneration: canvasState.boardGeneration,
+    };
+    const first = await executeOperation('tour.go', { stop: 0, presenter });
+    expect(first).toMatchObject({ index: 0 });
+    const before = emitted.length;
+    expect(await executeOperation('tour.exit', { presenter: { ...presenter, intent: 1 } })).toEqual({
+      ok: true,
+      superseded: true,
+    });
+    expect(emitted).toHaveLength(before);
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: 0 });
+    const next = { step: 'next', presenter: { ...presenter, intent: 3 } };
+    expect(await executeOperation('tour.go', next)).toMatchObject({ index: 1 });
+    const advanced = emitted.length;
+    expect(await executeOperation('tour.go', next)).toEqual({ ok: true, superseded: true });
+    expect(emitted).toHaveLength(advanced);
+    // A newer domain failure still supersedes an older command.
+    await expect(executeOperation('tour.go', { stop: 99, presenter: { ...presenter, intent: 5 } })).rejects.toThrow();
+    expect(await executeOperation('tour.exit', { presenter: { ...presenter, intent: 4 } })).toEqual({
+      ok: true,
+      superseded: true,
+    });
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: 1 });
+    // Other documents and agents retain arrival-order control of the shared cursor.
+    await executeOperation('tour.go', { stop: 0 });
+    await executeOperation('tour.exit', { presenter: { ...presenter, clientId: 'document-b', intent: 1 } });
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: null });
+  });
+
+  test('old activation stamps cannot exit a reopened board or disturb its intent watermark', async () => {
+    const a = canvasState.createBoard('Tour fence A')!.id;
+    canvasState.switchBoard(a);
+    addGroups();
+    const presenter = {
+      clientId: 'document-round-trip',
+      intent: 1,
+      catalogEpoch: boardCatalogEpoch,
+      boardGeneration: canvasState.boardGeneration,
+    };
+    const b = canvasState.createBoard('Tour fence B')!.id;
+    canvasState.switchBoard(b);
+    canvasState.switchBoard(a);
+    const current = { ...presenter, intent: 3, boardGeneration: canvasState.boardGeneration };
+    await executeOperation('tour.go', { stop: 1, presenter: current });
+    const before = emitted.length;
+    for (const stale of [presenter, { ...current, catalogEpoch: 'previous-server' }]) {
+      expect(await executeOperation('tour.exit', { presenter: stale })).toEqual({ ok: true, superseded: true });
+    }
+    expect(await executeOperation('tour.go', { stop: 0, presenter: { ...current, intent: 2 } })).toEqual({
+      ok: true,
+      superseded: true,
+    });
+    expect(emitted).toHaveLength(before);
+    expect(await executeOperation('tour.get', {})).toMatchObject({ position: 1 });
+  });
+
+  test('presenter capacity refuses new identities without reviving old commands, and resets on activation', async () => {
+    addGroups();
+    const sdk = new PmxCanvas();
+    const presenter = {
+      clientId: 'document-0',
+      intent: 1,
+      catalogEpoch: boardCatalogEpoch,
+      boardGeneration: canvasState.boardGeneration,
+    };
+    for (let i = 0; i < 4096; i++) sdk.goToTourStop(0, { presenter: { ...presenter, clientId: `document-${i}` } });
+    expect(() => sdk.goToTourStop(0, { presenter: { ...presenter, clientId: 'overflow' } })).toThrow('Too many');
+    expect(sdk.goToTourStop(1, { presenter: { ...presenter, intent: 2 } })).toMatchObject({ index: 1 });
+    expect(sdk.goToTourStop(0, { presenter })).toEqual({ superseded: true });
+    sdk.exitTour(presenter);
+    expect(sdk.getTour().position).toBe(1);
+    for (const invalid of [null, { ...presenter, intent: 0 }, { ...presenter, intent: 1.5 }])
+      await expect(executeOperation('tour.exit', { presenter: invalid })).rejects.toThrow();
+    expect(sdk.getTour().position).toBe(1);
+    const nextBoard = canvasState.createBoard('New activation')!.id;
+    canvasState.switchBoard(nextBoard);
+    addGroups();
+    expect(
+      sdk.goToTourStop(0, { presenter: { ...presenter, boardGeneration: canvasState.boardGeneration } }),
+    ).toMatchObject({ index: 0 });
+    // Switching must not make an old activation's request eligible again.
+    sdk.exitTour(presenter);
+    expect(sdk.getTour().position).toBe(0);
+  });
+
   test('frames a world rect with screen-space padding', () => {
     const camera = resolveStop(
       { target: { rect: { x: 100, y: -50, width: 400, height: 200 } }, padding: 50 },
@@ -227,22 +336,43 @@ describe('driving a tour', () => {
       derived: true,
       position: null,
     });
-    const go = (input: Record<string, unknown>) => executeOperation('tour.go', input) as Promise<{ index: number }>;
-    expect((await go({ step: 'previous' })).index).toBe(0);
-    expect((await go({ step: 'next' })).index).toBe(1);
-    expect((await go({ step: 'next' })).index).toBe(1);
-    expect((await go({ stop: 0, present: false })).index).toBe(0);
-    expect(emitted.filter((e) => e.event === 'canvas-tour-step').map((e) => e.payload)).toEqual([
+    const go = (input: Record<string, unknown>) =>
+      executeOperation('tour.go', input) as Promise<TourStepResult & { ok: true }>;
+    const results = [
+      await go({ step: 'previous' }),
+      await go({ step: 'next' }),
+      await go({ step: 'next' }),
+      await go({ stop: 0, present: false }),
+    ];
+    expect(results.map(({ index }) => index)).toEqual([0, 1, 1, 0]);
+    const deliveries = emitted.filter((e) => e.event === 'canvas-tour-step').map((e) => e.payload);
+    expect(deliveries).toMatchObject([
       { index: 0, total: 2, stop: { target: { nodeId: 'early' } }, present: true },
       { index: 1, total: 2, stop: { target: { nodeId: 'late' } }, present: true },
       { index: 1, total: 2, stop: { target: { nodeId: 'late' } }, present: true },
       { index: 0, total: 2, stop: { target: { nodeId: 'early' } }, present: false },
     ]);
+    results.forEach(({ ok, ...result }, index) => {
+      expect(ok).toBe(true);
+      expect(result.catalogEpoch).toBe(boardCatalogEpoch);
+      expect(result.boardGeneration).toBe(canvasState.boardGeneration);
+      expect(result.sequence).toBeGreaterThan(index ? results[index - 1].sequence : 0);
+      expect(deliveries[index]).toEqual({ ...result, present: index !== 3 });
+    });
+    const sdkStep = sdk.goToTourStop(0, { present: false });
+    expect(sdkStep.sequence).toBeGreaterThan(results[3].sequence);
+    expect(sdkStep).toMatchObject({
+      catalogEpoch: boardCatalogEpoch,
+      boardGeneration: canvasState.boardGeneration,
+      index: 0,
+    });
     expect(((await executeOperation('tour.get', {})) as { position: number }).position).toBe(0);
     expect(sdk.getTour().position).toBe(0);
     expect(await executeOperation('tour.get', {})).toEqual(sdk.getTour());
-    await executeOperation('tour.exit', {});
+    const exited = (await executeOperation('tour.exit', {})) as { ok: true; sequence: number };
+    expect(exited.sequence).toBeGreaterThan(sdkStep.sequence);
     expect(emitted.at(-1)?.event).toBe('canvas-tour-exit');
+    expect({ ok: true, ...emitted.at(-1)?.payload }).toEqual(exited);
     expect(((await executeOperation('tour.get', {})) as { position: number | null }).position).toBeNull();
     await expect(go({ stop: 2 })).rejects.toThrow('does not exist');
     await expect(go({ stop: 0, step: 'next' })).rejects.toThrow('exactly one');

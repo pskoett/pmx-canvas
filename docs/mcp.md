@@ -146,6 +146,10 @@ tour: { stops: [...] } }` persists an ordered tour; `tour: null` resets it.
 presents a stop in the workbench, `"tour-exit"` leaves presentation, and
 `canvas_view { action: "move", nodeId | rect | viewport, duration, easing, padding, pullback }`
 eases the camera. None of these enter undo history.
+`tour-go` and `tour-exit` also accept the optional document `presenter` fence
+described in [HTTP board tours](http-api.md#board-tours). Superseded requests return
+`{ ok: true, superseded: true }` with no delivery or event. Ordinary agent calls
+omit it and retain shared arrival-order navigation.
 See the [tour model and CLI walkthrough](cli.md#tour-and-presentation) for stop
 fields. Recording is a local CLI operation; no remote recording/file-writing
 tool is added.
@@ -512,6 +516,10 @@ to refuse stale writes. Ordinary updates change the card only. File-backed Markd
 into `persistFile: true` with both preconditions and top-level `content` to save the existing
 workspace `.md` file and card together. In this mode, `data` accepts only the `rendered` preview;
 refused saves change neither. See [the file-save contract](http-api.md#nodes).
+
+For Markdown nodes, `canvas_node` actions `add` and `update` accept
+`data: { display: "heading" | "card" }`. Heading display uses the existing title
+and content as a frameless section label, without changing pin membership.
 
 For Mermaid nodes, `canvas_node` actions `add` and `update` accept
 `data: { fit: "contain" | "none" }`. Contain is the default, shrinking overflow

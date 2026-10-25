@@ -23,6 +23,7 @@ import { extraChartComponents } from '../charts/extra-components';
 import { tufteChartComponents } from '../charts/tufte-components';
 import { pmxCanvasDirectives } from '../directives';
 import { JsonRenderDevtools } from '@json-render/devtools-react';
+import { canvasThemeScheme, isCanvasTheme } from '../../shared/themes.js';
 
 type BadgeVariant =
   | 'default'
@@ -167,10 +168,12 @@ function syncPreferredTheme(): void {
 }
 
 function applyTheme(theme: unknown): void {
-  if (theme !== 'dark' && theme !== 'light' && theme !== 'high-contrast') return;
+  if (theme !== 'dark' && theme !== 'light' && !isCanvasTheme(theme)) return;
   document.documentElement.setAttribute('data-theme', theme);
-  document.documentElement.classList.toggle('dark', theme === 'dark' || theme === 'high-contrast');
-  document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.toggleAttribute('data-canvas-theme', isCanvasTheme(theme));
+  const scheme = theme === 'light' ? 'light' : canvasThemeScheme(theme);
+  document.documentElement.classList.toggle('dark', scheme === 'dark');
+  document.documentElement.style.colorScheme = scheme;
 }
 
 function App({ store }: { store: StateStore }) {
@@ -235,11 +238,15 @@ function App({ store }: { store: StateStore }) {
         padding: 0,
         boxSizing: 'border-box' as const,
       }
-    : { minHeight: '100vh', padding: 16, boxSizing: 'border-box' as const };
+    : { minHeight: '100vh', padding: 0, boxSizing: 'border-box' as const };
   return (
-    <div style={containerStyle}>
+    <div
+      style={containerStyle}
+      data-embedded={!isSite ? '' : undefined}
+      data-duplicate-title={spec.elements[spec.root]?.props?.title === document.title ? '' : undefined}
+    >
       <JSONUIProvider registry={registry} store={store} directives={pmxCanvasDirectives} handlers={buildAxHandlers()}>
-        <div style={isSite ? { flex: 1, minHeight: 0 } : undefined}>
+        <div className="pmx-viewer-root" style={isSite ? { flex: 1, minHeight: 0 } : undefined}>
           <Renderer spec={spec} registry={registry} loading={false} />
         </div>
         {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? <JsonRenderDevtools position="right" /> : null}
@@ -282,8 +289,25 @@ if (root) {
   // Standalone viewers have no state token and render immediately.
   window.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== window.parent) return;
-    const m = event.data as { source?: string; type?: string; token?: string; state?: unknown } | null;
+    const m = event.data as {
+      source?: string;
+      type?: string;
+      token?: string;
+      state?: unknown;
+      theme?: unknown;
+      title?: unknown;
+    } | null;
     if (!m) return;
+    if (m.source === HTML_SURFACE_PUSH_SOURCE && m.type === 'theme-update' && stateToken && m.token === stateToken) {
+      applyTheme(m.theme);
+      if (typeof m.title === 'string') {
+        document.title = m.title;
+        const spec = window.__PMX_CANVAS_JSON_RENDER_SPEC__;
+        document
+          .querySelector('[data-embedded]')
+          ?.toggleAttribute('data-duplicate-title', spec?.elements[spec.root]?.props?.title === m.title);
+      }
+    }
     if (m.source === JSON_VIEWER_STATE_SOURCE && m.type === 'restore' && stateToken && m.token === stateToken) {
       if (m.state === null || (typeof m.state === 'object' && !Array.isArray(m.state)))
         mount(m.state as Record<string, unknown> | null);

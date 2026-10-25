@@ -56,18 +56,7 @@ function presence(label: string, source: string): AgentPresence {
 function draw(list: CanvasEdge[]): HTMLElement {
   const host = document.createElement('div');
   document.body.appendChild(host);
-  render(
-    <>
-      <EdgeLayer nodes={signal(storeNodes.value)} edges={signal(new Map(list.map((e) => [e.id, e])))} part="lines" />
-      <EdgeLayer nodes={signal(storeNodes.value)} edges={signal(new Map(list.map((e) => [e.id, e])))} part="pills" />
-      <EdgeLayer
-        nodes={signal(storeNodes.value)}
-        edges={signal(new Map(list.map((e) => [e.id, e])))}
-        part="pill-hits"
-      />
-    </>,
-    host,
-  );
+  render(<EdgeLayer nodes={signal(storeNodes.value)} edges={signal(new Map(list.map((e) => [e.id, e])))} />, host);
   return host;
 }
 
@@ -232,7 +221,7 @@ describe('link marks', () => {
         ['e1', { id: 'e1', from: 'a', to: 'b', type: 'relation', label: 'supports', revision: 9, changedBy: codex }],
       ]),
     );
-    render(<EdgeLayer nodes={signal(storeNodes.value)} edges={list} part="pill-hits" />, host);
+    render(<EdgeLayer nodes={signal(storeNodes.value)} edges={list} />, host);
     const pill = host.querySelector('[data-testid="edge-pill-hit"]') as Element;
     fireEvent.click(pill);
     expect(selectedEdgeId.value).toBe('e1');

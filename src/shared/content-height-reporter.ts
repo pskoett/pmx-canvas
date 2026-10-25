@@ -22,11 +22,11 @@ export function sanitizeFrameToken(token: string): string {
 export function contentHeightReporterSource(frameToken: string): string {
   const token = JSON.stringify(sanitizeFrameToken(frameToken));
   return (
-    `(function(){var T=${token};var last=0,timer=null;` +
+    `(function(){var T=${token};var last=0,lastViewport=0,timer=null;` +
     `function m(){var d=document.documentElement;return Math.max(d?d.scrollHeight:0,document.body?document.body.scrollHeight:0);}` +
-    `function r(){var h=m();if(Math.abs(h-last)<=4)return;last=h;window.parent.postMessage({source:'pmx-canvas-frame',type:'content-height',token:T,height:h},'*');}` +
+    `function r(){var h=m(),v=window.innerHeight;if(Math.abs(h-last)<=4&&v===lastViewport)return;last=h;lastViewport=v;window.parent.postMessage({source:'pmx-canvas-frame',type:'content-height',token:T,height:h},'*');}` +
     `function s(){if(timer)return;timer=setTimeout(function(){timer=null;r();},100);}` +
-    `if(document.readyState!=='loading')s();window.addEventListener('load',s,true);` +
+    `if(document.readyState!=='loading')s();window.addEventListener('load',s,true);window.addEventListener('resize',s);` +
     `try{new ResizeObserver(s).observe(document.documentElement);}catch(e){}` +
     `new MutationObserver(s).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true});` +
     `if(document.fonts)document.fonts.ready.then(s);setTimeout(s,60);})();`

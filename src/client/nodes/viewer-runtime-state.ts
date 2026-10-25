@@ -1,13 +1,15 @@
 import { effect } from '@preact/signals';
 import { JSON_VIEWER_STATE_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { canvasInteractionEpoch, nodes } from '../state/canvas-store';
+import type { CanvasNodeState } from '../types';
+import { VIEWER_LOAD_DEADLINE_MS } from './ViewerFrame';
 
 type Snapshot = {
   epoch: number;
   version: unknown;
   documentUrl: unknown;
   state: Record<string, unknown> | null;
-  owners: Array<{ token: string; source: Window; mounted: () => void; ready: () => void; cancel: () => void }>;
+  owners: Array<{ token: string; source: Window }>;
 };
 
 // Tab-local UI state only: never persist form drafts in canvas data or AX. Keep
@@ -18,11 +20,12 @@ const snapshots = new Map<string, Snapshot>();
 let listening = false;
 
 export function restoreViewerRuntimeState(
-  nodeId: string,
+  authored: CanvasNodeState,
   token: string,
   source: Window,
   signal?: AbortSignal,
 ): Promise<boolean | 'cancelled'> {
+  const nodeId = authored.id;
   if (!listening) {
     listening = true;
     effect(() => {
@@ -36,7 +39,6 @@ export function restoreViewerRuntimeState(
           snapshot.version !== node.data.specVersion ||
           snapshot.documentUrl !== node.data.url
         ) {
-          for (const owner of snapshot.owners) owner.cancel();
           snapshots.delete(id);
         }
       }
@@ -54,57 +56,61 @@ export function restoreViewerRuntimeState(
       const ownerIndex =
         snapshot?.owners.findIndex((owner) => owner.token === message.token && owner.source === event.source) ?? -1;
       if (!snapshot || ownerIndex < 0) return;
-      if (message.type === 'mounted') {
-        snapshot.owners[ownerIndex]!.mounted();
-        return;
-      }
-      if (message.type === 'ready') {
-        snapshot.owners[ownerIndex]!.ready();
-        return;
-      }
       if (message.type !== 'snapshot') return;
       if (!message.state || typeof message.state !== 'object' || Array.isArray(message.state)) return;
       const { ax: _ax, ...state } = message.state as Record<string, unknown>;
       snapshot.state = state;
       // Once the replacement emits, the retired document cannot overwrite it.
-      const retired = snapshot.owners.slice(0, ownerIndex);
       snapshot.owners = snapshot.owners.slice(ownerIndex);
-      for (const owner of retired) owner.cancel();
     });
   }
   const node = nodes.value.get(nodeId);
   if (!node || signal?.aborted) return Promise.resolve('cancelled');
-  const snapshot: Snapshot = snapshots.get(nodeId) ?? {
-    epoch: canvasInteractionEpoch.value,
-    version: node.data.specVersion,
-    documentUrl: node.data.url,
-    state: null,
-    owners: [],
-  };
-  snapshots.set(nodeId, snapshot);
+  // A retained document may load after its authored spec was replaced. It can
+  // still acknowledge paint, but cannot own or restore the new spec's drafts.
+  const current = node.data.specVersion === authored.data.specVersion && node.data.url === authored.data.url;
+  const snapshot: Snapshot | undefined = current
+    ? (snapshots.get(nodeId) ?? {
+        epoch: canvasInteractionEpoch.value,
+        version: authored.data.specVersion,
+        documentUrl: authored.data.url,
+        state: null,
+        owners: [],
+      })
+    : undefined;
+  if (snapshot) snapshots.set(nodeId, snapshot);
   const ready = new Promise<boolean | 'cancelled'>((resolve) => {
     const finish = (loaded: boolean | 'cancelled') => {
       clearTimeout(timer);
-      signal?.removeEventListener('abort', owner.cancel);
-      if (loaded !== true) snapshot.owners = snapshot.owners.filter((entry) => entry !== owner);
+      window.removeEventListener('message', receive);
+      signal?.removeEventListener('abort', cancel);
+      if (loaded !== true && snapshot) snapshot.owners = snapshot.owners.filter((entry) => entry !== owner);
       resolve(loaded);
     };
-    const owner = {
-      token,
-      source,
-      mounted: () => clearTimeout(timer),
-      ready: () => finish(true),
-      cancel: () => finish('cancelled'),
+    const cancel = () => finish('cancelled');
+    const receive = (event: MessageEvent) => {
+      if (
+        event.source !== source ||
+        event.data?.source !== JSON_VIEWER_STATE_SOURCE ||
+        event.data?.token !== token ||
+        event.data?.nodeId !== nodeId
+      )
+        return;
+      if (event.data.type === 'mounted') clearTimeout(timer);
+      if (event.data.type === 'ready') finish(true);
     };
+    const owner = { token, source };
     // A missing runtime fails, but a healthy offscreen document can wait for
     // paint indefinitely. Its synchronous mount acknowledgement ends the deadline;
     // only the later frame-gated ready message may promote it.
-    const timer = setTimeout(() => finish(false), 10_000);
-    for (const previous of snapshot.owners.filter((entry) => entry.source === source)) previous.cancel();
-    while (snapshot.owners.length > 1) snapshot.owners[0]!.cancel();
-    snapshot.owners.push(owner);
-    signal?.addEventListener('abort', owner.cancel, { once: true });
+    const timer = setTimeout(() => finish(false), VIEWER_LOAD_DEADLINE_MS);
+    if (snapshot) {
+      snapshot.owners = snapshot.owners.filter((entry) => entry.source !== source).slice(-1);
+      snapshot.owners.push(owner);
+    }
+    window.addEventListener('message', receive);
+    signal?.addEventListener('abort', cancel, { once: true });
   });
-  source.postMessage({ source: JSON_VIEWER_STATE_SOURCE, type: 'restore', token, state: snapshot.state }, '*');
+  source.postMessage({ source: JSON_VIEWER_STATE_SOURCE, type: 'restore', token, state: snapshot?.state ?? null }, '*');
   return ready;
 }

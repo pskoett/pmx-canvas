@@ -89,7 +89,60 @@ async function capture(page: Page, name: string) {
   await page.screenshot({ path: join(process.env.PMX_APP_SCREENSHOTS, name) });
 }
 
+test('hosted Present supersedes an exit still held before its RPC executes', async ({ page, request }) => {
+  await board(request, 'Hosted tour ordering');
+  const id = await note(request, 'Restarted tour');
+  await request.post('/api/canvas/tour', {
+    data: {
+      tour: {
+        stops: [
+          { target: { nodeId: id }, duration: 0 },
+          { target: { viewport: { x: 0, y: 0, scale: 1 } }, duration: 0 },
+        ],
+      },
+    },
+  });
+  const app = await mount(page);
+  await app.getByRole('button', { name: 'Present', exact: true }).click();
+  await expect(app.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let exitSeen = false;
+  let retired: unknown;
+  await page.route('**/test-tool', async (route) => {
+    const input = route.request().postDataJSON() as { name: string; arguments?: Record<string, unknown> };
+    if (input.arguments?.path !== '/api/canvas/tour/exit') return route.fallback();
+    exitSeen = true;
+    await held;
+    const response = await client.callTool(input);
+    retired = response._meta?.response;
+    await route.fulfill({ json: response });
+  });
+  try {
+    await app.getByRole('button', { name: 'Exit presentation', exact: true }).click();
+    await expect.poll(() => exitSeen).toBe(true);
+    await app.getByRole('button', { name: 'Present', exact: true }).click();
+    await expect(app.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+    const card = app.locator(`[data-node-id="${id}"]`);
+    await expect(card).toBeInViewport();
+    release();
+    await expect
+      .poll(() => retired)
+      .toMatchObject({ status: 200, body: JSON.stringify({ ok: true, superseded: true }) });
+    await expect(app.getByRole('button', { name: 'Exit presentation', exact: true })).toBeVisible();
+    await app.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(app.getByRole('button', { name: 'Back', exact: true })).toBeEnabled();
+  } finally {
+    release();
+  }
+});
+
 test('hosted lifecycle, category and preset forms save without native form permission', async ({ page, request }) => {
+  // This crosses four dialogs through the MCP host. Keep individual assertion
+  // deadlines unchanged, but allow the complete sequence to finish at 2× DPR.
+  test.setTimeout(60_000);
   await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   const boardId = await board(request, 'Sandboxed forms');
   const categoryName = `Hosted facts ${boardId}`;
@@ -105,7 +158,7 @@ test('hosted lifecycle, category and preset forms save without native form permi
   const card = app.locator(`[data-node-id="${id}"]`);
   await card.hover();
   await card.getByRole('button', { name: 'More actions' }).click();
-  await app.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+  await app.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
   const review = app.getByRole('dialog', { name: 'Review card', exact: true });
   await review.getByText('Settings and history', { exact: true }).click();
   await review.getByLabel('Set a card lifecycle override').check();
@@ -115,6 +168,9 @@ test('hosted lifecycle, category and preset forms save without native form permi
   await expect
     .poll(async () => (await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json()).lifecycle?.cadenceDays)
     .toBe(7);
+  // The save reloads review preconditions and clears the previous observation.
+  // Server persistence alone does not mean the dialog can accept new evidence.
+  await expect(review.getByRole('button', { name: 'Save lifecycle', exact: true })).toBeEnabled();
   await review.getByLabel('What did you check?').fill('Capacity matches the retained source: 149.');
   await review.getByRole('button', { name: 'Checked, still correct', exact: true }).click();
   await expect(review).toHaveCount(0);
@@ -508,7 +564,7 @@ test('real HTML and Mermaid renderers work when the host permits local frames', 
       .contentFrame()
       .getByRole('heading', { name: 'Live HTML renderer' }),
   ).toBeVisible();
-  await expect(app.locator(`[data-node-id="${diagram.id}"] iframe`).contentFrame().locator('svg')).toBeVisible({
+  await expect(app.locator(`[data-node-id="${diagram.id}"] .mermaid-diagram svg`)).toBeVisible({
     timeout: 20_000,
   });
   await app.getByRole('button', { name: 'Fit canvas', exact: true }).click();

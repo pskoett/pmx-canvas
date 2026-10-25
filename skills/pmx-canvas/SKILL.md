@@ -525,6 +525,10 @@ Use the visible workbench when the human is actively curating layout:
 - Drop files or URLs to create matching nodes; an empty board shows starter actions (new note,
   pick files, paste a link, start an agent session).
 - Use a markdown node's Edit button to edit its content.
+- For a frameless section label, set Markdown `data.display: "heading"` (or choose
+  **Display as heading** in its menu). `"card"` restores the ordinary frame.
+- Zoom keeps the same spatial board and scales card content proportionally.
+  Viewers load automatically near the viewport, including at fit-all zoom.
 - **Groups** are frames with the name pill and an action cluster (auto-arrange children, collapse,
   ⋯ rename / ungroup / pin all) on the top edge. Membership changes only on release while the
   "release to add to <group>" pill shows (Esc keeps it out); dragging a child fully out offers
@@ -787,23 +791,12 @@ changes do not advance content revisions, while semantic edits and undo do.
 - A hosted ext-app (Excalidraw) node in a **WebKit** host panel (e.g. the GitHub Copilot app's
   embedded WKWebView) can remain blank even when its API session is healthy and `sessionStatus`
   is `ready`. This host-specific rendering issue remains open; successful Chrome/Codex rendering
-  does not establish native-host health. Since 0.4.6 the canvas runs a **paint oracle +
-  recovery ladder** under WebKit: present-at-load ext-apps mount strictly one at a time (the
-  cold burst was the trigger), each frame answers a double-rAF **paint probe** after settle, and
-  on silence the ladder escalates — soft-expand cycle (the automatic analogue of the proven
-  enlarge+close) → serialized remount → an explicit "App surface failed to paint / Retry"
-  affordance. Native Copilot/WebKit surfaces can still remain blank despite a successful
-  probe, including when visibility is reported as visible. The recovery trail
-  (`GET /api/canvas/debug/ext-app-recovery` / `window.__PMX_EXTAPP_LOG`) now records
-  `mount-slot`, `paint-ok`, `paint-fail`, `soft-expand-cycle`, `recovery-exhausted`, and
-  `assume-visible-rearm`. Treat `paint-ok`/`paint-fail` as diagnostic evidence, not compositor
-  proof. Require a rendered screenshot in the affected host before declaring its surface
-  healthy; a Chromium pass does not close a native Copilot/WebKit failure. In a host that
-  reports the document hidden, `paint-ok` is recorded as
-  `paint-ok (unverified: host hidden)` — the app answered the paint probe, but nothing is
-  proven composited, so do not treat it as a verified paint. If a
-  tile still shows the Retry affordance, click Retry (fresh recovery budget) or expand-then-close;
-  attach the recovery trail when reporting.
+  does not establish native-host health. Viewers now share one loading/paint handoff and
+  explicit **Retry**. The old WebKit recovery ladder and its
+  diagnostic log endpoint are removed. A double-rAF acknowledgement establishes document
+  scheduling, not native compositor health. Require a rendered screenshot in the affected
+  host before declaring its surface healthy. A failed replacement keeps the last painted
+  document; use its Retry control rather than expecting automatic remount cycles.
 - Ext-app frame documents live in server memory. Through 0.4.0, killing/restarting the daemon
   while a panel stays open leaves ext-app tiles on dead frame URLs (`Frame document not found`,
   0.4.0 report Finding S) until a full workbench reload. Since 0.4.1 the browser revalidates its

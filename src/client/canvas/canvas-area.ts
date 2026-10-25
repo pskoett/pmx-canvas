@@ -55,7 +55,7 @@ export interface CanvasFitInsets {
  * both (0.5.0 Amp report, finding A; architecture rule 9's trap).
  */
 export function canvasFitInsets(): CanvasFitInsets {
-  let top = 16;
+  let top = 44;
   let bottom = 16;
   try {
     const area = canvasArea();

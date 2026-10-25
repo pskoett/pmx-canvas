@@ -8,12 +8,20 @@
  *
  * This module must never import server.ts or index.ts.
  */
-import { type Camera, type Tour, type TourStop } from '../shared/tour.js';
+import { type Camera, type Tour, type TourPresenter, type TourStop } from '../shared/tour.js';
 export type TourStep = number | 'next' | 'previous';
-export interface TourStepResult {
+export interface TourDelivery {
+    catalogEpoch: string;
+    boardGeneration: number;
+    sequence: number;
+}
+export interface TourStepResult extends TourDelivery {
     index: number;
     total: number;
     stop: TourStop;
+}
+export interface TourSuperseded {
+    superseded: true;
 }
 export interface TourState {
     tour: Tour;
@@ -23,7 +31,9 @@ export interface TourState {
 export declare function currentTour(): TourState;
 /** Move the shared cursor. `next`/`previous` clamp at the ends; an explicit index must exist. */
 export declare function goToTourStop(step: TourStep): TourStepResult;
-export declare function exitTour(): void;
+export declare function goToTourStop(step: TourStep, presenter: TourPresenter | undefined): TourStepResult | TourSuperseded;
+export declare function exitTour(): TourDelivery;
+export declare function exitTour(presenter: TourPresenter | undefined): TourDelivery | TourSuperseded;
 /**
  * Resolve an eased camera move and store its end camera as the board viewport
  * (unrecorded). The size is the last window a browser reported, so this is the

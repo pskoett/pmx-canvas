@@ -11,6 +11,7 @@ import { tourSchema, tourStopSchema } from '../../shared/tour.js';
 const id = z.string().min(1);
 const count = z.number().int().nonnegative();
 const ok = z.looseObject({ ok: z.boolean() });
+const tourSuperseded = z.object({ ok: z.literal(true), superseded: z.literal(true) });
 const identified = z.looseObject({ id });
 const message = z.strictObject({ message: z.string() });
 const node = z.looseObject({
@@ -123,8 +124,22 @@ const payloads: Record<string, ZodType> = {
   'canvas.redo': history,
   'tour.get': z.looseObject({ tour: tourSchema, derived: z.boolean(), position: count.nullable() }),
   'tour.set': ok,
-  'tour.go': z.looseObject({ ok: z.boolean(), index: count, total: count, stop: tourStopSchema }),
-  'tour.exit': ok,
+  'tour.go': z.union([
+    z.looseObject({
+      ok: z.boolean(),
+      catalogEpoch: z.string(),
+      boardGeneration: count,
+      sequence: count,
+      index: count,
+      total: count,
+      stop: tourStopSchema,
+    }),
+    tourSuperseded,
+  ]),
+  'tour.exit': z.union([
+    z.looseObject({ ok: z.boolean(), catalogEpoch: z.string(), boardGeneration: count, sequence: count }),
+    tourSuperseded,
+  ]),
   'camera.move': z.looseObject({ ok: z.boolean(), stop: tourStopSchema, viewport }),
   arrange: z.looseObject({ ok: z.boolean(), layout: z.enum(['grid', 'column', 'flow']) }),
   'node.focus': z.looseObject({ ok: z.boolean(), focused: id, panned: z.boolean() }),

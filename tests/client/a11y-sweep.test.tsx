@@ -40,9 +40,17 @@ describe('nearestNodeInDirection', () => {
   });
 });
 
-function Trap({ active, onRender }: { active: boolean; onRender?: () => void }) {
+function Trap({
+  active,
+  onRender,
+  restoreTo,
+}: {
+  active: boolean;
+  onRender?: () => void;
+  restoreTo?: () => HTMLElement | null;
+}) {
   const ref = useRef<HTMLDivElement>(null);
-  useFocusTrap(ref, active);
+  useFocusTrap(ref, active, { restoreTo });
   onRender?.();
   return (
     <div ref={ref}>
@@ -73,5 +81,24 @@ describe('useFocusTrap', () => {
     unmount();
     expect(document.activeElement).toBe(opener);
     opener.remove();
+  });
+
+  test('delayed restoration returns to the card unless another control has taken focus', async () => {
+    const card = document.createElement('button');
+    const menuItem = document.createElement('button');
+    document.body.append(card, menuItem);
+    try {
+      for (const moveFocus of [false, true]) {
+        card.focus();
+        const { unmount } = render(<Trap active restoreTo={() => card} />);
+        unmount();
+        if (moveFocus) menuItem.focus();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        expect(document.activeElement).toBe(moveFocus ? menuItem : card);
+      }
+    } finally {
+      card.remove();
+      menuItem.remove();
+    }
   });
 });

@@ -24,7 +24,7 @@ measured; the maintainer carries that risk rather than reinstating an earlier ga
 |---|---|---|---|---|
 | 1 | 0.9.3 | Cleanup: tour debt, large-board costs, bounded due evaluator, MCP reconnect, lint | 12, 1 | S–M |
 | 2 | 0.10 | MCP hardening, operation help and bounded discovery-schema reduction | 6a, 1 | M |
-| 3 | 0.11 | One frame host, portal-layer mount, Wave-0 design pass | 5, 9 | M–L |
+| 3 | 0.11 | One frame host, proportional spatial zoom, Wave-0 design pass | 5, 9 | M–L |
 | 4 | 0.12 | Wave 5: agent output as nodes, make/inline board, group drill-in, relations sketch parity | 3, 0 | L |
 | 5 | later | Trust (M half), journal, concurrent boards, binary | 7, 4, 8 | L–XL |
 | 6 | end | Curation-effect baseline and reruns; skill-prompt benchmark | Part 1 item 4 | S–M |
@@ -269,20 +269,277 @@ Candidates, not automatic scope: `session.start`, composite-input redesign.
 [Vision moves 5 and 9](../product-vision-2026-09.md#5-keep-every-node-type-unify-how-they-render-m),
 [design.md Wave 4](../design.md#build-plan).
 
+**Local implementation checkpoint (not a release):** the maintainer's 2026-10-25
+correction removes the third target's alternate grid and experimental CSS zoom.
+The native board and its contents scale proportionally using the original matrix.
+The other visual improvements and Markdown README-menu override remain in scope.
+The shared viewer host replaces the ext-app recovery
+ladder, keeps painted content during replacement, and owns explicit Retry for both
+preparation and loading failures. JSON drafts survive theme and focus changes;
+Mermaid's inline and standalone surfaces share the renderer. Preview mounting is
+automatic at every zoom with no lifetime cap; visited documents remain mounted
+for arbitrary app state. Initial documents load without a shared queue or user gate.
+See [implementation decisions](../design.md#011-implementation-notes).
+Oracle and Claude Code reviewed the combined change and its fixes. Claude and
+the owning thread independently reproduced CSS-zoom sizing errors in Linux
+WebKit26; transforms preserve inner dimensions in that probe and Chromium.
+The earlier complete headed aggregate132 passed all 372 tests on the focus
+and file-tooltip fixes, using Chromium 145.0.7632.6 across all four projects.
+The original aggregate120 remains recorded as 371 pass / 1 fail: deferred modal
+focus restoration dismissed a newly opened relation menu. Both that race and
+the fresh Oracle review's file-header tooltip clipping have red/green regressions.
+Oracle's follow-up accepts the repair. After its quota reset, Claude reviewed
+snapshot137 read-only, verified all 531 source-manifest entries, and reported no
+blockers. Its actionable findings are resolved below; review severity does
+not close introduced debt or establish native-host acceptance. Peter requires new
+Oracle and Claude reviews of the final integrated snapshot after its complete gate.
+Aggregate153 remains 372 pass / 1 clipboard-test failure. Retrying the entire
+clipboard read/parse/assertion, seeded with non-JSON text, fixes that test race
+without changing the expected payload or deadline. Aggregate167 remains 372 pass /
+1 startup-focus failure. Its trace and deterministic regression identify an older
+buffered layout overwriting a newer camera while the first catalog is delayed.
+The bounded fix passes the original theme/heading browser case at all three widths
+in171. Aggregate174 remains 372 pass / 1 HTML-refresh failure. It exposed the initial
+document's paint acknowledgement being cancelled when a replacement starts. The
+document-owned readiness repair has controlled red/green unit and browser evidence;
+aggregate182 passed all 373 headed cases. Gate182 passed typecheck, 1,515 unit tests
+and 349 client tests. Bounded Oracle/Claude review183 then identified the additional
+lifecycle interleavings below. Their fixes pass gate191 (typecheck, 1,515 unit tests,
+353 client tests). Aggregate194 remains 374 pass / 2 fail: one forced app click hit
+the loading overlay, and one long poll stalled across the test's `unrouteAll` while
+the node deletion itself returned success. The tests now use ordinary pointer
+actionability and keep interception stable while toggling refusal. Both pass five
+headed repetitions in195. Aggregate196 remains 375 pass / 1 hosted-review failure:
+the test entered evidence before the save's precondition reload finished, and that
+reload correctly cleared the observation. Waiting for the dialog's enabled Save
+control before entering new evidence passes three repetitions in197. The product's
+input-reset behavior is unchanged. Both bounded reviewers confirm a separate,
+pre-existing defect: evidence remains editable during that reload and can be lost.
+`LifecyclePanel.tsx` is unchanged; the harness wait is not a product fix. This test's
+whole-test ceiling was raised from 30 to 60 seconds; assertion deadlines are unchanged.
+Aggregate198 passes all 376 headed cases. Bounded review198 then found that queued
+tour requests can outlive a board activation, and a stalled exit blocks later Present.
+The tour-specific server intent fence below replaces that queue. Build205 and gate207
+pass: typecheck, 1,518 unit tests, 357 client tests and all 378 headed browser cases
+across four projects. The source manifest is unchanged after the run. Fresh complete
+Oracle and Claude reviews209 inspected that passing snapshot independently. Oracle
+requested a generic-viewer theme repair; Claude accepted with a clipboard-permission
+fix recommended. Both accept the bounded repair216, with no required fixes remaining.
+Build213 and nine headed viewer/form cases214 pass. Gate215 passes typecheck,
+1,518 unit tests, 359 client tests and lint; its full headed aggregate passes all
+380 cases across four projects (27.7 minutes). The 537-entry source manifest still
+matches after verification. Final portal218/219/221 serves the same built bundle:
+70 cards, native board and first-stop screenshots at1440/600px, plus a pointer-visible
+Present/Next/Next/Back/Escape recording with settled transitions. The captures and
+full five-frame-per-second contact sheet were inspected. Saved nodes, edges,
+viewport, tour and board/README metadata are unchanged; the unrelated control-room
+artifact is unchanged. Narrow native fit intentionally scales content down rather
+than reflowing it. Resize alone preserves the current camera; invoking Present at
+the new width fits the selected stop. No native-host or performance acceptance is
+inferred from these checks.
+Lint exits zero with
+54 warnings and 12 informational diagnostics, all with baseline identities;
+the earlier McpAppNode void-union warning is gone.
+The earlier populated-viewer slowdown is not reproduced in benchmark180,
+described below. The self-contained MCP document grows from 1.32 MB to 4.78 MB, and
+visited documents retain arbitrary app state and its memory cost. These remain
+explicit tradeoffs; native WKWebView boot and paint are unverified.
+The approved installed-consumer helper repair now stages complete built asset
+trees; its default no-override installed-package case passes. Populated portal
+workflows, current-state primitive copying, eight-stop presentation navigation
+and standalone offline export have been exercised and visually inspected.
+Native host acceptance remains separate. No commit, push or release is implied.
+The dim heading, neighboring offscreen title and focus tooltip observations
+were traced to existing view states. Overview-overlay clearance is superseded
+by removal of the rejected overview, not claimed solved by tile nonoverlap.
+
+**Fresh review dispositions (2026-10-25):**
+- **Complete209 and bounded216:** both reviewers verified all 537 source-manifest
+  entries. Only JSON/graph use named-theme messages and retain drafts across theme
+  changes. Generic hosted viewers again consume dark/light queries and navigate on
+  scheme changes, preserving baseline behavior rather than promising draft retention.
+  Shared frames default to no delegated permissions; MCP explicitly keeps its existing
+  clipboard policy. Client212 reproduces both regressions, client213 passes all21 cases,
+  and headed214 passes all9 generic/JSON cases in src/srcdoc modes. Test213's theme
+  override intentionally suppressed server changes; removing that test setup error
+  preserves the original rendered-theme assertions. Original red evidence is retained.
+- **Security/platform probes211:** three authored Mermaid CSS break-out cases leave
+  the body and toolbar visible in headed Chromium145 and Linux WebKit26; captured
+  selectors stay diagram-scoped. This does not establish CSS safety in general.
+  Card content already has paint containment. Author CSP `script-src 'none'` leaves
+  HTML visible without a fallback after11s because the bridge precedes the meta tag.
+  Both engines enumerate all37 canvas custom properties. Claude closes those concrete
+  cases and the documented full-build export precondition; native WKWebView remains
+  unverified. No speculative renderer or export fallback was added.
+- **Fixed repeated edge layout:** the three paint layers predate this work; repeated
+  collision placement was introduced here. One shared scale/font/node/edge computation
+  now serves all three layers without rebuilding for pan. In three headed Chromium145
+  runs of 60 camera updates over 200 cards/150 labelled edges, text measurements fell
+  from 54,000 to zero for pan and 17,400 for zoom. All six final paint geometries match.
+  Instrumented frame medians overlap: pan155–172 ms before/140–160 ms after,
+  zoom449–468 ms before/407–472 ms after. No smoothness, boot-speed or load-cause claim.
+  Reproduce with `scripts/benchmark-edge-navigation.mjs`; profiles140/142 are retained.
+- **28% marked-edge case verified:** the populated file/diff mark clears cards and
+  hovered handles, remains in the adjacent row gap, and supports pointer/keyboard menus
+  through39→28→60→28% plus real wheel/pan. Its side gap is about11px, smaller than
+  the14px mark even before clearance, so below-card placement is necessary. The
+  emitted paint/hit regression now includes28%. No handle shrinking or speculative
+  hover-dependent placement was added. Probe148 preserves the clone's saved state.
+- **Documented source-build precondition:** exports require built CSS, fonts and
+  viewer assets; the package includes them. Missing assets are not a supported mode.
+- **Fixed Copy JSON owner coupling:** explicit expanded ownership replaces reverse
+  registration order. Regression144 copies the wrong inline draft before the fix;
+  145 passes expanded-first, later inline re-registration and close-to-inline fallback.
+  The card menu remains behind the modal; this removes incidental ordering without
+  inventing a new modal copying flow or weakening sandbox reply validation.
+- **Retained Copy JSON behavior:** an unloaded viewer keeps the action and reports
+  an honest failure. It never substitutes stale server data or claims success.
+- **Fixed presentation delivery ordering:** missing tour echoes reproduced dead
+  buttons in145. The initial HTTP fallback introduced cross-stream ordering races.
+  Steps and exits now share one server sequence, catalog epoch and board generation.
+  The client separates observed/applied deliveries and local cancellation/remote
+  hiding. Regressions154/158/161/163 reproduce stale steps, stale exits and hidden
+  echoes. Client163 and all six headed cases164 pass the final repair, including
+  both exit/restart orders. Oracle's bounded recheck found no remaining tour issue.
+  Actual-portal173 exercises Present, Next and Escape on the served final bundle;
+  inspected wide/narrow captures and pointer recording show control clearance.
+  Saved nodes, edges, viewport, tour and board/README metadata remain unchanged.
+- **Fixed startup focus:** the layout/catalog buffering path exists in 0.10.0 by
+  source comparison. Aggregate167 exposes it when a focus event overtakes the first
+  catalog response. Regression170 reproduces the camera reverting from y=96 to y=-47;
+  updating the buffered layout's camera on the newer event makes all 27 board-state
+  cases pass. The original theme/heading browser test passes unchanged at 600, 1024
+  and 1920px in171. No delayed test focus or longer assertion deadline hides the race.
+- **Fixed initial viewer readiness:** aggregate174 exposed a race introduced by the
+  shared host. A replacement cancelled the retained document's first paint reply;
+  a late load could also use the replacement's token. Readiness now belongs to each
+  document, and only the current load can own Retry. Unit176 and controlled headed
+  browser177 fail before the repair; unit180 and both src/srcdoc browser180/181 pass.
+  Initial-load-before/after-update controls preserve the replacement's failure banner,
+  and an old document error cannot redirect Retry to obsolete content. The prior
+  11-case viewer suite179 passes; full integrated acceptance remains separate.
+- **Review183 lifecycle repairs:** Retry now cancels removed entries even when their
+  source key is unchanged. The initial tour repair made local Present wait for earlier Exit requests.
+  Unit184 reproduces both failures and passes after the fixes; browser187 exercises
+  the held-exit restart and all four navigation cases. The exit request race also
+  exists in 0.10.0 by source comparison; the readiness leak belongs to the shared host.
+- **Review198 tour request ownership:** both reviewers helped replace the exit wait
+  with an atomic server-side document intent fence. Old/duplicate requests emit no
+  event, earlier activations cannot affect the current board, and a pending resume
+  cannot overtake a newer gesture. Client199 has four red cases before the fix and
+  all seven pass after; server199 has two red cases before and all14 pass after.
+  Additional capacity, invalid-input, SDK and MCP controls pass in202 (15 cases).
+  Headed202 verifies a held-before-execution exit over both HTTP and hosted MCP:
+  the restart paints before release, the old exit is superseded, and Next still works.
+  Browser199 stalls before restart with the old client. Browser201 reaches the new
+  restart but stalls reading Chromium's intercepted response body;202 reads the same
+  actual response through route.fetch before fulfilling it. Both attempts are retained.
+  The fence is latest-intent-wins within one document, not FIFO or cancellation across
+  reloads. Different documents/agents retain arrival-order control. See the
+  [public contract](../http-api.md#board-tours); no generic request framework was added.
+  Both bounded203 rechecks accept the fence. A current superseded startup now explains
+  the missing stop while the catalog is delayed: client/browser204 fail before the
+  feedback fix, client205 and headed206/209 pass after. Run205's route-teardown error
+  is retained; waiting for pending handlers fixes teardown without changing assertions.
+- **Authored JSON ownership:** readiness and draft ownership have separate lifetimes.
+  A retained document may finish painting after a spec change but cannot supply the
+  replacement's drafts. Unit185 fails both initial-load orderings before the fix.
+  Browser188 passes src/srcdoc with a held initial load; deliberately removing the
+  authored-identity check makes both cases copy `Old user draft` into the new spec
+  in189. That mutation is removed. Browser187's earlier image-blocking probe instead
+  waited for content before the required parent restore; it was a harness error.
+- **Complete connection snapshot:** browser185 reproduces a lost remote tour command
+  while the initial catalog HTTP request is held. The shared SSE/poll snapshot now
+  sends the catalog before its layout, rather than adding another client event queue.
+  The same browser case and the snapshot API test pass in186. This closes the startup
+  gap exposed by the new tour identity check, without assuming reordered transport.
+- **Review183 reconciliation:** Claude withdrew hidden-port displacement, hypothetical
+  polling reordering and Copy JSON's intentional replacement refusal as defects after
+  inspecting the existing profiles, probe148 and supported contracts. Neither reviewer
+  found another concrete edge-cache or Copy JSON ownership failure. Zoom layout time
+  differs between the profiled bundles; no cause or user-visible slowdown is established.
+- **Populated loading comparison before review183 repairs:** benchmark180 uses identical 70-card states,
+  33 visible viewers at18%, headed Chromium145 at1440×900/2x, and alternating builds
+  over three cold-browser/warm-reload pairs each. Server/OS caches are warm; no build
+  or test suite runs concurrently. Candidate bundle1f19d305 takes7.55–7.82s cold and
+  7.86–7.94s warm versus0.10.0's7.63–7.99s and7.95–8.09s. All33 viewers report content
+  ready, with no missing viewers, page errors or timeouts; states remain identical.
+  This does not reproduce run79's earlier candidate slowdown. Small samples and
+  instrumented readiness, rather than native paint, do not establish a speedup,
+  equivalence or a cause. The four subsequent lifecycle fixes are not measured by
+  this comparison. Reproduce with `scripts/benchmark-populated-canvas.mjs`.
+
+**Independent Copilot evidence for released0.10.0, not this source:** its final
+report records source330 pass/1 toolbar-resize failure/2 platform skips and
+registry319 pass/11 teardown failures/2 skips. Unchanged targeted reruns pass;
+the original gates remain red and causes unresolved. Current verification overlaps
+the resized multi-agent toolbar and script-only hosted forms. It cannot explain
+those Mac failures without the raw traces, which remain on Copilot's machine.
+Scoped public contracts, documents and persistence pass separately. Native steering
+queued despite installed immediate-mode send sites; Peter observed manual submission
+was required. The original probe arrived about91 minutes later, with manual send
+versus automatic draining unknown. That is not active-run or idle-wake acceptance.
+Fresh extension activation and native WKWebView remain unverified. This report
+does not justify speculative adapter changes or upgrade current native acceptance.
+
+**Independent Codex evidence for released0.10.0, not this source:** its final
+addendum records source325 pass/6 fail/2 platform skips and registry329 pass/1 fail/2
+skips. Unchanged isolated passes do not clear either aggregate. The registry footer
+Home failure (`scrollTop: 3019`) repeats an earlier Amp finding. Source failures
+overlap file saves, hosted draft replay, HTML/Mermaid, hosted Clear and wide Home;
+five are teardown timeouts. Concurrent broad runs confound load attribution.
+
+- **C01, reproduced platform defect:** macOS foreground PTY Ctrl-C twice retained
+  PNGs but exited1 without `recording.json`; normal-duration capture finalized.
+  Linux recording checks do not close this. Introduction and root layer are unknown.
+- **C02, guidance/API mismatch:** swept expired intents permit unlinked leaf writes;
+  top-level batch linkage rejects standalone but is discarded attached/HTTP.
+  Leaf linkage and veto controls work. This is not an established authorization
+  bypass. Correcting those skill promises is separate from the UI changes here.
+- **C03, integration limitation:** terminal progress arrived40/40 on the wire but
+  31/40 through SDK1.32.2 callbacks, with nine unknown tokens. SDK cleanup is a
+  hypothesis, not an established PMX cause or a durable completion signal.
+- **C04, guidance discoverability:** the main skill needs a response-shape reference
+  with direct-tool/help exceptions, not a universal unwrap. No skill edit is implied.
+- **Native scope:** Codex paint/actions, selected inline/expanded drafts and imports
+  passed on released code. Configured discovery still shows24 tools/no help versus
+  fresh25. Graph Open in tab was unobserved before permission blocked inspection;
+  remaining graph/Excalidraw/keyboard checks are incomplete. These results do not
+  verify the changed viewer host in native WKWebView. Raw traces remain external.
+
+These are separate acceptance findings, not authorization to broaden product fixes
+or weaken the current source gates. Native activation, PTY finalization and aggregate
+reliability remain explicit gaps alongside the current viewer-host limitations.
+
+**Inherited 0.10.0 evidence, not 0.11 acceptance:** the [pinned independent audit](https://github.com/pskoett/personalclaude/commit/42b22f863214be48ef8b90b4050323b060ee558f)'s original
+portal aggregate remains 324 pass / 8 fail. Six failures were harness defects; the
+isolated eight-case pass does not replace the aggregate. Footer Home scrolling and
+the lifecycle warning after reload remain unexplained intermittent failures, as
+does the receipt Undo/unpin CI retry. The audit's supplemental portal, renderer,
+nine-theme, extraction, keyboard, minimap and registry-SDLC checks passed. Native
+Amp passed the pin/read/steer/edit/visible-result/ack sequence and negative controls,
+whole-board context, help-guided creation, AX gating and Bun.WebView lifecycle.
+Native reconnect/subscriptions, Copilot/WebKit, idle wake-up, persistent pumps and
+native Skills activation remain unestablished. Existing skill packaging/guidance
+debt and the low KaTeX advisory GHSA-238p-pmpm-9mq7 are outside this UI change.
+No cancellation behavior changes here: aborted MCP requests may suppress final
+responses even when writes already persisted.
+
 - **One frame host** for `html`, `mcp-app`, `json-render`, `graph`, `webpage`, `mermaid`: lazy
-  mount near the viewport, a live-frame budget, one paint deadline, one visible fallback with
+  mount near the viewport, independent loading, one loading deadline, one visible fallback with
   retry, full theme tokens passed in. Reuse the shared AX bridge. Replaces the recovery
   machinery in `ExtAppFrame.tsx`. Mermaid renders inline.
-- **Portal-layer ext-app mount** ([plan 009](plan-009-tech-debt-backlog.md), contingency whose
-  trigger is met): render ext-app iframes outside the world transform for WebKit black tiles.
+- **Native spatial scaling** (maintainer override): restore the common world transform.
+  No alternate grid, content enlargement or iframe counter-scaling. The historical native
+  WKWebView black-tile issue remains unverified; do not infer compositor health from DOM readiness.
 - **Wave-0 design pass** ([design gaps](design-gaps-2026-10-08.md) suggested order 4): section
   labels (#2), the 44 px floating-chrome lane and Updates chip (#3), node header fill/title
   (#7), then the token sweep (#4 type floor, #5 radii/elevation, #6 Harbor drift, #9 raw
   `rgba()`), then the per-type pass (#8).
 
 **Done when**
-- design.md's Wave 4 check: no viewer draws its own background; a board with 20 portals mounts
-  no more frames than one without; fit-all is readable.
+- Viewers inherit the canvas palette and automatically render as their regions become visible.
+  Fit-all keeps the same board geometry and proportional contents. Retention costs memory.
 - Authored drafts, input state, offscreen replacements and the painted-refresh handoff still
   pass their existing browser cases.
 - Each design-gap item matches its drawing at 600, 1024 and 1920 px in all nine themes; the

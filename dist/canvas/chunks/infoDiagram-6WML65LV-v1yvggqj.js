@@ -1,0 +1,2 @@
+import{e,t,k,A}from"./index-1r72hdzb.js";import"./index-6qmsnxwy.js";import{D}from"./index-tb1wf525.js";var i={parse:e(async(r)=>{let a=await D("info",r);t.debug(a)},"parse")},s={version:"11.16.1"},p=e(()=>s.version,"getVersion"),g={getVersion:p},m=e((r,a,n)=>{t.debug(`rendering info diagram
+`+r);let o=A(a);k(o,100,400,!0),o.append("g").append("text").attr("x",100).attr("y",40).attr("class","version").attr("font-size",32).style("text-anchor","middle").text(`v${n}`)},"draw"),v={draw:m},y={parser:i,db:g,renderer:v};export{y as diagram};

@@ -88,21 +88,22 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   await expect(page.getByText('canvas.buildWebArtifact', { exact: true })).toBeVisible();
   await expect(page.getByText('playwright', { exact: true })).toBeVisible();
 
-  // The seeded workspace is larger than the initial camera. Bring lazy viewers
-  // into the actual canvas instead of relying on native scrolling beneath it.
-  const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
-  if (await fit.isVisible()) await fit.click();
-  else {
-    await page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Fit all', exact: true }).click();
-  }
+  // Fit-all is a reading overview, not permission to mount every document.
+  const focus = async (title: string) => {
+    const node = page.locator('.canvas-node').filter({ has: page.locator('.node-title', { hasText: title }) });
+    const id = await node.getAttribute('data-node-id');
+    expect((await request.post(`${baseUrl}/api/canvas/focus`, { data: { id } })).ok()).toBe(true);
+    await expect(node).toBeInViewport();
+    return node;
+  };
 
+  await focus('SDLC Control Room Artifact');
   const artifactFrame = page.frameLocator(
     '.canvas-node:has(.node-title:text-is("SDLC Control Room Artifact")) iframe.mcp-app-frame',
   );
   await expect(artifactFrame.getByText('Delivery Control Room')).toBeVisible();
 
-  const dashboardNode = page.locator('.canvas-node:has(.node-title:text-is("Control Tower Widgets"))');
+  const dashboardNode = await focus('Control Tower Widgets');
   const dashboardIframe = dashboardNode.locator('iframe.mcp-app-frame');
   await expect(dashboardIframe).toHaveCount(1);
   const dashboardElement = await dashboardIframe.elementHandle();
@@ -117,15 +118,21 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   // Match the authored URL so an initial about:blank cannot satisfy readiness.
   await viewer!.waitForURL((url) => url.href === viewerUrl.href, { waitUntil: 'load' });
   const dashboardFrame = dashboardIframe.contentFrame();
-  await expect(dashboardFrame.getByText('Control Tower Widgets')).toBeVisible();
+  await expect(dashboardFrame.getByText('Release train green')).toBeVisible();
+  await expect(dashboardFrame.getByText('Control Tower Widgets', { exact: true })).not.toBeVisible();
 
+  await focus('Release Gate Intake');
   const intakeFrame = page.frameLocator(
     '.canvas-node:has(.node-title:text-is("Release Gate Intake")) iframe.mcp-app-frame',
   );
-  await expect(intakeFrame.getByText('Release Gate Intake')).toBeVisible();
+  await expect(
+    intakeFrame.getByText('Interactive control inputs for the published-consumer test surface.'),
+  ).toBeVisible();
 
+  await focus('Lead Time Trend');
   const graphFrame = page.frameLocator('.canvas-node:has(.node-title:text-is("Lead Time Trend")) iframe.mcp-app-frame');
-  await expect(graphFrame.getByText('Lead Time Trend')).toBeVisible();
+  await expect(graphFrame.locator('.recharts-line-curve')).toBeVisible();
+  await expect(graphFrame.getByText('Lead Time Trend', { exact: true })).not.toBeVisible();
 
   await expect
     .poll(async () => {

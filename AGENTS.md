@@ -91,6 +91,7 @@ Before reporting or acting on a performance or evaluation result:
 ## TypeScript Guardrails
 
 1. **Do not introduce dynamic imports by default**: Do not add `await import(...)` or similar dynamic-loading patterns unless the user explicitly asks for them or the existing architecture requires them.
+   The shared Mermaid renderer is an architecture exception: only diagram rendering loads Mermaid. The SPA splits its chunks; self-contained MCP documents defer initialization without external asset requests.
 2. **Do not use `any` casts or annotations**: Avoid `as any`, `: any`, `Promise<any>`, or equivalent escape hatches. Model the real type instead.
 3. **Do not add defensive noise by default**: Do not add extra defensive checks or broad `try/catch` blocks unless they are necessary for a specific runtime boundary, recovery path, or user-requested behavior.
 
@@ -251,7 +252,7 @@ Nine themes: `harbor` (default), `daylight`, `high-contrast`, `midnight`, `sepia
 - Env: `PMX_CANVAS_THEME=daylight`
 - Browser: rail theme picker (sun/moon button in the left tool rail opens the theme menu)
 
-Embedded dark/light-only viewers (json-render, MCP apps) collapse named themes to their scheme via `canvasThemeScheme` (e.g. `sepia` → light, `ember` → dark).
+JSON viewers inherit the named canvas palette. External MCP apps receive its dark/light scheme via `canvasThemeScheme` (e.g. `sepia` → light, `ember` → dark) and the host's style variables.
 
 ## Releasing
 
@@ -317,6 +318,21 @@ package in a clean temp consumer instead of the repo dev path.
    (`view.focus`, the live workboard, `fit`) — in two cases the wrong-convention assertions were
    added by the very commit that introduced the bug. See architecture rules 9 and 10 for the two
    traps this repo keeps hitting.
+
+5. **Use the real canvas yourself during development.** Automated tests are necessary, not
+   acceptance. Before handing a UI feature to the user, rebuild, confirm the served bundle,
+   and exercise the complete affected workflow in a headed browser on a populated board
+   through the actual portal. Do not make the user the first person to discover rendering or
+   interaction failures. Use real pointer and keyboard input, inspect screenshots and recordings,
+   and fix what you observe rather than relying only on DOM assertions or passing test counts.
+   For shared canvas/viewer changes, cover every affected node type, pan across multiple populated
+   regions and back, repeatedly zoom out and in through fractional scales and fit-all, resize,
+   expand/close, reload, and verify content, connections and drafts remain correct. Check the
+   required widths and themes. Run relevant browser engines, including WebKit for iframe/scaling
+   changes; record engine versions and distinguish engine checks from native-host acceptance.
+   A fresh load at one zoom or a passing Chromium run does not establish correct zoom transitions
+   or WebKit behavior. Report unavailable host checks and unresolved failures explicitly; do not
+   call the feature accepted until the affected end-to-end flows have been exercised and inspected.
 
 ## API and Product Reference
 

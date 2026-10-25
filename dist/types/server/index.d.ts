@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
-import type { Camera, Tour, TourStop } from '../shared/tour.js';
-import { type TourState, type TourStep, type TourStepResult } from './tour-control.js';
-export type { Tour, TourStop } from '../shared/tour.js';
-export type { TourState, TourStep, TourStepResult } from './tour-control.js';
+import type { Camera, Tour, TourPresenter, TourStop } from '../shared/tour.js';
+import { type TourState, type TourStep, type TourStepResult, type TourSuperseded } from './tour-control.js';
+export type { Tour, TourPresenter, TourStop } from '../shared/tour.js';
+export type { TourState, TourStep, TourStepResult, TourSuperseded } from './tour-control.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
@@ -168,9 +168,14 @@ export declare class PmxCanvas extends EventEmitter {
     /** Present a tour stop (index, `next` or `previous`) in the workbench. Not recorded in undo history. */
     goToTourStop(step: TourStep, options?: {
         present?: boolean;
+        presenter?: undefined;
     }): TourStepResult;
+    goToTourStop(step: TourStep, options: {
+        present?: boolean;
+        presenter?: TourPresenter;
+    }): TourStepResult | TourSuperseded;
     /** Leave presentation in every viewer. */
-    exitTour(): void;
+    exitTour(presenter?: TourPresenter): void;
     /** Ease the camera to a node, world rect or viewport. Not recorded in undo history. */
     moveCamera(stop: TourStop): {
         viewport: Camera;

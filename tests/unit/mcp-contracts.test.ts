@@ -155,9 +155,15 @@ describe('registry MCP output contracts', () => {
       },
       {
         tool: 'canvas_view',
-        operations: ['tour.set', 'tour.exit', 'annotation.remove'],
+        operations: ['tour.set', 'annotation.remove'],
         data: { ok: true },
-        wrongOperations: ['tour.get', 'tour.go', 'camera.move', 'view.fit', 'node.focus', 'canvas.clear'],
+        wrongOperations: ['tour.get', 'tour.go', 'tour.exit', 'camera.move', 'view.fit', 'node.focus', 'canvas.clear'],
+      },
+      {
+        tool: 'canvas_view',
+        operations: ['tour.exit'],
+        data: { ok: true, catalogEpoch: 'server-run', boardGeneration: 3, sequence: 7 },
+        wrongOperations: ['tour.get', 'tour.go', 'camera.move', 'view.fit'],
       },
       {
         tool: 'canvas_ax_state',
