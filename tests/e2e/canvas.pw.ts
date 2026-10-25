@@ -2345,6 +2345,11 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   await expect.poll(async () => (await readNode()).position).toEqual(before.position);
   await expect.poll(async () => (await readNode()).size).toEqual(before.size);
   await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
+  // Observe beyond the resize reporter and fit debounce: a transient restored
+  // size must not pass while a repeated measurement is about to regrow the card.
+  await page.waitForTimeout(1200);
+  expect((await readNode()).size).toEqual(before.size);
+  expect((await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
   await request.post('/api/canvas/redo');
   await expect.poll(async () => (await readNode()).position).toEqual(after.position);
   await expect.poll(async () => (await readNode()).size).toEqual(after.size);

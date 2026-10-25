@@ -27,6 +27,7 @@ export function useIframeContentHeight(
     if (!frameToken) return undefined;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let pendingHeight: number | null = null;
+    let lastMeasurement: { height: number; width: number; chrome: number } | null = null;
     const held = () =>
       grabbingNodeId.value === node.id || otherHumans.value.some((human) => human.grabbingNodeId === node.id);
     function apply() {
@@ -38,7 +39,17 @@ export function useIframeContentHeight(
       const frame = iframeRef.current;
       const card = frame?.closest<HTMLElement>('.canvas-node');
       if (!current || !frame || !card) return;
-      const target = computeContentGrowHeight(current, reported, card.offsetHeight - frame.clientHeight);
+      const chrome = card.offsetHeight - frame.clientHeight;
+      // Undo changes the viewport, which makes the reporter resend unchanged
+      // content. Do not replay that growth; new content/width/chrome may fit again.
+      if (
+        lastMeasurement?.height === reported &&
+        lastMeasurement.width === current.size.width &&
+        lastMeasurement.chrome === chrome
+      )
+        return;
+      lastMeasurement = { height: reported, width: current.size.width, chrome };
+      const target = computeContentGrowHeight(current, reported, chrome);
       if (target === null) return;
       const position = contentFitPosition(current, target, Array.from(nodes.value.values()));
       const moved = position.x !== current.position.x || position.y !== current.position.y;

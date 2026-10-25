@@ -93,5 +93,20 @@ for (const remote of [false, true]) {
     await waitFor(() => expect(writes).toHaveLength(2));
     expect(writes[1]?.recordHistory).toBe(false);
     expect(writes[1]?.updates[0]?.position).toBeUndefined();
+
+    // Undo restores geometry without resetting the viewer's interactive content.
+    // Its resize report must not immediately replay the growth we just undid.
+    nodes.value = new Map([
+      [node.id, node],
+      [neighbor.id, neighbor],
+    ]);
+    report(700);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(nodes.value.get(node.id)).toEqual(node);
+    expect(writes).toHaveLength(2);
+    // A subsequent content change still fits normally.
+    report(800);
+    await waitFor(() => expect(writes).toHaveLength(3));
+    expect(nodes.value.get(node.id)?.size.height).toBe(839);
   });
 }
