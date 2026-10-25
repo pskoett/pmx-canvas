@@ -17,6 +17,15 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
+function blurEditor(editor: HTMLElement) {
+  // Emit both native blur and bubbling focusout, as a browser does. FileNode's
+  // portal loads preact/compat, which maps onBlur to focusout across the app.
+  act(() => {
+    editor.focus();
+    editor.blur();
+  });
+}
+
 test.each(
   [
     'same-text save resolves a binding',
@@ -147,10 +156,10 @@ test.each([
   }
   const view = render(<Card />);
   await waitFor(() => expect(view.container.querySelector('a')?.classList.contains('is-unresolved')).toBe(true));
-  const editor = view.container.querySelector('[contenteditable]')!;
+  const editor = view.container.querySelector<HTMLElement>('[contenteditable]')!;
   editor.append(document.createTextNode(' Updated.'));
   fireEvent.input(editor);
-  fireEvent.blur(editor);
+  blurEditor(editor);
   await waitFor(() => expect(acknowledgements).toHaveLength(1));
   await act(async () =>
     replay({
@@ -250,7 +259,7 @@ test.each([
     await waitFor(() => expect(view.container.querySelector('[contenteditable]')?.textContent?.trim()).toBe(draft));
     // An empty text assertion also matches before the new editor's mount effect.
     await waitFor(() => expect(view.container.querySelector('[contenteditable]')?.hasChildNodes()).toBe(true));
-    fireEvent.blur(view.container.querySelector('[contenteditable]')!);
+    blurEditor(view.container.querySelector<HTMLElement>('[contenteditable]')!);
     acknowledged = true;
     if (acknowledgement !== 'refused') {
       await act(async () => acknowledgements[0]!(Response.json({ ok: true, contentRevision: 41 })));
@@ -293,9 +302,9 @@ test('the rich editor preserves wiki references and aliases while editing their 
       }}
     />,
   );
-  const editor = view.container.querySelector('[contenteditable]')!;
+  const editor = view.container.querySelector<HTMLElement>('[contenteditable]')!;
   await waitFor(() => expect(editor.querySelectorAll('a')).toHaveLength(3));
-  fireEvent.blur(editor);
+  blurEditor(editor);
   fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
   expect(saved).toBe(content);
   editor.querySelector('a')!.textContent = 'Read fresh';
@@ -330,7 +339,7 @@ test('the rich editor preserves wiki references and aliases while editing their 
   expect(editor.querySelector('a')?.textContent).toBe('Read fresh');
   expect(document.getSelection()?.anchorNode).toBe(draftText);
   expect(document.getSelection()?.anchorOffset).toBe(4);
-  fireEvent.blur(editor);
+  blurEditor(editor);
   expect(saved).toContain('[[Old research#Evidence|Read fresh]]');
 });
 
@@ -582,7 +591,7 @@ test('a remounted Document uses the matching shared preview, not another draft H
     await act(async () => renders[0]!());
     fireEvent.click(second.getByRole('button', { name: 'Back to document', exact: true }));
     await waitFor(() => expect(second.container.querySelector('[contenteditable]')?.textContent?.trim()).toBe(a));
-    fireEvent.blur(second.container.querySelector('[contenteditable]')!);
+    blurEditor(second.container.querySelector<HTMLElement>('[contenteditable]')!);
     await waitFor(() => expect(saved).toBe(a));
     await act(async () => renders[1]!());
     expect(second.container.querySelector('[contenteditable]')?.textContent?.trim()).toBe(a);
