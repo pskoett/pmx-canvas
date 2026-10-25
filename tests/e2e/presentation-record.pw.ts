@@ -687,6 +687,7 @@ for (const size of [
     await expect(next).toBeDisabled();
     await exit.click();
     await expect(exit).toHaveCount(0);
+    await page.unrouteAll({ behavior: 'wait' });
   });
 }
 
