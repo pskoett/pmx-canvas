@@ -58,7 +58,8 @@
     "test:all": "bun run test && bun run test:client && bun run test:web-canvas",
     "test:install-browsers": "bun x playwright install chromium",
     "validate:agent-skills": "bash scripts/validate-agent-skill-mirrors.sh",
-    "prepublishOnly": "bun run build && bun run typecheck"
+    "prepublishOnly": "bun run build && bun run typecheck",
+    "acceptance": "bun run scripts/acceptance.ts"
   },
   "dependencies": {
     "@joplin/turndown-plugin-gfm": "^1.0.64",

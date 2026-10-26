@@ -3507,6 +3507,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               workspace: activeWorkspaceRoot,
               pid: process.pid,
               version: serverPackageVersion(),
+              // The stamp open tabs reload on, read once per process: after a rebuild it lags
+              // dist/ on disk, and already-open tabs keep old JS until the server restarts.
+              bundleStamp: canvasBundleStamp(),
               contracts: [CANVAS_APP_WRITE_CONTRACT],
               persistence: canvasState.persistenceHealth,
             });

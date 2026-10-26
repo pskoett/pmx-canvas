@@ -173,6 +173,11 @@ are JSON `[boardId,cardId]`. If the snapshot exceeds a quarter of the budget, `c
 explicitly requires rechecking cached cards via lifecycle-get before reuse. Empty lists in an
 incomplete snapshot do not mean healthy or active. Delivered entries still carry qualification.
 
+`GET /health` includes `bundleStamp`, the `<mtimeMs>-<size>` of `dist/canvas/index.js` that
+tabs compare on (re)connect to decide whether to reload. It is read once per process: when it
+differs from the file on disk, new page loads get the rebuilt files but already-open tabs keep
+their old JavaScript until the server restarts.
+
 `GET /health` includes `contracts: ["pmx-embedded-workbench-v4"]` when the daemon
 enforces `expectedBoardId` and `expectedContentRevision` preconditions, bulk-write
 fences/locks using validated geometry and affected automatic parent frames only,

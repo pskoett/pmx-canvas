@@ -1,0 +1,11 @@
+services:
+  # The workspace canvas. Port 4313 is the default the MCP server (.mcp.json) attaches to,
+  # so the portal, the CLI and the agent's canvas tools all share this one server.
+  # After `bun run build`, run `amp orb service restart canvas`: the server reads the bundle once.
+  canvas:
+    command: bun run src/cli/index.ts --no-open --port="$PORT"
+    port: 4313
+    health: /health
+    portal:
+      title: PMX Canvas
+      description: The workspace canvas served from this checkout's dist/ bundle.

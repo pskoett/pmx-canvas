@@ -95,24 +95,6 @@ Before reporting or acting on a performance or evaluation result:
 2. **Do not use `any` casts or annotations**: Avoid `as any`, `: any`, `Promise<any>`, or equivalent escape hatches. Model the real type instead.
 3. **Do not add defensive noise by default**: Do not add extra defensive checks or broad `try/catch` blocks unless they are necessary for a specific runtime boundary, recovery path, or user-requested behavior.
 
-## Workflow Orchestration
-
-### 1. Plan Mode Default
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately — don't keep pushing
-- Write detailed specs upfront to reduce ambiguity
-
-### 2. Subagent Strategy
-- Use subagents liberally to keep main context window clean
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
-
-### 3. Autonomous Bug Fixing
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests — then resolve them
-- Zero context switching required from the user
-
 ## Canvas Architecture Rules
 
 1. **State lives in the server.** `CanvasStateManager` in `canvas-state.ts` is the singleton source of truth. All mutations go through it. The browser is a renderer. State survives browser refresh.
@@ -261,6 +243,23 @@ common gotchas) lives in [`docs/RELEASE.md`](docs/RELEASE.md). The README
 intentionally does not document the release flow — it's an end-user-facing file
 and the release process is maintainer-only.
 
+Use `pmx_release_status` (tag, npm, GitHub release and CI for a version) instead of polling npm
+or GitHub by hand. After publishing, set a thread schedule to report when the version is live on
+npm instead of waiting in the turn.
+
+## Handoffs Between Threads
+
+- **Candidates move as pushed branches.** To hand work to another thread (tester, reviewer),
+  push a `candidate/<topic>` branch and send the branch and commit. Never hand over patch files,
+  hash manifests, split archives or `/tmp` checkouts; the receiver checks out the branch.
+  Pushing a `candidate/*` branch is part of the handoff the owner asked for; merging to `main`
+  and releasing still need the owner's approval.
+- **Every push gets a CI subscription.** After pushing, subscribe the thread to workflow
+  completions for that exact commit (`amp.create_github_subscription`) and report the result
+  when it arrives, instead of polling or asking the owner to check.
+- **Settle design choices before testing.** Ask the owner for design and naming decisions in one
+  batch before an acceptance run, not during it.
+
 ## Changelog Style
 
 Keep `CHANGELOG.md` entries simple and user-facing — short, plain sentences, no
@@ -299,13 +298,16 @@ package in a clean temp consumer instead of the repo dev path.
 
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.
 
-2. **Verify the full stack.** Don't just check that code compiles — start the server, hit the endpoints, confirm the SPA loads:
+2. **Verify the full stack.** Don't just check that code compiles — start the server, hit the endpoints, confirm the SPA loads.
+   In an orb the canvas is the `canvas` service in `.amp/services.yaml` (port 4313, with a portal);
+   never start it as a shell background job:
    ```bash
-   bun run src/cli/index.ts --no-open --demo &
-   curl http://localhost:4313/api/canvas/state        # Should return 3 nodes, 2 edges
+   amp orb services ensure                  # start it; after `bun run build`: amp orb service restart canvas
+   curl http://localhost:4313/health        # ok, workspace, version, bundleStamp
    curl http://localhost:4313/canvas/index.js -o /dev/null -w "%{http_code}"  # Should be 200
-   curl -N http://localhost:4313/api/workbench/events  # Should stream SSE events
    ```
+   The `pmx_canvas_health` tool (`.amp/plugins/pmx-sdlc.ts`) checks which checkout and bundle the
+   server actually serves. Run it before reporting UI results or asking the owner to test.
 
 3. **Test MCP server separately.** The MCP server can be tested with `bun run src/mcp/server.ts` and sending JSON-RPC over stdin.
 
@@ -333,6 +335,19 @@ package in a clean temp consumer instead of the repo dev path.
    A fresh load at one zoom or a passing Chromium run does not establish correct zoom transitions
    or WebKit behavior. Report unavailable host checks and unresolved failures explicitly; do not
    call the feature accepted until the affected end-to-end flows have been exercised and inspected.
+
+6. **Owner acceptance is a script, not a rehearsal.** The 01–23 owner guide lives in
+   `tests/acceptance/guide.ts` (pass criteria, the tests that prove each row, the files that
+   invalidate it). `bun run acceptance` reruns only rows whose files changed since their last
+   pass and writes `test-results/acceptance/report.md` with a video per test. A design or naming
+   change reruns the rows it touches, never the whole guide. When a guide row gains a criterion,
+   add the test that proves it to the manifest; `ownerChecks` are for what an orb cannot see.
+
+7. **This is not evidence:** a passing unit test for a rendered result, a DOM assertion without a
+   screenshot you inspected, a run against a bundle you did not confirm with `pmx_canvas_health`,
+   an MCP handshake standing in for the host discovering tools, a clean rerun after an
+   unexplained failure, or a summary from another thread. Evidence is the command, its decisive
+   output, and the artifact, from the build you are reporting on.
 
 ## API and Product Reference
 
@@ -442,12 +457,12 @@ When maintaining `.learnings/`:
 
 ## Agent Skill Pipeline
 
-- Agent-facing pipeline skills are stored in `.agents/skills/` and mirrored in `.claude/skills/` and `.opencode/skills/`
-- Use `skill-pipeline` as the top-level router / entrypoint for non-trivial coding tasks
-- Claude Code hooks are configured in `.claude/settings.json` and point at the mirrored `.claude/skills/` scripts
-- Keep the three skill trees byte-for-byte identical; verify with `bun run validate:agent-skills`
-- The skill trees are local-only dev tooling and gitignored — a clean checkout does not contain them, and `validate:agent-skills` skips (exits 0) when they are absent
-- Use the skill definitions under `.agents/skills/` as the canonical instructions
+- The pipeline skills (`skill-pipeline`, `verify-gate`, `simplify-and-harden`, `intent-framed-agent`, …) are the
+  owner's global Amp user skills, so they are available in every orb and checkout; load them by name
+- Local mirrors in `.agents/skills/`, `.claude/skills/` and `.opencode/skills/` are optional, gitignored dev tooling
+  (Claude Code hooks in `.claude/settings.json` point at them). When present, keep them byte-identical; verify with
+  `bun run validate:agent-skills`, which skips when they are absent
+- Use `skill-pipeline` as the top-level router for non-trivial coding tasks
 
 ### How To Run It
 
