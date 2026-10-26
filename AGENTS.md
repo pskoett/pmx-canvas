@@ -249,10 +249,17 @@ npm instead of waiting in the turn.
 
 ## Handoffs Between Threads
 
-- **Work happens on `main`, in one thread.** No feature or candidate branches. Testing and review
-  run as subagents in the same orb, sharing the checkout, so nothing has to move between threads.
-  If another thread must take over, push to `main` (with the owner's approval) and send the
-  commit. Never hand over patch files, hash manifests, split archives or `/tmp` checkouts.
+- **Work happens on `main`.** No feature or candidate branches.
+- **Delegated work goes to threads; subagents only explore.** Spawn a thread (`create_thread`) for
+  work someone else owns: testing, acceptance runs, fixes, parallel streams. Use subagents only
+  for read-only exploration, research and the oracle review.
+- **Threads get unpushed work with `download_thread_changes`** from the source thread, which
+  copies its changed files. Name the source thread and its base commit in the prompt, and ask the
+  thread to report back with `send_thread_message`. Never hand over patch files, hash manifests,
+  split archives or `/tmp` checkouts, and never push to `main` just to share work.
+- **Code review is the oracle.** Before asking the owner to push a code change, have the oracle
+  (a reviewing subagent) review the diff as a skeptic: give it the intent, not your conclusion.
+  Fix or answer every finding, and report what it found alongside the acceptance results.
 - **Every push gets a CI subscription.** After pushing, subscribe the thread to workflow
   completions for that exact commit (`amp.create_github_subscription`) and report the result
   when it arrives, instead of polling or asking the owner to check.
