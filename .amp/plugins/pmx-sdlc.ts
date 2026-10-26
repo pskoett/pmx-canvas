@@ -8,14 +8,13 @@ export const description =
 
 const sha = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex').slice(0, 16);
 
-function newestMtime(dir: string): number {
-  let newest = 0;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    newest = Math.max(newest, entry.isDirectory() ? newestMtime(path) : statSync(path).mtimeMs);
-  }
-  return newest;
+function newestMtime(path: string): number {
+  if (!statSync(path).isDirectory()) return statSync(path).mtimeMs;
+  return Math.max(0, ...readdirSync(path).map((name) => newestMtime(join(path, name))));
 }
+
+// What the client bundle is built from (type-only server imports excluded).
+const BUNDLE_INPUTS = ['src/client', 'src/shared', 'src/server/spatial-analysis.ts'];
 
 export default function (amp: PluginAPI) {
   const root = amp.system.workspaceRoot ? amp.helpers.filePathFromURI(amp.system.workspaceRoot) : process.cwd();
@@ -60,9 +59,8 @@ export default function (amp: PluginAPI) {
             'dist was rebuilt after the server started: open tabs keep old JS until `amp orb service restart canvas`',
           );
         }
-        if (newestMtime(join(root, 'src/client')) > stat.mtimeMs) {
-          problems.push('src/client changed after the last build: run `bun run build`, then restart the server');
-        }
+        const stale = BUNDLE_INPUTS.find((input) => newestMtime(join(root, input)) > stat.mtimeMs);
+        if (stale) problems.push(`${stale} changed after the last build: run \`bun run build\`, then restart the server`);
       }
       const portals = join(root, '.amp/portals');
       if (existsSync(portals)) {
@@ -86,13 +84,16 @@ export default function (amp: PluginAPI) {
     },
     async execute(input) {
       const v = typeof input.version === 'string' ? input.version.replace(/^v/, '') : version();
+      // The version reaches shell commands, so accept only a semver string.
+      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(v)) throw new Error(`Not a version: ${v}`);
       const tag = `v${v}`;
       const lines: string[] = [];
       const sh = async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const out = await amp.$(strings, ...values);
         return out.exitCode === 0 ? out.stdout.trim() : `unavailable (${(out.stderr || out.stdout).trim().split('\n')[0]})`;
       };
-      const localTag = await sh`git -C ${root} rev-parse --verify --quiet ${`${tag}^{commit}`}`;
+      const local = await amp.$`git -C ${root} rev-parse --verify --quiet ${`${tag}^{commit}`}`;
+      const localTag = local.exitCode === 0 ? local.stdout.trim() : '';
       // Peeled ref: annotated tags list the tag object first; `^{}` is the commit it points at.
       const remoteTag = (await sh`git -C ${root} ls-remote --tags origin ${`refs/tags/${tag}^{}`}`).split(/\s+/)[0] ?? '';
       // The registry API, not the npm CLI: npm crashes under the plugin runtime's environment.

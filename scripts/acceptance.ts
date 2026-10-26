@@ -13,7 +13,7 @@
  * Writes test-results/acceptance/{report.md,results.json} and per-test videos.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { CORE_TOUCHES, GUIDE, type GuideRow, type UnitRef } from '../tests/acceptance/guide.js';
 
@@ -44,6 +44,8 @@ interface LedgerEntry {
 }
 interface RowResult {
   row: GuideRow;
+  /** Hashes taken when the row was selected: the code the tests actually ran against. */
+  files: Record<string, string>;
   status: RowStatus;
   reason: string;
   tests: TestResult[];
@@ -68,11 +70,19 @@ const workspaceFiles = run(['git', 'ls-files', '-co', '--exclude-standard'], {},
   .stdout.split('\n')
   .filter((file) => file && existsSync(resolve(ROOT, file)));
 
+const e2eSpecs = workspaceFiles.filter((file) => file.startsWith('tests/e2e/') && file.endsWith('.pw.ts'));
+const specSource = new Map(e2eSpecs.map((file) => [file, readFileSync(resolve(ROOT, file), 'utf8')]));
+
+/** The row's source files, its own proving tests (unit files and every spec naming one of its titles). */
 function rowFiles(row: GuideRow): Record<string, string> {
   const globs = [...CORE_TOUCHES, ...row.touches].map((pattern) => new Bun.Glob(pattern));
+  const tests = new Set([
+    ...(row.unit ?? []).map((entry) => (typeof entry === 'string' ? entry : entry.file)),
+    ...e2eSpecs.filter((file) => row.e2e.some((title) => specSource.get(file)!.includes(title))),
+  ]);
   const files: Record<string, string> = {};
   for (const file of workspaceFiles) {
-    if (globs.some((glob) => glob.match(file))) files[file] = sha(readFileSync(resolve(ROOT, file)));
+    if (tests.has(file) || globs.some((glob) => glob.match(file))) files[file] = sha(readFileSync(resolve(ROOT, file)));
   }
   return files;
 }
@@ -86,7 +96,7 @@ const requested = option('--rows')?.split(',').map((id) => id.trim().padStart(2,
 const results: RowResult[] = GUIDE.map((row) => {
   const files = rowFiles(row);
   const previous = ledger[row.id];
-  const base = { row, tests: [], unit: [], problems: [], since: previous };
+  const base = { row, files, tests: [], unit: [], problems: [], since: previous };
   if (requested && !requested.includes(row.id)) return { ...base, status: 'not-run', reason: 'not requested' };
   if (!flag('--all') && previous?.status === 'pass' && previous.fingerprint === fingerprint(row, files)) {
     return { ...base, status: 'carried', reason: `unchanged since pass at ${previous.commit} (${previous.at})` };
@@ -109,14 +119,32 @@ mkdirSync(OUT, { recursive: true });
 if (toRun.length && !flag('--no-build')) {
   if (run(['bun', 'run', 'build']).exitCode !== 0) throw new Error('bun run build failed');
 }
+// The e2e server serves dist/, so a pass recorded against an older bundle would prove nothing.
+const BUNDLES: Array<[output: string, inputs: string[]]> = [
+  ['dist/canvas/index.js', ['src/client/', 'src/shared/', 'src/server/spatial-analysis.ts']],
+  ['dist/json-render/index.js', ['src/json-render/']],
+];
+for (const [output, inputs] of BUNDLES) {
+  const built = resolve(ROOT, output);
+  const stale = workspaceFiles.find(
+    (file) =>
+      inputs.some((input) => file.startsWith(input)) &&
+      (!existsSync(built) || statSync(resolve(ROOT, file)).mtimeMs > statSync(built).mtimeMs),
+  );
+  if (toRun.length && stale) throw new Error(`${output} is older than ${stale}: run without --no-build`);
+}
 
 // One Playwright run for every selected row; tests are attributed to rows by title afterwards.
 const patterns = [...new Set(toRun.flatMap((result) => result.row.e2e))];
 const executed: TestResult[] = [];
 if (patterns.length) {
   const grep = patterns.map((pattern) => pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  // A run that dies before its reporter starts must not leave the previous run's report behind.
+  const reportFile = resolve(OUT, 'playwright.json');
+  rmSync(reportFile, { force: true });
   run(['bash', 'scripts/run-playwright.sh', '--config', 'playwright.acceptance.config.ts', '--grep', grep, ...(flag('--headed') ? ['--headed'] : [])]);
-  const report = JSON.parse(readFileSync(resolve(OUT, 'playwright.json'), 'utf8'));
+  if (!existsSync(reportFile)) throw new Error('Playwright wrote no report: see its output above');
+  const report = JSON.parse(readFileSync(reportFile, 'utf8'));
   interface Suite {
     title: string;
     suites?: Suite[];
@@ -170,14 +198,14 @@ for (const result of toRun) {
     writeFileSync(resolve(OUT, log), out.stdout + out.stderr);
     result.unit.push({ ref: ref.name ? `${ref.file} -t "${ref.name}"` : ref.file, exitCode: out.exitCode, log });
   }
-  const failedTests = result.tests.filter((test) => test.status !== 'expected' && test.status !== 'flaky');
+  // A test that passed only on retry ('flaky') is not evidence: AGENTS.md testing rule 7.
+  const failedTests = result.tests.filter((test) => test.status !== 'expected');
   const failedUnit = result.unit.filter((unit) => unit.exitCode !== 0);
   result.status = result.problems.length || failedTests.length || failedUnit.length ? 'fail' : 'pass';
-  const files = rowFiles(result.row);
   ledger[result.row.id] = {
     status: result.status,
-    fingerprint: fingerprint(result.row, files),
-    files,
+    fingerprint: fingerprint(result.row, result.files),
+    files: result.files,
     commit,
     at: new Date().toISOString(),
   };
@@ -195,7 +223,7 @@ const lines = [
   '| Row | Title | Status | Evidence | Why |',
   '|---|---|---|---|---|',
   ...results.map((result) => {
-    const passed = result.tests.filter((test) => test.status === 'expected' || test.status === 'flaky').length;
+    const passed = result.tests.filter((test) => test.status === 'expected').length;
     const units = result.unit.filter((unit) => unit.exitCode === 0).length;
     const evidence =
       result.status === 'pass' || result.status === 'fail'
@@ -229,7 +257,7 @@ if (ownerOnly.length) {
 writeFileSync(resolve(OUT, 'report.md'), lines.join('\n'));
 writeFileSync(
   resolve(OUT, 'results.json'),
-  `${JSON.stringify({ commit, results: results.map(({ row, since, ...rest }) => ({ id: row.id, title: row.title, ...rest, since: since && { status: since.status, commit: since.commit, at: since.at } })) }, null, 2)}\n`,
+  `${JSON.stringify({ commit, results: results.map(({ row, since, files: _files, ...rest }) => ({ id: row.id, title: row.title, ...rest, since: since && { status: since.status, commit: since.commit, at: since.at } })) }, null, 2)}\n`,
 );
 console.log(`\nAcceptance report: ${relative(ROOT, resolve(OUT, 'report.md'))}`);
 console.log(`${count('pass')} passed, ${count('carried')} carried, ${count('fail')} failed, ${count('not-run')} not run`);

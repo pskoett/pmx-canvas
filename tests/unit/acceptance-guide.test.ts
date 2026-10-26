@@ -10,13 +10,25 @@ const e2eSource = readdirSync(join(ROOT, 'tests/e2e'))
   .filter((file) => file.endsWith('.pw.ts'))
   .map((file) => readFileSync(join(ROOT, 'tests/e2e', file), 'utf8'))
   .join('\n');
-const sourceFiles = [...new Bun.Glob('**/*').scanSync({ cwd: ROOT, onlyFiles: true })].filter(
-  (file) => !file.startsWith('node_modules/') && !file.startsWith('.git/'),
-);
+// The same file set the runner fingerprints: tracked and untracked, minus ignored files.
+const sourceFiles = Bun.spawnSync(['git', 'ls-files', '-co', '--exclude-standard'], { cwd: ROOT })
+  .stdout.toString()
+  .split('\n')
+  .filter(Boolean);
 
 describe('owner acceptance guide manifest', () => {
-  test('covers rows 01–23 once each', () => {
-    expect(GUIDE.map((row) => row.id)).toEqual(Array.from({ length: 23 }, (_, i) => String(i + 1).padStart(2, '0')));
+  test('numbers rows 01..N once each, in order', () => {
+    expect(GUIDE.map((row) => row.id)).toEqual(GUIDE.map((_, i) => String(i + 1).padStart(2, '0')));
+  });
+
+  // The guide follows development: a new source file must join a row (or a new row) before it
+  // ships, otherwise changes to it would never rerun acceptance.
+  test('every source file is watched by at least one row', () => {
+    const globs = [...CORE_TOUCHES, ...GUIDE.flatMap((row) => row.touches)].map((pattern) => new Bun.Glob(pattern));
+    const unwatched = sourceFiles.filter(
+      (file) => file.startsWith('src/') && !file.endsWith('.d.ts') && !globs.some((glob) => glob.match(file)),
+    );
+    expect(unwatched).toEqual([]);
   });
 
   for (const row of GUIDE) {

@@ -257,9 +257,19 @@ npm instead of waiting in the turn.
   copies its changed files. Name the source thread and its base commit in the prompt, and ask the
   thread to report back with `send_thread_message`. Never hand over patch files, hash manifests,
   split archives or `/tmp` checkouts, and never push to `main` just to share work.
-- **Code review is the oracle.** Before asking the owner to push a code change, have the oracle
-  (a reviewing subagent) review the diff as a skeptic: give it the intent, not your conclusion.
-  Fix or answer every finding, and report what it found alongside the acceptance results.
+- **New features get agent review: the oracle.** When a new feature is done, and before asking the
+  owner to push it, have the oracle (a reviewing subagent) review the feature's diff as a
+  skeptic: give it the intent, not your conclusion. Fix or answer every finding, and report what
+  it found alongside the acceptance results. Fixes, refactors and small changes do not need it.
+- **The owner reviews only the high-blast-radius files.** When a change touches one of these,
+  show the owner that diff and wait for their review before pushing; everything else ships on
+  evidence (plus the oracle review for new features):
+  - `src/server/canvas-db.ts`: the SQLite schema and migrations of every user's `canvas.db`
+  - `src/server/canvas-state.ts`: the single source of truth and its single-slot listeners
+  - `src/server/workbench-auth.ts`: what counts as a human write
+  - `.github/workflows/`: CI and npm publishing
+  - any breaking change to the public contract in `docs/api-stability.md` (additive changes do
+    not need it)
 - **Every push gets a CI subscription.** After pushing, subscribe the thread to workflow
   completions for that exact commit (`amp.create_github_subscription`) and report the result
   when it arrives, instead of polling or asking the owner to check.
@@ -342,12 +352,16 @@ package in a clean temp consumer instead of the repo dev path.
    or WebKit behavior. Report unavailable host checks and unresolved failures explicitly; do not
    call the feature accepted until the affected end-to-end flows have been exercised and inspected.
 
-6. **Owner acceptance is a script, not a rehearsal.** The 01–23 owner guide lives in
+6. **Owner acceptance is a script, not a rehearsal.** The owner acceptance guide lives in
    `tests/acceptance/guide.ts` (pass criteria, the tests that prove each row, the files that
    invalidate it). `bun run acceptance` reruns only rows whose files changed since their last
    pass and writes `test-results/acceptance/report.md` with a video per test. A design or naming
    change reruns the rows it touches, never the whole guide. When a guide row gains a criterion,
    add the test that proves it to the manifest; `ownerChecks` are for what an orb cannot see.
+   The guide follows development: a user-facing change is not done until its row exists or an
+   existing row gains its criterion and proving test, and every new `src/` file joins a row
+   (`tests/unit/acceptance-guide.test.ts` fails otherwise). At each release, retire rows the
+   release made obsolete.
 
 7. **This is not evidence:** a passing unit test for a rendered result, a DOM assertion without a
    screenshot you inspected, a run against a bundle you did not confirm with `pmx_canvas_health`,
