@@ -249,11 +249,10 @@ npm instead of waiting in the turn.
 
 ## Handoffs Between Threads
 
-- **Candidates move as pushed branches.** To hand work to another thread (tester, reviewer),
-  push a `candidate/<topic>` branch and send the branch and commit. Never hand over patch files,
-  hash manifests, split archives or `/tmp` checkouts; the receiver checks out the branch.
-  Pushing a `candidate/*` branch is part of the handoff the owner asked for; merging to `main`
-  and releasing still need the owner's approval.
+- **Work happens on `main`, in one thread.** No feature or candidate branches. Testing and review
+  run as subagents in the same orb, sharing the checkout, so nothing has to move between threads.
+  If another thread must take over, push to `main` (with the owner's approval) and send the
+  commit. Never hand over patch files, hash manifests, split archives or `/tmp` checkouts.
 - **Every push gets a CI subscription.** After pushing, subscribe the thread to workflow
   completions for that exact commit (`amp.create_github_subscription`) and report the result
   when it arrives, instead of polling or asking the owner to check.
