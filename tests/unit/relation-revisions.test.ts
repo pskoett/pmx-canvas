@@ -39,6 +39,29 @@ async function twoCards(): Promise<void> {
 }
 
 describe('connection changes are tracked apart from text', () => {
+  test('edge source warnings use revision baselines, not illustrated loops or citations', async () => {
+    await twoCards();
+    const boardId = canvasState.activeBoardId!;
+    const source = (await executeOperation('edge.add', {
+      from: 'risk',
+      to: 'plan',
+      kind: 'derived-from',
+      type: 'relation',
+    })) as { id: string };
+    for (const kind of ['cites', 'loop', 'if-fails'])
+      await executeOperation('edge.add', { from: 'risk', to: 'plan', kind, type: 'relation' });
+    const get = async () => (await executeOperation('node.lifecycle-get', { id: 'plan' })) as LifecycleResults['get'];
+    expect((await get()).qualification?.sourceWarnings ?? {}).toEqual({});
+    await executeOperation('node.update', { id: 'risk', data: { content: 'Changed evidence' } });
+    const warnings = (await get()).qualification?.sourceWarnings ?? {};
+    expect(Object.keys(warnings)).toEqual([
+      JSON.stringify([boardId, source.id, 'derived-from', JSON.stringify([boardId, 'risk'])]),
+    ]);
+    expect(Object.values(warnings).flat().join(' ')).toContain('changed');
+    // Repeated reads must not refresh the relation's source observation.
+    expect((await get()).qualification?.sourceWarnings).toEqual(warnings);
+  });
+
   test('one-card lifecycle reads only dependency boards and only the requested audit history', async () => {
     await twoCards();
     const targetBoard = canvasState.activeBoardId!;

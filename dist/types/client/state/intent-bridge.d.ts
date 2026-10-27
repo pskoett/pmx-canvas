@@ -239,10 +239,10 @@ export declare function updateEdgeFromClient(edgeId: string, patch: {
     type?: string;
     style?: string;
     animated?: boolean;
-}): Promise<{
+}, expectedBoardId?: string | null): Promise<{
     ok: boolean;
 }>;
 /** Remove a canvas edge via the server. */
-export declare function removeEdgeFromClient(edgeId: string): Promise<{
+export declare function removeEdgeFromClient(edgeId: string, expectedBoardId?: string | null): Promise<{
     ok: boolean;
 }>;

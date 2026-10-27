@@ -4810,7 +4810,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   background: var(--c-input-bg);
   color: var(--c-text);
 }
-.relation-legend { position: absolute; top: 8px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; max-height: min(180px, 25%); overflow-x: hidden; overflow-y: auto; }
+.relation-legend { position: absolute; top: 8px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; max-height: min(180px, 25%); overflow-x: hidden; overflow-y: auto; pointer-events: none; }
 .lifecycle-filters ~ .relation-legend { top: 48px; }
 .relation-legend > * { pointer-events: auto; flex-shrink: 0; max-width: 100%; height: 24px; box-sizing: border-box; border: 1px solid var(--c-line); border-radius: var(--r-control); background: var(--c-panel); color: var(--c-text); font: 500 11px var(--font-ui); padding: 0 9px; cursor: pointer; }
 .relation-legend select { background: var(--c-panel-soft); font-weight: 600; padding: 0 10px; }
@@ -4818,6 +4818,31 @@ html.is-node-resizing .ext-app-preview-catcher {
 .relation-legend button[aria-pressed="true"] { border-color: var(--relation-ink); }
 .relation-swatch { width: 14px; height: 2.5px; border-radius: 2px; background: var(--relation-ink); }
 .relation-count { color: var(--c-muted); font-variant-numeric: tabular-nums; }
+.relation-legend > span { display: flex; align-items: center; cursor: default; }
+.relation-legend .relation-warning { color: var(--c-warn); }
+.edge-editor { position: fixed; z-index: 1000; box-sizing: border-box; padding: 3px; border: 1px solid var(--c-line); border-radius: 8px; background: var(--c-panel); color: var(--c-text); box-shadow: var(--e-1); font: 500 11px var(--font-ui); }
+.edge-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.edge-editor-tools { display: flex; gap: 3px; }
+.edge-editor-tools select { flex: 1; min-width: 0; }
+.edge-editor button, .edge-editor select, .relation-navigation button, .group-breadcrumbs button { min-height: 24px; border: 1px solid var(--c-line); border-radius: var(--r-control); padding: 3px 7px; background: var(--c-panel-soft); color: var(--c-text); font: inherit; cursor: pointer; }
+.edge-editor button:hover, .group-breadcrumbs button:hover, .relation-navigation button:hover { background: var(--c-hover); }
+.edge-editor-field { display: grid; gap: 8px; padding: 8px; }
+.edge-editor-field label { display: grid; gap: 4px; }
+.edge-editor input { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--c-line); border-radius: var(--r-control); color: var(--c-text); background: var(--c-input-bg); font: inherit; }
+.edge-editor p { margin: 6px; color: var(--c-warn); }
+.relation-navigation { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.group-breadcrumbs { position: absolute; top: 8px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-height: 64px; overflow: auto; pointer-events: auto; color: var(--c-muted); font: 500 11px var(--font-ui); }
+.group-breadcrumbs button[aria-current] { color: var(--c-text); cursor: default; }
+.group-breadcrumbs > button:last-child { margin-left: auto; }
+.canvas-region:has(.group-breadcrumbs) .relation-legend { top: 80px; }
+.canvas-region:has(.group-breadcrumbs) .lifecycle-filters { top: 80px; }
+.canvas-region:has(.group-breadcrumbs) .lifecycle-filters ~ .relation-legend { top: 120px; }
+.group-inside-frame { position: absolute; border: 1px dashed var(--c-line); border-radius: 12px; pointer-events: none; box-sizing: border-box; z-index: -6; }
+.group-inside-frame > span { position: absolute; top: -9px; left: 12px; padding: 0 6px; background: var(--c-bg); color: var(--c-muted); font: 500 12px var(--font-ui); }
+.group-outside-endpoint { position: absolute; width: 170px; height: 60px; z-index: 2; }
+.group-outside-label { position: absolute; top: -24px; color: var(--c-muted); font: 500 12px var(--font-ui); }
+.group-outside-stub { width: 100%; height: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px dashed var(--c-line); border-radius: 10px; text-align: left; background: var(--c-panel); color: var(--c-text); font: 600 12px var(--font-ui); cursor: pointer; overflow: hidden; }
+.group-outside-stub span { display: block; margin-top: 4px; color: var(--c-muted); font: 11px var(--font-ui); }
 .expanded-content-row { display: flex; flex: 1; min-height: 0; }
 .expanded-content-row > .expanded-body { flex: 1; min-width: 0; }
 .relations-panel {

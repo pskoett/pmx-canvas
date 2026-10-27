@@ -60,7 +60,7 @@ export function canvasFitInsets(): CanvasFitInsets {
   try {
     const area = canvasArea();
     const areaBottom = area.top + area.height;
-    for (const selector of ['.lifecycle-filters', '.relation-legend']) {
+    for (const selector of ['.lifecycle-filters', '.relation-legend', '.group-breadcrumbs']) {
       const el = document.querySelector(selector);
       if (!(el instanceof HTMLElement) || !el.isConnected) continue;
       const rect = el.getBoundingClientRect();

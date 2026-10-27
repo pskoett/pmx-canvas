@@ -131,7 +131,7 @@ describe('relation label placement', () => {
       const before = assertClearLabels(cards, links);
       expect(before[0].width).toBeLessThan(before[1].width);
       for (const [index, link] of links.entries()) {
-        const glyphWidth = context.measureText(link.label!).width * 2;
+        const glyphWidth = context.measureText(`${link.label} · ×2`).width * 2;
         expect(before[index].width).toBeGreaterThan(glyphWidth);
         expect(before[index].width).toBeLessThanOrEqual(glyphWidth + 36);
       }

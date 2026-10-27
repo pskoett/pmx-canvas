@@ -10,6 +10,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Agents can draw and write on the board through MCP and CLI batches, and erase marks shared with humans without Sessions.
 - Humans and agents can author work cards with a state, detail and optional progress, with in-card editing and no session required.
 - Existing tasks can be shown as read-only live cards without creating or cancelling work.
+- Relations have inline editing, dependency warnings and lineage navigation; groups open in place with breadcrumbs and outside links.
 
 ### Fixed
 

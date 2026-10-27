@@ -37,6 +37,9 @@ import {
   dragDropTarget,
   hiddenByCollapsedGroup,
   canvasTool,
+  groupContents,
+  groupViewNodes,
+  canvasInteractionEpoch,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { AnnotationTool, CanvasAnnotation, CanvasNodeState } from '../types';
@@ -50,6 +53,7 @@ import { ScopeFenceLayer } from './ScopeFenceLayer';
 import { CanvasNode } from './CanvasNode';
 import { BoardNode } from '../nodes/BoardNode';
 import { EdgeLayer } from './EdgeLayer';
+import { GroupOutsideLinks } from './GroupNavigation';
 import { AnnotationLayer } from './AnnotationLayer';
 import { activeGuides } from './snap-guides';
 import { usePanZoom } from './use-pan-zoom';
@@ -104,19 +108,30 @@ function renderNodeContent(node: CanvasNodeState) {
  */
 class WorldNode extends Component<{
   node: CanvasNodeState;
+  hidden: boolean;
   onContextMenu?: (e: MouseEvent, nodeId: string) => void;
 }> {
-  shouldComponentUpdate(next: { node: CanvasNodeState; onContextMenu?: (e: MouseEvent, nodeId: string) => void }) {
-    return next.node !== this.props.node || next.onContextMenu !== this.props.onContextMenu;
+  shouldComponentUpdate(next: {
+    node: CanvasNodeState;
+    hidden: boolean;
+    onContextMenu?: (e: MouseEvent, nodeId: string) => void;
+  }) {
+    return (
+      next.node !== this.props.node ||
+      next.hidden !== this.props.hidden ||
+      next.onContextMenu !== this.props.onContextMenu
+    );
   }
 
   render() {
-    const { node, onContextMenu } = this.props;
+    const { node, hidden, onContextMenu } = this.props;
     const viewer = ['html', 'mcp-app', 'json-render', 'graph', 'webpage', 'mermaid'].includes(node.type);
     return (
-      <CanvasNode node={node} onContextMenu={onContextMenu}>
-        {viewer ? <ViewerHost node={node}>{renderNodeContent(node)}</ViewerHost> : renderNodeContent(node)}
-      </CanvasNode>
+      <div style={{ display: hidden ? 'none' : 'contents' }}>
+        <CanvasNode node={node} onContextMenu={onContextMenu}>
+          {viewer ? <ViewerHost node={node}>{renderNodeContent(node)}</ViewerHost> : renderNodeContent(node)}
+        </CanvasNode>
+      </div>
     );
   }
 }
@@ -572,6 +587,7 @@ export function CanvasViewport({
       // Find intersecting nodes (AABB intersection)
       const hits: string[] = [];
       for (const node of nodes.value.values()) {
+        if (groupContents.value && !groupContents.value.has(node.id)) continue;
         const nx = node.position.x;
         const ny = node.position.y;
         if (nx + node.size.width > worldMinX && nx < worldMaxX && ny + node.size.height > worldMinY && ny < worldMaxY) {
@@ -622,6 +638,7 @@ export function CanvasViewport({
       let hit: string | null = null;
       for (const node of nodes.value.values()) {
         if (node.id === exceptId || node.type === 'group') continue;
+        if (groupContents.value && !groupContents.value.has(node.id)) continue;
         if (
           wx >= node.position.x &&
           wx <= node.position.x + node.size.width &&
@@ -807,11 +824,17 @@ export function CanvasViewport({
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
   // detach/reattach iframe elements (which forces them to reload/reconnect).
   // Group nodes render first (behind) so they serve as visual containers.
+  const mounted = useRef({ epoch: canvasInteractionEpoch.value, ids: new Set<string>() });
+  if (mounted.current.epoch !== canvasInteractionEpoch.value)
+    mounted.current = { epoch: canvasInteractionEpoch.value, ids: new Set() };
+  for (const id of mounted.current.ids) if (!nodes.value.has(id)) mounted.current.ids.delete(id);
+  const collapsed = hiddenByCollapsedGroup.value;
   const worldNodes = getRenderableWorldNodes(
     nodes.value.values(),
     expandedNodeId.value,
-    new Set(hiddenByCollapsedGroup.value.keys()),
+    new Set([...collapsed.keys()].filter((id) => !mounted.current.ids.has(id))),
   );
+  for (const node of worldNodes) mounted.current.ids.add(node.id);
   const lowestZ = worldNodes.reduce((lowest, node) => Math.min(lowest, Math.floor(node.zIndex)), 0);
   const highestZ = worldNodes.reduce((highest, node) => Math.max(highest, Math.ceil(node.zIndex)), 0);
   // Keep group-body hit order without changing the frames' visual stacking.
@@ -895,7 +918,8 @@ export function CanvasViewport({
         <IntentLayer />
         <AgentPresenceLayer />
         <HumanPresenceLayer />
-        <EdgeLayer nodes={nodes} edges={edges} />
+        <EdgeLayer nodes={groupViewNodes} edges={edges} />
+        <GroupOutsideLinks />
         {draggingEdge.value && (
           <div
             class="edge-hint-pill"
@@ -930,7 +954,12 @@ export function CanvasViewport({
         <AnnotationLayer annotations={Array.from(annotations.value.values())} />
         {draftAnnotation && draftAnnotation.points.length >= 2 && <AnnotationLayer annotations={[draftAnnotation]} />}
         {worldNodes.map((node) => (
-          <WorldNode key={node.id} node={node} onContextMenu={onNodeContextMenu} />
+          <WorldNode
+            key={node.id}
+            node={node}
+            hidden={collapsed.has(node.id) || (groupContents.value !== null && !groupContents.value.has(node.id))}
+            onContextMenu={onNodeContextMenu}
+          />
         ))}
         {/* Snap alignment guide lines */}
         {activeGuides.value && (

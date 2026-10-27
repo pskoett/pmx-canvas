@@ -1,4 +1,4 @@
-import { batch, computed, signal } from '@preact/signals';
+import { batch, computed, effect, signal } from '@preact/signals';
 import {
   isExcalidrawNode,
   type CanvasAnnotation,
@@ -159,6 +159,7 @@ export function resetCanvasInteractionState(): void {
   }
   batch(() => {
     canvasInteractionEpoch.value += 1;
+    groupPath.value = [];
     contextPinsRevision++;
     contextPinsPendingWrites = 0;
     activeNodeId.value = null;
@@ -226,13 +227,14 @@ export function trackDragMembership(nodeId: string): void {
   const cy = node.position.y + node.size.height / 2;
   let candidate: CanvasNodeState | null = null;
   for (const other of nodes.value.values()) {
+    if (groupContents.value && !groupContents.value.has(other.id)) continue;
     if (other.type !== 'group' || other.id === parentId || other.collapsed) continue;
     if (contains(other, cx, cy)) candidate = other;
   }
   if (!dropSuppressedForDrag) {
     const next = candidate
       ? { nodeId, groupId: candidate.id, mode: 'add' as const }
-      : parent && fullyOutside(node, parent)
+      : parent && parent.id !== groupPath.value.at(-1)?.id && fullyOutside(node, parent)
         ? { nodeId, groupId: parent.id, mode: 'remove' as const }
         : null;
     const current = dragDropTarget.value;
@@ -266,9 +268,14 @@ export const hiddenByCollapsedGroup = computed(() => {
   const hidden = new Map<string, string>();
   for (const node of nodes.value.values()) {
     if (node.type !== 'group' || !node.collapsed) continue;
-    const children = Array.isArray(node.data.children) ? node.data.children : [];
-    for (const childId of children) {
-      if (typeof childId === 'string') hidden.set(childId, node.id);
+    if (groupContents.value && !groupContents.value.has(node.id)) continue;
+    const pending = new Set(Array.isArray(node.data.children) ? node.data.children : []);
+    for (const childId of pending) {
+      if (typeof childId !== 'string' || childId === node.id) continue;
+      hidden.set(childId, node.id);
+      const child = nodes.value.get(childId);
+      if (child?.type === 'group' && Array.isArray(child.data.children))
+        for (const descendant of child.data.children) pending.add(descendant);
     }
   }
   return hidden;
@@ -276,9 +283,130 @@ export const hiddenByCollapsedGroup = computed(() => {
 
 /** The node that stands in for `id` on the canvas: itself, or its collapsed group's chip. */
 export function visibleNodeFor(id: string): CanvasNodeState | undefined {
-  const chipId = hiddenByCollapsedGroup.value.get(id);
-  return nodes.value.get(chipId ?? id);
+  const visited = new Set<string>();
+  while (hiddenByCollapsedGroup.value.has(id) && !visited.has(id)) {
+    visited.add(id);
+    id = hiddenByCollapsedGroup.value.get(id)!;
+  }
+  return nodes.value.get(id);
 }
+
+interface GroupVisit {
+  id: string;
+  parent: unknown;
+  viewport: ViewportState;
+  selection: Set<string>;
+  active: string | null;
+}
+
+/** Human navigation only. The canonical node/edge maps and agent reads remain whole-board. */
+export const groupPath = signal<GroupVisit[]>([]);
+export const groupContents = computed(() => {
+  const id = groupPath.value.at(-1)?.id;
+  if (!id) return null;
+  const ids = new Set<string>();
+  const pending = [id];
+  const visited = new Set<string>();
+  for (const parent of pending) {
+    if (visited.has(parent)) continue;
+    visited.add(parent);
+    const node = nodes.value.get(parent);
+    if (node?.type !== 'group' || !Array.isArray(node.data.children)) continue;
+    for (const child of node.data.children) {
+      if (typeof child !== 'string' || child === id || !nodes.value.has(child)) continue;
+      ids.add(child);
+      pending.push(child);
+    }
+  }
+  return ids;
+});
+
+/** The drawing's outside endpoints are view-only stubs, never inserted into nodes. */
+export const groupViewNodes = computed(() => {
+  const inside = groupContents.value;
+  if (!inside) return nodes.value;
+  const view = new Map([...nodes.value].filter(([id]) => inside.has(id)));
+  const outside = new Set<string>();
+  for (const edge of edges.value.values()) {
+    if (edge.toBoardId || inside.has(edge.from) === inside.has(edge.to)) continue;
+    outside.add(inside.has(edge.from) ? edge.to : edge.from);
+  }
+  const root = nodes.value.get(groupPath.value.at(-1)!.id);
+  const bounds = [...view.values()];
+  const left = bounds.length ? Math.min(...bounds.map((node) => node.position.x)) : (root?.position.x ?? 0);
+  const bottom = bounds.length
+    ? Math.max(...bounds.map((node) => node.position.y + node.size.height))
+    : (root?.position.y ?? 0) + 80;
+  [...outside].sort().forEach((id, index) => {
+    const node = nodes.value.get(id);
+    if (node)
+      view.set(id, {
+        ...node,
+        position: { x: left + (index % 3) * 194, y: bottom + 88 + Math.floor(index / 3) * 84 },
+        size: { width: 170, height: 60 },
+        collapsed: false,
+      });
+  });
+  return view;
+});
+
+export function leaveGroup(depth = groupPath.value.length - 1): void {
+  const visit = groupPath.value[depth];
+  if (!visit) return;
+  cancelViewportAnimation();
+  batch(() => {
+    groupPath.value = groupPath.value.slice(0, depth);
+    viewport.value = visit.viewport;
+    selectedNodeIds.value = filterNodeIdSet(visit.selection, nodes.value);
+    activeNodeId.value = visit.active && nodes.value.has(visit.active) ? visit.active : null;
+    selectedEdgeId.value = null;
+  });
+  void updateViewportFromClient(visit.viewport, { recordHistory: false });
+}
+
+export function openGroup(id: string, fit = true): void {
+  const node = nodes.value.get(id);
+  if (node?.type !== 'group' || groupPath.value.some((visit) => visit.id === id)) return;
+  if (groupContents.value && !groupContents.value.has(id)) leaveGroup(0);
+  cancelViewportAnimation();
+  batch(() => {
+    groupPath.value = [
+      ...groupPath.value,
+      {
+        id,
+        parent: node.data.parentGroup,
+        viewport: { ...viewport.value },
+        selection: new Set(selectedNodeIds.value),
+        active: activeNodeId.value,
+      },
+    ];
+    clearSelection();
+    activeNodeId.value = null;
+  });
+  // Wait for the breadcrumb/legend to paint before measuring their screen insets.
+  if (!fit) return;
+  afterGroupView(() => {
+    const area = canvasArea();
+    fitAll(area.width, area.height);
+  });
+}
+
+effect(() => {
+  const path = groupPath.value;
+  const map = nodes.value;
+  const invalid = path.findIndex((visit) => {
+    const node = map.get(visit.id);
+    return node?.type !== 'group' || node.data.parentGroup !== visit.parent;
+  });
+  if (invalid >= 0) leaveGroup(invalid);
+  const inside = groupContents.value;
+  if (inside) {
+    const selected = selectedNodeIds.value;
+    if ([...selected].some((id) => !inside.has(id)))
+      selectedNodeIds.value = new Set([...selected].filter((id) => inside.has(id)));
+    if (activeNodeId.value && !inside.has(activeNodeId.value)) activeNodeId.value = null;
+  }
+});
 
 /** Collapsed groups render as a chip; children keep their positions for restore. */
 export function groupsOfSelection(): string[] {
@@ -821,6 +949,17 @@ export function cancelViewportAnimation(): void {
   }
 }
 
+/** Share the camera slot so newer navigation and direct gestures cancel queued fits. */
+function afterGroupView(action: () => void): void {
+  cancelViewportAnimation();
+  const epoch = canvasInteractionEpoch.value;
+  const path = groupPath.value;
+  animationId = requestAnimationFrame(() => {
+    animationId = null;
+    if (epoch === canvasInteractionEpoch.value && path === groupPath.value) action();
+  });
+}
+
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = 'pmx-canvas-layout';
 
@@ -903,7 +1042,9 @@ export function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null {
 
 // ── Fit all ───────────────────────────────────────────────────
 export function fitAll(containerW: number, containerH: number): void {
-  const all = Array.from(nodes.value.values());
+  const all = Array.from(groupViewNodes.value.values());
+  const group = nodes.value.get(groupPath.value.at(-1)?.id ?? '');
+  if (!all.length && group) all.push(group);
   if (all.length === 0) return;
 
   let minX = Number.POSITIVE_INFINITY;
@@ -915,6 +1056,12 @@ export function fitAll(containerW: number, containerH: number): void {
     minY = Math.min(minY, n.position.y);
     maxX = Math.max(maxX, n.position.x + n.size.width);
     maxY = Math.max(maxY, n.position.y + n.size.height);
+  }
+  if (groupPath.value.length) {
+    minX -= 24;
+    minY -= 40;
+    maxX += 24;
+    maxY += 24;
   }
 
   // Screen-space fit (architecture rule 9): the margins that must clear the
@@ -930,17 +1077,41 @@ export function fitAll(containerW: number, containerH: number): void {
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
 
-  animateViewport({
-    x: insets.left + usableW / 2 - cx * scale,
-    y: insets.top + usableH / 2 - cy * scale,
-    scale,
-  });
+  animateViewport(
+    {
+      x: insets.left + usableW / 2 - cx * scale,
+      y: insets.top + usableH / 2 - cy * scale,
+      scale,
+    },
+    300,
+    { recordHistory: groupPath.value.length === 0 },
+  );
 }
 
 // ── Focus node ────────────────────────────────────────────────
 export function focusNode(id: string, options: { recordHistory?: boolean; persistStacking?: boolean } = {}): void {
   const node = nodes.value.get(id);
   if (!node) return;
+  cancelViewportAnimation();
+  const previousPath = groupPath.value;
+  if (groupContents.value && !groupContents.value.has(id)) leaveGroup(0);
+  // Reveal collapsed targets through view state, without changing authored collapse flags.
+  const ancestors: string[] = [];
+  let parent = node.data.parentGroup;
+  while (typeof parent === 'string' && !ancestors.includes(parent)) {
+    ancestors.push(parent);
+    parent = nodes.value.get(parent)?.data.parentGroup;
+  }
+  for (const ancestor of ancestors.reverse()) {
+    if (nodes.value.get(ancestor)?.collapsed && !groupPath.value.some((visit) => visit.id === ancestor))
+      openGroup(ancestor, false);
+  }
+  bringToFront(id, options.persistStacking !== false);
+  if (groupPath.value.length || previousPath !== groupPath.value) afterGroupView(() => focusNodeCamera(node, options));
+  else focusNodeCamera(node, options);
+}
+
+function focusNodeCamera(node: CanvasNodeState, options: { recordHistory?: boolean }): void {
   const v = viewport.value;
   // Same screen-space frame as fitAll: viewport x/y are CONTAINER-relative
   // (screen = world*scale + viewport inside the canvas region), so the centre
@@ -966,12 +1137,11 @@ export function focusNode(id: string, options: { recordHistory?: boolean; persis
     300,
     options,
   );
-  bringToFront(id, options.persistStacking !== false);
 }
 
 // ── Cycle focus ───────────────────────────────────────────────
 export function cycleActiveNode(direction: 1 | -1 = 1): void {
-  const all = Array.from(nodes.value.keys());
+  const all = Array.from(nodes.value.keys()).filter((id) => !groupContents.value || groupContents.value.has(id));
   if (all.length === 0) return;
   const currentIdx = activeNodeId.value ? all.indexOf(activeNodeId.value) : -1;
   const nextIdx = (currentIdx + direction + all.length) % all.length;

@@ -7,6 +7,7 @@ import {
   expandNode,
   focusNode,
   nodes,
+  openGroup,
   pendingConnection,
   persistLayout,
   removeNode,
@@ -775,6 +776,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   if (node.type === 'group') {
     const childIds = (node.data.children as string[]) ?? [];
     items.push({ separator: true });
+    items.push({ label: 'Open group', action: () => openGroup(node.id) });
     items.push({
       render: (onClose) => renderGroupColorSection(node, onClose),
     });

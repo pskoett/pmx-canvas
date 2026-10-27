@@ -611,6 +611,10 @@ as dashed-border frames with a title bar and optional accent color.
   its children stay as independent nodes (one undo step); `canvas_group { action: "ungroup" }`
   does exactly the same
 - Collapsing a group hides children and shows a summary
+- **Open group** in the frame menu, or Enter on the focused frame, drills into its
+  original cards. Breadcrumbs and Escape restore the parent camera and selection.
+  Outside-link stubs navigate to the actual cards. This view creates no boards or
+  copies and does not change context pins or what agents can read.
 - By default, group creation preserves the children's current positions and
   expands the frame around them
 - Pass `childLayout` to auto-pack children (`grid`, `column`, `flow`)
@@ -624,6 +628,14 @@ canvas_group({ action: 'create', title: 'Auth Module', childIds: ['node-1', 'nod
 ## Edge types
 
 All edges support labels, styles (solid/dashed/dotted), and animation.
+
+Select an edge to edit its kind, label or reason inline, or delete it. Parallel
+links show their pair count. Dependency counts report cyclic clusters and cards
+affected downstream of the selected cards; `loop` and `if-fails` remain inert flow
+illustrations. Qualified dependency/source warnings carry a separate amber mark.
+In a card's Relations panel, **Show lineage** highlights its local dependency and
+derivation component; **Show on canvas** highlights its direct connections. Remote
+targets remain accessible through their named references.
 
 Native edges optionally carry `toBoardId`: `from` belongs to the open source
 board and `to` identifies a card on that target board. These connections appear

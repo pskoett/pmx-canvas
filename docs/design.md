@@ -363,11 +363,15 @@ vision's target designs, not screenshots of the shipped workbench. The Wave-3
 foundation does not implement every interaction pictured in them. It provides
 per-board vocabularies, semantic inks, separate endpoint slots, authored reasons,
 evidence/source/use queries, downstream review qualification and view-only
-highlights. Parallel-pair count badges, cycle/affected counts, the compact inline
-edge editor, amber stale-lineage strokes and the Show lineage / Show on canvas
-actions are not implemented. The current editor is a context menu with text
-dialogs; source changes appear as review-due card footers, not recoloured edges.
-Group drill-in with breadcrumbs and outside endpoint stubs belongs to Wave 5.
+highlights. Wave 5 adds parallel-pair counts, dependency cycle/affected counts,
+the compact inline edge editor and Show lineage / Show on canvas. A cycle count
+means cyclic dependency clusters, not every illustrated route through a graph.
+Source warnings reuse lifecycle qualification and appear as amber glyphs and words
+beside the semantic label, rather than replacing the relation ink with amber.
+Group drill-in adds breadcrumbs and outside endpoint stubs on the same board.
+The boundary is neutral, reserving blue for context pins; hidden viewers stay mounted
+so navigation does not discard drafts. These are scoped deviations from the older
+drawings' blue boundary and amber relation strokes, not new relation meanings.
 The sketches' suggested-link Accept/Dismiss treatment was superseded by the
 2026-10-10 direct-edit decision recorded above; it is not a pending acceptance
 workflow. A demo of existing features must not be used to claim full sketch parity.

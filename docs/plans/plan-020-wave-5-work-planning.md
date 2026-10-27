@@ -2,9 +2,10 @@
 
 **Status (2026-10-27):** annotation parity is delivered; deliberate work-card authoring
 is implemented, verified and owner-approved with option A's in-card editor.
-Read-only live-task views are implemented and owner-approved; relations/group
-navigation and board moves remain planned. Unit/client and targeted browser checks pass;
-the broad browser run had one intermittent hosted-tour failure that passed in isolation.
+Read-only live-task views are implemented and owner-approved. Relations/group
+navigation is implemented, verified and owner-approved; board moves remain planned.
+Unit/client and targeted Chromium/WebKit checks pass for this increment. The earlier
+live-card broad browser run had one intermittent hosted-tour failure that passed in isolation.
 This replaces step 4's automatic work-item-to-card conversion and make/inline-board
 pairing in [plan 019](plan-019-post-0.9-roadmap.md). 0.12 is a proposed release number,
 not authorization to publish. Annotation contract changes are recorded in the Unreleased

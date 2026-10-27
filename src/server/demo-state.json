@@ -204,7 +204,7 @@
         "source": "api"
       },
       "contentRevision": 5,
-      "linksRevision": 93,
+      "linksRevision": 94,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "trace",
@@ -247,7 +247,7 @@
         "source": "api"
       },
       "contentRevision": 6,
-      "linksRevision": 93,
+      "linksRevision": 94,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "trace",
@@ -319,7 +319,7 @@
         "source": "api"
       },
       "contentRevision": 7,
-      "linksRevision": 94,
+      "linksRevision": 95,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "context",
@@ -362,7 +362,7 @@
         "source": "api"
       },
       "contentRevision": 8,
-      "linksRevision": 94,
+      "linksRevision": 95,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "ledger",
@@ -444,7 +444,7 @@
         "source": "api"
       },
       "contentRevision": 10,
-      "linksRevision": 95,
+      "linksRevision": 96,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "file",
@@ -483,7 +483,7 @@
         "source": "api"
       },
       "contentRevision": 11,
-      "linksRevision": 95,
+      "linksRevision": 96,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "diff",
@@ -778,7 +778,7 @@
         "source": "api"
       },
       "contentRevision": 19,
-      "linksRevision": 96,
+      "linksRevision": 97,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "mermaid",
@@ -817,7 +817,7 @@
         "source": "api"
       },
       "contentRevision": 20,
-      "linksRevision": 96,
+      "linksRevision": 97,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "mermaid",
@@ -886,7 +886,7 @@
       "pinned": false,
       "data": {
         "mode": "ext-app",
-        "html": "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><style>\n  body { margin:0; font:14px/1.5 var(--font-ui); background:var(--c-panel); color:var(--c-text); }\n  main { padding:16px; display:grid; gap:12px; }\n  .row { display:grid; grid-template-columns:1fr auto; align-items:center; gap:12px; padding:11px 13px; border:1px solid var(--c-line); border-radius:6px; background:var(--c-panel-soft); }\n  .row b { font-weight:600; font-size:13px; } .row small { display:block; color:var(--c-muted); font-size:12px; }\n  .pill { font:11px var(--font-mono); padding:3px 9px; border-radius:99px; background:var(--c-panel); color:var(--c-text-soft); border:1px solid var(--c-line); }\n  footer { padding:12px 16px; border-top:1px solid var(--c-line); color:var(--c-muted); font-size:12px; }\n</style></head><body>\n  <main>\n    <div class=\"row\"><span><b>Nodes on board</b><small>across 8 spatial bands</small></span><span class=\"pill\">69</span></div>\n    <div class=\"row\"><span><b>Edges</b><small>flow · depends-on · relation · references</small></span><span class=\"pill\">6</span></div>\n    <div class=\"row\"><span><b>Context pins</b><small>read via canvas://pinned-context</small></span><span class=\"pill\">3</span></div>\n    <div class=\"row\"><span><b>Groups</b><small>one example frame</small></span><span class=\"pill\">1</span></div>\n  </main>\n  <footer>An MCP App surface rendered through the app bridge from inline HTML — no live server session required.</footer>\n</body></html>",
+        "html": "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><style>\n  body { margin:0; font:14px/1.5 var(--font-ui); background:var(--c-panel); color:var(--c-text); }\n  main { padding:16px; display:grid; gap:12px; }\n  .row { display:grid; grid-template-columns:1fr auto; align-items:center; gap:12px; padding:11px 13px; border:1px solid var(--c-line); border-radius:6px; background:var(--c-panel-soft); }\n  .row b { font-weight:600; font-size:13px; } .row small { display:block; color:var(--c-muted); font-size:12px; }\n  .pill { font:11px var(--font-mono); padding:3px 9px; border-radius:99px; background:var(--c-panel); color:var(--c-text-soft); border:1px solid var(--c-line); }\n  footer { padding:12px 16px; border-top:1px solid var(--c-line); color:var(--c-muted); font-size:12px; }\n</style></head><body>\n  <main>\n    <div class=\"row\"><span><b>Nodes on board</b><small>across 8 spatial bands</small></span><span class=\"pill\">69</span></div>\n    <div class=\"row\"><span><b>Edges</b><small>flow · depends-on · relation · references</small></span><span class=\"pill\">7</span></div>\n    <div class=\"row\"><span><b>Context pins</b><small>read via canvas://pinned-context</small></span><span class=\"pill\">3</span></div>\n    <div class=\"row\"><span><b>Groups</b><small>one example frame</small></span><span class=\"pill\">1</span></div>\n  </main>\n  <footer>An MCP App surface rendered through the app bridge from inline HTML — no live server session required.</footer>\n</body></html>",
         "serverName": "pmx-demo",
         "toolName": "inspect_board",
         "title": "Board inspector",
@@ -3264,7 +3264,7 @@
         "source": "api"
       },
       "contentRevision": 46,
-      "linksRevision": 97,
+      "linksRevision": 98,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "markdown",
@@ -3308,7 +3308,7 @@
         "source": "api"
       },
       "contentRevision": 47,
-      "linksRevision": 97,
+      "linksRevision": 98,
       "contentChangedAt": "2026-08-01T09:00:00.000Z",
       "freshnessStartedAt": "2026-08-01T09:00:00.000Z",
       "kind": "status",
@@ -5967,6 +5967,26 @@
       "createdAt": "2026-08-01T09:00:00.000Z"
     },
     {
+      "id": "edge-review-loop",
+      "from": "trace-apply",
+      "to": "trace-plan",
+      "type": "flow",
+      "kind": "loop",
+      "reason": "An illustrated review loop, not an execution trigger.",
+      "label": "review again",
+      "revision": 94,
+      "changedBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "changedAt": "2026-08-01T09:00:00.000Z",
+      "createdBy": {
+        "actor": "agent",
+        "source": "api"
+      },
+      "createdAt": "2026-08-01T09:00:00.000Z"
+    },
+    {
       "id": "edge-decisions",
       "from": "context",
       "to": "ledger",
@@ -5974,7 +5994,7 @@
       "kind": "supports",
       "reason": "The working context explains the recorded decisions.",
       "label": "decisions",
-      "revision": 94,
+      "revision": 95,
       "changedBy": {
         "actor": "agent",
         "source": "api"
@@ -5993,7 +6013,7 @@
       "type": "depends-on",
       "label": "changed in",
       "sourceRevision": 11,
-      "revision": 95,
+      "revision": 96,
       "changedBy": {
         "actor": "agent",
         "source": "api"
@@ -6012,7 +6032,7 @@
       "type": "references",
       "label": "approval gate",
       "style": "dashed",
-      "revision": 96,
+      "revision": 97,
       "changedBy": {
         "actor": "agent",
         "source": "api"
@@ -6030,7 +6050,7 @@
       "to": "group-status",
       "type": "relation",
       "style": "dashed",
-      "revision": 97,
+      "revision": 98,
       "changedBy": {
         "actor": "agent",
         "source": "api"

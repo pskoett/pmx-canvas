@@ -866,6 +866,8 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   });
   for (const point of [linePoint, { x: pillBox.x + pillBox.width / 2, y: pillBox.y + pillBox.height / 2 }]) {
     await page.mouse.dblclick(point.x, point.y);
+    await expect(page.getByRole('form', { name: 'Edit relation' })).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
     await page.mouse.down({ button: 'right' });
     await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
@@ -950,6 +952,210 @@ test('Settings toggles Trace inline without losing focus and keeps Clear trace a
   await expect(trace).toHaveAttribute('aria-checked', 'false');
   await expect(trace).toBeFocused();
   await expect(menu.getByRole('menuitem', { name: 'Clear trace', exact: true })).toBeHidden();
+});
+
+test('group drill-in keeps original cards, outside links and nested camera returns', async ({ page, request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await setWorkspaceFeatures(request, { agentSessions: false, knowledgeLifecycle: false });
+  const before = await (await request.get('/api/canvas/boards')).json();
+  const create = async (title: string, x: number) =>
+    (await (
+      await request.post('/api/canvas/node', {
+        headers,
+        data: { type: 'markdown', title, content: title, x, y: 250, width: 280, height: 170 },
+      })
+    ).json()) as { id: string };
+  const child = await create('Schema draft', 160);
+  const sibling = await create('Implementation', 620);
+  const outside = await create('Release checklist', 1200);
+  const group = async (title: string, childIds: string[]) =>
+    (await (await request.post('/api/canvas/group', { headers, data: { title, childIds } })).json()) as { id: string };
+  const inner = await group('Design', [child.id]);
+  const outer = await group('Development', [inner.id, sibling.id]);
+  await request.post('/api/canvas/edge', {
+    headers,
+    data: { from: child.id, to: outside.id, type: 'relation', kind: 'depends-on' },
+  });
+  await page.goto('/workbench');
+  await fitCanvas(page);
+  const node = (id: string) => page.locator(`[data-node-id="${id}"]`);
+  await node(outer.id)
+    .locator('.node-titlebar')
+    .click({ position: { x: 90, y: 10 } });
+  const parentCamera = await renderedCamera(page);
+  // Keyboard and pointer use the same navigation, without replacing the board.
+  await node(outer.id).focus();
+  await page.keyboard.press('Enter');
+  const nav = page.getByRole('navigation', { name: 'Group navigation' });
+  await expect(nav).toContainText('Development');
+  await expect(node(outside.id)).toBeHidden();
+  await expect(page.getByRole('button', { name: /Release checklist.*Show on canvas/ })).toBeVisible();
+  await expect(node(child.id)).toBeVisible();
+  await page.waitForTimeout(400);
+  const innerCamera = await renderedCamera(page);
+  await node(inner.id).focus();
+  await page.keyboard.press('Enter');
+  await expect(nav).toContainText('Design');
+  await expect(node(sibling.id)).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(nav.getByRole('button', { name: 'Design', exact: true })).toHaveCount(0);
+  expect(await renderedCamera(page)).toEqual(innerCamera);
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await fitCanvas(page);
+    await page.waitForTimeout(400);
+    const bounds = (await node(child.id).boundingBox())!;
+    const crumb = (await nav.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    expect(bounds.y).toBeGreaterThan(crumb.y + crumb.height);
+  }
+  await nav
+    .getByRole('button', {
+      name: before.boards.find((board: { id: string }) => board.id === before.activeBoardId).name,
+      exact: true,
+    })
+    .click();
+  await expect(nav).toHaveCount(0);
+  expect(await renderedCamera(page)).toEqual(parentCamera);
+  await expect(node(outer.id)).toHaveClass(/selected/);
+  await node(outer.id).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /Release checklist.*Show on canvas/ }).click();
+  await expect(nav).toHaveCount(0);
+  await expect(node(outside.id)).toHaveClass(/active/);
+  await page.waitForTimeout(400);
+  const target = (await node(outside.id).boundingBox())!;
+  expect(target.x).toBeGreaterThanOrEqual(0);
+  expect(target.x + target.width).toBeLessThanOrEqual(1920);
+  const after = await (await request.get('/api/canvas/boards')).json();
+  expect(after.boards.length).toBe(before.boards.length);
+  expect(after.activeBoardId).toBe(before.activeBoardId);
+  await node(outer.id).focus();
+  await page.keyboard.press('Enter');
+  await request.delete(`/api/canvas/node/${outer.id}`, { headers });
+  await expect(nav).toHaveCount(0);
+  await page.reload();
+  await expect(node(child.id)).toBeVisible();
+});
+
+test('collapsed group drill-in preserves live iframe drafts and reveals outside targets', async ({ page, request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  const created = await request.post('/api/canvas/node', {
+    headers,
+    data: {
+      type: 'html',
+      title: 'Local draft',
+      html: '<label>Draft<input aria-label="Draft"></label>',
+      x: 200,
+      y: 250,
+      width: 320,
+      height: 200,
+    },
+  });
+  const child = await created.json();
+  const other = await (
+    await request.post('/api/canvas/node', {
+      headers,
+      data: {
+        type: 'markdown',
+        title: 'Outside source',
+        content: 'A real card',
+        x: 850,
+        y: 250,
+        height: 1100,
+      },
+    })
+  ).json();
+  const group = async (title: string, childIds: string[]) =>
+    (await (await request.post('/api/canvas/group', { headers, data: { title, childIds } })).json()) as { id: string };
+  const folded = await group('Draft group', [child.id]);
+  const outside = await group('Source group', [other.id]);
+  await request.patch(`/api/canvas/node/${folded.id}`, { headers, data: { collapsed: true } });
+  await request.patch(`/api/canvas/node/${outside.id}`, { headers, data: { collapsed: true } });
+  await request.post('/api/canvas/edge', {
+    headers,
+    data: { from: child.id, to: other.id, type: 'relation', kind: 'cites' },
+  });
+  await page.goto('/workbench');
+  await fitCanvas(page);
+  const node = (id: string) => page.locator(`[data-node-id="${id}"]`);
+  await expect(node(child.id)).toHaveCount(0);
+  await node(folded.id).focus();
+  await page.keyboard.press('Enter');
+  const field = node(child.id).frameLocator('iframe').getByLabel('Draft');
+  await field.fill('Keep this unsaved text');
+  await page.getByRole('button', { name: 'Leave group' }).click();
+  await expect(node(child.id)).toBeHidden();
+  await node(folded.id).focus();
+  await page.keyboard.press('Enter');
+  await expect(field).toHaveValue('Keep this unsaved text');
+  await page.getByRole('button', { name: /Outside source.*Show on canvas/ }).click();
+  await expect(page.getByRole('navigation', { name: 'Group navigation' })).toContainText('Source group');
+  await expect(node(other.id)).toBeVisible();
+  await page.waitForTimeout(400);
+  const box = (await node(other.id).boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(1440);
+  const chromeBottom = await page
+    .locator('.group-breadcrumbs, .relation-legend')
+    .evaluateAll((elements) => Math.max(...elements.map((element) => element.getBoundingClientRect().bottom)));
+  expect(box.y).toBeGreaterThanOrEqual(chromeBottom);
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  const layout = await (await request.get('/api/canvas/state')).json();
+  expect(layout.nodes.find((item: { id: string }) => item.id === outside.id).collapsed).toBe(true);
+  expect(layout.nodes.find((item: { id: string }) => item.id === folded.id).collapsed).toBe(true);
+});
+
+test('inline relations edit reasons, distinguish dependency cycles and keep flow loops inert', async ({
+  page,
+  request,
+}) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await setWorkspaceFeatures(request, { agentSessions: false, knowledgeLifecycle: true });
+  const create = async (title: string, x: number, y: number) =>
+    (await (
+      await request.post('/api/canvas/node', {
+        headers,
+        data: { type: 'markdown', title, content: title, x, y, width: 260, height: 160 },
+      })
+    ).json()) as { id: string };
+  const a = await create('Schema', 120, 200);
+  const b = await create('Service', 660, 200);
+  const c = await create('Review', 660, 650);
+  const connect = async (from: string, to: string, kind: string) =>
+    (await (
+      await request.post('/api/canvas/edge', { headers, data: { from, to, kind, type: 'relation' } })
+    ).json()) as { id: string };
+  const dependency = await connect(b.id, a.id, 'depends-on');
+  await connect(a.id, b.id, 'depends-on');
+  const loop = await connect(b.id, c.id, 'if-fails');
+  await connect(c.id, b.id, 'loop');
+  await page.goto('/workbench');
+  await fitCanvas(page);
+  await expect(page.getByText('⚠ 1 dependency cycles', { exact: true })).toBeVisible();
+  const pill = page.locator(`.edge-pill-hit[data-edge-id="${dependency.id}"]`);
+  await pill.click();
+  const editor = page.getByRole('form', { name: 'Edit relation' });
+  await expect(editor).toBeVisible();
+  await editor.getByRole('button', { name: 'Why', exact: true }).click();
+  await editor.getByLabel('Why this relation?').fill('Service waits for a reviewed schema.');
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(editor.locator('input')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await request.patch(`/api/canvas/node/${a.id}`, { headers, data: { data: { content: 'Schema changed' } } });
+  await expect(page.locator(`.edge-pill[data-edge-id="${dependency.id}"]`)).toContainText('Source needs review');
+  await expect(page.locator(`.edge-pill[data-edge-id="${loop.id}"]`)).not.toContainText('Cycle');
+  await expect(page.locator(`.edge-pill[data-edge-id="${loop.id}"]`)).not.toContainText('Source needs review');
+  await page.reload();
+  await fitCanvas(page);
+  await pill.click();
+  await editor.getByRole('button', { name: 'Why', exact: true }).click();
+  await expect(editor.getByLabel('Why this relation?')).toHaveValue('Service waits for a reviewed schema.');
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await editor.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(pill).toHaveCount(0);
+  await expect(page.getByText('0 dependency cycles', { exact: true })).toBeVisible();
 });
 
 test('selecting a group keeps its nested cards and their relations readable without hover focus', async ({
@@ -7385,8 +7591,8 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   const chip = page.locator('[data-testid="group-chip"]');
   await expect(chip).toBeVisible();
   await expect(chip.locator('.group-chip-count')).toHaveText('2 nodes');
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(0);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toBeHidden();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toBeHidden();
   await chip.getByRole('button', { name: /Expand group/ }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
 
@@ -7519,8 +7725,8 @@ test('ungroup is the same action for the human and the agent: dissolve, children
   ).toHaveText('2 nodes');
   await page.keyboard.press('ControlOrMeta+z');
   await expect(chips).toHaveCount(2);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'G A' })).toHaveCount(0);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'G A' })).toBeHidden();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toBeHidden();
   const restored = (await (await request.get('/api/canvas/state')).json()) as {
     nodes: Array<{ id: string; data: Record<string, unknown> }>;
   };

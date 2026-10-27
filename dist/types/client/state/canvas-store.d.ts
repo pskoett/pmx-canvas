@@ -77,6 +77,20 @@ export declare function trackDragMembership(nodeId: string): void;
 export declare const hiddenByCollapsedGroup: import("@preact/signals-core").ReadonlySignal<Map<string, string>>;
 /** The node that stands in for `id` on the canvas: itself, or its collapsed group's chip. */
 export declare function visibleNodeFor(id: string): CanvasNodeState | undefined;
+interface GroupVisit {
+    id: string;
+    parent: unknown;
+    viewport: ViewportState;
+    selection: Set<string>;
+    active: string | null;
+}
+/** Human navigation only. The canonical node/edge maps and agent reads remain whole-board. */
+export declare const groupPath: import("@preact/signals-core").Signal<GroupVisit[]>;
+export declare const groupContents: import("@preact/signals-core").ReadonlySignal<Set<string> | null>;
+/** The drawing's outside endpoints are view-only stubs, never inserted into nodes. */
+export declare const groupViewNodes: import("@preact/signals-core").ReadonlySignal<Map<string, CanvasNodeState>>;
+export declare function leaveGroup(depth?: number): void;
+export declare function openGroup(id: string, fit?: boolean): void;
 /** Collapsed groups render as a chip; children keep their positions for restore. */
 export declare function groupsOfSelection(): string[];
 export declare function alignSelection(edge: 'left' | 'top'): void;
@@ -175,3 +189,4 @@ export declare function expandNode(id: string): void;
 export declare function collapseExpandedNode(): void;
 export declare function autoArrange(): void;
 export declare function forceDirectedArrange(): void;
+export {};

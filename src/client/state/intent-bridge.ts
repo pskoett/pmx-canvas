@@ -614,6 +614,7 @@ export async function updateEdgeFromClient(
     style?: string;
     animated?: boolean;
   },
+  expectedBoardId = activeBoardId.value,
 ): Promise<{ ok: boolean }> {
   return requestJson(
     'updateEdgeFromClient',
@@ -622,13 +623,16 @@ export async function updateEdgeFromClient(
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, expectedBoardId }),
     },
   );
 }
 
 /** Remove a canvas edge via the server. */
-export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
+export async function removeEdgeFromClient(
+  edgeId: string,
+  expectedBoardId = activeBoardId.value,
+): Promise<{ ok: boolean }> {
   return requestJson(
     'removeEdgeFromClient',
     '/api/canvas/edge',
@@ -636,7 +640,7 @@ export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolea
     {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ edge_id: edgeId }),
+      body: JSON.stringify({ edge_id: edgeId, expectedBoardId }),
     },
   );
 }

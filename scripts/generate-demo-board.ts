@@ -571,7 +571,7 @@ const MCP_APP_HTML = `<!doctype html>
 </style></head><body>
   <main>
     <div class="row"><span><b>Nodes on board</b><small>across 8 spatial bands</small></span><span class="pill">69</span></div>
-    <div class="row"><span><b>Edges</b><small>flow · depends-on · relation · references</small></span><span class="pill">6</span></div>
+    <div class="row"><span><b>Edges</b><small>flow · depends-on · relation · references</small></span><span class="pill">7</span></div>
     <div class="row"><span><b>Context pins</b><small>read via canvas://pinned-context</small></span><span class="pill">3</span></div>
     <div class="row"><span><b>Groups</b><small>one example frame</small></span><span class="pill">1</span></div>
   </main>
@@ -1772,6 +1772,9 @@ async function bandAgentAtWork(): Promise<void> {
 async function buildEdges(): Promise<void> {
   await edge('edge-runs', 'status', 'trace-plan', { type: 'flow', label: 'runs', animated: true });
   await edge('edge-then', 'trace-plan', 'trace-apply', { type: 'flow', label: 'then', style: 'dotted' });
+  await edge('edge-review-loop', 'trace-apply', 'trace-plan', {
+    type: 'flow', kind: 'loop', label: 'review again', reason: 'An illustrated review loop, not an execution trigger.',
+  });
   await edge('edge-decisions', 'context', 'ledger', {
     type: 'relation', kind: 'supports', label: 'decisions', reason: 'The working context explains the recorded decisions.',
   });

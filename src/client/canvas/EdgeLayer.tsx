@@ -7,15 +7,23 @@ import {
   selectedEdgeId,
   viewport,
   visibleNodeFor,
+  groupContents,
 } from '../state/canvas-store';
 import { linkMarks, writerName } from '../state/context-status-store';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
-import { activeBoard } from '../state/boards-store';
+import { activeBoard, boardIncarnation } from '../state/boards-store';
 import { reportClientViewportSize } from '../state/intent-bridge';
 import { relationDefinition, relationKind, relationText } from '../../shared/relations.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
-import { relationFilter, relationFocus, relationHighlight } from '../state/relation-store';
+import {
+  dependencyAnalysis,
+  relationWarning,
+  relationFilter,
+  relationFocus,
+  relationHighlight,
+} from '../state/relation-store';
+import { edgeEditorAnchor } from './EdgeEditor';
 
 /** Filter only the kinds on this board; shared presets are managed in Home. */
 export function RelationLegend() {
@@ -71,6 +79,17 @@ export function RelationLegend() {
           </button>
         );
       })}
+      {dependencyAnalysis.value.hasDependencies && (
+        <>
+          <span class={dependencyAnalysis.value.cycles ? 'relation-warning' : ''}>
+            {dependencyAnalysis.value.cycles ? '⚠ ' : ''}
+            {dependencyAnalysis.value.cycles} dependency cycles
+          </span>
+          {dependencyAnalysis.value.focused && (
+            <span>Change selection → {dependencyAnalysis.value.affected.size} affected</span>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -312,6 +331,7 @@ function edgeLayout(
   scale: number,
   obstacles: LabelObstacle[],
   textWidth: (text: string, weight?: number) => number,
+  parallelCount: number,
 ) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -334,7 +354,16 @@ function edgeLayout(
   const zoom = edgeZoom.value;
   const marks = linkMarks(edge);
   // Reasons belong in the hint/inspector, not a long pill covering both endpoints.
-  const label = edge.label ?? edge.kind;
+  const baseLabel = edge.label ?? edge.kind;
+  const label = parallelCount > 1 ? `${baseLabel ?? relationKind(edge)} · ×${parallelCount}` : baseLabel;
+  const warning = [
+    dependencyAnalysis.value.cycleEdges.has(edge.id) ? 'Cycle' : '',
+    relationWarning(edge).length ? 'Source needs review' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const warningText = warning ? `⚠ ${warning}` : '';
+  const warningWidth = warning ? textWidth(warningText, 500) + 12 : 0;
   const showLabel = !!label && zoom >= 0.35;
   // Pill layout in label units (× labelScale): the label, then a hairline and
   // "not seen by …", which keeps only its glyph on a short line or below 60% zoom.
@@ -346,12 +375,12 @@ function edgeLayout(
   // A short line: the full pill plus some line on either side would not fit.
   const notSeenWords = marks.notSeen && zoom >= 0.6 && dist >= (fullWidth + 60) * labelScale;
   const notSeenWidth = marks.notSeen ? (labelWidth ? 12 : 0) + (notSeenWords ? wordedNotSeenWidth : 12) : 0;
-  const pillWidth = pad * 2 + labelWidth + notSeenWidth;
+  const pillWidth = pad * 2 + labelWidth + notSeenWidth + warningWidth;
   const labelX = -pillWidth / 2 + pad;
   const notSeenX = labelX + labelWidth + (labelWidth ? 12 : 0);
-  const hasPill = showLabel || marks.notSeen;
-  const curveMid = hasPill ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
-  const mid = curveMid ? placeLabel(curveMid, pillWidth * labelScale, 20 * labelScale, obstacles, 4 * scale) : null;
+  const hasPill = showLabel || marks.notSeen || warningWidth > 0;
+  const curveMid = bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
+  const mid = hasPill ? placeLabel(curveMid, pillWidth * labelScale, 20 * labelScale, obstacles, 4 * scale) : null;
   if (mid) {
     obstacles.push({
       x: mid.x - (pillWidth / 2) * labelScale,
@@ -377,6 +406,8 @@ function edgeLayout(
     notSeenX,
     curveMid,
     mid,
+    warningText,
+    warningX: labelX + labelWidth + notSeenWidth + 6,
   };
 }
 
@@ -406,12 +437,15 @@ function EdgePath({ edge, fromNode, toNode, layout, focused, dimmed, selected, s
     // that LANDED on an edge must not immediately undo itself.
     e.stopPropagation();
     selectedEdgeId.value = edge.id;
+    edgeHint.value = null;
   };
   const showHint = (anchor: Element, point?: { x: number; y: number }) => {
+    if (selectedEdgeId.value === edge.id) return;
     const text = [
       `${String(fromNode.data.title ?? fromNode.id)} → ${String(toNode.data.title ?? toNode.id)}`,
       relationText(edge),
       linkHint(edge, marks.notSeen),
+      ...relationWarning(edge),
     ]
       .filter(Boolean)
       .join('\n');
@@ -510,6 +544,17 @@ function EdgePath({ edge, fromNode, toNode, layout, focused, dimmed, selected, s
               </text>
             )}
           </g>
+        )}
+        {layout.warningText && (
+          <text
+            class="edge-label"
+            x={layout.warningX * labelScale}
+            text-anchor="start"
+            dominant-baseline="central"
+            fill="var(--c-warn)"
+          >
+            {layout.warningText}
+          </text>
         )}
       </g>
     );
@@ -615,7 +660,17 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
           return Math.ceil(Math.max(metrics.width, metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight));
         };
         const nodeMap = nodes.value;
-        const edgeList = Array.from(edges.value.values());
+        const inside = groupContents.value;
+        const edgeList = Array.from(edges.value.values()).filter(
+          (edge) => !inside || inside.has(edge.from) || inside.has(edge.to),
+        );
+        const resolve = (id: string) => {
+          const visible = visibleNodeFor(id);
+          return nodeMap.get(visible?.id ?? id) ?? nodeMap.get(id);
+        };
+        const pairs = new Map<string, number>();
+        const pairKey = (edge: CanvasEdge) => JSON.stringify([edge.from, edge.to].sort());
+        for (const edge of edgeList) if (!edge.toBoardId) pairs.set(pairKey(edge), (pairs.get(pairKey(edge)) ?? 0) + 1);
         const scale = edgeChromeScale(edgeZoom.value);
 
         // Allocate a port to every incident link, including parallel and reverse links.
@@ -623,8 +678,8 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         const sides = new Map<string, Array<{ anchor: Anchor; node: CanvasNodeState; order: number; id: string }>>();
         for (const edge of edgeList) {
           if (edge.toBoardId) continue;
-          const from = visibleNodeFor(edge.from);
-          const to = visibleNodeFor(edge.to);
+          const from = resolve(edge.from);
+          const to = resolve(edge.to);
           if (!from || !to || from.id === to.id) continue;
           const start = computeAnchor(from, to);
           const end = computeAnchor(to, from);
@@ -657,7 +712,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         const obstacles: LabelObstacle[] = [];
         const portSize = 32 / edgeZoom.value;
         for (const node of nodeMap.values()) {
-          if (visibleNodeFor(node.id)?.id !== node.id) continue;
+          if (resolve(node.id)?.id !== node.id) continue;
           const frame = node.type === 'group' && !node.collapsed;
           const { x, y } = node.position;
           const { width, height } = node.size;
@@ -681,14 +736,30 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         const layouts = new Map<string, ReturnType<typeof edgeLayout>>();
         for (const edge of edgeList) {
           const anchors = ports.get(edge.id);
-          if (anchors) layouts.set(edge.id, edgeLayout(edge, anchors.start, anchors.end, scale, obstacles, textWidth));
+          if (anchors)
+            layouts.set(
+              edge.id,
+              edgeLayout(edge, anchors.start, anchors.end, scale, obstacles, textWidth, pairs.get(pairKey(edge)) ?? 1),
+            );
         }
-        return { nodeMap, edgeList, layouts, scale };
+        return { nodeMap, edgeList, layouts, scale, resolve };
       }),
     [nodes, edges, textContext, font],
   );
 
-  const { nodeMap, edgeList, layouts, scale } = geometry.value;
+  const { nodeMap, edgeList, layouts, scale, resolve } = geometry.value;
+  const selected = selectedEdgeId.value;
+  const layout = selected ? layouts.get(selected) : null;
+  const point = layout?.mid ?? layout?.curveMid;
+  useLayoutEffect(() => {
+    edgeEditorAnchor.value = selected && point ? { id: selected, incarnation: boardIncarnation, point } : null;
+  }, [selected, point?.x, point?.y, boardIncarnation]);
+  useEffect(
+    () => () => {
+      edgeEditorAnchor.value = null;
+    },
+    [],
+  );
   const focusId = relationFocus.value;
   const hasFocus = focusId !== null;
   const searchSet = searchHighlightIds.value;
@@ -758,8 +829,8 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
               // Remote endpoints are navigable links, never a same-ID card on this board.
               if (edge.toBoardId) return null;
               // An endpoint hidden behind a collapsed group's chip is drawn to the chip.
-              const fromNode = visibleNodeFor(edge.from);
-              const toNode = visibleNodeFor(edge.to);
+              const fromNode = resolve(edge.from);
+              const toNode = resolve(edge.to);
               const layout = layouts.get(edge.id);
               if (!fromNode || !toNode || !layout) return null;
               const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);

@@ -36,6 +36,8 @@ import {
   updateNodeData,
   viewport,
   canvasTool,
+  groupContents,
+  openGroup,
 } from '../state/canvas-store';
 import {
   addToGroupFromClient,
@@ -275,7 +277,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       reportHumanGrab(node.id);
       noteNearAtGrab(node.id);
       takeOverNode(node.id, typeof node.data.title === 'string' && node.data.title ? node.data.title : node.type);
-      buildSnapCache(node.id, nodes.value.values());
+      buildSnapCache(
+        node.id,
+        [...nodes.value.values()].filter((candidate) => !groupContents.value || groupContents.value.has(candidate.id)),
+      );
       if (node.type !== 'group') {
         const onKey = (ev: KeyboardEvent) => {
           if (ev.key === 'Escape') suppressDropForDrag();
@@ -333,12 +338,21 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       const dir = ARROW_DIRS[e.key];
       if (dir) {
         e.preventDefault();
-        const next = nearestNodeInDirection(node, dir, nodes.value.values());
+        const next = nearestNodeInDirection(
+          node,
+          dir,
+          [...nodes.value.values()].filter(
+            (candidate) => !groupContents.value || groupContents.value.has(candidate.id),
+          ),
+        );
         if (!next) return;
         bringToFront(next.id);
         requestAnimationFrame(() => {
           document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(next.id)}"]`)?.focus();
         });
+      } else if (e.key === 'Enter' && e.target === e.currentTarget && node.type === 'group') {
+        e.preventDefault();
+        openGroup(node.id);
       } else if (e.key === 'Enter' && e.target === e.currentTarget && EXPANDABLE_TYPES.has(node.type)) {
         e.preventDefault();
         expandNode(node.id);
@@ -494,8 +508,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     // Collapsed group: a compact chip. Children keep their positions for restore.
     return (
       <div
+        ref={shellRef}
         class={`${nodeClass} group-chip`}
         data-node-type={node.type}
+        data-node-id={node.id}
+        tabIndex={isActive ? 0 : -1}
+        onKeyDown={handleNodeKeyDown}
         style={{ ...nodeStyle, width: 'auto', height: 'auto' }}
         onPointerDown={handlePointerDown}
         onDblClick={handleDblClick}
@@ -673,6 +691,17 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 </button>
                 {groupMenuOpen && (
                   <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        openGroup(node.id);
+                      }}
+                    >
+                      Open group
+                    </button>
                     <button
                       type="button"
                       role="menuitem"

@@ -221,11 +221,16 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = [], 
       status.observations[source.key] = revision;
       const observed = validation ? validation.sourceRevisions?.[source.key] : source.baseline;
       const title = current ? String(current.data.title ?? current.id) : 'Unavailable source';
+      const before = status.reasons.length;
       if (!current) status.reasons.push('A dependency source is unavailable; no fresh check.');
       else if (source.availability === 'unavailable')
         status.reasons.push(`${title}: source unavailable; cached content is not a fresh check.`);
       else if (observed !== revision || (!validation && ['contradicts', 'supersedes'].includes(source.kind)))
         status.reasons.push(`${source.kind}: ${title}${observed === undefined ? ' needs review' : ' changed'}.`);
+      if (status.reasons.length > before) {
+        status.sourceWarnings ??= {};
+        status.sourceWarnings[source.key] = status.reasons.slice(before);
+      }
     }
   }
   // Fixed point, not recursive traversal: cycles cannot overflow and unrelated links never propagate.
@@ -246,6 +251,15 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = [], 
     }
   }
   for (const [key, status] of Object.entries(result)) {
+    for (const source of sources.get(key) ?? []) {
+      const upstream = result[memoryKey(source.target)];
+      if (upstream?.due || upstream?.retired) {
+        status.sourceWarnings ??= {};
+        status.sourceWarnings[source.key] ??= [
+          upstream.retired ? 'Source is retired.' : 'An explicit source needs review.',
+        ];
+      }
+    }
     const references: Source[] = [...(sources.get(key) ?? [])];
     const boardId = portals.get(key);
     if (boardId) {

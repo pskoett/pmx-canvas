@@ -354,6 +354,8 @@ export const GUIDE: GuideRow[] = [
     title: 'Relations, reasons, vocabulary & presets',
     pass: [
       'Edge reasons survive reload and do not advance the body revision.',
+      'The inline editor preserves reasons; dependency cycles warn, while illustrated loops remain inert.',
+      'Parallel counts, affected counts and qualified source warnings remain separate from relation ink and authorship.',
       'Each legend preset persists through reload; custom kinds show "Custom vocabulary".',
       'Pin, agent and warning colours are never relation inks.',
     ],
@@ -361,6 +363,7 @@ export const GUIDE: GuideRow[] = [
       'src/client/canvas/RelationsPanel.tsx',
       'src/client/canvas/RelationPresetsDialog.tsx',
       'src/client/canvas/EdgeLayer.tsx',
+      'src/client/canvas/EdgeEditor.tsx',
       'src/server/diagram-presets.ts',
       'src/shared/relations.ts',
       'src/server/operations/ops/edges.ts',
@@ -368,6 +371,7 @@ export const GUIDE: GuideRow[] = [
     ],
     e2e: [
       'rich relation kind and reason survive live edits and reload',
+      'inline relations edit reasons, distinguish dependency cycles and keep flow loops inert',
       'Home manages shared relation presets',
       'all relation kinds stay reachable without horizontal scrolling',
     ],
@@ -375,6 +379,8 @@ export const GUIDE: GuideRow[] = [
       'tests/unit/relation-revisions.test.ts',
       'tests/unit/theme-meaning-tokens.test.ts',
       'tests/client/edge-creation.test.ts',
+      'tests/client/relations-navigation.test.tsx',
+      'tests/client/edge-label-placement.test.tsx',
     ],
   },
   {
@@ -805,6 +811,7 @@ export const GUIDE: GuideRow[] = [
     id: '28',
     title: 'Creating, selecting & arranging cards',
     pass: [
+      'Nested group drill-in retains original nodes, outside links and parent camera/selection, without creating boards.',
       'Double-click and the context menu offer creation actions without creating a card; the rail and keyboard create in the current viewport, with in-canvas prompts.',
       'Connect drags an edge; lasso, title-bar selection, grouping and group snapping work; ungroup is the same action for human and agent.',
       'The minimap mirrors the store and selection; the shortcut reference closes on Escape.',
@@ -812,6 +819,7 @@ export const GUIDE: GuideRow[] = [
     touches: [
       'src/client/canvas/CommandPalette.tsx',
       'src/client/canvas/ContextMenu.tsx',
+      'src/client/canvas/GroupNavigation.tsx',
       'src/client/canvas/ChoiceMenu.tsx',
       'src/client/canvas/TextPrompt.tsx',
       'src/client/canvas/SelectionBar.tsx',
@@ -843,6 +851,8 @@ export const GUIDE: GuideRow[] = [
       'Shift+F / W / I open the in-canvas prompt',
       'edge creation: Connect tool drags an edge',
       'groups v2',
+      'group drill-in keeps original cards, outside links and nested camera returns',
+      'collapsed group drill-in preserves live iframe drafts and reveals outside targets',
       'ungroup is the same action for the human and the agent',
       'select tool lassos on background drag',
       'plain title-bar click selects only that node',
