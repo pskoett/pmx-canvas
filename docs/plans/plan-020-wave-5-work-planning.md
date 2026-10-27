@@ -364,9 +364,25 @@ pre-move Undo/restore, and late SSE/save responses as negative cases.
 
 ## Slice 4: native PMX Canvas plugin for Amp
 
-**Status:** added to Wave 5 by the owner; design discussion only. Implement after the move
-contract is settled so thread destinations and context references respect relocation. The
-existing `.amp/plugins/pmx-sdlc.ts` is development tooling, not this consumer plugin.
+**Status:** foundation in development after Move to board landed. This first increment covers
+project-local installation, open/resume, native discovery and explicit thread binding only.
+Context injection, write routing, steering, Jev and guest name entry remain subsequent work.
+The existing `.amp/plugins/pmx-sdlc.ts` is development tooling, not this consumer plugin.
+
+**Foundation decisions:** canonical source is `plugins/amp/`; the build emits a self-contained
+directory plugin in `dist/amp-plugin/pmx-canvas/`, included in the npm tarball. Copy that directory
+into the consumer's `.amp/plugins/`, without replacing an existing installation. Global
+publication is not authorized. Baseline host: Amp `0.0.1793119929-g574f34` (2026-10-27), with
+feature checks for directory skills and native Portal actions. The package reuses the canonical
+three PMX skills and MCP bootstrap; only the runtime startup is adapted for supervised orbs.
+
+One binding per canonical workspace and invoking thread is stored in a separate atomic file
+under `.pmx-canvas/amp-bindings/`. Many threads may bind the same board. Binding/unbinding never
+activates a board, changes its contents, or rewrites another thread's binding. A deleted board
+is reported missing, not replaced with the active board. Opening shows the shared workbench,
+not a thread-private board view. Bindings are metadata until the routing increment: existing
+MCP/CLI calls still need explicit destinations and expected-board guards. This is not yet
+two-thread write isolation or automatic pin/context delivery.
 
 **Owners and reuse:** use Amp's supported Plugin API and supervised orb services. Reuse PMX's
 MCP launcher, existing skills, context brief/read accounting, addressed steering, board export

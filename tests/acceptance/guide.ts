@@ -976,4 +976,32 @@ export const GUIDE: GuideRow[] = [
     unit: ['tests/unit/mcp-app-host.test.ts', 'tests/unit/ext-app-frame.test.ts', 'tests/unit/canvas-app.test.ts'],
     ownerChecks: ['The workbench inside a real host (Claude, Copilot, ChatGPT) embeds and responds.'],
   },
+  {
+    id: '32',
+    title: 'Amp plugin foundation',
+    pass: [
+      'Explicit per-thread board bindings survive plugin reload without activating or editing a board.',
+      'Missing boards, foreign workspaces and mismatched runtime versions never redirect a binding.',
+      'The directory package bundles canonical PMX skills and its MCP bootstrap.',
+    ],
+    touches: [
+      'plugins/amp/**',
+      'scripts/build-amp-plugin.ts',
+      'docs/amp-plugin.md',
+      'tsconfig.plugin.json',
+      '.github/extensions/pmx-canvas/runtime.mjs',
+      '.github/extensions/pmx-canvas/mcp-bootstrap.ts',
+      'scripts/build-agent-plugin.ts',
+      'skills/pmx-canvas/**',
+      'skills/pmx-canvas-testing/**',
+      'skills/pmx-canvas-orchestration/**',
+    ],
+    e2e: [],
+    unit: ['tests/unit/amp-plugin.test.ts'],
+    ownerChecks: [
+      'Native Amp discovers the plugin, qualified skills and approved MCP tools in a clean consumer.',
+      'Open renders the correct Portal; bindings and boards survive real orb pause/resume.',
+      'Two native Amp threads keep separate bindings. This increment does not enforce write routing.',
+    ],
+  },
 ];

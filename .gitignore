@@ -26,6 +26,12 @@ artifacts/*.html
 .pmx-canvas/wf-wave*.js
 .pmx-canvas/daemon-*.log
 .pmx-canvas/daemon-*.pid
+.pmx-canvas/amp-bindings/
+.pmx-canvas/amp-server.json
+
+# Generated Amp consumer plugin and its project-local development installation
+dist/amp-plugin/
+.amp/plugins/pmx-canvas/
 
 # Agent-tooling meta (personal workflow artifacts, not product code)
 .agents/*

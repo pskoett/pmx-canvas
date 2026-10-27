@@ -24,6 +24,7 @@
     "dist/canvas/",
     "dist/json-render/",
     "dist/types/",
+    "dist/amp-plugin/",
     "Readme.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -37,7 +38,7 @@
     "build:mcp-app": "bun run scripts/build-mcp-app.ts",
     "build:json-render": "bash scripts/build-json-render.sh",
     "build:types": "tsc -p tsconfig.types.json",
-    "build:plugin": "bun run scripts/build-agent-plugin.ts",
+    "build:plugin": "bun run scripts/build-agent-plugin.ts && bun run scripts/build-amp-plugin.ts",
     "build": "bun run build:client && bun run build:mcp-app && bun run build:json-render && bun run build:types && bun run build:plugin",
     "start": "bun run src/cli/index.ts --no-open",
     "pack:dry-run": "bun pm pack --dry-run",
@@ -82,6 +83,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@ampcode/plugin": "0.0.0-20261027001613-g52e251f",
     "@biomejs/biome": "^2.5.2",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
