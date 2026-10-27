@@ -9,7 +9,9 @@ the [release gates](../RELEASE.md).
 ordinary planning cards independent of Sessions, unchanged ghost feedback, and **Move to new
 board** with a portal. Agents also gain the human pen, text and eraser capabilities for
 questions and emphasis alongside existing board tools. No reverse move or general `ask` card in this wave. See the detailed
-[implementation plan](plan-020-wave-5-work-planning.md); implementation has not started.
+[implementation plan](plan-020-wave-5-work-planning.md); implementation has started with
+annotation parity. Work-card authoring, live-task views, relations/group navigation and
+board moves remain planned.
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),
 [design.md build plan](../design.md#build-plan) (Waves 4, 5, Later),
 [plan 009](plan-009-tech-debt-backlog.md) (open debt),

@@ -643,9 +643,19 @@ reports annotation targets and bounds; it does not describe whether the human
 drew an arrow, line, circle, or other shape. Inspect `.annotation-layer path` or
 take a screenshot when the drawn form matters.
 
-Humans draw with the rail's Annotate popover (pen / text) and remove marks with its eraser.
-If an agent already knows the annotation ID from context, it can remove it through
-MCP with `canvas_view { action: "remove-annotation", id }`.
+Humans and agents share pen, text and whole-mark erasing. CLI agents use the
+existing batch command:
+
+```bash
+pmx-canvas batch --json '[{"op":"annotation.add","args":{"id":"question-b","type":"text","points":[{"x":160,"y":320}],"text":"Use option B?"}}]'
+pmx-canvas batch --json '[{"op":"annotation.remove","args":{"id":"question-b"}}]'
+```
+
+For freehand ink, omit `type` and supply at least two points in canvas world
+coordinates. [Annotation defaults and retry rules](http-api.md#annotations) are
+shared across transports. Layout/context reads include text notes as well as mark
+IDs and bounds. The human can answer in the external agent host's composer;
+neither Sessions nor PMX's composer is required.
 
 ## When to reach for the CLI
 

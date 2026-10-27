@@ -378,7 +378,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_edge` | `add` · `update` · `remove` | `canvas_add_edge`, `canvas_update_edge`, `canvas_remove_edge` |
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
-| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `add-annotation` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
 | `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Budgeted context and summary-only connected memory; the others replace `canvas_search`, `canvas_get_layout`, `canvas_validate` |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_resize`, `canvas_evaluate` |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_build_web_artifact` |
@@ -813,14 +813,25 @@ AX state records where the focus came from. The full workflow lives in
 
 ## Annotation Visibility
 
-Human-drawn canvas annotations are rendered as browser SVG ink. MCP resources
-keep annotation context compact: agents see annotation counts, bounds, and target
-summaries such as the node or empty canvas region that was marked, but not the
-raw stroke geometry or visual shape.
+Humans and agents share browser SVG ink and text notes. MCP resources keep context
+compact: annotation IDs, labels, text-note content, bounds and target summaries,
+without raw stroke geometry. These are distinct from AX review annotations.
 
-Annotations are a browser-visible markup layer. Humans draw with the rail's
-Annotate popover (pen / text / eraser — the eraser removes a mark); agents can also
-remove a known annotation ID with `canvas_view { action: "remove-annotation", id }`.
+```json
+{"action":"add-annotation","id":"option-question","type":"text","points":[{"x":160,"y":320}],"text":"Use this option?"}
+```
+
+Pass that input to `canvas_view`. Omit `type` for freehand drawing with at least
+two points. Coordinates are canvas world coordinates, not screen pixels.
+`color` defaults to the theme's annotation ink; `width` controls stroke width
+or text size. [Defaults and retry rules](http-api.md#annotations) match HTTP.
+Erase a whole mark with `canvas_view { action: "remove-annotation", id }`.
+Both operations also work in `canvas_batch` as `annotation.add` / `annotation.remove`.
+
+Use marks when helpful for questions, pointing and emphasis, not for every task.
+The human can answer in the external agent host's composer; the agent then uses
+its canvas tools to act on the answer. No PMX composer or Session is required,
+and drawing or erasing a mark never resolves an approval.
 
 Use WebView automation when an agent needs to actually see annotations as drawn.
 For example, inspect `.annotation-layer path` with `canvas_webview { action: "evaluate" }`

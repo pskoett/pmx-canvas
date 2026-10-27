@@ -455,7 +455,7 @@
     },
     {
       "name": "canvas_batch",
-      "description": "Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as \"$name\" for the created node id or \"$name.id\" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, edge.remove, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.",
+      "description": "Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as \"$name\" for the created node id or \"$name.id\" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, edge.remove, group.create, group.add, group.remove, annotation.add, annotation.remove, pin.set/add/remove, snapshot.save, and arrange.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -486,6 +486,10 @@
               ]
             },
             "description": "Ordered array of batch operations"
+          },
+          "agentId": {
+            "description": "Default writer identity for entries without their own agentId",
+            "type": "string"
           },
           "full": {
             "description": "Return full batch operation results. Default false compacts node-like payloads.",
@@ -4984,7 +4988,7 @@
     },
     {
       "name": "canvas_view",
-      "description": "Canvas viewport and layout control. Action \"arrange\" auto-lays-out nodes (grid/columns/etc.); \"focus\" pans/zooms the viewport to a node; \"fit\" zooms to fit all nodes in view; \"clear\" removes every node and edge from the canvas; \"remove-annotation\" deletes a human-drawn annotation by id; \"get-tour\"/\"set-tour\" read or persist the presentation tour; \"tour-go\" presents a stop (stop index or step next/previous); \"tour-exit\" leaves presentation; \"move\" eases the camera to a nodeId, world rect or viewport over a duration. Camera actions never enter undo history.",
+      "description": "Canvas viewport and layout control. Action \"arrange\" auto-lays-out nodes (grid/columns/etc.); \"focus\" pans/zooms the viewport to a node; \"fit\" zooms to fit all nodes in view; \"clear\" removes every node and edge from the canvas; \"add-annotation\" draws freehand points or text in world coordinates; \"remove-annotation\" erases a whole mark by id; \"get-tour\"/\"set-tour\" read or persist the presentation tour; \"tour-go\" presents a stop (stop index or step next/previous); \"tour-exit\" leaves presentation; \"move\" eases the camera to a nodeId, world rect or viewport over a duration. Camera actions never enter undo history.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5000,9 +5004,10 @@
               "focus",
               "fit",
               "clear",
+              "add-annotation",
               "remove-annotation"
             ],
-            "description": "Operation to perform: arrange | focus | fit | clear | remove-annotation | get-tour | set-tour | tour-go | tour-exit | move."
+            "description": "Operation to perform: arrange | focus | fit | clear | add-annotation | remove-annotation | get-tour | set-tour | tour-go | tour-exit | move."
           },
           "tour": {
             "anyOf": [
@@ -5295,6 +5300,41 @@
             "items": {
               "type": "string"
             }
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "freehand",
+              "text"
+            ]
+          },
+          "points": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ]
+            }
+          },
+          "color": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
           }
         },
         "required": [
@@ -6118,6 +6158,51 @@
                 "properties": {
                   "operation": {
                     "type": "string",
+                    "const": "annotation.add"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "const": "success"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "ok": {
+                        "type": "boolean"
+                      },
+                      "annotation": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "id"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "ok",
+                      "annotation"
+                    ],
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "operation",
+                  "outcome",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
                     "enum": [
                       "tour.get",
                       "tour.set",
@@ -6128,6 +6213,7 @@
                       "node.focus",
                       "view.fit",
                       "canvas.clear",
+                      "annotation.add",
                       "annotation.remove"
                     ]
                   },

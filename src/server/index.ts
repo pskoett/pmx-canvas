@@ -508,21 +508,19 @@ export class PmxCanvas extends EventEmitter {
     return (await executeOperation('edge.update', { id, ...patch }, { source: 'sdk' })) as CanvasEdge;
   }
 
-  addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): string {
-    const id = input.id ?? `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    canvasState.addAnnotation({
-      ...input,
-      id,
-      createdAt: input.createdAt ?? new Date().toISOString(),
-    });
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return id;
+  async addAnnotation(
+    input: Pick<CanvasAnnotation, 'points'> &
+      Partial<Pick<CanvasAnnotation, 'id' | 'type' | 'color' | 'width' | 'text' | 'label'>>,
+  ): Promise<string> {
+    const result = (await executeOperation('annotation.add', input, { source: 'sdk' })) as {
+      annotation: { id: string };
+    };
+    return result.annotation.id;
   }
 
-  removeAnnotation(id: string): boolean {
-    const removed = canvasState.removeAnnotation(id);
-    if (removed) emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return removed;
+  async removeAnnotation(id: string): Promise<boolean> {
+    const result = (await executeOperation('annotation.remove', { id }, { source: 'sdk' })) as { ok: boolean };
+    return result.ok;
   }
 
   removeEdge(id: string): void {

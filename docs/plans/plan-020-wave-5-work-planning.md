@@ -1,9 +1,11 @@
 # Plan 020: Wave 5, work planning and Move to new board
 
-**Status (2026-10-27):** product direction agreed; implementation not started.
+**Status (2026-10-27):** implementation started with slice 1's annotation parity.
+Work-card authoring, live-task views, relations/group navigation and board moves remain planned.
 This replaces step 4's automatic work-item-to-card conversion and make/inline-board
 pairing in [plan 019](plan-019-post-0.9-roadmap.md). 0.12 is a proposed release number,
-not authorization to publish. No product code, schema or public contract changes in this plan.
+not authorization to publish. Annotation contract changes are recorded in the Unreleased
+changelog and transport docs; verification evidence will accompany the implementation.
 
 **Decision source:** [Wave 5 planning conversation](https://ampcode.com/threads/T-01a17bd4-a7c9-714d-93a1-434f88c3bed7).
 Visual authority remains [design.md](../design.md), especially

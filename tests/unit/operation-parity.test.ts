@@ -264,7 +264,228 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     mutationHistory.reset();
   });
 
+  test('SDK annotations honor the shared scope fence and cannot overwrite another mark', async () => {
+    const node = await httpAddNode({ type: 'markdown', x: 100, y: 100, width: 300, height: 200 });
+    const outside = {
+      id: 'outside-ink',
+      points: [
+        { x: 900, y: 700 },
+        { x: 950, y: 720 },
+      ],
+    };
+    await sdk.addAnnotation(outside);
+    await expect(sdk.addAnnotation({ ...outside, label: 'overwrite' })).rejects.toThrow('different content');
+    await jsonRequest('/api/canvas/ax/policy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+      body: JSON.stringify({ scope: { nodeIds: [node.id], padding: 0 } }),
+    });
+    try {
+      await expect(sdk.addAnnotation({ ...outside, id: 'new-outside' })).rejects.toThrow('Outside the agent scope');
+      await expect(sdk.removeAnnotation(outside.id)).rejects.toThrow('Outside the agent scope');
+      await sdk.addAnnotation({
+        id: 'inside',
+        points: [
+          { x: 130, y: 140 },
+          { x: 190, y: 180 },
+        ],
+      });
+      expect(await sdk.removeAnnotation('inside')).toBe(true);
+      expect(canvasState.getAnnotations().map((mark) => mark.id)).toEqual(['outside-ink']);
+    } finally {
+      await jsonRequest('/api/canvas/ax/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+        body: JSON.stringify({ scope: null }),
+      });
+    }
+    expect(await sdk.removeAnnotation(outside.id)).toBe(true);
+    await expect(sdk.removeAnnotation(outside.id)).rejects.toThrow('not found');
+  });
+
+  test('annotation batches preserve the writer territory for creation and erasing', async () => {
+    const node = await httpAddNode({ type: 'markdown', x: 100, y: 100, width: 300, height: 200 });
+    const points = [
+      { x: 900, y: 700 },
+      { x: 950, y: 720 },
+    ];
+    await sdk.addAnnotation({ id: 'outside', points });
+    const policyHeaders = { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' };
+    const headers = { 'Content-Type': 'application/json', 'X-PMX-Source': 'cli' };
+    for (const writer of ['cli', 'named-worker']) {
+      const identity = writer === 'cli' ? {} : { agentId: writer };
+      await jsonRequest('/api/canvas/ax/policy', {
+        method: 'POST',
+        headers: policyHeaders,
+        body: JSON.stringify({ scope: null, agentScopes: { [writer]: { nodeIds: [node.id], padding: 0 } } }),
+      });
+      try {
+        const direct = await fetch(`${baseUrl}/api/canvas/annotation`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ id: 'refused', points, ...identity }),
+        });
+        expect(direct.status).toBe(403);
+        for (const entry of [
+          { op: 'annotation.add', args: { id: 'refused', points } },
+          { op: 'annotation.remove', args: { id: 'outside' } },
+        ]) {
+          const batch = await fetch(`${baseUrl}/api/canvas/batch`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ operations: [entry], ...identity }),
+          });
+          expect(batch.status).toBe(400);
+          expect(await batch.json()).toMatchObject({
+            ok: false,
+            failedIndex: 0,
+            error: expect.stringContaining('territory'),
+          });
+        }
+        const allowed = await jsonRequest<{ ok: boolean }>('/api/canvas/batch', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ...identity,
+            operations: [
+              {
+                op: 'annotation.add',
+                args: {
+                  id: 'inside',
+                  points: [
+                    { x: 130, y: 140 },
+                    { x: 190, y: 180 },
+                  ],
+                },
+              },
+              { op: 'annotation.remove', args: { id: 'inside' } },
+            ],
+          }),
+        });
+        expect(allowed.ok).toBe(true);
+        expect(canvasState.getAnnotations().map((mark) => mark.id)).toEqual(['outside']);
+      } finally {
+        await jsonRequest('/api/canvas/ax/policy', {
+          method: 'POST',
+          headers: policyHeaders,
+          body: JSON.stringify({ agentScopes: { [writer]: null } }),
+        });
+      }
+    }
+  });
+
   for (const surface of ['HTTP', 'MCP', 'CLI', 'SDK'] as const) {
+    test(`annotations: ${surface} shares ink, retries and Undo with human writes`, async () => {
+      const input = {
+        id: `ink-${surface}`,
+        points: [
+          { x: -20, y: 45 },
+          { x: 70, y: 130 },
+        ],
+        label: 'Check this path',
+      };
+      const add = async (payload: Parameters<PmxCanvas['addAnnotation']>[0] = input) => {
+        if (surface === 'SDK') return sdk.addAnnotation(payload);
+        if (surface === 'HTTP')
+          return jsonRequest('/api/canvas/annotation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        if (surface === 'CLI') {
+          const result = await runCliJson<{ ok: boolean }>([
+            'batch',
+            '--json',
+            JSON.stringify([{ op: 'annotation.add', args: payload }]),
+          ]);
+          expect(result.ok).toBe(true);
+          return;
+        }
+        expect((await callMcp('canvas_view', { action: 'add-annotation', ...payload })).isError ?? false).toBe(false);
+      };
+      await add();
+      const ink = canvasState.getAnnotations()[0];
+      expect(ink).toMatchObject({
+        ...input,
+        type: 'freehand',
+        color: 'currentColor',
+        width: 4,
+        bounds: { x: -20, y: 45, width: 90, height: 85 },
+      });
+      const history = mutationHistory.getSummaries();
+      await add({ ...input, label: '  Check this path  ', width: 4, color: 'currentColor' });
+      expect(mutationHistory.getSummaries()).toEqual(history);
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+      await sdk.undo();
+      expect(canvasState.getAnnotations()).toEqual([]);
+      await sdk.redo();
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+
+      const other = await httpAddNode({ type: 'markdown', title: 'Keep my redo' });
+      await sdk.undo();
+      await add();
+      await sdk.redo();
+      expect((await fetchNodeView(other.id)).title).toBe('Keep my redo');
+
+      // A retry ID is not permission to replace a human's existing mark.
+      const conflict = await fetch(`${baseUrl}/api/canvas/annotation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...input,
+          points: [
+            { x: 100, y: 200 },
+            { x: 400, y: 500 },
+          ],
+        }),
+      });
+      expect(conflict.status).toBe(409);
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+
+      await add({ id: 'agent-question', type: 'text', points: [{ x: 40, y: 75 }], text: 'Which option?', width: 20 });
+      expect(canvasState.getAnnotations()[1]).toMatchObject({
+        id: 'agent-question',
+        type: 'text',
+        text: 'Which option?',
+        width: 20,
+        bounds: { x: 40, y: 55, width: 161.2, height: 24 },
+      });
+      await jsonRequest('/api/canvas/annotation/agent-question', {
+        method: 'DELETE',
+        headers: { 'X-PMX-Workbench': '1' },
+      });
+
+      await jsonRequest('/api/canvas/annotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+        body: JSON.stringify({
+          id: 'human-reply',
+          type: 'text',
+          points: [{ x: 200, y: 90 }],
+          label: 'Reply',
+          text: 'Use option B',
+        }),
+      });
+      const read = parseJsonText<{ annotations: Array<{ id: string; text: string }> }>(
+        await callMcp('canvas_query', { action: 'layout' }),
+      );
+      expect(read.annotations).toContainEqual(expect.objectContaining({ id: 'human-reply', text: 'Use option B' }));
+      if (surface === 'SDK') await sdk.removeAnnotation('human-reply');
+      else if (surface === 'HTTP') await jsonRequest('/api/canvas/annotation/human-reply', { method: 'DELETE' });
+      else if (surface === 'CLI') {
+        const result = await runCliJson<{ ok: boolean }>([
+          'batch',
+          '--json',
+          JSON.stringify([{ op: 'annotation.remove', args: { id: 'human-reply' } }]),
+        ]);
+        expect(result.ok).toBe(true);
+      } else
+        expect(
+          (await callMcp('canvas_view', { action: 'remove-annotation', id: 'human-reply' })).isError ?? false,
+        ).toBe(false);
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+    });
+
     test(`board open: ${surface} switches explicitly before writing and can return Home`, async () => {
       const original = await sdk.createBoard('Original');
       await sdk.openBoard(original.id);

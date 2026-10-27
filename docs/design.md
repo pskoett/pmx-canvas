@@ -381,6 +381,10 @@ session does not convert the plan. Native-agent approvals stay in the host, PMX 
 remain separate, and explicit/automatic ghost feedback is unchanged. The general `ask` card
 is deferred.
 
+Agents also use the existing pen, text and whole-mark eraser layer for questions and
+emphasis. This adds no new visual controls or mark style. Humans can answer in their
+external agent host's composer; PMX's composer and Sessions are optional.
+
 **Move to new board** is the agreed label for multi-selection and the group's **⋯** menu:
 move the cards, preserve identity/history/relations and leave a portal. No reverse move or
 inline-board operation in this wave. Opening a group within the current board is navigation

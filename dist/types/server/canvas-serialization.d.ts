@@ -28,6 +28,7 @@ export interface CanvasAnnotationSummary {
 export interface CanvasAnnotationContextSummary {
     id: string;
     label: string | null;
+    text?: string;
     bounds: CanvasAnnotation['bounds'];
     targetNodeIds: string[];
     targetNodeTitles: string[];

@@ -4721,6 +4721,74 @@ test('light theme marks context-pinned nodes in its own pin blue', async ({ page
   await expect(note.locator('.ctx-pin-mark')).toHaveCSS('background-color', 'rgb(26, 122, 191)');
 });
 
+test('agent and human annotations share replies, erasing and reload without Sessions', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: false });
+  const node = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Option B',
+      content: 'Keep one shared annotation layer.',
+      x: 100,
+      y: 100,
+      width: 360,
+      height: 220,
+    },
+  });
+  expect(node.ok()).toBe(true);
+  await page.goto('/workbench');
+  const batch = await request.post('/api/canvas/batch', {
+    data: {
+      operations: [
+        {
+          op: 'annotation.add',
+          args: {
+            id: 'agent-ink',
+            points: [
+              { x: 100, y: 360 },
+              { x: 300, y: 360 },
+            ],
+          },
+        },
+        {
+          op: 'annotation.add',
+          args: { id: 'agent-question', type: 'text', points: [{ x: 100, y: 460 }], text: 'Use this option?' },
+        },
+      ],
+    },
+  });
+  expect((await batch.json()).ok).toBe(true);
+  await expect(page.locator('.annotation-layer path')).toHaveCount(1);
+  await expect(page.locator('.annotation-layer text')).toHaveText('Use this option?');
+  await page.reload();
+  await expect(page.locator('.annotation-layer text')).toHaveText('Use this option?');
+
+  await pickAnnotateTool(page, 'Text note');
+  await page.mouse.click(200, 600);
+  await page.locator('.annotation-text-input').fill('Yes, option B');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.annotation-layer text')).toHaveCount(2);
+  const state = await (await request.get('/api/canvas/state')).json();
+  const reply = state.annotations.find((mark: { text?: string }) => mark.text === 'Yes, option B');
+  expect(reply?.id).toBeTruthy();
+  const erased = await request.post('/api/canvas/batch', {
+    data: { operations: [{ op: 'annotation.remove', args: { id: reply.id } }] },
+  });
+  expect((await erased.json()).ok).toBe(true);
+  await expect(page.locator('.annotation-layer text')).toHaveText(['Use this option?']);
+
+  await pickAnnotateTool(page, 'Eraser');
+  // Target the rendered stroke, clear of the text note's larger eraser hit area.
+  const ink = page.locator('.annotation-layer path');
+  const box = await ink.boundingBox();
+  if (!box) throw new Error('Annotation is not rendered');
+  await page.mouse.click(box.x + box.width / 2, box.y);
+  await expect(ink).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Option B' })).toHaveCount(1);
+  await page.reload();
+  await expect(ink).toHaveCount(0);
+  await expect(page.locator('.annotation-layer text')).toHaveText('Use this option?');
+});
+
 test('annotations use theme contrast colors and can be erased', async ({ page, request }) => {
   await request.post('/api/canvas/annotation', {
     data: {

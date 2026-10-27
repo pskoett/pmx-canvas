@@ -145,6 +145,7 @@ const payloads: Record<string, ZodType> = {
   'node.focus': z.looseObject({ ok: z.boolean(), focused: id, panned: z.boolean() }),
   'view.fit': z.looseObject({ ok: z.boolean(), viewport }),
   'canvas.clear': z.looseObject({ ok: z.boolean(), cleared: z.literal(true) }),
+  'annotation.add': entity('annotation'),
   'annotation.remove': ok,
   'context.get': z.looseObject({ version: z.literal(1), budgetUnit: z.literal('utf16-code-units') }),
   'memory-graph.get': z.looseObject({

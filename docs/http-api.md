@@ -762,8 +762,23 @@ curl -X POST http://localhost:4313/api/canvas/annotation \
 curl -X DELETE http://localhost:4313/api/canvas/annotation/ann-123
 ```
 
-Agent-readable context reports annotation IDs, targets, and bounds. Use WebView
-inspection or screenshots when the drawn shape matters.
+Both agents and humans use this layer. Set `type: "text"`, `text` and a point to
+write a note; omit `type` for freehand ink with at least two points. Coordinates
+are canvas world coordinates, independent of pan and zoom. `width` is stroke
+width for ink (default 4, clamped to 1–24), or font size for text (default 24,
+clamped to 1–96). Text is trimmed to 240 characters and labels to 160.
+
+An explicit `id` makes creation retryable while that mark exists: the same
+normalized content returns the existing mark without another Undo entry;
+different content returns 409. After removal or Undo, adding that ID creates
+the mark again. This is not a durable creation receipt. Removal erases the whole
+mark, never the underlying cards; missing IDs return 404. Agent writes obey the
+existing scope fence, including annotation points and removal bounds.
+
+Agent-readable context reports annotation IDs, labels, text-note content,
+targets and bounds without raw stroke points. Use screenshots when the drawn
+shape matters. Questions can be answered in the external agent host's composer;
+no PMX session or canvas reply is required, and marks are not approval gates.
 
 ## Viewport
 
@@ -1526,6 +1541,10 @@ curl -X POST http://localhost:4313/api/workbench/webview/screenshot \
 Build a canvas in one shot. Earlier results can be referenced from later
 operations via `$assigned-name.field`.
 
+Entries retain the caller's transport source for per-agent scope checks. An
+optional top-level `agentId` supplies the default writer identity for entries
+without their own `args.agentId`. Batches never inherit a human scope bypass.
+
 ```bash
 curl -X POST http://localhost:4313/api/canvas/batch \
   -H "Content-Type: application/json" \
@@ -1538,6 +1557,7 @@ Supported operations:
 - `graph.add`
 - `edge.add`
 - `group.create`, `group.add`, `group.remove`
+- `annotation.add`, `annotation.remove`
 - `pin.set`, `pin.add`, `pin.remove`
 - `snapshot.save`
 - `arrange`

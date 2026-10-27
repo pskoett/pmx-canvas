@@ -273,7 +273,7 @@ conditional requirements. Use `tools/list` for non-registry tools such as `canva
 | `canvas_edge` | `add`, `update`, `remove` |
 | `canvas_group` | `create`, `add`, `ungroup` |
 | `canvas_history` | `undo`, `redo` |
-| `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation`, `get-tour`, `set-tour`, `tour-go`, `tour-exit`, `move` |
+| `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `add-annotation`, `remove-annotation`, `get-tour`, `set-tour`, `tour-go`, `tour-exit`, `move` |
 | `canvas_query` | `context`, `graph`, `search`, `layout`, `validate` |
 | `canvas_webview` | `status`, `start`, `stop`, `resize`, `evaluate` |
 | `canvas_app` | `open-mcp-app`, `diagram`, `build-artifact` |
@@ -303,6 +303,39 @@ The composites above plus the retained standalones are now the whole MCP surface
 `canvas_invoke_command`, plus `canvas_help`. Snapshots are the `canvas_snapshot` composite (actions
 `save | list | restore | restore-node | delete | gc | diff`); the 6 legacy snapshot standalones were removed in
 v0.4.0 after their deprecated 0.3.x window.
+
+## Shared ink and questions
+
+Humans and agents share freehand ink, text notes and whole-mark erasing. Use marks
+when helpful, not for every task. The human may answer in the external agent host's
+composer; no PMX session, PMX composer or reply card is required. Marks are not
+approval gates, and a drawn loop does not execute work.
+
+Write a note with `canvas_view { action: "add-annotation", type: "text",
+points: [{ x: 160, y: 320 }], text: "Use option B?" }`. For freehand ink, omit
+`type` and provide at least two points. Coordinates are canvas world coordinates,
+not screen pixels. Erase a whole mark with `canvas_view { action: "remove-annotation", id }`.
+CLI and MCP batches accept `annotation.add` and `annotation.remove`.
+
+For smooth circles, rounded outlines and curved arrows, sample the curve into closely
+spaced points instead of supplying a few corners. The renderer joins points with straight
+segments and rounded joins/caps; it does not smooth them automatically. Keep intentional
+corners at arrowheads. Inspect the result at the intended zoom before calling it finished.
+
+The existing agent cursor can point or trace without a session. Read presence first and
+reuse your writer identity, then use `canvas_ax_state { action: "set-presence",
+cursor: { x: 160, y: 320 } }` with your existing source/agent identity as appropriate.
+Omit `attached`; do not start a session just to draw. Cursor movement is a visual signal,
+not a pen gesture: it creates no ink. If tracing helps explain a mark, move the cursor
+along its points and create the annotation separately. Each mark appears complete when
+added, not progressively behind the cursor. Do not fake streaming ink by repeatedly
+erasing/recreating it or splitting it into many marks; that changes Undo and erase behavior.
+
+Layout/context reads expose IDs, text, labels, targets and bounds, not raw stroke
+geometry. Inspect the canvas when shape matters. An explicit ID makes equal-content
+creation retryable while the mark exists, without another Undo entry; different
+content conflicts. Removing an absent mark fails. See
+[the full reference](full-reference.md) for annotation defaults and retry rules.
 
 ## Spatial Rules
 

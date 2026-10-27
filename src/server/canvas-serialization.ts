@@ -36,6 +36,7 @@ export interface CanvasAnnotationSummary {
 export interface CanvasAnnotationContextSummary {
   id: string;
   label: string | null;
+  text?: string;
   bounds: CanvasAnnotation['bounds'];
   targetNodeIds: string[];
   targetNodeTitles: string[];
@@ -252,6 +253,7 @@ export function summarizeCanvasAnnotationForContext(
   return {
     id: annotation.id,
     label: annotation.label ?? annotation.text ?? null,
+    ...(annotation.type === 'text' && annotation.text ? { text: annotation.text } : {}),
     bounds: annotation.bounds,
     targetNodeIds: targetNodes.map((node) => node.id),
     targetNodeTitles,

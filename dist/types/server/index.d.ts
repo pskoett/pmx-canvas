@@ -130,11 +130,8 @@ export declare class PmxCanvas extends EventEmitter {
         animated?: boolean;
     }): string;
     updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'kind' | 'reason' | 'label' | 'style' | 'animated'>>): Promise<CanvasEdge>;
-    addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & {
-        id?: string;
-        createdAt?: string;
-    }): string;
-    removeAnnotation(id: string): boolean;
+    addAnnotation(input: Pick<CanvasAnnotation, 'points'> & Partial<Pick<CanvasAnnotation, 'id' | 'type' | 'color' | 'width' | 'text' | 'label'>>): Promise<string>;
+    removeAnnotation(id: string): Promise<boolean>;
     removeEdge(id: string): void;
     /**
      * Create a group node and optionally add child nodes to it.

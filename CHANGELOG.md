@@ -3,6 +3,23 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Agents can draw and write on the board through MCP and CLI batches, and erase marks shared with humans without Sessions.
+
+### Fixed
+
+- Agent reads include a text annotation's content even when it has a different label.
+- Retrying annotation creation with the same ID no longer adds duplicate Undo entries or overwrites a different mark.
+- Batched annotation writes respect the calling agent's assigned scope.
+
+### Breaking
+
+- SDK annotation methods now require `await`, derive bounds and creation time on the server, and reject missing removals instead of returning `false`.
+- Creating an annotation with an existing ID and different content now returns a conflict instead of replacing it.
+
 ## [0.11.0] - 2026-10-25
 
 ### Breaking

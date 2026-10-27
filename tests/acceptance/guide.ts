@@ -703,12 +703,24 @@ export const GUIDE: GuideRow[] = [
   {
     id: '26',
     title: 'Annotations',
-    pass: ['Pen and text annotations start over nodes, follow theme contrast and can be erased.'],
+    pass: [
+      'Pen and text annotations start over nodes, follow theme contrast and can be erased.',
+      'Agents create ink and text through the shared API; humans and agents can read replies and erase each other’s marks without Sessions.',
+    ],
     touches: ['src/client/canvas/AnnotationLayer.tsx', 'src/server/operations/ops/annotation.ts'],
     e2e: [
+      'agent and human annotations share replies, erasing and reload without Sessions',
       'annotations use theme contrast colors and can be erased',
       'can start pen and text annotations over nodes',
       'annotation toolbar actions preserve the current light theme',
+    ],
+    unit: [
+      { file: 'tests/unit/operation-parity.test.ts', name: 'annotations:' },
+      { file: 'tests/unit/operation-parity.test.ts', name: 'SDK annotations honor' },
+      { file: 'tests/unit/operation-parity.test.ts', name: 'annotation batches preserve' },
+    ],
+    ownerChecks: [
+      'In a native agent host, discover add-annotation, answer the drawn question in that host’s composer and have the agent revise the board without a PMX session.',
     ],
   },
   {

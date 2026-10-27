@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
 import { serializeCanvasNode, serializeCanvasNodeCompact } from '../../canvas-serialization.js';
 import { addCanvasNode } from '../../canvas-operations.js';
+import { currentActor } from '../../attribution.js';
 import { executeOperation, runWithSuppressedEmits } from '../registry.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
 import { readJsonValue } from '../http.js';
@@ -57,6 +58,8 @@ const SUPPORTED_BATCH_OPS = new Set([
   'group.create',
   'group.add',
   'group.remove',
+  'annotation.add',
+  'annotation.remove',
   'pin.set',
   'pin.add',
   'pin.remove',
@@ -224,6 +227,7 @@ function shapeBatchEntry(op: string, result: unknown, creationReceipt = false): 
 async function runBatch(operations: BatchEntry[], ctx: OperationContext): Promise<BatchEnvelope> {
   const refs: Record<string, unknown> = {};
   const results: Array<Record<string, unknown>> = [];
+  const actor = currentActor('api');
 
   for (let index = 0; index < operations.length; index++) {
     const operation = operations[index]!;
@@ -268,14 +272,19 @@ async function runBatch(operations: BatchEntry[], ctx: OperationContext): Promis
       // Batch churn is exempt from auto-ghosts (matches the skill's explicit
       // ghost-cursor exemption for batch operations). No `fromWorkbench`: the
       // browser never issues batches, so inner writes are agent writes and the
-      // scope fence applies to each of them.
-      const pending = executeOperation(dispatch.name, dispatch.args, {
-        suppressAutoGhost: true,
-        signal: ctx.signal,
-        onProgress: ctx.onProgress
-          ? (progress) => ctx.onProgress!({ progress: index, total: operations.length, message: progress.message })
-          : undefined,
-      });
+      // scope fence applies to each of them using the original writer identity.
+      const pending = executeOperation(
+        dispatch.name,
+        { agentId: actor.agentId, ...dispatch.args },
+        {
+          source: actor.source,
+          suppressAutoGhost: true,
+          signal: ctx.signal,
+          onProgress: ctx.onProgress
+            ? (progress) => ctx.onProgress!({ progress: index, total: operations.length, message: progress.message })
+            : undefined,
+        },
+      );
       // The first write may synchronously open a board from Home. Capture after
       // dispatch, then refuse to continue a partially completed batch elsewhere.
       const boardGeneration = canvasState.boardGeneration;
@@ -319,6 +328,7 @@ const batchShape = {
       }),
     )
     .describe('Ordered array of batch operations'),
+  agentId: z.string().optional().describe('Default writer identity for entries without their own agentId'),
   full: z
     .boolean()
     .optional()
@@ -404,13 +414,13 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
         : isRecord(body) && Array.isArray(body.operations)
           ? body.operations
           : [];
-      return { operations };
+      return { operations, ...(isRecord(body) && typeof body.agentId === 'string' ? { agentId: body.agentId } : {}) };
     },
   },
   mcp: {
     toolName: 'canvas_batch',
     description:
-      'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, edge.remove, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+      'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, edge.remove, group.create, group.add, group.remove, annotation.add, annotation.remove, pin.set/add/remove, snapshot.save, and arrange.',
     formatResult: (result, input) => {
       const envelope = result as BatchEnvelope;
       const payload = wantsFullBatch(input) ? envelope : compactBatchResult(envelope);

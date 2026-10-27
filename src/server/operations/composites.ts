@@ -239,9 +239,9 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_view',
     description:
-      'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas; "remove-annotation" deletes a human-drawn annotation by id; "get-tour"/"set-tour" read or persist the presentation tour; "tour-go" presents a stop (stop index or step next/previous); "tour-exit" leaves presentation; "move" eases the camera to a nodeId, world rect or viewport over a duration. Camera actions never enter undo history.',
+      'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas; "add-annotation" draws freehand points or text in world coordinates; "remove-annotation" erases a whole mark by id; "get-tour"/"set-tour" read or persist the presentation tour; "tour-go" presents a stop (stop index or step next/previous); "tour-exit" leaves presentation; "move" eases the camera to a nodeId, world rect or viewport over a duration. Camera actions never enter undo history.',
     actionSummary:
-      'arrange | focus | fit | clear | remove-annotation | get-tour | set-tour | tour-go | tour-exit | move',
+      'arrange | focus | fit | clear | add-annotation | remove-annotation | get-tour | set-tour | tour-go | tour-exit | move',
     actions: {
       'get-tour': 'tour.get',
       'set-tour': 'tour.set',
@@ -252,6 +252,7 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
       focus: 'node.focus',
       fit: 'view.fit',
       clear: 'canvas.clear',
+      'add-annotation': 'annotation.add',
       'remove-annotation': 'annotation.remove',
     },
   },

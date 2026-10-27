@@ -97,6 +97,7 @@ cmd(
   [
     'pmx-canvas batch --file ./canvas-ops.json',
     'pmx-canvas batch --json \'[{"op":"node.add","assign":"a","args":{"type":"markdown","title":"A"}}]\'',
+    'pmx-canvas batch --json \'[{"op":"annotation.add","args":{"type":"text","points":[{"x":160,"y":320}],"text":"Use this option?"}}]\'',
     'pmx-canvas batch --json \'[{"op":"graph.add","assign":"g","args":{"graphType":"bar","data":[{"label":"Docs","value":5}],"xKey":"label","yKey":"value"}}]\'',
     'cat ops.json | pmx-canvas batch --stdin',
   ],

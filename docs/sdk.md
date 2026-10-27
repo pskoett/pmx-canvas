@@ -36,6 +36,24 @@ Missing/stale validating preconditions fail. Reviewed content must persist befor
 record. Read, edit, refresh and explicit retirement restore never renew validation; historical
 records retain their reviewed revision, and legacy unversioned evidence remains unknown.
 
+## Canvas annotations
+
+```ts
+const markId = await canvas.addAnnotation({
+  id: 'question-about-option-b',
+  type: 'text',
+  points: [{ x: 160, y: 320 }],
+  text: 'Use this option?',
+});
+await canvas.removeAnnotation(markId);
+```
+
+Omit `type` for freehand ink and supply at least two world-coordinate points.
+Both methods are asynchronous and use the same validation and scope fences as
+HTTP/MCP. Creation returns the mark ID; removal returns `true` or rejects if the
+ID does not exist. Bounds and creation time are server-derived, not SDK inputs.
+See [annotation defaults and retries](http-api.md#annotations).
+
 ## Board tours
 
 `canvas.getTour()` returns `{ tour, derived, position }`, matching HTTP and MCP.

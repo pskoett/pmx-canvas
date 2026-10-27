@@ -457,7 +457,7 @@ enforce conditional requirements. Non-registry tools use `tools/list` instead.
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
 | `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and workspace categories/folder properties/shared relation templates; knowledge writes never open a board. Template edits/deletion never rewrite boards or connections. `category-remove` takes `id` and refuses explicit folder assignments, including empty folders; reassign or clear them first. |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`); `restore-node` puts one card (`nodeId`) back to its content in snapshot `id` |
-| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `add-annotation` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, draw/write/erase annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
 | `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Read the budgeted brief or summary-only connected memory graph, find nodes, read full layout, or **`validate`** collisions / containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | Headless Bun.WebView automation for the workbench (folds the `canvas_webview_*` / `canvas_resize` / `canvas_evaluate` tools) |
@@ -702,8 +702,33 @@ delete+recreate; preserves edges, pins, position)
 
 **`canvas_node { action: "get", id }`** — Get a single node's full data by `id`.
 
-**`canvas_view { action: "remove-annotation", id }`** — Remove a human-drawn annotation by `id`. Use when
-context gives you the annotation ID; use WebView first if you need to identify a mark by shape or location.
+**`canvas_view { action: "add-annotation", points, … }`** — Draw freehand ink with at least two
+world-coordinate points, or set `type: "text"`, `text` and one point to write a note.
+`width` is stroke width (default 4, clamped to 1–24) or font size (default 24,
+clamped to 1–96). `color` defaults to `currentColor`, the theme's annotation ink;
+explicit colors must be `#rrggbb`. Text is trimmed to 240 characters, labels to 160.
+Bounds and creation time are server-derived.
+
+Freehand points render as straight segments with round caps/joins, without automatic
+smoothing. Sample curves densely for smooth-looking outlines and loops. Cursor updates
+through `canvas_ax_state { action: "set-presence", cursor: { x, y } }` are separate,
+ephemeral presence, not drawing gestures; reuse your writer identity without attaching
+a session. An annotation appears complete on creation, not as a streaming stroke.
+See [Shared ink and questions](workbench-workflows.md#shared-ink-and-questions).
+
+Use an explicit `id` for retries: equal normalized content returns the existing mark
+without another Undo entry, while different content conflicts. After erasing or Undo,
+adding the ID creates a mark again; this is not a durable creation receipt.
+
+**`canvas_view { action: "remove-annotation", id }`** — Erase a whole human or agent mark,
+not the underlying card. An absent mark returns not-found. Context gives you IDs;
+inspect the canvas first when identifying a mark by shape or location.
+CLI and MCP batches accept `annotation.add` / `annotation.remove` with the same arguments.
+
+Humans and agents share this layer. Use marks when helpful, not for every task.
+The human may answer in the external agent host's composer; no PMX session,
+PMX composer or reply card is required. Marks are not approval gates, and drawing
+or erasing does not answer a question or execute a loop. Existing scope fences apply.
 
 **`canvas_node { action: "update", id, refresh: true }`** — Re-fetch the URL stored on a `webpage` node
 - `id` (required): webpage node to refresh
@@ -962,17 +987,17 @@ below operates on the live canvas state through the `canvas_webview` composite.
 Useful workbench selectors:
 - Nodes: `.canvas-node`, `.canvas-node.active`, `.canvas-node.context-pinned`, `.canvas-node.group-node`
 - Node internals: `.node-title`, `.node-titlebar`, `.node-body`, `.node-type-badge`, `.node-controls`
-- Annotations: `.annotation-layer path` renders human-drawn freehand ink. Use WebView
-  to inspect or screenshot annotation shapes; MCP/context resources only expose compact
-  annotation target summaries, not the raw visual shape. Humans can remove marks with
-  the eraser in the rail's Annotate popover; agents can remove a known annotation ID with
-  `canvas_view { action: "remove-annotation" }`.
+- Annotations: `.annotation-layer path` renders shared freehand ink; `.annotation-layer text`
+  renders text notes. Use WebView to inspect or screenshot shapes; MCP/context resources
+  expose IDs, text, labels, targets and bounds, not raw stroke geometry. Humans use the
+  rail's Draw / Text note / Eraser tools; agents use `canvas_view` actions
+  `add-annotation` / `remove-annotation` on the same layer.
 - Canvas chrome (rail-chrome-v2): `.tool-rail`, `.top-bar` (`.connection-dot`, `.agent-chip`,
   `.gate-badge`, `.context-chip`, `.external-indicator`, `.start-session-btn`),
   `.connection-banner`, `.canvas-region`, `.session-panel`, `.command-bar`, `.selection-bar`,
   `.activity-feed`, `.writers-sheet`, `.session-receipt`, `.snapshot-panel` (the History
   drawer), `.minimap`, `.empty-state`, `.command-palette`, `.expanded-overlay-panel`.
-- Presence: `.agent-cursor` (attached agent), `.human-cursor` (other tabs), `.scope-fence`,
+- Presence: `.agent-cursor` (attached or external agent), `.human-cursor` (other tabs), `.scope-fence`,
   `.canvas-node.agent-mutating` (shimmer), `.node-yield-pill`.
 - Groups: `.canvas-node.group-node` with `.group-name-pill`, `.group-actions`, `.group-chip`
   (collapsed); `.drop-pill` while a dragged node would join/leave a group; `.edge-hint-pill`
@@ -1449,7 +1474,7 @@ The `canvas://spatial-context` resource reveals how the human has organized info
   This implies sequence or priority.
 - **Pinned neighborhoods** — For each pinned node, nearby unpinned nodes are listed. These
   are the human's implicit context — things they consider related to what they pinned.
-- **Annotations** — Human-drawn markup is summarized by target/bounds only, e.g. an
+- **Annotations** — Shared markup is summarized by ID, label, text, target and bounds, e.g. an
   annotation over a node or empty canvas region. Use WebView (`canvas_webview { action: "start" }` +
   `canvas_webview { action: "evaluate" }`/`canvas_screenshot`) when you need to see whether the mark is an
   arrow, line, circle, or other drawn shape. Remove known annotations with
