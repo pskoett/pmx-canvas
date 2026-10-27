@@ -20,9 +20,11 @@ import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import type { BoardMovePreview } from '../../src/server/board-move.ts';
 import { createCanvas, type PmxCanvas } from '../../src/server/index.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import type { AgentPresenceSnapshot } from '../../src/shared/agent-presence.ts';
 import {
   createTestWorkspace,
   getAvailablePort,
@@ -741,6 +743,90 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     canvasState.applyPersistedAxState({ ...canvasState.getAxState(), workItems: [] });
     expect((await read(direct.id)).data).toMatchObject({ title: 'Task unavailable', liveWorkAvailable: false });
     expect((await read(direct.id)).data.workState).toBeUndefined();
+  });
+
+  test('move selection previews without side effects and replays one receipt across HTTP, SDK, MCP and CLI', async () => {
+    const card = await httpAddNode({ type: 'markdown', title: 'Relocate once', content: 'Original evidence' });
+    const sourceBoardId = canvasState.activeBoardId!;
+    const metadata = await jsonRequest<{ contentRevision: number }>(`/api/canvas/boards/${sourceBoardId}`);
+    const input = {
+      sourceBoardId,
+      nodeIds: [card.id],
+      name: 'Moved once',
+      expectedRevision: metadata.contentRevision,
+      requestId: 'parity-move',
+    };
+    const beforeCount = canvasState.listBoards().length;
+    const activity = async () => {
+      const presence = await jsonRequest<AgentPresenceSnapshot>('/api/canvas/ax/presence');
+      return {
+        writers: presence.presences.map(({ sessionId, opCount, lastSeenAt }) => ({ sessionId, opCount, lastSeenAt })),
+        activity: presence.activity,
+      };
+    };
+    const beforeActivity = await activity();
+    const http = <T>(body: unknown) =>
+      jsonRequest<T>('/api/canvas/boards/move-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const preview = await http<{ ok: true; preview: BoardMovePreview }>({
+      ...input,
+      preview: true,
+    });
+    expect(preview).toMatchObject({ ok: true, preview: { nodeIds: [card.id], blockers: [] } });
+    expect(await sdk.moveSelectionToNewBoard({ ...input, preview: true })).toEqual(preview);
+    expect(
+      parseJsonText<typeof preview>(
+        await callMcp('canvas_board', { action: 'move-selection', ...input, preview: true }),
+      ),
+    ).toEqual(preview);
+    expect(
+      await runCliJson<typeof preview>([
+        'board',
+        'move-selection',
+        sourceBoardId,
+        input.name,
+        '--nodes',
+        card.id,
+        '--revision',
+        String(input.expectedRevision),
+        '--request',
+        input.requestId,
+        '--preview',
+      ]),
+    ).toEqual(preview);
+    expect(await activity()).toEqual(beforeActivity);
+    expect(canvasState.listBoards()).toHaveLength(beforeCount);
+    const moved = await sdk.moveSelectionToNewBoard(input);
+    if (!('destinationBoardId' in moved)) throw new Error('Expected committed move');
+    expect(canvasState.activeBoardId).toBe(sourceBoardId);
+    const replay = { ...moved, replayed: true };
+    await sdk.openBoard(moved.destinationBoardId);
+    const committedActivity = await activity();
+    expect(await http<typeof replay>(input)).toEqual(replay);
+    expect(parseJsonText<typeof replay>(await callMcp('canvas_board', { action: 'move-selection', ...input }))).toEqual(
+      replay,
+    );
+    expect(
+      await runCliJson<typeof replay>([
+        'board',
+        'move-selection',
+        sourceBoardId,
+        input.name,
+        '--nodes',
+        card.id,
+        '--revision',
+        String(input.expectedRevision),
+        '--request',
+        input.requestId,
+      ]),
+    ).toEqual(replay);
+    expect(canvasState.listBoards()).toHaveLength(beforeCount + 1);
+    expect(await activity()).toEqual(committedActivity);
+    expect(canvasState.getNode(card.id)!.data.content).toBe('Original evidence');
+    expect(canvasState.activeBoardId).toBe(moved.destinationBoardId);
   });
 
   test('node get: all four surfaces return equivalent node state', async () => {

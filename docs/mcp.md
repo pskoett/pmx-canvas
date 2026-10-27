@@ -388,7 +388,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` · `read-status` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` (`reads` is the context read log; `read-status` is per node: last read, by whom, at which content revision) |
 | `canvas_ax_delivery` | `claim` (long-polls with `timeoutMs`) · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 | `canvas_intent` | `signal` · `update` · `clear` | _(new — Ghost Cursor of Intent; no legacy standalone tool)_ |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and explicit workspace category/folder/shared-preset data |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `move-selection` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and explicit workspace category/folder/shared-preset data |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | `canvas_snapshot` (legacy save tool), `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — removed in v0.4.0 after one deprecated minor |
 
 For receipt-safe single-card Undo, use `canvas_snapshot { action: "restore-node", id,
@@ -415,6 +415,17 @@ clicking **README** clears it. Read-only tasks leave the board unchanged.
 first: `prompt`, `response`, `trace`, and `mcp-app` are not reusable. Creation is
 transactional and inactive, assigns fresh node/edge IDs, and copies no pins, AX
 state, or history. Groups and the designated README are opt-in.
+
+`canvas_board { action: "move-selection", sourceBoardId, nodeIds, name,
+expectedRevision, requestId, preview: true }` instead previews relocation of the
+original cards, expanding group descendants. Get `contentRevision` from `get`
+for `expectedRevision`. Commit the same input without `preview`; retain the
+request ID for safe retries, including after restart. A successful result names
+`destinationBoardId`, `portalId`, moved `nodeIds`, affected boards and `replayed`.
+It does not open the destination. Preview exposes unsafe bindings and the history
+boundary: pre-move Undo/Redo clears; older snapshots remain readable but cannot
+restore across the move. Resolve blockers before committing, never omit cards
+silently. See the [move contract](http-api.md#move-original-cards-to-a-new-board).
 
 The copy records `previousBoardId` for its source. Board `update` accepts
 `mapPosition: { x, y }` or `null` to persist/reset a Home Map position.

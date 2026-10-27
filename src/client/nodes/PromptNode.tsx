@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
+import { activeBoardId } from '../state/boards-store';
 import { updateNodeData } from '../state/canvas-store';
 import { fetchSlashCommands, renderMarkdown, submitCanvasPrompt, submitThreadReply } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
+
+// Multiple inline/focus renderers may own inputs for the same qualified card.
+const unsentInputs = new Set<{ boardId: string | null; nodeId: string; draft: string; reply: string }>();
+export function hasUnsavedPrompt(boardId: string, nodeId: string): boolean {
+  return [...unsentInputs].some((input) => input.boardId === boardId && input.nodeId === nodeId);
+}
 
 // Cached slash commands — fetched once on first use.
 let cachedCommands: Array<{ name: string; description: string }> | null = null;
@@ -117,8 +124,30 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
   const isStreaming = threadStatus === 'streaming';
   const isAnswered = threadStatus === 'answered';
 
-  const [draft, setDraft] = useState('');
-  const [replyDraft, setReplyDraft] = useState('');
+  const [draft, updateDraft] = useState('');
+  const [replyDraft, updateReplyDraft] = useState('');
+  const boardId = activeBoardId.value;
+  const input = useMemo(() => ({ boardId, nodeId: node.id, draft: '', reply: '' }), [boardId, node.id]);
+  const remember = () => {
+    if (input.draft || input.reply) unsentInputs.add(input);
+    else unsentInputs.delete(input);
+  };
+  const setDraft = (text: string) => {
+    input.draft = text;
+    remember();
+    updateDraft(text);
+  };
+  const setReplyDraft = (text: string) => {
+    input.reply = text;
+    remember();
+    updateReplyDraft(text);
+  };
+  useEffect(
+    () => () => {
+      unsentInputs.delete(input);
+    },
+    [input],
+  );
   const [error, setError] = useState<string | null>(null);
   const [renderedTurns, setRenderedTurns] = useState<Map<number, string>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement>(null);

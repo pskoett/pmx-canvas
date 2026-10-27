@@ -1740,7 +1740,7 @@
     },
     {
       "name": "canvas_board",
-      "description": "Knowledge data: knowledge-list reads categories/folders/shared relation presets; category-set replaces category (id/name/glyph/decayType/rate/triggers/revalidationMethod); category-remove deletes an unused category by id (explicit folder assignments, including empty folders, refuse deletion); relation-preset-set saves preset (id/name/vocabulary); relation-preset-remove deletes a template without changing existing board vocabularies; folder-set replaces path/categoryId/lifecycleOverride (null inherits). These workspace actions never open a board and are refused under agent scope fences. Boards in this workspace — the library of the human's and your working memory, filed in folders on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action \"list\" returns every board (with its folder), most recently opened first; \"get\" reads one (default: the open board); \"create\" makes a new empty board WITHOUT opening it (optional folder); \"open\" explicitly switches the server active board to id (null or omitted opens Home), changing the subsequent write target. Humans browsing Map/Graph stay in the library until they explicitly open a board/card; do not infer activeBoardId from their visible library. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. \"update\" renames a board, files it under a folder (folder \"\" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with \"update\". Preserve an existing README unless the human asks to change it; humans can override the designation manually. \"pin\" adds a board to the working set (its README and pinned cards reach your brief whichever board is open; optional reason), \"unpin\" removes it; a pinned board is read-only context, never a write target. Only the human deletes boards.",
+      "description": "\"move-selection\" previews or atomically relocates selected cards and group descendants to a new board, preserves identity and leaves a portal. Supply sourceBoardId, nodeIds, name, expectedRevision and requestId; preview:true reports blockers and the Undo/snapshot boundary. Retry identical input with the same requestId. It never opens the destination. Knowledge data: knowledge-list reads categories/folders/shared relation presets; category-set replaces category (id/name/glyph/decayType/rate/triggers/revalidationMethod); category-remove deletes an unused category by id (explicit folder assignments, including empty folders, refuse deletion); relation-preset-set saves preset (id/name/vocabulary); relation-preset-remove deletes a template without changing existing board vocabularies; folder-set replaces path/categoryId/lifecycleOverride (null inherits). These workspace actions never open a board and are refused under agent scope fences. Boards in this workspace — the library of the human's and your working memory, filed in folders on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action \"list\" returns every board (with its folder), most recently opened first; \"get\" reads one (default: the open board); \"create\" makes a new empty board WITHOUT opening it (optional folder); \"open\" explicitly switches the server active board to id (null or omitted opens Home), changing the subsequent write target. Humans browsing Map/Graph stay in the library until they explicitly open a board/card; do not infer activeBoardId from their visible library. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. \"update\" renames a board, files it under a folder (folder \"\" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with \"update\". Preserve an existing README unless the human asks to change it; humans can override the designation manually. \"pin\" adds a board to the working set (its README and pinned cards reach your brief whichever board is open; optional reason), \"unpin\" removes it; a pinned board is read-only context, never a write target. Only the human deletes boards.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1751,6 +1751,7 @@
               "get",
               "create",
               "create-from",
+              "move-selection",
               "open",
               "update",
               "knowledge-list",
@@ -1762,7 +1763,7 @@
               "pin",
               "unpin"
             ],
-            "description": "Operation to perform: list | get | create | create-from | open | update | pin | unpin | knowledge-list | category-set | category-remove | relation-preset-set | relation-preset-remove | folder-set."
+            "description": "Operation to perform: list | get | create | create-from | move-selection | open | update | pin | unpin | knowledge-list | category-set | category-remove | relation-preset-set | relation-preset-remove | folder-set."
           },
           "id": {
             "description": "Board id (default: the open board)"
@@ -1792,6 +1793,16 @@
           "preview": {
             "description": "Return reusable cards and structure without creating",
             "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
           "relationVocabulary": {
             "description": "Board relation vocabulary: open kinds with a meaning ink and direction",
@@ -2306,6 +2317,109 @@
                 "properties": {
                   "operation": {
                     "type": "string",
+                    "const": "board.move-selection"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "const": "success"
+                  },
+                  "data": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "preview": {
+                            "type": "object",
+                            "properties": {
+                              "sourceBoardId": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "nodeIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "blockers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "sourceBoardId",
+                              "nodeIds",
+                              "blockers"
+                            ],
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "preview"
+                        ],
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "sourceBoardId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "destinationBoardId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "portalId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "nodeIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "replayed": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "sourceBoardId",
+                          "destinationBoardId",
+                          "portalId",
+                          "nodeIds",
+                          "replayed"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "operation",
+                  "outcome",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
                     "const": "knowledge.list"
                   },
                   "outcome": {
@@ -2581,6 +2695,7 @@
                       "board.get",
                       "board.create",
                       "board.create-from",
+                      "board.move-selection",
                       "board.open",
                       "board.update",
                       "knowledge.list",

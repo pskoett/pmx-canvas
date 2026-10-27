@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import type { BoardMoveInput, BoardMovePreview, BoardMoveResult } from './board-move.js';
+export type { BoardMoveInput, BoardMovePreview, BoardMoveResult } from './board-move.js';
 import type { Camera, Tour, TourPresenter, TourStop } from '../shared/tour.js';
 import {
   currentTour,
@@ -950,6 +952,15 @@ export class PmxCanvas extends EventEmitter {
     preview?: boolean;
   }): Promise<Record<string, unknown>> {
     return (await executeOperation('board.create-from', input, { source: 'sdk' })) as Record<string, unknown>;
+  }
+
+  /** Relocate identities atomically; preview is read-only and retries reuse the original receipt. */
+  async moveSelectionToNewBoard(
+    input: BoardMoveInput,
+  ): Promise<{ ok: true; preview: BoardMovePreview } | (BoardMoveResult & { ok: true; replayed: boolean })> {
+    return (await executeOperation('board.move-selection', input, { source: 'sdk' })) as
+      | { ok: true; preview: BoardMovePreview }
+      | (BoardMoveResult & { ok: true; replayed: boolean });
   }
 
   async searchLibrary(query: string, limit?: number): Promise<Record<string, unknown>> {

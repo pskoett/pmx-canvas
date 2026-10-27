@@ -12,6 +12,7 @@ declare class TraceManager {
     private traceOrigin;
     private chainIndex;
     get enabled(): boolean;
+    get ownedNodeIds(): readonly string[];
     setEnabled(value: boolean): void;
     onToolStart(payload: {
         name: string;

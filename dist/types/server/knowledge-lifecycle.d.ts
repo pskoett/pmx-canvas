@@ -183,7 +183,7 @@ export declare class KnowledgeLifecycle {
             cadenceDays?: number | undefined;
         } | null;
         lifecycleSourceFolder: string | null;
-        lifecycleSource: "card" | "unknown" | "folder";
+        lifecycleSource: "unknown" | "card" | "folder";
     };
     resolveCard(folderPath: string | null, node: Pick<CanvasNodeState, 'type' | 'data'>, catalog?: {
         categories: KnowledgeCategory[];
@@ -209,7 +209,7 @@ export declare class KnowledgeLifecycle {
             cadenceDays?: number | undefined;
         } | null;
         lifecycleSourceFolder: string | null;
-        lifecycleSource: "card" | "unknown" | "folder";
+        lifecycleSource: "unknown" | "card" | "folder";
     };
     private indexedDb;
     /** Stored owners of semantic sources; the caller overlays the active board's unsaved edges. */
@@ -219,6 +219,8 @@ export declare class KnowledgeLifecycle {
         lastValidation: ReviewRecord | null;
         retired: boolean;
     }>;
+    /** Resolve a current card's location when evidence was recorded, without rewriting that evidence. */
+    locationAtReview(review: ReviewRecord, target: MemoryTarget): MemoryTarget;
     reviews(boardId: string, nodeId: string): {
         records: ReviewRecord[];
         retired: boolean;

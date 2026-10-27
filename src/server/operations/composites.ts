@@ -152,15 +152,17 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_board',
     description:
+      '"move-selection" previews or atomically relocates selected cards and group descendants to a new board, preserves identity and leaves a portal. Supply sourceBoardId, nodeIds, name, expectedRevision and requestId; preview:true reports blockers and the Undo/snapshot boundary. Retry identical input with the same requestId. It never opens the destination. ' +
       'Knowledge data: knowledge-list reads categories/folders/shared relation presets; category-set replaces category (id/name/glyph/decayType/rate/triggers/revalidationMethod); category-remove deletes an unused category by id (explicit folder assignments, including empty folders, refuse deletion); relation-preset-set saves preset (id/name/vocabulary); relation-preset-remove deletes a template without changing existing board vocabularies; folder-set replaces path/categoryId/lifecycleOverride (null inherits). These workspace actions never open a board and are refused under agent scope fences. ' +
       'Boards in this workspace — the library of the human\'s and your working memory, filed in folders on Home. Your writes always go to the open board (activeBoardId); on Home (no board open) your first write opens the most recent board, or a new one when there are none. Action "list" returns every board (with its folder), most recently opened first; "get" reads one (default: the open board); "create" makes a new empty board WITHOUT opening it (optional folder); "open" explicitly switches the server active board to id (null or omitted opens Home), changing the subsequent write target. Humans browsing Map/Graph stay in the library until they explicitly open a board/card; do not infer activeBoardId from their visible library. After creating a board, open its returned id and verify activeBoardId before writing; another participant can switch the board later. "update" renames a board, files it under a folder (folder "" removes it), or designates its README via readmeNodeId. As part of normal board authoring, read the board metadata; if readmeNodeId is null, choose or create a concise markdown introduction explaining its purpose and key context, then designate that node with "update". Preserve an existing README unless the human asks to change it; humans can override the designation manually. "pin" adds a board to the working set (its README and pinned cards reach your brief whichever board is open; optional reason), "unpin" removes it; a pinned board is read-only context, never a write target. Only the human deletes boards.',
     actionSummary:
-      'list | get | create | create-from | open | update | pin | unpin | knowledge-list | category-set | category-remove | relation-preset-set | relation-preset-remove | folder-set',
+      'list | get | create | create-from | move-selection | open | update | pin | unpin | knowledge-list | category-set | category-remove | relation-preset-set | relation-preset-remove | folder-set',
     actions: {
       list: 'board.list',
       get: 'board.get',
       create: 'board.create',
       'create-from': 'board.create-from',
+      'move-selection': 'board.move-selection',
       open: 'board.open',
       update: 'board.update',
       'knowledge-list': 'knowledge.list',

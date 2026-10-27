@@ -86,6 +86,20 @@ const payloads: Record<string, ZodType> = {
     board,
     z.looseObject({ ok: z.boolean(), sourceBoardId: id, cards: z.array(node), edges: z.array(edge) }),
   ]),
+  'board.move-selection': z.union([
+    z.looseObject({
+      ok: z.boolean(),
+      preview: z.looseObject({ sourceBoardId: id, nodeIds: z.array(id), blockers: z.array(z.string()) }),
+    }),
+    z.looseObject({
+      ok: z.boolean(),
+      sourceBoardId: id,
+      destinationBoardId: id,
+      portalId: id,
+      nodeIds: z.array(id),
+      replayed: z.boolean(),
+    }),
+  ]),
   'board.open': boards,
   'board.update': boards,
   'board.pin': boards,

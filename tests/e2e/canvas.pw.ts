@@ -1325,7 +1325,16 @@ test('live work cards explicitly present tasks read-only and survive session end
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-  await row.getByRole('button', { name: 'Show card' }).click();
+  // Finish the focus gesture before testing task Undo, or Undo legitimately targets the later camera commit.
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/canvas/viewport') &&
+        response.request().method() === 'POST' &&
+        typeof response.request().postDataJSON()?.x === 'number',
+    ),
+    row.getByRole('button', { name: 'Show card' }).click(),
+  ]);
   await expect(page.locator('.canvas-node')).toHaveCount(2);
   await request.patch(`/api/canvas/ax/work/${workItem.id}`, {
     data: { title: 'Updated task', detail: 'Title-only refresh' },

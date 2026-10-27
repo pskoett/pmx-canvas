@@ -409,9 +409,24 @@ move the cards, preserve identity/history/relations and leave a portal. No rever
 inline-board operation in this wave. Opening a group within the current board is navigation
 only, with breadcrumbs and outside endpoints, not a new board. These decisions supersede the
 earlier automatic work-card and make/inline-board wording. Implementation and technical
-checkpoints live in [plan 020](plans/plan-020-wave-5-work-planning.md). Draw any missing
-authoring controls and move-dialog states in this design home before implementing them; the
-existing artboards remain the target, not evidence that those controls are already drawn.
+checkpoints live in [plan 020](plans/plan-020-wave-5-work-planning.md).
+[WorkCards](design/WorkCards.dc.html) now draws name, preview, refusal and interrupted-reply
+states using the existing modal shell. Preview names pins, README, live owners and the
+Undo/snapshot boundary. Save or cancel local card drafts before moving. A late reply never
+overrides newer navigation; a retry uses the original request ID.
+
+**Amp plugin added to Wave 5, 2026-10-27.** The owner added the native Canvas plugin
+described in [this discussion](https://ampcode.com/threads/T-01a17d25-69d9-7693-986a-f3991de6a346).
+It hosts Canvas through Amp's Portal and connects context, steering, creation, sharing and
+collaboration to Amp threads. Jev optionally ranks context, chooses output representation and
+prioritizes review; the integration works without it. Amp retains execution, credentials and
+native permissions. The owner simplified sharing to **use Amp's existing sharing; let the guest
+enter their name**. Add identification through existing canvas presence, not a separate guest
+permission system, share server or custom expiry/revocation. A name is self-reported and grants
+no additional access. Participation follows Amp's existing access model; do not promise anonymous
+or board-only access that it does not provide. General hosted accounts and organization roles
+remain later work. Draw the missing name-entry and identified-guest states here before UI
+implementation; packaging, reliability gates and acceptance are in plan 020, Slice 4.
 
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
@@ -420,7 +435,7 @@ existing artboards remain the target, not evidence that those controls are alrea
 | **2. Connected memory views** — implemented, verification gates apply | Moves 0, 14 | One board/card projection for Home, links/backlinks, brief discovery and `canvas://graph{?focus,depth}`; saved wiki ID bindings, direct cross-board card edges, previous-board chains, persisted Map positions | Home Map, Home Graph (deviations below) | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; native proportional canvas at every zoom | Node types 1–3, Zoom | Viewers use the canvas palette and fill their authored space; approaching a viewer mounts it automatically and retains its state when panning away; no alternate grid or lifetime preview cap |
-| **5. Work planning and group navigation** | Moves 3, 0 | Deliberate work cards and relations; optional live session-task views; Move to new board with a portal; group drill-in without board creation; no reverse move | Uses (agent flow, dependencies, decisions), Flows (open a group), Relations | Human and agent can plan without Sessions; illustrated loops stay inert; drill-in keeps outside stubs; moves preserve identity and audit; shared shell/tokens and plan 020 acceptance pass |
+| **5. Work planning, group navigation and Amp integration** | Moves 3, 0; native Amp plugin | Deliberate work cards and relations; optional live task views; Move to new board with a portal; group drill-in; Amp Portal/context/steering plugin with optional Jev; native Amp sharing plus guest names; no reverse move | Uses (agent flow, dependencies, decisions), Flows (open a group), Relations; move/plugin states to be drawn | Human and agent can plan without Sessions; loops stay inert; drill-in keeps outside stubs; moves preserve identity/audit; native Amp sharing and guest identification pass; shared shell/tokens and plan 020 checks pass |
 | **Later: hosted version** | Part 4 (moved from Part 3, 2026-10-19) | Read-only link, comments, second writer, accounts and roles; org → team → personal scopes with configurable categories and per-user pins; built once for the ChatGPT Sites and later Cloudflare editions | HomeTeam is the earlier two-root look ahead; updated scope/category drawings are required before building, retaining explicit publication and locked cards for unreadable boards | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal reaches a wider audience without explicit publication |
 
 **Folders and portals (decided 2026-10-06).** Home uses folders as the visible hierarchy (where a

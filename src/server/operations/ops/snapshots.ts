@@ -364,6 +364,7 @@ const snapshotRestoreNodeOperation = defineOperation<
   handler: ({ id, nodeId, preserveHumanEdits }) => {
     const snapshot = canvasState.getSnapshotData(id ?? '');
     if (!snapshot) throw new OperationError('Snapshot not found', 404);
+    canvasState.assertSnapshotRestorable(id ?? '');
     const current = canvasState.getNode(nodeId ?? '');
     const earlier = snapshot.nodes.find((node) => node.id === nodeId);
     if (!current || !earlier)

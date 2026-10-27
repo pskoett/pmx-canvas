@@ -7,6 +7,7 @@
  */
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
+import { CARD_HISTORY_CTE } from './card-relocation.js';
 import type { MemoryGraph } from '../shared/memory-graph.js';
 import type { CompiledContextEntry } from './context-brief.js';
 
@@ -351,27 +352,43 @@ function rowToContextRead(row: ContextReadRow): ContextRead {
   };
 }
 
+/** Read only the matching card's observation, not a copy of the whole receipt for every card. */
+function loadCardReads(db: Database, boardId: string, field: 'read_nodes' | 'seen_links') {
+  const ids = db
+    .query<{ id: string }, [string, string, string]>(`
+    SELECT id FROM nodes WHERE board_id = ?
+    UNION SELECT j.key AS id FROM context_reads r, json_each(r.read_nodes) j WHERE r.board_id = ?
+    UNION SELECT j.key AS id FROM context_reads r, json_each(r.seen_links) j WHERE r.board_id = ?
+  `)
+    .all(boardId, boardId, boardId);
+  return db
+    .query<{ nodeId: string; revision: number; at: string; who: string }, [string]>(`
+    ${CARD_HISTORY_CTE} SELECT h.node_id AS nodeId, j.value AS revision, r.at,
+      COALESCE(r.consumer, r.agent_id, r.source) AS who FROM history h JOIN context_reads r
+      ON r.board_id = h.board_id AND r.seq > h.read_after AND r.seq <= h.read_through
+      JOIN json_each(r.${field}) j ON j.key = h.node_id
+    ORDER BY r.seq DESC
+  `)
+    .all(JSON.stringify(ids.map(({ id }) => ({ boardId, cardId: id }))));
+}
+
 /** Per node on a board, the latest agent read that delivered its content (newest row wins). */
 export function loadNodeReadStatusFromDB(db: Database, boardId: string): NodeReadStatus[] {
-  const rows = db
-    .query<ContextReadRow, [string]>('SELECT * FROM context_reads WHERE board_id = ? ORDER BY seq DESC')
-    .all(boardId);
   const status = new Map<string, NodeReadStatus>();
-  for (const read of rows.map(rowToContextRead)) {
-    for (const [nodeId, readRevision] of Object.entries(read.readNodes)) {
-      const known = status.get(nodeId);
-      if (known) {
-        known.readCount += 1;
-        continue;
-      }
-      status.set(nodeId, {
-        nodeId,
-        lastReadAt: read.at,
-        lastReadBy: read.consumer ?? read.agentId ?? read.source,
-        readRevision,
-        readCount: 1,
-      });
+  for (const read of loadCardReads(db, boardId, 'read_nodes')) {
+    const nodeId = read.nodeId;
+    const known = status.get(nodeId);
+    if (known) {
+      known.readCount += 1;
+      continue;
     }
+    status.set(nodeId, {
+      nodeId,
+      lastReadAt: read.at,
+      lastReadBy: read.who,
+      readRevision: read.revision,
+      readCount: 1,
+    });
   }
   return [...status.values()];
 }
@@ -391,27 +408,17 @@ export function loadBoardLastReadFromDB(
 
 /** Per node on a board, the newest links revision any agent read has carried (connection marks). */
 export function loadSeenLinksFromDB(db: Database, boardId: string): Record<string, number> {
-  const rows = db
-    .query<{ seen_links: string }, [string]>('SELECT seen_links FROM context_reads WHERE board_id = ?')
-    .all(boardId);
   const seen: Record<string, number> = {};
-  for (const row of rows) {
-    for (const [nodeId, revision] of Object.entries(JSON.parse(row.seen_links) as Record<string, number>)) {
-      if (revision > (seen[nodeId] ?? -1)) seen[nodeId] = revision;
-    }
+  for (const { nodeId, revision } of loadCardReads(db, boardId, 'seen_links')) {
+    if (revision > (seen[nodeId] ?? -1)) seen[nodeId] = revision;
   }
   return seen;
 }
 
 /** Every node on a board whose content an agent read at or after `since` (ISO). */
 export function loadReadNodeIdsSince(db: Database, boardId: string, since: string): string[] {
-  const rows = db
-    .query<{ read_nodes: string }, [string, string]>(
-      'SELECT read_nodes FROM context_reads WHERE board_id = ? AND at >= ? ORDER BY seq',
-    )
-    .all(boardId, since);
   const ids = new Set<string>();
-  for (const row of rows) for (const id of Object.keys(JSON.parse(row.read_nodes) as object)) ids.add(id);
+  for (const row of loadCardReads(db, boardId, 'read_nodes')) if (row.at >= since) ids.add(row.nodeId);
   return [...ids];
 }
 

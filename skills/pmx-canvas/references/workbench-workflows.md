@@ -282,7 +282,7 @@ conditional requirements. Use `tools/list` for non-registry tools such as `canva
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads`, `read-status` |
 | `canvas_ax_delivery` | `claim`, `mark` |
-| `canvas_board` | `list`, `get`, `create`, `create-from`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `category-remove`, `folder-set`, `relation-preset-set`, `relation-preset-remove` |
+| `canvas_board` | `list`, `get`, `create`, `create-from`, `move-selection`, `open`, `update`, `pin`, `unpin`, `knowledge-list`, `category-set`, `category-remove`, `folder-set`, `relation-preset-set`, `relation-preset-remove` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `restore-node`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 
@@ -754,6 +754,20 @@ are not direct cross-board card edges. `create-from` should be previewed first. 
 trace, and MCP-app cards; groups and README are optional; creation assigns fresh
 IDs, records `previousBoardId`, copies no pins/AX/history, preserves the original, and leaves the new board
 inactive. Agents can open/switch boards; only the human deletes them.
+
+To move original cards instead, use `canvas_board { action: "move-selection" }`,
+not copy/delete. Read the active source board's `contentRevision` with `get`, then
+preview with `sourceBoardId`, `nodeIds`, `name`, `expectedRevision: contentRevision`,
+`requestId` and `preview: true`. Groups include their descendants. Inspect the
+preview's blockers and notices; unsafe bindings refuse the entire move. Commit
+with the same inputs without `preview`. Retry an uncertain response with the same
+request ID and inputs, rather than creating another destination.
+
+The move preserves card identities, pins, relations and review history, leaves a
+portal behind and keeps the source board open. It does not validate or read the
+content. Pre-move Undo/Redo is cleared on affected boards; older snapshots remain
+inspectable but cannot be restored across the move. Open the returned
+`destinationBoardId` only when navigation is wanted.
 
 To populate a board without interrupting the human, create it with `canvas_board`,
 then pass its returned ID as `destinationBoardId` to `canvas_node` add,

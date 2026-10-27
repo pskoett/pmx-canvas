@@ -96,6 +96,36 @@ cmd(
 );
 
 cmd(
+  'board move-selection',
+  'Preview or move original cards to a new board, leaving a portal (does not open it)',
+  ['pmx-canvas board move-selection <source-id> "Follow-up" --nodes id1,id2 --revision 42 --request move-1 --preview'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args, { boolFlags: ['preview'] });
+    if (flags.help || flags.h) return showCommandHelp('board move-selection');
+    const [sourceBoardId, ...nameParts] = positional;
+    const name = nameParts.join(' ').trim();
+    const nodeIds = getStringFlag(flags, 'nodes')?.split(',').filter(Boolean);
+    const revision = getStringFlag(flags, 'revision');
+    const requestId = getStringFlag(flags, 'request');
+    if (!sourceBoardId || !name || !nodeIds?.length || !revision || !requestId)
+      die('Expected source board, name, --nodes, --revision and --request. Reuse the request ID when retrying.');
+    const expectedRevision = Number(revision);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
+      die('--revision must be a nonnegative integer.');
+    output(
+      await invokeOperation('board.move-selection', {
+        sourceBoardId,
+        name,
+        nodeIds,
+        expectedRevision,
+        requestId,
+        preview: !!flags.preview,
+      }),
+    );
+  },
+);
+
+cmd(
   'board create',
   'Create an empty board (use board open with its returned id before writing)',
   ['pmx-canvas board create "Q4 planning"', 'pmx-canvas board create "Q4 planning" --folder Planning'],

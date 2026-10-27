@@ -4,6 +4,7 @@ import { normalizeBoardFolder } from '../shared/boards.js';
 import { memoryKey, type MemoryTarget } from '../shared/memory-graph.js';
 import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
+import { CARD_HISTORY_CTE } from './card-relocation.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState } from './canvas-state.js';
 import { RELATION_PRESETS, relationPresetSchema, type RelationPreset } from '../shared/relations.js';
@@ -281,15 +282,19 @@ export class KnowledgeLifecycle {
     if (!targets.length) return new Map();
     const rows = this.indexedDb()
       .query<{ boardId: string; nodeId: string; validation: string | null; retirement: string | null }, [string]>(
-        `WITH targets AS (
-         SELECT json_extract(value, '$.boardId') AS boardId, json_extract(value, '$.cardId') AS nodeId
-         FROM json_each(?)
-       ) SELECT boardId, nodeId,
-         (SELECT value FROM review_records WHERE board_id = boardId AND node_id = nodeId
+        `${CARD_HISTORY_CTE}
+       SELECT t.current_board AS boardId, t.node_id AS nodeId,
+         (SELECT value FROM review_records r JOIN history h
+          ON r.board_id = h.board_id AND r.node_id = h.node_id
+          AND r.sequence > h.review_after AND r.sequence <= h.review_through
+          WHERE h.current_board = t.current_board AND h.node_id = t.node_id
           AND ${validationPredicate} ORDER BY sequence DESC LIMIT 1) AS validation,
-         (SELECT json_extract(value, '$.outcome') FROM review_records WHERE board_id = boardId AND node_id = nodeId
+         (SELECT json_extract(value, '$.outcome') FROM review_records r JOIN history h
+          ON r.board_id = h.board_id AND r.node_id = h.node_id
+          AND r.sequence > h.review_after AND r.sequence <= h.review_through
+          WHERE h.current_board = t.current_board AND h.node_id = t.node_id
           AND ${retirementPredicate} ORDER BY sequence DESC LIMIT 1) AS retirement
-       FROM targets`,
+       FROM targets t`,
       )
       .all(JSON.stringify(targets));
     return new Map(
@@ -306,11 +311,29 @@ export class KnowledgeLifecycle {
     );
   }
 
+  /** Resolve a current card's location when evidence was recorded, without rewriting that evidence. */
+  locationAtReview(review: ReviewRecord, target: MemoryTarget): MemoryTarget {
+    const sequence = this.db()
+      .query<{ sequence: number }, [string, string, string]>(
+        "SELECT sequence FROM review_records WHERE board_id = ? AND node_id = ? AND json_extract(value, '$.id') = ?",
+      )
+      .get(review.boardId, review.nodeId, review.id)?.sequence;
+    if (sequence === undefined) return target;
+    const location = this.db()
+      .query<{ board_id: string }, [string, number, number]>(
+        `${CARD_HISTORY_CTE} SELECT board_id FROM history WHERE review_after < ? AND review_through >= ? LIMIT 1`,
+      )
+      .get(JSON.stringify([target]), sequence, sequence);
+    return location ? { ...target, boardId: location.board_id } : target;
+  }
+
   reviews(boardId: string, nodeId: string) {
     const records = (
       this.db()
-        .query('SELECT value FROM review_records WHERE board_id = ? AND node_id = ? ORDER BY sequence')
-        .all(boardId, nodeId) as { value: string }[]
+        .query(`${CARD_HISTORY_CTE} SELECT value FROM review_records r JOIN history h
+          ON r.board_id = h.board_id AND r.node_id = h.node_id
+          AND r.sequence > h.review_after AND r.sequence <= h.review_through ORDER BY sequence`)
+        .all(JSON.stringify([{ boardId, cardId: nodeId }])) as { value: string }[]
     ).map((r): ReviewRecord => {
       const record = JSON.parse(r.value) as ReviewRecord;
       return { ...record, contentRevision: record.contentRevision ?? null };

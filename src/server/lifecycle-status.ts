@@ -11,6 +11,7 @@ const processStartedAt = Date.now();
 interface Source {
   key: string;
   target: MemoryTarget;
+  edge?: { owner: MemoryTarget; id: string };
   baseline?: number;
   kind: string;
   observedAt?: string;
@@ -179,6 +180,7 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = [], 
       existing.push({
         key: JSON.stringify([board.id, edge.id, kind, memoryKey(target)]),
         target,
+        edge: { owner: from, id: edge.id },
         kind,
         baseline: edge.sourceRevision,
       });
@@ -219,7 +221,19 @@ export function lifecycleSnapshot(now = Date.now(), atUse: MemoryTarget[] = [], 
       const current = cards.get(memoryKey(source.target));
       const revision = source.availability === 'unavailable' ? null : (current?.contentRevision ?? null);
       status.observations[source.key] = revision;
-      const observed = validation ? validation.sourceRevisions?.[source.key] : source.baseline;
+      let observed = validation ? validation.sourceRevisions?.[source.key] : source.baseline;
+      if (validation?.sourceRevisions && observed === undefined) {
+        const target = canvasState.knowledge.locationAtReview(validation, source.target);
+        const historicalKey = source.edge
+          ? JSON.stringify([
+              canvasState.knowledge.locationAtReview(validation, source.edge.owner).boardId,
+              source.edge.id,
+              source.kind,
+              memoryKey(target),
+            ])
+          : `provenance:${memoryKey(target)}`;
+        observed = validation.sourceRevisions[historicalKey];
+      }
       const title = current ? String(current.data.title ?? current.id) : 'Unavailable source';
       const before = status.reasons.length;
       if (!current) status.reasons.push('A dependency source is unavailable; no fresh check.');

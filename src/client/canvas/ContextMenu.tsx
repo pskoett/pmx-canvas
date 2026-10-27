@@ -31,6 +31,7 @@ import {
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { canCopyPrimitiveJson, copyPrimitiveJson } from '../nodes/primitive-copy';
 import { askText } from './TextPrompt';
+import { openBoardMove } from './BoardMoveDialog';
 import { activeBoard, boardIncarnation, setBoardReadme } from '../state/boards-store';
 import { openLifecycle } from '../state/knowledge-store';
 import { RELATION_KINDS, relationKind } from '../../shared/relations.js';
@@ -777,6 +778,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     const childIds = (node.data.children as string[]) ?? [];
     items.push({ separator: true });
     items.push({ label: 'Open group', action: () => openGroup(node.id) });
+    items.push({ label: 'Move to new board', action: () => openBoardMove([node.id]) });
     items.push({
       render: (onClose) => renderGroupColorSection(node, onClose),
     });

@@ -18,6 +18,10 @@ type WorkDraft = {
 // Like Markdown drafts, these belong to the qualified card, not its inline/focus renderer.
 const drafts = new Map<string, Signal<WorkDraft | null>>();
 
+export function hasUnsavedWorkCard(boardId: string, nodeId: string): boolean {
+  return !!drafts.get(JSON.stringify([boardId, nodeId]))?.value;
+}
+
 export function WorkCard({ node, state }: { node: CanvasNodeState; state: AxWorkItemStatus }) {
   const key = JSON.stringify([activeBoardId.value, node.id]);
   const editing = useMemo(() => drafts.get(key) ?? signal<WorkDraft | null>(null), [key]);

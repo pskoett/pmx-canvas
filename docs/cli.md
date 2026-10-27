@@ -423,6 +423,8 @@ pmx-canvas board pin <board-id> --reason "Q4 rests on it" # join the agent's wor
 pmx-canvas board unpin <board-id>
 pmx-canvas board from <source-id> "Follow-up" --preview
 pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structure
+pmx-canvas board move-selection <source-id> "Follow-up" --nodes id1,id2 --revision 42 --request move-123 --preview
+pmx-canvas board move-selection <source-id> "Follow-up" --nodes id1,id2 --revision 42 --request move-123
 ```
 
 Commands write to the board open in the workbench. `board open` switches the
@@ -435,6 +437,15 @@ cards get fresh IDs. `--structure` includes group frames; edges between copied
 cards are retained automatically. `--readme` carries the designated README. The new board remains inactive and
 does not inherit pins, AX state, or mutation history. Its `previousBoardId`
 records the source board.
+
+`board move-selection` moves the original cards instead. Read `board get <source-id>`
+for `contentRevision`, pass it as `--revision`, and preview first. Group selections
+include descendants. Keep `--request` and all other inputs unchanged when retrying an
+interrupted commit; a recorded success returns the same destination after restart.
+The operation leaves a portal but does not open the destination. It preserves pins,
+relations and review/read history, and refuses the whole selection if bindings cannot
+move safely. Pre-move Undo/Redo clears; old snapshots remain inspectable but cannot
+restore across the move. See the [move contract](http-api.md#move-original-cards-to-a-new-board).
 
 ## Connected memory
 

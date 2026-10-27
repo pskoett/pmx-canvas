@@ -3401,6 +3401,27 @@ export interface CanvasServerOptions {
   allowExternalMcp?: boolean;
 }
 
+// SDK/MCP producers can own cards before an HTTP listener starts.
+canvasState.setMoveRuntimeBlockers(() => {
+  const blockers = new Map<string, string>();
+  for (const id of traceManager.ownedNodeIds) blockers.set(id, 'the trace manager still owns this card');
+  for (const [response, prompt] of serverResponseToThreadMap) {
+    blockers.set(response, 'an active response is routed to this card');
+    blockers.set(prompt, 'an active response is routed to this prompt');
+  }
+  for (const intent of pendingWorkbenchIntents) {
+    if (intent.type !== 'canvas-prompt') continue;
+    for (const id of [
+      intent.payload.nodeId,
+      intent.payload.parentNodeId,
+      ...(Array.isArray(intent.payload.contextNodeIds) ? intent.payload.contextNodeIds : []),
+    ]) {
+      if (typeof id === 'string') blockers.set(id, 'a queued prompt still refers to this card');
+    }
+  }
+  return blockers;
+});
+
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
   if (server) {
     return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;

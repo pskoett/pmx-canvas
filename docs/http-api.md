@@ -305,6 +305,43 @@ open either board.
 Board-list `links` expose qualified `boardId`/`cardId` targets; native card
 connections include `cardTitle` (null if missing), so footers need not display raw IDs.
 
+### Move original cards to a new board
+
+`GET /api/canvas/boards/:id` returns `contentRevision` alongside `board` and `open`.
+Use that revision for `POST /api/canvas/boards/move-selection`:
+
+```json
+{"sourceBoardId":"board-source","nodeIds":["card-a","group-b"],"name":"Follow-up","expectedRevision":42,"requestId":"unique-move-request","preview":true}
+```
+
+Preview is read-only and returns `{ok:true, preview}` with expanded `nodeIds`,
+`affectedBoardIds`, `readmeNodeId`, `pinnedNodeIds`, `liveTaskNodeIds`, `attachmentIds`,
+`blockers` and `notices`. Commit with the identical input and `preview:false` (or omitted).
+The source must still be open and at that revision. Commit rechecks permissions and bindings,
+then atomically returns `{ok:true, sourceBoardId, destinationBoardId, portalId, nodeIds,
+affectedBoardIds, replayed}`. It never opens the destination. The SDK exposes the same input
+through `moveSelectionToNewBoard(input)`.
+
+Keep the request ID and exact input until success is known. Retrying after an interrupted reply
+or restart returns the original result without another board or portal, even if the source is
+no longer open. Reusing that ID with different input returns 409. A stale revision or unsafe
+binding also returns 409; binding refusals include `blockers`. Resolve the cause and preview
+again before a new attempt.
+
+This moves identities, not copies. Groups include descendants; card/edge IDs, relative geometry,
+content revisions, pins, review/read evidence and supported attachments survive. Incoming and
+outgoing relations, wiki bindings and provenance retarget across the library. The destination
+inherits the source folder, theme and relation vocabulary. A selected README moves its designation.
+Live task cards keep their original `workItemBoardId` and `workItemId`; task authority stays put.
+Board-space annotations stay on the source, which receives a portal at the moved selection.
+
+The entire move is refused for unsafe runtime producers, external app sessions, task/flow action
+bindings, partial or unfinished imports, source tours targeting moved cards, unresolved local
+viewer references, edit locks or scope fences on affected boards. Nothing is silently dropped.
+Pre-move Undo/Redo is cleared on affected boards. Older snapshots remain readable but neither
+whole-board nor single-card restore may cross the move boundary. Use a post-move snapshot for
+restore; consult older snapshots to recover text manually without recreating the old identities.
+
 ### Markdown previews and saved links
 
 `POST /api/render` accepts `{markdown, nodeId?, expectedBoardId?}` and returns `{html}`.

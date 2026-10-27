@@ -359,6 +359,7 @@ function notePresence(
 ): void {
   if (!isPresenceWrite(op) || meta.suppressAutoGhost) return;
   const input = asRecord(rawInput);
+  if (name === 'board.move-selection' && (input.preview === true || asRecord(result).replayed === true)) return;
   // Delivery plumbing (claim/mark) must not book an anonymous transport
   // writer nor spam the timeline: attribute it to the consumer that marked,
   // and record no activity row — the Steer row flipping to delivered IS the
@@ -510,7 +511,8 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   const rawExpectedBoard = asRecord(rawInput).expectedBoardId;
   // HTTP DELETE query values are strings, including Home's JSON null.
   const expectedBoard = rawExpectedBoard === 'null' ? null : rawExpectedBoard;
-  if (expectedBoard !== undefined && expectedBoard !== canvasState.activeBoardId) {
+  // Relocations check their durable receipt first, then their explicit source board.
+  if (name !== 'board.move-selection' && expectedBoard !== undefined && expectedBoard !== canvasState.activeBoardId) {
     throw new OperationError('The active board changed. Refresh before retrying this action.', 409);
   }
   // File drops carry their captured board through the HTTP round trip. Check
@@ -638,8 +640,9 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   }
 
   const beforeBoard = canvasState.activeBoardId;
-  const beforeRevision =
-    name === 'board.create-from' || name === 'board.delete' ? canvasState.getContentRevision().revision : null;
+  const beforeRevision = ['board.create-from', 'board.delete', 'board.move-selection'].includes(name)
+    ? canvasState.getContentRevision().revision
+    : null;
   meta.signal?.throwIfAborted();
   const result = await op.execute(rawInput, operationContext);
   // Library writes can invalidate relations on the open board without being

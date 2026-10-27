@@ -86,6 +86,256 @@ async function expectReadableGraphLabels(page: Page, count: number) {
   ).toEqual([]);
 }
 
+test('move selection to a new board preserves cards, pins and links and leaves a working portal', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Move source' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const first = await note(request, 'Evidence', 100, 100);
+  const second = await note(request, 'Decision', 470, 100);
+  const stay = await note(request, 'Stays here', 100, 380);
+  await request.patch(`/api/canvas/boards/${source.id}`, { headers: HUMAN, data: { readmeNodeId: first } });
+  expect((await request.post('/api/canvas/context-pins', { headers: HUMAN, data: { nodeIds: [first] } })).ok()).toBe(
+    true,
+  );
+  await request.post('/api/canvas/edge', {
+    headers: HUMAN,
+    data: { from: first, to: stay, type: 'references', label: 'Background' },
+  });
+  await page.goto('/workbench');
+  for (const id of [first, second])
+    await page.locator(`[data-node-id="${id}"] .node-content`).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Move to new board', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByLabel('New board name').fill('Evidence and decision');
+  await page.screenshot({ path: test.info().outputPath('move-name.png') });
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('2 cards');
+  await expect(dialog).toContainText('1 pinned');
+  await expect(dialog).toContainText('README moves');
+  await expect(dialog).toContainText('Older snapshots remain inspectable');
+  expect((await boards(request)).boards).toHaveLength(1);
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(dialog.getByRole('button', { name: 'Move and open' })).toBeInViewport();
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`move-preview-${width}.png`) });
+  }
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.board-switcher-button')).toContainText('Evidence and decision');
+  for (const id of [first, second]) await expect(page.locator(`[data-node-id="${id}"]`)).toBeVisible();
+  await expect(page.getByRole('button', { name: '↗ Background: Move source / Stays here', exact: true })).toBeVisible();
+  const destination = (await boards(request)).activeBoardId;
+  const target = await (await request.get(`/api/canvas/state?board=${destination}`)).json();
+  expect(target.nodes.map((n: { id: string }) => n.id).sort()).toEqual([first, second].sort());
+  expect(target.edges[0]).toMatchObject({ from: first, to: stay, toBoardId: source.id, label: 'Background' });
+  await page.reload();
+  await expect(page.locator(`[data-node-id="${first}"]`)).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('move-destination.png') });
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await expect(page.locator('.board-switcher-button')).toContainText('Move source');
+  await expect(page.locator(`[data-node-id="${first}"]`)).toHaveCount(0);
+  const portal = page.locator('.canvas-node[data-node-type="board"]');
+  await expect(portal).toContainText('Evidence and decision');
+  await portal.getByRole('button', { name: 'Open board', exact: true }).click();
+  await expect(page.locator('.board-switcher-button')).toContainText('Evidence and decision');
+});
+
+test('group move refuses an active binding and a late move reply never overrides newer navigation', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Group source' } })).json()
+  ).board;
+  const other = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Later choice' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const stream = await request.post('/api/canvas/json-render/stream', {
+    headers: HUMAN,
+    data: { title: 'Streaming report', patches: [], x: 130, y: 150 },
+  });
+  expect(stream.ok()).toBe(true);
+  const card = (await stream.json()).id;
+  expect(typeof card).toBe('string');
+  const group = (
+    await (
+      await request.post('/api/canvas/group', { headers: HUMAN, data: { title: 'Follow-up group', childIds: [card] } })
+    ).json()
+  ).id;
+  await page.goto('/workbench');
+  const menu = () => page.locator(`[data-node-id="${group}"]`).getByRole('button', { name: 'Group menu' });
+  await menu().click();
+  await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('Cannot move this selection');
+  await expect(dialog.getByRole('button', { name: 'Move and open' })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('move-refused.png') });
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(
+    (
+      await request.post('/api/canvas/json-render/stream', {
+        headers: HUMAN,
+        data: { nodeId: card, patches: [], done: true },
+      })
+    ).ok(),
+  ).toBe(true);
+  await menu().click();
+  await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+  await dialog.getByLabel('New board name').fill('Moved group');
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('2 cards');
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let committed!: () => void;
+  const done = new Promise<void>((resolve) => {
+    committed = resolve;
+  });
+  await page.route(
+    '**/api/canvas/boards/move-selection',
+    async (route) => {
+      const response = await route.fetch();
+      committed();
+      await held;
+      await route.fulfill({ response });
+    },
+    { times: 1 },
+  );
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await done;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: other.id } });
+  await expect(page.locator('.board-switcher-button')).toContainText('Later choice');
+  release();
+  await expect(dialog).toHaveCount(0);
+  expect((await boards(request)).activeBoardId).toBe(other.id);
+  const moved = (await boards(request)).boards.find((b) => b.name === 'Moved group')!;
+  const target = await (await request.get(`/api/canvas/state?board=${moved.id}`)).json();
+  expect(target.nodes.map((n: { id: string }) => n.id).sort()).toEqual([group, card].sort());
+});
+
+test('an interrupted move reply retries the original request without a duplicate destination', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Retry source' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const first = await note(request, 'Retry evidence', 100, 100);
+  const second = await note(request, 'Retry decision', 470, 100);
+  await page.goto('/workbench');
+  for (const id of [first, second])
+    await page.locator(`[data-node-id="${id}"] .node-content`).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Move to new board', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByLabel('New board name').fill('Retry destination');
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('2 cards');
+  await page.route(
+    '**/api/canvas/boards/move-selection',
+    async (route) => {
+      expect((await route.fetch()).ok()).toBe(true);
+      await route.abort('connectionreset');
+    },
+    { times: 1 },
+  );
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(dialog).toContainText('No reply received');
+  expect((await boards(request)).boards).toHaveLength(2);
+  await page.screenshot({ path: test.info().outputPath('move-retry.png') });
+  await dialog.getByRole('button', { name: 'Retry move' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.board-switcher-button')).toContainText('Retry destination');
+  expect((await boards(request)).boards).toHaveLength(2);
+  for (const id of [first, second]) await expect(page.locator(`[data-node-id="${id}"]`)).toBeVisible();
+});
+
+test('group moves refuse unsent prompt and reply drafts without losing their text', async ({ page, request }) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Draft source' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const seeded = await request.post('/api/canvas/batch', {
+    headers: HUMAN,
+    data: {
+      operations: [
+        {
+          op: 'node.add',
+          assign: 'prompt',
+          args: {
+            type: 'prompt',
+            title: 'Unsent question',
+            x: 100,
+            y: 120,
+            width: 360,
+            height: 280,
+            data: { status: 'draft' },
+          },
+        },
+        {
+          op: 'node.add',
+          assign: 'reply',
+          args: {
+            type: 'prompt',
+            title: 'Answered question',
+            x: 500,
+            y: 120,
+            width: 360,
+            height: 280,
+            data: {
+              turns: [
+                { role: 'user', text: 'What changed?' },
+                { role: 'assistant', text: 'Reviewed the source.' },
+              ],
+              threadStatus: 'answered',
+            },
+          },
+        },
+        { op: 'group.create', assign: 'group', args: { title: 'Drafts', childIds: ['$prompt.id', '$reply.id'] } },
+      ],
+    },
+  });
+  expect(seeded.ok(), await seeded.text()).toBe(true);
+  const seededBody = await seeded.json();
+  expect(seededBody.ok).toBe(true);
+  const group = seededBody.refs.group.id;
+  await page.goto('/workbench');
+  const prompt = page.getByPlaceholder('Ask the agent something…');
+  const reply = page.getByPlaceholder('Reply…');
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  for (const field of [prompt, reply]) {
+    await field.fill('Do not lose this unsent text.');
+    await page.locator(`[data-node-id="${group}"]`).getByRole('button', { name: 'Group menu' }).click();
+    await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+    await dialog.getByRole('button', { name: 'Preview move' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Save or clear');
+    await dialog.getByRole('button', { name: 'Move and open' }).click();
+    expect((await boards(request)).boards).toHaveLength(1);
+    await page.screenshot({
+      path: test.info().outputPath(field === reply ? 'move-unsent-reply.png' : 'move-unsent-prompt.png'),
+    });
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(field).toHaveValue('Do not lose this unsent text.');
+    await field.fill('');
+  }
+  await page.locator(`[data-node-id="${group}"]`).getByRole('button', { name: 'Group menu' }).click();
+  await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(`[data-node-id="${group}"]`)).toBeVisible();
+  await expect(page.getByText('Reviewed the source.', { exact: true })).toBeVisible();
+});
+
 test('missing board cards can retry relinking and open the chosen board', async ({ page, request }) => {
   const target = await (
     await request.post('/api/canvas/boards', { data: { name: 'Recovered destination' }, headers: HUMAN })

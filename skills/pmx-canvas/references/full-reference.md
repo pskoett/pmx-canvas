@@ -458,7 +458,7 @@ enforce conditional requirements. Non-registry tools use `tools/list` instead.
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and workspace categories/folder properties/shared relation templates; knowledge writes never open a board. Template edits/deletion never rewrite boards or connections. `category-remove` takes `id` and refuses explicit folder assignments, including empty folders; reassign or clear them first. |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `move-selection` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and workspace categories/folder properties/shared relation templates; knowledge writes never open a board. Template edits/deletion never rewrite boards or connections. `category-remove` takes `id` and refuses explicit folder assignments, including empty folders; reassign or clear them first. |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`); `restore-node` puts one card (`nodeId`) back to its content in snapshot `id` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `add-annotation` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, draw/write/erase annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
 | `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Read the budgeted brief or summary-only connected memory graph, find nodes, read full layout, or **`validate`** collisions / containment / dangling edges |
@@ -500,6 +500,18 @@ creation: `prompt`, `response`, `trace`, and `mcp-app` are excluded; README and
 group structure are optional; fresh IDs are allocated; pins, AX state, and
 history are not copied; the source remains unchanged and the new board inactive.
 The new board records `previousBoardId` pointing to its source.
+
+For an identity-preserving move, use `canvas_board` action `move-selection`, not
+copy/delete. Read the active source board's `contentRevision` with `get`. Preview
+with `sourceBoardId`, `nodeIds`, `name`, `expectedRevision: contentRevision`,
+`requestId` and `preview: true`; inspect blockers and notices before committing
+with the same inputs without `preview`. Retry an uncertain response with the same
+request ID and inputs. Group descendants move together; unsafe bindings refuse
+the entire move. Cards retain identities, pins, relations and review history,
+without new validation or read evidence. The source stays open with a portal to
+the new board. Pre-move Undo/Redo is cleared on affected boards; older snapshots
+remain inspectable but cannot be restored across the move. Open the returned
+`destinationBoardId` only when navigation is wanted.
 
 ### Connected memory (wave 2)
 

@@ -8,9 +8,9 @@ declare const observedSourceSchema: z.ZodObject<{
     contentRevision: z.ZodOptional<z.ZodNumber>;
     observedAt: z.ZodOptional<z.ZodISODateTime>;
     availability: z.ZodOptional<z.ZodEnum<{
+        unavailable: "unavailable";
         live: "live";
         cached: "cached";
-        unavailable: "unavailable";
     }>>;
 }, z.core.$strip>;
 declare const recipeSchema: z.ZodObject<{

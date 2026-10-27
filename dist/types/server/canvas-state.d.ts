@@ -11,6 +11,7 @@
  * `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of 0.4.0 —
  * the one-shot boot migration into SQLite was retired.
  */
+import { type BoardMoveInput, type BoardMovePreview, type BoardMoveResult } from './board-move.js';
 import { type WorkspaceSettings } from '../shared/workspace-settings.js';
 import { KnowledgeLifecycle, type Lifecycle } from './knowledge-lifecycle.js';
 import { type Tour } from '../shared/tour.js';
@@ -200,6 +201,8 @@ declare class CanvasStateManager {
     /** Who pinned each pin, when and why; kept only for ids in `_contextPinnedNodeIds`. */
     private _contextPinMeta;
     private _workspaceRoot;
+    private _storageVersion;
+    private moveRuntimeBlockers;
     private _contentRevision;
     private _revisionFloor;
     private _deletionTombstones;
@@ -338,6 +341,14 @@ declare class CanvasStateManager {
     advanceContextBriefCursor(boardId: string, consumer: string, revision: number): void;
     /** Creates a board without opening it. */
     createBoard(name: string, folder?: string | null): CanvasBoard | null;
+    /** The host supplies runtime ownership, not another copy of board state. */
+    setMoveRuntimeBlockers(read: () => ReadonlyMap<string, string>): void;
+    moveSelectionToNewBoard(input: BoardMoveInput): {
+        preview: BoardMovePreview;
+    } | {
+        result: BoardMoveResult;
+        replayed: boolean;
+    };
     updateBoard(id: string, patch: Pick<Parameters<typeof updateBoardInDB>[2], 'name' | 'folder' | 'mapPosition' | 'relationVocabulary'>): boolean;
     setBoardReadme(id: string, nodeId: string | null): boolean;
     /**
@@ -401,6 +412,8 @@ declare class CanvasStateManager {
     gcSnapshots(options?: CanvasSnapshotGcOptions): CanvasSnapshotGcResult;
     /** Restore canvas state from a snapshot. */
     restoreSnapshot(idOrName: string): boolean;
+    /** Old snapshots stay readable, but neither whole-board nor one-card restore crosses a move. */
+    assertSnapshotRestorable(idOrName: string): void;
     /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
     getSnapshotData(idOrName: string): {
         name: string;
@@ -498,6 +511,7 @@ declare class CanvasStateManager {
     }): PmxAxFocusState;
     clearAxFocus(): PmxAxFocusState;
     getWorkItems(): PmxAxWorkItem[];
+    getWorkItemsOnBoard(boardId: string): PmxAxWorkItem[];
     addWorkItem(input: {
         title: string;
         status?: PmxAxWorkItemStatus;

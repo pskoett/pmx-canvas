@@ -8893,6 +8893,19 @@ html.is-node-dragging .intent-line-layer {
     cursor: pointer;
   }
 }
+.board-move-backdrop { padding: 20px 0; align-items: center; }
+.board-move-dialog {
+  width: min(540px, calc(100% - 32px));
+  max-height: calc(100% - 40px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.board-move-dialog form { display: flex; flex-direction: column; gap: 8px; }
+.board-move-dialog h2 { margin: 0 0 12px; font-size: 17px; }
+.board-move-dialog p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--c-text-soft); }
+.board-move-dialog .board-move-warning { color: var(--c-warn); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.board-move-cards { margin: 0; max-height: 100px; overflow-y: auto; font-size: 12px; }
+.board-move-dialog .text-prompt-actions { margin-top: 8px; }
 .board-copy-dialog,
 .board-link-dialog {
   width: min(540px, calc(100vw - 32px));

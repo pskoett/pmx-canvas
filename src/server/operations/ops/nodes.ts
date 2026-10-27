@@ -357,11 +357,15 @@ export function createBasicCanvasNode(
   if (type === 'status' && extraData?.workItemId !== undefined) {
     if (body.boardId !== undefined || options.prepareOnlyNodes)
       throw new OperationError('Live work cards must be created on the active board.');
+    const owner = extraData.workItemBoardId ?? canvasState.activeBoardId;
     if (
       typeof extraData.workItemId !== 'string' ||
-      !canvasState.getWorkItems().some((item) => item.id === extraData.workItemId)
+      (owner !== null && typeof owner !== 'string') ||
+      !(owner === null ? canvasState.getWorkItems() : canvasState.getWorkItemsOnBoard(owner)).some(
+        (item) => item.id === extraData.workItemId,
+      )
     )
-      throw new OperationError('Live work card requires an existing work item on this board.');
+      throw new OperationError('Live work card requires an existing work item on its owning board.');
     if (
       ['title', 'content'].some((key) => body[key] !== undefined) ||
       [
@@ -455,6 +459,9 @@ export function createBasicCanvasNode(
           : {}),
       ...(typeof content === 'string' ? { content } : {}),
       ...(htmlMergedData && Object.keys(htmlMergedData).length > 0 ? { data: htmlMergedData } : {}),
+      ...(type === 'status' && typeof extraData?.workItemId === 'string'
+        ? { data: { ...extraData, workItemBoardId: extraData.workItemBoardId ?? canvasState.activeBoardId } }
+        : {}),
       ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),
       ...(type === 'trace' && typeof body.category === 'string' ? { category: body.category } : {}),
       ...(type === 'trace' && typeof body.status === 'string' ? { status: body.status } : {}),
@@ -490,6 +497,7 @@ export function buildNodePatch(
     const data = isRecord(body.data) ? body.data : {};
     if (
       'workItemId' in data ||
+      'workItemBoardId' in data ||
       (typeof existing.data.workItemId === 'string' &&
         (body.title !== undefined ||
           body.content !== undefined ||

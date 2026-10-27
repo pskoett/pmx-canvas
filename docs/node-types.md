@@ -75,8 +75,9 @@ Status nodes without `workState` or `workItemId` keep their existing phase/tool 
 Choose **Show on board** on a session task row to present that existing task. **Show card**
 focuses its existing presentation. No task or session automatically creates a card.
 Agents use ordinary status creation with `data: { workItemId: "<existing-task-id>" }` on
-the active board. The reference is board-local and immutable; an ordinary planning card
-cannot be converted by patching it.
+the active board. The immutable reference includes `workItemBoardId`, defaulting to the
+active board. Moving the presentation to another board preserves that original task owner;
+an ordinary planning card cannot be converted by patching it.
 
 Title, detail, work state and attribution are derived from the task record, not independently
 editable card fields. Do not supply those fields or progress when creating a live card.
@@ -447,6 +448,22 @@ apps and webpage viewers do not use this authored-content fitting behavior.
 Read the settled node geometry after mounting rather than treating requested
 dimensions as final. Prefer targeted node reads or the CLI's projected layout
 fields over fetching full content merely to check spacing.
+
+### Move original cards between boards
+
+Use **Move to new board** from the selection bar or a group's **⋯** menu. Name the
+destination, preview the expanded selection and its pins/README/history effects, then
+choose **Move and open**. Groups include all descendants. The source receives a working
+portal; the destination contains the same card identities, not copies. A late reply never
+overrides a newer board choice. If the reply is interrupted, **Retry move** reuses the same
+request without creating a duplicate destination.
+
+Save or cancel local drafts first. Runtime sessions, streams, authority-bearing controls,
+partial imports and unsupported cross-board references can refuse the whole move with a
+reason. Read-only live task cards keep their original owner; moving never starts or cancels
+a task. Board-space annotations stay on the source. Pre-move Undo/Redo clears on affected
+boards; older snapshots remain inspectable, but cannot restore across that boundary.
+See the [move contract](http-api.md#move-original-cards-to-a-new-board) for agent access.
 
 ## HTML nodes
 

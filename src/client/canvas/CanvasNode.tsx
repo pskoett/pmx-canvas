@@ -4,6 +4,7 @@ import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { relationHighlight } from '../state/relation-store';
 import { LifecycleFooter } from './LifecycleChrome';
 import { BarHint } from './BarHint';
+import { openBoardMove } from './BoardMoveDialog';
 import { CrossBoardReferences } from './CrossBoardReferences';
 import { BoardPinButton } from './BoardPinButton';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
@@ -701,6 +702,17 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                       }}
                     >
                       Open group
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        openBoardMove([node.id]);
+                      }}
+                    >
+                      Move to new board
                     </button>
                     <button
                       type="button"

@@ -202,5 +202,6 @@ test('inline relation editor retains refused draft and sends marked writes', asy
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({ reason: 'Needs a reviewed schema', expectedBoardId: 'origin' });
   refused = false;
   fireEvent.click(getByRole('button', { name: 'Save', exact: true }));
-  await waitFor(() => expect(document.querySelector('.edge-editor-field')).toBeNull());
+  // Poll a boolean: formatting a live Happy DOM element on the first failure can exhaust the test timeout.
+  await waitFor(() => expect(document.querySelector('.edge-editor-field') === null).toBe(true));
 });

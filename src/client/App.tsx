@@ -40,6 +40,7 @@ import { EdgeHint, RelationLegend } from './canvas/EdgeLayer';
 import { SelectedEdgeEditor } from './canvas/EdgeEditor';
 import { GroupBreadcrumbs } from './canvas/GroupNavigation';
 import { TextPrompt } from './canvas/TextPrompt';
+import { BoardMoveDialog } from './canvas/BoardMoveDialog';
 import { TopBar } from './canvas/TopBar';
 import {
   activeNodeId,
@@ -494,6 +495,7 @@ export function App() {
             {!onHome && sessionActive.value && !isHostedWorkbench() && <CommandBar />}
             {!onHome && <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />}
             <TextPrompt />
+            <BoardMoveDialog />
             {!browsingMemory.value && <ExportDialog />}
             {!onHome && expandedNodeId.value && <ExpandedNodeOverlay />}
             <SnapshotPanel

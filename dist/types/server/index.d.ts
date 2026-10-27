@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import type { BoardMoveInput, BoardMovePreview, BoardMoveResult } from './board-move.js';
+export type { BoardMoveInput, BoardMovePreview, BoardMoveResult } from './board-move.js';
 import type { Camera, Tour, TourPresenter, TourStop } from '../shared/tour.js';
 import { type TourState, type TourStep, type TourStepResult, type TourSuperseded } from './tour-control.js';
 export type { Tour, TourPresenter, TourStop } from '../shared/tour.js';
@@ -286,6 +288,14 @@ export declare class PmxCanvas extends EventEmitter {
         includeStructure?: boolean;
         preview?: boolean;
     }): Promise<Record<string, unknown>>;
+    /** Relocate identities atomically; preview is read-only and retries reuse the original receipt. */
+    moveSelectionToNewBoard(input: BoardMoveInput): Promise<{
+        ok: true;
+        preview: BoardMovePreview;
+    } | (BoardMoveResult & {
+        ok: true;
+        replayed: boolean;
+    })>;
     searchLibrary(query: string, limit?: number): Promise<Record<string, unknown>>;
     /** Same projection as Home Graph. Discovery summaries never count as full-content reads. */
     getMemoryGraph(options?: {

@@ -8,6 +8,8 @@
 import { Database } from 'bun:sqlite';
 import type { ActorAttribution } from './attribution.js';
 import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
+import { OperationError } from './operations/types.js';
+import { boardMoveBoundary } from './card-relocation.js';
 import { MIGRATED_SNAPSHOT_FOLDER, normalizeBoardFolder } from '../shared/boards.js';
 import { wikiLinksFromData } from '../shared/memory-graph.js';
 import { relationVocabularySchema, type RelationDefinition } from '../shared/relations.js';
@@ -56,6 +58,20 @@ export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'ha
 }
 
 const SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS board_moves (
+    request_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL, created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS board_move_boundaries (
+    board_id TEXT PRIMARY KEY, request_id TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS card_relocations (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT NOT NULL, node_id TEXT NOT NULL,
+    from_board TEXT NOT NULL, to_board TEXT NOT NULL,
+    review_after INTEGER NOT NULL, review_through INTEGER NOT NULL,
+    read_after INTEGER NOT NULL, read_through INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS relocation_destination ON card_relocations(to_board, node_id, sequence);
+  CREATE INDEX IF NOT EXISTS relocation_source ON card_relocations(from_board, node_id, sequence);
   CREATE TABLE IF NOT EXISTS node_creation_requests (
     request_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, fingerprint TEXT NOT NULL, node TEXT NOT NULL
   );
@@ -357,6 +373,10 @@ function parsePersistedAxState(raw: string | null | undefined): PmxAxState {
 // ── Persisted State Interface ───────────────────────────────────
 
 export interface PersistedCanvasState {
+  /** Optimistic storage baseline, independent of content/read/review clocks. New boards start at zero. */
+  storageVersion?: number;
+  /** Snapshot restore boundary, not an authored content version. */
+  moveBoundary?: string | null;
   tour?: Tour;
   version: number;
   theme?: CanvasTheme;
@@ -513,6 +533,28 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   ensureColumn(db, 'snapshot_edges', 'revision', 'revision INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'snapshot_edges', 'attribution', "attribution TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, 'document_imports', 'committed_node_ids', 'committed_node_ids TEXT');
+  ensureColumn(db, 'boards', 'storage_version', 'storage_version INTEGER NOT NULL DEFAULT 0');
+  // Cover direct writers as well as full-state saves. A relocation updates both
+  // board baselines; a stale source or destination payload must never recreate it.
+  for (const table of ['nodes', 'edges', 'annotations', 'context_pins', 'ax_state']) {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS ${table}_storage_insert AFTER INSERT ON ${table} BEGIN
+        UPDATE boards SET storage_version = storage_version + 1 WHERE id = NEW.board_id;
+      END;
+      CREATE TRIGGER IF NOT EXISTS ${table}_storage_delete AFTER DELETE ON ${table} BEGIN
+        UPDATE boards SET storage_version = storage_version + 1 WHERE id = OLD.board_id;
+      END;
+      CREATE TRIGGER IF NOT EXISTS ${table}_storage_update AFTER UPDATE ON ${table} BEGIN
+        UPDATE boards SET storage_version = storage_version + 1 WHERE id IN (OLD.board_id, NEW.board_id);
+      END;
+    `);
+  }
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS boards_storage_view
+    AFTER UPDATE OF viewport_x, viewport_y, viewport_scale, tour ON boards BEGIN
+      UPDATE boards SET storage_version = storage_version + 1 WHERE id = NEW.id;
+    END;
+  `);
 
   // Set schema version if not present
   const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('schema_version');
@@ -762,9 +804,26 @@ export function readThemeFromDB(db: Database): CanvasTheme | undefined {
   return value ? normalizeCanvasTheme(value) : undefined;
 }
 
-/** Saves one board's state; every other board's rows are untouched. */
-export function saveStateToDB(db: Database, boardId: string, state: PersistedCanvasState): void {
+export function boardStorageVersion(db: Database, boardId: string): number {
+  const board = db
+    .query<{ storage_version: number }, [string]>('SELECT storage_version FROM boards WHERE id = ?')
+    .get(boardId);
+  if (!board) throw new OperationError(`Board "${boardId}" not found.`, 404);
+  return board.storage_version;
+}
+
+export function assertBoardStorageVersion(db: Database, boardId: string, expected: number): void {
+  if (boardStorageVersion(db, boardId) !== expected)
+    throw new OperationError(
+      `Board "${boardId}" changed in another writer. Unsaved edits have been retained; reconcile them before saving.`,
+      409,
+    );
+}
+
+/** Save one board, returning its new baseline. Publish the baseline only after the outer transaction commits. */
+export function saveStateToDB(db: Database, boardId: string, state: PersistedCanvasState): number {
   const transaction = db.transaction(() => {
+    assertBoardStorageVersion(db, boardId, state.storageVersion ?? 0);
     // Rows are upserted only when a column actually differs, and rows that are
     // gone are deleted by id. This used to be DELETE-all + INSERT-all, which
     // rewrote every row on every debounced save: dragging one node rewrote the
@@ -920,157 +979,164 @@ export function saveStateToDB(db: Database, boardId: string, state: PersistedCan
        WHERE value IS NOT excluded.value`,
       [boardId, 'revision', JSON.stringify(state.revisionState ?? { revision: 0, floor: 0, tombstones: [] })],
     );
+    return boardStorageVersion(db, boardId);
   });
 
-  transaction();
+  return transaction.immediate();
 }
 
 /** Loads one board (the open board when `boardId` is omitted); null when there is no such board. */
 export function loadStateFromDB(db: Database, boardId?: string): PersistedCanvasState | null {
-  const id = boardId ?? getActiveBoardIdFromDB(db);
-  if (!id) return null;
-  interface BoardRow {
-    viewport_x: number;
-    viewport_y: number;
-    viewport_scale: number;
-    tour: string;
-  }
-  const board = db
-    .query<BoardRow, [string]>('SELECT viewport_x, viewport_y, viewport_scale, tour FROM boards WHERE id = ?')
-    .get(id);
-  if (!board) return null;
+  return db.transaction(() => {
+    const id = boardId ?? getActiveBoardIdFromDB(db);
+    if (!id) return null;
+    interface BoardRow {
+      viewport_x: number;
+      viewport_y: number;
+      viewport_scale: number;
+      tour: string;
+      storage_version: number;
+    }
+    const board = db
+      .query<BoardRow, [string]>(
+        'SELECT viewport_x, viewport_y, viewport_scale, tour, storage_version FROM boards WHERE id = ?',
+      )
+      .get(id);
+    if (!board) return null;
 
-  const viewport: ViewportState = {
-    x: board.viewport_x,
-    y: board.viewport_y,
-    scale: board.viewport_scale || 1,
-  };
-  const theme = readThemeFromDB(db);
-
-  // Load nodes
-  interface NodeRow {
-    id: string;
-    type: string;
-    pos_x: number;
-    pos_y: number;
-    width: number;
-    height: number;
-    z_index: number;
-    collapsed: number;
-    pinned: number;
-    data: string;
-    attribution: string;
-    content_revision: number;
-    links_revision: number;
-  }
-  const nodeRows = db.query<NodeRow, [string]>('SELECT * FROM nodes WHERE board_id = ?').all(id);
-  const nodes: CanvasNodeState[] = nodeRows.map((row) => {
-    const attribution = JSON.parse(row.attribution || '{}') as Partial<
-      Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt' | 'freshnessStartedAt'>
-    >;
-    return {
-      id: row.id,
-      type: row.type as CanvasNodeState['type'],
-      position: { x: row.pos_x, y: row.pos_y },
-      size: { width: row.width, height: row.height },
-      zIndex: row.z_index,
-      collapsed: row.collapsed === 1,
-      pinned: row.pinned === 1,
-      data: JSON.parse(row.data) as Record<string, unknown>,
-      createdBy: attribution.createdBy,
-      lastEditedBy: attribution.lastEditedBy,
-      contentChangedAt: attribution.contentChangedAt,
-      freshnessStartedAt: attribution.freshnessStartedAt,
-      contentRevision: row.content_revision,
-      linksRevision: row.links_revision,
+    const viewport: ViewportState = {
+      x: board.viewport_x,
+      y: board.viewport_y,
+      scale: board.viewport_scale || 1,
     };
-  });
+    const theme = readThemeFromDB(db);
 
-  // Load edges
-  interface EdgeRow {
-    id: string;
-    from_node: string;
-    to_node: string;
-    to_board_id: string | null;
-    type: string;
-    kind: string | null;
-    reason: string | null;
-    label: string | null;
-    style: string | null;
-    animated: number;
-    revision: number;
-    attribution: string;
-  }
-  const edgeRows = db.query<EdgeRow, [string]>('SELECT * FROM edges WHERE board_id = ?').all(id);
-  const edges: CanvasEdge[] = edgeRows.map((row) => ({
-    id: row.id,
-    from: row.from_node,
-    to: row.to_node,
-    ...(row.to_board_id ? { toBoardId: row.to_board_id } : {}),
-    type: row.type as CanvasEdge['type'],
-    ...(row.kind ? { kind: row.kind } : {}),
-    ...(row.reason ? { reason: row.reason } : {}),
-    ...(row.label ? { label: row.label } : {}),
-    ...(row.style ? { style: row.style as CanvasEdge['style'] } : {}),
-    ...(row.animated ? { animated: true } : {}),
-    ...(row.revision ? { revision: row.revision } : {}),
-    ...(JSON.parse(row.attribution || '{}') as EdgeAttribution),
-  }));
+    // Load nodes
+    interface NodeRow {
+      id: string;
+      type: string;
+      pos_x: number;
+      pos_y: number;
+      width: number;
+      height: number;
+      z_index: number;
+      collapsed: number;
+      pinned: number;
+      data: string;
+      attribution: string;
+      content_revision: number;
+      links_revision: number;
+    }
+    const nodeRows = db.query<NodeRow, [string]>('SELECT * FROM nodes WHERE board_id = ?').all(id);
+    const nodes: CanvasNodeState[] = nodeRows.map((row) => {
+      const attribution = JSON.parse(row.attribution || '{}') as Partial<
+        Pick<CanvasNodeState, 'createdBy' | 'lastEditedBy' | 'contentChangedAt' | 'freshnessStartedAt'>
+      >;
+      return {
+        id: row.id,
+        type: row.type as CanvasNodeState['type'],
+        position: { x: row.pos_x, y: row.pos_y },
+        size: { width: row.width, height: row.height },
+        zIndex: row.z_index,
+        collapsed: row.collapsed === 1,
+        pinned: row.pinned === 1,
+        data: JSON.parse(row.data) as Record<string, unknown>,
+        createdBy: attribution.createdBy,
+        lastEditedBy: attribution.lastEditedBy,
+        contentChangedAt: attribution.contentChangedAt,
+        freshnessStartedAt: attribution.freshnessStartedAt,
+        contentRevision: row.content_revision,
+        linksRevision: row.links_revision,
+      };
+    });
 
-  // Load annotations
-  interface AnnotationRow {
-    id: string;
-    type: string;
-    points: string;
-    bounds: string;
-    color: string;
-    width: number;
-    text: string | null;
-    label: string | null;
-    created_at: string;
-  }
-  const annotationRows = db.query<AnnotationRow, [string]>('SELECT * FROM annotations WHERE board_id = ?').all(id);
-  const annotations: CanvasAnnotation[] = annotationRows.map((row) => ({
-    id: row.id,
-    type: row.type as CanvasAnnotation['type'],
-    points: JSON.parse(row.points),
-    bounds: JSON.parse(row.bounds),
-    color: row.color,
-    width: row.width,
-    ...(row.text ? { text: row.text } : {}),
-    ...(row.label ? { label: row.label } : {}),
-    createdAt: row.created_at,
-  }));
+    // Load edges
+    interface EdgeRow {
+      id: string;
+      from_node: string;
+      to_node: string;
+      to_board_id: string | null;
+      type: string;
+      kind: string | null;
+      reason: string | null;
+      label: string | null;
+      style: string | null;
+      animated: number;
+      revision: number;
+      attribution: string;
+    }
+    const edgeRows = db.query<EdgeRow, [string]>('SELECT * FROM edges WHERE board_id = ?').all(id);
+    const edges: CanvasEdge[] = edgeRows.map((row) => ({
+      id: row.id,
+      from: row.from_node,
+      to: row.to_node,
+      ...(row.to_board_id ? { toBoardId: row.to_board_id } : {}),
+      type: row.type as CanvasEdge['type'],
+      ...(row.kind ? { kind: row.kind } : {}),
+      ...(row.reason ? { reason: row.reason } : {}),
+      ...(row.label ? { label: row.label } : {}),
+      ...(row.style ? { style: row.style as CanvasEdge['style'] } : {}),
+      ...(row.animated ? { animated: true } : {}),
+      ...(row.revision ? { revision: row.revision } : {}),
+      ...(JSON.parse(row.attribution || '{}') as EdgeAttribution),
+    }));
 
-  // Load context pins
-  interface PinRow {
-    node_id: string;
-    meta: string | null;
-  }
-  const pinRows = db.query<PinRow, [string]>('SELECT node_id, meta FROM context_pins WHERE board_id = ?').all(id);
-  const contextPins = pinRows.map((row) => row.node_id);
-  const contextPinMeta = pinMetaFromRows(pinRows);
+    // Load annotations
+    interface AnnotationRow {
+      id: string;
+      type: string;
+      points: string;
+      bounds: string;
+      color: string;
+      width: number;
+      text: string | null;
+      label: string | null;
+      created_at: string;
+    }
+    const annotationRows = db.query<AnnotationRow, [string]>('SELECT * FROM annotations WHERE board_id = ?').all(id);
+    const annotations: CanvasAnnotation[] = annotationRows.map((row) => ({
+      id: row.id,
+      type: row.type as CanvasAnnotation['type'],
+      points: JSON.parse(row.points),
+      bounds: JSON.parse(row.bounds),
+      color: row.color,
+      width: row.width,
+      ...(row.text ? { text: row.text } : {}),
+      ...(row.label ? { label: row.label } : {}),
+      createdAt: row.created_at,
+    }));
 
-  const axRow = db
-    .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
-    .get(id, 'state');
+    // Load context pins
+    interface PinRow {
+      node_id: string;
+      meta: string | null;
+    }
+    const pinRows = db.query<PinRow, [string]>('SELECT node_id, meta FROM context_pins WHERE board_id = ?').all(id);
+    const contextPins = pinRows.map((row) => row.node_id);
+    const contextPinMeta = pinMetaFromRows(pinRows);
 
-  const revisionRaw = db
-    .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
-    .get(id, 'revision')?.value;
-  return {
-    version: 1,
-    theme,
-    tour: readTour(board.tour),
-    viewport,
-    nodes,
-    edges,
-    annotations,
-    contextPins,
-    contextPinMeta,
-    ax: parsePersistedAxState(axRow?.value),
-    revisionState: revisionRaw ? (JSON.parse(revisionRaw) as PersistedRevisionState) : undefined,
-  };
+    const axRow = db
+      .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
+      .get(id, 'state');
+
+    const revisionRaw = db
+      .query<{ value: string }, [string, string]>('SELECT value FROM ax_state WHERE board_id = ? AND key = ?')
+      .get(id, 'revision')?.value;
+    return {
+      storageVersion: board.storage_version,
+      version: 1,
+      theme,
+      tour: readTour(board.tour),
+      viewport,
+      nodes,
+      edges,
+      annotations,
+      contextPins,
+      contextPinMeta,
+      ax: parsePersistedAxState(axRow?.value),
+      revisionState: revisionRaw ? (JSON.parse(revisionRaw) as PersistedRevisionState) : undefined,
+    };
+  })();
 }
 
 // ── Boards ──────────────────────────────────────────────────────
@@ -1387,6 +1453,7 @@ export function saveSnapshotToDB(
   state: PersistedCanvasState,
 ): void {
   const transaction = db.transaction(() => {
+    assertBoardStorageVersion(db, boardId, state.storageVersion ?? 0);
     // Insert snapshot metadata
     db.run('INSERT INTO snapshots (id, board_id, name, created_at, node_count, edge_count) VALUES (?, ?, ?, ?, ?, ?)', [
       snapshot.id,
@@ -1401,6 +1468,11 @@ export function saveSnapshotToDB(
       snapshot.id,
       'tour',
       JSON.stringify(state.tour ?? null),
+    ]);
+    db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [
+      snapshot.id,
+      'move_boundary',
+      boardMoveBoundary(db, boardId) ?? '',
     ]);
     // Insert snapshot viewport meta
     db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [
@@ -1508,7 +1580,7 @@ export function saveSnapshotToDB(
     ]);
   });
 
-  transaction();
+  transaction.immediate();
 }
 
 /** By id or name (most recent match) on `boardId`. */
@@ -1679,6 +1751,7 @@ export function loadSnapshotFromDB(
   return {
     snapshot,
     state: {
+      moveBoundary: metaMap.get('move_boundary') || null,
       version: 1,
       tour: readTour(metaMap.get('tour')),
       viewport,

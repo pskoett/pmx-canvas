@@ -5,8 +5,9 @@ import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
+import { humanPresence } from '../../src/server/human-presence.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
-import type { KnowledgeResults, LifecycleResults } from '../../src/server/knowledge-lifecycle.ts';
+import type { KnowledgeResults, LifecycleResults, ReviewRecord } from '../../src/server/knowledge-lifecycle.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { runCanvasBatchOperation } from '../../src/server/operations/index.ts';
 import { executeOperation, isEmitSuppressed } from '../../src/server/operations/registry.ts';
@@ -347,6 +348,418 @@ test('legacy wiki bindings initialize once on active load and inactive read with
 
 beforeEach(() => {
   root = createTestWorkspace('pmx-canvas-boards-');
+});
+
+test('Move to new board preserves identities, retargets third-board references and replays after restart', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Source', 'Planning')!;
+  const third = canvasState.createBoard('Incoming')!;
+  canvasState.switchBoard(source.id);
+  canvasState.addNode(note('card', 'Original'));
+  canvasState.addNode(note('stay', 'Stays'));
+  canvasState.setContextPins(['card']);
+  canvasState.setBoardReadme(source.id, 'card');
+  canvasState.addEdge({ id: 'out', from: 'card', to: 'stay', type: 'references', reason: 'Source reason' });
+  const validation = canvasState.knowledge.record(source.id, 'card', {
+    outcome: 'retain',
+    evidence: 'Checked original',
+    applied: true,
+    expectedContentRevision: canvasState.getNode('card')!.contentRevision,
+  });
+  const read = canvasState.recordContextRead({
+    channel: 'operation',
+    resource: 'node.get',
+    source: 'api',
+    consumer: 'reader',
+    agentId: null,
+    pinnedNodeIds: ['card'],
+    deliveredNodeIds: ['card'],
+    readNodeIds: ['card'],
+    bytes: 20,
+  })!;
+  canvasState.switchBoard(third.id);
+  canvasState.addNode(note('card', 'Unrelated same ID'));
+  canvasState.addEdge({ id: 'in', from: 'card', to: 'card', toBoardId: source.id, type: 'references' });
+  canvasState.addNode({ ...note('wiki', 'Wiki'), data: { content: '[[Original]]' } });
+  canvasState.switchBoard(source.id);
+  const before = canvasState.getNode('card')!;
+  const snapshot = canvasState.saveSnapshot('Before move')!;
+  const input = {
+    sourceBoardId: source.id,
+    nodeIds: ['card'],
+    name: 'Moved',
+    requestId: 'move-original',
+    expectedRevision: canvasState.getContentRevision().revision,
+  };
+  const preview = canvasState.moveSelectionToNewBoard({ ...input, preview: true });
+  expect('preview' in preview && preview.preview.blockers).toEqual([]);
+  expect(canvasState.listBoards()).toHaveLength(2);
+  expect(canvasState.getNode('card')).toEqual(before);
+  const moved = canvasState.moveSelectionToNewBoard(input);
+  if (!('result' in moved)) throw new Error('Expected committed move');
+  const destination = moved.result.destinationBoardId;
+  expect(canvasState.activeBoardId).toBe(source.id);
+  expect(canvasState.getNode('card')).toBeUndefined();
+  expect(canvasState.getNode(moved.result.portalId)?.data.boardId).toBe(destination);
+  expect(canvasState.getNode('stay')!.data.title).toBe('Stays');
+  const target = canvasState.readBoard(destination)!;
+  expect(target.board.folder).toBe('Planning');
+  expect(target.board.readmeNodeId).toBe('card');
+  expect(canvasState.readBoard(source.id)!.board.readmeNodeId).toBeNull();
+  expect(target.state.nodes[0]).toEqual(before);
+  expect(target.state.edges[0]).toMatchObject({ id: 'out', to: 'stay', toBoardId: source.id, reason: 'Source reason' });
+  expect(canvasState.readBoard(third.id)!.state.edges[0].toBoardId).toBe(destination);
+  expect(canvasState.readBoard(third.id)!.state.nodes.find((node) => node.id === 'card')!.data.title).toBe(
+    'Unrelated same ID',
+  );
+  expect(canvasState.knowledge.reviews(destination, 'card').lastValidation).toEqual(validation);
+  expect(canvasState.getNodeReadStatus(destination)).toContainEqual({
+    nodeId: 'card',
+    lastReadAt: read.at,
+    lastReadBy: 'reader',
+    readRevision: before.contentRevision!,
+    readCount: 1,
+  });
+  expect(canvasState.getSnapshotData(snapshot.id)!.nodes.some((node) => node.id === 'card')).toBe(true);
+  expect(() => canvasState.restoreSnapshot(snapshot.id)).toThrow(/predates a move/);
+  canvasState.flushToDisk();
+  canvasState.close();
+  canvasState.setWorkspaceRoot(root);
+  canvasState.loadFromDisk();
+  expect(canvasState.moveSelectionToNewBoard(input)).toEqual({ result: moved.result, replayed: true });
+  expect(canvasState.listBoards()).toHaveLength(3);
+  expect(() => canvasState.moveSelectionToNewBoard({ ...input, name: 'Other' })).toThrow(/different move/);
+  expect(() => canvasState.restoreSnapshot(snapshot.id)).toThrow(/predates a move/);
+  // A later card with the source ID must not borrow or extend the moved card's evidence.
+  canvasState.addNode(note('card', 'Replacement'));
+  canvasState.knowledge.record(source.id, 'card', { outcome: 'retire', applied: true, evidence: 'Replacement only' });
+  expect(canvasState.knowledge.reviews(destination, 'card').records).toEqual([validation]);
+  expect(canvasState.knowledge.reviews(source.id, 'card').lastValidation).toBeNull();
+});
+
+test('Move to new board rolls back a failed commit and includes pending edits on retry', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  canvasState.switchBoard(canvasState.createBoard('Source')!.id);
+  canvasState.addNode(note('card', 'Pending original'));
+  const sourceBoardId = canvasState.activeBoardId!;
+  const input = {
+    sourceBoardId,
+    nodeIds: ['card'],
+    name: 'Moved',
+    requestId: 'retry',
+    expectedRevision: canvasState.getContentRevision().revision,
+  };
+  const db = new Database(canvasState.databasePath!);
+  try {
+    db.exec(
+      "CREATE TRIGGER interrupt_move BEFORE INSERT ON board_moves BEGIN SELECT RAISE(ABORT, 'interrupted move'); END",
+    );
+    expect(() => canvasState.moveSelectionToNewBoard(input)).toThrow('interrupted move');
+    expect(canvasState.listBoards()).toHaveLength(1);
+    expect(canvasState.getNode('card')!.data.title).toBe('Pending original');
+    db.exec('DROP TRIGGER interrupt_move');
+    const moved = canvasState.moveSelectionToNewBoard(input);
+    if (!('result' in moved)) throw new Error('Expected committed move');
+    expect(canvasState.readBoard(moved.result.destinationBoardId)!.state.nodes[0].data.title).toBe('Pending original');
+    expect(canvasState.moveSelectionToNewBoard(input)).toEqual({ result: moved.result, replayed: true });
+    expect(canvasState.listBoards()).toHaveLength(2);
+  } finally {
+    db.close();
+  }
+});
+
+test('Move preview is read-only and commit rechecks revisions, edit locks and affected-board fences', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Source')!;
+  const incoming = canvasState.createBoard('Incoming')!;
+  canvasState.switchBoard(source.id);
+  canvasState.addNode(note('card', 'Original'));
+  canvasState.switchBoard(incoming.id);
+  canvasState.addNode(note('ref', 'Reference'));
+  canvasState.addEdge({ id: 'incoming', from: 'ref', to: 'card', toBoardId: source.id, type: 'references' });
+  canvasState.setPolicy({ scope: { nodeIds: ['ref'] } });
+  canvasState.switchBoard(source.id);
+  const input = {
+    sourceBoardId: source.id,
+    nodeIds: ['card'],
+    name: 'Moved',
+    requestId: 'guarded',
+    expectedRevision: canvasState.getContentRevision().revision,
+  };
+  canvasState.flushToDisk();
+  const before = canvasState.readBoard(source.id)!.state;
+  const preview = canvasState.moveSelectionToNewBoard({ ...input, preview: true });
+  expect('preview' in preview && preview.preview.blockers.join(' ')).toContain('scope fence');
+  expect(canvasState.readBoard(source.id)!.state).toEqual(before);
+  expect(canvasState.listBoards()).toHaveLength(2);
+  expect(() => canvasState.moveSelectionToNewBoard(input)).toThrow('Move refused');
+  canvasState.switchBoard(incoming.id);
+  canvasState.setPolicy({ scope: null });
+  canvasState.switchBoard(source.id);
+  humanPresence.set({ clientId: 'move-editor', name: 'Editor', grabbingNodeId: 'card' });
+  try {
+    const held = canvasState.moveSelectionToNewBoard({ ...input, preview: true });
+    expect('preview' in held && held.preview.blockers.join(' ')).toContain('being edited by Editor');
+    expect(() => canvasState.moveSelectionToNewBoard(input)).toThrow('Move refused');
+  } finally {
+    humanPresence.set({ clientId: 'move-editor', left: true });
+  }
+  const ready = canvasState.moveSelectionToNewBoard({ ...input, preview: true });
+  expect('preview' in ready && ready.preview.blockers).toEqual([]);
+  canvasState.updateNode('card', { data: { title: 'Newer human edit' } });
+  expect(() => canvasState.moveSelectionToNewBoard(input)).toThrow('source board changed');
+  expect(canvasState.listBoards()).toHaveLength(2);
+  expect(canvasState.getNode('card')!.data.title).toBe('Newer human edit');
+});
+
+test('Move refuses partial and pending imports, then preserves a completed attachment bundle and bytes', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Import source')!;
+  canvasState.switchBoard(source.id);
+  const bytes = new TextEncoder().encode('Original imported document');
+  const attachment = canvasState.storeAttachment({
+    boardId: source.id,
+    name: 'source.txt',
+    mime: 'text/plain',
+    bytes,
+  })!;
+  const job = canvasState.createDocumentImport(attachment.id, { x: 20, y: 50 })!;
+  canvasState.addNode({ ...note('attachment', 'Original'), type: 'file', data: { attachmentId: attachment.id } });
+  canvasState.addNode({
+    ...note('section', 'Section'),
+    data: { content: 'Extracted content', source: { attachmentId: attachment.id } },
+  });
+  canvasState.updateDocumentImport(job.id, 'drafted', {
+    sections: [{ title: 'Section', markdown: 'Extracted content' }],
+  });
+  const input = {
+    sourceBoardId: source.id,
+    nodeIds: ['attachment', 'section'],
+    name: 'Moved import',
+    requestId: 'import-move',
+    expectedRevision: canvasState.getContentRevision().revision,
+  };
+  expect(() => canvasState.moveSelectionToNewBoard(input)).toThrow('Move refused');
+  canvasState.commitDocumentImport(job.id, ['section']);
+  const partial = canvasState.moveSelectionToNewBoard({ ...input, nodeIds: ['section'], preview: true });
+  expect('preview' in partial && partial.preview.blockers.join(' ')).toContain('include');
+  expect(() => canvasState.moveSelectionToNewBoard({ ...input, nodeIds: ['section'] })).toThrow('Move refused');
+  expect(canvasState.getDocumentImport(job.id)!.boardId).toBe(source.id);
+  const moved = canvasState.moveSelectionToNewBoard(input);
+  if (!('result' in moved)) throw new Error('Expected move');
+  expect(canvasState.getAttachment(attachment.id)!.boardId).toBe(moved.result.destinationBoardId);
+  expect(canvasState.getDocumentImport(job.id)).toMatchObject({
+    boardId: moved.result.destinationBoardId,
+    status: 'committed',
+    committedNodeIds: ['section'],
+  });
+  expect(canvasState.readAttachmentBytes(attachment.id)).toEqual(bytes);
+  expect(canvasState.listDocumentImports(source.id)).toEqual([]);
+});
+
+test.each([
+  '/api/canvas/json-render/view?v=7&nodeId=graph-target',
+  '/api/canvas/surface/%67raph-target',
+  '/api/canvas/file-bytes?v=7&nodeId=graph-target',
+])('Move keeps both ends of local viewer URL %s together', (url) => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Viewer source')!;
+  canvasState.switchBoard(source.id);
+  canvasState.addNode({
+    ...note('graph-target', 'Graph'),
+    type: 'graph',
+    data: { spec: { root: 'text', elements: { text: { type: 'Text', props: { text: 'Report' } } } } },
+  });
+  canvasState.addNode({ ...note('viewer', 'Viewer'), type: 'mcp-app', data: { url } });
+  canvasState.addNode({
+    ...note('unrelated', 'Unrelated'),
+    data: { content: 'A malformed example: /api/canvas/surface/bad%ZZ' },
+  });
+  const input = {
+    sourceBoardId: source.id,
+    name: 'Moved viewers',
+    requestId: 'viewer-move',
+    expectedRevision: canvasState.getContentRevision().revision,
+  };
+  for (const nodeIds of [['viewer'], ['graph-target']]) {
+    const preview = canvasState.moveSelectionToNewBoard({ ...input, nodeIds, preview: true });
+    expect('preview' in preview && preview.preview.blockers.join(' ')).toContain('include both ends');
+    expect(() => canvasState.moveSelectionToNewBoard({ ...input, nodeIds })).toThrow('Move refused');
+    expect(canvasState.listBoards()).toHaveLength(1);
+  }
+  const moved = canvasState.moveSelectionToNewBoard({ ...input, nodeIds: ['viewer', 'graph-target'] });
+  if (!('result' in moved)) throw new Error('Expected move');
+  const target = canvasState.readBoard(moved.result.destinationBoardId)!;
+  expect(target.layout.nodes.map((node) => node.id).sort()).toEqual(['graph-target', 'viewer']);
+  expect(target.layout.nodes.find((node) => node.id === 'viewer')!.data.url).toBe(url);
+});
+
+test('Move preserves review qualifications through repeated moves of sources and edge owners', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Evidence')!;
+  canvasState.switchBoard(source.id);
+  for (const id of ['origin', 'derived', 'provenance']) canvasState.addNode(note(id, id));
+  canvasState.addEdge({ id: 'derivation', from: 'derived', to: 'origin', type: 'relation', kind: 'depends-on' });
+  canvasState.updateNode('provenance', {
+    data: {
+      ...canvasState.getNode('provenance')!.data,
+      provenance: {
+        sourceKind: 'recipe',
+        sourceUri: 'recipe:evidence-summary',
+        refreshStrategy: 'agent-request',
+        sources: [
+          {
+            boardId: source.id,
+            cardId: 'origin',
+            contentRevision: canvasState.getNode('origin')!.contentRevision,
+            observedAt: '2026-10-01T00:00:00.000Z',
+          },
+        ],
+      },
+    },
+  });
+  const read = (board: string, id: string) =>
+    executeOperation('node.lifecycle-get', { board, id }) as Promise<LifecycleResults['get']>;
+  const reviews = new Map<string, ReviewRecord | null>();
+  for (const id of ['derived', 'provenance']) {
+    const checked = await read(source.id, id);
+    await executeOperation('node.review', {
+      id,
+      outcome: 'retain',
+      evidence: 'Compared original sources.',
+      applied: true,
+      expectedContentRevision: checked.contentRevision,
+      expectedSources: checked.qualification.observations,
+    });
+    reviews.set(id, canvasState.knowledge.reviews(source.id, id).lastValidation);
+    expect((await read(source.id, id)).qualification.due).toBe(false);
+  }
+  const move = (nodeIds: string[], requestId: string) => {
+    const result = canvasState.moveSelectionToNewBoard({
+      sourceBoardId: canvasState.activeBoardId!,
+      nodeIds,
+      requestId,
+      name: requestId,
+      expectedRevision: canvasState.getContentRevision().revision,
+    });
+    if (!('result' in result)) throw new Error('Expected move');
+    return result.result.destinationBoardId;
+  };
+  const evidence = move(['origin'], 'first-source-move');
+  for (const id of ['derived', 'provenance']) expect((await read(source.id, id)).qualification.due).toBe(false);
+  canvasState.switchBoard(evidence);
+  const nextEvidence = move(['origin'], 'second-source-move');
+  for (const id of ['derived', 'provenance']) expect((await read(source.id, id)).qualification.due).toBe(false);
+  canvasState.switchBoard(source.id);
+  const conclusions = move(['derived', 'provenance'], 'move-conclusions');
+  for (const id of ['derived', 'provenance']) {
+    expect((await read(conclusions, id)).qualification.due).toBe(false);
+    expect(canvasState.knowledge.reviews(conclusions, id).lastValidation).toEqual(reviews.get(id)!);
+  }
+  canvasState.switchBoard(nextEvidence);
+  canvasState.updateNode('origin', { data: { content: 'Changed evidence' } });
+  for (const id of ['derived', 'provenance']) {
+    const qualification = (await read(conclusions, id)).qualification;
+    expect({ id, due: qualification.due }).toEqual({ id, due: true });
+  }
+});
+
+test('Reusing an intermediate move location never inherits or transports the departed identity history', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const first = canvasState.createBoard('A')!;
+  canvasState.switchBoard(first.id);
+  canvasState.addNode(note('x', 'Original'));
+  const review = canvasState.knowledge.record(first.id, 'x', {
+    outcome: 'retain',
+    evidence: 'Original evidence',
+    applied: true,
+    expectedContentRevision: canvasState.getNode('x')!.contentRevision,
+  });
+  canvasState.recordContextRead({
+    channel: 'operation',
+    resource: 'node.get',
+    source: 'api',
+    consumer: 'reader',
+    agentId: null,
+    pinnedNodeIds: [],
+    deliveredNodeIds: ['x'],
+    readNodeIds: ['x'],
+    bytes: 10,
+  });
+  const move = (name: string) => {
+    const moved = canvasState.moveSelectionToNewBoard({
+      sourceBoardId: canvasState.activeBoardId!,
+      nodeIds: ['x'],
+      name,
+      requestId: name,
+      expectedRevision: canvasState.getContentRevision().revision,
+    });
+    if (!('result' in moved)) throw new Error('Expected move');
+    return moved.result.destinationBoardId;
+  };
+  const intermediate = move('B');
+  canvasState.switchBoard(intermediate);
+  const original = move('C');
+  canvasState.addNode(note('x', 'Replacement'));
+  expect(canvasState.knowledge.reviews(intermediate, 'x').records).toEqual([]);
+  expect(canvasState.getNodeReadStatus(intermediate).filter((entry) => entry.nodeId === 'x')).toEqual([]);
+  const replacementReview = canvasState.knowledge.record(intermediate, 'x', {
+    outcome: 'retire',
+    evidence: 'Replacement only',
+    applied: true,
+  });
+  const replacement = move('D');
+  expect(canvasState.knowledge.reviews(replacement, 'x').records).toEqual([replacementReview]);
+  expect(canvasState.getNodeReadStatus(replacement)).toEqual([]);
+  expect(canvasState.knowledge.reviews(original, 'x').records).toEqual([review]);
+  expect(canvasState.getNodeReadStatus(original).map((entry) => entry.nodeId)).toEqual(['x']);
+});
+
+test('Move expands nested groups, preserves live task ownership and leaves unrelated runtime state alone', () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Source')!;
+  canvasState.switchBoard(source.id);
+  const task = canvasState.addWorkItem({ title: 'Original task' });
+  canvasState.addNode({ ...note('live', 'Presentation'), type: 'status', data: { workItemId: task.id } });
+  canvasState.addNode(note('other', 'Other card'));
+  const nested: CanvasNodeState = { ...note('nested', 'Nested'), type: 'group' };
+  const group: CanvasNodeState = { ...note('outer', 'Outer'), type: 'group' };
+  canvasState.addNode(nested);
+  canvasState.addNode(group);
+  canvasState.groupNodes(nested.id, ['live']);
+  canvasState.groupNodes(group.id, [nested.id]);
+  const before = canvasState.getLayout();
+  const generation = canvasState.boardGeneration;
+  const result = canvasState.moveSelectionToNewBoard({
+    sourceBoardId: source.id,
+    nodeIds: [group!.id, 'live'],
+    requestId: 'group-move',
+    name: 'Group',
+    expectedRevision: canvasState.getContentRevision().revision,
+  });
+  if (!('result' in result)) throw new Error('Expected move');
+  expect(result.result.nodeIds.sort()).toEqual([group!.id, nested!.id, 'live'].sort());
+  expect(canvasState.boardGeneration).toBe(generation);
+  expect(canvasState.getLayout().viewport).toEqual(before.viewport);
+  expect(canvasState.getWorkItems()).toEqual([task]);
+  const destination = result.result.destinationBoardId;
+  const live = () => canvasState.readBoard(destination)!.layout.nodes.find((n) => n.id === 'live')!;
+  expect(live().data).toMatchObject({ workItemId: task.id, workItemBoardId: source.id, workState: 'todo' });
+  canvasState.updateWorkItem(task.id, { status: 'blocked', title: 'Original task updated' });
+  expect(live().data).toMatchObject({ workState: 'blocked', title: 'Original task updated' });
+  canvasState.switchBoard(destination);
+  expect(canvasState.getWorkItems()).toEqual([]);
+  expect(canvasState.getNode('live')!.data).toMatchObject({ workItemBoardId: source.id, workState: 'blocked' });
+  expect(canvasState.getNode('live')!.data.parentGroup).toBe(nested!.id);
+  expect(canvasState.getNode(nested!.id)!.data.parentGroup).toBe(group!.id);
 });
 
 test('knowledge inheritance resets at explicit child categories, clears overrides and survives reload without opening Home', async () => {
