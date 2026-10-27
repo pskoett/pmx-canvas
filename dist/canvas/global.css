@@ -858,6 +858,7 @@ body,
 .work-card-done .work-card-state, .work-card-state.work-card-done { color: var(--c-ok); }
 .work-card-cancelled .work-card-state, .work-card-state.work-card-cancelled { color: var(--c-muted); }
 .work-card-detail { white-space: pre-wrap; overflow-wrap: anywhere; }
+.work-card-live { color: var(--c-muted); font-size: var(--fs-meta); overflow-wrap: anywhere; }
 .work-card-progress { color: var(--c-muted); font-size: var(--fs-meta); }
 .work-card footer, .work-card-editor footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .work-card button, .work-card-editor button, .work-card-editor input, .work-card-editor select, .work-card-editor textarea {
@@ -1876,6 +1877,19 @@ body,
   flex: 1;
   min-width: 0;
 }
+.session-show-work {
+  margin-top: 8px;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-input-bg);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.session-show-work:hover { border-color: var(--c-text-soft); }
+.session-show-work:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.session-show-work:disabled { cursor: wait; opacity: 0.65; }
 .session-item-title {
   display: block;
   width: 100%;

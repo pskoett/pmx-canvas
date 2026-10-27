@@ -282,8 +282,14 @@ async function collect(
         card.html = `<div class="md">${await markdown.parse(text(data.content))}</div>`;
         break;
       case 'status':
+        if (typeof data.workItemId === 'string' && data.liveWorkAvailable === false) {
+          placeholder('Task unavailable. The linked task is no longer on this board.');
+          break;
+        }
         card.html = isWorkCardState(data.workState)
           ? rows([
+              ['Task view', typeof data.workItemId === 'string' ? 'Read-only snapshot of linked task' : undefined],
+              ['Task source', typeof data.workItemId === 'string' ? data.liveWorkSource : undefined],
               ['Work state', WORK_CARD_STATES[data.workState].label],
               ['Detail', data.detail],
               ['Progress', typeof data.progress === 'number' ? `${data.progress}%` : undefined],

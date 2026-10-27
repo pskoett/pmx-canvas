@@ -111,4 +111,10 @@ export function advanceAxFlowLoops(): void {
 canvasState.setWorkItemsChangedListener(() => {
   refreshWorkboardNodes();
   advanceAxFlowLoops();
+  // Task title/detail changes also repaint explicitly presented live cards.
+  if (
+    canvasState.getLayout().nodes.some((node) => node.type === 'status' && typeof node.data.workItemId === 'string')
+  ) {
+    emitCanvasLayoutUpdate();
+  }
 });

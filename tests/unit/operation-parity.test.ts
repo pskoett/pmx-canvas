@@ -168,7 +168,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
-    expect(response.ok).toBe(true);
+    expect(response.ok, response.ok ? undefined : await response.clone().text()).toBe(true);
     return (await response.json()) as T;
   }
 
@@ -648,6 +648,99 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(() => sdk.updateNode(direct.id, { data: { workState: 'invalid' } })).toThrow('workState');
     // The existing generic status indicator does not acquire authored-work semantics.
     expect((await httpAddNode({ type: 'status', data: { phase: 'running' } })).ok).toBe(true);
+  });
+
+  test('live work cards share a read-only task projection across transports and history', async () => {
+    const { workItem: task } = await jsonRequest<{ workItem: { id: string; title: string } }>('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Verify live work', detail: 'First evidence', agentId: 'reviewer' }),
+    });
+    expect(canvasState.getWorkItems().map((item) => item.id)).toContain(task.id);
+    const data = { workItemId: task.id };
+    const http = await httpAddNode({ type: 'status', data });
+    const mcp = parseJsonText<{ id: string }>(await callMcp('canvas_node', { action: 'add', type: 'status', data }));
+    const cli = await runCliJson<{ results: Array<{ id: string }> }>([
+      'batch',
+      '--json',
+      JSON.stringify([{ op: 'node.add', args: { type: 'status', data } }]),
+    ]);
+    const direct = sdk.addNode({ type: 'status', data });
+    const ids = [http.id, mcp.id, cli.results[0]!.id, direct.id];
+    const read = (id: string) => jsonRequest<SerializedNodeShape>(`/api/canvas/node/${id}`);
+    for (const id of ids) {
+      expect((await read(id)).data).toMatchObject({
+        ...data,
+        title: task.title,
+        workState: 'todo',
+        liveWorkSource: 'reviewer',
+      });
+      expect((await read(id)).data.progress).toBeUndefined();
+    }
+    const before = canvasState.getContentRevision().revision;
+    await jsonRequest(`/api/canvas/ax/work/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'New evidence', detail: 'Second evidence', status: 'blocked' }),
+    });
+    for (const id of ids)
+      expect((await read(id)).data).toMatchObject({
+        title: 'New evidence',
+        detail: 'Second evidence',
+        workState: 'blocked',
+      });
+    expect(
+      canvasState
+        .readContentDelta(before)
+        .nodes.map((node) => node.id)
+        .sort(),
+    ).toEqual([...ids].sort());
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    for (const id of ids) expect((await read(id)).data).toMatchObject({ title: task.title, workState: 'todo' });
+    for (const patch of [
+      { title: 'Fake' },
+      { data: { workState: 'done' } },
+      { data: { workItemId: null } },
+      { data: { progress: 50 } },
+      { data: { axWorkStatus: 'done' } },
+    ]) {
+      expect(
+        (
+          await fetch(`${baseUrl}/api/canvas/node/${http.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(() => sdk.addNode({ type: 'status', data: { workItemId: 'missing' } })).toThrow('work item');
+    expect(() => sdk.updateNode(direct.id, { data: { detail: 'Fake' } })).toThrow('read-only');
+    await jsonRequest(`/api/canvas/node/${http.id}`, { method: 'DELETE' });
+    expect(canvasState.getWorkItems()).toHaveLength(1);
+    expect(canvasState.getWorkItems()[0]!.status).toBe('todo');
+    await jsonRequest('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Unrelated task', status: 'done', nodeIds: [direct.id] }),
+    });
+    expect((await read(direct.id)).data.workState).toBe('todo');
+    expect((await read(direct.id)).data.axWorkStatus).toBeUndefined();
+    const originalBoardId = canvasState.activeBoardId;
+    const otherBoard = await sdk.createBoard('Unrelated task board');
+    await sdk.openBoard(otherBoard.id);
+    expect(canvasState.getWorkItems()).toHaveLength(0);
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+    await sdk.openBoard(originalBoardId);
+    expect((await read(direct.id)).data).toMatchObject({
+      title: task.title,
+      workState: 'todo',
+      liveWorkAvailable: true,
+      liveWorkSource: 'reviewer',
+    });
+    canvasState.applyPersistedAxState({ ...canvasState.getAxState(), workItems: [] });
+    expect((await read(direct.id)).data).toMatchObject({ title: 'Task unavailable', liveWorkAvailable: false });
+    expect((await read(direct.id)).data.workState).toBeUndefined();
   });
 
   test('node get: all four surfaces return equivalent node state', async () => {

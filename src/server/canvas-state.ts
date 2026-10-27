@@ -529,6 +529,7 @@ class CanvasStateManager {
   }
 
   private notifyChange(type: CanvasChangeType): void {
+    if (type === 'ax') this.refreshLiveWorkCards();
     // Iterate a snapshot: a listener (e.g. a blocking-wait via onChange) may dispose
     // itself synchronously here, and splicing the live array mid-iteration would skip
     // the next listener for this notification.
@@ -641,8 +642,21 @@ class CanvasStateManager {
     return { group, childIds, children };
   }
 
-  private normalizeNode(node: CanvasNodeState): CanvasNodeState {
+  private normalizeNode(node: CanvasNodeState, workItems?: PmxAxWorkItem[]): CanvasNodeState {
     const data = { ...node.data };
+    // These persisted fields are a derived display cache, never a second task record.
+    if (node.type === 'status' && typeof data.workItemId === 'string') {
+      const task = (workItems ?? this.getWorkItems()).find((item) => item.id === data.workItemId);
+      data.title = task?.title ?? 'Task unavailable';
+      data.detail = task?.detail ?? '';
+      data.liveWorkAvailable = !!task;
+      data.liveWorkSource = task?.agentId ?? task?.source ?? '';
+      delete data.progress;
+      delete data.content;
+      delete data.axWorkStatus;
+      if (task) data.workState = task.status;
+      else delete data.workState;
+    }
     // Lifecycle is optional metadata, never a card taxonomy or validation clock.
     delete data.categoryId;
     if (data.contentOrigin !== undefined && data.contentOrigin !== 'authored' && data.contentOrigin !== 'imported') {
@@ -664,6 +678,17 @@ class CanvasStateManager {
       contentRevision: Number.isSafeInteger(node.contentRevision) ? node.contentRevision : 0,
       linksRevision: Number.isSafeInteger(node.linksRevision) ? node.linksRevision : 0,
     };
+  }
+
+  private refreshLiveWorkCards(): void {
+    this.withSuppressedRecording(() => {
+      const tasks = this.getWorkItems();
+      for (const node of this.nodes.values()) {
+        if (node.type !== 'status' || typeof node.data.workItemId !== 'string') continue;
+        const next = this.normalizeNode(node, tasks);
+        if (JSON.stringify(next.data) !== JSON.stringify(node.data)) this.updateNode(node.id, { data: next.data });
+      }
+    });
   }
 
   private nextContentRevision(): number {
@@ -1664,6 +1689,8 @@ class CanvasStateManager {
       delete data.axStep;
       delete data.axWorkStatus;
       delete data.workItemId;
+      delete data.liveWorkAvailable;
+      delete data.liveWorkSource;
       delete data.approvalGateId;
       delete data.parentGroup;
       if (typeof node.data.parentGroup === 'string' && ids.has(node.data.parentGroup)) {
@@ -1944,7 +1971,7 @@ class CanvasStateManager {
     // Validate the complete replacement before discarding any live board state.
     const nodes = (Array.isArray(state.nodes) ? state.nodes : [])
       .filter((node) => node?.id)
-      .map((node) => structuredClone(this.normalizeNode(node)));
+      .map((node) => structuredClone(this.normalizeNode(node, state.ax?.workItems ?? [])));
     this._boardGeneration += 1;
     this._tour = state.tour ? structuredClone(state.tour) : undefined;
     this.nodes.clear();
@@ -2588,7 +2615,7 @@ class CanvasStateManager {
       description: `Added ${cloned.type} node "${(cloned.data.title as string) ?? cloned.id}"`,
       forward: this.suppressed(() => {
         this.nodes.set(cloned.id, {
-          ...structuredClone(cloned),
+          ...this.normalizeNode(structuredClone(cloned)),
           contentRevision: this.nextContentRevision(),
           contentChangedAt: new Date().toISOString(),
           lastEditedBy: currentActor(),
@@ -2639,6 +2666,14 @@ class CanvasStateManager {
   updateNode(id: string, patch: Partial<CanvasNodeState>, savedWikiLinks?: WikiLink[] | null): void {
     const existing = this.nodes.get(id);
     if (!existing) return;
+    if (
+      existing.type === 'status' &&
+      typeof existing.data.workItemId === 'string' &&
+      ((patch.type !== undefined && patch.type !== existing.type) ||
+        (patch.data && patch.data.workItemId !== existing.data.workItemId))
+    ) {
+      throw new OperationError('Live work card references are immutable.');
+    }
     if (patch.data) {
       if (patch.data.contentOrigin !== existing.data.contentOrigin) {
         throw new OperationError('Content origin is immutable after creation.');
@@ -3356,6 +3391,7 @@ class CanvasStateManager {
    */
   applyPersistedAxState(ax: unknown): void {
     this.ax.applyPersistedAx(ax);
+    this.refreshLiveWorkCards();
   }
 
   getAxFocus(): PmxAxFocusState {
@@ -3420,6 +3456,7 @@ class CanvasStateManager {
     for (const nodeId of nodeIds) {
       const node = this.nodes.get(nodeId);
       if (!node) continue;
+      if (node.type === 'status' && typeof node.data.workItemId === 'string') continue;
       // No-op guard: a title-/agentId-only work-item patch must not push
       // history entries and SSE churn for chips that aren't changing.
       if (node.data.axWorkStatus === status) continue;

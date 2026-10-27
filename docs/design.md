@@ -390,7 +390,15 @@ adds option A's in-card editor to the approved Uses work steps. Title, work stat
 detail and optional progress are authored node data. Edit grows the card locally;
 Save/Cancel do not persist that temporary geometry. Drafts, refused saves and pending
 saves survive opening and closing focus mode. Generic phase/tool status cards
-remain unchanged. Live session-task linking is a separate increment.
+remain unchanged.
+
+**Read-only live cards, selected 2026-10-27:** the same WorkCards artboard adds a
+**Show on board** action to task rows, becoming **Show card** when presented. A live
+card shows task state, detail and attribution with a **Read-only** caption, no Edit,
+progress or approval controls. Missing references show **Task unavailable**. Ordinary
+plans are not converted, ending a session preserves cards, and deleting a card does not cancel work.
+Existing selective board copies detach the live reference and task attribution, producing
+an independent authored card. They do not copy tasks or create cross-board live links.
 
 **Move to new board** is the agreed label for multi-selection and the group's **⋯** menu:
 move the cards, preserve identity/history/relations and leave a portal. No reverse move or

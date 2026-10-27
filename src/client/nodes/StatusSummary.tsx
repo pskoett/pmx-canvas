@@ -4,6 +4,8 @@ import { getStatusDisplayPhase } from './StatusNode';
 import { isWorkCardState, WORK_CARD_STATES } from '../../shared/ax-kinds.js';
 
 export function StatusSummary({ node }: { node: CanvasNodeState }) {
+  if (typeof node.data.workItemId === 'string' && node.data.liveWorkAvailable === false)
+    return <span class="work-card-error">⚠ Task unavailable</span>;
   if (isWorkCardState(node.data.workState)) {
     const state = WORK_CARD_STATES[node.data.workState];
     return (

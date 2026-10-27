@@ -1090,6 +1090,69 @@ test('#J: the empty state yields to a live ghost intent so the cursor is visible
   await expect(page.locator('.empty-state')).toBeVisible();
 });
 
+test('live work cards explicitly present tasks read-only and survive session end', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
+  const ordinary = await request.post('/api/canvas/node', {
+    data: { type: 'status', title: 'Authored plan', data: { workState: 'todo' } },
+  });
+  const ordinaryId = (await ordinary.json()).id;
+  await request.post('/api/canvas/ax/presence', { data: { source: 'live-card-test', attached: true } });
+  const { workItem } = await (
+    await request.post('/api/canvas/ax/work', {
+      data: { title: 'Verify live work', detail: 'First evidence', agentId: 'reviewer' },
+    })
+  ).json();
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  await page.getByLabel('Expand session panel').click();
+  await page.getByTestId('work-items-toggle').click();
+  const row = page.locator(`[data-work-item-id="${workItem.id}"]`);
+  await row.getByRole('button', { name: 'Show on board' }).click();
+  const card = page.locator('.canvas-node').filter({ hasText: 'Live task' });
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('Read-only');
+  await expect(card.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+  await expect(card.getByRole('progressbar')).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Show card' })).toBeVisible();
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await row.getByRole('button', { name: 'Show card' }).click();
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
+  await request.patch(`/api/canvas/ax/work/${workItem.id}`, {
+    data: { title: 'Updated task', detail: 'Title-only refresh' },
+  });
+  await expect(card).toContainText('Title-only refresh');
+  await expect(row).toContainText('Updated task');
+  await request.patch(`/api/canvas/ax/work/${workItem.id}`, { data: { status: 'blocked' } });
+  await expect(card.locator('.work-card-state')).toContainText('Blocked');
+  await expect(row).toContainText('awaiting');
+  await request.post('/api/canvas/undo');
+  await expect(card.locator('.work-card-state')).toContainText('To do');
+  await expect(row.locator('.session-item-status')).toHaveText('queued');
+  await request.post('/api/canvas/redo');
+  await expect(card.locator('.work-card-state')).toContainText('Blocked');
+  await expect(row.locator('.session-item-status')).toHaveText('awaiting');
+  await card.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await expect(page.locator('.expanded-overlay-panel')).toContainText('Read-only');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await request.post('/api/canvas/ax/presence', { data: { source: 'live-card-test', attached: false } });
+  await page.reload();
+  await expect(card).toContainText('Updated task');
+  await expect(card).toContainText('Blocked');
+  expect((await currentCanvasState(request)).nodes.find((node) => node.id === ordinaryId)!.data.workState).toBe('todo');
+  const live = (await currentCanvasState(request)).nodes.find((node) => node.data.workItemId === workItem.id)!;
+  await request.delete(`/api/canvas/node/${live.id}`);
+  await expect(card).toHaveCount(0);
+  const tasks = await (await request.get('/api/canvas/ax/work')).json();
+  expect(JSON.stringify(tasks)).toContain(workItem.id);
+  await request.post('/api/canvas/undo');
+  await expect(card).toContainText('Blocked');
+  await page.screenshot({ path: 'test-results/live-work-card.png' });
+});
+
 test('work cards author an inert plan in place, retain refused drafts, and undo saved changes', async ({
   page,
   request,

@@ -527,6 +527,11 @@ same fields with `action: "update"`. State is `todo`, `in-progress`, `blocked`,
 `done` or `cancelled`; optional `progress` is 0–100 or `null` to clear it.
 These are ordinary cards, not sessions or approvals. [Work-card behavior](node-types.md#work-cards).
 
+To present an existing task read-only, use `canvas_node { action: "add", type: "status",
+data: { workItemId: "<task-id>" } }` on its active board. Omit title, detail, state and progress:
+the task supplies display fields. Remove the card without cancelling work; update the task
+through `canvas_ax_work`, not `canvas_node`. The reference cannot be patched or converted.
+
 For Mermaid nodes, `canvas_node` actions `add` and `update` accept
 `data: { fit: "contain" | "none" }`. Contain is the default, shrinking overflow
 uniformly; none keeps 100% with scrolling. Use Open as site for 100% without

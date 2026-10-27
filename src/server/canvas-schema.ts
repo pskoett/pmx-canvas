@@ -129,6 +129,13 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'title', type: 'string', required: false, description: 'Status label.' },
       { name: 'content', type: 'string', required: false, description: 'Rendered status text.' },
       {
+        name: 'data.workItemId',
+        type: 'string',
+        required: false,
+        description:
+          'Read-only live presentation of an existing work item on the active board. Omit title, detail, workState and progress; they are derived. Removing the card does not cancel work.',
+      },
+      {
         name: 'data.workState',
         type: 'string',
         required: false,

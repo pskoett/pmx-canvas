@@ -135,6 +135,11 @@ export function WorkCard({ node, state }: { node: CanvasNodeState; state: AxWork
 
   return (
     <div class={`work-card work-card-${state}`}>
+      {typeof node.data.workItemId === 'string' && (
+        <div class="work-card-live">
+          ↗ Live task{node.data.liveWorkSource ? ` · ${node.data.liveWorkSource}` : ''} · Read-only
+        </div>
+      )}
       <div class="work-card-state">
         <span aria-hidden="true">{WORK_CARD_STATES[state].glyph}</span> {WORK_CARD_STATES[state].label}
       </div>
@@ -154,11 +159,13 @@ export function WorkCard({ node, state }: { node: CanvasNodeState; state: AxWork
           </div>
         </div>
       )}
-      <footer>
-        <button type="button" onClick={edit}>
-          Edit
-        </button>
-      </footer>
+      {typeof node.data.workItemId !== 'string' && (
+        <footer>
+          <button type="button" onClick={edit}>
+            Edit
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

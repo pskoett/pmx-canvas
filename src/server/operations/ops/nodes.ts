@@ -354,6 +354,29 @@ export function createBasicCanvasNode(
 ): { node: CanvasNodeState; needsCodeGraphRecompute: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
   const type = typeof body.type === 'string' ? body.type : '';
   const extraData = isRecord(body.data) ? body.data : undefined;
+  if (type === 'status' && extraData?.workItemId !== undefined) {
+    if (body.boardId !== undefined || options.prepareOnlyNodes)
+      throw new OperationError('Live work cards must be created on the active board.');
+    if (
+      typeof extraData.workItemId !== 'string' ||
+      !canvasState.getWorkItems().some((item) => item.id === extraData.workItemId)
+    )
+      throw new OperationError('Live work card requires an existing work item on this board.');
+    if (
+      ['title', 'content'].some((key) => body[key] !== undefined) ||
+      [
+        'title',
+        'content',
+        'workState',
+        'detail',
+        'progress',
+        'axWorkStatus',
+        'liveWorkAvailable',
+        'liveWorkSource',
+      ].some((key) => key in extraData)
+    )
+      throw new OperationError('Live work card fields are read-only; update the work item instead.');
+  }
   if (type === 'status') validateWorkCardData(extraData);
   if (
     extraData &&
@@ -463,6 +486,27 @@ export function buildNodePatch(
   body: Record<string, unknown>,
 ): { patch: Partial<CanvasNodeState>; groupChildIds?: string[] } {
   if (body.type !== undefined && body.type !== existing.type) throw new OperationError('Node type is immutable.');
+  if (existing.type === 'status') {
+    const data = isRecord(body.data) ? body.data : {};
+    if (
+      'workItemId' in data ||
+      (typeof existing.data.workItemId === 'string' &&
+        (body.title !== undefined ||
+          body.content !== undefined ||
+          [
+            'title',
+            'content',
+            'workState',
+            'detail',
+            'progress',
+            'axWorkStatus',
+            'liveWorkAvailable',
+            'liveWorkSource',
+          ].some((key) => key in data)))
+    ) {
+      throw new OperationError('Live work cards are read-only; create a presentation or update the work item instead.');
+    }
+  }
   if (
     existing.type === 'file' &&
     typeof existing.data.attachmentId === 'string' &&

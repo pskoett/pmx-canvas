@@ -607,6 +607,13 @@ PATCH merges supplied data fields and validates the resulting work card. Use
 `expectedBoardId` and `expectedContentRevision` to refuse stale edits. These cards
 do not create session work or approvals. See [work cards](node-types.md#work-cards).
 
+For a read-only live task presentation, POST `{"type":"status","data":{"workItemId":"<task-id>"}}`
+on the task's active board. Unknown tasks, background creation, supplied display fields,
+reference changes and display-field PATCHes return 400. Title, detail, work state and attribution
+are derived from the existing task; progress is absent. Geometry and pins remain writable.
+Use the existing AX work update endpoint to change the task. Deleting a presentation never
+cancels work. See [live task cards](node-types.md#read-only-live-task-cards).
+
 ```bash
 # Add a node
 curl -X POST http://localhost:4313/api/canvas/node \

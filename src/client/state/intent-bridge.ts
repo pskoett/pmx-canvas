@@ -306,6 +306,7 @@ export async function createNodeFromClient(opts: {
   width?: number;
   height?: number;
   boardId?: string;
+  expectedBoardId?: string;
 }): Promise<{ ok: boolean; id?: string }> {
   return requestJson(
     'createNodeFromClient',

@@ -342,6 +342,15 @@ pmx-canvas batch --json '[{"op":"node.update","args":{"id":"<card-id>","data":{"
 
 The ordinary `node add --data` flag is for graph series, not general node data.
 
+Present an existing task read-only on its active board:
+
+```bash
+pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","data":{"workItemId":"<task-id>"}}}]'
+```
+
+Do not send title, detail, work state or progress; these follow the task. Removing the card
+does not cancel work. Update the task through `ax work update`, not a card patch.
+
 ## Web artifacts
 
 ```bash

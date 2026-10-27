@@ -15,6 +15,15 @@ export function getStatusDisplayPhase(node: CanvasNodeState): string {
 }
 
 export function StatusNode({ node }: { node: CanvasNodeState }) {
+  if (typeof node.data.workItemId === 'string' && node.data.liveWorkAvailable === false) {
+    return (
+      <div class="work-card">
+        <div class="work-card-error">⚠ Task unavailable</div>
+        <div>The linked task is no longer on this board.</div>
+        <div class="work-card-live">Read-only · removing this card does not cancel work.</div>
+      </div>
+    );
+  }
   if (isWorkCardState(node.data.workState)) return <WorkCard node={node} state={node.data.workState} />;
   const phase = getStatusDisplayPhase(node);
   const detail = (node.data.detail as string) || '';

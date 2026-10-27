@@ -584,18 +584,19 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     action: () => focusNode(node.id),
   });
 
-  items.push({
-    label: 'Rename…',
-    action: () => {
-      void askText('Rename node', 'Node title', {
-        initial: typeof node.data.title === 'string' ? node.data.title : '',
-        confirm: 'Save',
-      }).then((title) => {
-        if (!title?.trim()) return;
-        void updateNodeFromClient(node.id, { title: title.trim() });
-      });
-    },
-  });
+  if (!(node.type === 'status' && typeof node.data.workItemId === 'string'))
+    items.push({
+      label: 'Rename…',
+      action: () => {
+        void askText('Rename node', 'Node title', {
+          initial: typeof node.data.title === 'string' ? node.data.title : '',
+          confirm: 'Save',
+        }).then((title) => {
+          if (!title?.trim()) return;
+          void updateNodeFromClient(node.id, { title: title.trim() });
+        });
+      },
+    });
 
   // Expand into full-viewport overlay for focused work
   if (EXPANDABLE_TYPES.has(node.type)) {

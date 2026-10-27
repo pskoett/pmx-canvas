@@ -729,6 +729,7 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'Every node type the schema can create renders and paints in the viewport at 600, 1024 and 1920 px.',
       'Deliberate work cards edit in place without Sessions; Save, Cancel, stale drafts and Undo preserve authored state and saved geometry. Editors fit all nine themes and reference widths.',
+      'Show on board explicitly presents a task read-only; live fields agree with the panel, session end preserves the card, and removing its presentation does not cancel work.',
       'Content keeps its proportions through fractional zoom; HTML, webpage, Mermaid and ledger content is correct.',
       'A clean packed consumer scaffolds and renders a web artifact using the shipped initializer.',
     ],
@@ -736,6 +737,10 @@ export const GUIDE: GuideRow[] = [
       'src/client/nodes/*Node.tsx',
       'src/client/nodes/WorkCard.tsx',
       'src/client/nodes/StatusSummary.tsx',
+      'src/client/canvas/SessionPanel.tsx',
+      'src/server/canvas-state.ts',
+      'src/server/ax-flow-loop.ts',
+      'src/server/operations/ops/nodes.ts',
       'src/client/nodes/MdFormatBar.tsx',
       'src/client/nodes/InlineFormatBar.tsx',
       'src/client/nodes/inline-editor-commands.ts',
@@ -769,6 +774,7 @@ export const GUIDE: GuideRow[] = [
     ],
     e2e: [
       'renders every canvas node type in the browser',
+      'live work cards explicitly present tasks read-only',
       'work cards author an inert plan in place',
       'work card editors fit reference widths',
       'the reference cases cover every node type the schema can create',
@@ -786,6 +792,9 @@ export const GUIDE: GuideRow[] = [
     unit: [
       'tests/unit/demo.test.ts',
       'tests/unit/html-primitives-fallbacks.test.ts',
+      'tests/unit/operation-parity.test.ts',
+      'tests/unit/board-export.test.ts',
+      'tests/client/session-surfaces.test.tsx',
       'tests/client/mermaid-node.test.tsx',
       'tests/client/diff-node.test.tsx',
       'tests/client/file-node.test.tsx',

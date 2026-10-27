@@ -242,6 +242,58 @@ describe('static board export', () => {
     expect(html('Trace')).toContain('Trace error detail');
   });
 
+  test('exports live task cards as snapshots and missing references as unavailable', async () => {
+    const { body } = await call('POST', '/api/canvas/boards', { name: 'Live task export' });
+    const board = body.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    const { body: taskBody } = await call('POST', '/api/canvas/ax/work', {
+      title: 'Review evidence',
+      detail: '<pending>',
+      agentId: 'reviewer',
+    });
+    const task = taskBody.workItem as { id: string };
+    expect((await call('POST', '/api/canvas/node', { type: 'status', data: { workItemId: task.id } })).status).toBe(
+      200,
+    );
+    await call('PATCH', `/api/canvas/ax/work/${task.id}`, { status: 'blocked' });
+    const exported = await buildBoardExport(board.id, false);
+    expect(exported!.html).toContain('Read-only snapshot of linked task');
+    expect(exported!.html).toContain('Blocked');
+    expect(exported!.html).toContain('&lt;pending&gt;');
+    expect(exported!.html).toContain('reviewer');
+    const liveId = canvasState.getLayout().nodes[0]!.id;
+    const { body: copyBody } = await call('POST', '/api/canvas/boards/from', {
+      sourceBoardId: board.id,
+      name: 'Independent copy',
+      nodeIds: [liveId],
+    });
+    const copy = copyBody.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: copy.id });
+    const copiedCard = canvasState.getLayout().nodes.find((node) => node.type === 'status')!;
+    expect(copiedCard.id).not.toBe(liveId);
+    expect(canvasState.getWorkItems()).toHaveLength(0);
+    for (const key of ['workItemId', 'liveWorkAvailable', 'liveWorkSource'])
+      expect(copiedCard.data[key]).toBeUndefined();
+    expect(
+      (
+        await call('PATCH', `/api/canvas/node/${copiedCard.id}`, {
+          title: 'Independent plan',
+          data: { workState: 'done', detail: 'Authored after copying' },
+        })
+      ).status,
+    ).toBe(200);
+    // Export while inactive as well as active: no cache from the currently open board.
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    const copiedExport = await buildBoardExport(copy.id, false);
+    expect(copiedExport!.html).toContain('Authored after copying');
+    expect(copiedExport!.html).not.toContain('Task source');
+    expect(copiedExport!.html).not.toContain('Read-only snapshot of linked task');
+    canvasState.applyPersistedAxState({ ...canvasState.getAxState(), workItems: [] });
+    const unavailable = await buildBoardExport(board.id, false);
+    expect(unavailable!.html).toContain('Task unavailable');
+    expect(unavailable!.html).not.toContain('&lt;pending&gt;');
+  });
+
   test('bounds delimited table previews without losing rows beyond the limit', async () => {
     const { body } = await call('POST', '/api/canvas/boards', { name: 'Table preview limits' });
     const board = body.board as { id: string };

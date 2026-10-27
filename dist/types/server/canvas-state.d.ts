@@ -238,6 +238,7 @@ declare class CanvasStateManager {
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
     private normalizeNode;
+    private refreshLiveWorkCards;
     private nextContentRevision;
     private revisionState;
     /**

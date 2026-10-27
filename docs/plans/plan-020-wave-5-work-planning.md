@@ -2,7 +2,9 @@
 
 **Status (2026-10-27):** annotation parity is delivered; deliberate work-card authoring
 is implemented, verified and owner-approved with option A's in-card editor.
-Live-task views, relations/group navigation and board moves remain planned as separate increments.
+Read-only live-task views are implemented and owner-approved; relations/group
+navigation and board moves remain planned. Unit/client and targeted browser checks pass;
+the broad browser run had one intermittent hosted-tour failure that passed in isolation.
 This replaces step 4's automatic work-item-to-card conversion and make/inline-board
 pairing in [plan 019](plan-019-post-0.9-roadmap.md). 0.12 is a proposed release number,
 not authorization to publish. Annotation contract changes are recorded in the Unreleased
@@ -61,10 +63,19 @@ Dependencies and Decision drawings; the existing group/relation drawings remain 
 
 ## Slice 1: author plans and show progress without Sessions
 
-**Current increment:** existing `status` nodes opt in with `data.workState`; detail
+**Delivered authoring increment:** existing `status` nodes opt in with `data.workState`; detail
 and nullable progress remain separate. [WorkCards](../design/WorkCards.dc.html)
 records the selected in-card Save/Cancel editor. Creation and editing use ordinary
-node operations. Optional live-task views (steps 4–5) are deferred to the next increment.
+node operations. The current increment implements steps 4–5 as read-only live views, selected
+by the owner: Show on board from task rows, no conversion or editing of the linked task
+through the card, and no progress percentage without a source field.
+
+The live reference is `data.workItemId` on a separate `status` node. It resolves against
+the active board's existing AX task records, not a newly invented session-run record.
+Derived display fields refresh on task updates, Undo/Redo and board reload. Creation
+waits for the node to reach the browser before focusing it; duplicate task status chips
+are suppressed. Existing selective board copies detach task references and attribution.
+See [live task card contracts](../node-types.md#read-only-live-task-cards).
 
 **Owners:** `StatusNode.tsx`, `StatusSummary.tsx`, `ContextMenu.tsx`, `SelectionBar.tsx`,
 `src/client/state/node-factory.ts`, `intent-bridge.ts`, `src/server/canvas-schema.ts`,

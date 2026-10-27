@@ -68,8 +68,24 @@ State and progress are independent: Done does not invent 100%.
 
 These are deliberately authored plans, not a task feed. They create no session, task,
 approval or execution. Connect them with existing relations, including intentional loops.
-Live session-task linking is not part of this increment. Status nodes without `workState`
-keep their existing phase/tool display.
+Status nodes without `workState` or `workItemId` keep their existing phase/tool display.
+
+### Read-only live task cards
+
+Choose **Show on board** on a session task row to present that existing task. **Show card**
+focuses its existing presentation. No task or session automatically creates a card.
+Agents use ordinary status creation with `data: { workItemId: "<existing-task-id>" }` on
+the active board. The reference is board-local and immutable; an ordinary planning card
+cannot be converted by patching it.
+
+Title, detail, work state and attribution are derived from the task record, not independently
+editable card fields. Do not supply those fields or progress when creating a live card.
+The persisted display cache is refreshed on task changes, Undo and reload. Update the task
+through the existing work-item API, not a card PATCH. Geometry, pins and relations remain editable.
+Ending a session preserves its task cards; removing a card does not cancel the task.
+A missing task displays **Task unavailable**, never an actionable control. Static exports
+label live cards as read-only snapshots. No progress percentage or approval controls are added.
+Selective board copies become independent authored work cards, without a task reference or task attribution.
 
 ## Shared node behavior
 

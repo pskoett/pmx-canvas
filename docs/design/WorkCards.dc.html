@@ -18,6 +18,14 @@ body{margin:0}.work-design{box-sizing:border-box;width:1440px;min-height:980px;p
 <p>New work card in the canvas menu creates a status node in To do. Edit opens this form. The card grows locally while editing; saved geometry stays unchanged. Cancel discards the draft. Escape cancels inside the form. Saving changes authored data only, never creates a session or task.</p>
 <p>Work state is independent of progress. Done does not invent a percentage. Progress can be cleared. Agent activity remains violet and context remains blue; an authored In progress state is neutral.</p>
 <p>At 600 px, the same card and form fit the canvas. Focus view uses the same controls. Existing phase/tool status indicators keep their non-work behavior.</p>
+<h2>Read-only live cards · selected 2026-10-27</h2>
+<p>In the session task row, Show on board creates a separate live presentation. Once present, the action reads Show card and focuses it. No conversion of ordinary planning cards.</p>
+<div class="examples">
+<section><h2>Session task row</h2><article class="card"><h2>Verify the change</h2><p>Run the browser checks.</p><div class="state">◐ In progress</div><footer><button>Show on board</button></footer></article></section>
+<section><h2>Live presentation</h2><article class="card"><h2>Verify the change</h2><small>↗ Live task · reviewer · Read-only</small><div class="state">◐ In progress</div><p>Run the browser checks.</p></article></section>
+<section><h2>Missing reference</h2><article class="card"><h2>Task unavailable</h2><div class="blocked">⚠ Task unavailable</div><p>The linked task is no longer on this board.</p><small>Read-only · removing this card does not cancel work.</small></article></section>
+</div>
+<p>Live title, detail, state and attribution follow the task record. No Edit, progress percentage or approval controls. Ending a session keeps the task and its presentation; deleting a presentation never cancels the task. Focus mode uses the same read-only content.</p>
 </main></x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
 </body></html>
