@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${SKILL_DIR}/../.." && pwd)"
 
-BUN_BIN="${BUN_BIN:-$HOME/.bun/bin/bun}"
+BUN_BIN="${BUN_BIN:-$(command -v bun || true)}"
 PORT="4513"
 WORKDIR=""
 KEEP_RUNNING=0
@@ -46,21 +46,39 @@ fi
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:$(dirname "${BUN_BIN}"):${PATH}"
 
+for required in examples/published-consumer-sdlc/seed-demo.ts scripts/run-playwright.sh tests/e2e/published-consumer.pw.ts; do
+  if [[ ! -f "${REPO_ROOT}/${required}" ]]; then
+    echo "[published-consumer] requires a source checkout, not an installed skill/package: missing ${required}" >&2
+    exit 1
+  fi
+done
+for required in dist/canvas/index.js dist/json-render/index.js dist/types/server/index.d.ts; do
+  if [[ ! -f "${REPO_ROOT}/${required}" ]]; then
+    echo "[published-consumer] missing ${required}; run bun install && bun run build in the source checkout first." >&2
+    exit 1
+  fi
+done
+
 if [[ -z "${WORKDIR}" ]]; then
   WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/pmx-canvas-published-consumer.XXXXXX")"
 else
   mkdir -p "${WORKDIR}"
+  if [[ -n "$(ls -A "${WORKDIR}")" ]]; then
+    echo "[published-consumer] --workdir must be empty; refusing to replace existing files." >&2
+    exit 1
+  fi
 fi
+WORKDIR="$(cd "${WORKDIR}" && pwd)"
 
 PACK_DIR="${WORKDIR}/pack"
-PACKAGE_STAGING="${WORKDIR}/package"
 CONSUMER_DIR="${WORKDIR}/consumer"
 LOG_FILE="${WORKDIR}/server.log"
-rm -rf "${PACK_DIR}" "${PACKAGE_STAGING}"
-mkdir -p "${PACK_DIR}" "${PACKAGE_STAGING}/package" "${CONSUMER_DIR}/demo"
+mkdir -p "${PACK_DIR}" "${CONSUMER_DIR}/demo"
 
 cleanup() {
-  if [[ -n "${SERVER_PID:-}" ]] && kill -0 "${SERVER_PID}" 2>/dev/null; then
+  if [[ -n "${SERVER_SERVICE:-}" ]]; then
+    amp orb service stop "${SERVER_SERVICE}"
+  elif [[ -n "${SERVER_PID:-}" ]] && kill -0 "${SERVER_PID}" 2>/dev/null; then
     kill "${SERVER_PID}" 2>/dev/null || true
     wait "${SERVER_PID}" 2>/dev/null || true
   fi
@@ -68,22 +86,11 @@ cleanup() {
 
 trap cleanup EXIT
 
-echo "[published-consumer] assembling install tarball from ${REPO_ROOT}"
-cp "${REPO_ROOT}/package.json" "${PACKAGE_STAGING}/package/package.json"
-cp "${REPO_ROOT}/Readme.md" "${PACKAGE_STAGING}/package/Readme.md"
-if [[ -f "${REPO_ROOT}/LICENSE" ]]; then
-  cp "${REPO_ROOT}/LICENSE" "${PACKAGE_STAGING}/package/LICENSE"
-fi
-cp -R "${REPO_ROOT}/src" "${PACKAGE_STAGING}/package/src"
-mkdir -p "${PACKAGE_STAGING}/package/dist"
-cp -R "${REPO_ROOT}/dist/canvas" "${PACKAGE_STAGING}/package/dist/canvas"
-cp -R "${REPO_ROOT}/dist/json-render" "${PACKAGE_STAGING}/package/dist/json-render"
+echo "[published-consumer] packing the package.json publish surface from ${REPO_ROOT}"
 TARBALL="pmx-canvas-published-consumer.tgz"
-tar -czf "${PACK_DIR}/${TARBALL}" -C "${PACKAGE_STAGING}" package
+(cd "${REPO_ROOT}" && "${BUN_BIN}" pm pack --filename "${PACK_DIR}/${TARBALL}" --quiet)
 
 echo "[published-consumer] staging temp consumer at ${CONSUMER_DIR}"
-rm -rf "${CONSUMER_DIR}"
-mkdir -p "${CONSUMER_DIR}/demo"
 cp -R "${REPO_ROOT}/examples/published-consumer-sdlc/." "${CONSUMER_DIR}/demo/"
 cat > "${CONSUMER_DIR}/package.json" <<'JSON'
 {
@@ -95,7 +102,22 @@ JSON
 
 (cd "${CONSUMER_DIR}" && "${BUN_BIN}" add "${PACK_DIR}/${TARBALL}")
 
+if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+  echo "[published-consumer] port ${PORT} already has a healthy listener; choose a dedicated --port." >&2
+  exit 1
+fi
+
 echo "[published-consumer] starting seeded demo on port ${PORT}"
+export PMX_CANVAS_WORKSPACE_ROOT="${CONSUMER_DIR}"
+export PMX_CANVAS_DB_PATH="${CONSUMER_DIR}/.pmx-canvas/canvas.db"
+export PMX_CANVAS_STATE_FILE=""
+export PMX_CANVAS_DISABLE_BROWSER_OPEN=1
+if [[ -n "${AMP_ORB:-}" ]]; then
+  SERVER_SERVICE="published-consumer-${PORT}-$$"
+  printf -v SERVICE_COMMAND 'exec env PMX_CANVAS_WORKSPACE_ROOT=%q PMX_CANVAS_DB_PATH=%q PMX_CANVAS_STATE_FILE= PMX_CANVAS_DISABLE_BROWSER_OPEN=1 %q run demo/seed-demo.ts --port=%q --hold >%q 2>&1' \
+    "${PMX_CANVAS_WORKSPACE_ROOT}" "${PMX_CANVAS_DB_PATH}" "${BUN_BIN}" "${PORT}" "${LOG_FILE}"
+  amp orb service start "${SERVER_SERVICE}" --cwd "${CONSUMER_DIR}" --port "${PORT}" --command "${SERVICE_COMMAND}"
+else
 SERVER_PID="$(
   python3 - "${CONSUMER_DIR}" "${BUN_BIN}" "${PORT}" "${LOG_FILE}" <<'PY'
 import subprocess
@@ -115,6 +137,7 @@ with open(log_file, "ab", buffering=0) as log:
     print(proc.pid)
 PY
 )"
+fi
 
 READY=0
 for _ in $(seq 1 90); do
@@ -134,7 +157,7 @@ fi
 SEEDED=0
 NODE_COUNT="0"
 for _ in $(seq 1 120); do
-  if ! kill -0 "${SERVER_PID}" 2>/dev/null; then
+  if [[ -n "${SERVER_PID:-}" ]] && ! kill -0 "${SERVER_PID}" 2>/dev/null; then
     echo "[published-consumer] seeded demo process exited early. Log follows:" >&2
     cat "${LOG_FILE}" >&2 || true
     exit 1
@@ -145,7 +168,7 @@ for _ in $(seq 1 120); do
       | python3 -c 'import json, sys; print(len(json.load(sys.stdin).get("nodes", [])))'
   )"
 
-  if [[ "${NODE_COUNT}" -ge 18 ]]; then
+  if [[ "${NODE_COUNT}" -ge 18 ]] && grep -q 'Published consumer demo ready' "${LOG_FILE}"; then
     SEEDED=1
     break
   fi
@@ -167,62 +190,11 @@ echo "  server-log: ${LOG_FILE}"
 
 if [[ "${SKIP_PLAYWRIGHT}" -ne 1 ]]; then
   echo "[published-consumer] running browser validation"
-  if ! command -v playwright-cli >/dev/null 2>&1; then
-    echo "[published-consumer] playwright-cli is required for browser validation." >&2
-    echo "Install it with: bun add -g @playwright/cli@latest" >&2
-    exit 1
-  fi
-
-  PLAYWRIGHT_SESSION="pc${PORT}"
-  PLAYWRIGHT_OPEN_CMD=(playwright-cli "-s=${PLAYWRIGHT_SESSION}" open "http://127.0.0.1:${PORT}/workbench" --browser chrome)
+  PLAYWRIGHT_ARGS=(tests/e2e/published-consumer.pw.ts --project=desktop "--output=${WORKDIR}/browser-results")
   if [[ "${HEADED}" -eq 1 ]]; then
-    PLAYWRIGHT_OPEN_CMD+=(--headed)
+    PLAYWRIGHT_ARGS+=(--headed)
   fi
-
-  (
-    cd "${REPO_ROOT}"
-    rm -f .playwright-cli/page-*.yml .playwright-cli/page-*.png .playwright-cli/console-*.log 2>/dev/null || true
-    "${PLAYWRIGHT_OPEN_CMD[@]}"
-    sleep 3
-    playwright-cli "-s=${PLAYWRIGHT_SESSION}" snapshot >/dev/null
-
-    SNAPSHOT_FILE="$(ls -t .playwright-cli/page-*.yml | head -n 1)"
-    if [[ -z "${SNAPSHOT_FILE}" ]]; then
-      echo "[published-consumer] playwright-cli did not produce a snapshot." >&2
-      exit 1
-    fi
-
-    for expected in \
-      "Synthetic SDLC Report" \
-      "Pipeline Atlas" \
-      "SDLC Control Room Artifact" \
-      "Control Tower Widgets" \
-      "Release Gate Intake" \
-      "Service Readiness Matrix" \
-      "Lead Time Trend" \
-      "Defects by Stage" \
-      "Operational Load" \
-      "Context (3)" \
-      "npm pack" \
-      "canvas.buildWebArtifact" \
-      "playwright"
-    do
-      if ! rg -Fq "${expected}" "${SNAPSHOT_FILE}"; then
-        echo "[published-consumer] expected browser snapshot to include: ${expected}" >&2
-        echo "Snapshot: ${SNAPSHOT_FILE}" >&2
-        exit 1
-      fi
-    done
-
-    playwright-cli "-s=${PLAYWRIGHT_SESSION}" screenshot >/dev/null
-    SCREENSHOT_FILE="$(ls -t .playwright-cli/page-*.png | head -n 1)"
-    echo "[published-consumer] browser snapshot: ${SNAPSHOT_FILE}"
-    echo "[published-consumer] browser screenshot: ${SCREENSHOT_FILE}"
-
-    if [[ "${KEEP_RUNNING}" -ne 1 ]]; then
-      playwright-cli "-s=${PLAYWRIGHT_SESSION}" close >/dev/null || true
-    fi
-  )
+  PMX_CANVAS_URL="http://127.0.0.1:${PORT}" bash "${REPO_ROOT}/scripts/run-playwright.sh" "${PLAYWRIGHT_ARGS[@]}"
 fi
 
 if [[ "${KEEP_RUNNING}" -eq 1 ]]; then
@@ -230,7 +202,11 @@ if [[ "${KEEP_RUNNING}" -eq 1 ]]; then
   echo "[published-consumer] leaving server running"
   echo "  PMX_CANVAS_URL=http://127.0.0.1:${PORT}"
   echo "  PMX_CONSUMER_DIR=${CONSUMER_DIR}"
-  echo "  PMX_SERVER_PID=${SERVER_PID}"
+  if [[ -n "${SERVER_SERVICE:-}" ]]; then
+    echo "  PMX_SERVER_SERVICE=${SERVER_SERVICE}"
+  else
+    echo "  PMX_SERVER_PID=${SERVER_PID}"
+  fi
   exit 0
 fi
 

@@ -717,6 +717,7 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'Every node type the schema can create renders and paints in the viewport at 600, 1024 and 1920 px.',
       'Content keeps its proportions through fractional zoom; HTML, webpage, Mermaid and ledger content is correct.',
+      'A clean packed consumer scaffolds and renders a web artifact using the shipped initializer.',
     ],
     touches: [
       'src/client/nodes/*Node.tsx',
@@ -764,6 +765,7 @@ export const GUIDE: GuideRow[] = [
       'empty primitive sections disappear and their scripts still run',
       'srcdoc iframe mode renders same-origin surfaces inline',
       'Markdown is sanitized in card and rich editor boundaries',
+      'renders the published-consumer SDLC workspace',
     ],
     unit: [
       'tests/unit/demo.test.ts',

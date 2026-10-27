@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { cleanup, fireEvent, render } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { ToolRail } from '../../src/client/canvas/ToolRail.tsx';
 import { axSurfaceState } from '../../src/client/state/canvas-store.ts';
 import { resetPresence } from '../../src/client/state/presence-store.ts';
@@ -80,12 +80,15 @@ describe('tool rail tooltips', () => {
 
   test('keyboard focus shows it too; a detail (not a shortcut) renders as plain text', () => {
     const { getByRole, queryByTestId } = renderRail();
-    fireEvent.focus(getByRole('button', { name: 'Arrange (grid)' }));
+    const arrange = getByRole('button', { name: 'Arrange (grid)' });
+    // DOM focus emits both focus and focusin, including when preact/compat is loaded first.
+    act(() => arrange.focus());
+    expect(document.activeElement).toBe(arrange);
     const tip = queryByTestId('rail-tooltip')!;
     expect(tip.querySelector('.toolbar-tooltip-label')?.textContent).toBe('Arrange');
     expect(tip.querySelector('kbd')).toBeNull();
     expect(tip.querySelector('.toolbar-tooltip-meta')?.textContent).toBe('grid');
-    fireEvent.blur(getByRole('button', { name: 'Arrange (grid)' }));
+    act(() => arrange.blur());
     expect(queryByTestId('rail-tooltip')).toBeNull();
   });
 
@@ -170,7 +173,8 @@ describe('tool rail tooltips', () => {
       expect(queryByRole('button', { name })).toBeNull();
     }
     const attach = getByRole('button', { name: 'Attach files', exact: true });
-    fireEvent.focus(attach);
+    act(() => attach.focus());
+    expect(document.activeElement).toBe(attach);
     const tooltip = getByRole('tooltip');
     for (const format of [
       'PNG',

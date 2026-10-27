@@ -4,6 +4,9 @@ description: Create distinctive, production-grade frontend interfaces with high 
 license: Complete terms in LICENSE.txt
 ---
 
+Adapted from [Anthropic's frontend-design skill](https://github.com/anthropics/skills/tree/00756142ab04c82a447693cf373c4e0c554d1005/skills/frontend-design),
+under [Apache-2.0](LICENSE.txt). Modified for PMX Canvas artifact and JSON-render workflows.
+
 This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
 
 In `pmx-canvas`, use `canvas_app { action: "build-artifact" }` when the result should be a full

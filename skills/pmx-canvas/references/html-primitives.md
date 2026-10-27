@@ -110,6 +110,13 @@ agent.
 - `interaction-prototype` exposes live controls and copyable config for implementation tuning.
 - Tell the human which copy/export button to use, then ask them to paste the result back if you need to act on edits.
 
+The card menu also offers **Copy JSON** for non-presentation HTML primitives. Open the viewer
+first: this reads its current interactive state, preferring the expanded frame when present,
+not a stale export of saved node data. The reply is bound to the frame source, document token
+and request ID; the parent workbench requests clipboard access from the human's click.
+Clipboard permission or host limitations can still refuse the copy and show an error.
+This does not persist edits, support arbitrary raw HTML, or replace the per-format buttons above.
+
 ## Sandbox And Persistence
 
 - Primitive output runs inside the existing HTML iframe sandbox with scripts allowed but no same-origin access.

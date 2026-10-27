@@ -10,6 +10,7 @@ const consumerPort = Number(new URL(baseUrl).port || '4513');
 
 let consumerWorkdir: string | null = null;
 let consumerServerPid: number | null = null;
+let consumerServerService: string | null = null;
 
 function resolveBunBin(): string {
   if (process.env.BUN_BIN && existsSync(process.env.BUN_BIN)) return process.env.BUN_BIN;
@@ -23,6 +24,11 @@ function parseServerPid(output: string): number {
 }
 
 function stopConsumerServer(): void {
+  if (consumerServerService) {
+    execFileSync('amp', ['orb', 'service', 'stop', consumerServerService]);
+    consumerServerService = null;
+    return;
+  }
   if (!consumerServerPid) return;
   try {
     process.kill(-consumerServerPid, 'SIGTERM');
@@ -57,7 +63,21 @@ test.beforeAll(() => {
   if (result.status !== 0) {
     throw new Error(`Published-consumer setup failed (${result.status}).\n${output}`);
   }
-  consumerServerPid = parseServerPid(output);
+  consumerServerService = output.match(/PMX_SERVER_SERVICE=([\w-]+)/)?.[1] ?? null;
+  if (!consumerServerService) consumerServerPid = parseServerPid(output);
+  const installed = join(consumerWorkdir, 'consumer', 'node_modules', 'pmx-canvas');
+  for (const path of [
+    'docs/http-api.md',
+    'dist/types/server/index.d.ts',
+    'plugins/pmx-canvas/plugin.json',
+    '.github/extensions/pmx-canvas/extension.mjs',
+    'skills/pmx-canvas/SKILL.md',
+    'skills/frontend-design/LICENSE.txt',
+    'skills/web-artifacts-builder/LICENSE.txt',
+    'CHANGELOG.md',
+  ]) {
+    expect(existsSync(join(installed, path)), `Packed consumer includes ${path}`).toBe(true);
+  }
 });
 
 test.afterAll(() => {
@@ -129,8 +149,14 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
     intakeFrame.getByText('Interactive control inputs for the published-consumer test surface.'),
   ).toBeVisible();
 
-  await focus('Lead Time Trend');
-  const graphFrame = page.frameLocator('.canvas-node:has(.node-title:text-is("Lead Time Trend")) iframe.mcp-app-frame');
+  const graphNode = await focus('Lead Time Trend');
+  const graphIframe = graphNode.locator('iframe.mcp-app-frame');
+  const graphElement = await graphIframe.elementHandle();
+  const graphViewer = await graphElement!.contentFrame();
+  const graphUrl = new URL((await graphIframe.getAttribute('src'))!, baseUrl);
+  // Like the dashboard, a lazy graph document must load before its rendering deadline starts.
+  await graphViewer!.waitForURL((url) => url.href === graphUrl.href, { waitUntil: 'load' });
+  const graphFrame = graphIframe.contentFrame();
   await expect(graphFrame.locator('.recharts-line-curve')).toBeVisible();
   await expect(graphFrame.getByText('Lead Time Trend', { exact: true })).not.toBeVisible();
 

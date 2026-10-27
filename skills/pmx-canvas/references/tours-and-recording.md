@@ -31,8 +31,10 @@ Persist a tour with `canvas_view { action: "set-tour", tour: { stops: [...] } }`
 Open `/workbench?present=1` for chrome-free viewing. Right, Down, or Space advances; Left or Up
 goes back; Escape or **Exit presentation** exits. Right-drag pans and interrupts an ongoing
 transition without editing cards. Stops do not auto-advance. A missing node target reports an
-error and may be skipped. The presentation camera is local to that viewer while board content
-continues to update. Recording hides the exit control.
+error and may be skipped. Camera rendering and free pan are viewer-local, but human Back/Next
+and arrow keys advance the shared cursor for all presenting viewers; Exit leaves presentation
+everywhere. `present: false` does not isolate navigation from another presenting viewer.
+Deterministic capture uses its own viewer and ignores live navigation. Recording hides the exit control.
 
 Tours are board-scoped, persist with that board and its snapshots, participate in undo, and clear
 with the board. Setting `tour: null` resets to a derived tour: groups ordered by y, then x, then
@@ -53,6 +55,31 @@ eases the camera without a tour. Outside a presentation the end camera becomes t
 viewport. Tour steps and moves never enter undo history, never count as agent writes, and are
 allowed under a scope fence. Viewers with reduced motion jump instead of animating; a
 deterministic capture ignores both.
+
+If another viewer's camera must stay unchanged, do not send `tour-go`, `tour-exit` or `move`,
+or use the human shared navigation controls. Author stops and capture them in the separate
+recording viewer instead. Verify isolation with another viewer already presenting, not only
+an ordinary canvas tab.
+
+### Optional presenter ordering fence
+
+`tour-go` and `tour-exit` accept `presenter: { clientId, intent, catalogEpoch, boardGeneration }`.
+Use a distinct `clientId` per document, an increasing positive safe-integer `intent` per gesture,
+and the actual server activation's epoch and nonnegative safe-integer generation. Ordinary
+agent calls may omit this object. It orders requests; it is not authorization or viewer isolation.
+
+A stale activation or duplicate/older intent returns `{ ok: true, superseded: true }` with no
+navigation event or cursor change. Do not claim navigation from `ok: true` alone. Applied results
+and events carry `catalogEpoch`, `boardGeneration` and `sequence`; presenter-aware clients use
+these to reject stale acknowledgements and events. A structurally valid newer intent is claimed
+before resolving the stop, so even a missing newer stop supersedes older requests.
+
+This is latest-intent-wins, not FIFO: reversed relative Next requests can coalesce. Separate
+documents remain independent, and reload does not cancel an old document's pending request.
+An activation retains at most 4096 document IDs; a new ID beyond that returns 409 rather than
+evicting an ordering record. Switching boards resets the capacity but old activation stamps stay stale.
+The SDK accepts `goToTourStop(step, { presenter })` and `exitTour(presenter)`; fenced go can return
+`{ superseded: true }`, while exit returns void. Do not infer applied exit from that void return.
 
 ## Capture prerequisites and behavior
 

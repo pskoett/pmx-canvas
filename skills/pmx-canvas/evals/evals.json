@@ -536,8 +536,8 @@
     {
       "id": 22,
       "name": "tour-authoring-and-capture",
-      "prompt": "Turn the Overview group and the Results card into a presentation tour, then tell me how to capture it deterministically at 1920x1080. I want a one-second overview move, a zero-duration jump to Results, and no changes to another viewer's camera.",
-      "expected_output": "Targets the intended board, resolves the real group/card IDs, persists one tour with canvas_view set-tour, and uses valid node targets with durations 1 and 0. Explains that presentation is viewer-local and does not auto-advance. Gives deterministic record guidance using the same saved tour, --resolution 1920x1080, --present, and a new output path after verifying the matching daemon/workspace and Chrome/Bun WebView prerequisites. Does not invent a separate recording timeline or use realtime --duration.",
+      "prompt": "On the current board, turn the Overview group and the Results card into a presentation tour, then tell me how to capture it deterministically at 1920x1080. I want a one-second overview move, a zero-duration jump to Results, and no changes to another viewer's camera. That viewer is already presenting.",
+      "expected_output": "Verifies the current board, resolves the real group/card IDs, persists one tour with canvas_view set-tour, and uses valid node targets with durations 1 and 0. Distinguishes viewer-local rendering/free pan and isolated recording from shared tour navigation and exit. Does not call tour-go, tour-exit or move, switch boards, or use human Next/Back controls. Explains that present:false still advances viewers already presenting. Gives deterministic record guidance using the same saved tour, --resolution 1920x1080, --present, and a new output path after verifying the matching daemon/workspace and Chrome/Bun WebView prerequisites. Does not invent a separate recording timeline or use realtime --duration.",
       "assertions": [
         {
           "name": "persists-valid-shared-tour-model",
@@ -556,7 +556,30 @@
         },
         {
           "name": "preserves-viewer-camera",
-          "description": "States that the presentation/capture camera is local and stops advance manually, rather than moving another viewer's camera",
+          "description": "Keeps the already-presenting viewer unchanged by avoiding shared tour-go/tour-exit/move, board switching and human navigation; distinguishes isolated capture from the shared cursor and does not treat present:false as isolation",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "presenter-superseded-is-not-applied-navigation",
+      "prompt": "In a disposable board, verify optional presenter ordering. Send a valid go with intent 2, then an exit with intent 1 for the same document and activation. Repeat with a stale activation. Include an independent-document control and an ordinary unfenced call. Can ok:true or the SDK exit return prove the stale command ran?",
+      "expected_output": "Reads the actual activation stamps and uses positive safe-integer intents with independent document IDs. Checks applied delivery stamps and cursor/event behavior. Older intent and stale activation return ok:true,superseded:true without a navigation event or cursor change. Independent and unfenced controls still apply. Explains that the fence orders requests, does not grant authority or isolate viewers, and that SDK exit returns void while fenced go may return superseded:true. Does not count eval definitions as executed evidence.",
+      "assertions": [
+        {
+          "name": "checks-superseded-side-effects",
+          "description": "Observes no navigation event or cursor change for stale intent and activation, rather than treating ok:true as applied navigation",
+          "type": "output_check"
+        },
+        {
+          "name": "positive-controls-and-stamps",
+          "description": "Verifies applied epoch/generation/sequence for the newer request and exercises independent-document and unfenced calls without inventing mandatory presenter credentials",
+          "type": "output_check"
+        },
+        {
+          "name": "sdk-return-boundary",
+          "description": "Distinguishes fenced go's superseded result from exit's void return and avoids claiming viewer isolation or authority from the fence",
           "type": "output_check"
         }
       ]

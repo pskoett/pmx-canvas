@@ -137,12 +137,16 @@ describe('MCP public surface freeze', () => {
     const client = await createMcpSession();
     const { tools } = await client.listTools();
     const skill = await Bun.file(new URL('../../skills/pmx-canvas/SKILL.md', import.meta.url)).text();
+    expect(skill).toContain('(references/workbench-workflows.md#current-mcp-composites)');
+    const reference = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/workbench-workflows.md', import.meta.url),
+    ).text();
     const composites = tools.filter((tool) => tool.inputSchema.properties?.action);
-    expect(skill).toContain(`Prefer the ${composites.length} composite MCP tools`);
-    expect(skill).toContain(
+    expect(reference).toContain(`Prefer the ${composites.length} composite MCP tools`);
+    expect(reference).toContain(
       `**${tools.length} tools**: the ${composites.length} composites below plus ${tools.length - composites.length} standalones`,
     );
-    const table = skill.split('## Current MCP Composites')[1]!.split('Important routing:')[0]!;
+    const table = reference.split('## Current MCP Composites')[1]!.split('Important routing:')[0]!;
     const rows = [...table.matchAll(/^\| `(canvas_\w+)` \| (.+) \|$/gm)];
     expect(rows.map((row) => row[1]).sort()).toEqual(composites.map((tool) => tool.name).sort());
     for (const tool of composites) {

@@ -6,6 +6,10 @@ license: Complete terms in LICENSE.txt
 
 # Web Artifacts Builder
 
+Adapted from [Anthropic's web-artifacts-builder skill](https://github.com/anthropics/skills/tree/00756142ab04c82a447693cf373c4e0c554d1005/skills/web-artifacts-builder),
+under [Apache-2.0](LICENSE.txt). Modified for standalone HTML delivery, PMX Canvas integration,
+and local build-script dependency reuse, logging and a pinned scaffolder.
+
 To build powerful single-file frontend web artifacts, follow these steps:
 1. Initialize the frontend repo using `scripts/init-artifact.sh`
 2. Develop your artifact by editing the generated code
@@ -14,6 +18,8 @@ To build powerful single-file frontend web artifacts, follow these steps:
 5. (Optional) Test the artifact
 
 **Stack**: React 18 + TypeScript + Vite + Parcel (bundling) + Tailwind CSS + shadcn/ui
+
+The initializer pins `create-vite@9.3.1`; `9.3.2` omits the templates needed to scaffold a project.
 
 ## Design & Style Guidelines
 

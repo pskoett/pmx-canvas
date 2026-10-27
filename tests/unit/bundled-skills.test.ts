@@ -1,9 +1,37 @@
 import { describe, expect, test } from 'bun:test';
+import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
 import { CANVAS_THEMES } from '../../src/shared/themes.ts';
 
 describe('bundled skills', () => {
+  test('shipped manifests follow the skill spec and resolve their license files', async () => {
+    const manifest = z.strictObject({
+      name: z
+        .string()
+        .max(64)
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+      description: z
+        .string()
+        .min(1)
+        .max(1024)
+        .regex(/^[^<>]*$/),
+      license: z.string().optional(),
+      compatibility: z.string().max(500).optional(),
+      'allowed-tools': z.string().optional(),
+      metadata: z.record(z.string(), z.string()).optional(),
+    });
+    for (const skill of listBundledSkills()) {
+      const parsed = manifest.parse(skill.frontmatter);
+      expect(parsed.name).toBe(skill.name);
+      const markdown = readBundledSkill(skill.name)!;
+      expect(markdown.split('\n').length, skill.name).toBeLessThanOrEqual(600);
+      for (const license of parsed.license?.match(/LICENSE\.\w+/g) ?? []) {
+        expect(await Bun.file(join(dirname(skill.filePath), license)).exists(), `${skill.name}/${license}`).toBe(true);
+      }
+    }
+  });
+
   test('behavioral eval catalog has valid definitions, unique identities and shipped fixtures', async () => {
     const nonempty = z.string().trim().min(1);
     const definition = z.strictObject({
