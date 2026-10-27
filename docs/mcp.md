@@ -521,6 +521,12 @@ For Markdown nodes, `canvas_node` actions `add` and `update` accept
 `data: { display: "heading" | "card" }`. Heading display uses the existing title
 and content as a frameless section label, without changing pin membership.
 
+For authored work cards, use `canvas_node { action: "add", type: "status", title:
+"Verify", data: { workState: "todo", detail: "Run browser checks" } }`. Update the
+same fields with `action: "update"`. State is `todo`, `in-progress`, `blocked`,
+`done` or `cancelled`; optional `progress` is 0–100 or `null` to clear it.
+These are ordinary cards, not sessions or approvals. [Work-card behavior](node-types.md#work-cards).
+
 For Mermaid nodes, `canvas_node` actions `add` and `update` accept
 `data: { fit: "contain" | "none" }`. Contain is the default, shrinking overflow
 uniformly; none keeps 100% with scrolling. Use Open as site for 100% without

@@ -17,7 +17,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | Type | Purpose |
 |------|---------|
 | `markdown` | Rich markdown with rendered preview |
-| `status` | Compact status indicator (phase, message, elapsed time) |
+| `status` | Authored work card, or a compact phase/message status indicator |
 | `context` | Context cards, token usage, workspace grounding |
 | `ledger` | Execution ledger summary |
 | `trace` | Agent trace pills (tool calls, subagent activity) |
@@ -47,6 +47,31 @@ response warns about the distinction.
 
 Thread node types `prompt` and `response` exist internally for agent
 conversation rendering and are not created through public APIs.
+
+## Work cards
+
+Choose **New work card** in the canvas background menu, then **Edit** inside the card.
+Title, work state, detail and optional progress save together. Cancel (or Escape inside
+the form) discards the draft. Editing grows the card locally without resizing its saved
+frame. A refused or stale save keeps the draft; Cancel returns to the latest saved state.
+Drafts, refused saves and pending saves survive opening and closing focus mode in the
+same browser tab. Unsaved drafts are not persisted across a page reload.
+
+Agents use ordinary status-node creation/update with `data.workState`: `todo`,
+`in-progress`, `blocked`, `done` or `cancelled`. `data.detail` is a string;
+`data.progress` is an optional number from 0 to 100, or `null` to clear it.
+State and progress are independent: Done does not invent 100%.
+
+```json
+{"type":"status","title":"3. Verify","data":{"workState":"in-progress","detail":"Run the browser checks.","progress":60}}
+```
+
+These are deliberately authored plans, not a task feed. They create no session, task,
+approval or execution. Connect them with existing relations, including intentional loops.
+Live session-task linking is not part of this increment. Status nodes without `workState`
+keep their existing phase/tool display.
+
+## Shared node behavior
 
 The spatial board and its content scale proportionally at every zoom, without
 switching layouts. Iframe previews mount automatically near the viewport and

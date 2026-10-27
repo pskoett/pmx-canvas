@@ -469,6 +469,23 @@ async function createPromptedNode(opts: {
 function buildCanvasMenuItems(canvasX: number, canvasY: number): MenuItem[] {
   return [
     {
+      label: 'New work card',
+      action: () => {
+        const width = 360;
+        const height = 200;
+        const position = centeredPosition(canvasX, canvasY, width, height);
+        void createNodeFromClient({
+          type: 'status',
+          title: 'New work card',
+          data: { workState: 'todo' },
+          x: position.x,
+          y: position.y,
+          width,
+          height,
+        });
+      },
+    },
+    {
       label: 'New note',
       action: () => {
         const width = 520;

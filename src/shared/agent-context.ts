@@ -375,7 +375,7 @@ export function summarizeNodeForAgentContext(node: CanvasNodeState, options: Age
     }
     case 'status':
       return truncateContextText(
-        `Status: ${textFields(node.data, ['phase']) || textFields(node.data, ['content']) || textFields(node.data, ['status']) || 'unknown'}\n${textFields(node.data, ['detail', 'message', 'activeTool'])}`,
+        `Status: ${textFields(node.data, ['workState']) || textFields(node.data, ['phase']) || textFields(node.data, ['content']) || textFields(node.data, ['status']) || 'unknown'}\n${textFields(node.data, ['detail', 'message', 'activeTool'])}${typeof node.data.progress === 'number' ? `\nProgress: ${node.data.progress}%` : ''}`,
         defaultTextLength,
       );
     case 'context':

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { cleanup, render } from '@testing-library/preact';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { StatusNode } from '../../src/client/nodes/StatusNode.tsx';
+import { activeBoardId } from '../../src/client/state/boards-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 function makeStatusNode(data: Record<string, unknown>): CanvasNodeState {
@@ -16,9 +17,45 @@ function makeStatusNode(data: Record<string, unknown>): CanvasNodeState {
   };
 }
 
-afterEach(cleanup);
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  cleanup();
+  globalThis.fetch = originalFetch;
+  activeBoardId.value = null;
+});
 
 describe('StatusNode render', () => {
+  test('work card keeps a refused draft and its original revision; Cancel discards it', async () => {
+    activeBoardId.value = 'plan-board';
+    const node = { ...makeStatusNode({ title: 'Verify', workState: 'todo', progress: 37 }), contentRevision: 4 };
+    let submitted: Record<string, unknown> | undefined;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      submitted = JSON.parse(String(init?.body));
+      return Response.json({ ok: false, error: 'stale content revision' }, { status: 409 });
+    }) as typeof fetch;
+    const view = render(<StatusNode node={node} />);
+    fireEvent.click(view.getByRole('button', { name: 'Edit' }));
+    fireEvent.input(view.getByLabelText('Title'), { target: { value: 'Check the browser' } });
+    fireEvent.change(view.getByLabelText('Work state'), { target: { value: 'blocked' } });
+    fireEvent.input(view.getByLabelText('Progress (%) · optional'), { target: { value: '' } });
+    view.rerender(<StatusNode node={{ ...node, contentRevision: 5, data: { ...node.data, workState: 'done' } }} />);
+    fireEvent.click(view.getByRole('button', { name: 'Save', exact: true }));
+    await waitFor(() => expect(view.getByRole('alert').textContent).toContain('Your draft is still here'));
+    expect(submitted).toEqual({
+      title: 'Check the browser',
+      data: { workState: 'blocked', detail: '', progress: null },
+      expectedBoardId: 'plan-board',
+      expectedContentRevision: 4,
+    });
+    expect((view.getByLabelText('Title') as HTMLInputElement).value).toBe('Check the browser');
+    fireEvent.click(view.getByRole('button', { name: 'Cancel' }));
+    expect(view.getByText('Done')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: 'Edit' }));
+    expect((view.getByLabelText('Title') as HTMLInputElement).value).toBe('Verify');
+    fireEvent.keyDown(view.getByLabelText('Title'), { key: 'Escape' });
+    expect(view.queryByLabelText('Title')).toBeNull();
+  });
+
   test('renders the phase with its detail text', () => {
     const { getByText } = render(
       <StatusNode node={makeStatusNode({ phase: 'running', detail: 'compiling client' })} />,

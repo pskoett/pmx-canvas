@@ -1,5 +1,7 @@
 import { PHASE_COLORS } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
+import { isWorkCardState } from '../../shared/ax-kinds.js';
+import { WorkCard } from './WorkCard';
 
 export function getStatusDisplayPhase(node: CanvasNodeState): string {
   const phase = typeof node.data.phase === 'string' && node.data.phase.trim().length > 0 ? node.data.phase.trim() : '';
@@ -13,6 +15,7 @@ export function getStatusDisplayPhase(node: CanvasNodeState): string {
 }
 
 export function StatusNode({ node }: { node: CanvasNodeState }) {
+  if (isWorkCardState(node.data.workState)) return <WorkCard node={node} state={node.data.workState} />;
   const phase = getStatusDisplayPhase(node);
   const detail = (node.data.detail as string) || '';
   const message = (node.data.message as string) || '';

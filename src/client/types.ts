@@ -115,6 +115,7 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
 /** Node types that support the full-viewport expand/focus overlay. */
 export const EXPANDABLE_TYPES = new Set<CanvasNodeState['type']>([
   'markdown',
+  'status',
   'mcp-app',
   'webpage',
   'json-render',

@@ -380,6 +380,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     if (!body) return;
 
     const observer = new ResizeObserver(() => {
+      // Focus-mode return can remount an open work draft. Never save its temporary form height.
+      if (body.querySelector('.work-card-editor')) hasAutoFit.current = true;
       if (hasAutoFit.current) {
         observer.disconnect();
         return;

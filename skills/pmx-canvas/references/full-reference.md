@@ -349,7 +349,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | Type | Purpose | When to use |
 |------|---------|-------------|
 | `markdown` | Rich formatted content | Explanations, documentation, notes, findings |
-| `status` | Compact color-coded indicator | Progress tracking, build/test results, task state |
+| `status` | Compact status or deliberately authored work card | Work plans with `data.workState`; phase/tool status without it |
 | `file` | Live file viewer (auto-watches) | Show source code with live updates on file change |
 | `image` | Image display | Screenshots, diagrams, charts |
 | `context` | Context card | Key context the human should see |
@@ -419,6 +419,9 @@ contract). Their meaning comes from the node **type** and value instead: a `stat
 `waiting` — e.g. `review` → green, `running` → accent; an unrecognized phase renders gray), and a
 `trace` node from its `status` field (`success` → green, `failed` → red, `running` → accent). To
 color an arbitrary region, group the nodes and set the group's `color`.
+Authored status cards with `data.workState` instead use the work-state glyph and label:
+blocked uses the warning token, done the success token, and cancelled the muted token.
+Do not set arbitrary colors to encode work state.
 
 When you do set a color (group/graph), use this palette consistently to convey meaning:
 - **Green** (`#22c55e`) — success, done, healthy
@@ -1600,15 +1603,35 @@ Show system components and how they interact:
 
 ### Task Plan with Dependencies
 
-Track work items and their relationships:
+Show useful work deliberately, not a card per task or event. Ordinary work cards are authored
+node data, not AX work items. They require no session and create no approval or execution.
 
-1. Create `status` nodes for each task
-2. Color-code: green=done, yellow=in-progress, red=blocked, gray=queued, blue=ready/available
-3. Connect with `depends-on` edges — use `dashed` style for blocked dependencies, `solid` for
-   satisfied ones
-4. Update status nodes as work progresses using `canvas_node { action: "update" }`
-5. Arrange with `flow` layout to show the dependency chain left-to-right
-6. Group related tasks if the plan has distinct phases
+1. Create a `status` node with `data.workState`: `todo`, `in-progress`, `blocked`, `done` or
+   `cancelled`. Use string `data.detail` for context and optional `data.progress` from 0 to 100.
+   Progress is independent of state: Done does not imply 100%; `null` clears progress.
+2. Update the same card through `canvas_node { action: "update", id, data: { ... } }`.
+   Include `expectedBoardId` and `expectedContentRevision` when an edit depends on a prior read.
+3. Connect steps, dependencies, alternatives and intentional loops with existing relations.
+   A drawn loop does not execute. Group distinct phases when useful, then inspect readability.
+4. Humans use **New work card** from the background menu and **Edit/Save/Cancel** inside the card.
+   Drafts and pending/refused saves survive focus-mode open/close, but not a page reload.
+   The editor's temporary growth does not resize the saved card.
+
+MCP creation:
+
+```json
+{"action":"add","type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}
+```
+
+CLI creation uses structured batch data, not `node add --data` (that flag is for graph series):
+
+```bash
+pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}}]'
+```
+
+Without `data.workState`, status cards retain their phase/tool display. Session-task linking
+is not provided by these authored cards. Questions can be drawn or written beside the plan;
+the human can answer in the external agent host's composer, without a PMX reply card.
 
 ### Code Exploration
 

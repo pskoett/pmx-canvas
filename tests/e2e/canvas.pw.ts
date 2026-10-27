@@ -1090,6 +1090,133 @@ test('#J: the empty state yields to a live ghost intent so the cursor is visible
   await expect(page.locator('.empty-state')).toBeVisible();
 });
 
+test('work cards author an inert plan in place, retain refused drafts, and undo saved changes', async ({
+  page,
+  request,
+}) => {
+  const beforeWork = await (await request.get('/api/canvas/ax/work')).json();
+  const beforeApprovals = await (await request.get('/api/canvas/ax/approval')).json();
+  await page.goto('/workbench');
+  await expect(page.locator('.empty-state')).toBeVisible();
+  await page.mouse.click(300, 180, { button: 'right' });
+  await page.locator('.context-menu-item').filter({ hasText: 'New work card' }).click();
+  const card = page.locator('.canvas-node').filter({ hasText: 'New work card' });
+  await expect(card.locator('.work-card-state')).toContainText('To do');
+  const id = (await currentCanvasState(request)).nodes[0]!.id;
+  const savedNode = async () => (await currentCanvasState(request)).nodes.find((node) => node.id === id)!;
+  // Wait for the normal one-shot auto-fit before checking temporary editor geometry.
+  await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(250);
+  const storedSize = (await savedNode()).size;
+  const normalHeight = (await card.boundingBox())!.height;
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(card.getByLabel('Title', { exact: true })).toBeVisible();
+  expect((await card.boundingBox())!.height).toBeGreaterThan(normalHeight + 100);
+  await card.getByLabel('Title', { exact: true }).fill('Verify the plan');
+  await card.getByLabel('Work state').selectOption('blocked');
+  await card.getByLabel('Detail', { exact: true }).fill('Need one more browser check.');
+  await card.getByLabel('Progress (%) · optional').fill('37.5');
+  await card.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await expect(page.getByLabel('Detail', { exact: true })).toHaveValue('Need one more browser check.');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(card.getByLabel('Progress (%) · optional')).toHaveValue('37.5');
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  const workCard = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(workCard.locator('.work-card-state')).toContainText('Blocked');
+  await expect(workCard.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37.5');
+  expect((await savedNode()).size).toEqual(storedSize);
+  await page.reload();
+  await expect(workCard.getByText('Need one more browser check.')).toBeVisible();
+  await workCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await workCard.getByLabel('Detail', { exact: true }).fill('Unsaved human draft');
+  const changed = await request.patch(`/api/canvas/node/${id}`, {
+    data: { data: { detail: 'Agent supplied evidence' } },
+  });
+  expect(changed.ok()).toBe(true);
+  await workCard.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(workCard.getByRole('alert')).toContainText('Your draft is still here');
+  await expect(workCard.getByLabel('Detail', { exact: true })).toHaveValue('Unsaved human draft');
+  expect((await savedNode()).data.detail).toBe('Agent supplied evidence');
+  await workCard.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await expect(page.getByRole('alert')).toContainText('Your draft is still here');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(workCard.getByLabel('Detail', { exact: true })).toHaveValue('Unsaved human draft');
+  expect((await savedNode()).size.height).toBeLessThan(300);
+  await workCard.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(workCard.getByText('Agent supplied evidence')).toBeVisible();
+  await workCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await workCard.getByLabel('Work state').selectOption('done');
+  await workCard.getByLabel('Progress (%) · optional').fill('');
+  let releaseSave = () => {};
+  const pendingSave = new Promise<void>((resolve) => {
+    releaseSave = resolve;
+  });
+  await page.route(`**/api/canvas/node/${id}`, async (route) => {
+    if (route.request().method() === 'PATCH') await pendingSave;
+    await route.continue();
+  });
+  await workCard.getByRole('button', { name: 'Save', exact: true }).click();
+  try {
+    await expect(workCard.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+    await workCard.getByRole('button', { name: 'Expand (focus mode)' }).click();
+    await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(workCard.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  } finally {
+    releaseSave();
+  }
+  await expect(workCard.locator('.work-card-state')).toContainText('Done');
+  await expect(workCard.getByRole('progressbar')).toHaveCount(0);
+  await request.post('/api/canvas/undo');
+  await expect(workCard.locator('.work-card-state')).toContainText('Blocked');
+  await expect(workCard.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37.5');
+  expect(await (await request.get('/api/canvas/ax/work')).json()).toEqual(beforeWork);
+  expect(await (await request.get('/api/canvas/ax/approval')).json()).toEqual(beforeApprovals);
+});
+
+test('work card editors fit reference widths and all nine themes', async ({ page, request }, testInfo) => {
+  test.setTimeout(90_000);
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'status',
+      title: '3. Verify',
+      x: 40,
+      y: 40,
+      width: 360,
+      height: 200,
+      data: { workState: 'in-progress', detail: 'Run the browser checks.', progress: 60 },
+    },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+  const card = page.locator('.canvas-node').filter({ hasText: '3. Verify' });
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of [
+      'harbor',
+      'daylight',
+      'high-contrast',
+      'midnight',
+      'sepia',
+      'arctic',
+      'ember',
+      'forest',
+      'volt',
+    ]) {
+      await request.post('/api/canvas/theme', { data: { theme } });
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      const save = card.getByRole('button', { name: 'Save', exact: true });
+      await expect(save).toBeInViewport();
+      expect(await card.locator('.node-body').evaluate((body) => body.scrollWidth <= body.clientWidth)).toBe(true);
+      await expect(card.getByLabel('Detail', { exact: true })).toHaveValue('Run the browser checks.');
+      await page.screenshot({ path: testInfo.outputPath(`work-card-${width}-${theme}.png`) });
+    }
+  }
+  await card.getByLabel('Title', { exact: true }).press('Escape');
+  await expect(card.locator('.work-card-state')).toContainText('In progress');
+});
+
 test('canvas background context menu exposes user-creatable nodes', async ({ page, request }) => {
   await page.goto('/workbench');
 

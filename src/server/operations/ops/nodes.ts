@@ -32,6 +32,7 @@ import {
 } from '../../canvas-operations.js';
 import { resolveCreateGeometry, resolvePatchGeometry, validateCanvasNodePatch } from '../../canvas-geometry.js';
 import { normalizeNodeAxCapabilities } from '../../ax-interaction.js';
+import { isWorkCardState } from '../../../shared/ax-kinds.js';
 import { applyFileContentToNodeData, readFileNodeContent } from '../../file-content.js';
 import { unwatchFileForNode, watchFileForNode } from '../../file-watcher.js';
 import {
@@ -327,6 +328,21 @@ export function createdNodePayloadFromNode(
 
 // ── Operation cores (the SDK wraps these directly) ────────────
 
+function validateWorkCardData(data: Record<string, unknown> | undefined): void {
+  if (!data || data.workState === undefined) return;
+  if (!isWorkCardState(data.workState))
+    throw new OperationError('workState must be todo, in-progress, blocked, done or cancelled.');
+  if (data.detail !== undefined && typeof data.detail !== 'string')
+    throw new OperationError('Work card detail must be a string.');
+  if (
+    data.progress !== undefined &&
+    data.progress !== null &&
+    (typeof data.progress !== 'number' || !Number.isFinite(data.progress) || data.progress < 0 || data.progress > 100)
+  ) {
+    throw new OperationError('Work card progress must be a number from 0 to 100, or null to clear it.');
+  }
+}
+
 /**
  * Create a basic (non-webpage / non-group / non-primitive) node. Union of the
  * legacy handleCanvasAddNode generic branch; the SDK passes fileMode 'path',
@@ -338,6 +354,7 @@ export function createBasicCanvasNode(
 ): { node: CanvasNodeState; needsCodeGraphRecompute: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
   const type = typeof body.type === 'string' ? body.type : '';
   const extraData = isRecord(body.data) ? body.data : undefined;
+  if (type === 'status') validateWorkCardData(extraData);
   if (
     extraData &&
     ('attachmentId' in extraData || (isRecord(extraData.source) && 'attachmentId' in extraData.source))
@@ -561,6 +578,7 @@ export function buildNodePatch(
     }
     patch.data = existing.type === 'trace' ? mergeTraceNodeDataFields(data, body) : data;
   }
+  if (existing.type === 'status' && isRecord(patch.data)) validateWorkCardData(patch.data);
   const error = validateCanvasNodePatch({
     ...(patch.position ? { position: patch.position as { x: number; y: number } } : {}),
     ...(patch.size ? { size: patch.size as { width: number; height: number } } : {}),

@@ -333,6 +333,15 @@ pmx-canvas batch --file ./canvas-ops.json
 See [HTTP API → batch](http-api.md#batch-operations) for the operation
 schema; the same JSON works for the CLI batch file.
 
+Authored [work cards](node-types.md#work-cards) use structured `data` through batch:
+
+```bash
+pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}}]'
+pmx-canvas batch --json '[{"op":"node.update","args":{"id":"<card-id>","data":{"workState":"done","progress":null}}}]'
+```
+
+The ordinary `node add --data` flag is for graph series, not general node data.
+
 ## Web artifacts
 
 ```bash

@@ -599,6 +599,14 @@ edge receipt, preserving later edits and not resurrecting removals. A request ID
 cannot be reused for a different creation operation. Inactive group membership
 updates/removals and other background CRUD remain unsupported.
 
+For authored work cards, create `type: "status"` with
+`data: { workState: "todo", detail: "Plan the change", progress: 25 }`.
+`workState` accepts `todo`, `in-progress`, `blocked`, `done`, `cancelled`;
+`detail` must be a string and progress must be 0–100 or `null` to clear it.
+PATCH merges supplied data fields and validates the resulting work card. Use
+`expectedBoardId` and `expectedContentRevision` to refuse stale edits. These cards
+do not create session work or approvals. See [work cards](node-types.md#work-cards).
+
 ```bash
 # Add a node
 curl -X POST http://localhost:4313/api/canvas/node \

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Work cards · in-card editing</title><script src="./support.js"></script></head>
+<body><x-dc><helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}.work-design{box-sizing:border-box;width:1440px;min-height:980px;padding:48px;background:#081524;color:#e6eef7;font:13px/1.6 'IBM Plex Sans',sans-serif}.work-design h1{font-size:28px;margin:0}.work-design p{color:#8ea3bd}.work-design .examples{display:flex;gap:40px;align-items:flex-start;margin:32px 0}.work-design .card{box-sizing:border-box;width:360px;background:#0f1d31;border:1px solid #1b2c44;border-radius:10px;box-shadow:0 1px 2px #0006;padding:16px}.work-design h2{font-size:15px;margin:0 0 16px}.work-design .state{font-weight:600}.work-design .detail{white-space:pre-wrap}.work-design label{display:flex;flex-direction:column;gap:4px;margin:12px 0}.work-design input,.work-design select,.work-design textarea,.work-design button{box-sizing:border-box;font:inherit;color:inherit;background:#081524;border:1px solid #1b2c44;border-radius:6px;padding:8px}.work-design textarea{min-height:80px}.work-design footer{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.work-design .primary{background:#4BBCFF;color:#081524}.work-design .states{display:flex;gap:24px}.work-design .blocked{color:#f4c542}.work-design .done{color:#2fd07f}.work-design small{color:#8ea3bd}.work-design .error{color:#f4c542}
+</style></helmet>
+<main class="work-design">
+<h1>Work cards · edit inside the card</h1>
+<p>Option A selected 2026-10-27. Ordinary status nodes with an explicitly authored work state. No session or execution controls.</p>
+<div class="examples">
+<section><h2>Read</h2><article class="card"><h2>3. Verify</h2><div class="state">◐ In progress</div><p class="detail">Run the browser checks.</p><small>60% complete</small><footer><button>Edit</button></footer></article></section>
+<section><h2>Edit / create</h2><article class="card"><h2>3. Verify</h2><form><label>Title<input value="3. Verify"></label><label>Work state<select><option>In progress</option><option>To do</option><option>Blocked</option><option>Done</option><option>Cancelled</option></select></label><label>Detail<textarea>Run the browser checks.</textarea></label><label>Progress (%) · optional<input type="number" min="0" max="100" value="60"></label><footer><button type="button">Cancel</button><button type="button" class="primary">Save</button></footer></form></article></section>
+<section><h2>Refused save</h2><article class="card"><h2>Draft stays editable</h2><p class="error">Could not save. Your draft is still here. Check the connection or whether the card changed.</p><p>Save is disabled while a request is pending. A stale content revision is refused, never silently overwritten.</p></article></section>
+</div>
+<div class="states"><span>○ To do</span><span>◐ In progress</span><span class="blocked">⧗ Blocked</span><span class="done">✓ Done</span><span>× Cancelled</span></div>
+<p>New work card in the canvas menu creates a status node in To do. Edit opens this form. The card grows locally while editing; saved geometry stays unchanged. Cancel discards the draft. Escape cancels inside the form. Saving changes authored data only, never creates a session or task.</p>
+<p>Work state is independent of progress. Done does not invent a percentage. Progress can be cleared. Agent activity remains violet and context remains blue; an authored In progress state is neutral.</p>
+<p>At 600 px, the same card and form fit the canvas. Focus view uses the same controls. Existing phase/tool status indicators keep their non-work behavior.</p>
+</main></x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
+</body></html>

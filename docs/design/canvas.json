@@ -2,6 +2,13 @@
   "v": 3,
   "attachments": {},
   "boards": {
+    "WorkCards.dc.html": {
+      "h": 980,
+      "title": "Work cards — in-card editing (selected 2026-10-27)",
+      "w": 1440,
+      "x": 7600,
+      "y": 5960
+    },
     "AgentContext.dc.html": {
       "h": 1500,
       "title": "What the agent did with context",
@@ -377,6 +384,7 @@
     "Relations.dc.html",
     "Flows.dc.html",
     "Uses.dc.html",
+    "WorkCards.dc.html",
     "Vision.dc.html",
     "AgentContext.dc.html",
     "Themes.dc.html",

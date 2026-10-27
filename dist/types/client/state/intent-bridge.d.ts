@@ -93,6 +93,7 @@ export declare function createNodeFromClient(opts: {
     type?: string;
     title?: string;
     content?: string;
+    data?: Record<string, unknown>;
     x?: number;
     y?: number;
     width?: number;

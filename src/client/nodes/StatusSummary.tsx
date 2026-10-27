@@ -1,8 +1,17 @@
 import { PHASE_COLORS } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
 import { getStatusDisplayPhase } from './StatusNode';
+import { isWorkCardState, WORK_CARD_STATES } from '../../shared/ax-kinds.js';
 
 export function StatusSummary({ node }: { node: CanvasNodeState }) {
+  if (isWorkCardState(node.data.workState)) {
+    const state = WORK_CARD_STATES[node.data.workState];
+    return (
+      <span class={`work-card-state work-card-${node.data.workState}`}>
+        <span aria-hidden="true">{state.glyph}</span> {state.label}
+      </span>
+    );
+  }
   const phase = getStatusDisplayPhase(node);
   const activeTool = node.data.activeTool as string | null;
   const subagent = node.data.subagent as { state: string; name: string } | undefined;

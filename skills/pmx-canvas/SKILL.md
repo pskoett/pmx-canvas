@@ -131,6 +131,14 @@ Use `graph` for charts, `json-render` for structured UI, an HTML primitive for c
 `web-artifact` only when those are insufficient. Hosted interactive apps use `canvas_app`.
 Use `ax-flow` with materialization for a checklist the human can watch and steer.
 
+For ordinary work planning, deliberately create `status` cards with `data.workState`
+(`todo`, `in-progress`, `blocked`, `done`, `cancelled`), string `detail` and optional
+`progress` (0–100; `null` clears it). State and progress are independent. Use ordinary
+`canvas_node` add/update, or CLI `batch --json` for structured data. These cards create no
+session, task or approval; do not generate a card for every work event. Connect useful steps,
+alternatives and loops with existing relations. Humans can Edit/Save/Cancel inside each card.
+See [work planning](references/full-reference.md#task-plan-with-dependencies) for examples.
+
 Read [HTML primitives](references/html-primitives.md) before choosing their payloads or copy/export
 flows, [AX control surfaces](references/ax-html-control-surface.md) before authoring interactive
 HTML, and [Excalidraw authoring](references/excalidraw-diagram-authoring.md) for hosted diagrams.

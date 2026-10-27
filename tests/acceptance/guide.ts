@@ -728,11 +728,13 @@ export const GUIDE: GuideRow[] = [
     title: 'Every node type renders',
     pass: [
       'Every node type the schema can create renders and paints in the viewport at 600, 1024 and 1920 px.',
+      'Deliberate work cards edit in place without Sessions; Save, Cancel, stale drafts and Undo preserve authored state and saved geometry. Editors fit all nine themes and reference widths.',
       'Content keeps its proportions through fractional zoom; HTML, webpage, Mermaid and ledger content is correct.',
       'A clean packed consumer scaffolds and renders a web artifact using the shipped initializer.',
     ],
     touches: [
       'src/client/nodes/*Node.tsx',
+      'src/client/nodes/WorkCard.tsx',
       'src/client/nodes/StatusSummary.tsx',
       'src/client/nodes/MdFormatBar.tsx',
       'src/client/nodes/InlineFormatBar.tsx',
@@ -767,6 +769,8 @@ export const GUIDE: GuideRow[] = [
     ],
     e2e: [
       'renders every canvas node type in the browser',
+      'work cards author an inert plan in place',
+      'work card editors fit reference widths',
       'the reference cases cover every node type the schema can create',
       'paints in the viewport',
       'keeps native content proportions through continuous fractional zoom',

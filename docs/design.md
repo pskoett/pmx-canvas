@@ -385,6 +385,13 @@ Agents also use the existing pen, text and whole-mark eraser layer for questions
 emphasis. This adds no new visual controls or mark style. Humans can answer in their
 external agent host's composer; PMX's composer and Sessions are optional.
 
+**Work-card authoring, selected 2026-10-27:** [WorkCards](design/WorkCards.dc.html)
+adds option A's in-card editor to the approved Uses work steps. Title, work state,
+detail and optional progress are authored node data. Edit grows the card locally;
+Save/Cancel do not persist that temporary geometry. Drafts, refused saves and pending
+saves survive opening and closing focus mode. Generic phase/tool status cards
+remain unchanged. Live session-task linking is a separate increment.
+
 **Move to new board** is the agreed label for multi-selection and the group's **⋯** menu:
 move the cards, preserve identity/history/relations and leave a portal. No reverse move or
 inline-board operation in this wave. Opening a group within the current board is navigation

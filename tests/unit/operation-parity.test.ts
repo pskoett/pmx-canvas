@@ -594,6 +594,62 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     }
   });
 
+  test('authored work cards share creation and validation across HTTP, MCP, CLI and SDK', async () => {
+    const data = { workState: 'blocked', detail: 'Waiting for a fixture', progress: 37.5 };
+    const http = await httpAddNode({ type: 'status', title: 'Verify', data });
+    const mcp = parseJsonText<{ id: string }>(
+      await callMcp('canvas_node', { action: 'add', type: 'status', title: 'Verify', data }),
+    );
+    const cli = await runCliJson<{ results: Array<{ id: string }> }>([
+      'batch',
+      '--json',
+      JSON.stringify([{ op: 'node.add', args: { type: 'status', title: 'Verify', data } }]),
+    ]);
+    const direct = sdk.addNode({ type: 'status', title: 'Verify', data });
+    for (const { id } of [http, mcp, cli.results[0]!, direct]) {
+      const read = await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${id}`);
+      expect(read.data).toMatchObject(data);
+    }
+    await jsonRequest(`/api/canvas/node/${http.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { workState: 'done', progress: null } }),
+    });
+    expect((await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${http.id}`)).data).toMatchObject({
+      workState: 'done',
+      detail: data.detail,
+      progress: null,
+    });
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    expect((await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${http.id}`)).data).toMatchObject(data);
+
+    for (const invalid of [
+      { workState: 'running' },
+      { workState: null },
+      { progress: -1 },
+      { progress: 101 },
+      { progress: '42' },
+      { detail: 10 },
+    ]) {
+      const response = await fetch(`${baseUrl}/api/canvas/node/${http.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: invalid }),
+      });
+      expect(response.status).toBe(400);
+      expect((await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${http.id}`)).data).toMatchObject(data);
+    }
+    expect(
+      (await callMcp('canvas_node', { action: 'add', type: 'status', data: { workState: 'running' } })).isError,
+    ).toBe(true);
+    expect(() => sdk.addNode({ type: 'status', data: { workState: 'todo', progress: Number.NaN } })).toThrow(
+      'progress',
+    );
+    expect(() => sdk.updateNode(direct.id, { data: { workState: 'invalid' } })).toThrow('workState');
+    // The existing generic status indicator does not acquire authored-work semantics.
+    expect((await httpAddNode({ type: 'status', data: { phase: 'running' } })).ok).toBe(true);
+  });
+
   test('node get: all four surfaces return equivalent node state', async () => {
     const created = await httpAddNode({
       type: 'markdown',

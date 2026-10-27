@@ -5,6 +5,19 @@
  */
 export type AxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
 
+/** Authored work cards use the task vocabulary without creating an AX task. */
+export const WORK_CARD_STATES: Record<AxWorkItemStatus, { label: string; glyph: string }> = {
+  todo: { label: 'To do', glyph: '○' },
+  'in-progress': { label: 'In progress', glyph: '◐' },
+  blocked: { label: 'Blocked', glyph: '⧗' },
+  done: { label: 'Done', glyph: '✓' },
+  cancelled: { label: 'Cancelled', glyph: '×' },
+};
+
+export function isWorkCardState(value: unknown): value is AxWorkItemStatus {
+  return typeof value === 'string' && Object.hasOwn(WORK_CARD_STATES, value);
+}
+
 /** `held` = auto-held by the unattended-approval policy: the action did NOT proceed. */
 export type AxApprovalStatus = 'pending' | 'approved' | 'rejected' | 'held';
 

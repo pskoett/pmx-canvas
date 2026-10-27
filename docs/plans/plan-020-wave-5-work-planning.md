@@ -1,7 +1,8 @@
 # Plan 020: Wave 5, work planning and Move to new board
 
-**Status (2026-10-27):** implementation started with slice 1's annotation parity.
-Work-card authoring, live-task views, relations/group navigation and board moves remain planned.
+**Status (2026-10-27):** annotation parity is delivered; deliberate work-card authoring
+is implemented, verified and owner-approved with option A's in-card editor.
+Live-task views, relations/group navigation and board moves remain planned as separate increments.
 This replaces step 4's automatic work-item-to-card conversion and make/inline-board
 pairing in [plan 019](plan-019-post-0.9-roadmap.md). 0.12 is a proposed release number,
 not authorization to publish. Annotation contract changes are recorded in the Unreleased
@@ -59,6 +60,11 @@ Dependencies and Decision drawings; the existing group/relation drawings remain 
 | `src/server/operations/ops/annotation.ts`, `src/server/index.ts`, `src/client/canvas/AnnotationLayer.tsx` | HTTP and SDK already create freehand/text marks; MCP exposes removal but not creation. Share the existing annotation model and renderer. SDK currently bypasses operation validation; parity must cover behavior, not just tool names. |
 
 ## Slice 1: author plans and show progress without Sessions
+
+**Current increment:** existing `status` nodes opt in with `data.workState`; detail
+and nullable progress remain separate. [WorkCards](../design/WorkCards.dc.html)
+records the selected in-card Save/Cancel editor. Creation and editing use ordinary
+node operations. Optional live-task views (steps 4–5) are deferred to the next increment.
 
 **Owners:** `StatusNode.tsx`, `StatusSummary.tsx`, `ContextMenu.tsx`, `SelectionBar.tsx`,
 `src/client/state/node-factory.ts`, `intent-bridge.ts`, `src/server/canvas-schema.ts`,

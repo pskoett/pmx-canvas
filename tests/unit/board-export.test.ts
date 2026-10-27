@@ -214,6 +214,8 @@ describe('static board export', () => {
       { type: 'markdown', title: 'Table', content: '| Team | Cost |\n| :--- | ---: |\n| **News** | 37.80 |' },
       { type: 'file', title: 'teams.csv', content: 'Team,Note\n"News, sports","<script>bad()</script>"\n' },
       { type: 'status', title: 'Status', content: 'Review complete' },
+      { type: 'status', title: 'Blocked work', data: { workState: 'blocked', progress: 37.5, detail: '<evidence>' } },
+      { type: 'status', title: 'Done work', data: { workState: 'done', progress: null } },
       { type: 'context', title: 'Context', content: 'Context fallback body' },
       { type: 'trace', title: 'Trace', content: 'Trace fallback body', data: { error: 'Trace error detail' } },
     ];
@@ -229,6 +231,12 @@ describe('static board export', () => {
     expect(html('teams.csv')).toContain('&lt;script&gt;bad()&lt;/script&gt;');
     expect(html('teams.csv')).not.toContain('<script>');
     expect(html('Status')).toContain('Review complete');
+    expect(html('Blocked work')).toContain('Blocked');
+    expect(html('Blocked work')).toContain('37.5%');
+    expect(html('Blocked work')).toContain('&lt;evidence&gt;');
+    expect(html('Blocked work')).not.toContain('Phase');
+    expect(html('Done work')).toContain('Done');
+    expect(html('Done work')).not.toContain('Progress');
     expect(html('Context')).toContain('Context fallback body');
     expect(html('Trace')).toContain('Trace fallback body');
     expect(html('Trace')).toContain('Trace error detail');

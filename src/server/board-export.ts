@@ -12,6 +12,7 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Marked, Renderer, type RendererThis, type Tokens } from 'marked';
+import { isWorkCardState, WORK_CARD_STATES } from '../shared/ax-kinds.js';
 import { canvasThemeScheme, normalizeCanvasThemeName, type CanvasThemeName } from '../shared/themes.js';
 import { delimiterForPath, parseDelimitedText } from '../shared/delimited-text.js';
 import { buildJsonRenderViewerHtml, escapeInlineScriptSource, readJsonRenderBundle } from '../json-render/server.js';
@@ -281,12 +282,18 @@ async function collect(
         card.html = `<div class="md">${await markdown.parse(text(data.content))}</div>`;
         break;
       case 'status':
-        card.html = rows([
-          ['Phase', text(data.phase).trim() || text(data.content).trim() || text(data.status).trim() || 'idle'],
-          ['Message', data.message],
-          ['Detail', data.detail],
-          ['Active tool', data.activeTool],
-        ]);
+        card.html = isWorkCardState(data.workState)
+          ? rows([
+              ['Work state', WORK_CARD_STATES[data.workState].label],
+              ['Detail', data.detail],
+              ['Progress', typeof data.progress === 'number' ? `${data.progress}%` : undefined],
+            ])
+          : rows([
+              ['Phase', text(data.phase).trim() || text(data.content).trim() || text(data.status).trim() || 'idle'],
+              ['Message', data.message],
+              ['Detail', data.detail],
+              ['Active tool', data.activeTool],
+            ]);
         break;
       case 'context': {
         const items = Array.isArray(data.cards) ? (data.cards as Array<Record<string, unknown>>) : [];

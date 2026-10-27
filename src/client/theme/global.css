@@ -849,6 +849,30 @@ body,
   color: var(--c-text-soft);
 }
 
+/* In-card editing is view state, never a persisted resize. */
+.canvas-node:has(.work-card-editor) { height: auto !important; }
+.canvas-node:has(.work-card-editor) .node-body { flex: none; overflow: visible; }
+.work-card { display: flex; flex-direction: column; gap: 12px; }
+.work-card-state { color: var(--c-text); font-weight: 600; }
+.work-card-blocked .work-card-state, .work-card-state.work-card-blocked, .work-card-error { color: var(--c-warn); }
+.work-card-done .work-card-state, .work-card-state.work-card-done { color: var(--c-ok); }
+.work-card-cancelled .work-card-state, .work-card-state.work-card-cancelled { color: var(--c-muted); }
+.work-card-detail { white-space: pre-wrap; overflow-wrap: anywhere; }
+.work-card-progress { color: var(--c-muted); font-size: var(--fs-meta); }
+.work-card footer, .work-card-editor footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.work-card button, .work-card-editor button, .work-card-editor input, .work-card-editor select, .work-card-editor textarea {
+  font: inherit; color: var(--c-text); background: var(--c-input-bg); border: 1px solid var(--c-line); border-radius: var(--r-control); padding: 8px;
+}
+.work-card button, .work-card-editor button { cursor: pointer; }
+.work-card button:hover, .work-card-editor button:hover { border-color: var(--c-text-soft); }
+.work-card-editor fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.work-card-editor label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.work-card-editor input, .work-card-editor select, .work-card-editor textarea { width: 100%; box-sizing: border-box; }
+.work-card-editor textarea { min-height: 80px; resize: vertical; }
+.work-card-editor .work-card-save { background: var(--c-accent); color: var(--c-contrast-fg); }
+.work-card-editor :disabled { cursor: wait; opacity: 0.65; }
+.work-card-editor :focus-visible, .work-card button:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+
 /* Markdown rendered content inside nodes */
 .canvas-node .node-body h1,
 .canvas-node .node-body h2,
