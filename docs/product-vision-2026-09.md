@@ -336,10 +336,13 @@ The move the evidence demands before any other. A workspace holds many named boa
   vocabulary onto a chosen board without changing existing relation kinds or reasons. Each
   board's dropdown lists its actual relation kinds and only changes the view. Unclassified
   lifecycle stays unknown; it does not create a Custom vocabulary category or badge.
-- **Growth by gesture.** "Make board" turns a group into a board and leaves a portal; "Inline board" reverses it. Group, board and board of boards are one scale.
-  **Wave 5 maintenance checkpoint (2026-10-11):** define how board-qualified relations,
-  provenance and review records move before implementing these gestures. Moving a card must
-  preserve its outside links and audit identity; copying a claim must not invent a validation.
+- **Growth by gesture (decided 2026-10-27).** **Move to new board** moves a multi-selection
+  or a group chosen through its **⋯** menu into a new board and leaves a portal. No copying,
+  reverse move or inline-board operation in Wave 5. Opening a group within an existing board
+  is navigation only, with breadcrumbs and outside connections, not board creation.
+  Moving preserves outside links and audit identity without renewing validation. Resolve
+  board-qualified references, snapshot/Undo boundaries and runtime ownership through
+  [plan 020](plans/plan-020-wave-5-work-planning.md) before implementing the move.
 - **Search across boards.** The ⌘K palette searches the whole library, not just the open board: board names, README summaries, card titles and card text, with the board each hit lives on. A wiki a human cannot search is a pile; the agent's `canvas_query` search gains the same library scope.
 - **Backup.** Once boards are the wiki, `canvas.db` holds the whole library, its history and its snapshots in one file. `pmx-canvas backup` writes a consistent copy (`VACUUM INTO`, safe while the server runs) to a folder the human chooses, keeps the last N, and runs on a schedule the human sets; `pmx-canvas restore` brings one back. It is a local file, so the no-externals rule holds. The per-board folder export in move 4 is the human-readable companion, not a substitute.
 - **Agent surface.** `canvas://boards` (the library: README summary, folder, links, backlinks, last touched; levels dropped 2026-10-06), `canvas://graph{?focus,depth}` (the relation graph above, local around a focus), a `board` target on every operation with the MCP session bound to one board, and a `canvas_board` composite (22 → 23 tools, with the freeze test and all four transports updated together).
@@ -454,19 +457,32 @@ Above. Objection: none raised; the panel missed it. Risk: noise. Mitigation: the
 
 ### 3. The agent's output moves onto the board (M)
 
-**Decided with the maintainer, 2026-09-06: the fleet features stay.** They are new, deliberate capability, and the same rule that protects the node types protects them. Scope fences, consumer keys, the `pump`, parent rollups, census chips, addressed versus broadcast steering and per-consumer delivery are all kept as they are. What follows is a relocation, not a cut.
+**Revised with the maintainer, 2026-10-27:** the primary use is human-agent planning and
+showing work through cards and relations, not relocating every session record onto the board.
+The owner reaffirmed Uses' work-planning drawings: steps, progress, dependencies,
+alternatives, conditional paths and illustrated loops. Presentation is deliberate. Creating a
+task or starting a session does not automatically create cards, and drawing a loop does not run it.
 
-The problem this move solves is one surface too many. When the agent opens a work item, raises a gate, asks a question or files evidence, it lands in a side table that the canvas cannot show. The human reads it in a panel while the board, the surface built for exactly this, stays blank about it. Two side effects follow: deleting a node forces the server to re-anchor orphaned items, and the panel and the board have different lifetimes, since canvas-bound state rides snapshots while the timeline does not.
+Ordinary canvas nodes and edges own the authored plan. Humans and agents can edit them without
+a session. Existing session records own running session work; a card deliberately showing a
+live task refers to that record rather than owning a second editable copy of its status.
+Starting a session does not convert existing plans. Removing the presentation does not cancel
+the underlying task. Session linkage is optional, not a prerequisite for planning.
 
-So the agent's output becomes nodes. A work item is a `status` node carrying the work state. Approval gates, elicitations and mode requests become one new `ask` node with a typed answer that records who gave it (move 7). Evidence is a node or a file node. Every gesture that already exists then applies to agent output: drag it beside the file it concerns, group it, pin it, connect it to the diff that raised it. Nothing to re-anchor, because the item is the node. One lifetime, because there is one surface.
+Questions and alternatives use existing card types; defer a general `ask` node. Ordinary cards
+do not approve or reject native-agent work. Approvals stay in the native host unless the user
+explicitly uses PMX's session controls. Existing gate and fence protections remain available
+even when session chrome is hidden. Timeline consolidation still belongs to the later journal.
 
-The evidence is the maintainer's own board. When three agents reviewed the product for him, they wrote markdown cards and patched each other's sections rather than filing work items. The card won because it was visible and spatial. This move makes the winner the design.
+**Kept:** `policy`, `host-capability`, the named command registry, scope fences, consumer keys,
+the `pump`, parent rollups, census chips, presence, steering and per-consumer delivery.
+**Ghost feedback stays unchanged:** it is human-facing visibility, not dispensable orchestration.
+Keep explicit previews and their veto window as well as automatic ghosts; do not change the
+bundled skill's signalling default as part of this wave.
 
-Deletes: the duplicate storage only. The three timeline tables fold into the journal in move 4, which was already happening.
-
-**Three primitives I would still question, as open questions rather than proposals.** The `policy` singleton, `host-capability`, and the command registry (`pmx.plan`, `pmx.review`, and the rest) each carry a schema, a route, an MCP action and a doc section, and I cannot find a use for them on any board or in any field report. I no longer claim the evidence to delete them, and the maintainer's rule is that my not finding a use is not proof. They are worth a deliberate decision, not a default one. Separately, ghost intents: keep the capability, but change the bundled skill so signalling one is opt-in rather than required before every mutation. That is a default, not a feature.
-
-Objection (value lens): steer is the one verb the human demonstrably uses, so any move that touched it would remove the thing that works. Accepted, and now moot: steering, delivery and the fleet around it are untouched. Objection (feasibility): the presence cursors are the presence registry, so they cannot be separated. Accepted, and also moot: presence is untouched.
+[Plan 020](plans/plan-020-wave-5-work-planning.md) replaces the earlier automatic conversion
+proposal and defines implementation and acceptance. No new execution engine or session-state
+rewrite is required for ordinary planning.
 
 ### 4. One journal is the truth; the app owns its history and its store (L, then XL)
 

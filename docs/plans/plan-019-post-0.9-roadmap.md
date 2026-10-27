@@ -5,6 +5,11 @@ with fresh post-push reviews and all five CI jobs passing. The maintainer author
 release of 0.11.0; release metadata and publication gates follow the checkpoint below.
 Versions after 0.11 remain proposals, not publication approval; every release must pass
 the [release gates](../RELEASE.md).
+**Wave 5 planning update (2026-10-27):** the owner settled deliberate work presentation,
+ordinary planning cards independent of Sessions, unchanged ghost feedback, and **Move to new
+board** with a portal. Agents also gain the human pen, text and eraser capabilities for
+questions and emphasis alongside existing board tools. No reverse move or general `ask` card in this wave. See the detailed
+[implementation plan](plan-020-wave-5-work-planning.md); implementation has not started.
 **Sources:** [product vision](../product-vision-2026-09.md) (moves and the 2026-10-19 sequence),
 [design.md build plan](../design.md#build-plan) (Waves 4, 5, Later),
 [plan 009](plan-009-tech-debt-backlog.md) (open debt),
@@ -24,7 +29,7 @@ measured; the maintainer carries that risk rather than reinstating an earlier ga
 | 1 | 0.9.3 | Cleanup: tour debt, large-board costs, bounded due evaluator, MCP reconnect, lint | 12, 1 | S–M |
 | 2 | 0.10 | MCP hardening, operation help and bounded discovery-schema reduction | 6a, 1 | M |
 | 3 | 0.11 | One frame host, proportional spatial zoom, Wave-0 design pass | 5, 9 | M–L |
-| 4 | 0.12 | Wave 5: agent output as nodes, make/inline board, group drill-in, relations sketch parity | 3, 0 | L |
+| 4 | 0.12 | Wave 5: deliberate work planning, Move to new board with a portal, group drill-in, relations sketch parity | 3, 0 | L |
 | 5 | later | Trust (M half), journal, concurrent boards, binary | 7, 4, 8 | L–XL |
 | 6 | end | Curation-effect baseline and reruns; skill-prompt benchmark | Part 1 item 4 | S–M |
 
@@ -566,26 +571,43 @@ responses even when writes already persisted.
 ## Step 4: 0.12 Wave 5 and relations sketch parity
 
 [Vision move 3](../product-vision-2026-09.md#3-the-agents-output-moves-onto-the-board-m), move 0's
-make board / inline board, [design.md Wave 5](../design.md#build-plan) and the remaining
-Relations/Flows/Uses sketch parity.
+board extraction, [design.md Wave 5](../design.md#build-plan) and the remaining
+Relations/Flows/Uses sketch parity. The owner reaffirmed the drawings and revised the behavior
+on 2026-10-27. [Plan 020](plan-020-wave-5-work-planning.md) owns implementation slices,
+code ownership, transport parity, move invariants and acceptance cases.
 
-**Before building:** decide how board-qualified relations, provenance and review records move
-when a card moves into or out of a board (plan 009 "Wave 5, groups and agent output"), and the
-move 3 open questions (decision 3).
+- Ordinary cards and relations let humans and agents plan steps, show progress, compare options
+  and illustrate loops. Presentation is deliberate, never an automatic card per work item/event.
+- Agents can draw, write questions and erase whole marks through the same annotation layer
+  as humans, without Sessions. These supplement existing tools and ghost feedback; a mark
+  does not create an approval gate or interpret a human's response automatically.
+- Nodes/edges own the authored plan. Existing session records own running session work; an
+  explicitly linked card presents the same live state. Starting a session does not convert plans.
+- Native-agent approvals stay in the host; existing PMX session controls/protections remain.
+  Defer the general `ask` card. Keep the policy, host capability, command registry, fleet and
+  current explicit/automatic ghost behavior unchanged.
+- **Move to new board** from multi-selection or a group's **⋯** menu moves cards and leaves a
+  portal. No reverse move or inline-board operation in this wave.
+- Open a group within the existing board with breadcrumbs and outside endpoint stubs; navigation
+  creates no board. Complete inline edge editing, stale-lineage warnings, pair/cycle/affected
+  badges and Show lineage / Show on canvas. Intentional flow loops do not execute themselves.
 
-- Work items as `status` nodes; gates, elicitations and mode requests as one `ask` node with an
-  attributed answer (new node type: follow the "Adding New Node Types" checklist in `CLAUDE.md`).
-- Make board / inline board; group drill-in with breadcrumbs and outside endpoint stubs.
-- Relations sketch parity: inline edge editor, amber stale-lineage strokes, pair/cycle/affected
-  badges, Show lineage / Show on canvas.
+**Before the move implementation:** resolve plan 020's engineering checkpoints for historical
+board-qualified references, old snapshots/Undo, runtime-bound cards and atomic multi-board
+persistence. Any restore restriction or unsupported live move needs explicit review; product
+agreement is not approval to drop data or expand into the journal/concurrent-board roadmap.
 
 **Done when**
-- design.md's Wave 5 check: agent output uses the same shell and tokens; a group opened as a
-  board shows its outside stubs.
-- Moving a card preserves its outside links and audit identity; copying a claim does not
-  copy its validation.
-- A changed source turns downstream edges amber on the board, not only the card footer.
-- The `ask` node renders in a live browser board (DOM check), not only in unit tests.
+- Human and agent can author and revise the illustrated plan without Sessions; no implicit
+  work records, approvals or loop execution arise from drawing it.
+- Human and agent annotations share rendering, persistence and erase behavior, with transport
+  parity and inspected browser coverage for questions, pointing and reciprocal erasing.
+- Explicit live-task views agree with session state, while unrelated planning cards stay ordinary.
+- Group drill-in retains outside connections without changing board count or ownership.
+- Moving cards preserves identity, outside links, pins and audit meaning through interruption,
+  retry and restart; it does not renew validation or lose viewer/attachment content.
+- Dependency/source warnings and relation controls match the drawings and semantic tokens in
+  the inspected browser cases. The acceptance manifest and public transport docs cover the flow.
 
 ## Step 5: later
 
@@ -639,7 +661,7 @@ before the hosted second writer. Decision 6 must be settled before accounts and 
 |---|---|---|---|
 | 1 | MCP hardening before the frame host | Steps 2–3 order | **Decided 2026-10-19:** yes, MCP is the agent half. A narrow WebKit fix can still ship as a patch |
 | 2 | Version numbers and batch size | Every release | One minor per step, as above |
-| 3 | Keep the `policy` singleton, `host-capability`, the command registry; ghost intents opt-in? | Step 4 | Decide before Wave 5 |
+| 3 | Session mechanisms and ghost intents | Step 4 | **Decided 2026-10-27:** keep policy, host capability, named commands and fleet behavior; preserve explicit and automatic ghost feedback. Ordinary planning is independent of Sessions; work presentation is deliberate. See plan 020 |
 | 4 | Gate a release on native Copilot/WebKit, Windows, the Amp context pill or npm-installed execution? | Steps 2–3 | None gates 0.10; revisit for the hosted version |
 | 5 | File-confinement default | Step 5.1 | Per-board allow-root list |
 | 6 | Context vision: personal- or team-first wiki, personal-space owner, who publishes, default wiki entry, assistant defaults | Hosted accounts and scopes | Decide before hosted accounts |

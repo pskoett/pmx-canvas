@@ -320,8 +320,9 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
   working set (README and pinned cards in full, on every board); there is no separate card
   pin, which would only send the portal's summary while this board is open. Every other
   card keeps its card pin.
-- **Relations are the edge layer, not node types.** Design work adds no node type;
-  the vision's own `ask` node (move 3) is separate.
+- **Relations are the edge layer, not node types.** Design work adds no node type.
+  The general `ask` node is deferred by the Wave 5 decision below; ordinary planning questions
+  and alternatives use existing cards.
 - **Any size, from a side pane to a full window.** The workbench lives in narrow agent-host
   panes, the resizable side browser in the Claude desktop app, and full browser windows. Every
   drawing shows the narrow end (600 px) and a full window before it is built, and the build
@@ -371,6 +372,24 @@ The sketches' suggested-link Accept/Dismiss treatment was superseded by the
 2026-10-10 direct-edit decision recorded above; it is not a pending acceptance
 workflow. A demo of existing features must not be used to claim full sketch parity.
 
+**Wave 5 decision, 2026-10-27.** The owner reaffirmed Uses' Agent flow, Dependencies and
+Decision drawings; Flows remains the reference for group navigation. Humans and agents author ordinary cards and
+relations, showing work deliberately rather than automatically creating a card for every task.
+Illustrated loops describe a plan; they do not execute it. Planning works without Sessions.
+An explicitly linked session-task card presents the existing record's live state; starting a
+session does not convert the plan. Native-agent approvals stay in the host, PMX session controls
+remain separate, and explicit/automatic ghost feedback is unchanged. The general `ask` card
+is deferred.
+
+**Move to new board** is the agreed label for multi-selection and the group's **⋯** menu:
+move the cards, preserve identity/history/relations and leave a portal. No reverse move or
+inline-board operation in this wave. Opening a group within the current board is navigation
+only, with breadcrumbs and outside endpoints, not a new board. These decisions supersede the
+earlier automatic work-card and make/inline-board wording. Implementation and technical
+checkpoints live in [plan 020](plans/plan-020-wave-5-work-planning.md). Draw any missing
+authoring controls and move-dialog states in this design home before implementing them; the
+existing artboards remain the target, not evidence that those controls are already drawn.
+
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
 | **0. Foundation**: shipped in 0.8.0; remaining foundation gaps ship with plan 019 step 3 | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; reference cases pass at 600, 1024 and 1920 px; demo board regenerated |
@@ -378,7 +397,7 @@ workflow. A demo of existing features must not be used to claim full sketch pari
 | **2. Connected memory views** — implemented, verification gates apply | Moves 0, 14 | One board/card projection for Home, links/backlinks, brief discovery and `canvas://graph{?focus,depth}`; saved wiki ID bindings, direct cross-board card edges, previous-board chains, persisted Map positions | Home Map, Home Graph (deviations below) | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
 | **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; native proportional canvas at every zoom | Node types 1–3, Zoom | Viewers use the canvas palette and fill their authored space; approaching a viewer mounts it automatically and retains its state when panning away; no alternate grid or lifetime preview cap |
-| **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
+| **5. Work planning and group navigation** | Moves 3, 0 | Deliberate work cards and relations; optional live session-task views; Move to new board with a portal; group drill-in without board creation; no reverse move | Uses (agent flow, dependencies, decisions), Flows (open a group), Relations | Human and agent can plan without Sessions; illustrated loops stay inert; drill-in keeps outside stubs; moves preserve identity and audit; shared shell/tokens and plan 020 acceptance pass |
 | **Later: hosted version** | Part 4 (moved from Part 3, 2026-10-19) | Read-only link, comments, second writer, accounts and roles; org → team → personal scopes with configurable categories and per-user pins; built once for the ChatGPT Sites and later Cloudflare editions | HomeTeam is the earlier two-root look ahead; updated scope/category drawings are required before building, retaining explicit publication and locked cards for unreadable boards | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal reaches a wider audience without explicit publication |
 
 **Folders and portals (decided 2026-10-06).** Home uses folders as the visible hierarchy (where a
