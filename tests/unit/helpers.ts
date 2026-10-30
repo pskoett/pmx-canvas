@@ -9,9 +9,10 @@ import type { CanvasTheme, PersistedCanvasState } from '../../src/server/canvas-
 import { loadStateFromDB, readThemeFromDB } from '../../src/server/canvas-db.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
+import { beginPersistencePhase, tracePersistencePhase } from '../persistence-trace.ts';
 
 export function createTestWorkspace(prefix: string): string {
-  return mkdtempSync(join(tmpdir(), prefix));
+  return tracePersistencePhase('workspace.mkdtemp', () => mkdtempSync(join(tmpdir(), prefix)));
 }
 
 /**
@@ -105,14 +106,14 @@ set -e
 export function removeTempDirWithRetry(dir: string): void {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      tracePersistencePhase(`cleanup.rmSync.${attempt + 1}`, () => rmSync(dir, { recursive: true, force: true }));
       return;
     } catch {
-      Bun.sleepSync(100);
+      tracePersistencePhase('cleanup.sleepSync', () => Bun.sleepSync(100));
     }
   }
   try {
-    rmSync(dir, { recursive: true, force: true });
+    tracePersistencePhase('cleanup.rmSync.6', () => rmSync(dir, { recursive: true, force: true }));
   } catch (error) {
     console.warn(`removeTempDirWithRetry: leaking ${dir} (${String(error)})`);
   }
@@ -188,13 +189,13 @@ export function makeNode(overrides: Partial<CanvasNodeState> & Pick<CanvasNodeSt
 }
 
 export function resetCanvasForTests(workspaceRoot: string): void {
-  stopCanvasServer();
-  canvasState.withSuppressedRecording(() => {
-    canvasState.clear();
+  tracePersistencePhase('reset.stopServer', () => stopCanvasServer());
+  tracePersistencePhase('reset.clear', () => {
+    canvasState.withSuppressedRecording(() => canvasState.clear());
   });
-  mutationHistory.reset();
-  canvasState.setWorkspaceRoot(workspaceRoot);
-  canvasState.setTheme('harbor');
+  tracePersistencePhase('reset.history', () => mutationHistory.reset());
+  tracePersistencePhase('reset.setWorkspaceRoot', () => canvasState.setWorkspaceRoot(workspaceRoot));
+  tracePersistencePhase('reset.theme', () => canvasState.setTheme('harbor'));
 }
 
 /**
@@ -225,9 +226,16 @@ export async function waitForCondition(
  * keeps the mutation→scheduleSave→write path under test without racing it.
  */
 export async function waitForPersistence(timeoutMs = 3000): Promise<void> {
-  // biome-ignore lint/complexity/useLiteralKeys: reaches the private save timer — the real "save flushed" signal.
-  await waitForCondition(() => canvasState['_saveTimer'] === null, {
-    timeoutMs,
-    label: 'the debounced canvas save to flush',
-  });
+  const end = beginPersistencePhase('save.debounceWait');
+  try {
+    // biome-ignore lint/complexity/useLiteralKeys: reaches the private save timer — the real "save flushed" signal.
+    await waitForCondition(() => canvasState['_saveTimer'] === null, {
+      timeoutMs,
+      label: 'the debounced canvas save to flush',
+    });
+    end();
+  } catch (error) {
+    end('throw');
+    throw error;
+  }
 }

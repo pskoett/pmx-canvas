@@ -1,12 +1,18 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { AX_TIMELINE_RETENTION } from '../../src/server/ax-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
+import {
+  beginPersistencePhase,
+  setPersistenceTracing,
+  tracePersistenceMethod,
+  tracePersistencePhase,
+} from '../persistence-trace.ts';
 import {
   createTestWorkspace,
   makeNode,
@@ -25,14 +31,55 @@ function overlap(
 
 describe('canvas state manager', () => {
   let workspaceRoot = '';
+  let caseNumber = 0;
+  let endBody = () => {};
+  const original = {
+    close: canvasState.close,
+    flush: canvasState.flushToDisk,
+    load: canvasState.loadFromDisk,
+    exec: Database.prototype.exec,
+    dbClose: Database.prototype.close,
+  };
+
+  beforeAll(() => {
+    if (process.env.PMX_PERSISTENCE_TRACE !== '1') return;
+    canvasState.close = tracePersistenceMethod('state.close', original.close);
+    canvasState.flushToDisk = tracePersistenceMethod('state.flush', original.flush);
+    canvasState.loadFromDisk = tracePersistenceMethod('state.load', original.load);
+    Database.prototype.exec = function (...args) {
+      const phase = /^PRAGMA wal_checkpoint/i.test(args[0]) ? 'sqlite.checkpoint' : 'sqlite.exec';
+      return tracePersistencePhase(phase, () => original.exec.apply(this, args));
+    };
+    Database.prototype.close = tracePersistenceMethod('sqlite.close', original.dbClose);
+  });
+
+  afterAll(() => {
+    if (process.env.PMX_PERSISTENCE_TRACE !== '1') return;
+    canvasState.close = original.close;
+    canvasState.flushToDisk = original.flush;
+    canvasState.loadFromDisk = original.load;
+    Database.prototype.exec = original.exec;
+    Database.prototype.close = original.dbClose;
+    setPersistenceTracing(false);
+  });
 
   beforeEach(() => {
-    workspaceRoot = createTestWorkspace('pmx-canvas-state-');
-    resetCanvasForTests(workspaceRoot);
+    setPersistenceTracing(true);
+    caseNumber++;
+    tracePersistencePhase(`case.${caseNumber}.beforeEach`, () => {
+      workspaceRoot = createTestWorkspace('pmx-canvas-state-');
+      resetCanvasForTests(workspaceRoot);
+    });
+    endBody = beginPersistencePhase(`case.${caseNumber}.body`);
   });
 
   afterEach(() => {
-    removeTestWorkspace(workspaceRoot);
+    endBody();
+    try {
+      tracePersistencePhase(`case.${caseNumber}.afterEach`, () => removeTestWorkspace(workspaceRoot));
+    } finally {
+      setPersistenceTracing(false);
+    }
   });
 
   test('workspace settings refuse writes without a database', () => {

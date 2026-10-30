@@ -117,6 +117,10 @@ jobs:
       # bunfig.toml preloads the same browser/host-state safety env as `test`.
       - name: Unit tests (Windows filesystem budget)
         if: runner.os == 'Windows'
+        # Temporary phase timestamps for the unreproduced persistence-hook timeout.
+        # Keep the full-suite workload and existing timeout unchanged.
+        env:
+          PMX_PERSISTENCE_TRACE: '1'
         run: bun test tests/unit --timeout 30000
 
   # Required e2e gate. Kept separate from unit tests so unit feedback stays
