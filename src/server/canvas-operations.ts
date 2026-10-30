@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, resolve } from 'node:path';
 import { agentPresence } from './agent-presence.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 import { recomputeCodeGraph } from './code-graph.js';
 import { diffLayouts } from './mutation-history.js';
 import {
@@ -759,7 +759,7 @@ async function syncBoardRuntimeBackends(options: {
   }
 }
 
-const graphRecompute = new BoardLocal(
+const graphRecompute = createBoardLocal(
   () => ({ timer: null as ReturnType<typeof setTimeout> | null }),
   (state) => {
     if (state.timer) clearTimeout(state.timer);

@@ -81,7 +81,7 @@ import {
   setCanvasLayoutUpdateEmitter,
   startBoardRuntime,
 } from './canvas-operations.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_NAME_LENGTH } from './document-import.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
@@ -105,7 +105,7 @@ const DEFAULT_PORT = 4313;
 
 let server: ReturnType<typeof Bun.serve> | null = null;
 let activeWorkspaceRoot = resolve(process.cwd());
-const boardReplay = new BoardLocal(() => ({
+const boardReplay = createBoardLocal(() => ({
   path: null as string | null,
   contextCards: null as Record<string, unknown> | null,
 }));

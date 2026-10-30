@@ -18,7 +18,7 @@ import { resolve, dirname, basename, extname, relative } from 'node:path';
 import { existsSync } from 'node:fs';
 import { canvasState } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -177,7 +177,7 @@ function tryResolveWithExtensions(basePath: string): string | null {
 const AUTO_EDGE_PREFIX = 'codegraph-';
 
 /** Cache of last recomputed edges for buildCodeGraphSummary() to reuse. */
-const discovered = new BoardLocal(() => ({ edges: [] as CodeGraphEdge[] }));
+const discovered = createBoardLocal(() => ({ edges: [] as CodeGraphEdge[] }));
 
 /**
  * Get all file nodes currently on the canvas.

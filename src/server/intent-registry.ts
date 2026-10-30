@@ -25,7 +25,7 @@ import {
   type PmxAxIntentKind,
 } from '../shared/ax-intent.js';
 import { OperationError } from './operations/types.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 import { canvasState } from './canvas-state.js';
 
 type IntentEmitter = (event: string, payload: Record<string, unknown>) => void;
@@ -105,7 +105,7 @@ function nextIntentId(): string {
 }
 
 export class IntentRegistry {
-  private readonly board = new BoardLocal(
+  private readonly board = createBoardLocal(
     () => ({
       intents: new Map<string, PmxAxIntent>(),
       vetoedIntentIds: new Map<string, number>(),

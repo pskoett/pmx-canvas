@@ -21,7 +21,7 @@ import {
 import { boardCatalogEpoch, canvasState } from './canvas-state.js';
 import { getClientViewportSize } from './canvas-operations.js';
 import { OperationError } from './operations/types.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 
 export type TourStep = number | 'next' | 'previous';
 
@@ -47,7 +47,7 @@ export interface TourState {
   position: number | null;
 }
 
-const boardTour = new BoardLocal(() => ({
+const boardTour = createBoardLocal(() => ({
   cursor: null as { boardGeneration: number; viewGeneration: number; tour: string; index: number } | null,
   presenterGeneration: -1,
   presenterIntents: new Map<string, number>(),

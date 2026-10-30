@@ -10,7 +10,7 @@ import { watch, existsSync, statSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
 import { canvasState } from './canvas-state.js';
 import { applyFileContentToNodeData, readFileNodeContent } from './file-content.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 
 function logFileWatcherWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[file-watcher] ${action}`, { error, ...(details ?? {}) });
@@ -28,7 +28,7 @@ function stopWatching(watched: Map<string, WatchedFile>): void {
   for (const entry of watched.values()) entry.watcher.close();
   watched.clear();
 }
-const boardWatchers = new BoardLocal(
+const boardWatchers = createBoardLocal(
   () => {
     const watched = new Map<string, WatchedFile>();
     watcherSets.add(watched);

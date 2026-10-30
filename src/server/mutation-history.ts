@@ -14,7 +14,7 @@
 
 import type { CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { currentActor as getActor, setCurrentActor } from './attribution.js';
-import { BoardLocal } from './board-local.js';
+import { createBoardLocal } from './board-local.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ function comparableNodeData(data: Record<string, unknown>): Record<string, unkno
 const MAX_ENTRIES = 200;
 
 class MutationHistory {
-  private readonly board = new BoardLocal(() => ({ entries: [] as MutationEntry[], cursor: -1, replaying: false }));
+  private readonly board = createBoardLocal(() => ({ entries: [] as MutationEntry[], cursor: -1, replaying: false }));
   private get entries() {
     return this.board.current.entries;
   }

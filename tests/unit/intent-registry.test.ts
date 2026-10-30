@@ -30,6 +30,19 @@ function intentOf(frame: Frame): Record<string, unknown> {
 }
 
 describe('IntentRegistry', () => {
+  test('signals an intent when imported first in a fresh process', () => {
+    const result = Bun.spawnSync([
+      process.execPath,
+      '--eval',
+      `import { IntentRegistry } from ${JSON.stringify(import.meta.resolve('../../src/server/intent-registry.ts'))};
+const registry = new IntentRegistry();
+console.log(registry.signal({ kind: 'create', position: { x: 10, y: 20 }, nodeType: 'markdown' }).kind);
+registry.reset();`,
+    ]);
+    expect(result.exitCode, result.stderr.toString()).toBe(0);
+    expect(result.stdout.toString().trim()).toBe('create');
+  });
+
   test('signal(create) stores, returns, and emits ax-intent', () => {
     const intent = registry.signal({
       kind: 'create',
