@@ -36,6 +36,17 @@ export interface OperationToolHost extends OperationMcpToolHost {
   recordContextRead(read: ContextReadInput): Promise<void>;
 }
 
+const routingShape = {
+  targetBoardId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Execute on this board without changing the shared workbench view. Nested operations retain this target.',
+    ),
+  agentId: z.string().min(1).optional().describe('Stable agent/thread identity for attribution and scope fences.'),
+};
+
 function executionOptions(extra: RequestHandlerExtra<ServerRequest, ServerNotification>): OperationExecutionOptions {
   const progressToken = extra._meta?.progressToken;
   return {
@@ -58,9 +69,22 @@ async function invokeMcpOperation(
   options: OperationExecutionOptions,
 ) {
   options.signal?.throwIfAborted();
-  const board = typeof opInput.board === 'string' && opInput.board.trim() ? opInput.board.trim() : undefined;
+  // buildInput may project operation-specific fields; routing belongs to the
+  // invocation and must also cover formatter follow-up reads and accounting.
+  const routing = {
+    ...(formatInput.targetBoardId !== undefined ? { targetBoardId: formatInput.targetBoardId } : {}),
+    ...(formatInput.agentId !== undefined ? { agentId: formatInput.agentId } : {}),
+  };
+  opInput = { ...opInput, ...routing };
+  if (typeof routing.agentId === 'string') consumer = routing.agentId;
+  const board =
+    typeof routing.targetBoardId === 'string'
+      ? routing.targetBoardId
+      : typeof opInput.board === 'string' && opInput.board.trim()
+        ? opInput.board.trim()
+        : undefined;
   const readTarget = CONTEXT_READ_OPS.has(op.name) ? await host.prepareContextRead(board) : null;
-  if (readTarget?.boardId && 'board' in op.inputShape) {
+  if (readTarget?.boardId && 'board' in op.inputShape && opInput.board === undefined) {
     opInput = { ...opInput, board: readTarget.boardId };
     formatInput = { ...formatInput, board: readTarget.boardId };
   }
@@ -70,8 +94,10 @@ async function invokeMcpOperation(
   // Preserve the host receiver, and bind options to formatter follow-up reads
   // (history flags, snapshot summary, streaming node metadata).
   const formatterHost: OperationMcpToolHost = {
-    getPinnedNodeIds: (target) => host.getPinnedNodeIds(target),
-    invoker: () => ({ invoke: (name, input, followUp) => invoker.invoke(name, input, { ...options, ...followUp }) }),
+    getPinnedNodeIds: (target) => host.getPinnedNodeIds(target ?? board),
+    invoker: () => ({
+      invoke: (name, input, followUp) => invoker.invoke(name, { ...input, ...routing }, { ...options, ...followUp }),
+    }),
   };
   const formatted = structuredOperationResult(
     op.name,
@@ -151,7 +177,7 @@ export function registerOperationTools(server: McpServer, getHost: () => Promise
         // successful over MCP while the same HTTP call 400'd (0.5.1 Amp
         // finding A). Loose parsing forwards unknown keys to the op layer,
         // the single authority on dead-field rejection, HTTP and MCP alike.
-        inputSchema: z.looseObject({ ...op.inputShape, ...(tool.extraShape ?? {}) }),
+        inputSchema: z.looseObject({ ...op.inputShape, ...(tool.extraShape ?? {}), ...routingShape }),
         outputSchema: operationOutputSchema([op.name]),
         annotations: operationToolAnnotations(tool.toolName),
       },
@@ -376,8 +402,8 @@ export function registerOperationHelpTool(server: McpServer): void {
       const composite = compositeToolDefinitions.find((def) => compositeMemberOps(def).includes(name));
       const publicName = (field: string) =>
         Object.entries(composite?.fieldRemap ?? {}).find(([, original]) => original === field)?.[0] ?? field;
-      const shape = Object.fromEntries(
-        Object.entries({ ...op.inputShape, ...op.mcp?.extraShape }).map(([field, schema]) => [
+      const shape: Record<string, ZodTypeAny> = Object.fromEntries(
+        Object.entries({ ...op.inputShape, ...op.mcp?.extraShape, ...routingShape }).map(([field, schema]) => [
           publicName(field),
           schema,
         ]),
@@ -444,7 +470,7 @@ export function registerCompositeTools(
       def.toolName,
       {
         description: def.description,
-        inputSchema: z.looseObject(buildCompositeShape(def)),
+        inputSchema: z.looseObject({ ...buildCompositeShape(def), ...routingShape }),
         outputSchema: operationOutputSchema(compositeMemberOps(def)),
         annotations: operationToolAnnotations(def.toolName),
       },

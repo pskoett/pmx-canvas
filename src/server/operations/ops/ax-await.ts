@@ -69,6 +69,7 @@ function clampTimeoutMs(value: unknown): number {
 /** Accept the operation's timeoutMs as well as the direct HTTP waitMs spelling. */
 function readWaitMsInput(_req: Request, params: Record<string, string>, url: URL): Record<string, unknown> {
   return {
+    ...Object.fromEntries(url.searchParams),
     ...params,
     timeoutMs: clampTimeoutMs(url.searchParams.get('timeoutMs') ?? url.searchParams.get('waitMs') ?? ''),
   };

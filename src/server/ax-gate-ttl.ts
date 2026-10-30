@@ -11,6 +11,7 @@
  */
 import { formatCountdown } from '../shared/approval-gates.js';
 import { canvasState } from './canvas-state.js';
+import { withCurrentActor } from './attribution.js';
 
 type GateEmitter = (event: string, payload: Record<string, unknown>) => void;
 
@@ -50,7 +51,13 @@ export function sweepExpiredGates(now = Date.now()): string[] {
 export function startGateTtlSweeper(emitter: GateEmitter): void {
   emit = emitter;
   if (sweepTimer) return;
-  sweepTimer = setInterval(() => sweepExpiredGates(), 1000);
+  sweepTimer = setInterval(
+    () =>
+      withCurrentActor({ actor: 'system', source: 'system' }, () => {
+        canvasState.forEachLiveBoard(() => sweepExpiredGates());
+      }),
+    1000,
+  );
   (sweepTimer as { unref?: () => void }).unref?.();
 }
 

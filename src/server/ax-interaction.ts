@@ -379,6 +379,7 @@ const PAYLOAD_SCHEMAS: Record<string, z.ZodType> = {
  * Injected so this module stays free of a runtime canvas-state import.
  */
 export interface AxInteractionManager {
+  readonly boardIdentity: object;
   getNode(id: string): CanvasNodeState | undefined;
   /** Canvas read for `ax.flow.materialize` (placement obstacles + stale flow sweep). */
   getLayout(): CanvasLayout;
@@ -722,22 +723,27 @@ function materializeFlow(
  */
 // ── ax.work.create idempotency window ─────────────
 const WORK_CREATE_DEDUPE_MS = 2_500;
-const recentWorkCreates = new Map<string, { item: PmxAxWorkItem; at: number }>();
+const recentWorkCreates = new WeakMap<object, Map<string, { item: PmxAxWorkItem; at: number }>>();
 
-function recentWorkCreate(sourceNodeId: string, title: string): PmxAxWorkItem | null {
+function recentWorkCreate(owner: object, sourceNodeId: string, title: string): PmxAxWorkItem | null {
   const key = `${sourceNodeId}\u0000${title}`;
-  const hit = recentWorkCreates.get(key);
+  const hit = recentWorkCreates.get(owner)?.get(key);
   if (hit && Date.now() - hit.at <= WORK_CREATE_DEDUPE_MS) return hit.item;
   return null;
 }
 
-function rememberWorkCreate(sourceNodeId: string, title: string, item: PmxAxWorkItem): void {
+function rememberWorkCreate(owner: object, sourceNodeId: string, title: string, item: PmxAxWorkItem): void {
   const key = `${sourceNodeId}\u0000${title}`;
-  recentWorkCreates.set(key, { item, at: Date.now() });
-  if (recentWorkCreates.size > 64) {
+  let entries = recentWorkCreates.get(owner);
+  if (!entries) {
+    entries = new Map();
+    recentWorkCreates.set(owner, entries);
+  }
+  entries.set(key, { item, at: Date.now() });
+  if (entries.size > 64) {
     const now = Date.now();
-    for (const [k, v] of recentWorkCreates) {
-      if (now - v.at > WORK_CREATE_DEDUPE_MS) recentWorkCreates.delete(k);
+    for (const [k, v] of entries) {
+      if (now - v.at > WORK_CREATE_DEDUPE_MS) entries.delete(k);
     }
   }
 }
@@ -851,7 +857,7 @@ export function applyAxInteraction(
       // booked two identical work items ~1s apart): the SAME node creating a
       // work item with the SAME title inside the window gets the first item
       // back instead of a duplicate.
-      const dupe = recentWorkCreate(sourceNodeId, p.title);
+      const dupe = recentWorkCreate(manager.boardIdentity, sourceNodeId, p.title);
       if (dupe) return accept(type, sourceNodeId, dupe, 'ax-state-changed', { workItem: dupe });
       const workItem = manager.addWorkItem(
         {
@@ -862,7 +868,7 @@ export function applyAxInteraction(
         },
         opts,
       );
-      rememberWorkCreate(sourceNodeId, p.title, workItem);
+      rememberWorkCreate(manager.boardIdentity, sourceNodeId, p.title, workItem);
       return withLayoutBroadcast(accept(type, sourceNodeId, workItem, 'ax-state-changed', { workItem }), manager, [
         workItem,
       ]);

@@ -200,6 +200,8 @@ export function createMcpServer(): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       outputSchema: interactionResult,
       inputSchema: {
+        targetBoardId: z.string().optional(),
+        agentId: z.string().optional(),
         type: z
           .enum(AX_INTERACTION_TYPES)
           .describe('Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set.'),
@@ -213,13 +215,15 @@ export function createMcpServer(): McpServer {
         source: z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.'),
       },
     },
-    async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source }, extra) => {
+    async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source, targetBoardId, agentId }, extra) => {
       try {
         const c = await ensureCanvas();
         extra.signal.throwIfAborted();
         const result = await c.invoker().invoke(
           'ax.interaction.submit',
           {
+            targetBoardId,
+            agentId,
             type,
             sourceNodeId,
             ...(payload ? { payload } : {}),
@@ -269,6 +273,8 @@ export function createMcpServer(): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       outputSchema: activityResult,
       inputSchema: {
+        targetBoardId: z.string().optional(),
+        agentId: z.string().optional(),
         kind: z.enum([
           'tool-start',
           'tool-result',
@@ -327,13 +333,15 @@ export function createMcpServer(): McpServer {
         source: z.enum(AX_SOURCES).optional(),
       },
     },
-    async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }, extra) => {
+    async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source, targetBoardId, agentId }, extra) => {
       try {
         const c = await ensureCanvas();
         extra.signal.throwIfAborted();
         const result = await c.invoker().invoke(
           'ax.activity.ingest',
           {
+            targetBoardId,
+            agentId,
             kind,
             title,
             ...(summary !== undefined ? { summary } : {}),
@@ -389,6 +397,7 @@ export function createMcpServer(): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       outputSchema: screenshotResult,
       inputSchema: {
+        targetBoardId: z.string().optional().describe('Not supported: screenshots inspect the shared WebView.'),
         format: z
           .enum(['png', 'jpeg', 'webp'])
           .optional()
@@ -396,8 +405,9 @@ export function createMcpServer(): McpServer {
         quality: z.number().optional().describe('Optional quality for lossy formats'),
       },
     },
-    async ({ format, quality }, extra) => {
+    async ({ format, quality, targetBoardId }, extra) => {
       try {
+        if (targetBoardId !== undefined) throw new Error('Screenshots inspect the shared WebView, not a scoped board.');
         const c = await ensureCanvas();
         extra.signal.throwIfAborted();
         const bytes = await c.screenshotAutomationWebView(

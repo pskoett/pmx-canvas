@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import type { PluginAPI, PluginCommandContext, PluginToolContext, PluginToolDefinition } from '@ampcode/plugin';
+import type {
+  PluginAPI,
+  PluginCommandContext,
+  PluginToolContext,
+  PluginToolDefinition,
+  ToolCallEvent,
+  ToolCallResult,
+} from '@ampcode/plugin';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
@@ -23,11 +30,15 @@ let abortOnList: AbortController | undefined;
 
 async function host() {
   let tool: PluginToolDefinition | undefined;
+  let route: ((event: ToolCallEvent) => Promise<ToolCallResult>) | undefined;
   const commands = new Map<string, (ctx: PluginCommandContext) => Promise<void>>();
   // Only host registration surfaces are stubbed. The plugin performs real HTTP and disk I/O.
   const api = {
     system: { workspaceRoot: { toString: () => `file://${root}` } },
     helpers: { filePathFromURI: () => root },
+    on: (_event: string, handler: (event: ToolCallEvent) => Promise<ToolCallResult>) => {
+      route = handler;
+    },
     registerSkill: async () => ({ unsubscribe() {} }),
     registerTool: (definition: PluginToolDefinition) => {
       tool = definition;
@@ -41,6 +52,13 @@ async function host() {
   await plugin(api);
   return {
     commands,
+    route: (input: Record<string, unknown>, threadId = first, name = 'canvas_node') =>
+      route!({
+        toolUseID: crypto.randomUUID(),
+        tool: `mcp__pmx_canvas__${name}`,
+        input,
+        thread: { id: threadId },
+      }),
     async call(action: string, threadId = first, boardId?: string, signal = new AbortController().signal) {
       const result = await tool!.execute({ action, ...(boardId ? { boardId } : {}) }, {
         thread: { id: threadId },
@@ -85,6 +103,33 @@ afterEach(() => {
 });
 
 describe('Amp Canvas session', () => {
+  test('native thread identity supplies routing and refuses conflicting destinations', async () => {
+    const session = await host();
+    await Promise.all([session.call('bind', first, 'left'), session.call('bind', second, 'right')]);
+    const input = { action: 'add', type: 'markdown', content: 'Bound output', agentId: 'model-supplied' };
+    expect(await session.route(input, first)).toEqual({
+      action: 'modify',
+      input: {
+        ...input,
+        targetBoardId: 'left',
+        agentId: `amp:${first}`,
+      },
+    });
+    expect(await session.route(input, second)).toEqual({
+      action: 'modify',
+      input: {
+        ...input,
+        targetBoardId: 'right',
+        agentId: `amp:${second}`,
+      },
+    });
+    expect(await session.route({ ...input, destinationBoardId: 'right' }, first)).toMatchObject({
+      action: 'reject-and-continue',
+    });
+    await session.call('unbind', first);
+    expect(await session.route(input, first)).toEqual({ action: 'allow' });
+  });
+
   test('thread bindings survive reload independently without following navigation or missing boards', async () => {
     const one = await host();
     await Promise.all([one.call('bind', first, 'left'), one.call('bind', second, 'right')]);

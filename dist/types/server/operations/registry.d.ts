@@ -39,5 +39,7 @@ export interface ExecuteOperationMeta extends OperationExecutionOptions {
      */
     proxiedRead?: boolean;
 }
+/** Also used by batch's internal node path, which does not dispatch an operation. */
+export declare function validateOperationTarget(name: string, input: Record<string, unknown>): string | undefined;
 export declare function executeOperation(name: string, rawInput: unknown, meta?: ExecuteOperationMeta): Promise<unknown>;
 export {};

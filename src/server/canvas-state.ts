@@ -12,6 +12,7 @@
  * the one-shot boot migration into SQLite was retired.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   prepareBoardMove,
@@ -466,35 +467,232 @@ function isPersistedBlobRef(value: unknown): value is PersistedBlobRef {
   );
 }
 
-class CanvasStateManager {
-  private nodes = new Map<string, CanvasNodeState>();
-  private edges = new Map<string, CanvasEdge>();
-  private annotations = new Map<string, CanvasAnnotation>();
-  private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
-  private _tour: Tour | undefined;
-  private _theme: CanvasTheme = 'harbor';
-  private _contextPinnedNodeIds = new Set<string>();
-  /** Who pinned each pin, when and why; kept only for ids in `_contextPinnedNodeIds`. */
-  private _contextPinMeta = new Map<string, ContextPinMeta>();
-  private _workspaceRoot = process.cwd();
-  private _storageVersion = 0;
-  private moveRuntimeBlockers: () => ReadonlyMap<string, string> = () => new Map();
-  private _contentRevision = 0;
-  private _revisionFloor = 0;
-  private _deletionTombstones: NodeDeletionTombstone[] = [];
+/** The mutable, board-owned partition. Workspace services remain on the manager. */
+interface LiveBoardState {
+  id: string | null;
+  disposed: boolean;
+  cleanup: Array<() => void>;
+  nodes: Map<string, CanvasNodeState>;
+  edges: Map<string, CanvasEdge>;
+  annotations: Map<string, CanvasAnnotation>;
+  viewport: ViewportState;
+  tour: Tour | undefined;
+  contextPinnedNodeIds: Set<string>;
+  contextPinMeta: Map<string, ContextPinMeta>;
+  storageVersion: number;
+  contentRevision: number;
+  revisionFloor: number;
+  deletionTombstones: NodeDeletionTombstone[];
+  generation: number;
+  saveTimer: ReturnType<typeof setTimeout> | null;
+  persistenceError: { message: string; at: string } | null;
+  ax: AxStateManager;
+}
 
-  // ── AX state (canvas-bound + timeline + host partitions) ──────────
-  // Extracted into a dedicated manager (plan-007 Slice A). CanvasStateManager
-  // holds it and delegates its public AX methods so the SDK/HTTP/MCP surface is
-  // byte-stable; the manager receives the host hooks it needs as injected deps.
-  private readonly ax = new AxStateManager({
-    getNodeIds: () => this.currentNodeIdSet(),
-    getDb: () => this._db,
-    scheduleSave: () => this.scheduleSave(),
-    notifyChange: (type) => this.notifyChange(type),
-    recordMutation: (info) => this.recordMutation(info),
-    suppressed: (fn) => this.suppressed(fn),
-  });
+class CanvasStateManager {
+  private readonly boardExecution = new AsyncLocalStorage<LiveBoardState>();
+  private readonly liveBoards = new Map<string, LiveBoardState>();
+  private nextGeneration = 0;
+  private navigationGeneration = 0;
+  private readonly hostState: { capability: PmxAxHostCapability | null } = { capability: null };
+  private visibleBoard = this.createBoardState();
+
+  private get boardState(): LiveBoardState {
+    const board = this.boardExecution.getStore() ?? this.visibleBoard;
+    if (board.disposed) throw new OperationError('The target board was deleted or the workspace was replaced.', 409);
+    return board;
+  }
+
+  /** Identity for board-owned runtime caches. Never shared by a replacement board. */
+  get boardIdentity(): object {
+    return this.boardState;
+  }
+
+  onBoardDispose(cleanup: () => void): () => void {
+    const board = this.boardState;
+    board.cleanup.push(cleanup);
+    return () => {
+      const index = board.cleanup.indexOf(cleanup);
+      if (index >= 0) board.cleanup.splice(index, 1);
+    };
+  }
+
+  private disposeBoardRuntime(board: LiveBoardState): void {
+    for (const cleanup of board.cleanup.splice(0)) cleanup();
+  }
+
+  /** The human's navigation target, independent of the calling operation's board. */
+  get visibleBoardId(): string | null {
+    return this.visibleBoard.id;
+  }
+
+  get visibleBoardGeneration(): number {
+    return this.navigationGeneration;
+  }
+
+  get isBackgroundBoard(): boolean {
+    return this.boardState !== this.visibleBoard;
+  }
+
+  /** Execute on a live board without activating it, retaining ownership across awaits. */
+  withBoard<T>(id: string, fn: () => T): T {
+    const board = this.loadBoardState(id);
+    return this.boardExecution.run(board, fn);
+  }
+
+  /** Bind callbacks to their board, rather than the context of whoever invokes them. */
+  bindBoard<T extends unknown[], R>(fn: (...args: T) => R): (...args: T) => R {
+    const board = this.boardState;
+    return (...args) => this.boardExecution.run(board, () => fn(...args));
+  }
+
+  /** Viewer/global projections must not inherit the producer's board scope. */
+  withVisibleBoard<T>(fn: () => T): T {
+    return this.boardExecution.exit(fn);
+  }
+
+  /** Sweep resident runtime owners without loading the entire stored library. */
+  forEachLiveBoard(fn: () => void): void {
+    for (const board of new Set([this.visibleBoard, ...this.liveBoards.values()])) {
+      this.boardExecution.run(board, fn);
+    }
+  }
+
+  private loadBoardState(id: string): LiveBoardState {
+    const cached = this.liveBoards.get(id);
+    if (cached && this._db && cached.storageVersion === boardStorageVersion(this._db, id)) return cached;
+    if (cached?.saveTimer || cached?.persistenceError)
+      throw new OperationError(
+        `Board "${id}" changed in another writer. Reconcile unsaved edits before continuing.`,
+        409,
+      );
+    const state = this._db ? loadStateFromDB(this._db, id) : null;
+    if (!state) throw new OperationError(`Board "${id}" not found.`, 404);
+    const board = cached ?? this.createBoardState();
+    board.id = id;
+    this.boardExecution.run(board, () => {
+      this.initializePersistedWikiLinks(state, id);
+      this.applyPersistedState({ ...state, theme: this._theme });
+    });
+    this.liveBoards.set(id, board);
+    return board;
+  }
+
+  private createBoardState(): LiveBoardState {
+    return {
+      id: null,
+      disposed: false,
+      cleanup: [],
+      nodes: new Map(),
+      edges: new Map(),
+      annotations: new Map(),
+      viewport: { x: 0, y: 0, scale: 1 },
+      tour: undefined,
+      contextPinnedNodeIds: new Set(),
+      contextPinMeta: new Map(),
+      storageVersion: 0,
+      contentRevision: 0,
+      revisionFloor: 0,
+      deletionTombstones: [],
+      generation: ++this.nextGeneration,
+      saveTimer: null,
+      persistenceError: null,
+      ax: new AxStateManager(
+        {
+          getNodeIds: () => this.currentNodeIdSet(),
+          getDb: () => this._db,
+          scheduleSave: () => this.scheduleSave(),
+          notifyChange: (type) => this.notifyChange(type),
+          recordMutation: (info) => this.recordMutation(info),
+          suppressed: (fn) => this.suppressed(fn),
+        },
+        this.hostState,
+      ),
+    };
+  }
+
+  private get nodes() {
+    return this.boardState.nodes;
+  }
+  private get edges() {
+    return this.boardState.edges;
+  }
+  private get annotations() {
+    return this.boardState.annotations;
+  }
+  private get _viewport() {
+    return this.boardState.viewport;
+  }
+  private set _viewport(value: ViewportState) {
+    this.boardState.viewport = value;
+  }
+  private get _tour() {
+    return this.boardState.tour;
+  }
+  private set _tour(value: Tour | undefined) {
+    this.boardState.tour = value;
+  }
+  private get _contextPinnedNodeIds() {
+    return this.boardState.contextPinnedNodeIds;
+  }
+  private set _contextPinnedNodeIds(value: Set<string>) {
+    this.boardState.contextPinnedNodeIds = value;
+  }
+  private get _contextPinMeta() {
+    return this.boardState.contextPinMeta;
+  }
+  private set _contextPinMeta(value: Map<string, ContextPinMeta>) {
+    this.boardState.contextPinMeta = value;
+  }
+  private get _storageVersion() {
+    return this.boardState.storageVersion;
+  }
+  private set _storageVersion(value: number) {
+    this.boardState.storageVersion = value;
+  }
+  private get _contentRevision() {
+    return this.boardState.contentRevision;
+  }
+  private set _contentRevision(value: number) {
+    this.boardState.contentRevision = value;
+  }
+  private get _revisionFloor() {
+    return this.boardState.revisionFloor;
+  }
+  private set _revisionFloor(value: number) {
+    this.boardState.revisionFloor = value;
+  }
+  private get _deletionTombstones() {
+    return this.boardState.deletionTombstones;
+  }
+  private set _deletionTombstones(value: NodeDeletionTombstone[]) {
+    this.boardState.deletionTombstones = value;
+  }
+  private get _boardGeneration() {
+    return this.boardState.generation;
+  }
+  private set _boardGeneration(value: number) {
+    this.boardState.generation = value;
+  }
+  private get _saveTimer() {
+    return this.boardState.saveTimer;
+  }
+  private set _saveTimer(value: ReturnType<typeof setTimeout> | null) {
+    this.boardState.saveTimer = value;
+  }
+  private get _lastPersistenceError() {
+    return this.boardState.persistenceError;
+  }
+  private set _lastPersistenceError(value: LiveBoardState['persistenceError']) {
+    this.boardState.persistenceError = value;
+  }
+  private get ax() {
+    return this.boardState.ax;
+  }
+
+  private _theme: CanvasTheme = 'harbor';
+  private _workspaceRoot = process.cwd();
+  private moveRuntimeBlockers: () => ReadonlyMap<string, string> = () => new Map();
 
   // ── Change listeners (for MCP resource notifications) ──────
   private _changeListeners: ((type: CanvasChangeType) => void)[] = [];
@@ -506,9 +704,15 @@ class CanvasStateManager {
    * — e.g. the long-lived MCP subscription — may ignore the return value).
    */
   onChange(cb: (type: CanvasChangeType) => void): () => void {
-    this._changeListeners.push(cb);
+    const owner = this.boardExecution.getStore();
+    const listener = owner
+      ? (type: CanvasChangeType) => {
+          if (owner === this.boardState) this.boardExecution.run(owner, () => cb(type));
+        }
+      : cb;
+    this._changeListeners.push(listener);
     return () => {
-      const i = this._changeListeners.indexOf(cb);
+      const i = this._changeListeners.indexOf(listener);
       if (i >= 0) this._changeListeners.splice(i, 1);
     };
   }
@@ -853,7 +1057,6 @@ class CanvasStateManager {
   // ── Persistence ────────────────────────────────────────────
   private _db: import('bun:sqlite').Database | null = null;
   private _dbPath: string | null = null;
-  private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   readonly knowledge = new KnowledgeLifecycle(
     () => this._db,
     () => this.notifyChange('nodes'),
@@ -1174,15 +1377,24 @@ class CanvasStateManager {
 
   // ── Boards ──────────────────────────────────────────────────
 
-  private _activeBoardId: string | null = null;
-  private _boardGeneration = 0;
+  private get _activeBoardId(): string | null {
+    return this.boardState.id;
+  }
+  private set _activeBoardId(id: string | null) {
+    this.boardState.id = id;
+    if (id) this.liveBoards.set(id, this.boardState);
+  }
 
   /** Invalidates asynchronous work whenever the loaded board state is replaced. */
   get boardGeneration(): number {
+    return this.boardExecution.getStore() ? this._boardGeneration : this.navigationGeneration;
+  }
+
+  get boardLifetimeGeneration(): number {
     return this._boardGeneration;
   }
 
-  /** The open board, or null on Home. */
+  /** The execution board, or the open board outside a scoped operation. */
   get activeBoardId(): string | null {
     return this._activeBoardId;
   }
@@ -1406,7 +1618,7 @@ class CanvasStateManager {
         }
         // Include pending edits in catalog resolution and durable relation clocks,
         // without publishing or changing the active board before commit.
-        if (this._activeBoardId) saveStateToDB(db, this._activeBoardId, this.persistedState());
+        this.stageLiveBoards(db);
         const state = loadStateFromDB(db, boardId);
         if (!state) throw new OperationError(`Board "${boardId}" not found.`, 404);
         const policies = [this.getPolicy(), state.ax?.policy];
@@ -1492,8 +1704,35 @@ class CanvasStateManager {
       }
       this._contentRevision = activeRevision;
       if (active || activeLinkRevisions.size) this.notifyChange('nodes');
+      this.reconcileStoredBoards();
     }
     return result;
+  }
+
+  /** Called inside a transaction: publish no storage clocks until it commits. */
+  private stageLiveBoards(db: import('bun:sqlite').Database): void {
+    for (const board of this.liveBoards.values()) {
+      if (board !== this.boardState && !board.saveTimer && !board.persistenceError) continue;
+      this.boardExecution.run(board, () => saveStateToDB(db, board.id!, this.persistedState()));
+    }
+  }
+
+  /** A stored multi-board write retains each live owner's runtime and camera. */
+  private reconcileStoredBoards(): void {
+    if (!this._db) return;
+    for (const board of this.liveBoards.values()) {
+      if (board.storageVersion === boardStorageVersion(this._db, board.id!)) continue;
+      const state = loadStateFromDB(this._db, board.id!)!;
+      this.boardExecution.run(board, () => {
+        if (board.saveTimer) clearTimeout(board.saveTimer);
+        board.saveTimer = null;
+        board.persistenceError = null;
+        this.applyPersistedState(state, false);
+        this.notifyChange('nodes');
+        this.notifyChange('pins');
+        this.notifyChange('ax');
+      });
+    }
   }
 
   /** Read a board without activating it. This projection is not a write payload. */
@@ -1502,6 +1741,9 @@ class CanvasStateManager {
     includeBlobs = true,
   ): { board: CanvasBoard; state: PersistedCanvasState; layout: CanvasLayout } | null {
     if (!this._db) return null;
+    const live = this.liveBoards.get(id);
+    if (id !== this._activeBoardId && live && (live.saveTimer || live.persistenceError))
+      return this.boardExecution.run(live, () => this.readBoard(id, includeBlobs));
     const board = this.listBoards().find((entry) => entry.id === id);
     if (!board) return null;
     if (id === this._activeBoardId) {
@@ -1559,9 +1801,10 @@ class CanvasStateManager {
   /** Every board in the workspace, most recently opened first. */
   listBoards(): CanvasBoard[] {
     if (!this._db) return [];
-    return listBoardsFromDB(this._db).map((board) =>
-      board.id === this._activeBoardId ? { ...board, nodeCount: this.nodes.size } : board,
-    );
+    return listBoardsFromDB(this._db).map((board) => {
+      const live = this.liveBoards.get(board.id);
+      return live ? { ...board, nodeCount: live.nodes.size } : board;
+    });
   }
 
   storeAttachment(input: { boardId: string; name: string; mime: string; bytes: Uint8Array }): Attachment | null {
@@ -1669,7 +1912,11 @@ class CanvasStateManager {
       assertBoardStorageVersion(db, input.sourceBoardId, this._storageVersion);
       const library = new Map<string, MoveBoard>();
       for (const board of listBoardsFromDB(db)) {
-        const state = board.id === input.sourceBoardId ? this.persistedState(false) : loadStateFromDB(db, board.id)!;
+        const live = this.liveBoards.get(board.id);
+        const state =
+          live && (board.id === input.sourceBoardId || live.saveTimer || live.persistenceError)
+            ? this.boardExecution.run(live, () => this.persistedState(false))
+            : loadStateFromDB(db, board.id)!;
         state.nodes = state.nodes.map((node) => this.resolveNodeDataBlobs(node));
         library.set(board.id, { board, state });
       }
@@ -1775,6 +2022,7 @@ class CanvasStateManager {
       this.notifyChange('nodes');
       this.notifyChange('pins');
       this.notifyChange('ax');
+      this.reconcileStoredBoards();
     }
     return result;
   }
@@ -1980,35 +2228,35 @@ class CanvasStateManager {
   /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
   deleteBoard(id: string): boolean {
     if (!this._db) return false;
-    if (id === this._activeBoardId && !this.switchBoard(null)) return false;
+    if (id === this.visibleBoard.id && !this.withVisibleBoard(() => this.switchBoard(null))) return false;
     // Reverse relations must include outgoing links still debounced on the open board.
-    if (this._saveTimer || this._lastPersistenceError) this.flushToDisk();
-    return deleteBoardFromDB(this._db, id, (boardId, nodeId) => this.invalidateRelationTarget(boardId, nodeId));
+    this.flushToDisk();
+    const removed = deleteBoardFromDB(this._db, id, (boardId, nodeId) =>
+      this.invalidateRelationTarget(boardId, nodeId),
+    );
+    if (removed) {
+      const board = this.liveBoards.get(id);
+      if (board) {
+        board.disposed = true;
+        this.disposeBoardRuntime(board);
+      }
+      this.liveBoards.delete(id);
+    }
+    return removed;
   }
 
   /**
-   * Save the open board, then open `id` (or Home for null). The canvas state is
-   * replaced wholesale; callers own the runtime side (undo history, app
-   * sessions, watchers, SSE) — see `openCanvasBoard` in canvas-operations.
+   * Save pending boards, then select the visible owner. Existing partitions
+   * remain live; canvas-operations starts the selected board's runtime/SSE.
    */
   switchBoard(id: string | null): boolean {
     if (!this._db) return false;
-    if (this._saveTimer) {
-      clearTimeout(this._saveTimer);
-      this._saveTimer = null;
-    }
-    if (!this.saveToDisk()) {
-      throw new Error(this._lastPersistenceError?.message ?? 'Failed to save canvas state before switching boards.');
-    }
-    let next = this.emptyPersistedState();
-    if (id) {
-      const state = loadStateFromDB(this._db, id);
-      if (!state) return false;
-      this.initializePersistedWikiLinks(state, id);
-      next = state;
-    }
-    this.applyPersistedState(next);
-    this._activeBoardId = id;
+    if (this.boardExecution.getStore())
+      throw new OperationError('Board-scoped operations cannot change navigation.', 409);
+    if (id && !getBoardFromDB(this._db, id)) return false;
+    this.flushToDisk();
+    this.visibleBoard = id ? this.loadBoardState(id) : this.createBoardState();
+    this.navigationGeneration = ++this.nextGeneration;
     setActiveBoardIdInDB(this._db, id);
     this.notifyChange('nodes');
     this.notifyChange('pins');
@@ -2046,20 +2294,27 @@ class CanvasStateManager {
   private scheduleSave(): void {
     if (!this._db) return;
     if (this._saveTimer) clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => {
-      this._saveTimer = null;
-      this.saveToDisk();
-    }, SAVE_DEBOUNCE_MS);
+    this._saveTimer = setTimeout(
+      this.bindBoard(() => {
+        this._saveTimer = null;
+        this.saveToDisk();
+      }),
+      SAVE_DEBOUNCE_MS,
+    );
   }
 
   flushToDisk(): void {
     if (!this._db) return;
-    if (this._saveTimer) {
-      clearTimeout(this._saveTimer);
-      this._saveTimer = null;
-    }
-    if (!this.saveToDisk()) {
-      throw new Error(this._lastPersistenceError?.message ?? 'Failed to save canvas state.');
+    const current = this.boardState;
+    for (const board of new Set([this.visibleBoard, ...this.liveBoards.values()])) {
+      if (board !== current && !board.saveTimer && !board.persistenceError) continue;
+      this.boardExecution.run(board, () => {
+        if (this._saveTimer) {
+          clearTimeout(this._saveTimer);
+          this._saveTimer = null;
+        }
+        if (!this.saveToDisk()) throw new Error(this._lastPersistenceError?.message ?? 'Failed to save canvas state.');
+      });
     }
     if (this._db) {
       try {
@@ -2116,18 +2371,20 @@ class CanvasStateManager {
     }
   }
 
-  private _lastPersistenceError: { message: string; at: string } | null = null;
-
   /** Health view of state persistence: ok until a save fails, ok again after the next success. */
   get persistenceHealth(): { ok: boolean; lastError: { message: string; at: string } | null } {
-    return { ok: this._lastPersistenceError === null, lastError: this._lastPersistenceError };
+    const lastError =
+      [this.visibleBoard, ...this.liveBoards.values()].find((board) => board.persistenceError)?.persistenceError ??
+      null;
+    return { ok: lastError === null, lastError };
   }
 
   /** Close the SQLite database cleanly. Call on server shutdown. */
   close(): void {
     // A failed debounce has no timer left, but its edits still need saving.
     // Leave the database and memory intact if the retry fails.
-    if (this._saveTimer || this._lastPersistenceError) this.flushToDisk();
+    if ([this.visibleBoard, ...this.liveBoards.values()].some((board) => board.saveTimer || board.persistenceError))
+      this.flushToDisk();
     if (this._db) {
       try {
         finalizeCanvasDbForClose(this._db);
@@ -2141,8 +2398,14 @@ class CanvasStateManager {
       }
       this._db = null;
     }
-    this._activeBoardId = null;
-    this._boardGeneration += 1;
+    for (const board of new Set([this.visibleBoard, ...this.liveBoards.values()])) {
+      board.disposed = true;
+      this.disposeBoardRuntime(board);
+    }
+    this.liveBoards.clear();
+    this.hostState.capability = null;
+    this.visibleBoard = this.createBoardState();
+    this.navigationGeneration = ++this.nextGeneration;
   }
 
   // ── Snapshots ───────────────────────────────────────────────
@@ -2152,12 +2415,15 @@ class CanvasStateManager {
     return join(this._workspaceRoot, PMX_CANVAS_DIR, SNAPSHOTS_SUBDIR);
   }
 
-  private applyPersistedState(state: PersistedCanvasState): void {
+  private applyPersistedState(state: PersistedCanvasState, replaced = true): void {
     // Validate the complete replacement before discarding any live board state.
     const nodes = (Array.isArray(state.nodes) ? state.nodes : [])
       .filter((node) => node?.id)
       .map((node) => structuredClone(this.normalizeNode(node, state.ax?.workItems ?? [])));
-    this._boardGeneration += 1;
+    if (replaced) {
+      this._boardGeneration = ++this.nextGeneration;
+      if (this.boardState === this.visibleBoard) this.navigationGeneration = ++this.nextGeneration;
+    }
     this._tour = state.tour ? structuredClone(state.tour) : undefined;
     this.nodes.clear();
     this.edges.clear();
@@ -3166,6 +3432,10 @@ class CanvasStateManager {
   }
 
   private invalidateRelationTarget(boardId: string, nodeId: string): void {
+    if (boardId !== this._activeBoardId && this.liveBoards.has(boardId)) {
+      this.withBoard(boardId, () => this.invalidateRelationTarget(boardId, nodeId));
+      return;
+    }
     if (boardId === this._activeBoardId) {
       const node = this.nodes.get(nodeId);
       if (node) {

@@ -71,11 +71,13 @@ export interface SnapshotDiffResult {
     }[];
 }
 declare class MutationHistory {
-    private entries;
-    /** Index of the last applied mutation. -1 means nothing applied / all undone. */
-    private cursor;
-    /** When true, mutations triggered by undo/redo are not recorded. */
-    private _replaying;
+    private readonly board;
+    private get entries();
+    private set entries(value);
+    private get cursor();
+    private set cursor(value);
+    private get _replaying();
+    private set _replaying(value);
     get isReplaying(): boolean;
     /**
      * Record a new mutation. Truncates any redo-able future, then appends.

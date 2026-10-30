@@ -14,6 +14,31 @@ export default async function (amp: PluginAPI) {
     await amp.registerSkill({ path: `skills/${name}` });
   }
 
+  amp.on('tool.call', async (event) => {
+    if (!event.tool.startsWith('mcp__pmx_canvas__canvas_')) return { action: 'allow' };
+    if (['mcp__pmx_canvas__canvas_help', 'mcp__pmx_canvas__canvas_connect_workspace'].includes(event.tool))
+      return { action: 'allow' };
+    const binding = readBinding(root, event.thread.id);
+    if (!binding) return { action: 'allow' };
+    for (const key of ['targetBoardId', 'destinationBoardId', 'expectedBoardId', 'board']) {
+      if (event.input[key] !== undefined && event.input[key] !== binding.boardId)
+        return {
+          action: 'reject-and-continue',
+          message: `${key} conflicts with this thread's bound board. Rebind explicitly.`,
+        };
+    }
+    if (event.tool === 'mcp__pmx_canvas__canvas_screenshot')
+      return {
+        action: 'reject-and-continue',
+        message:
+          'Screenshots inspect the shared view, not the bound board. Use the Canvas Portal for visual inspection.',
+      };
+    return {
+      action: 'modify',
+      input: { ...event.input, targetBoardId: binding.boardId, agentId: binding.consumerId },
+    };
+  });
+
   async function execute(action: string, threadId: string, boardId?: string, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (action === 'unbind') {
@@ -36,7 +61,7 @@ export default async function (amp: PluginAPI) {
       boards: catalog.boards,
       boundBoardExists: binding ? catalog.boards.some((board) => board.id === binding.boardId) : null,
       routing:
-        'Binding is metadata only. MCP and CLI still require explicit board guards. No automatic context or steering.',
+        'PMX MCP tool calls target this thread’s bound board without navigating the shared canvas. CLI calls and MCP resources are not intercepted. No automatic context or steering.',
     };
     if (action === 'open') return { ...result, workbenchUrl: await portal(root, threadId, target.serverUrl) };
     return result;
@@ -46,7 +71,7 @@ export default async function (amp: PluginAPI) {
     name: 'pmx_canvas_session',
     title: 'PMX Canvas session',
     description:
-      'Open/resume the workspace Canvas, inspect status, or explicitly bind/unbind THIS Amp thread to an existing board. Binding never activates a board and does not route other tools yet. Open returns an Amp Portal in orbs. Status is read-only. Use canonical PMX MCP tools for board work with explicit guards.',
+      'Open/resume the workspace Canvas, inspect status, or explicitly bind/unbind THIS Amp thread to an existing board. Bound PMX MCP tool calls edit that board even when another board is visible. Binding never navigates the shared canvas. Open returns an Amp Portal in orbs. Status is read-only.',
     inputSchema: {
       type: 'object',
       properties: {

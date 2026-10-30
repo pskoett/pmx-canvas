@@ -41,9 +41,13 @@ export interface AxStateManagerDeps {
 }
 export declare class AxStateManager {
     private readonly deps;
+    private readonly host;
     private _axState;
-    private _axHostCapability;
-    constructor(deps: AxStateManagerDeps);
+    constructor(deps: AxStateManagerDeps, host?: {
+        capability: PmxAxHostCapability | null;
+    });
+    private get _axHostCapability();
+    private set _axHostCapability(value);
     private normalizeForCurrentNodes;
     private applyAxState;
     /** Reset the canvas-bound partition to empty (used by clear() and applyPersistedState()). */

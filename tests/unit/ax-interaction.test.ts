@@ -30,6 +30,7 @@ function makeManager(node: CanvasNodeState | undefined) {
   const nodes = new Map<string, CanvasNodeState>(node ? [[node.id, node]] : []);
   const edges = new Map<string, CanvasEdge>();
   const manager: AxInteractionManager = {
+    boardIdentity: {},
     getNode: (id) => (node && node.id === id ? node : undefined),
     getLayout: () => ({
       viewport: { x: 0, y: 0, scale: 1 },

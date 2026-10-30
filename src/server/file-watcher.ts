@@ -10,6 +10,7 @@ import { watch, existsSync, statSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
 import { canvasState } from './canvas-state.js';
 import { applyFileContentToNodeData, readFileNodeContent } from './file-content.js';
+import { BoardLocal } from './board-local.js';
 
 function logFileWatcherWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[file-watcher] ${action}`, { error, ...(details ?? {}) });
@@ -22,7 +23,22 @@ interface WatchedFile {
   lastMtime: number;
 }
 
-const watched = new Map<string, WatchedFile>();
+const watcherSets = new Set<Map<string, WatchedFile>>();
+function stopWatching(watched: Map<string, WatchedFile>): void {
+  for (const entry of watched.values()) entry.watcher.close();
+  watched.clear();
+}
+const boardWatchers = new BoardLocal(
+  () => {
+    const watched = new Map<string, WatchedFile>();
+    watcherSets.add(watched);
+    return watched;
+  },
+  (watched) => {
+    stopWatching(watched);
+    watcherSets.delete(watched);
+  },
+);
 let onFileChanged: ((nodeId: string) => void) | null = null;
 
 /** Register a callback for when a watched file changes. */
@@ -34,6 +50,7 @@ export function onFileNodeChanged(cb: (nodeId: string) => void): void {
 export function watchFileForNode(nodeId: string, filePath: string): void {
   if (!filePath || !existsSync(filePath)) return;
 
+  const watched = boardWatchers.current;
   const existing = watched.get(filePath);
   if (existing) {
     existing.nodeIds.add(nodeId);
@@ -42,10 +59,14 @@ export function watchFileForNode(nodeId: string, filePath: string): void {
 
   try {
     const stat = statSync(filePath);
-    const watcher = watch(filePath, { persistent: false }, (eventType) => {
-      if (eventType !== 'change') return;
-      handleFileChange(filePath);
-    });
+    const watcher = watch(
+      filePath,
+      { persistent: false },
+      canvasState.bindBoard((eventType) => {
+        if (eventType !== 'change') return;
+        handleFileChange(filePath);
+      }),
+    );
 
     watched.set(filePath, {
       path: filePath,
@@ -60,6 +81,7 @@ export function watchFileForNode(nodeId: string, filePath: string): void {
 
 /** Stop watching a file for a given node. */
 export function unwatchFileForNode(nodeId: string, filePath?: string): void {
+  const watched = boardWatchers.current;
   for (const [path, entry] of watched) {
     if (filePath && path !== filePath) continue;
     entry.nodeIds.delete(nodeId);
@@ -72,14 +94,11 @@ export function unwatchFileForNode(nodeId: string, filePath?: string): void {
 
 /** Stop all watchers. */
 export function unwatchAll(): void {
-  for (const entry of watched.values()) {
-    entry.watcher.close();
-  }
-  watched.clear();
+  for (const watched of watcherSets) stopWatching(watched);
 }
 
 export function rewatchAllFileNodes(): void {
-  unwatchAll();
+  stopWatching(boardWatchers.current);
   for (const node of canvasState.getLayout().nodes) {
     if (node.type === 'file' && typeof node.data.path === 'string') {
       watchFileForNode(node.id, node.data.path);
@@ -88,6 +107,7 @@ export function rewatchAllFileNodes(): void {
 }
 
 function handleFileChange(filePath: string): void {
+  const watched = boardWatchers.current;
   const entry = watched.get(filePath);
   if (!entry) return;
 

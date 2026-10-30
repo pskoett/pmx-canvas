@@ -178,6 +178,7 @@ export declare class AgentPresenceRegistry {
     /** A board opened: attached sessions record it as they find it, before any write lands. */
     boardOpened(): void;
     /** Remove a writer (session-end). */
+    private endSession;
     detach(sessionId: string): boolean;
     snapshot(now?: number): AgentPresenceSnapshot;
     /** Latest attached session: a newly attached reviewer must check fast context again. */

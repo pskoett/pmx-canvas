@@ -119,7 +119,7 @@ export function removeTempDirWithRetry(dir: string): void {
 }
 
 export function removeTestWorkspace(workspaceRoot: string): void {
-  canvasState.close();
+  if (workspaceRoot === canvasState.workspaceRoot) canvasState.close();
   removeTempDirWithRetry(workspaceRoot);
 }
 

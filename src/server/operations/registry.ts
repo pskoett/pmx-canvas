@@ -389,11 +389,52 @@ function notePresence(
   }
 }
 
+const operationTarget = new AsyncLocalStorage<{ boardId: string; agentId?: string }>();
+
+/** Also used by batch's internal node path, which does not dispatch an operation. */
+export function validateOperationTarget(name: string, input: Record<string, unknown>): string | undefined {
+  const inherited = operationTarget.getStore();
+  const target = input.targetBoardId === undefined ? inherited?.boardId : input.targetBoardId;
+  if (target === undefined) return undefined;
+  if (typeof target !== 'string' || !target.trim())
+    throw new OperationError('targetBoardId must be an existing board ID.');
+  if (
+    inherited &&
+    (target !== inherited.boardId || (input.agentId !== undefined && input.agentId !== inherited.agentId))
+  )
+    throw new OperationError('Nested operations must retain their board and agent identity.', 409);
+  if (name === 'board.update' && input.id !== target)
+    throw new OperationError('Board id conflicts with targetBoardId. Rebind before editing another board.', 409);
+  for (const key of [
+    'board',
+    'expectedBoardId',
+    'destinationBoardId',
+    ...(name === 'board.move-selection' ? ['sourceBoardId'] : []),
+  ]) {
+    if (input[key] !== undefined && input[key] !== target)
+      throw new OperationError(`${key} conflicts with targetBoardId. Rebind before targeting another board.`, 409);
+  }
+  if (['board.open', 'board.delete', 'backup.restore'].includes(name) || name.startsWith('webview.'))
+    throw new OperationError('This operation controls the shared view or workspace, not a scoped board.', 409);
+  return target;
+}
+
 export async function executeOperation(
   name: string,
   rawInput: unknown,
   meta: ExecuteOperationMeta = {},
 ): Promise<unknown> {
+  const input = asRecord(rawInput);
+  const target = validateOperationTarget(name, input);
+  if (target === undefined) return executeOnCurrentBoard(name, rawInput, meta);
+  const agentId =
+    operationTarget.getStore()?.agentId ?? (typeof input.agentId === 'string' ? input.agentId : undefined);
+  return operationTarget.run({ boardId: target, agentId }, () =>
+    canvasState.withBoard(target, () => executeOnCurrentBoard(name, { ...input, agentId }, meta)),
+  );
+}
+
+async function executeOnCurrentBoard(name: string, rawInput: unknown, meta: ExecuteOperationMeta): Promise<unknown> {
   // Check before attribution, board auto-open, ghosts, or any handler writes.
   meta.signal?.throwIfAborted();
   // Attribution follows this call chain across awaits and nested operations.

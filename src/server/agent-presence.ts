@@ -203,6 +203,8 @@ export const PRESENCE_SET_SHAPE = {
 const presenceSetSchema = z.object(PRESENCE_SET_SHAPE);
 
 interface StoredPresence extends AgentPresence {
+  spatialBoardId: string | null;
+  sessionBoardId: string | null;
   lastSeenMs: number;
   /** Last explicit phase report; cursor/focus heartbeats must not keep a stale phase alive. */
   phaseSetMs: number;
@@ -296,7 +298,7 @@ type SessionEndListener = (
 export class AgentPresenceRegistry {
   private readonly presences = new Map<string, StoredPresence>();
   /** Newest first; bounded. Survives a writer fading — the feed is history, the writer list is presence. */
-  private activity: AgentActivityEntry[] = [];
+  private activity: Array<AgentActivityEntry & { boardId: string | null }> = [];
   private activitySeq = 0;
   private emit: PresenceEmitter = () => {};
   /** Single slots (like the emitter): server.ts owns the pre-session snapshot + receipt. */
@@ -435,6 +437,8 @@ export class AgentPresenceRegistry {
     }
     const existing = this.presences.get(key);
     const stored: StoredPresence = existing ?? {
+      spatialBoardId: canvasState.activeBoardId,
+      sessionBoardId: canvasState.activeBoardId,
       sessionId: key,
       source: input.source,
       agentId: input.agentId?.trim() || null,
@@ -458,6 +462,9 @@ export class AgentPresenceRegistry {
       touchesCache: null,
     };
     const wasAttached = stored.attached;
+    if (input.op || input.cursor !== undefined || input.focusNodeId !== undefined)
+      stored.spatialBoardId = canvasState.activeBoardId;
+    if (stored.attached && stored.sessionBoardId === null) stored.sessionBoardId = canvasState.activeBoardId;
     stored.lastSeenMs = now;
     stored.lastSeenAt = new Date(now).toISOString();
     if (input.label) stored.label = input.label;
@@ -466,6 +473,7 @@ export class AgentPresenceRegistry {
       if (input.activity?.summary) {
         this.activitySeq += 1;
         this.activity.unshift({
+          boardId: canvasState.activeBoardId,
           id: `act-${this.activitySeq}`,
           at: stored.lastSeenAt,
           sessionId: key,
@@ -480,6 +488,7 @@ export class AgentPresenceRegistry {
     }
     if (input.attached !== undefined) stored.attached = input.attached;
     if (!wasAttached && input.attached === true) {
+      stored.sessionBoardId = canvasState.activeBoardId;
       // *Start agent session* with one agent-less writer already on the board
       // adopts that writer — the human is claiming the agent they can see.
       if (stored.source === 'browser') {
@@ -539,13 +548,7 @@ export class AgentPresenceRegistry {
       captureBaseline(stored.startBoards, stored.startedAt);
     }
     if (input.attached === false) {
-      if (wasAttached)
-        this.onSessionEnd(
-          this.publicView(stored, now),
-          stored.startSnapshotId,
-          input.endedBy ?? 'agent',
-          stored.startedAt,
-        );
+      if (wasAttached) this.endSession(stored, input.endedBy ?? 'agent', now);
       // An explicit detach always removes the presence. In particular, a
       // worker that reports attached:false must not be refreshed into another
       // full activity TTL as an external writer.
@@ -690,13 +693,21 @@ export class AgentPresenceRegistry {
   }
 
   /** Remove a writer (session-end). */
+  private endSession(stored: StoredPresence, endedBy: 'human' | 'agent' | 'idle-timeout', now: number): void {
+    const id = stored.sessionBoardId;
+    if (id && !canvasState.listBoards().some((board) => board.id === id)) return;
+    const finish = () =>
+      this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId, endedBy, stored.startedAt);
+    if (id) canvasState.withBoard(id, finish);
+    else canvasState.withVisibleBoard(finish);
+  }
+
   detach(sessionId: string): boolean {
     const stored = this.presences.get(sessionId);
     const removed = this.presences.delete(sessionId);
     if (removed) {
       this.dropAliasesTo(sessionId);
-      if (stored?.attached)
-        this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId, 'agent', stored.startedAt);
+      if (stored?.attached) this.endSession(stored, 'agent', Date.now());
       this.scheduleEmit();
     }
     this.maybeStopSweeper();
@@ -709,7 +720,10 @@ export class AgentPresenceRegistry {
     return {
       presences,
       sessionActive: isSessionActive(presences),
-      activity: this.activity.map((entry) => ({ ...entry })),
+      activity: this.activity.map(({ boardId, ...entry }) => ({
+        ...entry,
+        nodeId: boardId === canvasState.activeBoardId ? entry.nodeId : null,
+      })),
     };
   }
 
@@ -744,6 +758,8 @@ export class AgentPresenceRegistry {
       startBoards: _startBoards,
       touchesCache: _touchesCache,
       lastActivityNodeId,
+      spatialBoardId,
+      sessionBoardId: _sessionBoardId,
       ...presence
     } = stored;
     if (withTouches) {
@@ -764,11 +780,15 @@ export class AgentPresenceRegistry {
     // Park-at fallback (joint-gaps #3): an attached-but-focusless writer is
     // invisible everywhere — fall back to the last node its activity touched.
     if (!presence.focusNodeId && lastActivityNodeId) presence.focusNodeId = lastActivityNodeId;
+    if (spatialBoardId !== canvasState.activeBoardId) {
+      presence.focusNodeId = null;
+      presence.cursor = null;
+    }
     // An attached session blocked on a human decision reads as waiting — the
     // gate itself lives in the AX state, this is only the presence view of it.
     // It overrides tooling too: the gate REQUEST is itself a write, and the
     // human's decision is the state that matters while it is pending.
-    if (presence.attached && this.hasPendingGate()) {
+    if (presence.attached && spatialBoardId === canvasState.activeBoardId && this.hasPendingGate()) {
       phase = 'waiting-approval';
       detail = null;
     }
@@ -824,13 +844,7 @@ export class AgentPresenceRegistry {
       if (presence.lastSeenMs + ttl <= now) {
         this.presences.delete(key);
         this.dropAliasesTo(key);
-        if (presence.attached)
-          this.onSessionEnd(
-            this.publicView(presence, now),
-            presence.startSnapshotId,
-            'idle-timeout',
-            presence.startedAt,
-          );
+        if (presence.attached) this.endSession(presence, 'idle-timeout', now);
         changed = true;
         continue;
       }
@@ -866,14 +880,16 @@ export class AgentPresenceRegistry {
     if (this.emitTimer) return;
     this.emitTimer = setTimeout(() => {
       this.emitTimer = null;
-      this.emit('agent-presence', this.snapshot() as unknown as Record<string, unknown>);
+      canvasState.withVisibleBoard(() =>
+        this.emit('agent-presence', this.snapshot() as unknown as Record<string, unknown>),
+      );
     }, 50);
     (this.emitTimer as { unref?: () => void }).unref?.();
   }
 
   private ensureSweeper(): void {
     if (this.sweepTimer || this.presences.size === 0) return;
-    this.sweepTimer = setInterval(() => this.sweep(), 1000);
+    this.sweepTimer = setInterval(() => canvasState.withVisibleBoard(() => this.sweep()), 1000);
     (this.sweepTimer as { unref?: () => void }).unref?.();
   }
 
@@ -894,10 +910,14 @@ export const agentPresence = new AgentPresenceRegistry();
 // the operation registry are covered too.
 // The live lens also follows card content (a person's edit takes a card out of
 // the agent's session) and the open board — but not moves, so a drag stays quiet.
-let lastBoardId = canvasState.activeBoardId;
+let lastBoardId = canvasState.visibleBoardId;
 let lastRevision = canvasState.getContentRevision().revision;
 canvasState.onChange((type) => {
-  const boardId = canvasState.activeBoardId;
+  if (canvasState.isBackgroundBoard) {
+    agentPresence.refresh();
+    return;
+  }
+  const boardId = canvasState.visibleBoardId;
   const revision = canvasState.getContentRevision().revision;
   if (boardId !== lastBoardId) agentPresence.boardOpened();
   else if (type === 'ax' || type === 'pins' || revision !== lastRevision) agentPresence.refresh();

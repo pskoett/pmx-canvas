@@ -1672,6 +1672,39 @@ describe('boards', () => {
     expect(canvasState.readBoard(a)?.layout.nodes.map((node) => node.data.title)).toContain('first');
   });
 
+  test('a targeted batch survives navigation and keeps identical node IDs on separate boards', async () => {
+    canvasState.addNode(note('shared', 'A original'));
+    canvasState.flushToDisk();
+    const a = canvasState.activeBoardId!;
+    const b = canvasState.createBoard('B')!;
+    canvasState.switchBoard(b.id);
+    canvasState.addNode(note('shared', 'B original'));
+    const result = await executeOperation(
+      'canvas.batch',
+      {
+        targetBoardId: a,
+        agentId: 'amp:A',
+        operations: [
+          { op: 'node.update', args: { id: 'shared', content: 'A edited' } },
+          { op: 'node.add', args: { type: 'markdown', title: 'A continuation' } },
+        ],
+      },
+      {
+        onProgress: async () => {
+          canvasState.withVisibleBoard(() => canvasState.switchBoard(null));
+          await Bun.sleep(1);
+        },
+      },
+    );
+    expect(result).toMatchObject({ ok: true });
+    expect(canvasState.visibleBoardId).toBeNull();
+    expect(canvasState.readBoard(a)!.layout.nodes.find((node) => node.id === 'shared')?.data.content).toBe('A edited');
+    expect(canvasState.readBoard(a)!.layout.nodes.map((node) => node.data.title)).toContain('A continuation');
+    expect(canvasState.readBoard(b.id)!.layout.nodes.find((node) => node.id === 'shared')?.data.title).toBe(
+      'B original',
+    );
+  });
+
   test('close refuses a failed pending save, then retries a failed debounce after recovery', async () => {
     canvasState.addNode(note('saved', 'Saved'));
     canvasState.flushToDisk();

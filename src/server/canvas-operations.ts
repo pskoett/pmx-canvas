@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, resolve } from 'node:path';
 import { agentPresence } from './agent-presence.js';
+import { BoardLocal } from './board-local.js';
 import { recomputeCodeGraph } from './code-graph.js';
 import { diffLayouts } from './mutation-history.js';
 import {
@@ -13,7 +14,7 @@ import {
   type CanvasSnapshot,
 } from './canvas-state.js';
 import { applyFileContentToNodeData, readFileNodeContent } from './file-content.js';
-import { rewatchAllFileNodes, unwatchAll, unwatchFileForNode, watchFileForNode } from './file-watcher.js';
+import { rewatchAllFileNodes, unwatchFileForNode, watchFileForNode } from './file-watcher.js';
 import {
   closeMcpAppSession,
   hasMcpAppSession,
@@ -657,93 +658,113 @@ export function primeCanvasRuntimeBackends(options: { forceRehydrateExtApps?: bo
   return { targetIds: prepareExtAppNodesForSessionSync(forceRehydrateExtApps) };
 }
 
-export async function syncCanvasRuntimeBackends(
+export function syncCanvasRuntimeBackends(
   options: { forceRehydrateExtApps?: boolean; alreadyPrimed?: boolean } = {},
 ): Promise<{ rehydrated: number; failed: number }> {
-  const boardGeneration = canvasState.boardGeneration;
-  const targetIds =
-    options.alreadyPrimed === true
-      ? canvasState
-          .getLayout()
-          .nodes.filter((node) => isExtAppNode(node) && node.data.sessionStatus === 'rehydrating')
-          .map((node) => node.id)
-      : primeCanvasRuntimeBackends(options).targetIds;
-  let rehydrated = 0;
-  let failed = 0;
-
-  for (const nodeId of targetIds) {
-    if (canvasState.boardGeneration !== boardGeneration) break;
-    const current = canvasState.getNode(nodeId);
-    if (!isExtAppNode(current)) continue;
-
-    const transport = normalizeTransportConfig(current.data.transportConfig);
-    const toolName = typeof current.data.toolName === 'string' ? current.data.toolName.trim() : '';
-    if (!transport || !toolName) {
-      canvasState.withSuppressedRecording(() => {
-        setExtAppRuntimeState(nodeId, {
-          appSessionId: null,
-          sessionStatus: 'error',
-          sessionError:
-            'Saved app session cannot be restored because its launch metadata is incomplete. Reopen the app to restore interactivity.',
-        });
-      });
-      failed++;
-      continue;
-    }
-
-    try {
-      const opened = await openMcpApp({
-        transport,
-        toolName,
-        ...(isRecord(current.data.toolInput) ? { toolArguments: current.data.toolInput } : {}),
-        ...(typeof current.data.serverName === 'string' && current.data.serverName.trim().length > 0
-          ? { serverName: current.data.serverName.trim() }
-          : {}),
-      });
-      if (canvasState.boardGeneration !== boardGeneration) {
-        closeMcpAppSession(opened.sessionId);
-        continue;
-      }
-      const toolInput = resolveExtAppRehydratedToolInput(current, opened.toolInput);
-      const storedCheckpointId = getStoredExcalidrawCheckpointId(current);
-      const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
-        ? ensureExcalidrawCheckpointId(opened.toolResult, nodeId, storedCheckpointId)
-        : opened.toolResult;
-
-      canvasState.withSuppressedRecording(() => {
-        setExtAppRuntimeState(nodeId, {
-          appSessionId: opened.sessionId,
-          html: opened.html,
-          toolInput,
-          toolResult,
-          resourceUri: opened.resourceUri,
-          toolDefinition: opened.tool,
-          resourceMeta: opened.resourceMeta,
-          serverName: opened.serverName,
-          toolName: opened.toolName,
-          transportConfig: transport,
-          sessionStatus: 'ready',
-          sessionError: null,
-        });
-      });
-      rehydrated++;
-    } catch (error) {
-      if (canvasState.boardGeneration !== boardGeneration) continue;
-      canvasState.withSuppressedRecording(() => {
-        setExtAppRuntimeState(nodeId, {
-          appSessionId: null,
-          sessionStatus: 'error',
-          sessionError: error instanceof Error ? error.message : String(error),
-        });
-      });
-      failed++;
-    }
-  }
-
-  return { rehydrated, failed };
+  return canvasState.bindBoard(() => syncBoardRuntimeBackends(options))();
 }
 
-let codeGraphTimer: ReturnType<typeof setTimeout> | null = null;
+async function syncBoardRuntimeBackends(options: {
+  forceRehydrateExtApps?: boolean;
+  alreadyPrimed?: boolean;
+}): Promise<{ rehydrated: number; failed: number }> {
+  let disposed = false;
+  const unregister = canvasState.onBoardDispose(() => {
+    disposed = true;
+  });
+  try {
+    const boardGeneration = canvasState.boardGeneration;
+    const targetIds =
+      options.alreadyPrimed === true
+        ? canvasState
+            .getLayout()
+            .nodes.filter((node) => isExtAppNode(node) && node.data.sessionStatus === 'rehydrating')
+            .map((node) => node.id)
+        : primeCanvasRuntimeBackends(options).targetIds;
+    let rehydrated = 0;
+    let failed = 0;
+
+    for (const nodeId of targetIds) {
+      if (disposed || canvasState.boardGeneration !== boardGeneration) break;
+      const current = canvasState.getNode(nodeId);
+      if (!isExtAppNode(current)) continue;
+
+      const transport = normalizeTransportConfig(current.data.transportConfig);
+      const toolName = typeof current.data.toolName === 'string' ? current.data.toolName.trim() : '';
+      if (!transport || !toolName) {
+        canvasState.withSuppressedRecording(() => {
+          setExtAppRuntimeState(nodeId, {
+            appSessionId: null,
+            sessionStatus: 'error',
+            sessionError:
+              'Saved app session cannot be restored because its launch metadata is incomplete. Reopen the app to restore interactivity.',
+          });
+        });
+        failed++;
+        continue;
+      }
+
+      try {
+        const opened = await openMcpApp({
+          transport,
+          toolName,
+          ...(isRecord(current.data.toolInput) ? { toolArguments: current.data.toolInput } : {}),
+          ...(typeof current.data.serverName === 'string' && current.data.serverName.trim().length > 0
+            ? { serverName: current.data.serverName.trim() }
+            : {}),
+        });
+        if (disposed || canvasState.boardGeneration !== boardGeneration) {
+          closeMcpAppSession(opened.sessionId);
+          continue;
+        }
+        const toolInput = resolveExtAppRehydratedToolInput(current, opened.toolInput);
+        const storedCheckpointId = getStoredExcalidrawCheckpointId(current);
+        const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
+          ? ensureExcalidrawCheckpointId(opened.toolResult, nodeId, storedCheckpointId)
+          : opened.toolResult;
+
+        canvasState.withSuppressedRecording(() => {
+          setExtAppRuntimeState(nodeId, {
+            appSessionId: opened.sessionId,
+            html: opened.html,
+            toolInput,
+            toolResult,
+            resourceUri: opened.resourceUri,
+            toolDefinition: opened.tool,
+            resourceMeta: opened.resourceMeta,
+            serverName: opened.serverName,
+            toolName: opened.toolName,
+            transportConfig: transport,
+            sessionStatus: 'ready',
+            sessionError: null,
+          });
+        });
+        rehydrated++;
+      } catch (error) {
+        if (disposed || canvasState.boardGeneration !== boardGeneration) continue;
+        canvasState.withSuppressedRecording(() => {
+          setExtAppRuntimeState(nodeId, {
+            appSessionId: null,
+            sessionStatus: 'error',
+            sessionError: error instanceof Error ? error.message : String(error),
+          });
+        });
+        failed++;
+      }
+    }
+
+    return { rehydrated, failed };
+  } finally {
+    unregister();
+  }
+}
+
+const graphRecompute = new BoardLocal(
+  () => ({ timer: null as ReturnType<typeof setTimeout> | null }),
+  (state) => {
+    if (state.timer) clearTimeout(state.timer);
+  },
+);
 
 function shouldTreatFileContentAsPath(input: CanvasAddNodeInput): boolean {
   if (input.fileMode === 'path') return true;
@@ -896,19 +917,24 @@ export function hasTraceNodeDataFields(input: Record<string, unknown>): boolean 
 }
 
 export function scheduleCodeGraphRecompute(onComplete?: () => void): void {
-  if (codeGraphTimer) clearTimeout(codeGraphTimer);
-  codeGraphTimer = setTimeout(() => {
-    codeGraphTimer = null;
-    recomputeCodeGraph();
-    onComplete?.();
-  }, 300);
+  const state = graphRecompute.current;
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = setTimeout(
+    canvasState.bindBoard(() => {
+      state.timer = null;
+      recomputeCodeGraph();
+      onComplete?.();
+    }),
+    300,
+  );
 }
 
 /** Clear a pending recompute so the timer cannot outlive its server (start/stop cycles, tests). */
 export function cancelCodeGraphRecompute(): void {
-  if (codeGraphTimer) {
-    clearTimeout(codeGraphTimer);
-    codeGraphTimer = null;
+  const state = graphRecompute.current;
+  if (state.timer) {
+    clearTimeout(state.timer);
+    state.timer = null;
   }
 }
 
@@ -1473,41 +1499,40 @@ export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
 export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boolean }> {
   const ok = canvasState.restoreSnapshot(idOrName);
   if (ok) {
-    primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
-    const boardGeneration = canvasState.boardGeneration;
-    void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
-      if (canvasState.boardGeneration === boardGeneration) emitCanvasLayoutUpdate();
-    });
+    startBoardRuntime({ forceRehydrateExtApps: true });
     canvasState.flushToDisk();
   }
   return { ok };
 }
 
 /**
- * Open a board (or Home for null): the state layer saves the current board and
- * loads the next, and everything else that holds the old board in memory is
- * reset — undo closures, pending intents, file watchers, app sessions and the
- * code graph (the trace chain restarts itself when its last node is gone).
- * Agent and human presence are kept: they belong to the people and agents,
- * not to a board.
+ * Open a board (or Home for null), retaining other live boards and their
+ * undo history, intents, watchers and app sessions for background operations.
  */
 export function openCanvasBoard(id: string | null): { ok: boolean } {
   if (!canvasState.switchBoard(id)) return { ok: false };
-  mutationHistory.reset();
-  intentRegistry.reset();
   startBoardRuntime();
   return { ok: true };
 }
 
-function startBoardRuntime(): void {
-  primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
-  scheduleCodeGraphRecompute();
-  emitCanvasLayoutUpdate();
-  // App rehydration can take a network round trip; it finishes in the background.
-  const boardGeneration = canvasState.boardGeneration;
-  void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
-    if (canvasState.boardGeneration === boardGeneration) emitCanvasLayoutUpdate();
-  });
+export function startBoardRuntime(options: { forceRehydrateExtApps?: boolean } = {}): void {
+  canvasState.bindBoard(() => {
+    let disposed = false;
+    const unregister = canvasState.onBoardDispose(() => {
+      disposed = true;
+    });
+    primeCanvasRuntimeBackends(options);
+    scheduleCodeGraphRecompute();
+    emitCanvasLayoutUpdate();
+    // App rehydration can take a network round trip; it finishes in the background.
+    const boardGeneration = canvasState.boardGeneration;
+    void syncCanvasRuntimeBackends({ alreadyPrimed: true })
+      .then(() => {
+        if (!disposed && canvasState.boardGeneration === boardGeneration) emitCanvasLayoutUpdate();
+      })
+      .catch((error: unknown) => console.warn('[canvas-runtime] Rehydration failed', error))
+      .finally(unregister);
+  })();
 }
 
 /**
@@ -1530,7 +1555,12 @@ export function restoreCanvasLibrary(file: string): void {
 export function openBoardForWrite(): void {
   if (canvasState.activeBoardId) return;
   const recent = canvasState.listBoards()[0] ?? canvasState.createBoard(defaultBoardName());
-  if (recent && canvasState.switchBoard(recent.id)) startBoardRuntime();
+  if (!recent) return;
+  const moveIntents = canvasState.bindBoard(() => intentRegistry.moveHomeIntentsToBoard(recent.id));
+  if (canvasState.switchBoard(recent.id)) {
+    moveIntents();
+    startBoardRuntime();
+  }
 }
 
 export function deleteCanvasSnapshot(id: string): { ok: boolean } {
@@ -1791,8 +1821,8 @@ export function ungroupCanvasNodes(groupId: string): { ok: boolean } {
 }
 
 export function clearCanvas(): { ok: boolean } {
-  unwatchAll();
   canvasState.clear();
+  rewatchAllFileNodes();
   return { ok: true };
 }
 

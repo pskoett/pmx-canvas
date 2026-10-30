@@ -78,10 +78,10 @@ import { validateLocalImageFile } from './image-source.js';
 import {
   addCanvasNode,
   cancelCodeGraphRecompute,
-  primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
-  syncCanvasRuntimeBackends,
+  startBoardRuntime,
 } from './canvas-operations.js';
+import { BoardLocal } from './board-local.js';
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_NAME_LENGTH } from './document-import.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
@@ -105,7 +105,10 @@ const DEFAULT_PORT = 4313;
 
 let server: ReturnType<typeof Bun.serve> | null = null;
 let activeWorkspaceRoot = resolve(process.cwd());
-let primaryWorkbenchPath: string | null = null;
+const boardReplay = new BoardLocal(() => ({
+  path: null as string | null,
+  contextCards: null as Record<string, unknown> | null,
+}));
 let primaryWorkbenchSessionId = `pmx-${Date.now().toString(36)}`;
 let nextWorkbenchEventId = 1;
 let nextWorkbenchSubscriberId = 1;
@@ -113,7 +116,6 @@ const workbenchSubscribers = new Map<number, ReadableStreamDefaultController<Uin
 const textEncoder = new TextEncoder();
 let primaryWorkbenchAutoOpenEnabled = true;
 const initialCanvasThemeSetting = normalizeCanvasTheme(process.env.PMX_CANVAS_THEME);
-let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
 
 // Operation-registry SSE wiring (plan-005): the registry never imports this
 // module — the workbench event emitter is injected here, mirroring the
@@ -941,6 +943,14 @@ export function onWorkbenchEvent(listener: (event: string) => void): () => void 
 }
 
 function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload): void {
+  if (canvasState.isBackgroundBoard) {
+    if (event === 'canvas-layout-update' || event === 'boards-changed')
+      canvasState.withVisibleBoard(() => broadcastWorkbenchEvent('boards-changed', boardsPayload()));
+    else if (event === 'agent-presence')
+      canvasState.withVisibleBoard(() => broadcastWorkbenchEvent(event, { ...payload, ...agentPresence.snapshot() }));
+    return;
+  }
+  payload = { ...payload, boardId: canvasState.visibleBoardId };
   let remoteEdgesChanged = false;
   if (event === 'canvas-layout-update') {
     // Remote footer titles come from the catalog. Refresh it on endpoint changes
@@ -960,7 +970,7 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
     payload = {
       ...payload,
       catalogEpoch: boardCatalogEpoch,
-      boardGeneration: canvasState.boardGeneration,
+      boardGeneration: canvasState.visibleBoardGeneration,
       boardId: canvasState.activeBoardId,
     };
   }
@@ -990,8 +1000,8 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
 
 function setPrimaryWorkbenchPath(safePath: string, source: string): void {
   const resolved = resolve(safePath);
-  if (primaryWorkbenchPath === resolved) return;
-  primaryWorkbenchPath = resolved;
+  if (boardReplay.current.path === resolved) return;
+  boardReplay.current.path = resolved;
   broadcastWorkbenchEvent('workbench-open', {
     path: resolved,
     title: basename(resolved),
@@ -2073,6 +2083,7 @@ function handleRead(pathLike: string): Response {
 
 function handleWorkbenchState(): Response {
   const mcpAppHost = getMcpAppHostSnapshot();
+  const primaryWorkbenchPath = boardReplay.current.path;
   if (!primaryWorkbenchPath) {
     return responseJson({
       sessionId: primaryWorkbenchSessionId,
@@ -2085,7 +2096,7 @@ function handleWorkbenchState(): Response {
 
   const safePath = resolveWorkspaceMarkdownPath(primaryWorkbenchPath);
   if (!safePath || !existsSync(safePath)) {
-    primaryWorkbenchPath = null;
+    boardReplay.current.path = null;
     return responseJson({
       sessionId: primaryWorkbenchSessionId,
       path: null,
@@ -2202,6 +2213,7 @@ async function handleWorkbenchIntent(req: Request): Promise<Response> {
 function buildWorkbenchConnectSnapshot(
   requestedSessionId: string,
 ): Array<{ event: string; payload: Record<string, unknown> }> {
+  const { path: primaryWorkbenchPath, contextCards: lastWorkbenchContextCardsEnvelope } = boardReplay.current;
   const continuity =
     requestedSessionId.length === 0
       ? 'fresh'
@@ -3311,10 +3323,16 @@ export function emitPrimaryWorkbenchEvent(event: string, payload: PrimaryWorkben
     timestamp: new Date().toISOString(),
   };
   if (event === 'context-cards') {
-    lastWorkbenchContextCardsEnvelope = { ...envelope };
+    boardReplay.current.contextCards = { ...envelope };
   }
   syncEventToCanvasState(event, envelope);
-  if (primaryWorkbenchAutoOpenEnabled && (event === 'workbench-open' || event === 'ext-app-open')) {
+  // Events can create server state. Apply them to their producer's board before
+  // deciding whether they belong in the human's currently visible projection.
+  if (
+    !canvasState.isBackgroundBoard &&
+    primaryWorkbenchAutoOpenEnabled &&
+    (event === 'workbench-open' || event === 'ext-app-open')
+  ) {
     ensureCanvasBrowserOpen();
   }
   broadcastWorkbenchEvent(event, envelope);
@@ -3468,12 +3486,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   });
   if (loaded) {
     console.log('  Canvas state restored from .pmx-canvas/canvas.db');
-    primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
-    const rehydrate = () => syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true });
-    const pending = options.allowExternalMcp === false ? withoutExternalMcp(rehydrate) : rehydrate();
-    void pending.finally(() => {
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    });
+    const rehydrate = () => startBoardRuntime({ forceRehydrateExtApps: true });
+    if (options.allowExternalMcp === false) withoutExternalMcp(rehydrate);
+    else rehydrate();
   }
 
   rotatePrimaryWorkbenchSessionIfNeeded();

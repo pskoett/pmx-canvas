@@ -98,6 +98,7 @@ export interface AxInteractionInput {
  * Injected so this module stays free of a runtime canvas-state import.
  */
 export interface AxInteractionManager {
+    readonly boardIdentity: object;
     getNode(id: string): CanvasNodeState | undefined;
     /** Canvas read for `ax.flow.materialize` (placement obstacles + stale flow sweep). */
     getLayout(): CanvasLayout;

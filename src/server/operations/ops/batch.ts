@@ -27,7 +27,7 @@ import { canvasState } from '../../canvas-state.js';
 import { serializeCanvasNode, serializeCanvasNodeCompact } from '../../canvas-serialization.js';
 import { addCanvasNode } from '../../canvas-operations.js';
 import { currentActor } from '../../attribution.js';
-import { executeOperation, runWithSuppressedEmits } from '../registry.js';
+import { executeOperation, runWithSuppressedEmits, validateOperationTarget } from '../registry.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
 import { readJsonValue } from '../http.js';
 import { isRecord } from './nodes.js';
@@ -237,6 +237,7 @@ async function runBatch(operations: BatchEntry[], ctx: OperationContext): Promis
     }
     try {
       ctx.signal?.throwIfAborted();
+      validateOperationTarget(operation.op, args);
       if (ctx.onProgress) {
         const boardGeneration = canvasState.boardGeneration;
         await ctx.onProgress({ progress: index, total: operations.length, message: operation.op });
@@ -414,7 +415,10 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
         : isRecord(body) && Array.isArray(body.operations)
           ? body.operations
           : [];
-      return { operations, ...(isRecord(body) && typeof body.agentId === 'string' ? { agentId: body.agentId } : {}) };
+      return {
+        operations,
+        ...(isRecord(body) ? { agentId: body.agentId, targetBoardId: body.targetBoardId } : {}),
+      };
     },
   },
   mcp: {

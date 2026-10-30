@@ -14,6 +14,7 @@
 
 import type { CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { currentActor as getActor, setCurrentActor } from './attribution.js';
+import { BoardLocal } from './board-local.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -100,11 +101,25 @@ function comparableNodeData(data: Record<string, unknown>): Record<string, unkno
 const MAX_ENTRIES = 200;
 
 class MutationHistory {
-  private entries: MutationEntry[] = [];
-  /** Index of the last applied mutation. -1 means nothing applied / all undone. */
-  private cursor = -1;
-  /** When true, mutations triggered by undo/redo are not recorded. */
-  private _replaying = false;
+  private readonly board = new BoardLocal(() => ({ entries: [] as MutationEntry[], cursor: -1, replaying: false }));
+  private get entries() {
+    return this.board.current.entries;
+  }
+  private set entries(value: MutationEntry[]) {
+    this.board.current.entries = value;
+  }
+  private get cursor() {
+    return this.board.current.cursor;
+  }
+  private set cursor(value: number) {
+    this.board.current.cursor = value;
+  }
+  private get _replaying() {
+    return this.board.current.replaying;
+  }
+  private set _replaying(value: boolean) {
+    this.board.current.replaying = value;
+  }
 
   get isReplaying(): boolean {
     return this._replaying;

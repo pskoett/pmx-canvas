@@ -7,6 +7,7 @@ import {
   MAX_HUMANS,
 } from '../shared/human-presence.js';
 import { OperationError } from './operations/types.js';
+import { canvasState } from './canvas-state.js';
 
 /**
  * Registry of open workbench tabs (rail-chrome-v2 phase 8). Fed by the
@@ -26,6 +27,7 @@ export const HUMAN_PRESENCE_SHAPE = {
 const presenceSchema = z.object(HUMAN_PRESENCE_SHAPE);
 
 interface Stored extends HumanPresence {
+  boardId: string | null;
   lastSeenMs: number;
   grabSinceMs: number | null;
 }
@@ -57,6 +59,7 @@ export class HumanPresenceRegistry {
     }
     const existing = this.humans.get(input.clientId);
     const stored: Stored = existing ?? {
+      boardId: canvasState.activeBoardId,
       clientId: input.clientId,
       name: input.name ?? 'Human',
       cursor: null,
@@ -65,6 +68,11 @@ export class HumanPresenceRegistry {
       lastSeenMs: now,
       grabSinceMs: null,
     };
+    if (stored.boardId !== canvasState.activeBoardId) {
+      stored.boardId = canvasState.activeBoardId;
+      stored.grabbingNodeId = null;
+      stored.grabSinceMs = null;
+    }
     stored.lastSeenMs = now;
     stored.lastSeenAt = new Date(now).toISOString();
     if (input.name) stored.name = input.name;
@@ -94,6 +102,7 @@ export class HumanPresenceRegistry {
   lockedNodes(now = Date.now()): Map<string, string> {
     const locked = new Map<string, string>();
     for (const human of this.humans.values()) {
+      if (human.boardId !== canvasState.activeBoardId) continue;
       if (human.grabbingNodeId && human.grabSinceMs !== null && now - human.grabSinceMs <= HUMAN_GRAB_TTL_MS) {
         locked.set(human.grabbingNodeId, human.name);
       }
@@ -111,13 +120,16 @@ export class HumanPresenceRegistry {
   }
 
   private publicView(stored: Stored): HumanPresence {
-    const { lastSeenMs: _lastSeenMs, grabSinceMs, ...human } = stored;
+    const { lastSeenMs: _lastSeenMs, grabSinceMs, boardId, ...human } = stored;
     // An expired grab reads as released even before the sweep drops it.
     const grabbing =
-      human.grabbingNodeId && grabSinceMs !== null && Date.now() - grabSinceMs <= HUMAN_GRAB_TTL_MS
+      boardId === canvasState.activeBoardId &&
+      human.grabbingNodeId &&
+      grabSinceMs !== null &&
+      Date.now() - grabSinceMs <= HUMAN_GRAB_TTL_MS
         ? human.grabbingNodeId
         : null;
-    return { ...human, grabbingNodeId: grabbing };
+    return { ...human, cursor: boardId === canvasState.activeBoardId ? human.cursor : null, grabbingNodeId: grabbing };
   }
 
   private sweep(now = Date.now(), options: { emit?: boolean } = {}): void {

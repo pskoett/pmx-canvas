@@ -105,6 +105,16 @@
           "reason": {
             "description": "Why these nodes matter; kept with newly pinned nodes and shown to the human on hover.",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -292,6 +302,16 @@
               "sdk",
               "system"
             ]
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -488,8 +508,9 @@
             "description": "Ordered array of batch operations"
           },
           "agentId": {
-            "description": "Default writer identity for entries without their own agentId",
-            "type": "string"
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           },
           "full": {
             "description": "Return full batch operation results. Default false compacts node-like payloads.",
@@ -498,6 +519,11 @@
           "verbose": {
             "description": "Alias for full:true.",
             "type": "boolean"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -938,6 +964,16 @@
           },
           "reason": {
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -1327,6 +1363,16 @@
           "snapshot": {
             "type": "string",
             "description": "Snapshot name or ID to compare against"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -2057,6 +2103,16 @@
           "reason": {
             "description": "Why this board matters; shown to the human on hover",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -3145,6 +3201,16 @@
                 }
               ]
             }
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -3871,6 +3937,16 @@
           "heightPx": {
             "description": "SDK alias for nodeHeight (node frame height)",
             "type": "number"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -4351,6 +4427,16 @@
           "edge_id": {
             "description": "Alias for id (legacy HTTP body field)",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -4663,6 +4749,16 @@
           "groupId": {
             "description": "The group node ID",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -4938,6 +5034,16 @@
               "redo"
             ],
             "description": "Operation to perform: undo | redo."
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -5450,6 +5556,16 @@
           },
           "text": {
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -6519,6 +6635,16 @@
           "verbose": {
             "description": "Alias for full:true.",
             "type": "boolean"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -7181,6 +7307,16 @@
           "bundleScriptPath": {
             "description": "Optional script path override for tests/debugging. Must resolve inside the workspace.",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -7526,6 +7662,16 @@
           "script": {
             "description": "Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -7874,17 +8020,9 @@
             "additionalProperties": {}
           },
           "agentId": {
-            "description": "Stable identity for a genuinely separate agent, not a task name. Omit for the main agent when a host adapter already owns its session.",
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 80
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           },
           "label": {
             "description": "Display name for this writer; use detail for the current task",
@@ -7977,6 +8115,11 @@
                 "type": "null"
               }
             ]
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -8214,7 +8357,9 @@
             "description": "Optional host/source label. Defaults to mcp."
           },
           "agentId": {
-            "description": "Optional per-agent identity within the host."
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           },
           "id": {
             "type": "string",
@@ -8276,6 +8421,11 @@
           "author": {
             "description": "Optional author label.",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -8618,6 +8768,16 @@
           },
           "reason": {
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -9280,7 +9440,9 @@
             "description": "Optional host/source label. Defaults to mcp."
           },
           "agentId": {
-            "description": "Optional per-agent identity within the host."
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           },
           "title": {
             "type": "string",
@@ -9311,6 +9473,11 @@
           "boards": {
             "description": "Comma-separated board ids: also return each one's latest agent read (pinned boards, in one request).",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -9682,6 +9849,16 @@
           "id": {
             "type": "string",
             "description": "The steering message id to mark delivered."
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -9993,6 +10170,16 @@
           "settledNodeId": {
             "description": "The real node this intent became — triggers the settle morph.",
             "type": "string"
+          },
+          "targetBoardId": {
+            "description": "Execute on this board without changing the shared workbench view. Nested operations retain this target.",
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "description": "Stable agent/thread identity for attribution and scope fences.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -10242,6 +10429,12 @@
       "inputSchema": {
         "type": "object",
         "properties": {
+          "targetBoardId": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
           "type": {
             "type": "string",
             "enum": [
@@ -10364,6 +10557,12 @@
       "inputSchema": {
         "type": "object",
         "properties": {
+          "targetBoardId": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
           "kind": {
             "type": "string",
             "enum": [
@@ -10651,6 +10850,10 @@
       "inputSchema": {
         "type": "object",
         "properties": {
+          "targetBoardId": {
+            "description": "Not supported: screenshots inspect the shared WebView.",
+            "type": "string"
+          },
           "format": {
             "description": "Screenshot format (default depends on Bun; png recommended)",
             "type": "string",

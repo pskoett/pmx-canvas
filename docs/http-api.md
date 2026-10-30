@@ -3,6 +3,26 @@
 REST endpoints for all canvas operations + an SSE event stream. Works from
 any language. Default base URL: `http://localhost:4313`.
 
+## Board-targeted operations
+
+Registry-backed routes accept `targetBoardId` in the JSON body, or in query parameters
+for GET/DELETE. It must name an existing board. Board-bound reads, writes, batches and waits
+execute on that board without opening it, including across awaits and concurrent navigation.
+Omitting it retains the visible-board behavior. `agentId` identifies the writer for attribution
+and scope fences; it is not an authentication credential.
+
+Nested operations inherit the target and writer and reject conflicting overrides. Explicit
+`board`, `expectedBoardId` and `destinationBoardId` must agree with the target. Board metadata
+updates must name that board; a move-selection source must also agree. Deletion or
+workspace replacement invalidates pending work, never redirects it to another board.
+
+Board opening/deletion, backup restore and WebView automation refuse a target because they control the
+shared view/workspace. Catalog operations, board creation/pins, settings and knowledge categories
+retain their workspace scope and existing authority checks. AX timeline, evidence and steering
+are workspace-wide; `delivery/pending` uses the consumer's addressed inbox and the target board's
+`pendingActivity`. This is operation routing, not board-level access control. The SSE/poll stream
+still projects the human's visible board, not an individual caller's target.
+
 ## Operation cancellation and progress (0.10)
 
 Registry-backed operation routes use the request's abort signal. Disconnecting

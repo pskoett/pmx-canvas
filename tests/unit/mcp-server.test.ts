@@ -1186,9 +1186,10 @@ describe('MCP parity with CLI', () => {
     expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
 
-  test('canvas_board lists and creates boards; created boards do not open', async () => {
+  test('canvas_board creates unopened boards and scoped MCP reads reject conflicting selectors', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
+      await session.client.close();
       await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
@@ -1214,6 +1215,34 @@ describe('MCP parity with CLI', () => {
     const resource = await session.client.readResource({ uri: 'canvas://boards' });
     const text = resource.contents.find((entry): entry is { uri: string; text: string } => 'text' in entry)?.text;
     expect(JSON.parse(text ?? '{}')).toMatchObject({ activeBoardId: listed.activeBoardId });
+
+    const remote = await createMcpSessionForWorkspace(session.workspaceRoot, session.port);
+    cleanup.push(async () => {
+      await remote.client.close();
+      await closeTransportAndReapChild(remote.transport);
+    });
+    for (const client of [session.client, remote.client]) {
+      const targetBoardId = created.board.id;
+      const added = await client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', targetBoardId, type: 'markdown', title: 'Background card' },
+      });
+      expect(added.isError).not.toBe(true);
+      const read = await client.callTool({ name: 'canvas_query', arguments: { action: 'layout', targetBoardId } });
+      expect(read.isError).not.toBe(true);
+      expect(textOf(read as ToolResultShape)).toContain('Background card');
+      expect(textOf(read as ToolResultShape)).not.toContain('Opens a board');
+      const conflict = await client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout', targetBoardId, board: listed.activeBoardId },
+      });
+      expect(conflict.isError).toBe(true);
+      expect(textOf(conflict as ToolResultShape)).toContain('conflicts with targetBoardId');
+      const catalog = await client.callTool({ name: 'canvas_board', arguments: { action: 'list', targetBoardId } });
+      expect(parseJsonText<{ activeBoardId: string }>(catalog as ToolResultShape).activeBoardId).toBe(
+        listed.activeBoardId,
+      );
+    }
   });
 
   test('context resource accepts optional query parameters without sharing an implicit cursor', async () => {

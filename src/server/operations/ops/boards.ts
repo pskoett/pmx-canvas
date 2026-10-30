@@ -67,8 +67,8 @@ export function boardsPayload(reloaded = false): Record<string, unknown> {
     catalogEpoch: boardCatalogEpoch,
     catalogRevision: revision,
     reloadRevision,
-    boardGeneration: canvasState.boardGeneration,
-    activeBoardId: canvasState.activeBoardId,
+    boardGeneration: canvasState.visibleBoardGeneration,
+    activeBoardId: canvasState.visibleBoardId,
     boards: boards.map((board) => {
       const read = canvasState.readBoard(board.id, true);
       const readme = read?.layout.nodes.find((node) => node.id === board.readmeNodeId && node.type === 'markdown');

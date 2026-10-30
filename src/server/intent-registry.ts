@@ -25,6 +25,8 @@ import {
   type PmxAxIntentKind,
 } from '../shared/ax-intent.js';
 import { OperationError } from './operations/types.js';
+import { BoardLocal } from './board-local.js';
+import { canvasState } from './canvas-state.js';
 
 type IntentEmitter = (event: string, payload: Record<string, unknown>) => void;
 const MAX_VETO_TOMBSTONES = 128;
@@ -103,11 +105,33 @@ function nextIntentId(): string {
 }
 
 export class IntentRegistry {
-  private readonly intents = new Map<string, PmxAxIntent>();
-  private readonly vetoedIntentIds = new Map<string, number>();
-  private readonly committingIntentIds = new Set<string>();
+  private readonly board = new BoardLocal(
+    () => ({
+      intents: new Map<string, PmxAxIntent>(),
+      vetoedIntentIds: new Map<string, number>(),
+      committingIntentIds: new Set<string>(),
+      sweepTimer: null as ReturnType<typeof setInterval> | null,
+    }),
+    (state) => {
+      if (state.sweepTimer) clearInterval(state.sweepTimer);
+    },
+  );
+  private get intents() {
+    return this.board.current.intents;
+  }
+  private get vetoedIntentIds() {
+    return this.board.current.vetoedIntentIds;
+  }
+  private get committingIntentIds() {
+    return this.board.current.committingIntentIds;
+  }
   private emit: IntentEmitter = () => {};
-  private sweepTimer: ReturnType<typeof setInterval> | null = null;
+  private get sweepTimer() {
+    return this.board.current.sweepTimer;
+  }
+  private set sweepTimer(value: ReturnType<typeof setInterval> | null) {
+    this.board.current.sweepTimer = value;
+  }
 
   /** Inject the workbench SSE emitter (server.ts wires this at module load). */
   setEmitter(emitter: IntentEmitter | null): void {
@@ -116,6 +140,17 @@ export class IntentRegistry {
 
   list(): PmxAxIntent[] {
     return [...this.intents.values()];
+  }
+
+  /** The first write from Home adopts its ghosts and vetoes without opening on signal. */
+  moveHomeIntentsToBoard(boardId: string): void {
+    const home = this.board.current;
+    canvasState.withBoard(boardId, () => {
+      for (const [id, intent] of home.intents) this.intents.set(id, intent);
+      for (const [id, expires] of home.vetoedIntentIds) this.vetoedIntentIds.set(id, expires);
+      this.ensureSweeper();
+    });
+    this.reset();
   }
 
   /** Signal a new (or replace an existing) intent. Returns the stored envelope. */
@@ -335,7 +370,10 @@ export class IntentRegistry {
 
   private ensureSweeper(): void {
     if (this.sweepTimer || this.intents.size === 0) return;
-    this.sweepTimer = setInterval(() => this.sweep(), 1000);
+    this.sweepTimer = setInterval(
+      canvasState.bindBoard(() => this.sweep()),
+      1000,
+    );
     // Don't keep the process (or a test runner) alive just for ghost expiry.
     (this.sweepTimer as { unref?: () => void }).unref?.();
   }

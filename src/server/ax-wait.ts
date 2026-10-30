@@ -24,7 +24,8 @@ export async function waitForAxResolution<T extends { status: string }>(opts: {
   signal?: AbortSignal;
 }): Promise<AxWaitResult<T>> {
   opts.signal?.throwIfAborted();
-  const { read, isResolved } = opts;
+  const read = canvasState.bindBoard(opts.read);
+  const { isResolved } = opts;
   const timeoutMs = Math.max(0, Math.min(opts.timeoutMs, AX_WAIT_MAX_MS));
   const pendingOf = (v: T | null): boolean => (v ? !isResolved(v) : false);
 
@@ -40,13 +41,18 @@ export async function waitForAxResolution<T extends { status: string }>(opts: {
       done = true;
       clearTimeout(timer);
       dispose();
+      disposeOwner();
       opts.signal?.removeEventListener('abort', onAbort);
       if (opts.signal?.aborted) {
         reject(opts.signal.reason);
         return;
       }
-      const v = read();
-      resolve({ value: v, pending: pendingOf(v) });
+      try {
+        const v = read();
+        resolve({ value: v, pending: pendingOf(v) });
+      } catch (error) {
+        reject(error);
+      }
     };
     const onAbort = finish;
     const check = (type: string): void => {
@@ -56,6 +62,9 @@ export async function waitForAxResolution<T extends { status: string }>(opts: {
     };
     const timer = setTimeout(finish, timeoutMs);
     const dispose = canvasState.onChange(check);
+    const disposeOwner = canvasState.onBoardDispose(() => {
+      finish();
+    });
     opts.signal?.addEventListener('abort', onAbort, { once: true });
     if (opts.signal?.aborted) finish();
   });
@@ -77,7 +86,8 @@ export async function waitForAxCondition(opts: {
 }): Promise<void> {
   opts.signal?.throwIfAborted();
   const timeoutMs = Math.max(0, Math.min(opts.timeoutMs, AX_WAIT_MAX_MS));
-  if (timeoutMs === 0 || opts.ready()) return;
+  const ready = canvasState.bindBoard(opts.ready);
+  if (timeoutMs === 0 || ready()) return;
   const channel = opts.channel ?? 'ax-timeline';
   await new Promise<void>((resolve, reject) => {
     let done = false;
@@ -86,6 +96,7 @@ export async function waitForAxCondition(opts: {
       done = true;
       clearTimeout(timer);
       dispose();
+      disposeOwner();
       opts.signal?.removeEventListener('abort', finish);
       if (opts.signal?.aborted) {
         reject(opts.signal.reason);
@@ -94,10 +105,13 @@ export async function waitForAxCondition(opts: {
       resolve();
     };
     const check = (type: string): void => {
-      if (type === channel && opts.ready()) finish();
+      if (type === channel && ready()) finish();
     };
     const timer = setTimeout(finish, timeoutMs);
-    const dispose = canvasState.onChange(check);
+    // Steering is workspace-wide and can be sent from another board. Keep
+    // ready() bound to its owner but listen outside the board-specific filter.
+    const dispose = canvasState.withVisibleBoard(() => canvasState.onChange(check));
+    const disposeOwner = canvasState.onBoardDispose(finish);
     opts.signal?.addEventListener('abort', finish, { once: true });
     if (opts.signal?.aborted) finish();
   });

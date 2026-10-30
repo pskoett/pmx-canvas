@@ -18,6 +18,7 @@ import { EXTENSION_ID, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps
 import type { McpUiClientCapabilities, McpUiResourceCsp, McpUiResourceMeta } from '@modelcontextprotocol/ext-apps';
 import { getToolUiResourceUri } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
+import { canvasState } from './canvas-state.js';
 
 // A restriction follows async rehydration spawned by an embedded operation,
 // without disabling independent requests from the local workbench.
@@ -71,6 +72,7 @@ type RuntimeTransport = StdioClientTransport | StreamableHTTPClientTransport;
 
 interface McpAppSession {
   id: string;
+  board: object;
   serverName: string;
   client: Client;
   transport: RuntimeTransport;
@@ -223,18 +225,31 @@ async function createSession(
   }
   const transport = buildTransport(transportConfig);
   const client = new Client({ name: 'pmx-canvas-app-host', version: '0.1.0' }, { capabilities: clientCapabilities });
-  await client.connect(transport, requestOptions(timeoutMs));
-
-  const toolList = await client.listTools(undefined, requestOptions(timeoutMs));
   const session: McpAppSession = {
     id: randomId('mcp-app-session'),
+    board: canvasState.boardIdentity,
     serverName: normalizeServerName(serverName, transportConfig),
     client,
     transport,
-    tools: toolList.tools,
+    tools: [],
   };
   sessions.set(session.id, session);
-  return session;
+  let disposed = false;
+  const unregister = canvasState.onBoardDispose(() => {
+    disposed = true;
+    closeMcpAppSession(session.id);
+  });
+  try {
+    await client.connect(transport, requestOptions(timeoutMs));
+    const toolList = await client.listTools(undefined, requestOptions(timeoutMs));
+    if (disposed) throw new Error('The app board was deleted while connecting.');
+    session.tools = toolList.tools;
+    return session;
+  } catch (error) {
+    unregister();
+    await closeSession(session);
+    throw error;
+  }
 }
 
 async function closeSession(session: McpAppSession): Promise<void> {
@@ -468,5 +483,7 @@ export function hasMcpAppSession(sessionId: string): boolean {
 }
 
 export function listMcpAppSessionIds(): string[] {
-  return [...sessions.keys()];
+  return [...sessions.values()]
+    .filter((session) => session.board === canvasState.boardIdentity)
+    .map((session) => session.id);
 }

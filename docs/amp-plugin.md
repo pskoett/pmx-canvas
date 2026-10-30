@@ -1,8 +1,8 @@
-# Amp plugin foundation
+# Amp plugin and board routing
 
-This is the first increment of Wave 5's Amp integration. It opens the workspace Canvas and
-remembers an explicit board binding for each Amp thread. It does **not** yet inject context,
-route writes, deliver steering, run Jev, or add guest name entry.
+The Wave 5 Amp plugin opens the workspace Canvas and binds each Amp thread to an existing board.
+Bound MCP calls read and edit that board while the human views another board or Home. It does
+**not** automatically inject context, poll steering, run Jev, or add guest name entry.
 
 ## Install locally
 
@@ -39,9 +39,24 @@ prevent one thread's update from overwriting another's. Bindings survive plugin 
 service restart. Missing boards are reported, never silently rebound. Board navigation and
 moving cards do not change a binding. Unbind is idempotent.
 
-**Bindings are metadata in this increment, not enforced write routing.** Existing PMX tools
-still need explicit destinations/expected-board guards. Open displays the current shared
-workbench and does not activate the bound board. There is no private per-thread viewport.
+**Bindings route PMX MCP tool calls.** The plugin supplies `targetBoardId` and the authenticated
+`amp:<thread-id>` identity before invocation. Conflicting destinations and nested overrides fail;
+missing/deleted boards never fall back to the visible board. Batches, delayed operations, approval
+waits, undo history and file watchers retain their board ownership across human navigation.
+
+Open still displays the shared workbench. There is no private per-thread browser. Bound calls
+cannot navigate the shared workbench, restore the workspace backup, or control/capture its shared
+WebView. Board deletion remains an unscoped human library action. Tour/camera commands affect
+only their target board; they reach the browser only when
+that board is visible. CLI calls and MCP resource reads are **not** intercepted by the plugin;
+use routed MCP query tools for bound-board context.
+
+A binding is routing, not an access-control or privacy boundary. Board-owned metadata updates
+must name the bound board. Catalog reads, board creation, board pins, workspace settings and
+knowledge categories keep their workspace scope and existing permission checks. AX timeline,
+evidence and addressed steering/delivery are workspace-wide; a steering wait can wake on a message
+sent from another board, while its `pendingActivity` contains only the bound board's work/gates.
+Cross-board relation targets remain explicit. No automatic steering pump is added.
 
 ## Runtime boundaries
 
@@ -69,6 +84,9 @@ not a separate share server or board-only access policy.
 
 `bun test tests/unit/amp-plugin.test.ts` checks bindings and workspace safety through the
 registered session tool. `bun run typecheck` checks against the pinned published Amp types.
+`tests/unit/boards-api.test.ts` checks concurrent HTTP routing, restart persistence, nested
+identity, waits and refusal paths. `tests/e2e/boards.pw.ts` checks visible-board isolation,
+reconnect and opening the populated target board. These do not substitute for native hooks.
 After `bun run build:plugin`, verify a fresh copied package with `amp plugins list` and
 `amp skill info pmx-canvas:pmx-canvas`, then reload the actual host and test discovery and
 `pmx_canvas_session`. Test native MCP trust separately from an SDK handshake.

@@ -310,7 +310,7 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
     // consumer arrives or the timeout elapses. Custom readInput replaces the
     // default query merge, so re-read the standard params here too.
     readInput: (_req, params, url) => {
-      const raw = Number(url.searchParams.get('waitMs') ?? '');
+      const raw = Number(url.searchParams.get('timeoutMs') ?? url.searchParams.get('waitMs') ?? '');
       return {
         ...Object.fromEntries(url.searchParams),
         ...params,

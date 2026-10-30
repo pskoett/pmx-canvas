@@ -21,6 +21,7 @@ import {
 import { boardCatalogEpoch, canvasState } from './canvas-state.js';
 import { getClientViewportSize } from './canvas-operations.js';
 import { OperationError } from './operations/types.js';
+import { BoardLocal } from './board-local.js';
 
 export type TourStep = number | 'next' | 'previous';
 
@@ -46,19 +47,28 @@ export interface TourState {
   position: number | null;
 }
 
-let cursor: { boardGeneration: number; tour: string; index: number } | null = null;
+const boardTour = new BoardLocal(() => ({
+  cursor: null as { boardGeneration: number; viewGeneration: number; tour: string; index: number } | null,
+  presenterGeneration: -1,
+  presenterIntents: new Map<string, number>(),
+}));
 // One order for both HTTP acknowledgements and event delivery in this server run.
 let sequence = 0;
-let presenterGeneration = -1;
-const presenterIntents = new Map<string, number>();
 
 function claimPresenter(presenter: TourPresenter | undefined): boolean {
   if (presenter === undefined) return true;
+  const state = boardTour.current;
+  const { presenterIntents } = state;
   const { clientId, intent, catalogEpoch, boardGeneration } = tourPresenterSchema.parse(presenter);
-  if (catalogEpoch !== boardCatalogEpoch || boardGeneration !== canvasState.boardGeneration) return false;
-  if (presenterGeneration !== boardGeneration) {
+  if (
+    canvasState.isBackgroundBoard ||
+    catalogEpoch !== boardCatalogEpoch ||
+    boardGeneration !== canvasState.visibleBoardGeneration
+  )
+    return false;
+  if (state.presenterGeneration !== boardGeneration) {
     presenterIntents.clear();
-    presenterGeneration = boardGeneration;
+    state.presenterGeneration = boardGeneration;
   }
   const previous = presenterIntents.get(clientId);
   if (previous !== undefined && intent <= previous) return false;
@@ -74,7 +84,11 @@ function claimPresenter(presenter: TourPresenter | undefined): boolean {
 }
 
 function nextDelivery(): TourDelivery {
-  return { catalogEpoch: boardCatalogEpoch, boardGeneration: canvasState.boardGeneration, sequence: ++sequence };
+  return {
+    catalogEpoch: boardCatalogEpoch,
+    boardGeneration: canvasState.isBackgroundBoard ? canvasState.boardGeneration : canvasState.visibleBoardGeneration,
+    sequence: ++sequence,
+  };
 }
 
 export function currentTour(): TourState {
@@ -85,10 +99,16 @@ export function currentTour(): TourState {
 
 /** The stop the tour is on for the active board, or null when not touring. */
 function tourPosition(tour: Tour): number | null {
-  if (cursor && (cursor.boardGeneration !== canvasState.boardGeneration || cursor.tour !== JSON.stringify(tour))) {
-    cursor = null;
+  const { cursor } = boardTour.current;
+  if (
+    cursor &&
+    (cursor.boardGeneration !== canvasState.boardLifetimeGeneration ||
+      (!canvasState.isBackgroundBoard && cursor.viewGeneration !== canvasState.visibleBoardGeneration) ||
+      cursor.tour !== JSON.stringify(tour))
+  ) {
+    boardTour.current.cursor = null;
   }
-  return cursor?.index ?? null;
+  return boardTour.current.cursor?.index ?? null;
 }
 
 /** Move the shared cursor. `next`/`previous` clamp at the ends; an explicit index must exist. */
@@ -106,7 +126,12 @@ export function goToTourStop(step: TourStep, presenter?: TourPresenter): TourSte
   else if (step === 'previous') index = at === null ? 0 : Math.max(0, Math.min(stops.length - 1, at - 1));
   else if (Number.isInteger(step) && step >= 0 && step < stops.length) index = step;
   else throw new OperationError(`Tour stop ${step} does not exist (stops 0–${stops.length - 1}).`, 400);
-  cursor = { boardGeneration: canvasState.boardGeneration, tour: JSON.stringify(tour), index };
+  boardTour.current.cursor = {
+    boardGeneration: canvasState.boardLifetimeGeneration,
+    viewGeneration: canvasState.visibleBoardGeneration,
+    tour: JSON.stringify(tour),
+    index,
+  };
   return {
     ...nextDelivery(),
     index,
@@ -119,7 +144,7 @@ export function exitTour(): TourDelivery;
 export function exitTour(presenter: TourPresenter | undefined): TourDelivery | TourSuperseded;
 export function exitTour(presenter?: TourPresenter): TourDelivery | TourSuperseded {
   if (!claimPresenter(presenter)) return { superseded: true };
-  cursor = null;
+  boardTour.current.cursor = null;
   return nextDelivery();
 }
 

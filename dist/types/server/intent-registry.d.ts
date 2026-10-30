@@ -1,14 +1,18 @@
 import { type PmxAxIntent, type PmxAxIntentKind } from '../shared/ax-intent.js';
 type IntentEmitter = (event: string, payload: Record<string, unknown>) => void;
 export declare class IntentRegistry {
-    private readonly intents;
-    private readonly vetoedIntentIds;
-    private readonly committingIntentIds;
+    private readonly board;
+    private get intents();
+    private get vetoedIntentIds();
+    private get committingIntentIds();
     private emit;
-    private sweepTimer;
+    private get sweepTimer();
+    private set sweepTimer(value);
     /** Inject the workbench SSE emitter (server.ts wires this at module load). */
     setEmitter(emitter: IntentEmitter | null): void;
     list(): PmxAxIntent[];
+    /** The first write from Home adopts its ghosts and vetoes without opening on signal. */
+    moveHomeIntentsToBoard(boardId: string): void;
     /** Signal a new (or replace an existing) intent. Returns the stored envelope. */
     signal(raw: unknown): PmxAxIntent;
     /** Patch a live intent (position/label/reason/confidence/seq) and bump its TTL. */

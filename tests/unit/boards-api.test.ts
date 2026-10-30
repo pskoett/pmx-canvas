@@ -6,6 +6,7 @@ import type { CanvasBoard } from '../../src/server/canvas-db.ts';
 import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { createCanvas } from '../../src/server/index.ts';
+import { HttpOperationInvoker } from '../../src/server/operations/invoker.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { workbenchToken } from '../../src/server/workbench-auth.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
@@ -52,6 +53,198 @@ async function call(method: string, path: string, headers: Record<string, string
 const boards = async () => (await call('GET', '/api/canvas/boards', AGENT)).body;
 const addNote = (title: string, headers: Record<string, string> = AGENT) =>
   call('POST', '/api/canvas/node', headers, { type: 'markdown', title, content: title });
+
+test('board-scoped HTTP writes stay isolated from navigation and survive restart', async () => {
+  const invoke = new HttpOperationInvoker(baseUrl, 'routing-test');
+  const a = canvasState.createBoard('Thread A')!;
+  const b = canvasState.createBoard('Thread B')!;
+  const visible = canvasState.createBoard('Human view')!;
+  try {
+    await invoke.invoke('board.open', { id: visible.id });
+    const create = (targetBoardId: string, title: string) =>
+      invoke.invoke('node.add', {
+        targetBoardId,
+        agentId: `thread-${title}`,
+        type: 'markdown',
+        title,
+        content: title,
+      }) as Promise<{ id: string }>;
+    const [left, right] = await Promise.all([create(a.id, 'Left'), create(b.id, 'Right')]);
+    expect(canvasState.visibleBoardId).toBe(visible.id);
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+    await Promise.all([
+      invoke.invoke('node.update', { targetBoardId: a.id, id: left.id, content: 'Left updated' }),
+      invoke.invoke('node.update', { targetBoardId: b.id, id: right.id, content: 'Right updated' }),
+    ]);
+    expect(canvasState.readBoard(a.id)!.layout.nodes.map((node) => node.data.content)).toEqual(['Left updated']);
+    expect(canvasState.readBoard(b.id)!.layout.nodes.map((node) => node.data.content)).toEqual(['Right updated']);
+    expect((await boards()).activeBoardId).toBe(visible.id);
+    await expect(invoke.invoke('node.remove', { targetBoardId: b.id, id: left.id })).rejects.toThrow();
+    await expect(
+      invoke.invoke('node.add', {
+        targetBoardId: a.id,
+        destinationBoardId: b.id,
+        type: 'markdown',
+        content: 'Wrong board',
+      }),
+    ).rejects.toThrow('conflicts');
+    await expect(create('missing-board', 'Missing')).rejects.toThrow('not found');
+    await expect(invoke.invoke('board.update', { targetBoardId: a.id, id: b.id, name: 'Wrong board' })).rejects.toThrow(
+      'conflicts',
+    );
+    await invoke.invoke('board.update', { targetBoardId: a.id, id: a.id, name: 'Renamed A' });
+    expect(canvasState.readBoard(a.id)!.board.name).toBe('Renamed A');
+    stopCanvasServer();
+    baseUrl = startCanvasServer({ workspaceRoot, port: 0 })!;
+    expect(canvasState.visibleBoardId).toBe(visible.id);
+    expect(canvasState.readBoard(a.id)!.layout.nodes.map((node) => node.data.content)).toEqual(['Left updated']);
+    expect(canvasState.readBoard(b.id)!.layout.nodes.map((node) => node.data.content)).toEqual(['Right updated']);
+    // Leave the shared fixture on Home, as the following navigation scenario expects.
+    const scopedDelete = await call('DELETE', `/api/canvas/boards/${a.id}?targetBoardId=${a.id}`, HUMAN);
+    expect(scopedDelete.status).toBe(409);
+    expect(scopedDelete.body.error).toContain('shared view or workspace');
+    expect((await call('DELETE', `/api/canvas/boards/${a.id}`, HUMAN)).status).toBe(200);
+    expect(canvasState.visibleBoardId).toBe(visible.id);
+  } finally {
+    for (const board of [a, b, visible]) canvasState.deleteBoard(board.id);
+  }
+});
+
+test('background loading keeps unsaved theme changes and targeted tours keep the visible delivery generation', async () => {
+  const invoke = new HttpOperationInvoker(baseUrl, 'routing-test');
+  const board = canvasState.createBoard('Tour scope')!;
+  const originalTheme = canvasState.theme;
+  try {
+    canvasState.setTheme('harbor');
+    canvasState.flushToDisk();
+    canvasState.setTheme('daylight');
+    await invoke.invoke('tour.set', {
+      targetBoardId: board.id,
+      tour: { stops: [{ target: { viewport: { x: 17, y: -85, scale: 0.6 } }, duration: 0 }] },
+    });
+    expect(canvasState.theme).toBe('daylight');
+    await invoke.invoke('board.open', { id: board.id });
+    expect(await invoke.invoke('tour.go', { targetBoardId: board.id, stop: 0 })).toMatchObject({
+      index: 0,
+      boardGeneration: canvasState.visibleBoardGeneration,
+    });
+    expect(await invoke.invoke('tour.get', {})).toMatchObject({ position: 0 });
+    expect(await invoke.invoke('tour.get', { targetBoardId: board.id })).toMatchObject({ position: 0 });
+  } finally {
+    canvasState.setTheme(originalTheme);
+    canvasState.deleteBoard(board.id);
+  }
+});
+
+test('a bound steering wait wakes from another board but retains its board-bound pending work', async () => {
+  const invoke = new HttpOperationInvoker(baseUrl, 'routing-test');
+  const a = canvasState.createBoard('Steering recipient')!;
+  const b = canvasState.createBoard('Human sender')!;
+  const consumer = `amp:wait-${a.id}`;
+  try {
+    await invoke.invoke('board.open', { id: b.id });
+    await invoke.invoke('node.add', { targetBoardId: a.id, agentId: consumer, type: 'markdown', title: 'Recipient' });
+    await invoke.invoke('ax.approval.request', { targetBoardId: a.id, title: 'A gate' });
+    await invoke.invoke('ax.approval.request', { targetBoardId: b.id, title: 'B gate' });
+    const pending = invoke.invoke(
+      'ax.delivery.pending',
+      { targetBoardId: a.id, consumer, timeoutMs: 5000 },
+      { signal: AbortSignal.timeout(2000) },
+    );
+    // The public presence timestamp is set when the claim handler enters its wait.
+    let claimed = false;
+    for (let n = 0; n < 50; n++) {
+      const presence = await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json();
+      claimed = presence.presences.some(
+        (item: { sessionId: string; lastClaimAt?: string }) => item.sessionId === consumer && item.lastClaimAt,
+      );
+      if (claimed) break;
+      await Bun.sleep(10);
+    }
+    expect(claimed).toBe(true);
+    const { body } = await call('POST', '/api/canvas/ax/steer', HUMAN, {
+      message: 'Continue A from B',
+      target: consumer,
+    });
+    const result = (await pending) as { pending: Array<{ id: string }>; pendingActivity: unknown };
+    expect(result.pending.map((item) => item.id)).toContain((body.steering as { id: string }).id);
+    expect(JSON.stringify(result.pendingActivity)).toContain('A gate');
+    expect(JSON.stringify(result.pendingActivity)).not.toContain('B gate');
+    expect(canvasState.visibleBoardId).toBe(b.id);
+  } finally {
+    canvasState.deleteBoard(a.id);
+    canvasState.deleteBoard(b.id);
+  }
+});
+
+test('board-scoped HTTP batches and approval waits retain their board and actor', async () => {
+  const invoke = new HttpOperationInvoker(baseUrl, 'routing-test');
+  const a = canvasState.createBoard('Background approvals')!;
+  const b = canvasState.createBoard('Visible approvals')!;
+  try {
+    await invoke.invoke('board.open', { id: b.id });
+    const batch = await invoke.invoke('canvas.batch', {
+      targetBoardId: a.id,
+      agentId: 'amp:thread-A',
+      operations: [
+        { op: 'node.add', args: { type: 'markdown', content: 'A only' } },
+        { op: 'node.add', args: { type: 'prompt', targetBoardId: b.id, text: 'Must not escape' } },
+      ],
+    });
+    expect(batch).toMatchObject({ ok: false, failedIndex: 1 });
+    const created = canvasState.readBoard(a.id)!.layout.nodes;
+    expect(created).toHaveLength(1);
+    expect(created[0].lastEditedBy?.agentId).toBe('amp:thread-A');
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+    const requested = (await invoke.invoke('ax.approval.request', {
+      targetBoardId: a.id,
+      agentId: 'amp:thread-A',
+      title: 'Approve A',
+    })) as { approvalGate: { id: string } };
+    const started = Promise.withResolvers<void>();
+    const pending = invoke.invoke(
+      'ax.approval.get',
+      {
+        targetBoardId: a.id,
+        id: requested.approvalGate.id,
+        timeoutMs: 2000,
+      },
+      { onProgress: () => started.resolve() },
+    );
+    await started.promise;
+    await invoke.invoke('ax.approval.request', { targetBoardId: b.id, title: 'Unrelated gate' });
+    await invoke.invoke('board.open', { id: null });
+    await invoke.invoke('ax.approval.resolve', {
+      targetBoardId: a.id,
+      id: requested.approvalGate.id,
+      decision: 'approved',
+    });
+    expect(await pending).toMatchObject({
+      approvalGate: { id: requested.approvalGate.id, status: 'approved' },
+      pending: false,
+    });
+    expect(canvasState.visibleBoardId).toBeNull();
+    const gate = (await invoke.invoke('ax.approval.request', { targetBoardId: a.id, title: 'Deleted wait' })) as {
+      approvalGate: { id: string };
+    };
+    const waiting = Promise.withResolvers<void>();
+    const deleted = invoke
+      .invoke(
+        'ax.approval.get',
+        { targetBoardId: a.id, id: gate.approvalGate.id, timeoutMs: 2000 },
+        { onProgress: () => waiting.resolve() },
+      )
+      .then(
+        () => 'resolved',
+        (error) => String(error),
+      );
+    await waiting.promise;
+    canvasState.deleteBoard(a.id);
+    expect(await deleted).toContain('deleted');
+  } finally {
+    for (const board of [a, b]) canvasState.deleteBoard(board.id);
+  }
+});
 
 describe('boards over HTTP', () => {
   test('agents write to the open board; Home opens the most recent board, or a new one when there are none', async () => {

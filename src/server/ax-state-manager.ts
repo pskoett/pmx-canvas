@@ -137,9 +137,18 @@ function logAxStateWarning(action: string, error: unknown, details?: Record<stri
 
 export class AxStateManager {
   private _axState: PmxAxState = createEmptyAxState();
-  private _axHostCapability: PmxAxHostCapability | null = null;
 
-  constructor(private readonly deps: AxStateManagerDeps) {}
+  constructor(
+    private readonly deps: AxStateManagerDeps,
+    private readonly host: { capability: PmxAxHostCapability | null } = { capability: null },
+  ) {}
+
+  private get _axHostCapability() {
+    return this.host.capability;
+  }
+  private set _axHostCapability(value: PmxAxHostCapability | null) {
+    this.host.capability = value;
+  }
 
   // ── Normalization (against the owner's current node set) ──────────
   private normalizeForCurrentNodes(state: unknown): PmxAxState {

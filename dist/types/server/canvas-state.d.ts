@@ -191,22 +191,60 @@ interface ApplyUpdatesOptions {
     skipGroupChildTranslation?: boolean;
 }
 declare class CanvasStateManager {
-    private nodes;
-    private edges;
-    private annotations;
-    private _viewport;
-    private _tour;
+    private readonly boardExecution;
+    private readonly liveBoards;
+    private nextGeneration;
+    private navigationGeneration;
+    private readonly hostState;
+    private visibleBoard;
+    private get boardState();
+    /** Identity for board-owned runtime caches. Never shared by a replacement board. */
+    get boardIdentity(): object;
+    onBoardDispose(cleanup: () => void): () => void;
+    private disposeBoardRuntime;
+    /** The human's navigation target, independent of the calling operation's board. */
+    get visibleBoardId(): string | null;
+    get visibleBoardGeneration(): number;
+    get isBackgroundBoard(): boolean;
+    /** Execute on a live board without activating it, retaining ownership across awaits. */
+    withBoard<T>(id: string, fn: () => T): T;
+    /** Bind callbacks to their board, rather than the context of whoever invokes them. */
+    bindBoard<T extends unknown[], R>(fn: (...args: T) => R): (...args: T) => R;
+    /** Viewer/global projections must not inherit the producer's board scope. */
+    withVisibleBoard<T>(fn: () => T): T;
+    /** Sweep resident runtime owners without loading the entire stored library. */
+    forEachLiveBoard(fn: () => void): void;
+    private loadBoardState;
+    private createBoardState;
+    private get nodes();
+    private get edges();
+    private get annotations();
+    private get _viewport();
+    private set _viewport(value);
+    private get _tour();
+    private set _tour(value);
+    private get _contextPinnedNodeIds();
+    private set _contextPinnedNodeIds(value);
+    private get _contextPinMeta();
+    private set _contextPinMeta(value);
+    private get _storageVersion();
+    private set _storageVersion(value);
+    private get _contentRevision();
+    private set _contentRevision(value);
+    private get _revisionFloor();
+    private set _revisionFloor(value);
+    private get _deletionTombstones();
+    private set _deletionTombstones(value);
+    private get _boardGeneration();
+    private set _boardGeneration(value);
+    private get _saveTimer();
+    private set _saveTimer(value);
+    private get _lastPersistenceError();
+    private set _lastPersistenceError(value);
+    private get ax();
     private _theme;
-    private _contextPinnedNodeIds;
-    /** Who pinned each pin, when and why; kept only for ids in `_contextPinnedNodeIds`. */
-    private _contextPinMeta;
     private _workspaceRoot;
-    private _storageVersion;
     private moveRuntimeBlockers;
-    private _contentRevision;
-    private _revisionFloor;
-    private _deletionTombstones;
-    private readonly ax;
     private _changeListeners;
     /**
      * Register a listener for state changes. Used by MCP server to emit resource
@@ -258,7 +296,6 @@ declare class CanvasStateManager {
     private compactGroupChildren;
     private _db;
     private _dbPath;
-    private _saveTimer;
     readonly knowledge: KnowledgeLifecycle;
     /** Workspace root backing persistence and workspace-relative path resolution. */
     get workspaceRoot(): string;
@@ -293,11 +330,12 @@ declare class CanvasStateManager {
      * layout) on the board it had open last.
      */
     replaceDatabase(file: string): void;
-    private _activeBoardId;
-    private _boardGeneration;
+    private get _activeBoardId();
+    private set _activeBoardId(value);
     /** Invalidates asynchronous work whenever the loaded board state is replaced. */
     get boardGeneration(): number;
-    /** The open board, or null on Home. */
+    get boardLifetimeGeneration(): number;
+    /** The execution board, or the open board outside a scoped operation. */
     get activeBoardId(): string | null;
     getActiveBoard(): CanvasBoard | null;
     /** Synchronous, owner-controlled static creation. No board activation or runtime hydration. */
@@ -307,6 +345,10 @@ declare class CanvasStateManager {
     createStoredEdge(boardId: string, requestId: string | undefined, fingerprint: string, build: (nodes: CanvasNodeState[]) => CanvasEdge): CanvasEdge;
     /** Stored creations share one durable receipt/commit boundary, never a temporary board switch. */
     private createStoredCreation;
+    /** Called inside a transaction: publish no storage clocks until it commits. */
+    private stageLiveBoards;
+    /** A stored multi-board write retains each live owner's runtime and camera. */
+    private reconcileStoredBoards;
     /** Read a board without activating it. This projection is not a write payload. */
     readBoard(id: string, includeBlobs?: boolean): {
         board: CanvasBoard;
@@ -387,7 +429,6 @@ declare class CanvasStateManager {
     private persistedState;
     /** Write current state to SQLite immediately. */
     private saveToDisk;
-    private _lastPersistenceError;
     /** Health view of state persistence: ok until a save fails, ok again after the next success. */
     get persistenceHealth(): {
         ok: boolean;

@@ -6,6 +6,18 @@ resources**, and two canvas resource templates, plus per-skill resources at
 `notifications/resources/updated` to subscribed connections when canvas state changes.
 This uses MCP SDK v1, not SDK v2.
 
+## Board-targeted tools
+
+Registry-backed tools and AX interaction/activity tools accept `targetBoardId` and `agentId`.
+Board-bound operations retain that target across awaits and nested batches without changing the
+human's view. See the [routing contract](http-api.md#board-targeted-operations) for conflicts,
+workspace-wide operations and permissions. `canvas_screenshot` rejects a target: its image is
+of the shared WebView, not a background board.
+
+The [Amp plugin](amp-plugin.md) supplies the target and authenticated thread identity for bound
+MCP tool calls. It does not intercept MCP resource reads or CLI commands. Use routed query tools
+instead of `canvas://` resources when reading a bound background board.
+
 ## Operation help (0.10)
 
 Call `canvas_help {}` for the sorted registry names exposed through MCP, then

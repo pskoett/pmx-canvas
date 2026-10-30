@@ -86,6 +86,83 @@ async function expectReadableGraphLabels(page: Page, count: number) {
   ).toEqual([]);
 }
 
+test('bound board writes stay off the human view and appear when that board is opened', async ({ page, request }) => {
+  const createBoard = async (name: string) =>
+    (await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name } })).json()).board.id as string;
+  const a = await createBoard('Bound research');
+  const b = await createBoard('Human planning');
+  const c = await createBoard('Bound delivery');
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: b } });
+  const visibleCard = await note(request, 'Human draft');
+  await page.goto('/workbench');
+  await expect(page.locator(`[data-node-id="${visibleCard}"]`)).toBeVisible();
+  const write = async (targetBoardId: string, title: string) => {
+    const result = await request.post('/api/canvas/node', {
+      data: {
+        targetBoardId,
+        agentId: `amp:${targetBoardId}`,
+        type: 'markdown',
+        title,
+        content: `${title} result`,
+        x: 120,
+        y: 120,
+      },
+    });
+    expect(result.ok()).toBe(true);
+    return (await result.json()).id as string;
+  };
+  const [researchCard, deliveryCard] = await Promise.all([write(a, 'Research only'), write(c, 'Delivery only')]);
+  expect(
+    (await request.post('/api/canvas/context-pins', { data: { targetBoardId: a, nodeIds: [researchCard] } })).ok(),
+  ).toBe(true);
+  // A visible-board write is an ordered SSE barrier, not a sleep or an assertion
+  // that could pass before the hidden-board frames reached the browser.
+  await request.patch(`/api/canvas/node/${visibleCard}`, {
+    headers: HUMAN,
+    data: { content: 'Human draft after background work' },
+  });
+  await expect(page.locator(`[data-node-id="${visibleCard}"]`)).toContainText('Human draft after background work');
+  await expect(page.locator('.board-switcher-button')).toContainText('Human planning');
+  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  expect((await boards(request)).activeBoardId).toBe(b);
+  await page.reload();
+  await expect(page.locator(`[data-node-id="${visibleCard}"]`)).toContainText('Human draft after background work');
+  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  await page.screenshot({ path: test.info().outputPath('routing-human-board.png') });
+  await page.locator('.board-switcher-button').click();
+  await page.getByRole('menuitem', { name: /Bound research/ }).click();
+  await expect(page.locator(`[data-node-id="${researchCard}"]`)).toContainText('Research only result');
+  await expect(page.locator(`[data-node-id="${visibleCard}"]`)).toHaveCount(0);
+  await expect(page.locator(`[data-node-id="${deliveryCard}"]`)).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('routing-bound-board.png') });
+  expect(
+    (
+      await request.post('/api/canvas/tour', {
+        data: { targetBoardId: a, tour: { stops: [{ target: { nodeId: researchCard }, duration: 0 }] } },
+      })
+    ).ok(),
+  ).toBe(true);
+  expect((await request.post('/api/canvas/tour/go', { data: { targetBoardId: a, stop: 0, present: true } })).ok()).toBe(
+    true,
+  );
+  const exitPresentation = page.getByRole('button', { name: 'Exit presentation', exact: true });
+  await expect(exitPresentation).toBeVisible();
+  await expect(page.locator(`[data-node-id="${researchCard}"]`)).toBeInViewport();
+  await exitPresentation.click();
+  await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+  await expect(page.getByRole('button', { name: /^Board: Home/ })).toBeVisible();
+  await request.patch(`/api/canvas/node/${deliveryCard}`, {
+    data: { targetBoardId: c, content: 'Delivery finished on Home' },
+  });
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Board: Home/ })).toBeVisible();
+  expect((await boards(request)).activeBoardId).toBeNull();
+  const delivery = await (await request.get(`/api/canvas/state?targetBoardId=${c}`)).json();
+  expect(delivery.nodes.map((node: { data: { content: string } }) => node.data.content)).toEqual([
+    'Delivery finished on Home',
+  ]);
+});
+
 test('move selection to a new board preserves cards, pins and links and leaves a working portal', async ({
   page,
   request,

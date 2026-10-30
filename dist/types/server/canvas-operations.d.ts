@@ -216,6 +216,9 @@ export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
 export declare function openCanvasBoard(id: string | null): {
     ok: boolean;
 };
+export declare function startBoardRuntime(options?: {
+    forceRehydrateExtApps?: boolean;
+}): void;
 /**
  * Restore the whole library from a backup file (the current file is kept as
  * `<db>.before-restore`); the restored library opens on its last open board.
