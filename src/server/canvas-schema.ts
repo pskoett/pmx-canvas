@@ -128,6 +128,27 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Status label.' },
       { name: 'content', type: 'string', required: false, description: 'Rendered status text.' },
+      {
+        name: 'data.workItemId',
+        type: 'string',
+        required: false,
+        description:
+          'Read-only live presentation of an existing work item on the active board. Omit title, detail, workState and progress; they are derived. Removing the card does not cancel work.',
+      },
+      {
+        name: 'data.workState',
+        type: 'string',
+        required: false,
+        description:
+          'Explicit authored work card: todo, in-progress, blocked, done or cancelled. Creates no session or task.',
+      },
+      { name: 'data.detail', type: 'string', required: false, description: 'Work card detail.' },
+      {
+        name: 'data.progress',
+        type: 'number | null',
+        required: false,
+        description: 'Optional percentage from 0 to 100, independent of workState; null clears it.',
+      },
     ],
     example: {
       type: 'status',

@@ -20,7 +20,7 @@ import type { MemoryGraph } from '../../shared/memory-graph.js';
 import { openBoardForWrite } from '../canvas-operations.js';
 import { boardsPayload } from './ops/boards.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
-import { OperationError, type Operation, type OperationContext } from './types.js';
+import { OperationError, type Operation, type OperationContext, type OperationExecutionOptions } from './types.js';
 
 const operations = new Map<string, Operation>();
 
@@ -74,8 +74,6 @@ export function isEmitSuppressed(): boolean {
 export async function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T> {
   return suppressedEmits.run(true, fn);
 }
-
-const operationContext: OperationContext = { emit: emitOperationEvent };
 
 const INTENT_KINDS_BY_OPERATION: Record<string, readonly PmxAxIntentKind[]> = {
   'node.add': ['create'],
@@ -204,7 +202,7 @@ function autoGhostInput(name: string, rawInput: unknown, kind: string): Record<s
   }
 }
 
-export interface ExecuteOperationMeta {
+export interface ExecuteOperationMeta extends OperationExecutionOptions {
   /**
    * Skip the synthesized auto-ghost: set by the workbench's own HTTP calls
    * (a human dragging a node is not agent activity) and by canvas.batch for
@@ -361,6 +359,7 @@ function notePresence(
 ): void {
   if (!isPresenceWrite(op) || meta.suppressAutoGhost) return;
   const input = asRecord(rawInput);
+  if (name === 'board.move-selection' && (input.preview === true || asRecord(result).replayed === true)) return;
   // Delivery plumbing (claim/mark) must not book an anonymous transport
   // writer nor spam the timeline: attribute it to the consumer that marked,
   // and record no activity row — the Steer row flipping to delivered IS the
@@ -395,6 +394,8 @@ export async function executeOperation(
   rawInput: unknown,
   meta: ExecuteOperationMeta = {},
 ): Promise<unknown> {
+  // Check before attribution, board auto-open, ghosts, or any handler writes.
+  meta.signal?.throwIfAborted();
   // Attribution follows this call chain across awaits and nested operations.
   const inputAgentId = asRecord(rawInput).agentId;
   return withCurrentActor(
@@ -479,6 +480,22 @@ function needsOpenBoard(op: Operation): boolean {
 }
 
 async function executeOperationInner(name: string, rawInput: unknown, meta: ExecuteOperationMeta): Promise<unknown> {
+  meta.signal?.throwIfAborted();
+  const operationContext: OperationContext = {
+    emit: emitOperationEvent,
+    signal: meta.signal,
+    // Progress is observational. A disconnected observer must not erase the
+    // receipt of a completed write or strand a batch's final layout emit.
+    onProgress: meta.onProgress
+      ? async (progress) => {
+          try {
+            await meta.onProgress!(progress);
+          } catch (error) {
+            if (!meta.signal?.aborted) console.error(`[operation] progress callback failed for ${name}:`, error);
+          }
+        }
+      : undefined,
+  };
   const op = getOperation(name);
   const storedCreation =
     ['node.add', 'group.create', 'edge.add'].includes(name) &&
@@ -494,7 +511,8 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   const rawExpectedBoard = asRecord(rawInput).expectedBoardId;
   // HTTP DELETE query values are strings, including Home's JSON null.
   const expectedBoard = rawExpectedBoard === 'null' ? null : rawExpectedBoard;
-  if (expectedBoard !== undefined && expectedBoard !== canvasState.activeBoardId) {
+  // Relocations check their durable receipt first, then their explicit source board.
+  if (name !== 'board.move-selection' && expectedBoard !== undefined && expectedBoard !== canvasState.activeBoardId) {
     throw new OperationError('The active board changed. Refresh before retrying this action.', 409);
   }
   // File drops carry their captured board through the HTTP round trip. Check
@@ -543,6 +561,7 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   }
   if (storedCreation) {
     const revision = canvasState.getContentRevision().revision;
+    meta.signal?.throwIfAborted();
     const result = await op.execute(rawInput, operationContext);
     const destination = asRecord(rawInput).destinationBoardId ?? canvasState.activeBoardId;
     if (destination === canvasState.activeBoardId || revision !== canvasState.getContentRevision().revision)
@@ -566,6 +585,7 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
       intentId,
       allowedKinds!,
       async () => {
+        meta.signal?.throwIfAborted();
         const result = await op.execute(input, operationContext);
         if (op.mutates) {
           emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -606,6 +626,7 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     if (ghost) {
       const ghostId = ghost.id;
       try {
+        meta.signal?.throwIfAborted();
         const result = await op.execute(rawInput, operationContext);
         if (op.mutates) emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
         intentRegistry.clear(ghostId, { settledNodeId: settledNodeId(result, ghost) ?? undefined });
@@ -619,8 +640,10 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   }
 
   const beforeBoard = canvasState.activeBoardId;
-  const beforeRevision =
-    name === 'board.create-from' || name === 'board.delete' ? canvasState.getContentRevision().revision : null;
+  const beforeRevision = ['board.create-from', 'board.delete', 'board.move-selection'].includes(name)
+    ? canvasState.getContentRevision().revision
+    : null;
+  meta.signal?.throwIfAborted();
   const result = await op.execute(rawInput, operationContext);
   // Library writes can invalidate relations on the open board without being
   // layout mutations themselves. Publish those clocks once, after the write.

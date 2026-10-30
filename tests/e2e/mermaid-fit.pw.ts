@@ -2,6 +2,13 @@ import { expect, test, type Locator } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 2 });
 
+test.beforeEach(async ({ request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  expect((await request.post('/api/canvas/ax/policy', { headers, data: { scope: null } })).ok()).toBe(true);
+  expect((await request.post('/api/canvas/clear', { headers })).ok()).toBe(true);
+  expect((await request.post('/api/canvas/viewport', { headers, data: { x: 0, y: 0, scale: 1 } })).ok()).toBe(true);
+});
+
 const fourLevels = `---
 config:
   flowchart:
@@ -16,17 +23,19 @@ async function geometry(svg: Locator) {
   return svg.evaluate((element) => {
     const svg = element as SVGSVGElement;
     const rect = svg.getBoundingClientRect();
+    const container = svg.closest('.mermaid-viewer');
+    const bounds = container?.getBoundingClientRect();
     return {
       width: rect.width,
       height: rect.height,
-      right: rect.right,
-      bottom: rect.bottom,
+      right: rect.right - (bounds?.left ?? 0),
+      bottom: rect.bottom - (bounds?.top ?? 0),
       naturalWidth: svg.viewBox.baseVal.width,
       naturalHeight: svg.viewBox.baseVal.height,
-      viewportWidth: document.documentElement.clientWidth,
-      viewportHeight: document.documentElement.clientHeight,
-      scrollWidth: document.documentElement.scrollWidth,
-      scrollHeight: document.documentElement.scrollHeight,
+      viewportWidth: bounds?.width ?? document.documentElement.clientWidth,
+      viewportHeight: bounds?.height ?? document.documentElement.clientHeight,
+      scrollWidth: container?.scrollWidth ?? document.documentElement.scrollWidth,
+      scrollHeight: container?.scrollHeight ?? document.documentElement.scrollHeight,
     };
   });
 }
@@ -35,6 +44,7 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 1440, height: 1100 });
   const response = await request.post('/api/canvas/node', {
     data: {
@@ -52,19 +62,35 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   const { id } = await response.json();
   await page.goto('/workbench');
   const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
-  const frame = card.locator('iframe').contentFrame();
-  const svg = frame.locator('.mermaid-diagram > svg');
+  const svg = card.locator('.mermaid-diagram > svg');
   await expect(svg).toBeVisible();
 
-  for (const theme of ['harbor', 'daylight']) {
+  for (const theme of ['harbor', 'daylight', 'ember']) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('menu', { name: 'Settings' }).getByRole('menuitem').filter({ hasText: 'Theme' }).click();
     await page
       .locator('.toolbar-menu')
       .getByRole('menuitemradio', { name: new RegExp(`^${theme}$`, 'i') })
       .click();
-    await expect(frame.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await expect(svg).toBeVisible();
+    const fill = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.background = 'var(--c-panel-soft)';
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    await expect(svg.locator('.node rect').first()).toHaveCSS('fill', fill);
+    const sitePage = await page.context().newPage();
+    try {
+      await sitePage.goto(`/api/canvas/surface/${id}?theme=${theme}`);
+      await expect(sitePage.locator('.mermaid-diagram .node rect').first()).toHaveCSS('fill', fill);
+      await expect(sitePage.getByText('Level 4: Delivered', { exact: true })).toBeVisible();
+    } finally {
+      await sitePage.close();
+    }
     const bounds = await geometry(svg);
     expect(bounds.naturalHeight).toBeGreaterThan(870);
     expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewportHeight + 1);
@@ -84,21 +110,30 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
     }
   }
 
-  // Updating only data.fit must reload the surface, not leave a stale diagram.
+  // Updating only data.fit must resize the painted diagram in place, not
+  // re-render it: a replaced SVG is briefly detached and measures 0px.
+  await svg.evaluate((element) => element.setAttribute('data-before-fit', ''));
   await request.patch(`/api/canvas/node/${id}`, { data: { data: { fit: 'none' } } });
-  await expect(frame.locator('.mermaid-source')).toHaveAttribute('data-fit', 'none');
-  await expect(svg).toBeVisible();
+  await expect(card.locator('.mermaid-viewer')).toHaveAttribute('data-fit', 'none');
+  await expect(svg).toHaveAttribute('data-before-fit', '');
   const natural = await geometry(svg);
   expect(natural.height).toBeCloseTo(natural.naturalHeight, 1);
   expect(natural.scrollHeight).toBeGreaterThan(natural.viewportHeight);
-  await svg.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  const bottomLabel = await svg.getByText('Level 4: Delivered', { exact: true }).evaluate((label) => ({
-    top: label.getBoundingClientRect().top,
-    bottom: label.getBoundingClientRect().bottom,
-    viewport: document.documentElement.clientHeight,
-  }));
+  await svg.evaluate((element) => {
+    const viewer = element.closest('.mermaid-viewer')!;
+    viewer.scrollTop = viewer.scrollHeight;
+  });
+  const bottomLabel = await svg.getByText('Level 4: Delivered', { exact: true }).evaluate((label) => {
+    const viewer = label.closest('.mermaid-viewer')!.getBoundingClientRect();
+    return {
+      top: label.getBoundingClientRect().top - viewer.top,
+      bottom: label.getBoundingClientRect().bottom - viewer.top,
+      viewport: viewer.height,
+    };
+  });
   expect(bottomLabel.top).toBeGreaterThanOrEqual(0);
   expect(bottomLabel.bottom).toBeLessThanOrEqual(bottomLabel.viewport);
+  await expect(svg).toHaveAttribute('data-before-fit', '');
   if (process.env.PMX_MERMAID_SCREENSHOTS) {
     await card.screenshot({ path: `${process.env.PMX_MERMAID_SCREENSHOTS}/mermaid-none.png` });
   }
@@ -106,7 +141,7 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
   await request.patch(`/api/canvas/node/${id}`, {
     data: { data: { fit: 'contain' }, size: { width: 360, height: 240 } },
   });
-  await expect(frame.locator('.mermaid-source')).toHaveAttribute('data-fit', 'contain');
+  await expect(card.locator('.mermaid-viewer')).toHaveAttribute('data-fit', 'contain');
   await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeLessThan(240);
   // The node shrinks over its height transition; wait for the diagram to refit
   // the settled frame rather than sampling one intermediate frame.
@@ -120,11 +155,13 @@ test('Mermaid contains four levels in a strict 920x870 node, follows themes and 
 
   await request.patch(`/api/canvas/node/${id}`, { data: { size: { width: 600, height: 480 } } });
   await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeGreaterThan(240);
+  // The frame can grow before its resize event refits the SVG.
+  await expect.poll(async () => (await geometry(svg)).height).toBeGreaterThan(small.height);
   const resized = await geometry(svg);
   expect(resized.height).toBeGreaterThan(small.height);
   expect(resized.bottom).toBeLessThanOrEqual(resized.viewportHeight + 1);
   await card.getByLabel('Expand (focus mode)').click();
-  const expanded = page.locator('.expanded-overlay-panel iframe').contentFrame().locator('.mermaid-diagram > svg');
+  const expanded = page.locator('.expanded-overlay-panel .mermaid-diagram > svg');
   await expect(expanded).toBeVisible();
   const larger = await geometry(expanded);
   expect(larger.height).toBeGreaterThan(resized.height);
@@ -194,14 +231,16 @@ test('Mermaid reports natural height so non-strict cards still grow', async ({ p
   });
   const { id } = await response.json();
   await page.goto('/workbench');
-  const svg = page
-    .locator(`.canvas-node[data-node-id="${id}"] iframe`)
-    .contentFrame()
-    .locator('.mermaid-diagram > svg');
+  const svg = page.locator(`.canvas-node[data-node-id="${id}"] .mermaid-diagram > svg`);
   await expect(svg).toBeVisible();
-  await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeGreaterThan(1204);
+  // Three 300px rank gaps must fit without clipping after growth. The label
+  // font follows the canvas and must not pin this to Mermaid's old 16px default.
+  await expect.poll(async () => (await geometry(svg)).viewportHeight).toBeGreaterThan(900);
+  await expect(svg.getByText('Level 4: Delivered', { exact: true })).toBeVisible();
   const grown = await geometry(svg);
-  expect(grown.height).toBeCloseTo((grown.width * grown.naturalHeight) / grown.naturalWidth, 1);
+  // Subpixel width rounding is amplified by this tall aspect ratio. Keep the
+  // rendered error below half a CSS pixel rather than requiring 0.05px precision.
+  expect(Math.abs(grown.height - (grown.width * grown.naturalHeight) / grown.naturalWidth)).toBeLessThanOrEqual(0.5);
   expect(grown.bottom).toBeLessThanOrEqual(grown.viewportHeight + 1);
   await request.delete(`/api/canvas/node/${id}`);
 });

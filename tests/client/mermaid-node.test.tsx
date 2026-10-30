@@ -28,12 +28,10 @@ afterEach(() => {
 });
 
 describe('MermaidNode render', () => {
-  test('renders a sandboxed iframe pointing at the node surface URL', () => {
+  test('renders diagrams inline without allocating an iframe', () => {
     const { container } = render(<MermaidNode node={makeMermaidNode({ content: 'graph TD; A-->B;' })} />);
-    const iframe = container.querySelector('iframe');
-    expect(iframe).toBeTruthy();
-    expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
-    expect(iframe?.getAttribute('src')).toContain('/api/canvas/surface/mermaid-test');
+    expect(container.querySelector('.mermaid-diagram')).toBeTruthy();
+    expect(container.querySelector('iframe')).toBeNull();
   });
 
   test('renders a muted placeholder when no source is set', () => {
@@ -42,12 +40,11 @@ describe('MermaidNode render', () => {
     expect(container.querySelector('iframe')).toBeNull();
   });
 
-  test('reloads the surface when fit changes and allows short node bodies', () => {
+  test('switches the inline fit mode', () => {
     const node = makeMermaidNode({ content: 'graph TD; A-->B;' });
     const { container, rerender } = render(<MermaidNode node={node} />);
-    const before = container.querySelector('iframe')?.src;
-    expect(container.querySelector('iframe')?.style.minHeight).toBe('0');
+    expect(container.querySelector('.mermaid-viewer')?.getAttribute('data-fit')).toBe('contain');
     rerender(<MermaidNode node={{ ...node, data: { ...node.data, fit: 'none' } }} />);
-    expect(container.querySelector('iframe')?.src).not.toBe(before);
+    expect(container.querySelector('.mermaid-viewer')?.getAttribute('data-fit')).toBe('none');
   });
 });

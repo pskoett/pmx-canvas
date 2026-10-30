@@ -19,6 +19,8 @@ export interface LifecycleQualification {
     contentChangedAt: string | null;
     /** The revisions a validating reviewer must have inspected, qualified by source relation. */
     observations: Record<string, number | null>;
+    /** Warnings keyed by the same qualified source identity as observations. */
+    sourceWarnings?: Record<string, string[]>;
     sources: SourceQualification[];
     relevance: 'card-pinned' | 'board-pinned' | 'not-selected';
 }

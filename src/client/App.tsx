@@ -37,7 +37,10 @@ import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import { promptedCreate, ToolRail } from './canvas/ToolRail';
 import { EdgeHint, RelationLegend } from './canvas/EdgeLayer';
+import { SelectedEdgeEditor } from './canvas/EdgeEditor';
+import { GroupBreadcrumbs } from './canvas/GroupNavigation';
 import { TextPrompt } from './canvas/TextPrompt';
+import { BoardMoveDialog } from './canvas/BoardMoveDialog';
 import { TopBar } from './canvas/TopBar';
 import {
   activeNodeId,
@@ -62,6 +65,9 @@ import {
   walkGraph,
   zoomByFactor,
   groupsOfSelection,
+  groupPath,
+  groupViewNodes,
+  leaveGroup,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
@@ -247,7 +253,10 @@ export function App() {
       if (target?.closest('[role="menu"]')) return;
       const inDialog = target?.closest('[role="dialog"]');
       // Chrome owns its arrow keys and Tab order, rather than board navigation.
-      if ((e.key === 'Tab' || e.key.startsWith('Arrow')) && target?.closest('.tool-rail, .top-bar')) {
+      if (
+        (e.key === 'Tab' || e.key.startsWith('Arrow')) &&
+        target?.closest('.tool-rail, .top-bar, .group-breadcrumbs, .group-outside-stub')
+      ) {
         return;
       }
 
@@ -292,6 +301,10 @@ export function App() {
       } else if (e.key === 'Escape') {
         if (!isSelectionEscape(e)) return;
         e.preventDefault();
+        if (groupPath.value.length && !menu) {
+          leaveGroup();
+          return;
+        }
         if (relationFilter.value?.boardId === activeBoardId.value) relationFilter.value = null;
         lifecycleFilter.value = 'All';
         clearSelection();
@@ -436,6 +449,7 @@ export function App() {
     >
       <Presentation />
       <EdgeHint />
+      <SelectedEdgeEditor />
       <ToolRail
         minimapVisible={minimapVisible}
         onToggleMinimap={handleToggleMinimap}
@@ -465,6 +479,7 @@ export function App() {
             <KnowledgeSync />
             {!onHome && <LifecycleFilters />}
             {!onHome && <RelationLegend />}
+            {!onHome && <GroupBreadcrumbs />}
             <AttentionHistory />
             <ActivityFeed />
             <WritersSheet />
@@ -480,6 +495,7 @@ export function App() {
             {!onHome && sessionActive.value && !isHostedWorkbench() && <CommandBar />}
             {!onHome && <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />}
             <TextPrompt />
+            <BoardMoveDialog />
             {!browsingMemory.value && <ExportDialog />}
             {!onHome && expandedNodeId.value && <ExpandedNodeOverlay />}
             <SnapshotPanel
@@ -490,7 +506,7 @@ export function App() {
             {minimapVisible && !onHome && (
               <Minimap
                 viewport={viewport}
-                nodes={nodes}
+                nodes={groupViewNodes}
                 edges={edges}
                 onNavigate={handleMinimapNavigate}
                 containerWidth={area.width}

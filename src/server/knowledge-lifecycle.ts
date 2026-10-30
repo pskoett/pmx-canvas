@@ -1,8 +1,10 @@
 import type { Database } from 'bun:sqlite';
 import { z } from 'zod';
 import { normalizeBoardFolder } from '../shared/boards.js';
+import { memoryKey, type MemoryTarget } from '../shared/memory-graph.js';
 import { currentActor, type ActorAttribution } from './attribution.js';
 import { OperationError } from './operations/types.js';
+import { CARD_HISTORY_CTE } from './card-relocation.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState } from './canvas-state.js';
 import { RELATION_PRESETS, relationPresetSchema, type RelationPreset } from '../shared/relations.js';
@@ -27,11 +29,12 @@ export interface ReviewCardSummary {
   folder: string | null;
   title: string;
 }
-export interface FolderProperties {
-  path: string;
-  categoryId: string | null;
-  lifecycleOverride: Lifecycle | null;
-}
+export const folderPropertiesSchema = z.object({
+  path: z.string(),
+  categoryId: z.string().nullable(),
+  lifecycleOverride: lifecycleSchema.nullable(),
+});
+export type FolderProperties = z.infer<typeof folderPropertiesSchema>;
 export interface ReviewRecord {
   id: string;
   boardId: string;
@@ -45,6 +48,16 @@ export interface ReviewRecord {
   contentRevision: number | null;
   sourceRevisions?: Record<string, number | null>;
 }
+
+// SQLite trim defaults to ASCII space; match JavaScript evidence.trim(), including Unicode whitespace.
+const evidenceWhitespace =
+  '\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+const validationPredicate = `json_extract(value, '$.applied') = 1
+  AND json_extract(value, '$.outcome') IN ('retain', 'revise', 'externalize')
+  AND trim(json_extract(value, '$.evidence'), '${evidenceWhitespace}') <> ''`;
+const retirementPredicate = `(json_extract(value, '$.outcome') = 'restore'
+  OR (json_extract(value, '$.applied') = 1 AND json_extract(value, '$.outcome') = 'retire'))`;
+const indexedDatabases = new WeakSet<Database>();
 
 export type KnowledgeInput =
   | { action: 'list' }
@@ -239,11 +252,88 @@ export class KnowledgeLifecycle {
     return resolved;
   }
 
+  private indexedDb(): Database {
+    const db = this.db();
+    if (!indexedDatabases.has(db)) {
+      db.exec(`CREATE INDEX IF NOT EXISTS review_latest_validation ON review_records
+        (board_id, node_id, sequence DESC) WHERE ${validationPredicate};
+        CREATE INDEX IF NOT EXISTS review_latest_retirement ON review_records
+        (board_id, node_id, sequence DESC) WHERE ${retirementPredicate};
+        CREATE INDEX IF NOT EXISTS lifecycle_incoming_sources ON edges (to_board_id, to_node)
+        WHERE COALESCE(kind, type) IN ('derived-from', 'contradicts', 'supersedes');`);
+      indexedDatabases.add(db);
+    }
+    return db;
+  }
+
+  /** Stored owners of semantic sources; the caller overlays the active board's unsaved edges. */
+  incomingSourceBoards(target: MemoryTarget, activeBoardId: string | null): string[] {
+    return this.indexedDb()
+      .query<{ board_id: string }, [string, string | null, string | null]>(
+        `SELECT DISTINCT board_id FROM edges WHERE to_board_id = ? AND to_node = ?
+       AND board_id IS NOT ? AND COALESCE(kind, type) IN ('derived-from', 'contradicts', 'supersedes')`,
+      )
+      .all(target.boardId, target.cardId ?? null, activeBoardId)
+      .map((row) => row.board_id);
+  }
+
+  /** One indexed latest validation and retirement per card, never its full audit history. */
+  reviewSummaries(targets: MemoryTarget[]): Map<string, { lastValidation: ReviewRecord | null; retired: boolean }> {
+    if (!targets.length) return new Map();
+    const rows = this.indexedDb()
+      .query<{ boardId: string; nodeId: string; validation: string | null; retirement: string | null }, [string]>(
+        `${CARD_HISTORY_CTE}
+       SELECT t.current_board AS boardId, t.node_id AS nodeId,
+         (SELECT value FROM review_records r JOIN history h
+          ON r.board_id = h.board_id AND r.node_id = h.node_id
+          AND r.sequence > h.review_after AND r.sequence <= h.review_through
+          WHERE h.current_board = t.current_board AND h.node_id = t.node_id
+          AND ${validationPredicate} ORDER BY sequence DESC LIMIT 1) AS validation,
+         (SELECT json_extract(value, '$.outcome') FROM review_records r JOIN history h
+          ON r.board_id = h.board_id AND r.node_id = h.node_id
+          AND r.sequence > h.review_after AND r.sequence <= h.review_through
+          WHERE h.current_board = t.current_board AND h.node_id = t.node_id
+          AND ${retirementPredicate} ORDER BY sequence DESC LIMIT 1) AS retirement
+       FROM targets t`,
+      )
+      .all(JSON.stringify(targets));
+    return new Map(
+      rows.map((row) => {
+        const record: ReviewRecord | null = row.validation ? JSON.parse(row.validation) : null;
+        return [
+          memoryKey({ boardId: row.boardId, cardId: row.nodeId }),
+          {
+            lastValidation: record ? { ...record, contentRevision: record.contentRevision ?? null } : null,
+            retired: row.retirement === 'retire',
+          },
+        ];
+      }),
+    );
+  }
+
+  /** Resolve a current card's location when evidence was recorded, without rewriting that evidence. */
+  locationAtReview(review: ReviewRecord, target: MemoryTarget): MemoryTarget {
+    const sequence = this.db()
+      .query<{ sequence: number }, [string, string, string]>(
+        "SELECT sequence FROM review_records WHERE board_id = ? AND node_id = ? AND json_extract(value, '$.id') = ?",
+      )
+      .get(review.boardId, review.nodeId, review.id)?.sequence;
+    if (sequence === undefined) return target;
+    const location = this.db()
+      .query<{ board_id: string }, [string, number, number]>(
+        `${CARD_HISTORY_CTE} SELECT board_id FROM history WHERE review_after < ? AND review_through >= ? LIMIT 1`,
+      )
+      .get(JSON.stringify([target]), sequence, sequence);
+    return location ? { ...target, boardId: location.board_id } : target;
+  }
+
   reviews(boardId: string, nodeId: string) {
     const records = (
       this.db()
-        .query('SELECT value FROM review_records WHERE board_id = ? AND node_id = ? ORDER BY sequence')
-        .all(boardId, nodeId) as { value: string }[]
+        .query(`${CARD_HISTORY_CTE} SELECT value FROM review_records r JOIN history h
+          ON r.board_id = h.board_id AND r.node_id = h.node_id
+          AND r.sequence > h.review_after AND r.sequence <= h.review_through ORDER BY sequence`)
+        .all(JSON.stringify([{ boardId, cardId: nodeId }])) as { value: string }[]
     ).map((r): ReviewRecord => {
       const record = JSON.parse(r.value) as ReviewRecord;
       return { ...record, contentRevision: record.contentRevision ?? null };

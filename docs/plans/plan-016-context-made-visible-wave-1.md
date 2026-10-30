@@ -2,7 +2,7 @@
 
 **Status (2026-10-10):** built on `main`, not released. Slices 1–5 and 7 are done, with the
 receipt extras, edit descriptions and the live session lens (slice 3) and Home (slice 7). Slice 6
-(the curation evaluation) waits until the maintainer tests a version. Suggested cards were dropped
+(the curation evaluation) moved to [plan 019](plan-019-post-0.9-roadmap.md) step 6 on 2026-10-19. Suggested cards were dropped
 (2026-10-10: the agent changes the canvas directly; asks and suggestions go through the composer).
 
 **Handoff (2026-10-10, end of session).**
@@ -228,7 +228,7 @@ with their actions (Unpin, Undo). Data from presence activity, revisions and sli
   changed since the cursor ends "(new, by codex)" / "(changed, by a person)". First and reset
   reads mark nothing; generated code-graph and board-map links are never stamped, so never
   marked. A removed link writes one Updates entry naming both cards. Deviation: a person is
-  "by a person", not by name — edges record no human name until shared boards (vision Part 3).
+  "by a person", not by name — edges record no human name until shared boards (hosted version, vision Part 4).
 
 ### 5. Board pins
 
@@ -277,7 +277,7 @@ whole cards oldest first). Runs need the maintainer's agent sessions.
 `docs/evals/curation-effect.md`: one fixed task, run with the brief delivered on a curated and an
 uncurated board, scored on criteria written before the first run (vision Part 1, item 4). It reads
 the same `context_reads` data as slice 1 to confirm delivery before scoring effect. Running it
-needs the maintainer's real agent sessions; it is a benchmark rerun per release (vision Part 1, item 4).
+needs the maintainer's real agent sessions; from plan 019 step 6 onward it is a benchmark rerun per release (vision Part 1, item 4).
 
 ## Out of wave 1
 

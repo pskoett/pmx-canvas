@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { refreshWebpageNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
+import { RefreshingViewerFrame } from './ViewerFrame';
 
 function formatHost(url: string): string {
   try {
@@ -35,6 +36,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
   const frameBlockedReason = typeof node.data.frameBlockedReason === 'string' ? node.data.frameBlockedReason : '';
   const [refreshing, setRefreshing] = useState(false);
   const [showEmbed, setShowEmbed] = useState(expanded);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     if (expanded) {
@@ -63,9 +65,9 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: '12px', color: 'var(--c-muted)' }}>{formatHost(url)}</div>
-          <div style={{ fontSize: expanded ? '18px' : '15px', fontWeight: 700, color: 'var(--c-text)' }}>
-            {pageTitle || (node.data.title as string) || url}
-          </div>
+          {pageTitle && pageTitle !== node.data.title && (
+            <div style={{ fontSize: 'var(--fs-title)', fontWeight: 600, color: 'var(--c-text)' }}>{pageTitle}</div>
+          )}
           <a
             href={url}
             target="_blank"
@@ -82,7 +84,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
             gap: '6px',
             padding: '4px 8px',
             borderRadius: '999px',
-            background: 'rgba(255,255,255,0.04)',
+            background: 'var(--c-panel-soft)',
             color: statusTone,
             fontSize: '11px',
             textTransform: 'uppercase',
@@ -194,7 +196,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
               fontSize: '11px',
               color: 'var(--c-muted)',
               borderBottom: '1px solid var(--c-line)',
-              background: 'rgba(255,255,255,0.03)',
+              background: 'var(--c-panel)',
             }}
           >
             Live preview unavailable. This site refuses embedding, so PMX Canvas cannot show it inline.
@@ -216,9 +218,13 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
         <div
           style={{
             border: '1px solid var(--c-line)',
-            borderRadius: '12px',
+            borderRadius: 'var(--r-control)',
             overflow: 'hidden',
-            background: 'var(--c-panel-soft)',
+            background: 'var(--c-panel)',
+            height: '320px',
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <div
@@ -227,26 +233,20 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
               fontSize: '11px',
               color: 'var(--c-muted)',
               borderBottom: '1px solid var(--c-line)',
-              background: 'rgba(255,255,255,0.03)',
+              background: 'var(--c-panel)',
             }}
           >
             Live preview (best effort). If this stays blank, the site likely blocks framing. The cached text snapshot
             below still works.
           </div>
-          <iframe
-            class="webpage-node-iframe"
+          <RefreshingViewerFrame
+            iframeRef={iframeRef}
+            onLoad={() => {}}
+            className="webpage-node-iframe"
             title={pageTitle || (node.data.title as string) || url}
-            src={url}
-            loading="lazy"
+            source={{ src: url }}
             referrerPolicy="no-referrer"
             sandbox="allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts"
-            style={{
-              display: 'block',
-              width: '100%',
-              height: expanded ? '320px' : '180px',
-              border: 'none',
-              background: '#fff',
-            }}
           />
         </div>
       )}
@@ -266,10 +266,8 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
           flex: 1,
           minHeight: 0,
           overflow: 'auto',
-          border: '1px solid var(--c-line)',
-          borderRadius: '10px',
-          background: 'var(--c-panel-soft)',
-          padding: expanded ? '14px' : '10px',
+          borderTop: '1px solid var(--c-line)',
+          paddingTop: '12px',
         }}
       >
         {excerpt ? (

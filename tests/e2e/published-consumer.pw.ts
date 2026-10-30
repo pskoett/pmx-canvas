@@ -10,6 +10,7 @@ const consumerPort = Number(new URL(baseUrl).port || '4513');
 
 let consumerWorkdir: string | null = null;
 let consumerServerPid: number | null = null;
+let consumerServerService: string | null = null;
 
 function resolveBunBin(): string {
   if (process.env.BUN_BIN && existsSync(process.env.BUN_BIN)) return process.env.BUN_BIN;
@@ -23,6 +24,11 @@ function parseServerPid(output: string): number {
 }
 
 function stopConsumerServer(): void {
+  if (consumerServerService) {
+    execFileSync('amp', ['orb', 'service', 'stop', consumerServerService]);
+    consumerServerService = null;
+    return;
+  }
   if (!consumerServerPid) return;
   try {
     process.kill(-consumerServerPid, 'SIGTERM');
@@ -57,7 +63,21 @@ test.beforeAll(() => {
   if (result.status !== 0) {
     throw new Error(`Published-consumer setup failed (${result.status}).\n${output}`);
   }
-  consumerServerPid = parseServerPid(output);
+  consumerServerService = output.match(/PMX_SERVER_SERVICE=([\w-]+)/)?.[1] ?? null;
+  if (!consumerServerService) consumerServerPid = parseServerPid(output);
+  const installed = join(consumerWorkdir, 'consumer', 'node_modules', 'pmx-canvas');
+  for (const path of [
+    'docs/http-api.md',
+    'dist/types/server/index.d.ts',
+    'plugins/pmx-canvas/plugin.json',
+    '.github/extensions/pmx-canvas/extension.mjs',
+    'skills/pmx-canvas/SKILL.md',
+    'skills/frontend-design/LICENSE.txt',
+    'skills/web-artifacts-builder/LICENSE.txt',
+    'CHANGELOG.md',
+  ]) {
+    expect(existsSync(join(installed, path)), `Packed consumer includes ${path}`).toBe(true);
+  }
 });
 
 test.afterAll(() => {
@@ -88,21 +108,22 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   await expect(page.getByText('canvas.buildWebArtifact', { exact: true })).toBeVisible();
   await expect(page.getByText('playwright', { exact: true })).toBeVisible();
 
-  // The seeded workspace is larger than the initial camera. Bring lazy viewers
-  // into the actual canvas instead of relying on native scrolling beneath it.
-  const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
-  if (await fit.isVisible()) await fit.click();
-  else {
-    await page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Fit all', exact: true }).click();
-  }
+  // Fit-all is a reading overview, not permission to mount every document.
+  const focus = async (title: string) => {
+    const node = page.locator('.canvas-node').filter({ has: page.locator('.node-title', { hasText: title }) });
+    const id = await node.getAttribute('data-node-id');
+    expect((await request.post(`${baseUrl}/api/canvas/focus`, { data: { id } })).ok()).toBe(true);
+    await expect(node).toBeInViewport();
+    return node;
+  };
 
+  await focus('SDLC Control Room Artifact');
   const artifactFrame = page.frameLocator(
     '.canvas-node:has(.node-title:text-is("SDLC Control Room Artifact")) iframe.mcp-app-frame',
   );
   await expect(artifactFrame.getByText('Delivery Control Room')).toBeVisible();
 
-  const dashboardNode = page.locator('.canvas-node:has(.node-title:text-is("Control Tower Widgets"))');
+  const dashboardNode = await focus('Control Tower Widgets');
   const dashboardIframe = dashboardNode.locator('iframe.mcp-app-frame');
   await expect(dashboardIframe).toHaveCount(1);
   const dashboardElement = await dashboardIframe.elementHandle();
@@ -117,15 +138,27 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   // Match the authored URL so an initial about:blank cannot satisfy readiness.
   await viewer!.waitForURL((url) => url.href === viewerUrl.href, { waitUntil: 'load' });
   const dashboardFrame = dashboardIframe.contentFrame();
-  await expect(dashboardFrame.getByText('Control Tower Widgets')).toBeVisible();
+  await expect(dashboardFrame.getByText('Release train green')).toBeVisible();
+  await expect(dashboardFrame.getByText('Control Tower Widgets', { exact: true })).not.toBeVisible();
 
+  await focus('Release Gate Intake');
   const intakeFrame = page.frameLocator(
     '.canvas-node:has(.node-title:text-is("Release Gate Intake")) iframe.mcp-app-frame',
   );
-  await expect(intakeFrame.getByText('Release Gate Intake')).toBeVisible();
+  await expect(
+    intakeFrame.getByText('Interactive control inputs for the published-consumer test surface.'),
+  ).toBeVisible();
 
-  const graphFrame = page.frameLocator('.canvas-node:has(.node-title:text-is("Lead Time Trend")) iframe.mcp-app-frame');
-  await expect(graphFrame.getByText('Lead Time Trend')).toBeVisible();
+  const graphNode = await focus('Lead Time Trend');
+  const graphIframe = graphNode.locator('iframe.mcp-app-frame');
+  const graphElement = await graphIframe.elementHandle();
+  const graphViewer = await graphElement!.contentFrame();
+  const graphUrl = new URL((await graphIframe.getAttribute('src'))!, baseUrl);
+  // Like the dashboard, a lazy graph document must load before its rendering deadline starts.
+  await graphViewer!.waitForURL((url) => url.href === graphUrl.href, { waitUntil: 'load' });
+  const graphFrame = graphIframe.contentFrame();
+  await expect(graphFrame.locator('.recharts-line-curve')).toBeVisible();
+  await expect(graphFrame.getByText('Lead Time Trend', { exact: true })).not.toBeVisible();
 
   await expect
     .poll(async () => {

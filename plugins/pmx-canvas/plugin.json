@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pmx-canvas",
   "description": "PMX Canvas is a collaborative canvas where you and your AI agent collect evidence, analyze findings, and develop ideas together. Pin material as context for your agent, then ask it to add findings, comparisons, or diagrams to the board for you to review, present, and build on.",
-  "version": "0.8.2",
+  "version": "0.11.0",
   "author": {
     "name": "pskoett",
     "url": "https://github.com/pskoett"

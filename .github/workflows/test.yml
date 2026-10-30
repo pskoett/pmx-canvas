@@ -17,7 +17,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.22.1'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -89,7 +94,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.22.1'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -115,7 +125,9 @@ jobs:
   # ERR-20260508-001 for why `bun x playwright test` is broken).
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Browser/system setup took 6 minutes before a passing 14-minute suite.
+    # Budget for the bounded 15-minute install plus tests and cleanup.
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v5
@@ -123,7 +135,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.22.1'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -178,7 +195,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.22.1'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

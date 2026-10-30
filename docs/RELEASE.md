@@ -25,8 +25,11 @@ single source of truth for the release dance — see also
 
 ## Pre-flight gates
 
-Run these locally before tagging. They mirror what `publish.yml`
-re-runs in CI; a failure here means the publish workflow will also fail.
+Run these locally before tagging. `test.yml` runs the client and browser suites.
+For tag releases, `publish.yml` requires a successful Test run for the exact
+tagged commit, then reruns build, typecheck, unit tests and release smoke.
+Publish does not rerun the client or browser suites. A green remote run does
+not clear an unresolved local failure.
 
 ```bash
 bun install --frozen-lockfile
@@ -35,7 +38,7 @@ bun run build
 bun test tests/unit         # 200+ tests, all green
 bun run test:web-canvas     # Playwright E2E, all green
 bun run test:e2e-cli        # fresh-workspace CLI eval
-bun run release:check       # bundles + lints
+bun run release:check       # build + typecheck + lint + unit + client + browser tests
 bun run release:smoke       # packs + boots from a clean dir
 bun run pack:dry-run        # confirms the tarball shape
 ```
@@ -179,8 +182,10 @@ git push origin v0.1.6
 It will:
 
 1. Verify the tag matches `package.json` version.
-2. Re-run typecheck / build / unit / E2E / pack.
-3. `npm publish --access public --provenance` using the `NPM_TOKEN`
+2. Require a successful Test workflow run for the exact tagged commit.
+3. Re-run build, typecheck, unit tests and release smoke (pack and clean-consumer checks).
+   Browser E2E is covered by Test, not rerun by Publish.
+4. `npm publish --access public --provenance` using the `NPM_TOKEN`
    secret. Provenance attestations are signed via sigstore and visible
    on the npm package page.
 
@@ -203,24 +208,26 @@ Every release since 0.3.0 has been retested against **stale** skill mirrors:
 consumer workspaces (e.g. `personalclaude`) carry copies of the pmx-canvas
 skills under `.github/`, `.codex/`, `.claude/`, and `.agents/`, and testers
 repeatedly had to sync them mid-cycle before results were trustworthy. After
-publishing, update the installed package in the consumer workspace and re-sync
-its four mirrors from `<global npm root>/pmx-canvas/skills/` so the first test
-pass runs against the released skills, not the previous version's guidance.
+publishing, update the installed package in the consumer workspace and check
+its installed skill copies against that package before trusting skill-guided results.
 
-This is now one command in the consumer workspace (added post-0.4.3):
+Start with drift detection, which does not overwrite local changes:
 
 ```bash
-pmx-canvas skills sync --yes     # refreshes every INSTALLED skill copy from the package
 pmx-canvas skills sync --check   # drift detection only (exit 1 when stale)
 ```
 
 It discovers the skill copies already installed in the workspace (whatever
-agent layout owns them — no host list is assumed) and compares/replaces
+agent layout owns them — no host list is assumed) and compares
 **whole trees** — `references/`, `evals/`, fixtures — not `SKILL.md` hashes
 alone (the 0.3.x–0.4.x cycles repeatedly hit drift where the hash matched but
-supporting files were stale). Also re-run
-`pmx-canvas copilot install-extension --yes` in repos that use the Copilot
-adapter so the panel picks up new open-URL behavior.
+supporting files were stale). Review the differences and preserve local edits.
+Only run `pmx-canvas skills sync --yes` after the owner approves replacing the
+affected copies; it replaces all drifted installed copies of `pmx-canvas`,
+`pmx-canvas-testing` and `pmx-canvas-orchestration`. For a clean release-guidance
+check without that approval, use a disposable consumer workspace.
+Updating the Copilot adapter with `pmx-canvas copilot install-extension --yes`
+likewise requires approval to replace its installed files.
 
 ## GitHub release
 

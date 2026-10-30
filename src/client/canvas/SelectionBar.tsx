@@ -13,6 +13,7 @@ import { createEdgeFromClient, createGroupFromClient, removeNodeFromClient } fro
 import { sessionActive } from '../state/presence-store';
 import { BarHint } from './BarHint';
 import { useChromeHeight } from './use-chrome-height';
+import { openBoardMove } from './BoardMoveDialog';
 
 /**
  * Floating bottom-center bar for a multi-selection (rail-chrome-v2 phase 7,
@@ -174,6 +175,26 @@ export function SelectionBar() {
           </BarHint>
         </>
       )}
+      <BarHint label="Move to new board" side="up">
+        <button
+          type="button"
+          class="selection-bar-icon"
+          aria-label="Move to new board"
+          onClick={() => openBoardMove([...selectedNodeIds.value])}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path d="M6 3H2v10h12V9M8 8l6-6M9 2h5v5" />
+          </svg>
+        </button>
+      </BarHint>
       <BarHint label="Pin to agent context" side="up">
         <button type="button" class="selection-bar-action is-pin" onClick={handlePinContext}>
           <span aria-hidden="true">✦</span>

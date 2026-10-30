@@ -26,15 +26,46 @@ examples, not a fixed taxonomy. Explain consequential grouping choices and make 
 Several boards in one category are fine. Keep an argument together when splitting would lose
 meaning. Group related cards and use the main skill's README and focus guidance for a readable start.
 
+Lead each card with the task, item, decision or document section the reader came to find.
+Retain ancestor headings, folder/repository context and source details below that content,
+not as repeated preambles that push every useful item below the card's visible area. Preserve
+meaning and source hierarchy without making the reader expand every card to identify it.
+
 ## Preserve sources and stable targets
 
 Work in an isolated workspace for a test import. Preserve an existing import before replacing
 it, and leave source material unchanged unless editing it was requested. Record source paths,
 URLs or record IDs, revisions where available, and the source-item/section → board/card ID
 mapping so interruptions and retries can reuse created objects instead of duplicating them.
-Distinguish faithful imports from summaries; keep a path back to the original. Verify the active
-board before writes. Create destination boards and cards before rewriting internal references,
-use returned IDs rather than guessed titles, and preserve external links.
+Distinguish faithful imports from summaries; keep a path back to the original. Capture the active
+board before writes, separately from any explicit destination. Create destination boards and
+cards before rewriting internal references, use returned IDs rather than guessed titles, and
+preserve external links.
+
+Create supported static cards, groups and edges on an inactive board with `destinationBoardId`
+without switching the human's view. Static nodes are Markdown, status, context, ledger, trace,
+diff, Mermaid and plain HTML; images, runtime-backed nodes, generated primitives and intents
+are not supported by this path. Updates/removals still require the active board. In a named
+`canvas_batch`, each operation's `args` carries its destination and retry fields; group children
+and edge endpoints can use the existing named references. `toBoardId` independently chooses a
+remote edge endpoint, not the board that owns its source.
+
+Assign a stable `requestId` to each logical static node/group/edge creation and retain it in
+the source-to-canvas mapping. Retry with the same input and destination: the durable receipt
+returns the original result after interruption or restart, even if the object was subsequently
+edited or deleted. It does not restore deleted objects. Changed-input reuse conflicts; a new
+intentional creation gets a new ID even when its content is identical. Batch operations commit
+in sequence, not as one all-or-nothing import. Persist the mapping as receipts arrive.
+
+`expectedBoardId` guards the active board even with an explicit destination. A stale guard
+means refresh context, not substitute the destination ID or switch the human's view to retry.
+For active-only work, explicitly open the intended board and verify its returned ID first.
+Scope fences and human edit locks remain enforced. If Home is active, list/open a suitable
+board before reading board context; library discovery and background static creation can
+stay on Home. For retrieval, `canvas_query` search accepts intersecting `boardId` and `folder`
+filters. Folder includes slash-boundary descendants; `folder: ""` selects unfiled boards.
+Filters default omitted scope to library, while explicit active scope never widens. Search
+never changes the active board.
 
 Use native `references` edges for explicit source links and qualified remote endpoints for
 cross-board cards. Add semantic relations only when the source supports them; record the
@@ -56,13 +87,14 @@ occurrences with rendered anchors. This is a Markdown rendering concern, not a s
 ## Keep picture bytes out of long Markdown
 
 Prefer local asset references over large base64 image strings embedded in Markdown. The
-embedded bytes enlarge layout/render requests and can make Markdown parsing expensive.
+embedded bytes enlarge layout/render requests; inline pictures remain supported. Choosing
+file-backed assets is a representation choice, not proof that a parser or loading bug is fixed.
 Keep private pictures in the authorized workspace; do not upload them to a public image host.
 
 One supported approach is a file-backed image card in the document's board:
 
 ```json
-{"action":"add","type":"image","content":"/absolute/workspace/assets/diagram.png","title":"System diagram"}
+{"action":"add","type":"image","content":"assets/diagram.png","title":"System diagram"}
 ```
 
 Call `canvas_node` with that payload, then use the returned ID in the document:
@@ -70,11 +102,12 @@ Call `canvas_node` with that payload, then use the returned ID in the document:
 the document to its figure card when useful. This route resolves nodes on the active board:
 keep the image card in the same board, and recheck references after copying or moving cards.
 
-In PMX 0.8.2, relative image creation paths resolve against the server's launch directory,
-not necessarily its workspace root. An absolute path inside the workspace avoids that mismatch.
-Recheck this workaround when image-path handling changes. The database stores the path, not
-the file bytes: retain the assets alongside it, update paths if relocating the workspace, and
-verify images in exports rather than assuming the live URL is portable.
+Relative image creation paths resolve against the canvas workspace root, not the server's
+launch directory. An absolute path inside that workspace also works. Image creation requires
+opening its destination board; do not send `destinationBoardId` or `requestId` for image nodes.
+The database stores the path, not the file bytes: retain the assets alongside it, update paths
+if relocating the workspace, and verify images in exports rather than assuming the live URL
+is portable.
 
 ## Verify the imported workspace, not just the API receipts
 

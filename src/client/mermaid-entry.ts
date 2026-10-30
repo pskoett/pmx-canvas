@@ -5,16 +5,10 @@
  * HTML-escaped diagram source in `<pre class="mermaid-source">`; this script
  * reads it back via textContent, renders it to SVG, and re-renders when the
  * parent canvas live-switches the theme (the theme bridge toggles the document's
- * `data-theme` attribute). Keeping mermaid out of the main SPA bundle keeps the
- * canvas boot lean — only mermaid-node surfaces pay for the library.
+ * `data-theme` attribute). Standalone views and exports share the canvas renderer.
  */
 
-import mermaid from 'mermaid';
-import { canvasThemeScheme } from '../shared/themes.js';
-
-function documentScheme(): 'dark' | 'light' {
-  return canvasThemeScheme(document.documentElement.getAttribute('data-theme'));
-}
+import { renderMermaid } from './mermaid-render.js';
 
 function showError(container: HTMLElement, message: string): void {
   container.innerHTML = '';
@@ -65,18 +59,14 @@ function fitDiagram(container: HTMLElement): void {
 }
 
 async function renderDiagram(source: string, container: HTMLElement): Promise<void> {
-  const scheme = documentScheme();
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: scheme === 'dark' ? 'dark' : 'default',
-    securityLevel: 'strict',
-  });
-  renderSeq += 1;
+  const sequence = ++renderSeq;
   try {
-    const { svg } = await mermaid.render(`pmx-mermaid-${renderSeq}`, source);
+    const svg = await renderMermaid(source);
+    if (sequence !== renderSeq) return;
     container.innerHTML = svg;
     fitDiagram(container);
   } catch (error) {
+    if (sequence !== renderSeq) return;
     // Never leave a blank/black frame: show the parse/render error instead.
     showError(container, error instanceof Error ? error.message : String(error));
   }
@@ -98,11 +88,7 @@ function boot(): void {
   void renderDiagram(source, container);
   // Live theme switching: the parent's theme bridge toggles data-theme on the
   // root element; re-render so the diagram palette follows the canvas theme.
-  let lastScheme = documentScheme();
   const observer = new MutationObserver(() => {
-    const scheme = documentScheme();
-    if (scheme === lastScheme) return;
-    lastScheme = scheme;
     void renderDiagram(source, container);
   });
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

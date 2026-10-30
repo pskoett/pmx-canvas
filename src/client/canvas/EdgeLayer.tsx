@@ -1,5 +1,5 @@
-import { type Signal, signal } from '@preact/signals';
-import { useEffect, useRef } from 'preact/hooks';
+import { type Signal, computed, signal } from '@preact/signals';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'preact/hooks';
 import {
   draggingEdge,
   edges,
@@ -7,15 +7,23 @@ import {
   selectedEdgeId,
   viewport,
   visibleNodeFor,
+  groupContents,
 } from '../state/canvas-store';
 import { linkMarks, writerName } from '../state/context-status-store';
 import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence';
 import { activeSession } from '../state/presence-store';
-import { activeBoard } from '../state/boards-store';
+import { activeBoard, boardIncarnation } from '../state/boards-store';
 import { reportClientViewportSize } from '../state/intent-bridge';
 import { relationDefinition, relationKind, relationText } from '../../shared/relations.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
-import { relationFilter, relationFocus, relationHighlight } from '../state/relation-store';
+import {
+  dependencyAnalysis,
+  relationWarning,
+  relationFilter,
+  relationFocus,
+  relationHighlight,
+} from '../state/relation-store';
+import { edgeEditorAnchor } from './EdgeEditor';
 
 /** Filter only the kinds on this board; shared presets are managed in Home. */
 export function RelationLegend() {
@@ -71,6 +79,17 @@ export function RelationLegend() {
           </button>
         );
       })}
+      {dependencyAnalysis.value.hasDependencies && (
+        <>
+          <span class={dependencyAnalysis.value.cycles ? 'relation-warning' : ''}>
+            {dependencyAnalysis.value.cycles ? '⚠ ' : ''}
+            {dependencyAnalysis.value.cycles} dependency cycles
+          </span>
+          {dependencyAnalysis.value.focused && (
+            <span>Change selection → {dependencyAnalysis.value.affected.size} affected</span>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -145,6 +164,8 @@ export function edgeChromeScale(scale: number): number {
   if (!Number.isFinite(scale) || scale <= 0) return 1;
   return scale < 1 ? 1 / scale : 1;
 }
+
+const edgeZoom = computed(() => viewport.value.scale);
 
 function dashArray(edge: CanvasEdge, scale: number): string | undefined {
   const dashed = `${8 * scale} ${4 * scale}`;
@@ -238,41 +259,80 @@ function bezierMidpoint(
   };
 }
 
+interface LabelObstacle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Nearest clear position along either axis through the original curve midpoint.
+ * Expanded obstacles describe forbidden pill centres. Boundary candidates include
+ * the outside of the whole occupied area, so even a crowded board has a solution.
+ * World-space placement is independent of pan; all three layers use the same order.
+ */
+function placeLabel(
+  mid: { x: number; y: number },
+  width: number,
+  height: number,
+  obstacles: LabelObstacle[],
+  gap: number,
+) {
+  const forbidden = obstacles.map((box) => ({
+    left: box.x - width / 2 - gap,
+    right: box.x + box.width + width / 2 + gap,
+    top: box.y - height / 2 - gap,
+    bottom: box.y + box.height + height / 2 + gap,
+  }));
+  const clear = (point: { x: number; y: number }) =>
+    forbidden.every(
+      (box) => point.x <= box.left || point.x >= box.right || point.y <= box.top || point.y >= box.bottom,
+    );
+  if (clear(mid)) return mid;
+  const candidates = [mid];
+  for (const box of forbidden) {
+    if (mid.x > box.left && mid.x < box.right) {
+      candidates.push({ x: mid.x, y: box.top }, { x: mid.x, y: box.bottom });
+    }
+    if (mid.y > box.top && mid.y < box.bottom) {
+      candidates.push({ x: box.left, y: mid.y }, { x: box.right, y: mid.y });
+    }
+  }
+  const distance = (point: { x: number; y: number }) => (point.x - mid.x) ** 2 + (point.y - mid.y) ** 2;
+  candidates.sort((a, b) => distance(a) - distance(b));
+  return candidates.find(clear)!;
+}
+
 // ── EdgePath component ───────────────────────────────────────
 interface EdgePathProps {
   edge: CanvasEdge;
   fromNode: CanvasNodeState;
   toNode: CanvasNodeState;
-  start: Anchor;
-  end: Anchor;
+  layout: ReturnType<typeof edgeLayout>;
   focused: boolean; // connected to the active node
   dimmed: boolean; // active node exists but this edge is NOT connected
   selected: boolean; // click-selected — Delete removes it
   scale: number; // inverse-viewport compensation, see edgeChromeScale()
-  onContextMenu?: (e: MouseEvent, edgeId: string) => void;
   part: EdgeLayerPart;
 }
 
 /**
  * Lines draw below group frames, so a link never covers a group's header; pills
  * draw in their own layer above the frames, so a link inside a group keeps a
- * hoverable, clickable label (LinkAuthorship.dc.html).
+ * label (LinkAuthorship.dc.html). Transparent pill hits stay below ports without
+ * moving the painted label below the frame's wash.
  */
-export type EdgeLayerPart = 'lines' | 'pills';
+export type EdgeLayerPart = 'lines' | 'pills' | 'pill-hits';
 
-function EdgePath({
-  edge,
-  fromNode,
-  toNode,
-  start,
-  end,
-  focused,
-  dimmed,
-  selected,
-  scale,
-  onContextMenu,
-  part,
-}: EdgePathProps) {
+function edgeLayout(
+  edge: CanvasEdge,
+  start: Anchor,
+  end: Anchor,
+  scale: number,
+  obstacles: LabelObstacle[],
+  textWidth: (text: string, weight?: number) => number,
+  parallelCount: number,
+) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -291,26 +351,85 @@ function EdgePath({
   // label chrome caps like node chrome (2.2). Below 35% zoom the label goes and
   // only the link's marks stay (LinkAuthorship.dc.html).
   const labelScale = Math.min(scale, 2.2);
-  const zoom = viewport.value.scale;
+  const zoom = edgeZoom.value;
   const marks = linkMarks(edge);
   // Reasons belong in the hint/inspector, not a long pill covering both endpoints.
-  const label = edge.label ?? edge.kind;
+  const baseLabel = edge.label ?? edge.kind;
+  const label = parallelCount > 1 ? `${baseLabel ?? relationKind(edge)} · ×${parallelCount}` : baseLabel;
+  const warning = [
+    dependencyAnalysis.value.cycleEdges.has(edge.id) ? 'Cycle' : '',
+    relationWarning(edge).length ? 'Source needs review' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const warningText = warning ? `⚠ ${warning}` : '';
+  const warningWidth = warning ? textWidth(warningText, 500) + 12 : 0;
   const showLabel = !!label && zoom >= 0.35;
   // Pill layout in label units (× labelScale): the label, then a hairline and
   // "not seen by …", which keeps only its glyph on a short line or below 60% zoom.
   const pad = showLabel ? 9 : 5;
-  const labelWidth = showLabel ? (label?.length ?? 0) * 7 : 0;
+  const labelWidth = showLabel ? textWidth(label) : 0;
   const notSeenText = `not seen by ${agentName()}`;
-  const wordedNotSeenWidth = 12 + notSeenText.length * 6.2 + 4;
+  const wordedNotSeenWidth = 12 + textWidth(notSeenText, 500) + 4;
   const fullWidth = pad * 2 + labelWidth + (marks.notSeen ? (labelWidth ? 12 : 0) + wordedNotSeenWidth : 0);
   // A short line: the full pill plus some line on either side would not fit.
   const notSeenWords = marks.notSeen && zoom >= 0.6 && dist >= (fullWidth + 60) * labelScale;
   const notSeenWidth = marks.notSeen ? (labelWidth ? 12 : 0) + (notSeenWords ? wordedNotSeenWidth : 12) : 0;
-  const pillWidth = pad * 2 + labelWidth + notSeenWidth;
+  const pillWidth = pad * 2 + labelWidth + notSeenWidth + warningWidth;
   const labelX = -pillWidth / 2 + pad;
   const notSeenX = labelX + labelWidth + (labelWidth ? 12 : 0);
-  const hasPill = showLabel || marks.notSeen;
-  const mid = hasPill ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
+  const hasPill = showLabel || marks.notSeen || warningWidth > 0;
+  const curveMid = bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
+  const mid = hasPill ? placeLabel(curveMid, pillWidth * labelScale, 20 * labelScale, obstacles, 4 * scale) : null;
+  if (mid) {
+    obstacles.push({
+      x: mid.x - (pillWidth / 2) * labelScale,
+      y: mid.y - 10 * labelScale,
+      width: pillWidth * labelScale,
+      height: 20 * labelScale,
+    });
+  }
+  return {
+    d,
+    color,
+    directed,
+    dash,
+    labelScale,
+    marks,
+    label,
+    showLabel,
+    labelWidth,
+    notSeenText,
+    notSeenWords,
+    pillWidth,
+    labelX,
+    notSeenX,
+    curveMid,
+    mid,
+    warningText,
+    warningX: labelX + labelWidth + notSeenWidth + 6,
+  };
+}
+
+function EdgePath({ edge, fromNode, toNode, layout, focused, dimmed, selected, scale, part }: EdgePathProps) {
+  const {
+    d,
+    color,
+    directed,
+    dash,
+    labelScale,
+    marks,
+    label,
+    showLabel,
+    labelWidth,
+    notSeenText,
+    notSeenWords,
+    pillWidth,
+    labelX,
+    notSeenX,
+    curveMid,
+    mid,
+  } = layout;
 
   const pathId = `edge-path-${edge.id}`;
   const select = (e: MouseEvent) => {
@@ -318,12 +437,15 @@ function EdgePath({
     // that LANDED on an edge must not immediately undo itself.
     e.stopPropagation();
     selectedEdgeId.value = edge.id;
+    edgeHint.value = null;
   };
   const showHint = (anchor: Element, point?: { x: number; y: number }) => {
+    if (selectedEdgeId.value === edge.id) return;
     const text = [
       `${String(fromNode.data.title ?? fromNode.id)} → ${String(toNode.data.title ?? toNode.id)}`,
       relationText(edge),
       linkHint(edge, marks.notSeen),
+      ...relationWarning(edge),
     ]
       .filter(Boolean)
       .join('\n');
@@ -340,6 +462,26 @@ function EdgePath({
     edgeHint.value = null;
   };
 
+  if (part === 'pill-hits') {
+    if (!mid) return null;
+    return (
+      <rect
+        class="edge-pill-hit"
+        data-testid="edge-pill-hit"
+        data-edge-id={edge.id}
+        x={mid.x - (pillWidth / 2) * labelScale}
+        y={mid.y - 10 * labelScale}
+        width={pillWidth * labelScale}
+        height={20 * labelScale}
+        rx={10 * labelScale}
+        fill="transparent"
+        onClick={select}
+        onPointerEnter={(e) => showHint(e.currentTarget)}
+        onPointerLeave={hideHint}
+      />
+    );
+  }
+
   if (part === 'pills') {
     if (!mid) return null;
     return (
@@ -347,11 +489,8 @@ function EdgePath({
         transform={`translate(${mid.x}, ${mid.y})`}
         class="edge-pill"
         data-testid="edge-pill"
+        data-edge-id={edge.id}
         opacity={dimmed && !selected ? 0.35 : 1}
-        onClick={select}
-        onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
-        onPointerEnter={(e) => showHint(e.currentTarget)}
-        onPointerLeave={hideHint}
       >
         <rect
           class="edge-label-bg"
@@ -406,23 +545,50 @@ function EdgePath({
             )}
           </g>
         )}
+        {layout.warningText && (
+          <text
+            class="edge-label"
+            x={layout.warningX * labelScale}
+            text-anchor="start"
+            dominant-baseline="central"
+            fill="var(--c-warn)"
+          >
+            {layout.warningText}
+          </text>
+        )}
       </g>
     );
   }
 
   return (
     <g>
+      {/* A displaced label remains attached to its original curve, not a new
+          relation. No arrow; same semantic ink, below cards like the curve. */}
+      {mid && curveMid && (mid.x !== curveMid.x || mid.y !== curveMid.y) && (
+        <line
+          data-testid="edge-label-leader"
+          data-edge-id={edge.id}
+          x1={curveMid.x}
+          y1={curveMid.y}
+          x2={mid.x}
+          y2={mid.y}
+          stroke={color}
+          stroke-width={scale}
+          stroke-dasharray={`${3 * scale} ${3 * scale}`}
+          opacity={dimmed && !selected ? 0.2 : 0.85}
+        />
+      )}
       {/* Invisible wide hitbox — the ONE interactive part of the edge layer
           (the svg itself is pointer-events:none): click selects the edge
-          (Delete then removes it), double-click opens the edge menu. */}
+          (Delete then removes it); usePanZoom owns right-click versus drag. */}
       <path
+        data-edge-id={edge.id}
         d={d}
         fill="none"
         stroke="transparent"
         stroke-width={12 * scale}
         style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
         onClick={select}
-        onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
         onPointerEnter={(e) => showHint(e.currentTarget, { x: e.clientX, y: e.clientY })}
         onPointerLeave={hideHint}
       />
@@ -458,53 +624,146 @@ function EdgePath({
 interface EdgeLayerProps {
   nodes: Signal<Map<string, CanvasNodeState>>;
   edges: Signal<Map<string, CanvasEdge>>;
-  onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
-  part: EdgeLayerPart;
 }
 
-export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerProps) {
-  const nodeMap = nodes.value;
-  const edgeList = Array.from(edges.value.values());
+export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
+  const textContext = useMemo(() => document.createElement('canvas').getContext('2d'), []);
+  const font = useMemo(
+    () =>
+      signal({
+        family: getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim() || 'sans-serif',
+        version: 0,
+      }),
+    [],
+  );
+  useLayoutEffect(() => {
+    // Re-measure when Plex replaces the fallback font, without waiting for a
+    // pan/zoom. All three paint/hit layers share the same glyph advances.
+    const refresh = () => {
+      font.value = {
+        family: getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim() || 'sans-serif',
+        version: font.value.version + 1,
+      };
+    };
+    document.fonts?.addEventListener('loadingdone', refresh);
+    return () => document.fonts?.removeEventListener('loadingdone', refresh);
+  }, []);
+  const geometry = useMemo(
+    () =>
+      computed(() => {
+        const family = font.value.family;
+        const textWidth = (text: string, weight = 400) => {
+          // Non-rendering DOMs have no canvas context. Keep their bounds conservative.
+          if (!textContext) return text.length * 11;
+          textContext.font = `${weight} 11px ${family}`;
+          const metrics = textContext.measureText(text);
+          return Math.ceil(Math.max(metrics.width, metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight));
+        };
+        const nodeMap = nodes.value;
+        const inside = groupContents.value;
+        const edgeList = Array.from(edges.value.values()).filter(
+          (edge) => !inside || inside.has(edge.from) || inside.has(edge.to),
+        );
+        const resolve = (id: string) => {
+          const visible = visibleNodeFor(id);
+          return nodeMap.get(visible?.id ?? id) ?? nodeMap.get(id);
+        };
+        const pairs = new Map<string, number>();
+        const pairKey = (edge: CanvasEdge) => JSON.stringify([edge.from, edge.to].sort());
+        for (const edge of edgeList) if (!edge.toBoardId) pairs.set(pairKey(edge), (pairs.get(pairKey(edge)) ?? 0) + 1);
+        const scale = edgeChromeScale(edgeZoom.value);
+
+        // Allocate a port to every incident link, including parallel and reverse links.
+        const ports = new Map<string, { start: Anchor; end: Anchor }>();
+        const sides = new Map<string, Array<{ anchor: Anchor; node: CanvasNodeState; order: number; id: string }>>();
+        for (const edge of edgeList) {
+          if (edge.toBoardId) continue;
+          const from = resolve(edge.from);
+          const to = resolve(edge.to);
+          if (!from || !to || from.id === to.id) continue;
+          const start = computeAnchor(from, to);
+          const end = computeAnchor(to, from);
+          ports.set(edge.id, { start, end });
+          for (const [anchor, node, other] of [
+            [start, from, to],
+            [end, to, from],
+          ] as const) {
+            const key = `${node.id}:${anchor.side}`;
+            const vertical = anchor.side === 'left' || anchor.side === 'right';
+            const group = sides.get(key) ?? [];
+            group.push({ anchor, node, order: vertical ? other.position.y : other.position.x, id: edge.id });
+            sides.set(key, group);
+          }
+        }
+        for (const group of sides.values()) {
+          if (group.length < 2) continue;
+          group.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+          group.forEach(({ anchor, node }, index) => {
+            const fraction = (index + 1) / (group.length + 1);
+            if (anchor.side === 'left' || anchor.side === 'right')
+              anchor.y = node.position.y + node.size.height * fraction;
+            else anchor.x = node.position.x + node.size.width * fraction;
+          });
+        }
+
+        // Reserve the actual four outward handle rectangles, not a padded card:
+        // padding the whole card falsely closes row gaps at fractional zoom.
+        // Expanded groups have only their 24px edge row, and no ports.
+        const obstacles: LabelObstacle[] = [];
+        const portSize = 32 / edgeZoom.value;
+        for (const node of nodeMap.values()) {
+          if (resolve(node.id)?.id !== node.id) continue;
+          const frame = node.type === 'group' && !node.collapsed;
+          const { x, y } = node.position;
+          const { width, height } = node.size;
+          obstacles.push({
+            x,
+            y: y - (frame ? 12 : 0),
+            width,
+            height: frame ? 24 : height,
+          });
+          if (node.type !== 'group') {
+            for (const [px, py] of [
+              [x + width / 2 - portSize / 2, y - portSize],
+              [x + width / 2 - portSize / 2, y + height],
+              [x - portSize, y + height / 2 - portSize / 2],
+              [x + width, y + height / 2 - portSize / 2],
+            ]) {
+              obstacles.push({ x: px, y: py, width: portSize, height: portSize });
+            }
+          }
+        }
+        const layouts = new Map<string, ReturnType<typeof edgeLayout>>();
+        for (const edge of edgeList) {
+          const anchors = ports.get(edge.id);
+          if (anchors)
+            layouts.set(
+              edge.id,
+              edgeLayout(edge, anchors.start, anchors.end, scale, obstacles, textWidth, pairs.get(pairKey(edge)) ?? 1),
+            );
+        }
+        return { nodeMap, edgeList, layouts, scale, resolve };
+      }),
+    [nodes, edges, textContext, font],
+  );
+
+  const { nodeMap, edgeList, layouts, scale, resolve } = geometry.value;
+  const selected = selectedEdgeId.value;
+  const layout = selected ? layouts.get(selected) : null;
+  const point = layout?.mid ?? layout?.curveMid;
+  useLayoutEffect(() => {
+    edgeEditorAnchor.value = selected && point ? { id: selected, incarnation: boardIncarnation, point } : null;
+  }, [selected, point?.x, point?.y, boardIncarnation]);
+  useEffect(
+    () => () => {
+      edgeEditorAnchor.value = null;
+    },
+    [],
+  );
   const focusId = relationFocus.value;
   const hasFocus = focusId !== null;
   const searchSet = searchHighlightIds.value;
   const hasSearch = searchSet !== null;
-  const scale = edgeChromeScale(viewport.value.scale);
-
-  // Allocate a port to every incident link, including parallel and reverse links.
-  const ports = new Map<string, { start: Anchor; end: Anchor }>();
-  const sides = new Map<string, Array<{ anchor: Anchor; node: CanvasNodeState; order: number; id: string }>>();
-  for (const edge of edgeList) {
-    if (edge.toBoardId) continue;
-    const from = visibleNodeFor(edge.from);
-    const to = visibleNodeFor(edge.to);
-    if (!from || !to || from.id === to.id) continue;
-    const start = computeAnchor(from, to);
-    const end = computeAnchor(to, from);
-    ports.set(edge.id, { start, end });
-    for (const [anchor, node, other] of [
-      [start, from, to],
-      [end, to, from],
-    ] as const) {
-      const key = `${node.id}:${anchor.side}`;
-      const vertical = anchor.side === 'left' || anchor.side === 'right';
-      const group = sides.get(key) ?? [];
-      group.push({ anchor, node, order: vertical ? other.position.y : other.position.x, id: edge.id });
-      sides.set(key, group);
-    }
-  }
-  for (const group of sides.values()) {
-    if (group.length < 2) continue;
-    group.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
-    group.forEach(({ anchor, node }, index) => {
-      const fraction = (index + 1) / (group.length + 1);
-      if (anchor.side === 'left' || anchor.side === 'right') anchor.y = node.position.y + node.size.height * fraction;
-      else anchor.x = node.position.x + node.size.width * fraction;
-    });
-  }
-
-  // A drag-to-connect preview must draw on a board with no edges yet.
-  if (edgeList.length === 0 && (part === 'pills' || !draggingEdge.value)) return null;
 
   const PAD = 96;
   const worldNodes = Array.from(nodeMap.values());
@@ -517,129 +776,139 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu, part }: EdgeLayerPr
   const height = Math.max(1, maxY - minY);
 
   return (
-    <svg
-      aria-label={part === 'lines' ? 'Canvas connections' : undefined}
-      aria-hidden={part === 'pills' ? 'true' : undefined}
-      role={part === 'lines' ? 'img' : undefined}
-      viewBox={`${minX} ${minY} ${width} ${height}`}
-      width={width}
-      height={height}
-      style={{
-        position: 'absolute',
-        top: `${minY}px`,
-        left: `${minX}px`,
-        // Pills sit above group frames (z 0) and below cards (z 1, later in the
-        // DOM); lines stay under the frames. Neither layer takes the pointer
-        // itself; only hit paths and pills do.
-        ...(part === 'pills' ? { zIndex: 1 } : {}),
-        pointerEvents: 'none',
-        overflow: 'visible',
-        '--edge-chrome-scale': scale.toFixed(3),
-        '--edge-label-scale': Math.min(scale, 2.2).toFixed(3),
-      }}
-    >
-      {part === 'lines' && <title>Canvas connections</title>}
-      <defs>
-        {/* userSpaceOnUse decouples the arrowhead from the UNCAPPED stroke
+    <>
+      {(['lines', 'pills', 'pill-hits'] as const).map((part) =>
+        // A drag-to-connect preview must draw on a board with no edges yet.
+        edgeList.length === 0 && (part !== 'lines' || !draggingEdge.value) ? null : (
+          <svg
+            key={part}
+            aria-label={part === 'lines' ? 'Canvas connections' : undefined}
+            aria-hidden={part !== 'lines' ? 'true' : undefined}
+            role={part === 'lines' ? 'img' : undefined}
+            viewBox={`${minX} ${minY} ${width} ${height}`}
+            width={width}
+            height={height}
+            style={{
+              position: 'absolute',
+              top: `${minY}px`,
+              left: `${minX}px`,
+              // Painting stays unchanged. Hit priority is card > port > pill > group
+              // interior > line, including raised and nested group frames.
+              zIndex:
+                part === 'pills'
+                  ? 1
+                  : part === 'pill-hits'
+                    ? 'calc(var(--node-port-z, -1) - 1)'
+                    : 'var(--edge-line-z, -5)',
+              pointerEvents: 'none',
+              overflow: 'visible',
+              '--edge-chrome-scale': scale.toFixed(3),
+              '--edge-label-scale': Math.min(scale, 2.2).toFixed(3),
+            }}
+          >
+            {part === 'lines' && <title>Canvas connections</title>}
+            <defs>
+              {/* userSpaceOnUse decouples the arrowhead from the UNCAPPED stroke
             compensation: the line stays a visible hairline at any zoom, but
             the head caps at the node-chrome scale (2.2) instead of dwarfing
             sliver nodes at overview zoom. */}
-        <marker
-          id="edge-arrow"
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerUnits="userSpaceOnUse"
-          markerWidth={8 * Math.min(scale, 2.2)}
-          markerHeight={8 * Math.min(scale, 2.2)}
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 10 5 L 0 9 z" fill="context-stroke" opacity="0.75" />
-        </marker>
-      </defs>
-      {edgeList.map((edge) => {
-        // Remote endpoints are navigable links, never a same-ID card on this board.
-        if (edge.toBoardId) return null;
-        // An endpoint hidden behind a collapsed group's chip is drawn to the chip.
-        const fromNode = visibleNodeFor(edge.from);
-        const toNode = visibleNodeFor(edge.to);
-        const anchors = ports.get(edge.id);
-        if (!fromNode || !toNode || !anchors) return null;
-        const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);
-        const searchDimmed = hasSearch && !(searchSet.has(edge.from) || searchSet.has(edge.to));
-        const highlight = relationHighlight.value;
-        return (
-          <EdgePath
-            key={edge.id}
-            edge={edge}
-            fromNode={fromNode}
-            toNode={toNode}
-            start={anchors.start}
-            end={anchors.end}
-            focused={isConnected}
-            dimmed={(highlight !== null && !highlight.links.has(edge.id)) || searchDimmed}
-            selected={selectedEdgeId.value === edge.id}
-            scale={scale}
-            onContextMenu={onEdgeContextMenu}
-            part={part}
-          />
-        );
-      })}
-      {/* Live preview edge while drag-connecting */}
-      {part === 'lines' &&
-        draggingEdge.value &&
-        (() => {
-          const de = draggingEdge.value;
-          // Route the preview EXACTLY like the committed edge will route
-          // (side-tangent anchors against a 1px rect at the cursor) — the old
-          // collinear preview made the line visibly JUMP on release.
-          const fromNode = visibleNodeFor(de.fromId);
-          const cursorRect = {
-            position: { x: de.cursorX, y: de.cursorY },
-            size: { width: 1, height: 1 },
-          } as CanvasNodeState;
-          let previewD: string;
-          if (fromNode) {
-            const start = computeAnchor(fromNode, cursorRect);
-            const end = computeAnchor(cursorRect, fromNode);
-            const pdx = end.x - start.x;
-            const pdy = end.y - start.y;
-            const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
-            const curvature = Math.min(Math.max(pdist * 0.35, 32), 160);
-            const cp1 = sideControlPoint(start, curvature);
-            const cp2 = sideControlPoint(end, curvature);
-            previewD = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${end.x} ${end.y}`;
-          } else {
-            const dx = de.cursorX - de.fromX;
-            const dy = de.cursorY - de.fromY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const curve = Math.min(dist * 0.25, 80);
-            const nx = dx / (dist || 1);
-            const ny = dy / (dist || 1);
-            previewD = `M ${de.fromX} ${de.fromY} C ${de.fromX + nx * curve} ${de.fromY + ny * curve}, ${de.cursorX - nx * curve} ${de.cursorY - ny * curve}, ${de.cursorX} ${de.cursorY}`;
-          }
-          return (
-            <g>
-              <path
-                d={previewD}
-                fill="none"
-                stroke="var(--c-accent)"
-                stroke-width={6 * scale}
-                opacity="0.1"
-                style={{ filter: 'blur(3px)' }}
-              />
-              <path
-                d={previewD}
-                fill="none"
-                stroke="var(--c-accent)"
-                stroke-width={2 * scale}
-                stroke-dasharray={`${6 * scale} ${4 * scale}`}
-                opacity="0.8"
-              />
-              <circle cx={de.cursorX} cy={de.cursorY} r={5 * scale} fill="var(--c-accent)" opacity="0.5" />
-            </g>
-          );
-        })()}
-    </svg>
+              <marker
+                id="edge-arrow"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth={8 * Math.min(scale, 2.2)}
+                markerHeight={8 * Math.min(scale, 2.2)}
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="context-stroke" opacity="0.75" />
+              </marker>
+            </defs>
+            {edgeList.map((edge) => {
+              // Remote endpoints are navigable links, never a same-ID card on this board.
+              if (edge.toBoardId) return null;
+              // An endpoint hidden behind a collapsed group's chip is drawn to the chip.
+              const fromNode = resolve(edge.from);
+              const toNode = resolve(edge.to);
+              const layout = layouts.get(edge.id);
+              if (!fromNode || !toNode || !layout) return null;
+              const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);
+              const searchDimmed = hasSearch && !(searchSet.has(edge.from) || searchSet.has(edge.to));
+              const highlight = relationHighlight.value;
+              return (
+                <EdgePath
+                  key={edge.id}
+                  edge={edge}
+                  fromNode={fromNode}
+                  toNode={toNode}
+                  layout={layout}
+                  focused={isConnected}
+                  dimmed={(highlight !== null && !highlight.links.has(edge.id)) || searchDimmed}
+                  selected={selectedEdgeId.value === edge.id}
+                  scale={scale}
+                  part={part}
+                />
+              );
+            })}
+            {/* Live preview edge while drag-connecting */}
+            {part === 'lines' &&
+              draggingEdge.value &&
+              (() => {
+                const de = draggingEdge.value;
+                // Route the preview EXACTLY like the committed edge will route
+                // (side-tangent anchors against a 1px rect at the cursor) — the old
+                // collinear preview made the line visibly JUMP on release.
+                const fromNode = visibleNodeFor(de.fromId);
+                const cursorRect = {
+                  position: { x: de.cursorX, y: de.cursorY },
+                  size: { width: 1, height: 1 },
+                } as CanvasNodeState;
+                let previewD: string;
+                if (fromNode) {
+                  const start = computeAnchor(fromNode, cursorRect);
+                  const end = computeAnchor(cursorRect, fromNode);
+                  const pdx = end.x - start.x;
+                  const pdy = end.y - start.y;
+                  const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+                  const curvature = Math.min(Math.max(pdist * 0.35, 32), 160);
+                  const cp1 = sideControlPoint(start, curvature);
+                  const cp2 = sideControlPoint(end, curvature);
+                  previewD = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${end.x} ${end.y}`;
+                } else {
+                  const dx = de.cursorX - de.fromX;
+                  const dy = de.cursorY - de.fromY;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  const curve = Math.min(dist * 0.25, 80);
+                  const nx = dx / (dist || 1);
+                  const ny = dy / (dist || 1);
+                  previewD = `M ${de.fromX} ${de.fromY} C ${de.fromX + nx * curve} ${de.fromY + ny * curve}, ${de.cursorX - nx * curve} ${de.cursorY - ny * curve}, ${de.cursorX} ${de.cursorY}`;
+                }
+                return (
+                  <g>
+                    <path
+                      d={previewD}
+                      fill="none"
+                      stroke="var(--c-accent)"
+                      stroke-width={6 * scale}
+                      opacity="0.1"
+                      style={{ filter: 'blur(3px)' }}
+                    />
+                    <path
+                      d={previewD}
+                      fill="none"
+                      stroke="var(--c-accent)"
+                      stroke-width={2 * scale}
+                      stroke-dasharray={`${6 * scale} ${4 * scale}`}
+                      opacity="0.8"
+                    />
+                    <circle cx={de.cursorX} cy={de.cursorY} r={5 * scale} fill="var(--c-accent)" opacity="0.5" />
+                  </g>
+                );
+              })()}
+          </svg>
+        ),
+      )}
+    </>
   );
 }

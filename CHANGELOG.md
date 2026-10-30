@@ -5,83 +5,154 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
-### Breaking
-
-- Board hierarchy uses `folder` instead of `category` in API fields and commands; stored folder paths are preserved.
-
 ### Added
 
-- Agents can create groups and connections on a background board without interrupting your view.
-- Search can be restricted to a board or folder subtree.
-- Knowledge category and lifecycle data tools provide inherited folder settings and auditable card reviews and restores.
-- Relations carry named kinds and reasons, with board-specific vocabularies and Research, Dependencies, Decision and Flow presets.
-- Review warnings follow source changes and explicit lifecycle policies; retired cards stay stored but leave active agent briefs.
-- Home Map and Graph show connected boards and cards alongside Folders, with saved draggable Map positions.
-- Markdown wiki links keep durable board/card targets, and a human Create dialog can turn an unresolved board link into a new board.
-- Cross-board card connections and previous-board links now appear in the same summary-only memory graph agents can explore through HTTP, SDK, CLI, and MCP.
-- Board pins: pin a whole board into the agent's working set with `canvas_board { action: "pin" }`, `POST /api/canvas/boards/<id>/pin`, `pmx-canvas board pin` or `pinBoard()`; it travels in the brief as a map (summary, links and its pinned cards) whichever board is open.
-- The SDK (`getBoardLastRead`) and CLI (`pmx-canvas ax reads status`) can now report when a board was last read, matching the HTTP API.
-- Agents can drive presentation tours: go to a stop, step next or previous, exit, and ease the camera to a node, area or viewport through `canvas_view`, the HTTP API, the SDK and `pmx-canvas tour go` / `camera move`, with reduced-motion support and no undo entries.
-
-### Changed
-
-- Relation presets move to Home as an editable workspace-wide library alongside Categories. Explicit application copies a saved template to a selected board; edits/deletion do not rewrite boards or connections. The board dropdown now filters only existing relation kinds and All relations, without Custom vocabulary.
-- Home keeps folders for navigation and opens affected cards from Review needed; card review starts with one note and one confirmation.
-- Category and folder dialogs use compact themed controls, and unused categories can be deleted with inline confirmation.
-- Proximity rings have no distance caption and appear only when another card's center is within range.
-- Home Map groups boards in collapsible folders; Graph starts with counted board hubs that expand in place, with stable folder regions and Follow/Back through card relations.
-- Map and Graph relations share a height-adjustable bottom inspector with an internally scrolling list, separate from filters; resizing or collapsing it preserves selection and camera. Map keeps its existing board navigation and saved positions.
-- Map and Graph update as agents work without moving your camera or taking you out of the library.
-- Session receipts show stacked Before/After with changed words marked, one change open at a time, and whole-card Undo that skips cards whose latest edit is yours.
-- In narrow windows, click the agent's initial for live counts, the dim-untouched switch and the session panel.
-- One context summary in the top-right corner replaces the floating "nodes in context" bar and the Pins meter: it shows cards, near cards and pinned boards with what they cost in tokens, and opens the details (read state, unpin, pin a near card) on click. There is no budget to fill; when a host reports its agent's token usage, the details name that count too.
-- A link you draw says "not seen by" the attached agent until the agent reads either card; hover its label or line to see who drew it and when, without extra agent stars. Cards keep their read marks, and the context panel lists "links changed" in a neutral colour instead of marking the cards amber.
-- Card titles keep their room: authorship lives in the type icon's hint without an extra star or chip, and a near or read chip shrinks to its icon, then moves into the hint, before a title gets cut short. Hover the type icon for the full title and everything folded into it.
-- The left rail fits a short window: theme, snapshots, minimap, keyboard shortcuts, trace and feedback moved into one Settings menu at the bottom of the rail.
-- Every hint in the workbench now uses the styled tooltip, so hints also show in the embedded panes of Claude, Copilot and Codex, where browser tooltips never appeared.
-- On narrow windows the top bar folds Export, Present, zoom and fit into a ⋯ More menu so the context summary always stays visible.
-- The agent's context brief is now a map instead of full text: an overview of the board, then every card as its title and a short summary with why it was pinned and how it relates to other cards; the agent pulls whatever it needs in full, and only a full pull counts as read.
+- Agents can draw and write on the board through MCP and CLI batches, and erase marks shared with humans without Sessions.
+- Humans and agents can author work cards with a state, detail and optional progress, with in-card editing and no session required.
+- Existing tasks can be shown as read-only live cards without creating or cancelling work.
+- Relations have inline editing, dependency warnings and lineage navigation; groups open in place with breadcrumbs and outside links.
 
 ### Fixed
 
-- Home Graph names no longer cover relations with opaque label boxes, including on hover and selection.
-- Graph labels grow above 100% zoom without overlapping board counts, and Fit can include large libraries below the old 8% zoom limit.
-- Populated agent sessions fold the top bar before controls run offscreen, and retained receipts no longer cover the narrow session drawer.
-- Wiki links navigate from the expanded Markdown document as well as the card preview, and missing-board creation waits for the document save before binding the link.
-- Narrow Graph filters remain reachable beside retained Updates even when the toolbar wraps, and external activity no longer crowds the context summary offscreen.
-- Medium review policies require an explicit cadence, and blank revalidation methods are refused.
-- Graph data and spec changes refresh the viewer, and failed HTML replacements keep the last healthy view.
-- Guest cursors follow promptly through buffering portals instead of jumping every two seconds.
-- An older camera update from your tab no longer interrupts a newer zoom or Fit.
-- The keyboard shortcut reference closes with Escape immediately after opening.
-- Delayed pin updates no longer undo Clear all, and pins reconcile correctly across board switches.
-- Brief SQLite startup lock contention no longer immediately refuses to open a library.
-- The library's context summary includes the active board when it is pinned.
-- MCP can create board portals using the advertised node type.
-- Moving between related cards no longer briefly clears the board's focus dimming.
-- Relation categories wrap onto visible rows instead of hiding behind a horizontal scrollbar.
-- Markdown drafts survive refused saves, close/reopen and board switches, and delayed saves cannot replace newer text.
-- Reconnecting after a daemon restart preserves open drafts and records retried workbench saves as human edits.
-- Delayed board updates no longer undo a card jump's camera, and old save acknowledgements cannot replace restored content.
-- Lifecycle metadata edits cannot replay card content or bypass a board's scope fence by moving folders.
-- Saved Markdown links keep their bindings through rendering, Undo and restore; unresolved links wait for an explicit save before resolving.
-- Older Markdown cards get saved link bindings on first load, and older snapshots preserve known targets through renames.
-- Context summaries do not mark omitted relations as seen, and removed or restored remote targets invalidate the source's link mark.
-- Cross-board card footers stay visible and show readable titles rather than raw IDs.
-- Context-pin actions refuse a changed active board, and receipt pin actions require the owning board to be open.
-- Failed viewers retry once while keeping the last painted view; healthy offscreen updates wait for paint without being discarded.
-- Cross-board context briefs show readable titles for incoming and outgoing connections.
-- Connected-memory depth accepts explicit zero and rejects empty or bare values.
-- Saved Markdown checkboxes no longer roll back when an older live update arrives, including when opening the card in focus mode.
-- Receipts stay available across board switches so you can reopen a change's board to undo it; going Home still dismisses them.
-- Receipt Undo preserves a human edit from another tab even before the edit reaches your browser.
-- Receipt Unpin never re-pins a card and leaves pins added later alone.
-- Snapshot comparison asks you to reopen the receipt's board instead of comparing against another board.
-- Work Board and JSON viewer refreshes keep the previous content visible until the replacement has rendered, avoiding a blank flash during a slow handoff.
-- Picking up and dropping a card no longer changes cursor styles on every element of a large board.
-- `pmx-canvas record` realtime capture uses Chrome's screencast for smooth full-frame-rate footage, writes frames while it records, and tolerates a slow first Chrome launch.
-- On a board larger than the context budget, an agent's first `canvas://context` read now carries the pinned cards and then the rest oldest first, and pages on from there, instead of returning a single clipped card every time.
-- MCP context-resource reads now record delivered context, with map summaries tracking seen links separately from full card reads.
+- Agent reads include a text annotation's content even when it has a different label.
+- Retrying annotation creation with the same ID no longer adds duplicate Undo entries or overwrites a different mark.
+- Batched annotation writes respect the calling agent's assigned scope.
+
+### Breaking
+
+- SDK annotation methods now require `await`, derive bounds and creation time on the server, and reject missing removals instead of returning `false`.
+- Creating an annotation with an existing ID and different content now returns a conflict instead of replacing it.
+
+## [0.11.0] - 2026-10-25
+
+### Breaking
+
+- Removed `/api/canvas/debug/ext-app-recovery` with automatic viewer recovery; use the viewer's visible Retry control after a loading failure.
+
+### Added
+
+- Card menus offer Copy JSON for supported HTML primitives, including their current interactive state, replacing the Copy prompt header button.
+- HTTP, MCP and SDK tour commands accept an optional presenter fence to prevent superseded navigation from moving the board.
+
+### Changed
+
+- Markdown cards can become frameless section headings, and fit and focus leave room for floating controls.
+- Cards, charts and dashboards share canvas typography, spacing and all nine themes without repeated chart titles.
+- The board and its contents scale proportionally at every zoom.
+- Viewer previews load automatically near the viewport at every zoom and stay mounted when panned out of view.
+- Mermaid diagrams render directly on the canvas with its theme colours.
+- Markdown's Set as README action lives in ⋯, while its README identifier and Edit action stay visible.
+- Present explains saved tours and group-derived stops on hover and keyboard focus.
+
+### Fixed
+
+- Failed viewer replacements keep the last painted view and offer one explicit Retry.
+- JSON and graph viewers preserve drafts across theme changes and transitions into and out of expanded view.
+- Repeated viewer measurements no longer reverse Undo or a smaller height; changed content dimensions or a replaced or reopened viewer can fit again.
+- Webpage previews do not inherit MCP clipboard permissions.
+- Work cards keep complete status labels and reachable controls without accidental scrollbars.
+- Relation labels move clear of cards while staying connected to their lines.
+- Static exports preserve section headings, named themes and compact chart layouts without repeated titles.
+- Close slopegraph labels stay readable without moving their data points.
+
+## [0.10.0] - 2026-10-24
+
+### Breaking
+
+- SDK tour reads return `{ tour, derived, position }`; read stops from `.getTour().tour.stops` instead of `.getTour().stops`.
+- SDK approval, elicitation and mode waits reject on cancellation; handle cancellation separately from a pending timeout result.
+- Live MCP resource notifications require an explicit subscription; subscribe again after reconnecting.
+- Rejected `canvas_ax_interaction` calls return `isError: true`; handle them as tool errors.
+
+### Added
+
+- MCP tools provide validated structured results and annotations describing their possible effects.
+- MCP clients can cancel waits and subscribe to live canvas resources without receiving unrelated subscriptions.
+- Agents can use `canvas_help` to look up one operation's arguments without opening or reading a board.
+
+### Changed
+
+- MCP discovery shares equivalent output schemas while preserving result validation.
+
+### Fixed
+
+- Toggling the minimap closes the Settings tooltip without losing keyboard focus.
+
+## [0.9.3] - 2026-10-24
+
+### Fixed
+
+- Expanded Markdown keeps Source clear of the text at narrow widths and while scrolling.
+- Knowledge review, category, relation preset and board-copy forms work in script-only hosted workbenches without extra sandbox permissions.
+- Delayed startup reads no longer hide active agent sessions or bring ended sessions back into the top bar.
+- Copilot instructions request delivery during the active turn instead of defaulting to the next-turn queue.
+- Agent camera moves no longer rewrite every card's position and size, and tour navigation avoids loading card contents.
+- Saved Markdown skips repeated link parsing while preserving images and saved link targets.
+- Single-card lifecycle checks avoid unrelated boards, and review queues no longer load every card's full audit history.
+
+## [0.9.2] - 2026-10-23
+
+### Fixed
+
+- Require Bun 1.4.4 or newer for the Brotli security fix; upgrade Bun and restart running PMX processes as well as updating the package.
+- Development and release environments use patched Bun 1.4.4 and Node 24.22.1 runtimes.
+
+## [0.9.1] - 2026-10-23
+
+### Fixed
+
+- Board creation rejects the removed `--category` flag with a hint to use `--folder`, instead of silently creating an unfiled board.
+- Buffered canvas updates no longer close an open Markdown draft when an older empty layout is superseded in the same poll.
+- Accepted retirements keep Undo when the review dock closes while its follow-up refresh is still loading.
+- Embedded apps no longer override a card's manually resized dimensions with late content measurements.
+- Presence heartbeats stop when the workbench connection is disposed.
+
+## [0.9.0] - 2026-10-22
+
+### Highlights
+
+- Explore connected boards and cards through Home Map and Graph.
+- Pin whole boards and give agents a compact context map instead of loading every document.
+- Review agent changes with clearer receipts, Before/After comparisons and safer Undo.
+- Manage knowledge categories, review policies and relation presets.
+
+### Breaking
+
+- Board organization uses `folder` instead of `category` in API fields and commands; existing folder paths are preserved.
+
+### Added
+
+- Named relation kinds and reasons, with reusable Research, Dependencies, Decision and Flow presets.
+- Durable Markdown wiki links between boards and cards, with explicit creation of missing boards.
+- Board- and folder-scoped search.
+- Agents can create groups and connections on a background board without interrupting your view.
+- Agents can navigate presentation tours and move the camera with reduced-motion support.
+- Agent sessions and knowledge lifecycle controls are available as optional Betas in Settings.
+
+### Changed
+
+- One context summary shows pinned cards, nearby cards and pinned boards.
+- Home Map supports saved draggable positions; Graph expands connected boards and cards in place.
+- Map and Graph share a resizable relations inspector and update without moving your camera.
+- Narrow layouts fold secondary actions into More, and styled hints work in embedded panes.
+- Connection menus open on right-click instead of double-click; right-drag still pans.
+
+### Fixed
+
+- Markdown drafts survive refused saves, navigation and reconnects without older updates replacing newer text.
+- Markdown task checkboxes update the correct task without changing code examples or raw HTML inputs.
+- Connection handles no longer intercept neighboring card controls, while grouped cards retain keyboard navigation.
+- Flow-action hints stay clear of Source and remain readable when mixing keyboard and pointer input.
+- Long cross-board reference lists leave document content and actions usable.
+- Undo and pin actions preserve newer human edits and refuse actions against the wrong board.
+- SDK group and connection creation refuse stale-board requests before making changes.
+- Tour navigation resets after board switches or changes to its stops.
+- Closed-board scope fences also protect inherited category and folder policies.
+- MCP context reads do not acknowledge a different board after navigation.
+- Knowledge and lifecycle editors can save through the hosted MCP workbench.
+- Viewer refreshes keep the previous content visible until the replacement has rendered.
+- Stalled polling requests time out and reconnect without discarding open drafts.
+- Presentation recordings finish cleanly when Ctrl+C closes Chrome during shutdown.
 
 ## [0.8.2] - 2026-10-06
 

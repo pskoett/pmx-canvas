@@ -33,7 +33,7 @@
 // save | list | restore | delete | gc | diff), repurposing the freed name and
 // removing the 6 deprecated snapshot standalones the same way v0.3.0 folded
 // everything else. 0.7 added the canvas_board composite (plan 012).
-// Surface: 24 tools = 18 composites + canvas_batch,
+// Surface: 25 tools = 18 composites + canvas_help, canvas_batch,
 // canvas_pin_nodes, canvas_invoke_command, canvas_ax_interaction,
 // canvas_ingest_activity, canvas_screenshot.
 import { afterAll, describe, expect, test } from 'bun:test';
@@ -56,6 +56,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_board',
   'canvas_edge',
   'canvas_group',
+  'canvas_help',
   'canvas_history',
   'canvas_import',
   'canvas_ingest_activity',
@@ -124,11 +125,11 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 24-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 25-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(24);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(25);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 
@@ -136,12 +137,16 @@ describe('MCP public surface freeze', () => {
     const client = await createMcpSession();
     const { tools } = await client.listTools();
     const skill = await Bun.file(new URL('../../skills/pmx-canvas/SKILL.md', import.meta.url)).text();
+    expect(skill).toContain('(references/workbench-workflows.md#current-mcp-composites)');
+    const reference = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/workbench-workflows.md', import.meta.url),
+    ).text();
     const composites = tools.filter((tool) => tool.inputSchema.properties?.action);
-    expect(skill).toContain(`Prefer the ${composites.length} composite MCP tools`);
-    expect(skill).toContain(
+    expect(reference).toContain(`Prefer the ${composites.length} composite MCP tools`);
+    expect(reference).toContain(
       `**${tools.length} tools**: the ${composites.length} composites below plus ${tools.length - composites.length} standalones`,
     );
-    const table = skill.split('## Current MCP Composites')[1]!.split('Important routing:')[0]!;
+    const table = reference.split('## Current MCP Composites')[1]!.split('Important routing:')[0]!;
     const rows = [...table.matchAll(/^\| `(canvas_\w+)` \| (.+) \|$/gm)];
     expect(rows.map((row) => row[1]).sort()).toEqual(composites.map((tool) => tool.name).sort());
     for (const tool of composites) {

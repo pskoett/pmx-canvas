@@ -114,8 +114,8 @@ Components reference tokens only. Raw colour values live only in the theme files
 - Tints are derived — `color-mix(in srgb, var(--c-pin) 12%, transparent)` — so the 22 alpha
   copies, `--c-warn-alt` and `--c-glow-accent` go.
 - `--c-thinking` becomes `--c-agent`.
-- **Kinds carry no colour.** Type icons use `--c-muted`; the glyph tells the kind, plus the kind
-  word on zoomed-out tiles (Zoom board). Minimap rects and group-chip kind dots are neutral, and
+- **Kinds carry no colour.** Type icons use `--c-muted`; the glyph tells the kind.
+  Minimap rects and group-chip kind dots are neutral, and
   only meaning colours mark them (pinned, agent at work). `KIND_COLOR`, `--kind-accent` and
   `--c-purple` go. Nine kind hues cannot all stay clear of ten meaning colours in nine themes,
   and every hue a kind borrows is one a meaning loses.
@@ -146,29 +146,29 @@ the same change.
 | [`Tokens.dc.html`](design/Tokens.dc.html) | Typeface, type scale, radii, elevation, one meaning per colour | 0 |
 | [`TokenSystem.dc.html`](design/TokenSystem.dc.html) | The token system today vs proposed: palette, meaning, scale | 0 |
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
-| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), section headings, floating chrome | 0 |
+| [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), bounded reference footer, section headings, floating chrome | 0 |
 | [`EmptyState.dc.html`](design/EmptyState.dc.html) | Empty board: Drop files here, Paste a link, Start a note with collaboration guidance, then a separate agent-first path | 0 |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
 | [`NearPin.dc.html`](design/NearPin.dc.html) | Near a pin: the dotted “near” chip on a pinned node's unpinned neighbours, tethers on hover, the moment of change, combinations, 600 px; ships with the brief carrying neighbours (title + summary, reason “near <pin>”) | 1 |
 | [`ContextChip.dc.html`](design/ContextChip.dc.html), [`ContextChip600.dc.html`](design/ContextChip600.dc.html) | The one context chip (decided with the maintainer 2026-10-07: placement, near muted, quiet empty state, agent-pin dots, “N in context” at 600 px): top bar, right, replacing the floating ContextPinBar and the ContextBudget meter; at rest for cards, near, boards, agent-only pins, nothing pinned; opened into Cards (full, × unpin, clear all), Near (derived, title + summary, no ×, Pin to promote) and Boards (read state, × unpin). **A pinned board travels as a map** (decided 2026-10-07): folder, README summary, each pinned card's title + summary, links and backlinks; the agent pulls a card or board in full itself, so the chip shows no full / summary / not-sent state. **A cost, not a budget** (decided with the maintainer 2026-10-08): the chip shows what the brief costs as ≈ tokens, with no meter, share or clipped state; when the host reports its agent's token usage the panel names that count too (“Copilot’s whole context holds 42.8k tokens”). The brief's size limit stays internal as a page size. At rest it is the summary, always visible and right-aligned in the top bar at every width; the details open only on click. At ≤ 760 px the summary is “N in context” with no token text, and the bar gives way in this order: session id and counts; Export, Present, zoom and fit fold into ⋯; agent chip to its avatar, Start agent session to its icon; the board name truncates — the dot, board pin, summary and ⋯ never collapse. Harbor and Daylight, 600 px. Supersedes the chip wording on Context, NearPin and BoardPins | 1 (slices 4b, 5b) |
-| [`LinksChanged.dc.html`](design/LinksChanged.dc.html) | Links that changed after the agent read a card (decided with the maintainer 2026-10-08: option C of LinksOptions): the mark sits on the edge, not on both cards — a person’s new or edited link says “not seen by <agent>” (muted, eye-off) until a read carries either end, an agent’s link says “by <agent>” (violet). <agent> is whichever agent is attached (Claude, Codex, Copilot, any other), never a fixed name; the drawing’s “Claude” is an example. Marks stay quiet on a board no agent has read; link authorship (built 2026-10-09 to [`LinkAuthorship.dc.html`](design/LinkAuthorship.dc.html)) stays until a person edits or relabels the link, as a violet ✦ before the label with who drew it and when in the hint — the agent today; another person's initial on shared boards (Part 3) is not built; card text changes keep amber “changed” and win on the card; links-only changes show per card only in the context panel (“links changed”, neutral); relation inks never change; 600 px | 1 |
+| [`LinksChanged.dc.html`](design/LinksChanged.dc.html) | Links that changed after the agent read a card (decided with the maintainer 2026-10-08: option C of LinksOptions): the mark sits on the edge, not on both cards — a person’s new or edited link says “not seen by <agent>” (muted, eye-off) until a read carries either end, an agent’s link says “by <agent>” (violet). <agent> is whichever agent is attached (Claude, Codex, Copilot, any other), never a fixed name; the drawing’s “Claude” is an example. Marks stay quiet on a board no agent has read; link authorship (built 2026-10-09 to [`LinkAuthorship.dc.html`](design/LinkAuthorship.dc.html)) stays until a person edits or relabels the link, as a violet ✦ before the label with who drew it and when in the hint — the agent today; another person's initial on shared boards (hosted version, Part 4) is not built; card text changes keep amber “changed” and win on the card; links-only changes show per card only in the context panel (“links changed”, neutral); relation inks never change; 600 px | 1 |
 | [`LinksOptions.dc.html`](design/LinksOptions.dc.html), [`LinksOptions600.dc.html`](design/LinksOptions600.dc.html) | The connections question as three options on one board (one text edit, one link by you, one by the agent, plus the context panel rows): A as built (every change “changed”), B a separate amber “links changed” on both cards, C the mark on the connection (“not seen by <agent>”, neutral) — C decided with the maintainer 2026-10-08; A and B not chosen | 1 |
 | [`HeaderMarks.dc.html`](design/HeaderMarks.dc.html) | A node header with more than one mark (decided 2026-10-08): the title keeps at least 140 px (all of it when shorter; only amber may push it to 80). “By <agent>” is authorship, not state, so it never takes a chip: a violet sparkle on the type icon at every width, its words in the icon's hint. The one state chip (near, or the read state) folds to its 22 px glyph and then into the icon's hint as the title needs the room; amber “changed” never folds. The icon's one hint holds the full title, the byline and any folded word — never other cards' titles. 260, 340 and 480 px, Harbor and Daylight. Supersedes the byline chip on AgentContext. Read state shows on pinned cards only (decided 2026-10-08: "read" only accumulates and spans boards, so on unpinned cards it would mark everything; the receipt and lens say what was read) — the near + read cases are superseded | 1 |
-| [`LinkAuthorship.dc.html`](design/LinkAuthorship.dc.html) | Who drew a link (decided 2026-10-08): an agent's link carries a violet ✦ before its label until a person edits, retypes or relabels it — a read never clears it; another person on a shared board shows their initial (Part 3); the board's only person shows no mark. “Not seen by <agent>” follows, behind a hairline, on a person's new link until the next read; it folds to its glyph on a short line or below 60 % zoom, and below 35 % labels go and only marks stay. The hint names who drew it and when, and who took it over. Harbor and Daylight | 1 |
+| [`LinkAuthorship.dc.html`](design/LinkAuthorship.dc.html) | Who drew a link (decided 2026-10-08): an agent's link carries a violet ✦ before its label until a person edits, retypes or relabels it — a read never clears it; another person on a shared board shows their initial (hosted version, Part 4); the board's only person shows no mark. “Not seen by <agent>” follows, behind a hairline, on a person's new link until the next read; it folds to its glyph on a short line or below 60 % zoom, and below 35 % labels go and only marks stay. The hint names who drew it and when, and who took it over. Harbor and Daylight | 1 |
 | [`SeeChange.dc.html`](design/SeeChange.dc.html) | Built locally (2026-10-10): Before above After (the receipt stays 290 px), changed words marked (removed struck through and muted, added in a violet tint), excerpts cut with “…”, Undo this card and its states (✓ Undone · You edited it since · Open its board to undo), the Edited row’s Undo (Undone · Kept your edits). Long scroll boxes start at the first changed word with context above it; the receipt uses opaque `--c-panel` so underlying marks do not bleed through. At ≤ 760 px the agent's initial has its violet ring and phase dot; clicking opens live counts, the dim-untouched switch and Open session panel (ContextChip600 wins over Pane600). Checked at 600/1024/1920 in all nine themes | 1 |
 | [`AgentContext.dc.html`](design/AgentContext.dc.html) | What the agent did: read, created, edited, suggested, out of date; lens and receipt. Built (2026-10-10) with two placements of our own: the live "Claude · this session" counts sit in the top bar's agent chip ("2 read · 1 edited", press to dim untouched cards; Pane600's wording), because the bottom of the canvas belongs to the command bar; "see change" lives on the receipt's Edited lines, not on the card, which has no meta line — its open view is now built to SeeChange. The drawing's Suggested state is dropped (maintainer, 2026-10-10: the agent changes the canvas directly; asks and suggestions go through the composer) | 1 |
 | [`BoardPins.dc.html`](design/BoardPins.dc.html) | Board pins: where you pin a board, the tiered brief, the context chip across boards; each pinned board carries its category glyph and review state (due count, the brief’s “review due” / “lifecycle unknown” lines) | 1 |
 | [`Home.dc.html`](design/Home.dc.html) | Home — Folders: library tree, pinned boards, README, board details. Folders carry no colour (the 2026-10-07 decision supersedes the drawing's hues); the folder's README line waits until folders have a README. Map and Graph are now available. A card selects the board into details; Open board (or a double-click) opens it | 1, 2 |
 | [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Uses.dc.html`](design/Uses.dc.html), [`Home.dc.html`](design/Home.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Selected 2026-10-14: C1 compact category inspector; R2 read-only chooser then separate preset editor; H2 individual-card Home Review queue; V2 real card beside a docked review drawer, lower dock at 600 px. Supersedes earlier category full-form and review-modal geometry; retains inheritance, evidence guards and independent clocks | Implemented; owner acceptance pending, no release claim |
 | [`HomeMap.dc.html`](design/HomeMap.dc.html), [`HomeGraph.dc.html`](design/HomeGraph.dc.html) | Home — Map and Graph views of the library; implemented with the wave-2 deviations below | 2 |
-| [`HomeTeam.dc.html`](design/HomeTeam.dc.html) | Home on a team server: workspace and personal libraries, per-user pins, moving a board into the workspace, locked links, folder categories and due counts in both libraries (look ahead) | Later (Part 3, step 5) |
-| [`Categories.dc.html`](design/Categories.dc.html), [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Knowledge categories as a folder property (glyph + word, no colour; set here vs `↳` inherited; dashed “unknown”), folder settings, the one workspace list with lifecycle defaults and templates (org/team/personal is one option), a solo-research workspace; on cards: lifecycle override (never category), the four clocks, review outcomes with evidence, the board's review list, the brief. Review due is amber **outlined** with ⧗ as the card's bottom line, only while due; changed-since-read stays amber **filled** with △ in the header. 600 px | For review (move 13, Part 3) |
+| [`HomeTeam.dc.html`](design/HomeTeam.dc.html) | Home on a team server: workspace and personal libraries, per-user pins, moving a board into the workspace, locked links, folder categories and due counts in both libraries (look ahead) | Later (hosted version, Part 4) |
+| [`Categories.dc.html`](design/Categories.dc.html), [`CategoryEditor.dc.html`](design/CategoryEditor.dc.html), [`Lifecycle.dc.html`](design/Lifecycle.dc.html), [`Lifecycle600.dc.html`](design/Lifecycle600.dc.html) | Knowledge categories as a folder property (glyph + word, no colour; set here vs `↳` inherited; dashed “unknown”), folder settings, the one workspace list with lifecycle defaults and templates (org/team/personal is one option), a solo-research workspace; on cards: lifecycle override (never category), the four clocks, review outcomes with evidence, the board's review list, the brief. Review due is amber **outlined** with ⧗ as the card's bottom line, only while due; changed-since-read stays amber **filled** with △ in the header. 600 px | For review (move 13: local categories and lifecycle are implemented; shared scopes come with the hosted version, Part 4) |
 | [`LifecycleVariants.dc.html`](design/LifecycleVariants.dc.html), [`Restore.dc.html`](design/Restore.dc.html) | Where lifecycle shows: variant A (review due on the card while due) vs B (only in the ⋯ menu, a count on the board), with the shared ⋯ → Lifecycle entry; retiring and restoring a card: dimmed in place, Retired filter, search, Restore in the Lifecycle tab, Undo toast, history with who and when | A chosen 2026-10-07; restore confirmed |
 | [`Relations.dc.html`](design/Relations.dc.html) | Relations on a research board, today vs proposed; edge anatomy; relation inks | 3 |
 | [`Flows.dc.html`](design/Flows.dc.html) | Data lineage with staleness, what a finding rests on, opening a group | 3, 5 |
 | [`Uses.dc.html`](design/Uses.dc.html) | One relation layer for research, dependencies, decisions and agent flows | 3 |
 | [`Types1.dc.html`](design/Types1.dc.html)–[`Types3.dc.html`](design/Types3.dc.html) | Every node type, today vs proposed | 0, 4 |
-| [`Zoom.dc.html`](design/Zoom.dc.html) | Fit-all readability when frames are unmounted | 4 |
+| [`Zoom.dc.html`](design/Zoom.dc.html) | Native spatial scaling at every zoom, maintainer override 2026-10-25 | 4 |
 | [`Pane600.dc.html`](design/Pane600.dc.html) | Home and a board at the narrow end, 600 px | all |
 | [`Vision.dc.html`](design/Vision.dc.html) | How each design area maps to the vision, and the open decisions | — |
 
@@ -180,6 +180,15 @@ guidance, not an agent-launch button, and remains visible with Agent sessions (B
 With the beta on, the existing Start agent session action sits below that guidance.
 The existing panel, type and colour tokens stay; actions form one readable column, and
 short windows scroll the guide rather than cutting off either starting path.
+
+**Canvas mouse gestures (owner decision, 2026-10-19).** Right-click on empty canvas
+opens the existing creation menu on release. Holding the right button and moving more
+than 5 screen pixels pans; releasing after a drag never opens a menu, even when the
+pointer returns to its starting point. Small hand jitter remains a click. Cancelled
+gestures open nothing. Right-drag over cards, middle-button drag, Space-drag and the
+existing node and background double-click menus remain available. Right-clicking a
+connection line or label opens its menu on release instead of double-click; dragging
+from either still pans without opening a menu. Menu appearance is unchanged.
 
 **Workspace UI opt-ins (owner decision, 2026-10-16).** Main rail **Settings** contains
 **Agent sessions (Beta)** and **Knowledge lifecycle (Beta)**, each with a small switch,
@@ -338,8 +347,9 @@ Standalone viewers and HTML/artifact viewers retain their existing load path; no
   working set (README and pinned cards in full, on every board); there is no separate card
   pin, which would only send the portal's summary while this board is open. Every other
   card keeps its card pin.
-- **Relations are the edge layer, not node types.** Design work adds no node type;
-  the vision's own `ask` node (move 3) is separate.
+- **Relations are the edge layer, not node types.** Design work adds no node type.
+  The general `ask` node is deferred by the Wave 5 decision below; ordinary planning questions
+  and alternatives use existing cards.
 - **Any size, from a side pane to a full window.** The workbench lives in narrow agent-host
   panes, the resizable side browser in the Claude desktop app, and full browser windows. Every
   drawing shows the narrow end (600 px) and a full window before it is built, and the build
@@ -365,37 +375,95 @@ were inspected; independent board vocabularies persist across switching/reload. 
 [CI jobs](https://github.com/pskoett/pmx-canvas/actions/runs/38218734543) pass. These gates
 do not establish complete drawing parity or replace the owner's acceptance.
 
-**Remaining acceptance:** the real-agent curation evaluation and the owner's test pass since
-0.8.2 remain open. The actual Amp embedded context-pill opening, native Copilot/WebKit,
+**Remaining acceptance:** the owner's test pass since 0.8.2 remains open. The real-agent
+curation evaluation moved to the end of the plan on 2026-10-19; the post-0.9.0 order of
+Waves 4 and 5 is in [plan 019](plans/plan-019-post-0.9-roadmap.md). The actual Amp embedded context-pill opening, native Copilot/WebKit,
 native Windows UI and registry-installed execution remain unverified. Dense Fit labels need
 selection/local focus for detail, not a claim of large-library readability. The sketch gaps
 below remain implementation work. The [release gates](RELEASE.md) still apply before a release;
-the owner has not authorized one. Version remains 0.8.2, with no release, tag, publication,
-deployment or version bump. This is implementation status, not release approval.
+the owner authorized review, testing and release of 0.9.0 on 2026-10-22. The release
+candidate includes the acceptance fixes, but that authorization does not turn qualified
+native-host checks or deferred sketch parity into completed work.
 
 **Sketch parity, clarified 2026-10-11.** `Relations`, `Flows` and `Uses` remain the
 vision's target designs, not screenshots of the shipped workbench. The Wave-3
 foundation does not implement every interaction pictured in them. It provides
 per-board vocabularies, semantic inks, separate endpoint slots, authored reasons,
 evidence/source/use queries, downstream review qualification and view-only
-highlights. Parallel-pair count badges, cycle/affected counts, the compact inline
-edge editor, amber stale-lineage strokes and the Show lineage / Show on canvas
-actions are not implemented. The current editor is a context menu with text
-dialogs; source changes appear as review-due card footers, not recoloured edges.
-Group drill-in with breadcrumbs and outside endpoint stubs belongs to Wave 5.
+highlights. Wave 5 adds parallel-pair counts, dependency cycle/affected counts,
+the compact inline edge editor and Show lineage / Show on canvas. A cycle count
+means cyclic dependency clusters, not every illustrated route through a graph.
+Source warnings reuse lifecycle qualification and appear as amber glyphs and words
+beside the semantic label, rather than replacing the relation ink with amber.
+Group drill-in adds breadcrumbs and outside endpoint stubs on the same board.
+The boundary is neutral, reserving blue for context pins; hidden viewers stay mounted
+so navigation does not discard drafts. These are scoped deviations from the older
+drawings' blue boundary and amber relation strokes, not new relation meanings.
 The sketches' suggested-link Accept/Dismiss treatment was superseded by the
 2026-10-10 direct-edit decision recorded above; it is not a pending acceptance
 workflow. A demo of existing features must not be used to claim full sketch parity.
 
+**Wave 5 decision, 2026-10-27.** The owner reaffirmed Uses' Agent flow, Dependencies and
+Decision drawings; Flows remains the reference for group navigation. Humans and agents author ordinary cards and
+relations, showing work deliberately rather than automatically creating a card for every task.
+Illustrated loops describe a plan; they do not execute it. Planning works without Sessions.
+An explicitly linked session-task card presents the existing record's live state; starting a
+session does not convert the plan. Native-agent approvals stay in the host, PMX session controls
+remain separate, and explicit/automatic ghost feedback is unchanged. The general `ask` card
+is deferred.
+
+Agents also use the existing pen, text and whole-mark eraser layer for questions and
+emphasis. This adds no new visual controls or mark style. Humans can answer in their
+external agent host's composer; PMX's composer and Sessions are optional.
+
+**Work-card authoring, selected 2026-10-27:** [WorkCards](design/WorkCards.dc.html)
+adds option A's in-card editor to the approved Uses work steps. Title, work state,
+detail and optional progress are authored node data. Edit grows the card locally;
+Save/Cancel do not persist that temporary geometry. Drafts, refused saves and pending
+saves survive opening and closing focus mode. Generic phase/tool status cards
+remain unchanged.
+
+**Read-only live cards, selected 2026-10-27:** the same WorkCards artboard adds a
+**Show on board** action to task rows, becoming **Show card** when presented. A live
+card shows task state, detail and attribution with a **Read-only** caption, no Edit,
+progress or approval controls. Missing references show **Task unavailable**. Ordinary
+plans are not converted, ending a session preserves cards, and deleting a card does not cancel work.
+Existing selective board copies detach the live reference and task attribution, producing
+an independent authored card. They do not copy tasks or create cross-board live links.
+
+**Move to new board** is the agreed label for multi-selection and the group's **⋯** menu:
+move the cards, preserve identity/history/relations and leave a portal. No reverse move or
+inline-board operation in this wave. Opening a group within the current board is navigation
+only, with breadcrumbs and outside endpoints, not a new board. These decisions supersede the
+earlier automatic work-card and make/inline-board wording. Implementation and technical
+checkpoints live in [plan 020](plans/plan-020-wave-5-work-planning.md).
+[WorkCards](design/WorkCards.dc.html) now draws name, preview, refusal and interrupted-reply
+states using the existing modal shell. Preview names pins, README, live owners and the
+Undo/snapshot boundary. Save or cancel local card drafts before moving. A late reply never
+overrides newer navigation; a retry uses the original request ID.
+
+**Amp plugin added to Wave 5, 2026-10-27.** The owner added the native Canvas plugin
+described in [this discussion](https://ampcode.com/threads/T-01a17d25-69d9-7693-986a-f3991de6a346).
+It hosts Canvas through Amp's Portal and connects context, steering, creation, sharing and
+collaboration to Amp threads. Jev optionally ranks context, chooses output representation and
+prioritizes review; the integration works without it. Amp retains execution, credentials and
+native permissions. The owner simplified sharing to **use Amp's existing sharing; let the guest
+enter their name**. Add identification through existing canvas presence, not a separate guest
+permission system, share server or custom expiry/revocation. A name is self-reported and grants
+no additional access. Participation follows Amp's existing access model; do not promise anonymous
+or board-only access that it does not provide. General hosted accounts and organization roles
+remain later work. Draw the missing name-entry and identified-guest states here before UI
+implementation; packaging, reliability gates and acceptance are in plan 020, Slice 4.
+
 | Wave | Vision | Function (build) | Design (proposal boards) | Done when |
 |---|---|---|---|---|
-| **0. Foundation** — ships alone, first | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; reference cases pass at 600, 1024 and 1920 px; demo board regenerated |
-| **1. Context made visible** — next batch, with the curation evaluation | Part 1 bet, moves 0a, 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node and per board as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board pins (`board_pins`, tiered brief, `canvas_board pin/unpin`) and Home's pinned-boards section | What the agent did with context, Nodes in context, Board pins, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
+| **0. Foundation**: shipped in 0.8.0; remaining foundation gaps ship with plan 019 step 3 | Moves 5, 9, 10 | Bundle Plex; controls inherit the font; type/radius/shadow tokens; meaning tokens per theme; theme renames (`dark` → Harbor, `light` → Daylight, neutral; no aliases); pin style that survives selection and attention; violet header bar replaces amber halos and focus fields | Today / Proposed, Tokens, Themes, Rail and node header, Nodes in context | No control renders in a fallback font; token test passes for all nine themes; reference cases pass at 600, 1024 and 1920 px; demo board regenerated |
+| **1. Context made visible** — its curation evaluation moved to the end of the plan (2026-10-19) | Part 1 bet, moves 0a, 2, 7 | Surface `context_reads` (already recorded since 0.7.0: who read, which nodes were delivered) per node and per board as read / not read / changed since read, using revisions; who pinned; activity lens and session receipt from presence activity and revisions; board pins (`board_pins`, tiered brief, `canvas_board pin/unpin`) and Home's pinned-boards section | What the agent did with context, Nodes in context, Board pins, Home (Folders) | From the board alone, a person can answer "did the agent read what I pinned, and is its copy current?" The evaluation in `docs/evals/` reads the same data |
 | **2. Connected memory views** — implemented, verification gates apply | Moves 0, 14 | One board/card projection for Home, links/backlinks, brief discovery and `canvas://graph{?focus,depth}`; saved wiki ID bindings, direct cross-board card edges, previous-board chains, persisted Map positions | Home Map, Home Graph (deviations below) | Map and Graph are generated from the library; orphans visible; works at 600 px and in a full window |
 | **3. Relations layer** | Moves 0, 1, 13 | Edge `reason` and an open `kind` with a per-board vocabulary; relations carried in the brief's text form; "derived from" with staleness from provenance and recipes; relation queries for the inspector | Relations, Lineage, One relation layer | Hovering a node explains each link; a changed source turns downstream nodes amber; the agent's brief includes relations |
-| **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; zoomed-out cards for unmounted frames | Node types 1–3, Zoomed out | No viewer draws its own background; 20 portals mount no more frames than none; fit-all is readable |
-| **5. Agent output and groups as pages** | Moves 3, 0 | Work items, gates and asks as nodes; make board / inline board; opening a group keeps its outside links | One relation layer (agent flow), Lineage (open a group) | Agent output is styled by the same shell and tokens; a group opened as a board shows its outside stubs |
-| **Later — share ladder** | Part 3 | Read-only link, comments, second writer; at step 5, org → team → personal scopes with configurable categories and per-user pins | HomeTeam is the earlier two-root look ahead; updated scope/category drawings are required before building, retaining explicit publication and locked cards for unreadable boards | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal reaches a wider audience without explicit publication |
+| **4. Frame host and viewers** | Moves 5, 9 | One frame host passing the full theme tokens; json-render defaults to the canvas theme with an opt-out for design experiments; native proportional canvas at every zoom | Node types 1–3, Zoom | Viewers use the canvas palette and fill their authored space; approaching a viewer mounts it automatically and retains its state when panning away; no alternate grid or lifetime preview cap |
+| **5. Work planning, group navigation and Amp integration** | Moves 3, 0; native Amp plugin | Deliberate work cards and relations; optional live task views; Move to new board with a portal; group drill-in; Amp Portal/context/steering plugin with optional Jev; native Amp sharing plus guest names; no reverse move | Uses (agent flow, dependencies, decisions), Flows (open a group), Relations; move/plugin states to be drawn | Human and agent can plan without Sessions; loops stay inert; drill-in keeps outside stubs; moves preserve identity/audit; native Amp sharing and guest identification pass; shared shell/tokens and plan 020 checks pass |
+| **Later: hosted version** | Part 4 (moved from Part 3, 2026-10-19) | Read-only link, comments, second writer, accounts and roles; org → team → personal scopes with configurable categories and per-user pins; built once for the ChatGPT Sites and later Cloudflare editions | HomeTeam is the earlier two-root look ahead; updated scope/category drawings are required before building, retaining explicit publication and locked cards for unreadable boards | Exports and shared views inherit the tokens; a viewer sees the same meaning colours; nothing personal reaches a wider audience without explicit publication |
 
 **Folders and portals (decided 2026-10-06).** Home uses folders as the visible hierarchy (where a
 board lives, one place); portals and links are how boards relate: a many-to-many graph the agent
@@ -493,6 +561,43 @@ are view-local, not saved board coordinates. Folders remain independent of links
 connections use the source footer and human More-menu picker, not remote canvas
 lines; auto-arrange remains local and static export retains explicit external
 connection evidence.
+
+**Reference-footer correction (2026-10-18).** Chrome's footer keeps every remote
+connection inside one keyboard-focusable scroll region, capped at 40% of the card
+body and 132 world pixels. Short lists retain their natural height; long lists
+cannot consume the document or its actions. Unmodified wheel and navigation keys
+scroll references instead of moving the canvas. No graph data is collapsed or removed.
+Reading expanded Markdown, closing it or following a link without input preserves
+the exact source and revision. Pending real edits still finish before navigation.
+
+**Owner-guide fixes (2026-10-20).** The same reference list follows cards into focus
+mode, above the provenance strip, capped at 132 screen pixels there. It retains every
+target without displacing the document. A refused Markdown save keeps the reader and
+its draft open instead of navigating away. Hidden connection handles do not receive
+pointer hits; their enlarged grab areas activate with the visible handles on hover,
+selection or keyboard focus. Flow-action hints fit the native card or expanded panel,
+whichever actually contains them. The shared Map/Graph inspector reserves one trailing
+pixel so integer scroll extents do not cut the last row's fractional border.
+The guide uses the current Library → Board → Card explorer described above, not the
+removed stationary expansion controls. Dense Fit remains an overview, and unfinished
+Relations/Flows/Uses drawings and unavailable platform checks remain separate from fixes.
+
+**Interaction follow-up (2026-10-21).** Visible connection handles keep their 32-screen-pixel
+grab areas outside the card, with the dots still on its edge, so low-zoom headers and pins
+retain their hit targets. Grab areas yield to every card, including neighboring cards,
+but outrank connection labels and lines. Group interiors still select and open their menus,
+below child ports and labels; the frames and labels keep their existing visual stacking.
+Expanded flow documents put Source in a separate row above the reader, clear of the
+bottom dock's action hints. Ordinary documents keep Source at the bottom right in a
+reserved row below the scroll viewport, so it cannot cover text at narrow widths
+or intermediate scroll positions (0.9.2 review follow-up, 2026-10-24).
+Hovering a flow action temporarily
+hides another action's keyboard hint without moving focus; leaving restores the focused hint.
+Card checkbox clicks address parsed Markdown tasks, not fenced/indented examples or raw
+HTML inputs, and change only the selected marker. Polling requests have a ten-second
+headers-and-body deadline, including hosted transports, before the existing reconnect retry;
+recovery does not reload the workbench or discard an unsaved draft. These fixes do not
+establish the cause of the earlier ordinary-checkbox or reconnect incidents.
 
 **Acceptance follow-up (2026-10-13).** ContextChip600's collapse order also applies when
 agent names/counts fill a wider bar: fold actions into More before compacting sessions to
@@ -608,6 +713,171 @@ Lifecycle600 and Restore supply the review-state drawings beyond Lineage. This a
 curation evaluation after its remaining features. Local categories and lifecycle data work
 without a model; Jev-style classification is optional longer-term assistance, not a dependency
 of Wave 3 or the org/team/personal structure.
+
+## 0.11 implementation notes
+
+Chrome §9–10 and Types1–3 drive the section-heading, header, typography and viewer
+pass. Fit and focus reserve a 44 px screen-space top lane. JSON viewers inherit the
+named canvas palette; only duplicate root titles disappear. Mermaid renders inline.
+File-header metadata may clip within its own text container, but Reload and AX
+evidence actions and their hover/focus hints stay outside that clip (Types1).
+The maintainer's 2026-10-25 decision supersedes the earlier reading-flow footer:
+**Set as README** lives only in the card's ⋯ menu, becoming **Remove as README**
+for the current README. The agent normally assigns it; this menu is the human override.
+The designated card keeps a quiet, always-visible **README** word in its header,
+including heading-display Markdown. It uses neutral metadata ink, not pin blue or
+selection styling; the title yields before this identifier truncates.
+Ordinary Markdown keeps its visible **Edit** action; heading display has no footer.
+Chrome and Types1 reflect this decision. The menu takes keyboard focus, supports
+arrows and Tab, and restores the opener on activation or Escape.
+**Present** explains saved tours versus group-derived stops on hover and keyboard
+focus, with an accessible description. The narrow ⋯ menu shows the same explanation
+in flow below Present rather than clipping a floating tooltip. Chrome records the
+owner's exact copy; no tour behavior changes. Its saved-tour instruction says
+**ask your agent to define the stops**, not that a visual human tour editor exists.
+During presentation, **Back** and **Next** sit beside **Exit presentation** at
+the top-right, following the existing shared server cursor. The owner's final
+placement decision puts instructions only in each button's hover/focus tooltip:
+Previous stop (← / ↑), Next stop (→ / ↓ / Space), Exit presentation (Esc).
+There is no lower-left instruction panel. Unavailable end buttons remain focusable
+for their descriptions. Node/rectangle fitting reserves the controls' measured
+height; explicit camera targets and deterministic recordings remain unchanged.
+HTML primitives put **Copy JSON** in the card's ⋯ menu, not their inner header;
+**Copy prompt** is removed. JSON comes from the current mounted document, including
+unsaved interactive edits, through the nonce-bound sandbox bridge. Unloaded or
+replaced documents and denied clipboard access report failure, not stale data or
+success. Raw HTML and the custom presentation primitive have no JSON-export menu
+action. Primitive-specific Copy diff, Copy SVG and similar controls stay in place.
+The maintainer's 2026-10-25 correction rejects the experimental CSS zoom, content
+enlargement and alternate overview. The original world matrix scales cards,
+embedded contents, groups and connections proportionally at every zoom. Only title
+text grows, up to 1.2× inside a fixed 22 px header line. Header controls, padding and
+body space stay fixed in world pixels; enlarging the whole header would resize the
+iframe viewport and reflow charts while zooming. Card bodies never counter-scale.
+All cards share the same stacking and input boundary. A separate
+ext-app portal was rejected in review because it covered higher cards, bypassed
+pan gestures, and disappeared during presentation. The common world also owns
+clipping when a dock resizes the canvas. Headed Linux WebKit reproduced CSS zoom
+shrinking the iframe's internal layout and retaining stale dimensions through
+zoom transitions. Restoring the matrix keeps inner widths stable in the same probe.
+Native WKWebView compositor health remains unverified, not established by that result.
+Automatic previews mount on first approach at any scale, then retain their
+documents to preserve arbitrary app state. The rejected lifetime cap starved later
+board regions. Memory now grows with visited viewers. Visible viewers start loading
+automatically without a shared bootstrap queue or per-card clicks. A slow document
+does not hold another card's loading slot.
+Each loading replacement temporarily coexists with its painted document.
+
+The demo gives ordinary standalone charts the full authored card height instead
+of imposing a smaller plot-height cap. Compact chart types keep compact cards:
+the 36 px sparkline sits in a 120 px card, four dot-plot rows in 240 px, three bullet
+rows in 260 px, and the slopegraph in 300 px. These are demo authoring choices,
+not enforced sizes on user cards. Explicit chart `height` still caps content,
+independently of `nodeHeight`. Dashboard and form stacks explicitly use stretch
+alignment; the catalog's start-aligned default is unchanged, as are compact action
+buttons. Work-item controls must fit their authored cards without accidental
+overflow or truncated status. Enlarging the demo to 440×300 did not meet that
+requirement and is not acceptance evidence. The card body now scrolls only its
+content when needed; step controls and Edit share one fixed footer row. The full
+status word takes priority over the title. Steering input and send button wrap
+together. Expanded documents keep their sticky footer. The demo returns to a
+240 px height, with 360 and 440 px widths exercised in both Chromium and WebKit.
+Bodies still shrink proportionally.
+
+Static exports use the same embedded chart layout and named palettes, retain
+heading display, and match the live 37 px card header. Fonts and shared palette
+CSS are embedded for offline use. Saved positions, sizes and specs are unchanged;
+live work controls are intentionally absent. Export is a separate acceptance
+surface, not established by live canvas checks. Close slopegraph labels separate
+without moving data endpoints; short same-ink leaders retain their association
+(Types3). An explicitly overcrowded chart still requires adequate authored height.
+
+Relation labels keep their curve midpoint when clear. Otherwise the pill and its
+hit area move together to nearby open space, avoiding cards, group headers,
+connection handles and earlier labels. A dashed leader in the relation's ink
+ties it back to the curve. Card positions, curve routing and stacking do not
+change. Font measurements determine pill width. Dense boards can still require
+panning to a displaced label; labels remain hidden below the existing 35% floor.
+
+`ViewerHost` owns preview admission, without a second positioning or recovery path.
+`RefreshingViewerFrame` owns document loading, the painted replacement handoff and
+Retry. HTML readiness and the ext-app protocol use that host; JSON additionally
+restores its viewer-local state before promotion. The ext-app adapter no longer
+has a separate paint/recovery ladder. Document preparation failures do not fall
+back to another transport that the embedding probe already rejected.
+Ext-app protocol bootstrap runs once after initialization, or after the loaded
+document's bounded notification-only bootstrap interval. The host waits for
+input/result delivery and paint before declaring it ready; bootstrap errors use
+the same Retry as other loading failures.
+Webpages show cached text until an explicit live-preview request; Mermaid
+and native board thumbnails render inline. Mermaid's inline
+and standalone/export renderers share their palette, serialization and sanitizer.
+Inline rendering uses Mermaid's strict security mode and DOMPurify, including
+sanitized `foreignObject` labels, instead of the old diagram iframe sandbox.
+Mermaid is the exception to the static-import rule: the SPA loads it on the first
+diagram, using hashed chunks from the same server. A six-Markdown-card cold-boot
+probe requested only the entry and its small shared chunk, not Mermaid's 3.46 MB.
+With Bun 1.4.4, headed Chromium 145, 4× CPU throttling and five alternating fresh
+contexts per variant, the baseline median was 1,423.9 ms and the candidate median
+1,349.1 ms to six populated cards plus two animation frames. Ranges overlap
+(1,277.3–1,484.7 ms versus 1,315.2–1,510.1 ms), so this is not a speedup claim.
+The baseline is 0.10.0 rebuilt with the same compiler; both variants use current
+CSS and local intercepted responses, not a network or native-host benchmark.
+Reproduce with `DISPLAY=:99 node scripts/benchmark-canvas-boot.mjs <disposable-server-url> <baseline-index.js>`.
+The populated-board check uses `scripts/benchmark-populated-canvas.mjs`, the same
+70-card fixture and 18% camera, headed Chromium 145 at 1440×900, and three cold-cache
+loads plus three warm reloads per build, with other browsers and tests stopped.
+All 33 visible viewers rendered. The final comparison found baseline 0.10.0 at
+6.71–7.67 s cold and 7.17–7.32 s warm; the candidate took 7.59–8.19 s cold and
+8.00–8.39 s warm. This remains a loading cost, not an orb-only explanation or a
+speedup. Main-page long tasks totalled 4.43–4.87 s on the candidate versus
+3.46–4.20 s on baseline. Each chart document contains about 1.49 MB decoded
+(baseline 1.47 MB). Parent Resource Timing alone misses baseline iframe bytes
+and can duplicate candidate navigation bytes; do not compare or sum those totals.
+The script records frame resources separately. Removing the provisional four-document queue produced overlapping
+completion ranges and a later first viewer; the simpler independent loading path
+avoids cross-card blocking, not a claimed performance win. Warm-load aborted
+presence requests are recorded separately from viewer failures; no viewer failed.
+At the default 52% camera there are no visible iframe viewers. The candidate's
+board appeared in 0.67–0.70 s cold and 0.52–0.65 s warm versus baseline's
+1.08–1.32 s and 1.06–1.36 s. That measures deferred offscreen work, not faster
+viewer rendering. Local document responses were 2–6 ms. Portal-URL checks use
+Amp's local hairpin forwarding inside this orb, so they do not measure external
+portal transport or the user's connection. These are instrumented local readiness
+timings, not native paint latency. Linux WebKit's full fit-all load exceeded this orb's memory limit
+on both baseline and candidate; narrower populated-row checks are separate evidence.
+The self-contained MCP App cannot fetch those chunks: its document includes
+Mermaid and grows from about 1.32 MB to 4.78 MB uncompressed. This is an introduced delivery
+cost, not eliminated debt or measured native performance. Keeping one renderer
+and an offline-capable MCP document is the tradeoff; native boot remains unmeasured.
+The bundle audit found one Mermaid core, one shared renderer and one DOMPurify,
+not an embedded copy of the standalone viewer. The old standalone Mermaid bundle
+already weighed 3,492,157 bytes; moving its renderer inline brings that dependency
+tree into the self-contained MCP host. The dependency graph contains different
+major versions of `marked`, `layout-base` and `cose-base` required by Mermaid's
+renderers; forcing aliases would not be a safe deduplication. Inspect the graph
+with `bun build src/client/mcp-app/index.tsx --target=browser --format=iife --minify --metafile=/tmp/mcp-meta.json --outfile=/tmp/mcp.js`.
+Removing the payload from MCP startup requires a different script-delivery/CSP
+contract or a reduced diagram catalog, rather than deleting a duplicate host.
+Static export checks separately cover all twelve graph variants, compact plots,
+all nine named themes and 600, 1024 and 1920 px widths in headed Chromium.
+The populated 70-card export matches live saved geometry and renders offline
+without HTTP(S) requests; bounded Linux WebKit checks cover the compact chart
+section and dashboard. Linked boards and live MCP apps retain honest unavailable
+placeholders. Arbitrary user HTML can still contain external requests.
+
+There is no threshold-triggered grid or list. Zoom's revised drawing keeps the
+same positions, sizes, groups, connections and native content at every scale.
+Fit-all is for orientation; zoom or expand to read details. The earlier overview's
+scrolling and overlay-clearance fixes are superseded by its complete removal.
+
+Visual audit: Harbor headings use the drawing's 20 px semibold `#e6eef7` on
+`#081524` (15.69:1). The initial dim capture had the existing relation-focus
+highlight active, which applies 0.35 opacity to unrelated cards; Escape clears
+that view state. A neighboring card outside a 600 px viewport is spatially
+clipped, not internally truncated: focusing it restores the complete title.
+Expanded pin hints remain while their button has keyboard `:focus-visible`, even
+after pointer movement; Tab away dismisses the hint after its fade transition.
 
 ## Definition of done for any design work
 

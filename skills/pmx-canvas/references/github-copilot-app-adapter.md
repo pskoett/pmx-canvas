@@ -4,7 +4,7 @@ Use this reference when PMX Canvas is running inside the GitHub Copilot app as a
 extension. The adapter is intentionally thin: PMX Canvas remains the state owner, and the extension
 maps Copilot SDK features onto PMX AX primitives.
 
-The [standalone agent plugin](../../../docs/agent-plugin.md) bundles this adapter and PMX's
+The [standalone agent plugin](https://github.com/pskoett/pmx-canvas/blob/main/docs/agent-plugin.md) bundles this adapter and PMX's
 MCP launcher. Its native canvas is Copilot-only; other Agent Plugins-compatible clients use
 the portable MCP tools and browser workbench.
 
@@ -125,7 +125,7 @@ imports the Copilot SDK.
 - **Await gates** with `canvas_ax_gate { kind, action: "await", id }` (or surface a native modal
   and await the PMX result) so an approval gate actually blocks the agent until the human resolves it.
 
-See [`docs/ax-host-adapter-contract.md`](../../../docs/ax-host-adapter-contract.md).
+See [`docs/ax-host-adapter-contract.md`](https://github.com/pskoett/pmx-canvas/blob/main/docs/ax-host-adapter-contract.md).
 - Keeps all persistent PMX state in `.pmx-canvas/canvas.db`; the extension does not own canvas
   state.
 

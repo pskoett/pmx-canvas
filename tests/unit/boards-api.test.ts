@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Marked } from 'marked';
 import type { CanvasBoard } from '../../src/server/canvas-db.ts';
 import type { MemoryGraph } from '../../src/shared/memory-graph.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
@@ -205,6 +206,116 @@ describe('boards over HTTP', () => {
     }
   });
 
+  test.each([
+    'scope',
+    'territory',
+  ] as const)('inactive %s fences inherited category and folder changes, not unrelated workspace edits', async (kind) => {
+    const previousBoardId = (await boards()).activeBoardId;
+    const path = `Inheritance ${kind}`;
+    const category = {
+      id: `inheritance-${kind}`,
+      name: path,
+      glyph: 'I',
+      decayType: 'reality',
+      rate: 'fast',
+      triggers: [],
+      revalidationMethod: 'Check evidence',
+    };
+    const folder = { path, categoryId: category.id, lifecycleOverride: null };
+    await call('POST', '/api/canvas/knowledge/category', HUMAN, { category });
+    await call('POST', '/api/canvas/knowledge/folder', HUMAN, folder);
+    const target = (await call('POST', '/api/canvas/boards', HUMAN, { name: path, folder: `${path}/Child` })).body
+      .board as CanvasBoard;
+    const other = (await call('POST', '/api/canvas/boards', HUMAN, { name: `Other ${kind}` })).body
+      .board as CanvasBoard;
+    await call('POST', '/api/canvas/boards/open', HUMAN, { id: target.id });
+    const note = await addNote('Protected inheritance', HUMAN);
+    const fence = { nodeIds: [note.body.id], padding: 40 };
+    await call(
+      'POST',
+      '/api/canvas/ax/policy',
+      HUMAN,
+      kind === 'scope' ? { scope: fence } : { agentScopes: { writer: fence } },
+    );
+    try {
+      for (const active of [other.id, null]) {
+        await call('POST', '/api/canvas/boards/open', HUMAN, { id: active });
+        const before = (await call('GET', '/api/canvas/knowledge', AGENT)).body;
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/category', AGENT, {
+              category: { ...category, rate: 'slow' },
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(403);
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/folder', AGENT, {
+              ...folder,
+              categoryId: null,
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(403);
+        const after = (await call('GET', '/api/canvas/knowledge', AGENT)).body;
+        expect(after.categories).toEqual(before.categories);
+        expect(after.folders).toEqual(before.folders);
+        expect((await boards()).activeBoardId).toBe(active);
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/folder', AGENT, {
+              path: `${path} unrelated`,
+              categoryId: null,
+              lifecycleOverride: null,
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/category', AGENT, {
+              category: { ...category, rate: 'slow' },
+              agentId: 'different',
+            })
+          ).status,
+        ).toBe(kind === 'scope' ? 403 : 200);
+        await call('POST', '/api/canvas/knowledge/category', HUMAN, { category });
+        expect(
+          (await call('POST', '/api/canvas/knowledge/category', HUMAN, { category: { ...category, rate: 'slow' } }))
+            .status,
+        ).toBe(200);
+        await call('POST', '/api/canvas/knowledge/category', HUMAN, { category });
+        const childCategory = { ...category, id: `${category.id}-child` };
+        await call('POST', '/api/canvas/knowledge/category', HUMAN, { category: childCategory });
+        await call('POST', '/api/canvas/knowledge/folder', HUMAN, {
+          path: `${path}/Child`,
+          categoryId: childCategory.id,
+          lifecycleOverride: null,
+        });
+        expect(
+          (
+            await call('POST', '/api/canvas/knowledge/folder', AGENT, {
+              ...folder,
+              categoryId: null,
+              agentId: 'writer',
+            })
+          ).status,
+        ).toBe(200);
+        await call('POST', '/api/canvas/knowledge/folder', HUMAN, folder);
+        await call('POST', '/api/canvas/knowledge/folder', HUMAN, {
+          path: `${path}/Child`,
+          categoryId: null,
+          lifecycleOverride: null,
+        });
+      }
+    } finally {
+      await call('DELETE', `/api/canvas/boards/${target.id}`, HUMAN);
+      await call('DELETE', `/api/canvas/boards/${other.id}`, HUMAN);
+      await call('POST', '/api/canvas/boards/open', HUMAN, { id: previousBoardId });
+    }
+  });
+
   test('nested folder paths normalize, persist and reject ambiguous segments without changing the board', async () => {
     const created = await call('POST', '/api/canvas/boards', AGENT, {
       name: 'Decision record',
@@ -397,6 +508,33 @@ describe('boards over HTTP', () => {
       expect(canvasState.getNode(note)?.data.wikiLinks).toEqual([]);
       expect(catalog).not.toHaveBeenCalled();
     } finally {
+      catalog.mockRestore();
+    }
+  });
+
+  test('persisted Markdown renders inline images and saved bindings without reference-only lexing', async () => {
+    const target = canvasState.createBoard('Render lex target')!;
+    const image = `data:image/png;base64,${Buffer.alloc(300_000, 123).toString('base64')}`;
+    const content = `[[Render lex target|Saved]] [[Render lex pending]]\n\n![Figure](${image} "Keep image")`;
+    const note = String((await call('POST', '/api/canvas/node', HUMAN, { type: 'markdown', content })).body.id);
+    canvasState.updateBoard(target.id, { name: 'Renamed lex target' });
+    canvasState.createBoard('Render lex target');
+    const pending = canvasState.createBoard('Render lex pending')!;
+    // Marked.parse uses its internal Lexer; this method is the extra reference-only pass.
+    const lexer = spyOn(Marked.prototype, 'lexer');
+    const catalog = spyOn(canvasState, 'wikiCatalog');
+    try {
+      const rendered = await call('POST', '/api/render', HUMAN, { markdown: content, nodeId: note });
+      expect(rendered.status).toBe(200);
+      expect(rendered.body.html).toContain(`src="${image}" alt="Figure" title="Keep image"`);
+      expect(rendered.body.html).toContain(`data-wiki-board="${target.id}"`);
+      expect(rendered.body.html).toContain('>Saved</a>');
+      expect(rendered.body.html).toContain('data-wiki-ref="Render lex pending"');
+      expect(rendered.body.html).not.toContain(`data-wiki-board="${pending.id}"`);
+      expect(catalog).not.toHaveBeenCalled();
+      expect(lexer).not.toHaveBeenCalled();
+    } finally {
+      lexer.mockRestore();
       catalog.mockRestore();
     }
   });

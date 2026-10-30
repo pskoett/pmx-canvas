@@ -17,7 +17,7 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  running: 'var(--c-accent)',
+  running: 'var(--c-agent)',
   success: 'var(--c-ok)',
   failed: 'var(--c-danger)',
 };
@@ -71,9 +71,9 @@ export function TraceNode({ node }: { node: CanvasNodeState }) {
         <div
           style={{
             fontFamily: 'var(--font-code)',
-            fontSize: '11px',
-            fontWeight: 600,
-            color: catColor,
+            fontSize: 'var(--fs-ui)',
+            fontWeight: 500,
+            color: category === 'subagent' ? catColor : 'var(--c-text)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -84,7 +84,7 @@ export function TraceNode({ node }: { node: CanvasNodeState }) {
         {summary && (
           <div
             style={{
-              fontSize: '10px',
+              fontSize: 'var(--fs-meta)',
               color: error ? 'var(--c-danger)' : 'var(--c-muted)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -101,10 +101,10 @@ export function TraceNode({ node }: { node: CanvasNodeState }) {
       {duration && (
         <span
           style={{
-            fontSize: '9px',
+            fontSize: 'var(--fs-meta)',
             padding: '1px 5px',
-            borderRadius: '3px',
-            background: 'rgba(255,255,255,0.06)',
+            borderRadius: 'var(--r-control)',
+            background: 'var(--c-surface-hover)',
             color: 'var(--c-muted)',
             flexShrink: 0,
             whiteSpace: 'nowrap',

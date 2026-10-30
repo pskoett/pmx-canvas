@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 import { buildBoardExport, writeBoardExport } from '../../src/server/board-export.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { CANVAS_THEMES } from '../../src/shared/themes.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const HUMAN = { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' };
@@ -196,7 +197,7 @@ describe('static board export', () => {
     const exported = await pending;
     expect(exported).not.toBeNull();
     expect(exported?.manifest.connections).toBe(before.edges.length);
-    expect(exported?.html).toContain('<html lang="en" data-scheme="dark">');
+    expect(exported?.html).toContain('<html lang="en" data-scheme="dark" data-theme="harbor">');
     const boardJson = exported?.html.match(/<script type="application\/json" id="pmx-board">(.*?)<\/script>/s)?.[1];
     expect(boardJson).toBeDefined();
     expect((JSON.parse(boardJson ?? '{}') as { edges: unknown[] }).edges).toHaveLength(before.edges.length);
@@ -213,6 +214,8 @@ describe('static board export', () => {
       { type: 'markdown', title: 'Table', content: '| Team | Cost |\n| :--- | ---: |\n| **News** | 37.80 |' },
       { type: 'file', title: 'teams.csv', content: 'Team,Note\n"News, sports","<script>bad()</script>"\n' },
       { type: 'status', title: 'Status', content: 'Review complete' },
+      { type: 'status', title: 'Blocked work', data: { workState: 'blocked', progress: 37.5, detail: '<evidence>' } },
+      { type: 'status', title: 'Done work', data: { workState: 'done', progress: null } },
       { type: 'context', title: 'Context', content: 'Context fallback body' },
       { type: 'trace', title: 'Trace', content: 'Trace fallback body', data: { error: 'Trace error detail' } },
     ];
@@ -228,9 +231,67 @@ describe('static board export', () => {
     expect(html('teams.csv')).toContain('&lt;script&gt;bad()&lt;/script&gt;');
     expect(html('teams.csv')).not.toContain('<script>');
     expect(html('Status')).toContain('Review complete');
+    expect(html('Blocked work')).toContain('Blocked');
+    expect(html('Blocked work')).toContain('37.5%');
+    expect(html('Blocked work')).toContain('&lt;evidence&gt;');
+    expect(html('Blocked work')).not.toContain('Phase');
+    expect(html('Done work')).toContain('Done');
+    expect(html('Done work')).not.toContain('Progress');
     expect(html('Context')).toContain('Context fallback body');
     expect(html('Trace')).toContain('Trace fallback body');
     expect(html('Trace')).toContain('Trace error detail');
+  });
+
+  test('exports live task cards as snapshots and missing references as unavailable', async () => {
+    const { body } = await call('POST', '/api/canvas/boards', { name: 'Live task export' });
+    const board = body.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    const { body: taskBody } = await call('POST', '/api/canvas/ax/work', {
+      title: 'Review evidence',
+      detail: '<pending>',
+      agentId: 'reviewer',
+    });
+    const task = taskBody.workItem as { id: string };
+    expect((await call('POST', '/api/canvas/node', { type: 'status', data: { workItemId: task.id } })).status).toBe(
+      200,
+    );
+    await call('PATCH', `/api/canvas/ax/work/${task.id}`, { status: 'blocked' });
+    const exported = await buildBoardExport(board.id, false);
+    expect(exported!.html).toContain('Read-only snapshot of linked task');
+    expect(exported!.html).toContain('Blocked');
+    expect(exported!.html).toContain('&lt;pending&gt;');
+    expect(exported!.html).toContain('reviewer');
+    const liveId = canvasState.getLayout().nodes[0]!.id;
+    const { body: copyBody } = await call('POST', '/api/canvas/boards/from', {
+      sourceBoardId: board.id,
+      name: 'Independent copy',
+      nodeIds: [liveId],
+    });
+    const copy = copyBody.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: copy.id });
+    const copiedCard = canvasState.getLayout().nodes.find((node) => node.type === 'status')!;
+    expect(copiedCard.id).not.toBe(liveId);
+    expect(canvasState.getWorkItems()).toHaveLength(0);
+    for (const key of ['workItemId', 'liveWorkAvailable', 'liveWorkSource'])
+      expect(copiedCard.data[key]).toBeUndefined();
+    expect(
+      (
+        await call('PATCH', `/api/canvas/node/${copiedCard.id}`, {
+          title: 'Independent plan',
+          data: { workState: 'done', detail: 'Authored after copying' },
+        })
+      ).status,
+    ).toBe(200);
+    // Export while inactive as well as active: no cache from the currently open board.
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    const copiedExport = await buildBoardExport(copy.id, false);
+    expect(copiedExport!.html).toContain('Authored after copying');
+    expect(copiedExport!.html).not.toContain('Task source');
+    expect(copiedExport!.html).not.toContain('Read-only snapshot of linked task');
+    canvasState.applyPersistedAxState({ ...canvasState.getAxState(), workItems: [] });
+    const unavailable = await buildBoardExport(board.id, false);
+    expect(unavailable!.html).toContain('Task unavailable');
+    expect(unavailable!.html).not.toContain('&lt;pending&gt;');
   });
 
   test('bounds delimited table previews without losing rows beyond the limit', async () => {
@@ -257,5 +318,79 @@ describe('static board export', () => {
         expect(card.html).toContain('Row 501\t517'); // retained in full-text disclosure
       }
     }
+  });
+
+  test('keeps named palettes, heading display and embedded chart geometry without rewriting specs', async () => {
+    const { body } = await call('POST', '/api/canvas/boards', { name: 'Export card parity' });
+    const board = body.board as { id: string };
+    await call('POST', '/api/canvas/boards/open', { id: board.id });
+    await call('POST', '/api/canvas/node', {
+      type: 'markdown',
+      title: 'Charts',
+      content: 'Compact plots',
+      data: { display: 'heading' },
+      x: -20,
+      y: 42,
+      width: 520,
+      height: 144,
+    });
+    await call('POST', '/api/canvas/graph', {
+      title: 'Build time',
+      graphType: 'sparkline',
+      data: [{ value: 2 }, { value: 4 }],
+      valueKey: 'value',
+      height: 36,
+      nodeHeight: 120,
+      width: 520,
+      strictSize: true,
+    });
+    await call('POST', '/api/canvas/json-render', {
+      title: 'Dashboard',
+      spec: {
+        root: 'card',
+        elements: {
+          card: { type: 'Card', props: { title: 'Distinct inner title' }, children: ['text'] },
+          text: { type: 'Text', props: { text: 'Dashboard body' } },
+        },
+      },
+    });
+    await call('POST', '/api/canvas/node', { type: 'html', title: 'Widget', html: '<p>Widget</p>' });
+    const before = canvasState.getLayout();
+    for (const theme of CANVAS_THEMES) {
+      canvasState.setTheme(theme);
+      const exported = await buildBoardExport(board.id, false);
+      expect(
+        exported!.html.includes(
+          `<html lang="en" data-scheme="${theme === 'daylight' || theme === 'sepia' ? 'light' : 'dark'}" data-theme="${theme}">`,
+        ),
+      ).toBe(true);
+      const cards = JSON.parse(exported!.html.match(/id="pmx-board">(.*?)<\/script>/s)![1]).cards as Array<{
+        id: string;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        heading?: boolean;
+        frame?: string;
+      }>;
+      for (const node of before.nodes) {
+        const card = cards.find((card) => card.id === node.id)!;
+        expect([card.x, card.y, card.w, card.h]).toEqual([
+          node.position.x,
+          node.position.y,
+          node.size.width,
+          node.size.height,
+        ]);
+        if (node.type === 'markdown') expect(card.heading).toBe(true);
+        if (node.type === 'graph' || node.type === 'json-render') {
+          expect(card.frame).toContain(`__PMX_CANVAS_JSON_RENDER_THEME__ = "${theme}"`);
+          expect(card.frame).not.toContain('__PMX_CANVAS_JSON_RENDER_DISPLAY__ =');
+          const spec = card.frame!.match(/__PMX_CANVAS_JSON_RENDER_SPEC__ = (.*?);\n/)![1];
+          expect(JSON.parse(spec)).toEqual(node.data.spec);
+        }
+        if (node.type === 'html') expect(card.frame).toContain(`data-theme="${theme}"`);
+      }
+    }
+    canvasState.setTheme('harbor');
   });
 });

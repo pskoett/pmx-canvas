@@ -1,12 +1,13 @@
 import type { ComponentChildren } from 'preact';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
   contextPinnedNodeIds,
   edges,
   expandNode,
   focusNode,
   nodes,
+  openGroup,
   pendingConnection,
   persistLayout,
   removeNode,
@@ -28,8 +29,10 @@ import {
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
+import { canCopyPrimitiveJson, copyPrimitiveJson } from '../nodes/primitive-copy';
 import { askText } from './TextPrompt';
-import { activeBoard, boardIncarnation } from '../state/boards-store';
+import { openBoardMove } from './BoardMoveDialog';
+import { activeBoard, boardIncarnation, setBoardReadme } from '../state/boards-store';
 import { openLifecycle } from '../state/knowledge-store';
 import { RELATION_KINDS, relationKind } from '../../shared/relations.js';
 import { EXPANDABLE_TYPES } from '../types';
@@ -62,7 +65,9 @@ export function useContextMenu() {
   const openNodeMenu = useCallback((e: MouseEvent, nodeId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ kind: 'node', x: e.clientX, y: e.clientY, nodeId });
+    const trigger = e.detail === 0 && e.target instanceof Element ? e.target.closest('button') : null;
+    const bounds = trigger?.getBoundingClientRect();
+    setMenu({ kind: 'node', x: bounds?.left ?? e.clientX, y: bounds?.bottom ?? e.clientY, nodeId });
   }, []);
 
   const openCanvasMenu = useCallback((e: MouseEvent, canvasX: number, canvasY: number) => {
@@ -79,7 +84,7 @@ export function useContextMenu() {
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!menu) return;
     const handleClick = () => setMenu(null);
     const handleKey = (e: KeyboardEvent) => {
@@ -113,6 +118,21 @@ const GROUP_COLOR_PRESETS = [
 ] as const;
 
 export function ContextMenu({ menu, onClose }: ContextMenuProps) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = root.current;
+    const trigger = document.activeElement;
+    element?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    return () => {
+      if (element?.contains(document.activeElement) && trigger instanceof HTMLElement && trigger.isConnected) {
+        // Card controls hide when the menu takes focus. Reveal the opener
+        // through its card before restoring focus to the button itself.
+        trigger.closest<HTMLElement>('.canvas-node')?.focus({ preventScroll: true });
+        trigger.focus({ preventScroll: true });
+      }
+    };
+  }, [menu]);
+
   let items: MenuItem[];
   if (menu.kind === 'node') {
     const node = nodes.value.get(menu.nodeId);
@@ -215,6 +235,9 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
 
   return (
     <div
+      ref={root}
+      role="menu"
+      aria-label={menu.kind === 'node' ? 'Node actions' : menu.kind === 'edge' ? 'Edge actions' : 'Canvas actions'}
       class="context-menu"
       style={{
         position: 'fixed',
@@ -224,6 +247,27 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => {
+        if (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) onClose();
+      }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        } else if (e.target instanceof HTMLButtonElement && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+          e.preventDefault();
+          const controls = [...e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input, select')];
+          const index = controls.indexOf(e.target);
+          const next =
+            e.key === 'Home'
+              ? 0
+              : e.key === 'End'
+                ? controls.length - 1
+                : (index + (e.key === 'ArrowUp' ? -1 : 1) + controls.length) % controls.length;
+          controls[next]?.focus();
+        }
+      }}
     >
       {items.map((item) => {
         const baseKey = item.separator
@@ -251,6 +295,8 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           <button
             key={itemKey}
             type="button"
+            role="menuitem"
+            disabled={!item.action}
             class={`context-menu-item${item.danger ? ' is-danger' : ''}`}
             onClick={() => {
               item.action?.();
@@ -425,6 +471,23 @@ async function createPromptedNode(opts: {
 function buildCanvasMenuItems(canvasX: number, canvasY: number): MenuItem[] {
   return [
     {
+      label: 'New work card',
+      action: () => {
+        const width = 360;
+        const height = 200;
+        const position = centeredPosition(canvasX, canvasY, width, height);
+        void createNodeFromClient({
+          type: 'status',
+          title: 'New work card',
+          data: { workState: 'todo' },
+          x: position.x,
+          y: position.y,
+          width,
+          height,
+        });
+      },
+    },
+    {
       label: 'New note',
       action: () => {
         const width = 520;
@@ -523,18 +586,19 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     action: () => focusNode(node.id),
   });
 
-  items.push({
-    label: 'Rename…',
-    action: () => {
-      void askText('Rename node', 'Node title', {
-        initial: typeof node.data.title === 'string' ? node.data.title : '',
-        confirm: 'Save',
-      }).then((title) => {
-        if (!title?.trim()) return;
-        void updateNodeFromClient(node.id, { title: title.trim() });
-      });
-    },
-  });
+  if (!(node.type === 'status' && typeof node.data.workItemId === 'string'))
+    items.push({
+      label: 'Rename…',
+      action: () => {
+        void askText('Rename node', 'Node title', {
+          initial: typeof node.data.title === 'string' ? node.data.title : '',
+          confirm: 'Save',
+        }).then((title) => {
+          if (!title?.trim()) return;
+          void updateNodeFromClient(node.id, { title: title.trim() });
+        });
+      },
+    });
 
   // Expand into full-viewport overlay for focused work
   if (EXPANDABLE_TYPES.has(node.type)) {
@@ -622,6 +686,22 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   items.push({ separator: true });
 
   // Type-specific
+  if (canCopyPrimitiveJson(node)) {
+    items.push({ label: 'Copy JSON', action: () => void copyPrimitiveJson(node.id) });
+  }
+  if (node.type === 'markdown') {
+    items.push({
+      label: node.data.display === 'heading' ? 'Display as card' : 'Display as heading',
+      action: () =>
+        void updateNodeFromClient(node.id, { data: { display: node.data.display === 'heading' ? 'card' : 'heading' } }),
+    });
+    const board = activeBoard();
+    if (board)
+      items.push({
+        label: board.readmeNodeId === node.id ? 'Remove as README' : 'Set as README',
+        action: () => void setBoardReadme(board.id, board.readmeNodeId === node.id ? null : node.id),
+      });
+  }
   if ((node.type === 'markdown' || node.type === 'file' || node.type === 'image') && localPath) {
     items.push({
       label: 'Open in browser',
@@ -697,6 +777,8 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   if (node.type === 'group') {
     const childIds = (node.data.children as string[]) ?? [];
     items.push({ separator: true });
+    items.push({ label: 'Open group', action: () => openGroup(node.id) });
+    items.push({ label: 'Move to new board', action: () => openBoardMove([node.id]) });
     items.push({
       render: (onClose) => renderGroupColorSection(node, onClose),
     });

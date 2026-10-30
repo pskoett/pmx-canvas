@@ -197,6 +197,23 @@ test('SDK active-board retry creation is durable and intentional identical conte
   expect(canvasState.getLayout().nodes).toHaveLength(2);
 });
 
+test('SDK ordinary group and edge creation reject a stale active-board guard without mutations', () => {
+  const sdk = new PmxCanvas();
+  canvasState.switchBoard(b);
+  const one = sdk.addNode({ type: 'markdown', title: 'One' });
+  const two = sdk.addNode({ type: 'markdown', title: 'Two' });
+  const before = canvasState.getLayout();
+  expect(() => sdk.createGroup({ childIds: [one.id, two.id], expectedBoardId: a })).toThrow('active board changed');
+  expect(() => sdk.addEdge({ from: one.id, to: two.id, type: 'flow', expectedBoardId: a })).toThrow(
+    'active board changed',
+  );
+  expect(canvasState.getLayout()).toEqual(before);
+  const group = sdk.createGroup({ childIds: [one.id, two.id], expectedBoardId: b });
+  const edge = sdk.addEdge({ from: one.id, to: two.id, type: 'flow', expectedBoardId: b });
+  expect(canvasState.getNode(group)?.data.children).toEqual([one.id, two.id]);
+  expect(canvasState.getEdges().find((entry) => entry.id === edge)).toMatchObject({ from: one.id, to: two.id });
+});
+
 test('background batch creates cards, a containing group and relations, with stable retry receipts', async () => {
   const events: string[] = [];
   setOperationEventEmitter((event) => events.push(event));

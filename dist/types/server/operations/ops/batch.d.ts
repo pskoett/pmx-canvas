@@ -5,6 +5,7 @@ export interface BatchEnvelope {
     refs: Record<string, unknown>;
     failedIndex?: number;
     error?: string;
+    cancelled?: boolean;
 }
 export declare const batchOperations: Operation[];
 /**

@@ -55,12 +55,12 @@ export interface CanvasFitInsets {
  * both (0.5.0 Amp report, finding A; architecture rule 9's trap).
  */
 export function canvasFitInsets(): CanvasFitInsets {
-  let top = 16;
+  let top = 44;
   let bottom = 16;
   try {
     const area = canvasArea();
     const areaBottom = area.top + area.height;
-    for (const selector of ['.lifecycle-filters', '.relation-legend']) {
+    for (const selector of ['.lifecycle-filters', '.relation-legend', '.group-breadcrumbs']) {
       const el = document.querySelector(selector);
       if (!(el instanceof HTMLElement) || !el.isConnected) continue;
       const rect = el.getBoundingClientRect();

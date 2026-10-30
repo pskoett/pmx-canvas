@@ -47,8 +47,8 @@ import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'nod
 import * as marked from 'marked';
 import { renderWikiMarkdown, resolveWikiLinks, wikiReferences } from './wiki-links.js';
 import { wikiLinksFromData } from '../shared/memory-graph.js';
-import { type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
-import { boardCatalogEpoch, boardsPayload } from './operations/ops/boards.js';
+import { type CanvasNodeState, IMAGE_MIME_MAP, boardCatalogEpoch, canvasState } from './canvas-state.js';
+import { boardsPayload } from './operations/ops/boards.js';
 import {
   buildAxBridge,
   buildAxStateBridge,
@@ -72,7 +72,7 @@ import { buildAgentContextPreamble } from '../shared/agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
-import { canvasThemeScheme, isCanvasTheme } from '../shared/themes.js';
+import { isCanvasTheme } from '../shared/themes.js';
 import { canOpenNodeAsSurface } from '../shared/surface.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
@@ -930,6 +930,15 @@ let workbenchEventSeq = 0;
 const workbenchEventRing: Array<{ seq: number; event: string; payload: PrimaryWorkbenchEventPayload }> = [];
 const workbenchPollWaiters = new Set<() => void>();
 let remoteEdgesSignature = '';
+const workbenchEventListeners = new Set<(event: string) => void>();
+
+/** In-process invalidation observers share the same events as daemon SSE clients. */
+export function onWorkbenchEvent(listener: (event: string) => void): () => void {
+  workbenchEventListeners.add(listener);
+  return () => {
+    workbenchEventListeners.delete(listener);
+  };
+}
 
 function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload): void {
   let remoteEdgesChanged = false;
@@ -975,6 +984,7 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
       syncCanvasBrowserOpenedFromSubscribers();
     }
   }
+  for (const listener of workbenchEventListeners) listener(event);
   if (remoteEdgesChanged) emitPrimaryWorkbenchEvent('boards-changed', boardsPayload());
 }
 
@@ -1494,44 +1504,6 @@ function handleIframeProbe(): Response {
   );
 }
 
-// ── Ext-app recovery diagnostics (0.3.2 report Finding N) ──────
-//
-// The WebKit black-tile recovery trail is otherwise trapped inside host panels
-// without devtools (the Copilot WKWebView). Clients mirror their bounded
-// recovery log here; agents/testers read it back over HTTP. In-memory only,
-// diagnostics-grade: no persistence, no snapshots.
-const EXT_APP_RECOVERY_LOG_MAX = 500;
-const EXT_APP_RECOVERY_FIELD_MAX = 300;
-const extAppRecoveryEntries: Array<Record<string, unknown>> = [];
-
-/**
- * Clamp a reported entry to the known trail shape ({ t, nodeId, event,
- * visibility }) with bounded string lengths. The count trim below caps the
- * number of entries; this caps bytes per entry, so the in-memory log stays
- * diagnostics-sized no matter what a client posts.
- */
-function clampExtAppRecoveryEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const clamped: Record<string, unknown> = {};
-  if (typeof entry.t === 'number' && Number.isFinite(entry.t)) clamped.t = entry.t;
-  for (const key of ['nodeId', 'event', 'visibility'] as const) {
-    const value = entry[key];
-    if (typeof value === 'string') clamped[key] = value.slice(0, EXT_APP_RECOVERY_FIELD_MAX);
-  }
-  return clamped;
-}
-
-function handleExtAppRecoveryReport(entries: unknown): Response {
-  if (!Array.isArray(entries)) return responseJson({ ok: false, error: 'entries must be an array' }, 400);
-  for (const entry of entries.slice(0, 100)) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
-    extAppRecoveryEntries.push(clampExtAppRecoveryEntry(entry as Record<string, unknown>));
-  }
-  if (extAppRecoveryEntries.length > EXT_APP_RECOVERY_LOG_MAX) {
-    extAppRecoveryEntries.splice(0, extAppRecoveryEntries.length - EXT_APP_RECOVERY_LOG_MAX);
-  }
-  return responseJson({ ok: true, total: extAppRecoveryEntries.length });
-}
-
 // ── Node surfaces ("Open as site") ─────────────────────────────
 //
 // One stable, node-addressable URL — /api/canvas/surface/:nodeId — that serves
@@ -1831,14 +1803,7 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
   );
 
   const themeValue = url.searchParams.get('theme');
-  // The viewer bundle themes dark/light/high-contrast directly; other named
-  // canvas themes (midnight, sepia, …) collapse to their dark/light scheme.
-  const theme =
-    themeValue === 'dark' || themeValue === 'light' || themeValue === 'high-contrast'
-      ? themeValue
-      : isCanvasTheme(themeValue)
-        ? canvasThemeScheme(themeValue)
-        : undefined;
+  const theme = themeValue === 'dark' || themeValue === 'light' || isCanvasTheme(themeValue) ? themeValue : 'harbor';
   const title = (node.data.title as string) || node.id;
   // Devtools panel is double-gated: the operator must opt in via the env flag
   // AND the request must carry ?devtools=1. Off by default in all normal runs.
@@ -2264,6 +2229,9 @@ function buildWorkbenchConnectSnapshot(
       timestamp: new Date().toISOString(),
     },
   });
+  // Establish ownership in this ordered stream before layouts and live tour
+  // commands. The separate catalog HTTP response may arrive after either.
+  events.push({ event: 'boards-changed', payload: boardsPayload() });
   if (primaryWorkbenchPath) {
     events.push({
       event: 'workbench-open',
@@ -2483,16 +2451,19 @@ async function handleRender(req: Request): Promise<Response> {
   // The editor sends its draft through this same endpoint. Only changed/unsaved
   // text may resolve titles; persisted text must replay even unresolved bindings.
   const persisted = node?.type === 'markdown' && node.data.content === markdown;
-  const initializedRefs =
-    node?.type === 'markdown' && node.data.wikiLinks !== undefined && typeof node.data.content === 'string'
-      ? wikiReferences(node.data.content)
-      : [];
-  const refs = wikiReferences(markdown).filter(
-    (ref) => !initializedRefs.includes(ref) || previous.some((link) => link.ref === ref),
-  );
-  const needsResolution = !persisted && refs.some((ref) => !previous.some((link) => link.ref === ref && link.target));
-  const catalog = needsResolution ? canvasState.wikiCatalog() : [];
-  const links = persisted ? previous : refs.map((ref) => resolveWikiLinks(`[[${ref}]]`, previous, catalog)[0]);
+  let links = previous;
+  if (!persisted) {
+    const initializedRefs =
+      node?.type === 'markdown' && node.data.wikiLinks !== undefined && typeof node.data.content === 'string'
+        ? wikiReferences(node.data.content)
+        : [];
+    const refs = wikiReferences(markdown).filter(
+      (ref) => !initializedRefs.includes(ref) || previous.some((link) => link.ref === ref),
+    );
+    const needsResolution = refs.some((ref) => !previous.some((link) => link.ref === ref && link.target));
+    const catalog = needsResolution ? canvasState.wikiCatalog() : [];
+    links = refs.map((ref) => resolveWikiLinks(`[[${ref}]]`, previous, catalog)[0]);
+  }
   const targets = new Map<string, ReturnType<typeof canvasState.readBoard>>();
   const html = renderWikiMarkdown(normalizeMarkdownExternalUrls(markdown), links, (target) => {
     if (!targets.has(target.boardId)) targets.set(target.boardId, canvasState.readBoard(target.boardId, false));
@@ -3430,6 +3401,27 @@ export interface CanvasServerOptions {
   allowExternalMcp?: boolean;
 }
 
+// SDK/MCP producers can own cards before an HTTP listener starts.
+canvasState.setMoveRuntimeBlockers(() => {
+  const blockers = new Map<string, string>();
+  for (const id of traceManager.ownedNodeIds) blockers.set(id, 'the trace manager still owns this card');
+  for (const [response, prompt] of serverResponseToThreadMap) {
+    blockers.set(response, 'an active response is routed to this card');
+    blockers.set(prompt, 'an active response is routed to this prompt');
+  }
+  for (const intent of pendingWorkbenchIntents) {
+    if (intent.type !== 'canvas-prompt') continue;
+    for (const id of [
+      intent.payload.nodeId,
+      intent.payload.parentNodeId,
+      ...(Array.isArray(intent.payload.contextNodeIds) ? intent.payload.contextNodeIds : []),
+    ]) {
+      if (typeof id === 'string') blockers.set(id, 'a queued prompt still refers to this card');
+    }
+  }
+  return blockers;
+});
+
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
   if (server) {
     return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;
@@ -3536,6 +3528,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               workspace: activeWorkspaceRoot,
               pid: process.pid,
               version: serverPackageVersion(),
+              // The stamp open tabs reload on, read once per process: after a rebuild it lags
+              // dist/ on disk, and already-open tabs keep old JS until the server restarts.
+              bundleStamp: canvasBundleStamp(),
               contracts: [CANVAS_APP_WRITE_CONTRACT],
               persistence: canvasState.persistenceHealth,
             });
@@ -3556,16 +3551,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // so the GET handler's response is returned as-is.
           if (url.pathname === '/api/canvas/json-render/view' && (req.method === 'GET' || req.method === 'HEAD')) {
             return handleJsonRenderView(url);
-          }
-
-          if (url.pathname === '/api/canvas/debug/ext-app-recovery' && req.method === 'POST') {
-            const body = await readJson(req);
-            if (body === null) return malformedJsonResponse();
-            return handleExtAppRecoveryReport(body.entries);
-          }
-
-          if (url.pathname === '/api/canvas/debug/ext-app-recovery' && req.method === 'GET') {
-            return responseJson({ ok: true, entries: extAppRecoveryEntries });
           }
 
           if (url.pathname === '/api/canvas/frame-documents' && req.method === 'POST') {

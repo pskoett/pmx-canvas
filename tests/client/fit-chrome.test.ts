@@ -55,8 +55,8 @@ afterEach(() => {
 });
 
 describe('canvasFitInsets', () => {
-  test('chromeless: symmetric 16px defaults', () => {
-    expect(canvasFitInsets()).toEqual({ top: 16, right: 16, bottom: 16, left: 16 });
+  test('reserves the 44px top chrome lane even with no bottom overlays', () => {
+    expect(canvasFitInsets()).toEqual({ top: 44, right: 16, bottom: 16, left: 16 });
   });
 
   test('reserves the tallest bottom overlay (command bar vs minimap), plus a gap', () => {
@@ -70,7 +70,7 @@ describe('canvasFitInsets', () => {
     stubChrome('.minimap', { top: 467, height: 110 });
     const insets = canvasFitInsets();
     expect(insets.bottom).toBe(577 - 467 + 12); // tallest overlap + 12 gap
-    expect(insets.top).toBe(16);
+    expect(insets.top).toBe(44);
   });
 });
 

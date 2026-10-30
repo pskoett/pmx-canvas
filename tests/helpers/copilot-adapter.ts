@@ -19,14 +19,36 @@ export type CanvasDefinition = {
 };
 
 // Exercise the real adapter without connecting to a native Copilot session.
-export function loadCopilotCanvas(fetchImpl = globalThis.fetch): CanvasDefinition {
+export function loadCopilotCanvas(
+  fetchImpl = globalThis.fetch,
+  session?: { send: (options: { prompt: string; mode?: 'immediate' | 'enqueue' }) => Promise<unknown> },
+): CanvasDefinition & { runSteeringOnce: () => Promise<number> } {
   const source = readFileSync(resolve('.github/extensions/pmx-canvas/extension.mjs'), 'utf8')
     .replace(/^import .*;$/gm, '')
-    .replace('const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));', 'const EXTENSION_DIR = process.cwd();')
+    .replace('const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));', 'const EXTENSION_DIR = process.cwd();');
+  const delivery = readFileSync(resolve('.github/extensions/pmx-canvas/steering-delivery.mjs'), 'utf8').replace(
+    'export function createSteeringDeliveryPump',
+    'function createSteeringDeliveryPump',
+  );
+  // Keep the production pump wiring, but let tests advance it without a background loop.
+  const pump = source
+    .slice(source.indexOf('steeringDeliveryPump = createSteeringDeliveryPump({'))
+    .split('\nvoid steeringDeliveryPump.start();')[0];
+  const body = source
     .split('\ncopilotSession = await joinSession({')[0]
-    .concat('\nreturn pmxCanvas;');
+    .concat(
+      '\ncopilotSession = session;\n',
+      delivery,
+      pump,
+      '\nreturn { ...pmxCanvas, runSteeringOnce: () => steeringDeliveryPump.runOnce() };',
+    );
 
-  class TestCanvasError extends Error {}
+  class TestCanvasError extends Error {
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = code;
+    }
+  }
   const load = new Function(
     'spawn',
     'existsSync',
@@ -42,7 +64,8 @@ export function loadCopilotCanvas(fetchImpl = globalThis.fetch): CanvasDefinitio
     'findPmxServer',
     'preferredPort',
     'runtimeCommand',
-    source,
+    'session',
+    body,
   );
   return load(
     spawn,
@@ -59,5 +82,6 @@ export function loadCopilotCanvas(fetchImpl = globalThis.fetch): CanvasDefinitio
     (workspace: string, input: Record<string, unknown>) => findPmxServer(workspace, input, fetchImpl),
     preferredPort,
     runtimeCommand,
+    session,
   );
 }

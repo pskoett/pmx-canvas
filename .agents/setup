@@ -25,22 +25,22 @@ fi
 
 # Match .github/workflows/test.yml. /usr/local/bin is also visible to fresh
 # non-interactive login shells and supervised services, without profile hooks.
-echo '[orb setup] Checking Bun 1.4.2'
-if [[ "$(bun --version 2>/dev/null || true)" != 1.4.2 ]]; then
-  time curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash -s -- bun-v1.4.2
+echo '[orb setup] Checking Bun 1.4.4'
+if [[ "$(bun --version 2>/dev/null || true)" != 1.4.4 ]]; then
+  time curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash -s -- bun-v1.4.4
 fi
 bun --version
 
 # Use the Node 24 LTS line used by the publish workflow, not the base image's
 # Node 26 (Playwright's browser extraction stalled under that version).
-echo '[orb setup] Checking Node 24.20.0'
-if [[ "$(node --version 2>/dev/null || true)" != v24.20.0 ]]; then
+echo '[orb setup] Checking Node 24.22.1'
+if [[ "$(node --version 2>/dev/null || true)" != v24.22.1 ]]; then
   case "$(uname -m)" in
     x86_64) arch=x64 ;;
     aarch64) arch=arm64 ;;
     *) echo 'Unsupported Node architecture' >&2; exit 1 ;;
   esac
-  time curl -fsSL "https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-${arch}.tar.xz" \
+  time curl -fsSL "https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-${arch}.tar.xz" \
     | sudo tar -xJ --strip-components=1 -C /usr/local
 fi
 node --version

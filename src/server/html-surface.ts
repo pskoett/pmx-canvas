@@ -61,6 +61,14 @@ const PMX_CANVAS_THEME_TOKEN = ${token};
 window.addEventListener('message', (event) => {
   const message = event.data;
   if (event.source !== window.parent || !message || message.source !== '${HTML_SURFACE_PUSH_SOURCE}' || message.token !== PMX_CANVAS_THEME_TOKEN) return;
+  if (message.type === 'copy-json' && PMX_CANVAS_THEME_TOKEN && typeof message.requestId === 'string') {
+    let json;
+    try {
+      if (typeof window.__pmxGetCopyJson === 'function') json = JSON.stringify(window.__pmxGetCopyJson(), null, 2);
+    } catch {}
+    window.parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'copy-json-result', token: PMX_CANVAS_THEME_TOKEN, requestId: message.requestId, json }, '*');
+    return;
+  }
   if (message.type === 'check-ready') {
     const reply = (type) => window.parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type, token: PMX_CANVAS_THEME_TOKEN }, '*');
     reply('mounted');

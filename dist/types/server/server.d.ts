@@ -80,6 +80,8 @@ export interface PrimaryWorkbenchCanvasPromptRequest {
     contextNodeIds: string[];
 }
 type PrimaryWorkbenchCanvasPromptHandler = (request: PrimaryWorkbenchCanvasPromptRequest) => Promise<void>;
+/** In-process invalidation observers share the same events as daemon SSE clients. */
+export declare function onWorkbenchEvent(listener: (event: string) => void): () => void;
 export declare function setPrimaryWorkbenchAutoOpenEnabled(enabled: boolean): void;
 export declare function isPrimaryWorkbenchAutoOpenEnabled(): boolean;
 export declare function hasWorkbenchSubscribers(): boolean;

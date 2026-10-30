@@ -1,5 +1,5 @@
 import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolRequest, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 // Real MCP Apps SDK host used by the browser tests. This is not ChatGPT.
@@ -14,6 +14,7 @@ const state = {
   messages,
   downloads,
   failReads: false,
+  pendingTools: 0,
   rejectMessages: false,
   rejectContext: false,
   holdContext: false,
@@ -51,16 +52,22 @@ const bridge = new AppBridge(
     },
   },
 );
-bridge.oncalltool = async (input) => {
+async function callTool(input: CallToolRequest['params']): Promise<CallToolResult> {
   if (state.failReads) return { isError: true, content: [{ type: 'text', text: 'Test read failure' }] };
-  return (await (
-    await fetch('/test-tool', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    })
-  ).json()) as CallToolResult;
-};
+  state.pendingTools++;
+  try {
+    return (await (
+      await fetch('/test-tool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+    ).json()) as CallToolResult;
+  } finally {
+    state.pendingTools--;
+  }
+}
+bridge.oncalltool = callTool;
 bridge.onupdatemodelcontext = async (input) => {
   contexts.push(input);
   if (state.holdContext)
@@ -81,13 +88,7 @@ bridge.ondownloadfile = async (input) => {
 };
 bridge.oninitialized = async () => {
   await bridge.sendToolInput({ arguments: {} });
-  initialResult = (await (
-    await fetch('/test-tool', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'pmx_open_canvas', arguments: {} }),
-    })
-  ).json()) as CallToolResult;
+  initialResult = await callTool({ name: 'pmx_open_canvas', arguments: {} });
   state.initialReady = true;
   if (!params.has('holdInitial')) await state.deliverInitial();
 };

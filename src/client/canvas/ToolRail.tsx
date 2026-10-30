@@ -97,6 +97,8 @@ function RailButton({
 }) {
   const [hint, setHint] = useState<{ left: number; top: number } | null>(null);
   const show = (e: Event) => {
+    // Closing the menu restores focus before it unmounts; that must not reopen the hint.
+    if (menuOpen) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setHint({ left: rect.right + 10, top: rect.top + rect.height / 2 });
   };

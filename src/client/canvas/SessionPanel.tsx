@@ -4,7 +4,9 @@ import { IconChevronRight, IconUndo } from '../icons';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
-import { focusNode, selectedNodeIds } from '../state/canvas-store';
+import { focusNode, nodes, selectedNodeIds } from '../state/canvas-store';
+import { activeBoardId } from '../state/boards-store';
+import { createNodeFromClient } from '../state/intent-bridge';
 import { activeSession, agentPresences, attachedSessions, writerColor } from '../state/presence-store';
 import {
   type ApprovalGateView,
@@ -96,6 +98,35 @@ function clock(iso: string): string {
 }
 
 function WorkItemRow({ item }: { item: WorkItemView }) {
+  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<{ boardId: string; nodeId: string } | null>(null);
+  const boardId = activeBoardId.value;
+  const boardNodes = nodes.value;
+  const presentation = [...nodes.value.values()].find(
+    (node) => node.type === 'status' && node.data.workItemId === item.id,
+  );
+  useEffect(() => {
+    if (!pending) return;
+    if (boardId === pending.boardId && !boardNodes.has(pending.nodeId)) return;
+    if (boardId === pending.boardId) focusNode(pending.nodeId);
+    setPending(null);
+    setBusy(false);
+  }, [pending, boardId, boardNodes]);
+  const show = async () => {
+    if (presentation) return focusNode(presentation.id);
+    if (!boardId || busy) return;
+    setBusy(true);
+    const result = await createNodeFromClient({
+      type: 'status',
+      data: { workItemId: item.id },
+      width: 360,
+      height: 200,
+      expectedBoardId: boardId,
+    });
+    if (result.ok && result.id && activeBoardId.value === boardId) {
+      setPending({ boardId, nodeId: result.id });
+    } else setBusy(false);
+  };
   const glyph = WORK_GLYPH[item.status] ?? 'queued';
   const nodeId = item.nodeIds[0];
   return (
@@ -106,6 +137,9 @@ function WorkItemRow({ item }: { item: WorkItemView }) {
           {item.title}
         </button>
         {item.detail && <div class="session-item-detail">{item.detail}</div>}
+        <button type="button" class="session-show-work" disabled={busy} onClick={() => void show()}>
+          {busy ? 'Showing…' : presentation ? 'Show card' : 'Show on board'}
+        </button>
       </div>
       <span class="session-item-status">{WORK_STATUS_TEXT[item.status] ?? glyph}</span>
       <span class="session-item-time">{clock(item.updatedAt)}</span>

@@ -634,6 +634,7 @@ const undoOperation = defineOperation<z.infer<typeof undoRedoSchema>, Record<str
       count: canvasState.contextPinnedNodeIds.size,
       nodeIds: Array.from(canvasState.contextPinnedNodeIds),
     });
+    ctx.emit('ax-state-changed', {});
     return { ok: true, description: `Undid: ${entry.description}` };
   },
 });
@@ -662,6 +663,7 @@ const redoOperation = defineOperation<z.infer<typeof undoRedoSchema>, Record<str
       count: canvasState.contextPinnedNodeIds.size,
       nodeIds: Array.from(canvasState.contextPinnedNodeIds),
     });
+    ctx.emit('ax-state-changed', {});
     return { ok: true, description: `Redid: ${entry.description}` };
   },
 });

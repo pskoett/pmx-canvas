@@ -168,6 +168,7 @@ export declare function resolveCanvasNode(nodeRef: CanvasNodeLookupInput): {
 };
 export declare function refreshCanvasWebpageNode(id: string, options?: {
     url?: string;
+    signal?: AbortSignal;
 }): Promise<{
     ok: boolean;
     id: string;

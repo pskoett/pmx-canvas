@@ -4,5 +4,5 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": [".github/extensions/pmx-canvas/mcp-bootstrap.ts"]
+  "include": [".github/extensions/pmx-canvas/mcp-bootstrap.ts", "plugins/amp/**/*.ts", "scripts/build-amp-plugin.ts"]
 }

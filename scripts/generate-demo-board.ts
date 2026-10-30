@@ -168,6 +168,7 @@ async function bandLabel(key: string, title: string, blurb: string): Promise<num
     type: 'markdown',
     title,
     content: blurb,
+    data: { display: 'heading' },
     x: cx(0),
     y: bandTop,
     width: LABEL_SIZE.width,
@@ -541,17 +542,14 @@ async function bandFiles(): Promise<void> {
 
 const HTML_PANEL = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><style>
-  :root { color-scheme: dark; }
-  body { margin:0; font:14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif; background:transparent; color:#e6ecff; padding:18px; }
-  h1 { margin:0 0 4px; font-size:16px; letter-spacing:-0.01em; }
-  p.sub { margin:0 0 16px; font-size:12px; color:#8994b3; }
+  body { margin:0; font:14px/1.5 var(--font-ui); background:transparent; color:var(--c-text); padding:16px; }
+  p.sub { margin:0 0 16px; font-size:12px; color:var(--c-muted); }
   ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
-  li { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid #243049; border-radius:9px; background:#131a2b; }
+  li { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--c-line); border-radius:6px; background:var(--c-panel-soft); }
   .dot { width:8px; height:8px; border-radius:99px; flex:0 0 auto; }
-  .ok .dot { background:#22c55e; } .warn .dot { background:#eab308; } .run .dot { background:#4a9eff; }
-  .name { flex:1; } .val { font:12px ui-monospace,monospace; color:#8994b3; }
+  .ok .dot { background:var(--c-ok); } .warn .dot { background:var(--c-warn); } .run .dot { background:var(--c-agent); }
+  .name { flex:1; } .val { font:12px var(--font-mono); color:var(--c-muted); }
 </style></head><body>
-  <h1>Release gates — 0.4.7</h1>
   <p class="sub">Raw HTML in a sandboxed iframe. No scripts, no network, no build step.</p>
   <ul>
     <li class="ok"><span class="dot"></span><span class="name">typecheck</span><span class="val">passing</span></li>
@@ -564,21 +562,16 @@ const HTML_PANEL = `<!doctype html>
 
 const MCP_APP_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><style>
-  :root { color-scheme: dark; }
-  body { margin:0; font:14px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif; background:#0d1220; color:#e6ecff; }
-  header { padding:14px 18px; border-bottom:1px solid #1e2740; display:flex; align-items:center; gap:10px; }
-  .badge { font:11px ui-monospace,monospace; color:#9ec5ff; background:#16203a; border:1px solid #2b3a5e; padding:2px 7px; border-radius:6px; }
-  h1 { margin:0; font-size:14px; font-weight:600; }
-  main { padding:18px; display:grid; gap:14px; }
-  .row { display:grid; grid-template-columns:1fr auto; align-items:center; gap:12px; padding:11px 13px; border:1px solid #243049; border-radius:10px; background:#131a2b; }
-  .row b { font-weight:600; font-size:13px; } .row small { display:block; color:#8994b3; font-size:11.5px; }
-  .pill { font:11px ui-monospace,monospace; padding:3px 9px; border-radius:99px; background:#16203a; color:#9ec5ff; border:1px solid #2b3a5e; }
-  footer { padding:12px 18px; border-top:1px solid #1e2740; color:#6f7a99; font-size:11.5px; }
+  body { margin:0; font:14px/1.5 var(--font-ui); background:var(--c-panel); color:var(--c-text); }
+  main { padding:16px; display:grid; gap:12px; }
+  .row { display:grid; grid-template-columns:1fr auto; align-items:center; gap:12px; padding:11px 13px; border:1px solid var(--c-line); border-radius:6px; background:var(--c-panel-soft); }
+  .row b { font-weight:600; font-size:13px; } .row small { display:block; color:var(--c-muted); font-size:12px; }
+  .pill { font:11px var(--font-mono); padding:3px 9px; border-radius:99px; background:var(--c-panel); color:var(--c-text-soft); border:1px solid var(--c-line); }
+  footer { padding:12px 16px; border-top:1px solid var(--c-line); color:var(--c-muted); font-size:12px; }
 </style></head><body>
-  <header><span class="badge">ext-app</span><h1>Board inspector</h1></header>
   <main>
     <div class="row"><span><b>Nodes on board</b><small>across 8 spatial bands</small></span><span class="pill">69</span></div>
-    <div class="row"><span><b>Edges</b><small>flow · depends-on · relation · references</small></span><span class="pill">6</span></div>
+    <div class="row"><span><b>Edges</b><small>flow · depends-on · relation · references</small></span><span class="pill">7</span></div>
     <div class="row"><span><b>Context pins</b><small>read via canvas://pinned-context</small></span><span class="pill">3</span></div>
     <div class="row"><span><b>Groups</b><small>one example frame</small></span><span class="pill">1</span></div>
   </main>
@@ -799,6 +792,7 @@ const TUFTE_CHARTS: ChartSpec[] = [
     key: 'graph-sparkline',
     graphType: 'sparkline',
     title: 'sparkline — build time',
+    nodeHeight: 120,
     data: [
       { run: 1, sec: 96 },
       { run: 2, sec: 104 },
@@ -815,29 +809,32 @@ const TUFTE_CHARTS: ChartSpec[] = [
     key: 'graph-dot-plot',
     graphType: 'dot-plot',
     title: 'dot-plot — test time by suite',
+    nodeHeight: 240,
     data: [
       { suite: 'unit', seconds: 31 },
       { suite: 'client', seconds: 12 },
       { suite: 'web-canvas', seconds: 88 },
       { suite: 'cli-e2e', seconds: 46 },
     ],
-    keys: { labelKey: 'suite', valueKey: 'seconds', sort: 'desc' },
+    keys: { labelKey: 'suite', valueKey: 'seconds', sort: 'desc', height: 160 },
   },
   {
     key: 'graph-bullet',
     graphType: 'bullet',
     title: 'bullet — release KPIs vs target',
+    nodeHeight: 260,
     data: [
       { label: 'Coverage %', value: 62, target: 70, ranges: [50, 65, 80] },
       { label: 'Docs pages', value: 24, target: 20, ranges: [10, 18, 26] },
       { label: 'Open bugs', value: 7, target: 5, ranges: [4, 8, 14] },
     ],
-    keys: { labelKey: 'label', valueKey: 'value', targetKey: 'target', rangesKey: 'ranges' },
+    keys: { labelKey: 'label', valueKey: 'value', targetKey: 'target', rangesKey: 'ranges', height: 192 },
   },
   {
     key: 'graph-slopegraph',
     graphType: 'slopegraph',
     title: 'slopegraph — coverage 0.4.6 → 0.4.7',
+    nodeHeight: 300,
     data: [
       { module: 'server', before: 64, after: 71 },
       { module: 'client', before: 52, after: 58 },
@@ -851,6 +848,7 @@ const TUFTE_CHARTS: ChartSpec[] = [
       beforeLabel: '0.4.6',
       afterLabel: '0.4.7',
       colorByDirection: true,
+      height: 224,
     },
   },
 ];
@@ -865,7 +863,7 @@ async function bandCharts(): Promise<void> {
   const cellWidth = 520;
   const colStep = cellWidth + GAP;
   const tallRow = 460;
-  const shortRow = 380;
+  const shortRow = Math.max(...TUFTE_CHARTS.map((chart) => chart.nodeHeight));
   const rowGap = 60;
 
   for (const [index, chart] of CANONICAL_CHARTS.entries()) {
@@ -880,9 +878,8 @@ async function bandCharts(): Promise<void> {
       y: top + row * (tallRow + rowGap),
       width: cellWidth,
       nodeHeight: tallRow,
-      // Chart CONTENT height, distinct from the node frame: sized so the plot
-      // plus its title fits without an inner scrollbar inside the fixed frame.
-      height: 245,
+      // Let the plot fill its card. An explicit content height caps it even
+      // when the card has more room; it is not the node's height.
       strictSize: true,
     });
   }
@@ -897,8 +894,8 @@ async function bandCharts(): Promise<void> {
       x: cx(index * colStep),
       y: tufteTop,
       width: cellWidth,
-      nodeHeight: shortRow,
-      height: 160,
+      // Compact plots need compact cards, not stretched marks or blank panels.
+      nodeHeight: chart.nodeHeight,
       strictSize: true,
     });
   }
@@ -911,7 +908,7 @@ async function bandCharts(): Promise<void> {
 const DASHBOARD_SPEC = {
   root: 'page',
   elements: {
-    page: { type: 'Stack', props: { direction: 'vertical', gap: 'md' }, children: ['head', 'kpis', 'table'] },
+    page: { type: 'Stack', props: { direction: 'vertical', gap: 'md', align: 'stretch' }, children: ['head', 'kpis', 'table'] },
     head: { type: 'Heading', props: { level: 'h3', text: 'Release 0.4.7 — readiness' }, children: [] },
     kpis: { type: 'Grid', props: { columns: 3, gap: 'md' }, children: ['kpi-gates', 'kpi-bugs', 'kpi-cov'] },
     'kpi-gates': {
@@ -953,19 +950,19 @@ const FORM_SPEC = {
     },
     fields: {
       type: 'Stack',
-      props: { direction: 'vertical', gap: 'md' },
+      props: { direction: 'vertical', gap: 'md', align: 'stretch' },
       children: ['summary', 'area', 'severity', 'detail', 'regression', 'divider', 'actions'],
     },
     summary: {
       type: 'Input',
-      props: { label: 'Summary', name: 'summary', type: 'text', placeholder: 'One line, user-facing' },
+      props: { label: 'Summary', name: 'summary', type: 'text', value: '', placeholder: 'One line, user-facing' },
       children: [],
     },
-    area: { type: 'Select', props: { label: 'Area', name: 'area', options: ['server', 'client', 'mcp', 'cli', 'docs'] }, children: [] },
+    area: { type: 'Select', props: { label: 'Area', name: 'area', value: '', options: ['server', 'client', 'mcp', 'cli', 'docs'] }, children: [] },
     severity: { type: 'Radio', props: { label: 'Severity', name: 'severity', options: ['blocker', 'major', 'minor'], value: 'major' }, children: [] },
     detail: {
       type: 'Textarea',
-      props: { label: 'Reproduction', name: 'detail', rows: 4, placeholder: 'Steps, expected, actual' },
+      props: { label: 'Reproduction', name: 'detail', rows: 4, value: '', placeholder: 'Steps, expected, actual' },
       children: [],
     },
     regression: { type: 'Checkbox', props: { label: 'Regression since 0.4.6', name: 'regression', checked: true }, children: [] },
@@ -979,7 +976,7 @@ const FORM_SPEC = {
 const CHART_SPEC = {
   root: 'panel',
   elements: {
-    panel: { type: 'Stack', props: { direction: 'vertical', gap: 'md' }, children: ['title', 'note', 'bars', 'spark', 'alert'] },
+    panel: { type: 'Stack', props: { direction: 'vertical', gap: 'md', align: 'stretch' }, children: ['title', 'note', 'bars', 'spark', 'alert'] },
     title: { type: 'Heading', props: { level: 'h3', text: 'Canvas usage this cycle' }, children: [] },
     note: {
       type: 'Text',
@@ -1621,6 +1618,7 @@ async function bandGrouping(): Promise<void> {
     data: {
       phase: 'review',
       detail: '6 of 7 items merged',
+      progress: (6 / 7) * 100,
       message: 'Demo board is the last one open',
       level: 'ok',
     },
@@ -1678,7 +1676,7 @@ const AGENT_FLOW_STEPS: Array<{ title: string; detail: string; status: string }>
 /** The step the agent is on — pinned, so the board shows the active step as context. */
 const AGENT_ACTIVE_STEP = AGENT_FLOW_STEPS.findIndex((step) => step.status === 'in-progress');
 
-const AGENT_STEP_SIZE = { width: 360, height: 240 };
+const AGENT_STEP_SIZE = { width: 440, height: 240 };
 const AGENT_NOTE_SIZE = { width: 520, height: 240 };
 
 interface MaterializedFlow {
@@ -1774,6 +1772,9 @@ async function bandAgentAtWork(): Promise<void> {
 async function buildEdges(): Promise<void> {
   await edge('edge-runs', 'status', 'trace-plan', { type: 'flow', label: 'runs', animated: true });
   await edge('edge-then', 'trace-plan', 'trace-apply', { type: 'flow', label: 'then', style: 'dotted' });
+  await edge('edge-review-loop', 'trace-apply', 'trace-plan', {
+    type: 'flow', kind: 'loop', label: 'review again', reason: 'An illustrated review loop, not an execution trigger.',
+  });
   await edge('edge-decisions', 'context', 'ledger', {
     type: 'relation', kind: 'supports', label: 'decisions', reason: 'The working context explains the recorded decisions.',
   });

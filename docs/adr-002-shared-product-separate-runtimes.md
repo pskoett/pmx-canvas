@@ -76,7 +76,9 @@ between closely related board, context and relation operations.
 
 ## Delivery and revisit gates
 
-Owner acceptance and the curation evaluation remain the current priorities. Fix demonstrated
+Owner acceptance remains first. Curation-effect runs and reruns are deferred to
+[plan 019](plans/plan-019-post-0.9-roadmap.md) step 6 (2026-10-19); preceding work is not
+evaluation-gated. Release and runtime-verification gates remain unchanged. Fix demonstrated
 defects narrowly; this ADR does not authorize a broad refactor, deployment or release.
 
 When the second runtime needs extraction, prove one read/edit/commit/reconnect slice with a

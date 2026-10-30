@@ -99,7 +99,8 @@ offset mid-move without changing endpoints. Tours allow at most 1000 stops.
 Tours persist with the board and snapshots, participate in undo, and clear with
 the board. A file containing `null` resets the tour: when none is saved, groups
 are sorted by y, then x, then ID. A saved empty `stops` array deliberately has no
-stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`.
+stops. SDK: `canvas.setTour(tourOrNull)` / `canvas.getTour()`, which returns
+`{ tour, derived, position }` as of 0.10; read stops from `.tour.stops`.
 
 ### Driving a tour (agents)
 
@@ -332,6 +333,24 @@ pmx-canvas batch --file ./canvas-ops.json
 See [HTTP API → batch](http-api.md#batch-operations) for the operation
 schema; the same JSON works for the CLI batch file.
 
+Authored [work cards](node-types.md#work-cards) use structured `data` through batch:
+
+```bash
+pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}}]'
+pmx-canvas batch --json '[{"op":"node.update","args":{"id":"<card-id>","data":{"workState":"done","progress":null}}}]'
+```
+
+The ordinary `node add --data` flag is for graph series, not general node data.
+
+Present an existing task read-only on its active board:
+
+```bash
+pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","data":{"workItemId":"<task-id>"}}}]'
+```
+
+Do not send title, detail, work state or progress; these follow the task. Removing the card
+does not cancel work. Update the task through `ax work update`, not a card patch.
+
 ## Web artifacts
 
 ```bash
@@ -404,6 +423,8 @@ pmx-canvas board pin <board-id> --reason "Q4 rests on it" # join the agent's wor
 pmx-canvas board unpin <board-id>
 pmx-canvas board from <source-id> "Follow-up" --preview
 pmx-canvas board from <source-id> "Follow-up" --nodes id1,id2 --readme --structure
+pmx-canvas board move-selection <source-id> "Follow-up" --nodes id1,id2 --revision 42 --request move-123 --preview
+pmx-canvas board move-selection <source-id> "Follow-up" --nodes id1,id2 --revision 42 --request move-123
 ```
 
 Commands write to the board open in the workbench. `board open` switches the
@@ -416,6 +437,15 @@ cards get fresh IDs. `--structure` includes group frames; edges between copied
 cards are retained automatically. `--readme` carries the designated README. The new board remains inactive and
 does not inherit pins, AX state, or mutation history. Its `previousBoardId`
 records the source board.
+
+`board move-selection` moves the original cards instead. Read `board get <source-id>`
+for `contentRevision`, pass it as `--revision`, and preview first. Group selections
+include descendants. Keep `--request` and all other inputs unchanged when retrying an
+interrupted commit; a recorded success returns the same destination after restart.
+The operation leaves a portal but does not open the destination. It preserves pins,
+relations and review/read history, and refuses the whole selection if bindings cannot
+move safely. Pre-move Undo/Redo clears; old snapshots remain inspectable but cannot
+restore across the move. See the [move contract](http-api.md#move-original-cards-to-a-new-board).
 
 ## Connected memory
 
@@ -593,6 +623,14 @@ pmx-canvas copilot install-extension --dry-run   # Preview target, writes nothin
 pmx-canvas copilot install-extension --yes        # Install/overwrite into .github/extensions/pmx-canvas/
 ```
 
+After updating the adapter, start a new Copilot project session to load it.
+Panel instructions, `send_instruction` and canvas steering request the SDK's
+`immediate` mode: during an active turn, Copilot receives them before its next
+model call, without aborting an executing tool. If the turn has already ended,
+the SDK queues the instruction instead. A successful send means the host accepted
+the instruction, not that the model has consumed it. Failed sends are not marked
+delivered; the delivery pump retries them.
+
 ## Skill sync
 
 Refresh the pmx-canvas skill copies **already installed** in this workspace.
@@ -634,9 +672,19 @@ reports annotation targets and bounds; it does not describe whether the human
 drew an arrow, line, circle, or other shape. Inspect `.annotation-layer path` or
 take a screenshot when the drawn form matters.
 
-Humans draw with the rail's Annotate popover (pen / text) and remove marks with its eraser.
-If an agent already knows the annotation ID from context, it can remove it through
-MCP with `canvas_view { action: "remove-annotation", id }`.
+Humans and agents share pen, text and whole-mark erasing. CLI agents use the
+existing batch command:
+
+```bash
+pmx-canvas batch --json '[{"op":"annotation.add","args":{"id":"question-b","type":"text","points":[{"x":160,"y":320}],"text":"Use option B?"}}]'
+pmx-canvas batch --json '[{"op":"annotation.remove","args":{"id":"question-b"}}]'
+```
+
+For freehand ink, omit `type` and supply at least two points in canvas world
+coordinates. [Annotation defaults and retry rules](http-api.md#annotations) are
+shared across transports. Layout/context reads include text notes as well as mark
+IDs and bounds. The human can answer in the external agent host's composer;
+neither Sessions nor PMX's composer is required.
 
 ## When to reach for the CLI
 

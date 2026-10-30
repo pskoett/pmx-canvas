@@ -19,6 +19,7 @@ import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
 import { BoardNode } from '../nodes/BoardNode';
 import { RelationsPanel } from './RelationsPanel';
+import { CrossBoardReferences } from './CrossBoardReferences';
 import { lifecycleTarget, openLifecycle } from '../state/knowledge-store';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import {
@@ -241,8 +242,7 @@ export function ExpandedNodeOverlay() {
     };
   }, [handlePresentationKeyDown, presentationExitToken, presenting]);
 
-  // Focus trap (item 18): restore to the node this overlay opened from — its
-  // world element is unmounted while expanded and remounted on close.
+  // Restore to the same spatial card at every zoom.
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreToNode = useCallback(
     () => (nodeId ? document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`) : null),
@@ -374,6 +374,7 @@ export function ExpandedNodeOverlay() {
           </div>
           {relationsFor === nodeId && <RelationsPanel key={nodeId} nodeId={node.id} />}
         </div>
+        <CrossBoardReferences node={node} />
         {/* AX step controls follow the node into focus mode. Without this,
             expanding a materialized flow step showed only its text — the
             Start/Done/Blocked and loop controls live in CanvasNode's body,

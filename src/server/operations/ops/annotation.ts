@@ -13,6 +13,7 @@
  *
  * This module must never import server.ts or index.ts.
  */
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { canvasState, type CanvasAnnotation } from '../../canvas-state.js';
 import { summarizeCanvasAnnotation } from '../../canvas-serialization.js';
@@ -35,7 +36,7 @@ const annotationRemoveOperation = defineOperation<z.infer<typeof annotationRemov
   },
   mcp: {
     toolName: 'canvas_remove_annotation',
-    description: 'Remove a human-drawn canvas annotation by ID.',
+    description: 'Erase a whole canvas mark by ID, whether drawn by a human or agent.',
     extraShape: {
       id: z.string().describe('Annotation ID to remove'),
     },
@@ -119,6 +120,19 @@ const annotationAddOperation = defineOperation<z.infer<typeof annotationAddSchem
     method: 'POST',
     path: '/api/canvas/annotation',
   },
+  mcp: {
+    toolName: 'canvas_add_annotation',
+    description: 'Draw canvas ink or write a text note in world coordinates. No session required.',
+    extraShape: {
+      type: z.enum(['freehand', 'text']).optional(),
+      points: z.array(z.object({ x: z.number(), y: z.number() })).min(1),
+      width: z.number().optional(),
+      color: z.string().optional(),
+      label: z.string().optional(),
+      text: z.string().optional(),
+      id: z.string().optional(),
+    },
+  },
   handler: (input) => {
     const body: Record<string, unknown> = input;
     const type = body.type === 'text' ? 'text' : 'freehand';
@@ -164,6 +178,13 @@ const annotationAddOperation = defineOperation<z.infer<typeof annotationAddSchem
       createdAt: new Date().toISOString(),
     };
 
+    const existing = canvasState.getAnnotations().find((entry) => entry.id === id);
+    if (existing) {
+      if (!isDeepStrictEqual(existing, { ...annotation, createdAt: existing.createdAt })) {
+        throw new OperationError(`Annotation "${id}" already exists with different content.`, 409);
+      }
+      return { ok: true, annotation: summarizeCanvasAnnotation(existing) };
+    }
     canvasState.addAnnotation(annotation);
     return { ok: true, annotation: summarizeCanvasAnnotation(annotation) };
   },

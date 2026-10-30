@@ -2,7 +2,9 @@
 
 **Status:** ready to run; no runs scored yet. Written 2026-10-07. A benchmark rerun on every
 release, for continuous improvement, not a one-off verdict (decided with the maintainer,
-2026-10-07).
+2026-10-07). **Scheduled last (2026-10-19):** the first run and the per-release reruns wait
+until the end of the [post-0.9.0 plan](../plans/plan-019-post-0.9-roadmap.md); until then
+they gate nothing.
 **Source:** [vision](../product-vision-2026-09.md#part-1-the-foundation) Part 1, item 4 (effect);
 [plan 016](../plans/plan-016-context-made-visible-wave-1.md) slice 6.
 **Fixture:** [`scripts/eval-curation/board.ts`](../../scripts/eval-curation/board.ts), guarded by
@@ -88,8 +90,8 @@ stated as fact that is not on the board. The minimum score is 0.
 
 ## How results are used
 
-Run the eval on every release that touches the brief, pins, budgets or adapters, and at least
-once per minor version. Record absolute scores and retrieval costs for **both conditions**,
+From [plan 019](../plans/plan-019-post-0.9-roadmap.md) step 6 onward, run the eval on every release
+that touches the brief, pins, budgets or adapters, and at least once per minor version. Record absolute scores and retrieval costs for **both conditions**,
 all run scores (not only means), delivery failures, and the cards each run pulled. Also record
 the **curation gap**: curated mean minus uncurated mean, with delivery confirmed in every
 scored run. Excluding a delivery failure from scoring does not remove it from the report.

@@ -49,7 +49,7 @@ body{margin:0}
 </div>
 
 <div style="{{s.row}}">
-<div><div style="{{s.type}}">graph</div><p style="{{s.what}}">Chart sits on the node surface. The title isn't repeated inside; the chart type becomes header meta.</p></div>
+<div><div style="{{s.type}}">graph</div><p style="{{s.what}}">Chart sits on the node surface. The title isn't repeated inside; the chart type becomes header meta. Close slopegraph labels separate by 14px when space permits; points stay at their values, with short same-ink leaders.</p><svg width="200" height="60" role="img" aria-label="Close slopegraph labels, values unchanged"><path d="M10 42L70 20M10 52L70 26L75 34" fill="none" stroke="#4BBCFF" stroke-width="1.5"></path><circle cx="70" cy="20" r="2.5" fill="#4BBCFF"></circle><circle cx="70" cy="26" r="2.5" fill="#4BBCFF"></circle><text x="78" y="20" dominant-baseline="central" fill="#e6eef7" font-size="11">59 cli</text><text x="78" y="34" dominant-baseline="central" fill="#e6eef7" font-size="11">58 client</text></svg></div>
 <div style="{{o.node}}">
 <div style="{{o.head}}"><svg width="16" height="16" viewBox="0 0 24 24" style="{{o.icon}} color: #f4c542"><path d="{{i.chart}}"></path></svg><span style="{{o.title}}">bar — merged PRs per week</span><span style="{{o.ctl}}">↗⤢⌄×</span></div>
 <div style="flex: 1; margin: 0 8px 8px; position: relative; background: #000000; border-radius: 8px; padding: 10px 12px; font-family: system-ui, sans-serif">

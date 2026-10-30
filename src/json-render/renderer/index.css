@@ -3,7 +3,7 @@
 
 @source "../../../../node_modules/@json-render/shadcn/dist/index.js";
 
-@custom-variant dark (&:is([data-theme="dark"] *));
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
@@ -99,6 +99,66 @@
   --chart-6: #ffffff;
 }
 
+/* Named themes share the canvas surface, including nested cards and charts.
+   Explicit dark/light remain available for authored design experiments. */
+:root[data-canvas-theme] {
+  --radius: 6px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-lg: 15px;
+  --text-xl: 20px;
+  --background: var(--c-panel);
+  --foreground: var(--c-text);
+  --card: var(--c-panel-soft);
+  --card-foreground: var(--c-text);
+  --popover: var(--c-panel);
+  --popover-foreground: var(--c-text);
+  --primary: var(--c-accent);
+  --primary-foreground: var(--c-on-accent, var(--c-on-pin));
+  --secondary: var(--c-panel-soft);
+  --secondary-foreground: var(--c-text);
+  --muted: var(--c-panel-soft);
+  --muted-foreground: var(--c-muted);
+  --accent: var(--c-panel-soft);
+  --accent-foreground: var(--c-text);
+  --destructive: var(--c-danger);
+  --border: var(--c-line);
+  --input: var(--c-line);
+  --ring: var(--c-accent);
+  --chart-1: var(--c-accent);
+  --chart-2: var(--c-rel-supports);
+  --chart-3: var(--c-rel-contradicts);
+  --chart-4: var(--c-rel-cites);
+  --chart-5: var(--c-rel-informs);
+  --chart-6: var(--c-muted);
+  font-size: 16px;
+}
+
+/* surface-theme's unlayered body rule otherwise wins over Tailwind's base layer. */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.pmx-viewer-root { width: 100%; min-width: 0; }
+[data-embedded] .pmx-viewer-root:not(:has(> [data-slot="card"])) { padding: 12px 14px; }
+[data-embedded] .pmx-viewer-root > [data-slot="card"] {
+  width: 100%;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 12px 14px;
+}
+[data-embedded][data-duplicate-title] .pmx-viewer-root > [data-slot="card"] > [data-slot="card-header"] > [data-slot="card-title"] { display: none; }
+[data-embedded][data-duplicate-title] .pmx-viewer-root > [data-slot="card"] > [data-slot="card-header"]:not(:has([data-slot="card-description"])) { display: none; }
+[data-embedded] .pmx-viewer-root > [data-slot="card"] > [data-slot="card-content"] { padding: 0; }
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -159,7 +219,7 @@ button {
   border: 1px solid transparent;
   border-radius: 9999px;
   padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
+  font-size: max(11px, 0.75rem);
   font-weight: 500;
   line-height: 1.25rem;
 }

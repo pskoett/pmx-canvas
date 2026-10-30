@@ -145,8 +145,8 @@ fi
 
 echo "🚀 Creating new React + Vite project: $PROJECT_NAME"
 
-# Create new Vite project (always use latest create-vite, pin vite version later)
-run_pnpm_quiet create vite "$PROJECT_NAME" --template react-ts --no-interactive
+# 9.3.2 shipped without templates; keep scaffolding on the verified complete package.
+run_pnpm_quiet create vite@9.3.1 "$PROJECT_NAME" --template react-ts --no-interactive
 
 # Navigate into project directory
 cd "$PROJECT_NAME"

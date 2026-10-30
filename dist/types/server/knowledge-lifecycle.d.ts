@@ -1,4 +1,6 @@
 import type { Database } from 'bun:sqlite';
+import { z } from 'zod';
+import { type MemoryTarget } from '../shared/memory-graph.js';
 import { type ActorAttribution } from './attribution.js';
 import type { LifecycleQualification } from '../shared/lifecycle-status.js';
 import type { CanvasNodeState } from './canvas-state.js';
@@ -12,11 +14,28 @@ export interface ReviewCardSummary {
     folder: string | null;
     title: string;
 }
-export interface FolderProperties {
-    path: string;
-    categoryId: string | null;
-    lifecycleOverride: Lifecycle | null;
-}
+export declare const folderPropertiesSchema: z.ZodObject<{
+    path: z.ZodString;
+    categoryId: z.ZodNullable<z.ZodString>;
+    lifecycleOverride: z.ZodNullable<z.ZodObject<{
+        decayType: z.ZodEnum<{
+            reality: "reality";
+            decision: "decision";
+            dependency: "dependency";
+            relevance: "relevance";
+        }>;
+        rate: z.ZodEnum<{
+            fast: "fast";
+            medium: "medium";
+            slow: "slow";
+            durable: "durable";
+        }>;
+        triggers: z.ZodArray<z.ZodString>;
+        revalidationMethod: z.ZodString;
+        cadenceDays: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+}, z.core.$strip>;
+export type FolderProperties = z.infer<typeof folderPropertiesSchema>;
 export interface ReviewRecord {
     id: string;
     boardId: string;
@@ -192,6 +211,16 @@ export declare class KnowledgeLifecycle {
         lifecycleSourceFolder: string | null;
         lifecycleSource: "unknown" | "card" | "folder";
     };
+    private indexedDb;
+    /** Stored owners of semantic sources; the caller overlays the active board's unsaved edges. */
+    incomingSourceBoards(target: MemoryTarget, activeBoardId: string | null): string[];
+    /** One indexed latest validation and retirement per card, never its full audit history. */
+    reviewSummaries(targets: MemoryTarget[]): Map<string, {
+        lastValidation: ReviewRecord | null;
+        retired: boolean;
+    }>;
+    /** Resolve a current card's location when evidence was recorded, without rewriting that evidence. */
+    locationAtReview(review: ReviewRecord, target: MemoryTarget): MemoryTarget;
     reviews(boardId: string, nodeId: string): {
         records: ReviewRecord[];
         retired: boolean;

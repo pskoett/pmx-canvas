@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
-import { marked } from 'marked';
 import { MarkdownNode, toggleTaskMarker } from '../../src/client/nodes/MarkdownNode.tsx';
 import { InlineMarkdownEditor } from '../../src/client/nodes/InlineMarkdownEditor.tsx';
 import { renderWikiMarkdown } from '../../src/server/wiki-links.ts';
@@ -17,6 +16,15 @@ afterEach(() => {
   installWorkbenchTransport(undefined);
   globalThis.fetch = originalFetch;
 });
+
+function blurEditor(editor: HTMLElement) {
+  // Emit both native blur and bubbling focusout, as a browser does. FileNode's
+  // portal loads preact/compat, which maps onBlur to focusout across the app.
+  act(() => {
+    editor.focus();
+    editor.blur();
+  });
+}
 
 test.each(
   [
@@ -122,12 +130,18 @@ test.each([
     data: { content: 'See [[B]]', wikiLinks: [{ ref: 'B' }], ...(fileBacked ? { path: 'decision.md' } : {}) },
   };
   const acknowledgements: Array<(response: Response) => void> = [];
+  let savedContent = '';
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input) === '/api/render')
+    if (String(input) === '/api/render') {
+      const { markdown } = JSON.parse(String(init?.body)) as { markdown: string };
       return Response.json({
-        html: renderWikiMarkdown('See [[B]]', wikiLinksFromData(nodes.value.get(source.id)!.data), () => true),
+        html: renderWikiMarkdown(markdown, wikiLinksFromData(nodes.value.get(source.id)!.data), () => true),
       });
-    if (init?.method === 'PATCH') return new Promise<Response>((resolve) => acknowledgements.push(resolve));
+    }
+    if (init?.method === 'PATCH') {
+      savedContent = (JSON.parse(String(init.body)) as { content: string }).content;
+      return new Promise<Response>((resolve) => acknowledgements.push(resolve));
+    }
     if (String(input) === '/api/file/save') return Response.json({ ok: true, updatedAt: '2026-10-11T10:00:00Z' });
     if (String(input).startsWith('/api/file?')) return Response.json({ content: 'See [[B]]' });
     return Response.json({});
@@ -142,14 +156,17 @@ test.each([
   }
   const view = render(<Card />);
   await waitFor(() => expect(view.container.querySelector('a')?.classList.contains('is-unresolved')).toBe(true));
-  fireEvent.blur(view.container.querySelector('[contenteditable]')!);
+  const editor = view.container.querySelector<HTMLElement>('[contenteditable]')!;
+  editor.append(document.createTextNode(' Updated.'));
+  fireEvent.input(editor);
+  blurEditor(editor);
   await waitFor(() => expect(acknowledgements).toHaveLength(1));
   await act(async () =>
     replay({
       ...source,
       contentRevision: 41,
       linksRevision: 11,
-      data: { ...source.data, wikiLinks: [{ ref: 'B', target: { boardId: 'b' } }] },
+      data: { ...source.data, content: savedContent, wikiLinks: [{ ref: 'B', target: { boardId: 'b' } }] },
     }),
   );
   await waitFor(() => expect(nodes.value.get(source.id)?.data.rendered).toContain('data-wiki-board="b"'));
@@ -198,7 +215,7 @@ test.each([
         await candidateRender;
       }
       if (acknowledged && markdown === draft) await postSaveRender;
-      return Response.json({ html: await marked.parse(markdown) });
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
     }
     if (init?.method === 'PATCH') {
       savedDrafts.push((JSON.parse(String(init.body)) as { content: string }).content);
@@ -242,7 +259,7 @@ test.each([
     await waitFor(() => expect(view.container.querySelector('[contenteditable]')?.textContent?.trim()).toBe(draft));
     // An empty text assertion also matches before the new editor's mount effect.
     await waitFor(() => expect(view.container.querySelector('[contenteditable]')?.hasChildNodes()).toBe(true));
-    fireEvent.blur(view.container.querySelector('[contenteditable]')!);
+    blurEditor(view.container.querySelector<HTMLElement>('[contenteditable]')!);
     acknowledged = true;
     if (acknowledgement !== 'refused') {
       await act(async () => acknowledgements[0]!(Response.json({ ok: true, contentRevision: 41 })));
@@ -266,7 +283,7 @@ test.each([
 });
 
 test('the rich editor preserves wiki references and aliases while editing their visible labels', async () => {
-  const content = 'See [[Old research#Evidence|Read this]] and [[Pending]] and [Ordinary](https://example.com).';
+  const content = 'See [[Old research#Evidence|Read this]] and [[Pending]] and [Ordinary](https://example.com).\n';
   const html = renderWikiMarkdown(
     content,
     [{ ref: 'Old research#Evidence', target: { boardId: 'r1', cardId: 'e1' } }, { ref: 'Pending' }],
@@ -275,6 +292,7 @@ test('the rich editor preserves wiki references and aliases while editing their 
   let saved = '';
   const view = render(
     <InlineMarkdownEditor
+      markdown={content}
       initialHtml={html}
       onChange={(md) => {
         saved = md;
@@ -284,16 +302,16 @@ test('the rich editor preserves wiki references and aliases while editing their 
       }}
     />,
   );
-  const editor = view.container.querySelector('[contenteditable]')!;
+  const editor = view.container.querySelector<HTMLElement>('[contenteditable]')!;
   await waitFor(() => expect(editor.querySelectorAll('a')).toHaveLength(3));
-  fireEvent.blur(editor);
-  expect(saved).toContain('[[Old research#Evidence|Read this]]');
-  expect(saved).toContain('[[Pending]]');
-  expect(saved).toContain('[Ordinary](https://example.com)');
+  blurEditor(editor);
+  fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+  expect(saved).toBe(content);
   editor.querySelector('a')!.textContent = 'Read fresh';
   fireEvent.input(editor);
   expect(saved).toContain('[[Old research#Evidence|Read fresh]]');
   expect(saved).toContain('[[Pending]]');
+  expect(saved).toContain('[Ordinary](https://example.com)');
   const draftText = editor.querySelector('a')!.firstChild!;
   const range = document.createRange();
   range.setStart(draftText, 4);
@@ -302,6 +320,7 @@ test('the rich editor preserves wiki references and aliases while editing their 
   document.getSelection()!.addRange(range);
   view.rerender(
     <InlineMarkdownEditor
+      markdown={content}
       initialHtml={renderWikiMarkdown(
         content,
         [{ ref: 'Old research#Evidence', target: { boardId: 'r1', cardId: 'e1' } }, { ref: 'Pending' }],
@@ -320,7 +339,7 @@ test('the rich editor preserves wiki references and aliases while editing their 
   expect(editor.querySelector('a')?.textContent).toBe('Read fresh');
   expect(document.getSelection()?.anchorNode).toBe(draftText);
   expect(document.getSelection()?.anchorOffset).toBe(4);
-  fireEvent.blur(editor);
+  blurEditor(editor);
   expect(saved).toContain('[[Old research#Evidence|Read fresh]]');
 });
 
@@ -357,6 +376,55 @@ describe('toggleTaskMarker', () => {
 });
 
 test.each([
+  ['```text\n- [ ] code\n```\n\n> - [ ] quoted\n\n- [ ] real', 0, '> - [x] quoted'],
+  ['    - [ ] indented code\n\n- [ ] real', 0, '- [x] real'],
+  ['> ~~~~\n> - [ ] code\n> ~~~\n> - [ ] still code\n> ~~~~\n\n>> - [ ] quoted', 0, '>> - [x] quoted'],
+  ['- parent\n  > - [ ] quoted\n\n- [ ] real', 1, '- [x] real'],
+  ['> 1. [X] repeated\r\n> 2. [ ] repeated\r\n', 0, '> 1. [ ] repeated'],
+  ['- [ ] loose\n\n  paragraph\n\n- [ ] last', 0, '- [x] loose'],
+  ['<input type="checkbox">\n\n- [ ] real', 0, '- [x] real'],
+  ['[x]: /url "\n- [x] hidden\n"\n\n- [x] visible', 0, '- [ ] visible'],
+  ['<span><input data-pmx-task type="checkbox" disabled></span>\n\n- [ ] first\n- [ ] second', 0, '- [x] first'],
+  ['Intro\n\n<template>\n\n> - [ ] hidden\n\n</template>\n\n- [ ] visible', 0, '- [x] visible'],
+] as const)('card checkbox %s maps to its exact source marker', async (markdown, index, changedLine) => {
+  const node: CanvasNodeState = {
+    id: 'source-mapped-task',
+    type: 'markdown',
+    position: { x: 0, y: 0 },
+    size: { width: 360, height: 240 },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    contentRevision: 1,
+    data: { content: markdown },
+  };
+  let saved: string | undefined;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === '/api/render') {
+      const { markdown } = JSON.parse(String(init?.body)) as { markdown: string };
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
+    }
+    if (init?.method === 'PATCH') {
+      saved = (JSON.parse(String(init.body)) as { content: string }).content;
+      return Response.json({ ok: true, contentRevision: 2 });
+    }
+    return Response.json({});
+  }) as typeof fetch;
+  activeBoardId.value = null;
+  nodes.value = new Map([[node.id, node]]);
+  const card = render(<MarkdownNode node={node} />);
+  await waitFor(() => expect(card.container.querySelector('input')).not.toBeNull());
+  const boxes = [...card.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].filter((box) =>
+    box.closest('li'),
+  );
+  fireEvent.click(boxes[index]!);
+  const originalLine = changedLine.replace(/\[([ x])\]/, (_, state: string) => (state === ' ' ? '[X]' : '[ ]'));
+  const sourceLine = markdown.includes(originalLine) ? originalLine : originalLine.replace('[X]', '[x]');
+  const expected = markdown.replace(sourceLine, changedLine);
+  await waitFor(() => expect(saved).toBe(expected));
+});
+
+test.each([
   'before',
   'after',
 ])('an older poll %s the save acknowledgement cannot untick a saved task', async (timing) => {
@@ -381,7 +449,7 @@ test.each([
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input) === '/api/render') {
       const body = JSON.parse(String(init?.body)) as { markdown: string };
-      return Response.json({ html: await marked.parse(body.markdown) });
+      return Response.json({ html: renderWikiMarkdown(body.markdown, [], () => false) });
     }
     if (init?.method === 'PATCH') {
       return new Promise<Response>((resolve) => {
@@ -492,7 +560,7 @@ test('a remounted Document uses the matching shared preview, not another draft H
     if (String(input) === '/api/render') {
       const { markdown } = JSON.parse(String(init?.body)) as { markdown: string };
       if (markdown === a && renders.length < 2) await new Promise<void>((resolve) => renders.push(resolve));
-      return Response.json({ html: await marked.parse(markdown) });
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
     }
     if (init?.method === 'PATCH') {
       saved = (JSON.parse(String(init.body)) as { content: string }).content;
@@ -523,7 +591,7 @@ test('a remounted Document uses the matching shared preview, not another draft H
     await act(async () => renders[0]!());
     fireEvent.click(second.getByRole('button', { name: 'Back to document', exact: true }));
     await waitFor(() => expect(second.container.querySelector('[contenteditable]')?.textContent?.trim()).toBe(a));
-    fireEvent.blur(second.container.querySelector('[contenteditable]')!);
+    blurEditor(second.container.querySelector<HTMLElement>('[contenteditable]')!);
     await waitFor(() => expect(saved).toBe(a));
     await act(async () => renders[1]!());
     expect(second.container.querySelector('[contenteditable]')?.textContent?.trim()).toBe(a);
@@ -580,7 +648,7 @@ test.each([
         rendering = true;
         await renderGate;
       }
-      return Response.json({ html: await marked.parse(markdown) });
+      return Response.json({ html: renderWikiMarkdown(markdown, [], () => false) });
     }
     if (init?.method === 'PATCH')
       return new Promise<Response>((resolve) => {

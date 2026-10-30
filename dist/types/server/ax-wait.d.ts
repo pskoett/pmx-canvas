@@ -33,4 +33,5 @@ export declare function waitForAxCondition(opts: {
     ready: () => boolean;
     timeoutMs: number;
     channel?: string;
+    signal?: AbortSignal;
 }): Promise<void>;

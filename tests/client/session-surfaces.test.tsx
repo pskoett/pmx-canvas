@@ -9,6 +9,7 @@ import {
   contextPinnedNodeIds,
   nodes,
   replaceContextPinsFromServer,
+  viewport,
 } from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import { activeBoardId, boardList } from '../../src/client/state/boards-store.ts';
@@ -41,7 +42,7 @@ function makeNode(id: string, title?: string): CanvasNodeState {
 
 type Call = { url: string; init: RequestInit | undefined };
 let calls: Call[];
-let respond: (url: string) => Response;
+let respond: (url: string) => Response | Promise<Response>;
 
 const realFetch = globalThis.fetch;
 beforeAll(() => {
@@ -101,6 +102,33 @@ describe('session panel disclosure', () => {
 
   beforeEach(() => {
     act(() => applyPresenceSnapshot({ presences: [attached] }));
+  });
+
+  test('Show on board stays pending until its live card arrives and then focuses it', async () => {
+    activeBoardId.value = 'board-a';
+    viewport.value = { x: -4000, y: -4000, scale: 1 };
+    axSurfaceState.value = {
+      workItems: [{ id: 'task', title: 'Verify', status: 'todo', nodeIds: [] }],
+    };
+    let complete: (response: Response) => void = () => {};
+    const created = new Promise<Response>((resolve) => {
+      complete = resolve;
+    });
+    respond = (url) => (url === '/api/canvas/node' ? created : Response.json({}));
+    const { getByLabelText, getByRole } = render(<SessionPanel />);
+    fireEvent.click(getByLabelText('Expand session panel'));
+    fireEvent.click(getByRole('button', { name: /Work items/i }));
+    fireEvent.click(getByRole('button', { name: 'Show on board' }));
+    await act(async () => complete(Response.json({ ok: true, id: 'live' })));
+    expect((getByRole('button', { name: 'Showing…' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(viewport.value.x).toBe(-4000);
+    act(() => {
+      const live = { ...makeNode('live'), type: 'status' as const, data: { workItemId: 'task' } };
+      nodes.value = new Map([...nodes.value, ['live', live]]);
+    });
+    await waitFor(() => expect(viewport.value.x).toBeGreaterThan(-4000));
+    fireEvent.click(getByRole('button', { name: 'Show card' }));
+    expect(calls.filter((call) => call.url === '/api/canvas/node')).toHaveLength(1);
   });
 
   test('starts compact with live activity, auto-opens for a gate, and closes after approval or rejection', () => {

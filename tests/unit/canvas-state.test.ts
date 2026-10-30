@@ -767,6 +767,19 @@ describe('canvas state manager', () => {
     expect(canvasState.getNode(groupId)?.size).toEqual({ width: 612, height: 464 });
   });
 
+  test('stacking updates survive layout reads without changing geometry and retries are no-ops', () => {
+    const node = makeNode({ id: 'stacked-card', type: 'markdown', position: { x: -70, y: 130 }, zIndex: 2 });
+    canvasState.addNode(node);
+    expect(canvasState.applyUpdates([{ id: node.id, zIndex: 103 }])).toEqual({ applied: 1, skipped: 0 });
+    expect(canvasState.getLayout().nodes.find((entry) => entry.id === node.id)).toMatchObject({
+      zIndex: 103,
+      position: node.position,
+      size: node.size,
+    });
+    expect(canvasState.applyUpdates([{ id: node.id, zIndex: 103 }])).toEqual({ applied: 0, skipped: 1 });
+    expect(canvasState.getNode(node.id)?.zIndex).toBe(103);
+  });
+
   test('batch updates recompute parent group bounds when a grouped child moves', () => {
     const child = makeNode({
       id: 'node-child-batch',

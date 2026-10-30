@@ -1,13 +1,24 @@
 import { EventEmitter } from 'node:events';
-import { derivedTour, type Camera, type Tour, type TourStop } from '../shared/tour.js';
-import { exitTour, goToTourStop, moveCamera, type TourStep, type TourStepResult } from './tour-control.js';
-export type { Tour, TourStop } from '../shared/tour.js';
-export type { TourStep, TourStepResult } from './tour-control.js';
+import type { BoardMoveInput, BoardMovePreview, BoardMoveResult } from './board-move.js';
+export type { BoardMoveInput, BoardMovePreview, BoardMoveResult } from './board-move.js';
+import type { Camera, Tour, TourPresenter, TourStop } from '../shared/tour.js';
+import {
+  currentTour,
+  exitTour,
+  goToTourStop,
+  moveCamera,
+  type TourState,
+  type TourStep,
+  type TourStepResult,
+  type TourSuperseded,
+} from './tour-control.js';
+export type { Tour, TourPresenter, TourStop } from '../shared/tour.js';
+export type { TourState, TourStep, TourStepResult, TourSuperseded } from './tour-control.js';
 import { agentPresence } from './agent-presence.js';
 import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
-import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
-import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
+import { canvasState } from './canvas-state.js';
+import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
 import { applyAxInteraction, type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
 import { intentRegistry } from './intent-registry.js';
@@ -46,12 +57,12 @@ import { workbenchToken } from './workbench-auth.js';
 import type { BackupFile, BackupStatus } from './backup.js';
 import type { ExportManifest } from './board-export.js';
 import { onFileNodeChanged } from './file-watcher.js';
-import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
+import { findOpenCanvasPosition } from './placement.js';
 import { overlapsAny } from '../shared/placement.js';
 import { buildSpatialContext } from './spatial-analysis.js';
 import { searchCanvasNodes } from './operations/ops/query.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
-import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
   addCanvasNode,
   addCanvasEdge,
@@ -90,12 +101,7 @@ import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
 import { contextReadFromPayload } from './context-reads.js';
-import {
-  buildHtmlPrimitive,
-  getHtmlPrimitiveSemanticMetadata,
-  isHtmlPrimitiveKind,
-  listHtmlPrimitiveDescriptors,
-} from './html-primitives.js';
+import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata } from './html-primitives.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import {
   buildWebArtifactOnCanvas,
@@ -104,15 +110,7 @@ import {
 } from './web-artifacts.js';
 import { closeMcpAppSession, type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import type { DiagramPresetOpenInput } from './diagram-presets.js';
-import {
-  buildGraphSpec,
-  GRAPH_NODE_SIZE,
-  JSON_RENDER_NODE_SIZE,
-  normalizeAndValidateJsonRenderSpec,
-  type GraphNodeInput,
-  type JsonRenderNodeInput,
-  type JsonRenderSpec,
-} from '../json-render/server.js';
+import type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 import {
   startCanvasServer,
   stopCanvasServer,
@@ -126,15 +124,8 @@ import {
   screenshotCanvasAutomationWebView,
   emitPrimaryWorkbenchEvent,
   setPrimaryWorkbenchCanvasPromptHandler,
-  setPrimaryWorkbenchAutoOpenEnabled,
-  consumePrimaryWorkbenchIntents,
 } from './server.js';
-import type {
-  CanvasAutomationWebViewOptions,
-  CanvasAutomationWebViewStatus,
-  PrimaryWorkbenchCanvasPromptRequest,
-  PrimaryWorkbenchIntent,
-} from './server.js';
+import type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus } from './server.js';
 
 /**
  * Node object returned by the SDK's create/get methods. It is the fully
@@ -481,6 +472,8 @@ export class PmxCanvas extends EventEmitter {
     style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
+    if (input.expectedBoardId !== undefined && input.expectedBoardId !== canvasState.activeBoardId)
+      throw new Error('The active board changed. Refresh before retrying this action.');
     if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
       const revision = canvasState.getContentRevision().revision;
       const edge = addCanvasEdge(input);
@@ -517,21 +510,19 @@ export class PmxCanvas extends EventEmitter {
     return (await executeOperation('edge.update', { id, ...patch }, { source: 'sdk' })) as CanvasEdge;
   }
 
-  addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): string {
-    const id = input.id ?? `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    canvasState.addAnnotation({
-      ...input,
-      id,
-      createdAt: input.createdAt ?? new Date().toISOString(),
-    });
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return id;
+  async addAnnotation(
+    input: Pick<CanvasAnnotation, 'points'> &
+      Partial<Pick<CanvasAnnotation, 'id' | 'type' | 'color' | 'width' | 'text' | 'label'>>,
+  ): Promise<string> {
+    const result = (await executeOperation('annotation.add', input, { source: 'sdk' })) as {
+      annotation: { id: string };
+    };
+    return result.annotation.id;
   }
 
-  removeAnnotation(id: string): boolean {
-    const removed = canvasState.removeAnnotation(id);
-    if (removed) emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return removed;
+  async removeAnnotation(id: string): Promise<boolean> {
+    const result = (await executeOperation('annotation.remove', { id }, { source: 'sdk' })) as { ok: boolean };
+    return result.ok;
   }
 
   removeEdge(id: string): void {
@@ -560,6 +551,8 @@ export class PmxCanvas extends EventEmitter {
     color?: string;
     childLayout?: 'grid' | 'column' | 'flow';
   }): string {
+    if (input.expectedBoardId !== undefined && input.expectedBoardId !== canvasState.activeBoardId)
+      throw new Error('The active board changed. Refresh before retrying this action.');
     if (input.destinationBoardId !== undefined || input.requestId !== undefined) {
       const revision = canvasState.getContentRevision().revision;
       const { id } = createCanvasGroup(input);
@@ -628,8 +621,8 @@ export class PmxCanvas extends EventEmitter {
     );
   }
 
-  getTour(): Tour {
-    return canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes);
+  getTour(): TourState {
+    return currentTour();
   }
 
   setTour(tour: Tour | null): void {
@@ -639,16 +632,25 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Present a tour stop (index, `next` or `previous`) in the workbench. Not recorded in undo history. */
-  goToTourStop(step: TourStep, options?: { present?: boolean }): TourStepResult {
-    const result = goToTourStop(step);
-    emitPrimaryWorkbenchEvent('canvas-tour-step', { ...result, present: options?.present !== false });
+  goToTourStop(step: TourStep, options?: { present?: boolean; presenter?: undefined }): TourStepResult;
+  goToTourStop(
+    step: TourStep,
+    options: { present?: boolean; presenter?: TourPresenter },
+  ): TourStepResult | TourSuperseded;
+  goToTourStop(
+    step: TourStep,
+    options?: { present?: boolean; presenter?: TourPresenter },
+  ): TourStepResult | TourSuperseded {
+    const result = goToTourStop(step, options?.presenter);
+    if (!('superseded' in result))
+      emitPrimaryWorkbenchEvent('canvas-tour-step', { ...result, present: options?.present !== false });
     return result;
   }
 
   /** Leave presentation in every viewer. */
-  exitTour(): void {
-    exitTour();
-    emitPrimaryWorkbenchEvent('canvas-tour-exit', {});
+  exitTour(presenter?: TourPresenter): void {
+    const result = exitTour(presenter);
+    if (!('superseded' in result)) emitPrimaryWorkbenchEvent('canvas-tour-exit', { ...result });
   }
 
   /** Ease the camera to a node, world rect or viewport. Not recorded in undo history. */
@@ -950,6 +952,15 @@ export class PmxCanvas extends EventEmitter {
     preview?: boolean;
   }): Promise<Record<string, unknown>> {
     return (await executeOperation('board.create-from', input, { source: 'sdk' })) as Record<string, unknown>;
+  }
+
+  /** Relocate identities atomically; preview is read-only and retries reuse the original receipt. */
+  async moveSelectionToNewBoard(
+    input: BoardMoveInput,
+  ): Promise<{ ok: true; preview: BoardMovePreview } | (BoardMoveResult & { ok: true; replayed: boolean })> {
+    return (await executeOperation('board.move-selection', input, { source: 'sdk' })) as
+      | { ok: true; preview: BoardMovePreview }
+      | (BoardMoveResult & { ok: true; replayed: boolean });
   }
 
   async searchLibrary(query: string, limit?: number): Promise<Record<string, unknown>> {

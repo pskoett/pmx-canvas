@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
+import { activeBoardId } from '../state/boards-store';
 import { updateNodeData } from '../state/canvas-store';
 import { fetchSlashCommands, renderMarkdown, submitCanvasPrompt, submitThreadReply } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
+
+// Multiple inline/focus renderers may own inputs for the same qualified card.
+const unsentInputs = new Set<{ boardId: string | null; nodeId: string; draft: string; reply: string }>();
+export function hasUnsavedPrompt(boardId: string, nodeId: string): boolean {
+  return [...unsentInputs].some((input) => input.boardId === boardId && input.nodeId === nodeId);
+}
 
 // Cached slash commands — fetched once on first use.
 let cachedCommands: Array<{ name: string; description: string }> | null = null;
@@ -57,7 +64,7 @@ function ContextBadge({ count }: { count: number }) {
         padding: '4px 8px',
         fontSize: '11px',
         color: 'var(--c-accent)',
-        background: 'rgba(70,182,255,0.08)',
+        background: 'color-mix(in srgb, var(--c-pin) 8%, transparent)',
         borderRadius: 'var(--radius-sm)',
         flexShrink: 0,
       }}
@@ -75,7 +82,7 @@ function ErrorBanner({ message, onDismiss }: { message: string | null; onDismiss
         padding: '4px 8px',
         fontSize: '11px',
         color: 'var(--c-danger)',
-        background: 'rgba(255,80,80,0.08)',
+        background: 'color-mix(in srgb, var(--c-danger) 8%, transparent)',
         borderRadius: 'var(--radius-sm)',
         display: 'flex',
         alignItems: 'center',
@@ -117,8 +124,30 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
   const isStreaming = threadStatus === 'streaming';
   const isAnswered = threadStatus === 'answered';
 
-  const [draft, setDraft] = useState('');
-  const [replyDraft, setReplyDraft] = useState('');
+  const [draft, updateDraft] = useState('');
+  const [replyDraft, updateReplyDraft] = useState('');
+  const boardId = activeBoardId.value;
+  const input = useMemo(() => ({ boardId, nodeId: node.id, draft: '', reply: '' }), [boardId, node.id]);
+  const remember = () => {
+    if (input.draft || input.reply) unsentInputs.add(input);
+    else unsentInputs.delete(input);
+  };
+  const setDraft = (text: string) => {
+    input.draft = text;
+    remember();
+    updateDraft(text);
+  };
+  const setReplyDraft = (text: string) => {
+    input.reply = text;
+    remember();
+    updateReplyDraft(text);
+  };
+  useEffect(
+    () => () => {
+      unsentInputs.delete(input);
+    },
+    [input],
+  );
   const [error, setError] = useState<string | null>(null);
   const [renderedTurns, setRenderedTurns] = useState<Map<number, string>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -312,7 +341,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
           style={{
             flex: 1,
             resize: 'none',
-            background: 'rgba(10,14,30,0.4)',
+            background: 'var(--c-input-bg)',
             border: '1px solid var(--c-line)',
             borderRadius: 'var(--radius-sm)',
             color: 'var(--c-text)',
@@ -324,7 +353,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
           }}
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>{'\u2318'}+Enter to send</span>
+          <kbd class="prompt-key-hint">{'\u2318'}+Enter to send</kbd>
           <button
             type="button"
             onClick={handleSubmit}
@@ -377,10 +406,9 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
         >
           <span
             style={{
-              fontSize: '10px',
-              textTransform: 'uppercase',
+              fontSize: 'var(--fs-meta)',
               fontWeight: 600,
-              color: isPending ? 'var(--c-warn)' : isAnswered ? 'var(--c-ok)' : 'var(--c-muted)',
+              color: isPending ? 'var(--c-agent)' : isAnswered ? 'var(--c-ok)' : 'var(--c-muted)',
             }}
           >
             {isPending ? 'Sending…' : isAnswered ? 'Answered' : legacyStatus}
@@ -481,13 +509,12 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
         >
           <span
             style={{
-              fontSize: '10px',
-              textTransform: 'uppercase',
+              fontSize: 'var(--fs-meta)',
               fontWeight: 600,
               color: isStreaming
-                ? 'var(--c-accent)'
+                ? 'var(--c-agent)'
                 : isPending
-                  ? 'var(--c-warn)'
+                  ? 'var(--c-agent)'
                   : isAnswered
                     ? 'var(--c-ok)'
                     : 'var(--c-muted)',
@@ -495,7 +522,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
           >
             {isStreaming ? 'Streaming…' : isPending ? 'Sending…' : isAnswered ? 'Answered' : threadStatus}
           </span>
-          <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>
+          <span style={{ fontSize: 'var(--fs-meta)', color: 'var(--c-muted)' }}>
             {turns.length} turn{turns.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -513,7 +540,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
               style={{
                 width: '100%',
                 resize: 'none',
-                background: 'rgba(10,14,30,0.4)',
+                background: 'var(--c-input-bg)',
                 border: '1px solid var(--c-line)',
                 borderRadius: 'var(--radius-sm)',
                 color: 'var(--c-text)',
@@ -532,7 +559,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
                 marginTop: '4px',
               }}
             >
-              <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>{'\u2318'}+Enter</span>
+              <kbd class="prompt-key-hint">{'\u2318'}+Enter</kbd>
               <button
                 type="button"
                 onClick={handleReplySubmit}

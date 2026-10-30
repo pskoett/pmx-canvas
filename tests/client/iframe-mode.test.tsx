@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { cleanup, render } from '@testing-library/preact';
+import { cleanup, fireEvent, render } from '@testing-library/preact';
+import { useRef } from 'preact/hooks';
+import { RefreshingViewerFrame } from '../../src/client/nodes/ViewerFrame.tsx';
 import {
   IFRAME_PROBE_PATH,
   forcedIframeMode,
@@ -11,7 +13,10 @@ import {
 import { IFRAME_PROBE_MESSAGE_SOURCE } from '../../src/shared/iframe-probe.ts';
 import { useIframeDocument } from '../../src/client/nodes/iframe-document-url.ts';
 import { useSurfaceFrame } from '../../src/client/nodes/use-surface-frame.ts';
-import { workbenchConnectionEpoch } from '../../src/client/state/canvas-store.ts';
+import { canvasTheme, workbenchConnectionEpoch } from '../../src/client/state/canvas-store.ts';
+import { McpAppNode } from '../../src/client/nodes/McpAppNode.tsx';
+import { WebpageNode } from '../../src/client/nodes/WebpageNode.tsx';
+import type { CanvasNodeState } from '../../src/client/types.ts';
 
 // Other client files leave debounced store refreshes (the context chip's brief
 // fetch) that can land during a test; only a document fetch counts here.
@@ -179,11 +184,12 @@ describe('resolveIframeMode', () => {
 
 function SurfaceProbe({ url }: { url: string }) {
   const frame = useSurfaceFrame(url);
-  return <iframe title="surface-probe" data-surface-probe {...frame} />;
+  const ref = useRef<HTMLIFrameElement>(null);
+  return <RefreshingViewerFrame title="surface-probe" iframeRef={ref} source={frame} />;
 }
 
 function surfaceIframe(): HTMLIFrameElement {
-  const el = document.querySelector<HTMLIFrameElement>('iframe[data-surface-probe]');
+  const el = document.querySelector<HTMLIFrameElement>('iframe[title="surface-probe"]');
   if (!el) throw new Error('surface iframe not rendered');
   return el;
 }
@@ -198,8 +204,7 @@ describe('useSurfaceFrame', () => {
 
   test('unresolved mode holds a same-origin frame empty instead of loading src', () => {
     render(<SurfaceProbe url="/api/canvas/surface/n1" />);
-    expect(surfaceIframe().hasAttribute('src')).toBe(false);
-    expect(surfaceIframe().hasAttribute('srcdoc')).toBe(false);
+    expect(document.querySelector('iframe[title="surface-probe"]')).toBeNull();
   });
 
   test('srcdoc mode fetches the same-origin surface and inlines it', async () => {
@@ -234,32 +239,46 @@ describe('useSurfaceFrame', () => {
     expect(surfaceIframe().getAttribute('src')).toBe('https://example.com/hosted-app');
   });
 
-  test('a failed srcdoc fetch falls back to src', async () => {
+  test('a failed srcdoc fetch offers Retry without trying a blocked src URL', async () => {
     iframeMode.value = 'srcdoc';
     globalThis.fetch = (async () => new Response('gone', { status: 404 })) as unknown as typeof fetch;
 
-    render(<SurfaceProbe url="/api/canvas/surface/missing" />);
+    const view = render(<SurfaceProbe url="/api/canvas/surface/missing" />);
     await flush();
-
-    expect(surfaceIframe().getAttribute('src')).toBe('/api/canvas/surface/missing');
-    expect(surfaceIframe().hasAttribute('srcdoc')).toBe(false);
+    expect(document.querySelector('iframe[title="surface-probe"]')).toBeNull();
+    globalThis.fetch = (async () => new Response('<p>Recovered</p>')) as unknown as typeof fetch;
+    fireEvent.click(view.getByRole('button', { name: 'Retry' }));
+    await flush();
+    expect(surfaceIframe().getAttribute('srcdoc')).toContain('Recovered');
+    expect(surfaceIframe().hasAttribute('src')).toBe(false);
   });
 });
 
 function DocumentProbe({ html }: { html: string }) {
   const doc = useIframeDocument(html, 'allow-scripts');
-  return (
-    <iframe
-      title="document-probe"
-      data-document-probe
-      data-ready={doc.ready ? '1' : '0'}
-      data-frame-key={doc.key}
-      {...doc.attributes}
-    />
-  );
+  const ref = useRef<HTMLIFrameElement>(null);
+  return <RefreshingViewerFrame title="document-probe" iframeRef={ref} source={doc} />;
 }
 
 describe('useIframeDocument (srcdoc mode)', () => {
+  test('a failed document mint uses the shared Retry instead of leaving a loading tile', async () => {
+    iframeMode.value = 'src';
+    let available = false;
+    globalThis.fetch = (async () =>
+      available
+        ? Response.json({ ok: true, url: '/api/canvas/frame-documents/recovered' })
+        : Response.json({ ok: false, error: 'Unavailable' }, { status: 503 })) as unknown as typeof fetch;
+    const view = render(<DocumentProbe html="<p>App</p>" />);
+    await flush();
+    expect(document.querySelector('iframe[title="document-probe"]')).toBeNull();
+    available = true;
+    fireEvent.click(view.getByRole('button', { name: 'Retry' }));
+    await flush();
+    expect(document.querySelector('iframe[title="document-probe"]')?.getAttribute('src')).toBe(
+      '/api/canvas/frame-documents/recovered',
+    );
+  });
+
   test('serves the document inline without the frame-documents round-trip', async () => {
     iframeMode.value = 'srcdoc';
     const fetchSpy = mock(async () => new Response(JSON.stringify({ ok: true, url: '/x' })));
@@ -268,12 +287,10 @@ describe('useIframeDocument (srcdoc mode)', () => {
     render(<DocumentProbe html="<h1>ext app</h1>" />);
     await flush();
 
-    const el = document.querySelector<HTMLIFrameElement>('iframe[data-document-probe]');
+    const el = document.querySelector<HTMLIFrameElement>('iframe[title="document-probe"]');
     if (!el) throw new Error('document iframe not rendered');
     expect(documentFetches(fetchSpy)).toBe(0);
     expect(el.getAttribute('srcdoc')).toBe('<h1>ext app</h1>');
-    expect(el.getAttribute('data-ready')).toBe('1');
-    expect(el.getAttribute('data-frame-key')).toStartWith('srcdoc-');
   });
 
   test('re-mints the frame document when a reconnect finds the URL dead (Finding S)', async () => {
@@ -291,7 +308,8 @@ describe('useIframeDocument (srcdoc mode)', () => {
 
     render(<DocumentProbe html="<h1>ext app</h1>" />);
     await flush();
-    const src = () => document.querySelector<HTMLIFrameElement>('iframe[data-document-probe]')?.getAttribute('src');
+    const src = () =>
+      document.querySelector<HTMLIFrameElement>('iframe[title="document-probe"]:last-of-type')?.getAttribute('src');
     expect(src()).toBe('/api/canvas/frame-documents/mint-1');
 
     // Healthy reconnect (SSE blip, same server): HEAD 200 → document kept,
@@ -308,5 +326,43 @@ describe('useIframeDocument (srcdoc mode)', () => {
     await flush();
     expect(src()).toBe('/api/canvas/frame-documents/mint-2');
     expect(mintCounter).toBe(2);
+  });
+});
+
+describe('viewer permission and theme boundaries', () => {
+  const node: CanvasNodeState = {
+    id: 'external-viewer',
+    type: 'mcp-app',
+    position: { x: 0, y: 0 },
+    size: { width: 600, height: 400 },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    data: { url: 'https://viewer.example/app', title: 'External viewer' },
+  };
+
+  test('a webpage preview does not inherit MCP clipboard permissions', () => {
+    iframeMode.value = 'src';
+    const view = render(<WebpageNode node={{ ...node, type: 'webpage' }} expanded />);
+    expect(view.container.querySelector('iframe')?.getAttribute('allow')).toBe('');
+    view.unmount();
+    const mcp = render(<McpAppNode node={node} />);
+    expect(mcp.container.querySelector('iframe')?.getAttribute('allow')).toBe('clipboard-read; clipboard-write');
+  });
+
+  test('generic viewers receive light/dark query updates without a JSON theme bridge', () => {
+    iframeMode.value = 'src';
+    const previous = canvasTheme.value;
+    try {
+      canvasTheme.value = 'harbor';
+      const view = render(<McpAppNode node={node} />);
+      const urls = () => [...view.container.querySelectorAll('iframe')].map((frame) => new URL(frame.src));
+      expect(urls().map((url) => url.searchParams.get('theme'))).toEqual(['dark']);
+      canvasTheme.value = 'sepia';
+      view.rerender(<McpAppNode node={node} />);
+      expect(urls().some((url) => url.searchParams.get('theme') === 'light')).toBe(true);
+    } finally {
+      canvasTheme.value = previous;
+    }
   });
 });

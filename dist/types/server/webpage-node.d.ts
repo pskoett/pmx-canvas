@@ -37,6 +37,7 @@ export declare function checkWebpageHop(originScope: AddressScope, hopScope: Add
 export declare function fetchWebpageSnapshot(inputUrl: string, options?: {
     resolveHost?: ResolveHost;
     timeoutMs?: number;
+    signal?: AbortSignal;
 }): Promise<WebpageSnapshot>;
 export declare function getWebpageFetchErrorDetails(error: unknown): {
     message: string;

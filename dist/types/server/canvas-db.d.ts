@@ -14,6 +14,10 @@ import { type PmxAxState, type PmxAxEvent, type PmxAxEvidence, type PmxAxSteerin
 export type CanvasTheme = CanvasThemeName;
 export declare function normalizeCanvasTheme(value: unknown, fallback?: CanvasTheme): CanvasTheme;
 export interface PersistedCanvasState {
+    /** Optimistic storage baseline, independent of content/read/review clocks. New boards start at zero. */
+    storageVersion?: number;
+    /** Snapshot restore boundary, not an authored content version. */
+    moveBoundary?: string | null;
     tour?: Tour;
     version: number;
     theme?: CanvasTheme;
@@ -70,8 +74,10 @@ export declare function finalizeCanvasDbForClose(db: Database): void;
 /** The theme is workspace-wide: it is saved even while no board is open. */
 export declare function saveThemeToDB(db: Database, theme: CanvasTheme | undefined): void;
 export declare function readThemeFromDB(db: Database): CanvasTheme | undefined;
-/** Saves one board's state; every other board's rows are untouched. */
-export declare function saveStateToDB(db: Database, boardId: string, state: PersistedCanvasState): void;
+export declare function boardStorageVersion(db: Database, boardId: string): number;
+export declare function assertBoardStorageVersion(db: Database, boardId: string, expected: number): void;
+/** Save one board, returning its new baseline. Publish the baseline only after the outer transaction commits. */
+export declare function saveStateToDB(db: Database, boardId: string, state: PersistedCanvasState): number;
 /** Loads one board (the open board when `boardId` is omitted); null when there is no such board. */
 export declare function loadStateFromDB(db: Database, boardId?: string): PersistedCanvasState | null;
 export interface CanvasBoard {

@@ -6,6 +6,7 @@ import type { ViewportState } from '../types';
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;
 const PAN_SPEED = 1;
+const RIGHT_DRAG_THRESHOLD = 5;
 
 function clampScale(scale: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
@@ -15,6 +16,8 @@ interface PanZoomOptions {
   viewport: Signal<ViewportState>;
   onViewportChange: (v: ViewportState) => void;
   onViewportCommit: (v: ViewportState) => void;
+  onBackgroundContextMenu?: (e: MouseEvent, worldX: number, worldY: number) => void;
+  onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
   disabled?: boolean;
 }
 
@@ -23,13 +26,28 @@ interface PanZoomOptions {
  * - Wheel + Ctrl/Cmd: zoom centered on pointer
  * - Wheel without modifier: pan
  * - Right or middle pointer drag: pan from anywhere
+ * - Right-click on background: creation menu on release, unless dragged
  * - Pointer drag on background in pan mode: pan
  * - Pinch (touch): zoom
  */
-export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disabled = false }: PanZoomOptions) {
+export function usePanZoom({
+  viewport,
+  onViewportChange,
+  onViewportCommit,
+  onBackgroundContextMenu,
+  onEdgeContextMenu,
+  disabled = false,
+}: PanZoomOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
+  const rightPress = useRef<{
+    x: number;
+    y: number;
+    background: boolean;
+    edgeId: string | null;
+    dragged: boolean;
+  } | null>(null);
   const lastPinchDist = useRef(0);
   const wheelCommitTimer = useRef<number | null>(null);
 
@@ -123,6 +141,16 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
         // Select tool: background drag belongs to the lasso (CanvasViewport).
         return;
       }
+      rightPress.current =
+        e.button === 2
+          ? {
+              x: e.clientX,
+              y: e.clientY,
+              background: e.target === container,
+              edgeId: e.target instanceof Element ? e.target.getAttribute('data-edge-id') : null,
+              dragged: false,
+            }
+          : null;
       isPanning.current = true;
       document.documentElement.classList.add('is-canvas-panning');
       lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -135,6 +163,11 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
     (e: PointerEvent) => {
       if (!isPanning.current) return;
       if (disabled) return;
+      const press = rightPress.current;
+      if (press && !press.dragged) {
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) <= RIGHT_DRAG_THRESHOLD) return;
+        press.dragged = true;
+      }
       const dx = e.clientX - lastPointer.current.x;
       const dy = e.clientY - lastPointer.current.y;
       lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -145,13 +178,37 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
     [disabled, viewport, onViewportChange],
   );
 
-  const handlePointerUp = useCallback(() => {
-    if (isPanning.current) {
+  const handlePointerUp = useCallback(
+    (e: PointerEvent) => {
+      if (!isPanning.current) return;
+      // Completing a middle pan must not paste the Linux primary selection.
+      e.preventDefault();
+      const press = rightPress.current;
+      rightPress.current = null;
+      isPanning.current = false;
+      document.documentElement.classList.remove('is-canvas-panning');
+      if (press && !press.dragged) {
+        // Native contextmenu may fire on press or release depending on the OS.
+        // Decide here instead, and never open on cancellation or lost capture.
+        if (!disabled && e.type === 'pointerup') {
+          if (press.edgeId) onEdgeContextMenu?.(e, press.edgeId);
+          else if (press.background) {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const v = viewport.value;
+            onBackgroundContextMenu?.(
+              e,
+              (e.clientX - rect.left - v.x) / v.scale,
+              (e.clientY - rect.top - v.y) / v.scale,
+            );
+          }
+        }
+        return;
+      }
       onViewportCommit(viewport.value);
-    }
-    isPanning.current = false;
-    document.documentElement.classList.remove('is-canvas-panning');
-  }, [onViewportCommit, viewport]);
+    },
+    [disabled, onBackgroundContextMenu, onEdgeContextMenu, onViewportCommit, viewport],
+  );
 
   // Touch pinch
   const handleTouchMove = useCallback(

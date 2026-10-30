@@ -39,11 +39,7 @@
  *    the legacy error body — server-api only reads `missing.status`.
  *
  * Documented behavior change (accepted long-poll tradeoff, plan-007 sub-slice):
- *  - The legacy HTTP handler passed `req.signal` to waitForAxResolution, so a
- *    client disconnect aborted the wait early. The registry handler has no access
- *    to the HTTP Request, so the wait now runs to its (≤120s, subscription-based,
- *    cheap) timeout instead of aborting on disconnect. Resolution detection,
- *    timeout, and the `{ value, pending }` result are otherwise identical.
+ *  - Request cancellation rejects the wait and disposes its subscription/timer.
  *  - Remote-MCP only (daemon mode, untested for these reads): the legacy
  *    RemoteCanvasAccess.await* methods special-cased a 404 → `{ <key>:null }`. The
  *    generic HttpOperationInvoker throws on 404, so an await-on-missing over a
@@ -70,9 +66,12 @@ function clampTimeoutMs(value: unknown): number {
   return Math.min(ms, AX_WAIT_MAX_MS);
 }
 
-/** HTTP `?waitMs` → `timeoutMs`; absent/non-positive ⇒ 0 (plain read). Matches parseAxWaitMs. */
+/** Accept the operation's timeoutMs as well as the direct HTTP waitMs spelling. */
 function readWaitMsInput(_req: Request, params: Record<string, string>, url: URL): Record<string, unknown> {
-  return { ...params, timeoutMs: clampTimeoutMs(url.searchParams.get('waitMs') ?? '') };
+  return {
+    ...params,
+    timeoutMs: clampTimeoutMs(url.searchParams.get('timeoutMs') ?? url.searchParams.get('waitMs') ?? ''),
+  };
 }
 
 /** MCP buildInput: forward id + timeoutMs (omitted ⇒ 30000), clamped to [0, max]. */
@@ -131,13 +130,16 @@ const axApprovalGetOperation = defineOperation<z.infer<typeof awaitInputSchema>,
       };
     },
   },
-  handler: async (input) => {
+  handler: async (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id : '';
+    await ctx.onProgress?.({ progress: 0, total: 1, message: 'Waiting for approval' });
     const { value, pending } = await waitForAxResolution<PmxAxApprovalGate>({
       read: () => canvasState.getApproval(id),
       isResolved: (g) => g.status !== 'pending',
       timeoutMs: clampTimeoutMs(input.timeoutMs),
+      signal: ctx.signal,
     });
+    await ctx.onProgress?.({ progress: 1, total: 1, message: pending ? 'Wait timed out' : 'Wait complete' });
     return { ok: value !== null, approvalGate: value, pending } as unknown as Record<string, unknown>;
   },
 });
@@ -170,13 +172,16 @@ const axElicitationGetOperation = defineOperation<z.infer<typeof awaitInputSchem
       };
     },
   },
-  handler: async (input) => {
+  handler: async (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id : '';
+    await ctx.onProgress?.({ progress: 0, total: 1, message: 'Waiting for elicitation' });
     const { value, pending } = await waitForAxResolution<PmxAxElicitation>({
       read: () => canvasState.getElicitation(id),
       isResolved: (e) => e.status !== 'pending',
       timeoutMs: clampTimeoutMs(input.timeoutMs),
+      signal: ctx.signal,
     });
+    await ctx.onProgress?.({ progress: 1, total: 1, message: pending ? 'Wait timed out' : 'Wait complete' });
     return { ok: value !== null, elicitation: value, pending } as unknown as Record<string, unknown>;
   },
 });
@@ -209,13 +214,16 @@ const axModeGetOperation = defineOperation<z.infer<typeof awaitInputSchema>, Rec
       };
     },
   },
-  handler: async (input) => {
+  handler: async (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id : '';
+    await ctx.onProgress?.({ progress: 0, total: 1, message: 'Waiting for mode resolution' });
     const { value, pending } = await waitForAxResolution<PmxAxModeRequest>({
       read: () => canvasState.getModeRequest(id),
       isResolved: (m) => m.status !== 'pending',
       timeoutMs: clampTimeoutMs(input.timeoutMs),
+      signal: ctx.signal,
     });
+    await ctx.onProgress?.({ progress: 1, total: 1, message: pending ? 'Wait timed out' : 'Wait complete' });
     return { ok: value !== null, modeRequest: value, pending } as unknown as Record<string, unknown>;
   },
 });

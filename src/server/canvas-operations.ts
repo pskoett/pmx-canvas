@@ -1059,8 +1059,9 @@ export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput):
 
 export async function refreshCanvasWebpageNode(
   id: string,
-  options: { url?: string } = {},
+  options: { url?: string; signal?: AbortSignal } = {},
 ): Promise<{ ok: boolean; id: string; error?: string }> {
+  options.signal?.throwIfAborted();
   const existing = canvasState.getNode(id);
   if (!existing || existing.type !== 'webpage') {
     return { ok: false, id, error: `Webpage node "${id}" not found.` };
@@ -1094,7 +1095,8 @@ export async function refreshCanvasWebpageNode(
   }
 
   try {
-    const snapshot = await fetchWebpageSnapshot(normalizedUrl);
+    const snapshot = await fetchWebpageSnapshot(normalizedUrl, { signal: options.signal });
+    options.signal?.throwIfAborted();
     if (canvasState.boardGeneration !== boardGeneration) {
       return { ok: false, id, error: 'The board changed during webpage refresh.' };
     }
@@ -1131,6 +1133,8 @@ export async function refreshCanvasWebpageNode(
     canvasState.updateNode(id, { data: nextData });
     return { ok: true, id };
   } catch (error) {
+    // Cancellation leaves the previous content/status intact, not an error card.
+    options.signal?.throwIfAborted();
     if (canvasState.boardGeneration !== boardGeneration) {
       return { ok: false, id, error: 'The board changed during webpage refresh.' };
     }

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { withCurrentActor } from '../../src/server/attribution.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { contextReadFromPayload, pinnedBoardReads } from '../../src/server/context-reads.ts';
@@ -39,6 +39,190 @@ async function twoCards(): Promise<void> {
 }
 
 describe('connection changes are tracked apart from text', () => {
+  test('edge source warnings use revision baselines, not illustrated loops or citations', async () => {
+    await twoCards();
+    const boardId = canvasState.activeBoardId!;
+    const source = (await executeOperation('edge.add', {
+      from: 'risk',
+      to: 'plan',
+      kind: 'derived-from',
+      type: 'relation',
+    })) as { id: string };
+    for (const kind of ['cites', 'loop', 'if-fails'])
+      await executeOperation('edge.add', { from: 'risk', to: 'plan', kind, type: 'relation' });
+    const get = async () => (await executeOperation('node.lifecycle-get', { id: 'plan' })) as LifecycleResults['get'];
+    expect((await get()).qualification?.sourceWarnings ?? {}).toEqual({});
+    await executeOperation('node.update', { id: 'risk', data: { content: 'Changed evidence' } });
+    const warnings = (await get()).qualification?.sourceWarnings ?? {};
+    expect(Object.keys(warnings)).toEqual([
+      JSON.stringify([boardId, source.id, 'derived-from', JSON.stringify([boardId, 'risk'])]),
+    ]);
+    expect(Object.values(warnings).flat().join(' ')).toContain('changed');
+    // Repeated reads must not refresh the relation's source observation.
+    expect((await get()).qualification?.sourceWarnings).toEqual(warnings);
+  });
+
+  test('one-card lifecycle reads only dependency boards and only the requested audit history', async () => {
+    await twoCards();
+    const targetBoard = canvasState.activeBoardId!;
+    const sourceBoard = canvasState.createBoard('Incoming source', 'Sources')!;
+    canvasState.switchBoard(sourceBoard.id);
+    canvasState.addNode(makeNode({ id: 'source', type: 'markdown' }));
+    await executeOperation('edge.add', {
+      from: 'source',
+      to: 'plan',
+      toBoardId: targetBoard,
+      kind: 'derived-from',
+      type: 'relation',
+    });
+    for (let i = 0; i < 3; i++) {
+      const unrelated = canvasState.createBoard(`Unrelated ${i}`, 'Elsewhere')!;
+      canvasState.switchBoard(unrelated.id);
+      canvasState.addNode(makeNode({ id: 'plan', type: 'markdown' }));
+      for (let r = 0; r < 8; r++)
+        canvasState.knowledge.record(unrelated.id, 'plan', {
+          outcome: 'unresolved',
+          applied: false,
+          evidence: `Audit ${r}`,
+        });
+    }
+    canvasState.switchBoard(targetBoard);
+    for (let r = 0; r < 8; r++)
+      canvasState.knowledge.record(targetBoard, 'plan', {
+        outcome: 'unresolved',
+        applied: false,
+        evidence: `Audit ${r}`,
+      });
+    const expected = lifecycleQualifications(Date.now(), [{ boardId: targetBoard, cardId: 'plan' }])[
+      JSON.stringify([targetBoard, 'plan'])
+    ];
+    const read = spyOn(canvasState, 'readBoard');
+    const history = spyOn(canvasState.knowledge, 'reviews');
+    const summaries = spyOn(canvasState.knowledge, 'reviewSummaries');
+    try {
+      const result = (await executeOperation('node.lifecycle-get', { id: 'plan' })) as LifecycleResults['get'];
+      expect(result.qualification).toEqual(expected);
+      expect(result.records).toHaveLength(8);
+      expect(new Set(read.mock.calls.map(([id]) => id))).toEqual(new Set([targetBoard, sourceBoard.id]));
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(history.mock.calls).toEqual([[targetBoard, 'plan']]);
+      read.mockClear();
+      history.mockClear();
+      summaries.mockClear();
+      const node = (await executeOperation('node.get', { id: 'plan' })) as {
+        qualification: LifecycleResults['get']['qualification'];
+      };
+      expect(node.qualification).toEqual(expected);
+      expect(new Set(read.mock.calls.map(([id]) => id))).toEqual(new Set([targetBoard, sourceBoard.id]));
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(history).not.toHaveBeenCalled();
+      read.mockClear();
+      summaries.mockClear();
+      await executeOperation('node.review', {
+        id: 'plan',
+        outcome: 'unresolved',
+        applied: false,
+        evidence: 'Still investigating',
+      });
+      // The mutation's boards-changed broadcast separately reads the library; qualification stays bounded.
+      expect(summaries.mock.calls).toEqual([
+        [
+          [
+            { boardId: targetBoard, cardId: 'plan' },
+            { boardId: sourceBoard.id, cardId: 'source' },
+          ],
+        ],
+      ]);
+      expect(history).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+      history.mockRestore();
+      summaries.mockRestore();
+    }
+  });
+
+  test('bounded qualifications preserve incoming live edges, provenance, portal cycles and missing sources', async () => {
+    await twoCards();
+    const first = canvasState.activeBoardId!;
+    const second = canvasState.createBoard('Sources')!;
+    canvasState.switchBoard(second.id);
+    canvasState.addNode(makeNode({ id: 'source', type: 'markdown' }));
+    canvasState.addNode(makeNode({ id: 'back', type: 'board', data: { boardId: first } }));
+    const relation = (await executeOperation('edge.add', {
+      from: 'source',
+      to: 'plan',
+      toBoardId: first,
+      kind: 'contradicts',
+      type: 'relation',
+    })) as { id: string };
+    canvasState.switchBoard(first);
+    canvasState.addNode(makeNode({ id: 'portal', type: 'board', data: { boardId: second.id } }));
+    await executeOperation('edge.add', {
+      from: 'plan',
+      to: 'source',
+      toBoardId: second.id,
+      kind: 'derived-from',
+      type: 'relation',
+    });
+    canvasState.addNode(
+      makeNode({
+        id: 'derived',
+        type: 'markdown',
+        data: {
+          title: 'Derived',
+          content: 'Cached source',
+          provenance: {
+            sourceKind: 'recipe',
+            sourceUri: 'recipe:test',
+            refreshStrategy: 'agent-request',
+            snapshotContent: true,
+            sources: [
+              { boardId: second.id, cardId: 'source', contentRevision: 0, availability: 'cached' },
+              { boardId: 'missing-board', cardId: 'missing-card', availability: 'unavailable' },
+            ],
+          },
+        },
+      }),
+    );
+    const unrelated = canvasState.createBoard('Unrelated')!;
+    canvasState.switchBoard(unrelated.id);
+    canvasState.addNode(makeNode({ id: 'source', type: 'markdown' }));
+    canvasState.switchBoard(second.id);
+    // An unsaved removal must shadow the stored incoming relation.
+    canvasState.removeEdge(relation.id);
+    canvasState.addEdge({
+      id: 'live-source',
+      from: 'source',
+      to: 'plan',
+      toBoardId: first,
+      type: 'relation',
+      kind: 'supersedes',
+    });
+    for (const cardId of ['plan', 'portal', 'derived']) {
+      const expected = lifecycleQualifications(Date.now(), [{ boardId: first, cardId }])[
+        JSON.stringify([first, cardId])
+      ];
+      const read = spyOn(canvasState, 'readBoard');
+      try {
+        const result = (await executeOperation('node.lifecycle-get', {
+          board: first,
+          id: cardId,
+        })) as LifecycleResults['get'];
+        expect(result.qualification).toEqual(expected);
+        expect(read.mock.calls.some(([id]) => id === unrelated.id)).toBe(false);
+        if (cardId === 'plan') {
+          expect(result.qualification.due).toBe(true);
+          expect(Object.keys(result.qualification.observations).join()).toContain('live-source');
+          expect(Object.keys(result.qualification.observations).join()).not.toContain(relation.id);
+        }
+        if (cardId === 'portal') expect(result.qualification.sources.length).toBeGreaterThan(0);
+        if (cardId === 'derived') expect(result.qualification.sources.some((source) => source.unavailable)).toBe(true);
+      } finally {
+        read.mockRestore();
+      }
+    }
+  });
+
   test('dependency cycles propagate source changes but a reason edit and a reference do not reset or spread them', async () => {
     await twoCards();
     canvasState.addNode(makeNode({ id: 'downstream', type: 'markdown' }));

@@ -1,6 +1,6 @@
 import { gfm } from '@joplin/turndown-plugin-gfm';
 import TurndownService from 'turndown';
-import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 import { InlineFormatBar } from './InlineFormatBar';
 import { promptAndInsertLink } from './inline-editor-commands';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
@@ -32,16 +32,17 @@ function getTurndown(): TurndownService {
  *
  *  Two persistence signals:
  *  - `onChange(md)` — fires on every input. Caller typically debounces.
- *  - `onSave(md)`  — fires on ⌘S and blur. Caller should persist immediately
+ *  - `onSave(md)`  — fires on ⌘S and blur. Caller should persist dirty drafts immediately
  *    and cancel any pending debounced save, since `md` is the authoritative
- *    latest content. Both receive freshly-serialized markdown so the caller
- *    never reads a stale state snapshot. */
+ *    latest content: the exact caller draft until input, serialized DOM after it. */
 export function InlineMarkdownEditor({
+  markdown,
   initialHtml,
   className,
   onChange,
   onSave,
 }: {
+  markdown: string;
   initialHtml: string;
   className?: string;
   onChange: (markdown: string) => void;
@@ -49,20 +50,27 @@ export function InlineMarkdownEditor({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
+  const edited = useRef(false);
+  const displayedMarkdown = useRef(markdown);
+  const previousMarkdown = useRef(markdown);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
     const html = sanitizeMarkdownHtml(initialHtml);
-    if (!initialized.current) {
+    const sourceChanged = previousMarkdown.current !== markdown;
+    previousMarkdown.current = markdown;
+    if (!initialized.current || (sourceChanged && displayedMarkdown.current !== markdown)) {
       initialized.current = true;
+      displayedMarkdown.current = markdown;
+      edited.current = false;
       el.innerHTML = html;
       // Marked emits disabled GFM boxes; they are editable here.
       for (const box of el.querySelectorAll('input[type="checkbox"][disabled]')) box.removeAttribute('disabled');
       return;
     }
-    // Refresh navigation metadata only. Never replace editable children: a
-    // binding or target change must not discard a draft or move its selection.
+    // Local input already owns this Markdown. Only a different accepted source
+    // replaces it; metadata-only refreshes must not move the selection.
     const fresh = document.createElement('div');
     fresh.innerHTML = html;
     const links = new Map(
@@ -78,7 +86,7 @@ export function InlineMarkdownEditor({
       }
       link.classList.toggle('is-unresolved', replacement.classList.contains('is-unresolved'));
     }
-  }, [initialHtml]);
+  }, [initialHtml, markdown]);
 
   const serialize = useCallback((): string => {
     const el = rootRef.current;
@@ -87,7 +95,10 @@ export function InlineMarkdownEditor({
   }, []);
 
   const handleInput = useCallback(() => {
-    onChange(serialize());
+    edited.current = true;
+    const md = serialize();
+    displayedMarkdown.current = md;
+    onChange(md);
   }, [onChange, serialize]);
 
   const handleSave = useCallback(() => {
@@ -95,8 +106,10 @@ export function InlineMarkdownEditor({
     // focused) reads back an empty tree — saving that would WIPE the document.
     const el = rootRef.current;
     if (!el || !el.isConnected || el.innerHTML === '') return;
-    onSave?.(serialize());
-  }, [onSave, serialize]);
+    // Turndown cannot round-trip source spacing. Until this editor receives
+    // input, flush the caller's exact draft (including edits from Source mode).
+    onSave?.(edited.current ? serialize() : markdown);
+  }, [markdown, onSave, serialize]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

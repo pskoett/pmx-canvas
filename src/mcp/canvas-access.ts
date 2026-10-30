@@ -2,7 +2,6 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { createCanvas, canvasState, type CanvasLayout, type CanvasNodeState, type PmxCanvas } from '../server/index.js';
-import type { PmxAxSource } from '../server/ax-state.js';
 import type { ContextReadInput } from '../server/context-reads.js';
 import { HttpOperationInvoker, LocalOperationInvoker, type OperationInvoker } from '../server/operations/index.js';
 
@@ -14,13 +13,9 @@ import { HttpOperationInvoker, LocalOperationInvoker, type OperationInvoker } fr
 // not CanvasAccess. The public SDK PmxCanvas methods are unchanged.
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
-type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
-type SubmitAxInteractionResult = ReturnType<PmxCanvas['submitAxInteraction']>;
 type GetPendingSteeringResult = ReturnType<PmxCanvas['getPendingSteering']>;
 type ListElicitationsResult = ReturnType<PmxCanvas['listElicitations']>;
 type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
-type IngestActivityInput = Parameters<PmxCanvas['ingestActivity']>[0];
-type IngestActivityResult = ReturnType<PmxCanvas['ingestActivity']>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
@@ -56,14 +51,9 @@ export interface CanvasAccess {
   listWorkItems(): Promise<ListWorkItemsResult>;
   listApprovalGates(): Promise<ListApprovalGatesResult>;
   listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
-  submitAxInteraction(
-    input: SubmitAxInteractionInput,
-    options?: { source?: PmxAxSource },
-  ): Promise<SubmitAxInteractionResult>;
   getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult>;
   listElicitations(): Promise<ListElicitationsResult>;
   listModeRequests(): Promise<ListModeRequestsResult>;
-  ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult>;
   getPolicy(): Promise<GetPolicyResult>;
   getHistory(): Promise<HistoryResult>;
   getPinnedNodeIds(board?: string): Promise<string[]>;
@@ -75,7 +65,7 @@ export interface CanvasAccess {
   // canvas_screenshot (still hand-written — binary payload) is the only webview
   // tool left on CanvasAccess; it needs the status + screenshot accessors.
   getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
-  screenshotAutomationWebView(options?: AutomationScreenshotOptions): Promise<Uint8Array>;
+  screenshotAutomationWebView(options?: AutomationScreenshotOptions, signal?: AbortSignal): Promise<Uint8Array>;
 }
 
 class LocalCanvasAccess implements CanvasAccess {
@@ -123,13 +113,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getAxTimeline(query);
   }
 
-  async submitAxInteraction(
-    input: SubmitAxInteractionInput,
-    options?: { source?: PmxAxSource },
-  ): Promise<SubmitAxInteractionResult> {
-    return this.canvas.submitAxInteraction(input, { source: options?.source ?? 'mcp' });
-  }
-
   async getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult> {
     return this.canvas.getPendingSteering(options);
   }
@@ -140,10 +123,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async listModeRequests(): Promise<ListModeRequestsResult> {
     return this.canvas.listModeRequests();
-  }
-
-  async ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult> {
-    return this.canvas.ingestActivity(input, { source: options?.source ?? 'mcp' });
   }
 
   async getPolicy(): Promise<GetPolicyResult> {
@@ -299,23 +278,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<GetAxTimelineResult>('GET', `/api/canvas/ax/timeline${qs}`);
   }
 
-  async submitAxInteraction(
-    input: SubmitAxInteractionInput,
-    options?: { source?: PmxAxSource },
-  ): Promise<SubmitAxInteractionResult> {
-    // The interaction endpoint returns its structured outcome (ok/code/error) in
-    // the body for both accepted and rejected interactions, so read the body
-    // regardless of HTTP status rather than throwing on a denial.
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...input, source: options?.source ?? 'mcp' }),
-    });
-    const body = await response.json().catch(() => null);
-    if (body && typeof body === 'object') return body as SubmitAxInteractionResult;
-    throw new Error(`Remote canvas interaction failed with HTTP ${response.status}`);
-  }
-
   async getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult> {
     const params = new URLSearchParams();
     if (options?.consumer) params.set('consumer', options.consumer);
@@ -336,13 +298,6 @@ class RemoteCanvasAccess implements CanvasAccess {
   async listModeRequests(): Promise<ListModeRequestsResult> {
     const r = await this.requestJson<{ modeRequests?: ListModeRequestsResult }>('GET', '/api/canvas/ax/mode');
     return r.modeRequests ?? [];
-  }
-
-  async ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult> {
-    return await this.requestJson<IngestActivityResult>('POST', '/api/canvas/ax/activity', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
   }
 
   async getPolicy(): Promise<GetPolicyResult> {
@@ -404,11 +359,15 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<AutomationWebViewStatus>('GET', '/api/workbench/webview');
   }
 
-  async screenshotAutomationWebView(options: AutomationScreenshotOptions = {}): Promise<Uint8Array> {
+  async screenshotAutomationWebView(
+    options: AutomationScreenshotOptions = {},
+    signal?: AbortSignal,
+  ): Promise<Uint8Array> {
     const response = await fetch(`${this.remoteBaseUrl}/api/workbench/webview/screenshot`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),
+      signal,
     });
     if (!response.ok) {
       const text = await response.text();

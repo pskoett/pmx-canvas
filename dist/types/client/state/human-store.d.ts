@@ -22,6 +22,7 @@ export declare function markYielded(nodeId: string, name: string): void;
  * node wears a "took over — agent yielded" pill for a moment.
  */
 export declare function takeOverNode(nodeId: string, title: string): void;
+export declare function stopHumanPresence(): void;
 /** Announce this tab and keep it alive; renews a held grab. Call once per connection. */
-export declare function startHumanPresence(): () => void;
+export declare function startHumanPresence(): void;
 export declare function resetHumanPresence(): void;

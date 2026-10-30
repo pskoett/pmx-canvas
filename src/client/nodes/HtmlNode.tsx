@@ -3,10 +3,11 @@ import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
 import type { CanvasNodeState } from '../types';
 import { nodeSurfaceUrl, surfaceContentHash } from './surface-url';
-import { RefreshingViewerFrame } from './McpAppNode';
+import { RefreshingViewerFrame, waitForViewerPaint } from './ViewerFrame';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
 import { useSurfaceFrame } from './use-surface-frame';
+import { usePrimitiveJson } from './primitive-copy';
 
 export function shouldShowPresentationControls(node: CanvasNodeState): boolean {
   return node.type === 'html' && node.data.presentation === true;
@@ -36,8 +37,6 @@ export function HtmlNode({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const theme = canvasTheme.value;
   const axCapabilitySignature = htmlAxCapabilitySignature(node.data.axCapabilities);
-  // Stable per-mount nonce that authorizes parent → iframe theme-update messages.
-  const themeToken = useMemo(() => `theme-${crypto.randomUUID()}`, []);
   // Rotate the nonce when capabilities change: both the URL and injected srcdoc
   // change, rebootstrapping the bridge and rejecting emits from the old document.
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, [axCapabilitySignature]);
@@ -50,6 +49,9 @@ export function HtmlNode({
         ? node.data.content
         : '';
   const v = useMemo(() => surfaceContentHash(html), [html]);
+  // A replacement must not answer a copy request with the old document's data.
+  const themeToken = useMemo(() => `theme-${crypto.randomUUID()}`, [html]);
+  usePrimitiveJson(node, themeToken, iframeRef, expanded);
 
   // The in-canvas iframe and the "Open as site" tab load the SAME server-rendered
   // surface URL (/api/canvas/surface/:id) — one render path, no content fork.
@@ -77,7 +79,7 @@ export function HtmlNode({
 
   // Grow the node to fit the surface's reported content height (grow-only, gated).
   // Never in the expanded overlay — there the surface fills the large overlay frame.
-  useIframeContentHeight(node, iframeRef, expanded ? '' : frameToken);
+  const measureContent = useIframeContentHeight(node, iframeRef, expanded ? '' : frameToken);
 
   // Phase 3 HTML bridge — the shared sandboxed-surface trust boundary (M2).
   useAxSurfaceBridge({ enabled: true, token: axToken, nodeId: node.id, sourceSurface: 'html-node', iframeRef });
@@ -121,38 +123,8 @@ export function HtmlNode({
     return () => window.clearTimeout(id);
   }, [autoFocus, surfaceSrc]);
 
-  const handleDocumentLoad = (frame: HTMLIFrameElement, signal: AbortSignal): Promise<boolean> => {
-    if (signal.aborted) return Promise.resolve(false);
-    return new Promise((resolve) => {
-      const finish = (ready: boolean) => {
-        clearTimeout(timer);
-        window.removeEventListener('message', receive);
-        signal.removeEventListener('abort', cancel);
-        resolve(ready);
-      };
-      const cancel = () => finish(false);
-      const receive = (event: MessageEvent) => {
-        if (
-          event.source !== frame.contentWindow ||
-          event.data?.source !== HTML_SURFACE_PUSH_SOURCE ||
-          event.data?.token !== themeToken
-        )
-          return;
-        // A healthy offscreen frame can wait for paint without a deadline.
-        if (event.data.type === 'mounted') clearTimeout(timer);
-        if (event.data.type === 'ready') finish(true);
-      };
-      const timer = setTimeout(cancel, 10_000);
-      window.addEventListener('message', receive);
-      signal.addEventListener('abort', cancel, { once: true });
-      frame.contentWindow?.postMessage(
-        { source: HTML_SURFACE_PUSH_SOURCE, type: 'check-ready', token: themeToken },
-        '*',
-      );
-    });
-  };
-
   const handleFrameLoad = () => {
+    measureContent();
     iframeRef.current?.contentWindow?.postMessage(
       {
         source: HTML_SURFACE_PUSH_SOURCE,
@@ -205,7 +177,7 @@ export function HtmlNode({
       allow=""
       tabIndex={autoFocus ? 0 : undefined}
       onLoad={handleFrameLoad}
-      onDocumentLoad={handleDocumentLoad}
+      onDocumentLoad={(frame, signal) => waitForViewerPaint(frame, themeToken, signal)}
     />
   );
 }

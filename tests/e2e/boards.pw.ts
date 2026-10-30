@@ -86,6 +86,294 @@ async function expectReadableGraphLabels(page: Page, count: number) {
   ).toEqual([]);
 }
 
+test('move selection to a new board preserves cards, pins and links and leaves a working portal', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Move source' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const first = await note(request, 'Evidence', 100, 100);
+  const second = await note(request, 'Decision', 470, 100);
+  const stay = await note(request, 'Stays here', 100, 380);
+  await request.patch(`/api/canvas/boards/${source.id}`, { headers: HUMAN, data: { readmeNodeId: first } });
+  expect((await request.post('/api/canvas/context-pins', { headers: HUMAN, data: { nodeIds: [first] } })).ok()).toBe(
+    true,
+  );
+  await request.post('/api/canvas/edge', {
+    headers: HUMAN,
+    data: { from: first, to: stay, type: 'references', label: 'Background' },
+  });
+  await page.goto('/workbench');
+  for (const id of [first, second])
+    await page.locator(`[data-node-id="${id}"] .node-content`).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Move to new board', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByLabel('New board name').fill('Evidence and decision');
+  await page.screenshot({ path: test.info().outputPath('move-name.png') });
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('2 cards');
+  await expect(dialog).toContainText('1 pinned');
+  await expect(dialog).toContainText('README moves');
+  await expect(dialog).toContainText('Older snapshots remain inspectable');
+  expect((await boards(request)).boards).toHaveLength(1);
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(dialog.getByRole('button', { name: 'Move and open' })).toBeInViewport();
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`move-preview-${width}.png`) });
+  }
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.board-switcher-button')).toContainText('Evidence and decision');
+  for (const id of [first, second]) await expect(page.locator(`[data-node-id="${id}"]`)).toBeVisible();
+  await expect(page.getByRole('button', { name: '↗ Background: Move source / Stays here', exact: true })).toBeVisible();
+  const destination = (await boards(request)).activeBoardId;
+  const target = await (await request.get(`/api/canvas/state?board=${destination}`)).json();
+  expect(target.nodes.map((n: { id: string }) => n.id).sort()).toEqual([first, second].sort());
+  expect(target.edges[0]).toMatchObject({ from: first, to: stay, toBoardId: source.id, label: 'Background' });
+  await page.reload();
+  await expect(page.locator(`[data-node-id="${first}"]`)).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('move-destination.png') });
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  await expect(page.locator('.board-switcher-button')).toContainText('Move source');
+  await expect(page.locator(`[data-node-id="${first}"]`)).toHaveCount(0);
+  const portal = page.locator('.canvas-node[data-node-type="board"]');
+  await expect(portal).toContainText('Evidence and decision');
+  await portal.getByRole('button', { name: 'Open board', exact: true }).click();
+  await expect(page.locator('.board-switcher-button')).toContainText('Evidence and decision');
+});
+
+test('group move refuses an active binding and a late move reply never overrides newer navigation', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Group source' } })).json()
+  ).board;
+  const other = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Later choice' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const stream = await request.post('/api/canvas/json-render/stream', {
+    headers: HUMAN,
+    data: { title: 'Streaming report', patches: [], x: 130, y: 150 },
+  });
+  expect(stream.ok()).toBe(true);
+  const card = (await stream.json()).id;
+  expect(typeof card).toBe('string');
+  const group = (
+    await (
+      await request.post('/api/canvas/group', { headers: HUMAN, data: { title: 'Follow-up group', childIds: [card] } })
+    ).json()
+  ).id;
+  await page.goto('/workbench');
+  const menu = () => page.locator(`[data-node-id="${group}"]`).getByRole('button', { name: 'Group menu' });
+  await menu().click();
+  await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('Cannot move this selection');
+  await expect(dialog.getByRole('button', { name: 'Move and open' })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('move-refused.png') });
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(
+    (
+      await request.post('/api/canvas/json-render/stream', {
+        headers: HUMAN,
+        data: { nodeId: card, patches: [], done: true },
+      })
+    ).ok(),
+  ).toBe(true);
+  await menu().click();
+  await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+  await dialog.getByLabel('New board name').fill('Moved group');
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('2 cards');
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let committed!: () => void;
+  const done = new Promise<void>((resolve) => {
+    committed = resolve;
+  });
+  await page.route(
+    '**/api/canvas/boards/move-selection',
+    async (route) => {
+      const response = await route.fetch();
+      committed();
+      await held;
+      await route.fulfill({ response });
+    },
+    { times: 1 },
+  );
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await done;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: other.id } });
+  await expect(page.locator('.board-switcher-button')).toContainText('Later choice');
+  release();
+  await expect(dialog).toHaveCount(0);
+  expect((await boards(request)).activeBoardId).toBe(other.id);
+  const moved = (await boards(request)).boards.find((b) => b.name === 'Moved group')!;
+  const target = await (await request.get(`/api/canvas/state?board=${moved.id}`)).json();
+  expect(target.nodes.map((n: { id: string }) => n.id).sort()).toEqual([group, card].sort());
+});
+
+test('an interrupted move reply retries the original request without a duplicate destination', async ({
+  page,
+  request,
+}) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Retry source' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const first = await note(request, 'Retry evidence', 100, 100);
+  const second = await note(request, 'Retry decision', 470, 100);
+  await page.goto('/workbench');
+  for (const id of [first, second])
+    await page.locator(`[data-node-id="${id}"] .node-content`).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Move to new board', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByLabel('New board name').fill('Retry destination');
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog).toContainText('2 cards');
+  await page.route(
+    '**/api/canvas/boards/move-selection',
+    async (route) => {
+      expect((await route.fetch()).ok()).toBe(true);
+      await route.abort('connectionreset');
+    },
+    { times: 1 },
+  );
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(dialog).toContainText('No reply received');
+  expect((await boards(request)).boards).toHaveLength(2);
+  await page.screenshot({ path: test.info().outputPath('move-retry.png') });
+  await dialog.getByRole('button', { name: 'Retry move' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.board-switcher-button')).toContainText('Retry destination');
+  expect((await boards(request)).boards).toHaveLength(2);
+  for (const id of [first, second]) await expect(page.locator(`[data-node-id="${id}"]`)).toBeVisible();
+});
+
+test('group moves refuse unsent prompt and reply drafts without losing their text', async ({ page, request }) => {
+  const source = (
+    await (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Draft source' } })).json()
+  ).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const seeded = await request.post('/api/canvas/batch', {
+    headers: HUMAN,
+    data: {
+      operations: [
+        {
+          op: 'node.add',
+          assign: 'prompt',
+          args: {
+            type: 'prompt',
+            title: 'Unsent question',
+            x: 100,
+            y: 120,
+            width: 360,
+            height: 280,
+            data: { status: 'draft' },
+          },
+        },
+        {
+          op: 'node.add',
+          assign: 'reply',
+          args: {
+            type: 'prompt',
+            title: 'Answered question',
+            x: 500,
+            y: 120,
+            width: 360,
+            height: 280,
+            data: {
+              turns: [
+                { role: 'user', text: 'What changed?' },
+                { role: 'assistant', text: 'Reviewed the source.' },
+              ],
+              threadStatus: 'answered',
+            },
+          },
+        },
+        { op: 'group.create', assign: 'group', args: { title: 'Drafts', childIds: ['$prompt.id', '$reply.id'] } },
+      ],
+    },
+  });
+  expect(seeded.ok(), await seeded.text()).toBe(true);
+  const seededBody = await seeded.json();
+  expect(seededBody.ok).toBe(true);
+  const group = seededBody.refs.group.id;
+  await page.goto('/workbench');
+  const prompt = page.getByPlaceholder('Ask the agent something…');
+  const reply = page.getByPlaceholder('Reply…');
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  for (const field of [prompt, reply]) {
+    await field.fill('Do not lose this unsent text.');
+    await page.locator(`[data-node-id="${group}"]`).getByRole('button', { name: 'Group menu' }).click();
+    await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+    await dialog.getByRole('button', { name: 'Preview move' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Save or clear');
+    await dialog.getByRole('button', { name: 'Move and open' }).click();
+    expect((await boards(request)).boards).toHaveLength(1);
+    await page.screenshot({
+      path: test.info().outputPath(field === reply ? 'move-unsent-reply.png' : 'move-unsent-prompt.png'),
+    });
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(field).toHaveValue('Do not lose this unsent text.');
+    await field.fill('');
+  }
+  await page.locator(`[data-node-id="${group}"]`).getByRole('button', { name: 'Group menu' }).click();
+  await page.getByRole('menuitem', { name: 'Move to new board' }).click();
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(`[data-node-id="${group}"]`)).toBeVisible();
+  await expect(page.getByText('Reviewed the source.', { exact: true })).toBeVisible();
+});
+
+test('missing board cards can retry relinking and open the chosen board', async ({ page, request }) => {
+  const target = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Recovered destination' }, headers: HUMAN })
+  ).json();
+  expect((await request.post('/api/canvas/boards', { data: { name: 'Source board' }, headers: HUMAN })).ok()).toBe(
+    true,
+  );
+  const created = await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'board', title: 'Missing link', data: { boardId: 'deleted-board' } },
+      headers: HUMAN,
+    })
+  ).json();
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${created.id}"]`);
+  await expect(card.getByText('Board not found')).toBeVisible();
+  await card.getByRole('button', { name: 'Link to board…', exact: true }).click();
+  await page.route(
+    `**/api/canvas/node/${created.id}`,
+    async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Test outage' }),
+      });
+    },
+    { times: 1 },
+  );
+  await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
+  await expect(card.getByRole('status')).toHaveText('Could not relink this card. Try again.');
+  await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
+  await expect(card.getByRole('status')).toHaveCount(0);
+  await expect(card.getByText('Recovered destination', { exact: true })).toBeVisible();
+  await card.getByRole('button', { name: 'Open board', exact: true }).click();
+  await expect(page.locator('.board-switcher-button')).toContainText('Recovered destination');
+  expect((await boards(request)).activeBoardId).toBe(target.board.id);
+});
+
 test('Home manages shared relation presets while board filters show only existing connections', async ({
   page,
   request,
@@ -372,6 +660,18 @@ test('Home Review scopes individual cards, reveals grouped content and docks wit
   request,
 }) => {
   await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  // Folder policies outlive board deletion, including across runner invocations.
+  // This case needs an unclassified sibling even in a reused workspace.
+  for (const path of ['Projects', 'Projects/Child', 'Projects/Child/Long descendant folder']) {
+    expect(
+      (
+        await request.post('/api/canvas/knowledge/folder', {
+          headers: HUMAN,
+          data: { path, categoryId: null, lifecycleOverride: null },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
   const { board: scoped } = await (
     await request.post('/api/canvas/boards', {
       data: { name: 'Scoped evidence', folder: 'Projects/Child/Long descendant folder' },
@@ -552,8 +852,9 @@ test('a refused browser write displays its reason and retains it in history', as
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto('/workbench');
   const reason = 'This note is being edited by another person. Try again after they finish.';
+  let refuse = true;
   await page.route(`**/api/canvas/node/${id}`, async (route) => {
-    if (route.request().method() !== 'DELETE') return route.continue();
+    if (!refuse || route.request().method() !== 'DELETE') return route.continue();
     await route.fulfill({ status: 409, json: { ok: false, error: reason } });
   });
   await page.locator(`[data-node-id="${id}"] .node-title`).click();
@@ -565,7 +866,8 @@ test('a refused browser write displays its reason and retains it in history', as
   await toast.click();
   await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText(reason);
   await page.getByRole('button', { name: 'Collapse changes panel' }).click();
-  await page.unrouteAll();
+  // Keep interception stable while the workbench has a long poll in flight.
+  refuse = false;
   await page.locator(`[data-node-id="${id}"] .node-title`).click();
   await page.keyboard.press('Delete');
   await expect(page.locator(`[data-node-id="${id}"]`)).toHaveCount(0);
@@ -661,12 +963,46 @@ test('board menu dismisses on canvas and card clicks; README and link actions st
   await switcher.click();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
-  const designation = card.getByRole('button', { name: 'Set as README', exact: true });
-  await designation.click();
-  await expect(card.getByRole('button', { name: 'README', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  expect((await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId).toBe(id);
-  await card.getByRole('button', { name: 'README', exact: true }).press('Enter');
-  await expect(designation).toHaveAttribute('aria-pressed', 'false');
+  await expect(card.getByRole('button', { name: /README/ })).toHaveCount(0);
+  await page.mouse.move(10, 10);
+  await card.focus();
+  const more = card.getByRole('button', { name: 'More actions' });
+  const actions = page.getByRole('menu', { name: 'Node actions' });
+  await card.press('Shift+F10');
+  await expect(actions.getByRole('menuitem', { name: 'Focus', exact: true })).toBeFocused();
+  const designation = actions.getByRole('menuitem', { name: 'Set as README', exact: true });
+  for (let i = 0; i < 20 && !(await designation.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await expect(designation).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(actions).toHaveCount(0);
+  await expect(card).toBeFocused();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId)
+    .toBe(id);
+  await expect(card.getByText('README', { exact: true })).toBeVisible();
+  await more.click();
+  await expect(actions.getByRole('menuitem', { name: 'Remove as README', exact: true })).toBeVisible();
+  await expect(designation).toHaveCount(0);
+  await page.mouse.move(10, 10);
+  await page.keyboard.press('Escape');
+  await expect(more).toBeFocused();
+  await more.press('Enter');
+  const removal = actions.getByRole('menuitem', { name: 'Remove as README', exact: true });
+  for (let i = 0; i < 20 && !(await removal.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('Tab');
+  }
+  await expect(removal).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(actions).toHaveCount(0);
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/boards/${source}`)).json()).board.readmeNodeId)
+    .toBeNull();
+  await expect(card.getByText('README', { exact: true })).toHaveCount(0);
+  await more.click();
+  await expect(designation).toBeVisible();
+  await page.keyboard.press('Escape');
   const body = await card.locator('.md-card-content').boundingBox();
   const footer = await card.locator('.md-card-actions').boundingBox();
   expect(body!.y + body!.height).toBeLessThanOrEqual(footer!.y + 1);
@@ -679,6 +1015,84 @@ test('board menu dismisses on canvas and card clicks; README and link actions st
   await expect(card).toBeFocused();
   await page.getByRole('button', { name: 'Open board', exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: /^Board: Linked destination/ })).toBeVisible();
+});
+
+test('README identification follows agent reassignment and clearing, including narrow headings', async ({
+  page,
+  request,
+}) => {
+  const first = await note(request, 'Introduction', 100, 100);
+  const second = await note(request, 'Heading introduction', 480, 100);
+  const board = (await boards(request)).activeBoardId!;
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${second}`, {
+        data: { data: { display: 'heading' }, size: { width: 280, height: 180 }, strictSize: true },
+      })
+    ).ok(),
+  ).toBe(true);
+  await page.goto('/workbench');
+  for (const id of [first, second, null]) {
+    expect((await request.patch(`/api/canvas/boards/${board}`, { data: { readmeNodeId: id } })).ok()).toBe(true);
+    await expect(page.locator('.node-readme-mark')).toHaveCount(id ? 1 : 0);
+    if (!id) continue;
+    const marker = page.locator(`[data-node-id="${id}"] .node-readme-mark`);
+    await expect(marker).toBeVisible();
+    await page.mouse.move(10, 10);
+    const bounds = await marker.boundingBox();
+    const header = await page.locator(`[data-node-id="${id}"] .node-titlebar`).boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(header!.x);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(header!.x + header!.width);
+    expect(await marker.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+  await expect(page.locator(`[data-node-id="${second}"]`)).toHaveClass(/heading-node/);
+});
+
+test('Present explains saved tours and group stops on hover and keyboard focus at both bar widths', async ({
+  page,
+  request,
+}) => {
+  await note(request, 'Presentation guidance');
+  await page.goto('/workbench');
+  const present = page.getByRole('button', { name: 'Present', exact: true });
+  const wideHint = page.locator('#present-hint');
+  await expect(present).toHaveAccessibleDescription(/A presentation follows either a saved tour or the board’s groups/);
+  await expect(present).toHaveAccessibleDescription(/Saved tour: ask your agent to define the stops and their order/);
+  await expect(present).toHaveAccessibleDescription(/card, a group, a rectangular area, or a specific camera position/);
+  await expect(present).toHaveAccessibleDescription(/It doesn’t automatically visit every card/);
+  await present.hover();
+  await expect(wideHint).toHaveCSS('opacity', '1');
+  await page.mouse.move(10, 500);
+  await expect(wideHint).toHaveCSS('opacity', '0');
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(present).toBeFocused();
+  await expect(wideHint).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Tab');
+  await expect(wideHint).toHaveCSS('opacity', '0');
+  for (const width of [600, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    const more = page.getByRole('button', { name: 'More: export, present, zoom, fit' });
+    await more.click();
+    await page.keyboard.press('ArrowDown');
+    const item = page.getByRole('menuitem', { name: 'Present board', exact: true });
+    await expect(item).toBeFocused();
+    await expect(item).toHaveAccessibleDescription(/Saved tour: ask your agent to define the stops and their order/);
+    await expect(item).toHaveAccessibleDescription(/ordered top-to-bottom, then left-to-right/);
+    const hint = page.locator('#present-menu-hint');
+    await expect(hint).toBeVisible();
+    const bounds = await hint.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(700);
+    await page.keyboard.press('ArrowDown');
+    await expect(hint).toBeHidden();
+    await item.hover();
+    await expect(hint).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(hint).toHaveCount(0);
+    await expect(more).toBeFocused();
+  }
 });
 
 test('the logo opens Home by click and keyboard without losing board content', async ({ page, request }) => {
@@ -1005,6 +1419,417 @@ for (const sameBoard of [false, true]) {
   });
 }
 
+test('group reference controls navigate and the blank frame retains selection', async ({ page, request }) => {
+  const destination = (await (await request.post('/api/canvas/boards', { data: { name: 'Group destination' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: destination.id } });
+  const target = await note(request, 'Remote group evidence');
+  const source = (await (await request.post('/api/canvas/boards', { data: { name: 'Group source' } })).json()).board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const neighbour = await note(request, 'Keyboard neighbour', 820, 200);
+  const group = (await (
+    await request.post('/api/canvas/group', {
+      data: { title: 'Reference frame', x: 120, y: 120, width: 600, height: 360 },
+    })
+  ).json()) as { id: string };
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: { from: group.id, to: target, toBoardId: destination.id, type: 'references' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+  const frame = page.locator(`.canvas-node[data-node-id="${group.id}"]`);
+  const reference = frame.getByRole('region', { name: 'Cross-board references' }).getByRole('button');
+  await expect(reference).toContainText('Remote group evidence');
+  const box = (await reference.boundingBox())!;
+  expect(
+    await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-memory-links'), {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    }),
+  ).toBe(true);
+  const bounds = (await frame.boundingBox())!;
+  await page.keyboard.down('Shift');
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.keyboard.up('Shift');
+  await expect(frame).toHaveClass(/selected/);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(frame).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator(`.canvas-node[data-node-id="${neighbour}"]`)).toBeFocused();
+  await reference.click();
+  await expect(page.getByRole('button', { name: /^Board: Group destination/ })).toBeVisible();
+  await expect(page.locator(`.canvas-node[data-node-id="${target}"]`)).toBeVisible();
+});
+
+test('high-degree reference footers leave card content and actions usable', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const source = await note(request, 'Index');
+  const sourceBoard = (await boards(request)).activeBoardId!;
+  const target = (await (await request.post('/api/canvas/boards', { data: { name: 'Reference library' } })).json())
+    .board;
+  const batch = await request.post('/api/canvas/batch', {
+    data: {
+      operations: Array.from({ length: 103 }, (_, index) => ({
+        op: 'node.add',
+        args: {
+          destinationBoardId: target.id,
+          type: 'markdown',
+          title: `Evidence ${index}`,
+          content: `Source ${index}`,
+          x: index * 400,
+          y: 100,
+        },
+      })),
+    },
+  });
+  const targets = (await batch.json()).results as Array<{ id: string }>;
+  expect(targets).toHaveLength(103);
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${source}`, {
+        data: {
+          content: `# Index\n\n[[${target.id}#${targets[0].id}|Read evidence]]`,
+          width: 640,
+          height: 480,
+          strictSize: true,
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  for (const node of targets) {
+    expect(
+      (
+        await request.post('/api/canvas/edge', {
+          data: { from: source, to: node.id, toBoardId: target.id, type: 'references' },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${source}"]`);
+  const link = card.getByRole('link', { name: 'Read evidence', exact: true });
+  const checkNavigation = async (id: string) => {
+    const destination = page.locator(`[data-node-id="${id}"]`);
+    // Dense-board loading and focus can outlast the default five-second check.
+    // Require the complete card inside the canvas and reachable by the pointer.
+    await expect
+      .poll(
+        () =>
+          destination.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const canvas = element.closest('.canvas-region')!.getBoundingClientRect();
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.left >= canvas.left &&
+              rect.right <= canvas.right &&
+              rect.top >= canvas.top &&
+              rect.bottom <= canvas.bottom &&
+              element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+            );
+          }),
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+  };
+  for (const [width, scale] of [
+    [1440, 1],
+    [1024, 0.68],
+    [600, 0.68],
+    [1920, 1],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await request.post('/api/canvas/viewport', { data: { x: 20, y: 90, scale } });
+    // The HTTP acknowledgement precedes the rendered camera update. Start the
+    // scrolling check only once this fixture's (120,120) card is at that camera.
+    await expect
+      .poll(() =>
+        card.evaluate((element, scale) => {
+          const rect = element.getBoundingClientRect();
+          const canvas = element.closest('.canvas-region')!.getBoundingClientRect();
+          return (
+            Math.abs(rect.left - canvas.left - (120 * scale + 20)) < 0.1 &&
+            Math.abs(rect.top - canvas.top - (120 * scale + 90)) < 0.1
+          );
+        }, scale),
+      )
+      .toBe(true);
+    await expect(card.locator('.node-memory-link')).toHaveCount(103);
+    await expect
+      .poll(() =>
+        link.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+        }),
+      )
+      .toBe(true);
+    await expect(card.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+    if (width === 1440) {
+      const before = await card.boundingBox();
+      const references = card.getByRole('region', { name: 'Cross-board references' });
+      await references.hover();
+      await page.mouse.wheel(0, 300);
+      await expect.poll(() => references.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+      await references.focus();
+      await references.press('End');
+      await expect.poll(() => references.evaluate((element) => element.scrollTop)).toBeGreaterThan(2500);
+      await references.press('Home');
+      await expect.poll(() => references.evaluate((element) => element.scrollTop)).toBe(0);
+      expect(await card.boundingBox()).toEqual(before);
+    }
+    const last = card.locator('.node-memory-link').last().getByRole('button');
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    await checkNavigation(targets[102].id);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+    await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+    const expanded = page.getByTestId('expanded-node');
+    const expandedReferences = expanded.getByRole('region', { name: 'Cross-board references' });
+    await expect(expandedReferences.locator('.node-memory-link')).toHaveCount(103);
+    await expandedReferences.focus();
+    await expandedReferences.press('End');
+    const expandedLast = expandedReferences.getByRole('button').last();
+    await expect(expandedLast).toBeInViewport({ ratio: 1 });
+    expect(
+      await expandedLast.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const clip = element.closest('.node-memory-links')!.getBoundingClientRect();
+        return (
+          rect.top >= clip.top &&
+          rect.bottom <= clip.bottom &&
+          element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+        );
+      }),
+    ).toBe(true);
+    await expect(expanded.locator('.md-reader-editable')).toContainText('Index');
+    await expandedLast.click();
+    await checkNavigation(targets[102].id);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+    await link.click();
+    await checkNavigation(targets[0].id);
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  }
+});
+
+test('reading expanded Markdown preserves exact source while edits save before wiki navigation', async ({
+  page,
+  request,
+}) => {
+  const sourceBoard = (await (await request.post('/api/canvas/boards', { data: { name: 'Source library' } })).json())
+    .board.id as string;
+  const destination = (await (await request.post('/api/canvas/boards', { data: { name: 'Read destination' } })).json())
+    .board;
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  const source = await note(request, 'Exact source');
+  const content = `- One\n- Two\n\n| A | B |\n| --- | --- |\n| Left | Right |\n\n[[${destination.id}|Read destination]]\n`;
+  await request.patch(`/api/canvas/node/${source}`, { data: { content } });
+  const target = (
+    await (
+      await request.post('/api/canvas/node', {
+        data: { destinationBoardId: destination.id, type: 'markdown', title: 'Remote evidence', content: 'Evidence' },
+      })
+    ).json()
+  ).id as string;
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: { from: source, to: target, toBoardId: destination.id, type: 'references' },
+      })
+    ).ok(),
+  ).toBe(true);
+  const original = await (await request.get(`/api/canvas/node/${source}`)).json();
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${source}"]`);
+  const editor = page.locator('.md-reader-editable');
+  for (const action of ['close', 'navigate', 'reference']) {
+    await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+    await expect(editor).toContainText('Read destination');
+    await editor.focus();
+    if (action === 'close') {
+      await page.keyboard.press('Control+s');
+      await page.getByTestId('expanded-node').getByRole('button', { name: 'Close', exact: true }).click();
+    } else {
+      if (action === 'reference') {
+        await page
+          .getByTestId('expanded-node')
+          .getByRole('region', { name: 'Cross-board references' })
+          .getByRole('button')
+          .click();
+      } else await editor.getByRole('link', { name: 'Read destination', exact: true }).click();
+      await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
+    }
+    await expect(page.getByTestId('expanded-node')).toHaveCount(0);
+    const unchanged = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+    expect(unchanged.data.content).toBe(content);
+    expect(unchanged.contentRevision).toBe(original.contentRevision);
+    if (action !== 'close') {
+      await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+      await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
+    }
+  }
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(editor).toContainText('Read destination');
+  await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Actually edited ');
+  await editor.getByRole('link', { name: 'Read destination', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
+  const edited = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+  expect(edited.data.content).toContain('Actually edited');
+  expect(edited.contentRevision).toBeGreaterThan(original.contentRevision);
+
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(editor).toContainText('Actually edited');
+  await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Reference edit ');
+  let saveStarted = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/canvas/node/${source}`, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      saveStarted = true;
+      await held;
+    }
+    await route.continue();
+  });
+  try {
+    await page
+      .getByTestId('expanded-node')
+      .getByRole('region', { name: 'Cross-board references' })
+      .getByRole('button')
+      .click();
+    await expect.poll(() => saveStarted).toBe(true);
+    await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
+    release();
+    await expect(page.getByRole('button', { name: /^Board: Read destination/ })).toBeVisible();
+    const saved = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+    expect(saved.data.content).toContain('Reference edit');
+    expect(saved.contentRevision).toBeGreaterThan(edited.contentRevision);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(editor).toContainText('Reference edit');
+  await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Refused edit ');
+  await page.route(`**/api/canvas/node/${source}`, (route) =>
+    route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 409, json: { ok: false, error: 'Source changed during this edit.' } })
+      : route.continue(),
+  );
+  await page
+    .getByTestId('expanded-node')
+    .getByRole('region', { name: 'Cross-board references' })
+    .getByRole('button')
+    .click();
+  await expect(page.locator('.attention-toast')).toContainText('Source changed during this edit.');
+  await expect(page.getByRole('button', { name: /^Board: Source library/ })).toBeVisible();
+  await expect(editor).toContainText('Refused edit');
+  const refused = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+  expect(refused.data.content).not.toContain('Refused edit');
+  await page.unrouteAll({ behavior: 'wait' });
+});
+
+for (const linkType of ['reference', 'wiki']) {
+  test(`a later Home click cancels ${linkType} navigation waiting for a Markdown save`, async ({ page, request }) => {
+    const sourceBoard = (await (await request.post('/api/canvas/boards', { data: { name: 'Save source' } })).json())
+      .board.id as string;
+    const destination = (
+      await (await request.post('/api/canvas/boards', { data: { name: 'Save destination' } })).json()
+    ).board.id as string;
+    await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: sourceBoard } });
+    const source = await note(request, 'Save before leaving');
+    await request.patch(`/api/canvas/node/${source}`, { data: { content: `[[${destination}|Destination]]` } });
+    const target = (
+      await (
+        await request.post('/api/canvas/node', {
+          data: { destinationBoardId: destination, type: 'markdown', title: 'Destination', content: 'Evidence' },
+        })
+      ).json()
+    ).id as string;
+    await request.post('/api/canvas/edge', {
+      data: { from: source, to: target, toBoardId: destination, type: 'references' },
+    });
+    await page.goto('/workbench');
+    await page
+      .locator(`[data-node-id="${source}"]`)
+      .getByRole('button', { name: 'Expand (focus mode)', exact: true })
+      .click();
+    const editor = page.locator('.md-reader-editable');
+    await expect(editor).toContainText('Destination');
+    await editor.focus();
+    await page.keyboard.press('Home');
+    await page.keyboard.type('Saved before Home ');
+    let releaseSave!: () => void;
+    let releaseHome!: () => void;
+    const heldSave = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    const heldHome = new Promise<void>((resolve) => {
+      releaseHome = resolve;
+    });
+    await page.route(`**/api/canvas/node/${source}`, async (route) => {
+      if (route.request().method() === 'PATCH') await heldSave;
+      await route.continue();
+    });
+    const requestedBoards: Array<string | null> = [];
+    await page.route('**/api/canvas/boards/open', async (route) => {
+      const id = route.request().postDataJSON().id as string | null;
+      requestedBoards.push(id);
+      if (id === null) await heldHome;
+      await route.continue();
+    });
+    try {
+      const saveRequest = page.waitForRequest(
+        (req) => req.method() === 'PATCH' && req.url().endsWith(`/node/${source}`),
+      );
+      if (linkType === 'reference') {
+        await page
+          .getByTestId('expanded-node')
+          .getByRole('region', { name: 'Cross-board references' })
+          .getByRole('button')
+          .click();
+      } else await editor.getByRole('link', { name: 'Destination', exact: true }).click();
+      await saveRequest;
+      await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
+      await expect.poll(() => requestedBoards).toEqual([null]);
+      const saveResponse = page.waitForResponse(
+        (res) => res.request().method() === 'PATCH' && res.url().endsWith(`/node/${source}`),
+      );
+      releaseSave();
+      expect((await saveResponse).status()).toBe(200);
+      // Home has not reached the server, so board identity alone cannot cancel the older jump.
+      await expect(page.getByRole('button', { name: /^Board: Save source/ })).toBeVisible();
+      await page.getByTestId('expanded-node').getByRole('button', { name: '</> Source', exact: true }).click();
+      await expect(
+        page.getByTestId('expanded-node').getByRole('button', { name: 'Saved', exact: true }),
+      ).toBeDisabled();
+      releaseHome();
+      await expect(page.getByRole('button', { name: /^Board: Home/ })).toBeVisible();
+      expect(requestedBoards).toEqual([null]);
+      expect((await boards(request)).activeBoardId).toBeNull();
+      const saved = await (await request.get(`/api/canvas/node/${source}?board=${sourceBoard}`)).json();
+      expect(saved.data.content).toContain('Saved before Home');
+    } finally {
+      releaseSave();
+      releaseHome();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+}
+
 test('wiki navigation and human remote-card connections survive renames and retain the source', async ({
   page,
   request,
@@ -1092,13 +1917,14 @@ test('wiki navigation and human remote-card connections survive renames and reta
   await sourceCard.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
   await page.getByRole('button', { name: '</> Source', exact: true }).click();
   const rawSource = page.locator('.md-editor-expanded textarea');
-  // Document serialization drops this final newline on blur. Creating a wiki
-  // board must bind the saved document, not the pre-blur source snapshot.
+  // A real rich edit must save before creating and binding the missing board.
   await rawSource.fill(`${edited.data.content}\n`);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to document', exact: true }).click();
   await editor.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Before creating the board: ');
   const blurSaved = page.waitForResponse(
     (response) => response.url().endsWith(`/api/canvas/node/${claim}`) && response.request().method() === 'PATCH',
   );
@@ -1565,7 +2391,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   await page.keyboard.press('m');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.evaluate(() => navigator.clipboard.writeText('https://example.com/not-a-hidden-board-card'));
-  await page.keyboard.press('Control+v');
+  await page.keyboard.press('ControlOrMeta+v');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Keyboard shortcuts', exact: true }).click();
   await expect(page.locator('.shortcut-overlay')).toBeVisible();
@@ -1592,7 +2418,7 @@ test('Graph stays live through agent board switches without losing camera, selec
   await expect(page.getByRole('button', { name: /^Board: Live library/ })).toBeVisible();
   // The same native clipboard gesture still creates a visible card once the board is open.
   await page.locator('.canvas-viewport').click({ position: { x: 10, y: 10 } });
-  await page.keyboard.press('Control+v');
+  await page.keyboard.press('ControlOrMeta+v');
   await expect(page.locator('.canvas-node[data-node-type="webpage"]')).toBeInViewport();
   expect((await (await request.get('/api/canvas/state')).json()).nodes).toHaveLength(3);
 });
@@ -1611,6 +2437,27 @@ test('Home Map persists human positions and Graph explores without opening a boa
   await request.post('/api/canvas/edge', {
     data: { from: claim, to: evidence, toBoardId: remote.id, type: 'references' },
   });
+  for (let index = 0; index < 4; index++) {
+    const target = (
+      await (
+        await request.post('/api/canvas/node', {
+          data: {
+            destinationBoardId: remote.id,
+            type: 'markdown',
+            title: `Further evidence ${index}`,
+            content: 'Evidence',
+          },
+        })
+      ).json()
+    ).id as string;
+    expect(
+      (
+        await request.post('/api/canvas/edge', {
+          data: { from: claim, to: target, toBoardId: remote.id, type: 'references' },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
   await page.goto('/workbench');
   await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
   const discoveryResponse = page.waitForResponse(
@@ -1713,6 +2560,30 @@ test('Home Map persists human positions and Graph explores without opening a boa
     expect(body.y - (actions.y + actions.height)).toBeGreaterThanOrEqual(8);
     expect((await page.locator('.home-memory-stage').boundingBox())!.height).toBeGreaterThanOrEqual(160);
   }
+  for (const width of [1280, 600]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const height of [280, 380]) {
+      const separator = (await resize.boundingBox())!;
+      const current = (await inspector.boundingBox())!.height;
+      await page.mouse.move(separator.x + 100, separator.y + separator.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(separator.x + 100, separator.y + separator.height / 2 + current - height, { steps: 5 });
+      await page.mouse.up();
+      const last = details.locator('.home-memory-connections li').last();
+      await last.getByRole('button').scrollIntoViewIfNeeded();
+      expect(
+        await last.evaluate((row) => {
+          const scroller = row.closest('.home-memory-detail-body')!;
+          const clip = scroller.getBoundingClientRect();
+          const style = getComputedStyle(scroller);
+          return row.getBoundingClientRect().bottom <= clip.bottom - Number.parseFloat(style.borderBottomWidth);
+        }),
+      ).toBe(true);
+    }
+  }
+  await details.locator('.home-memory-detail-body').evaluate((body) => {
+    body.scrollTop = 0;
+  });
   await expect(page.locator('.home-memory-sidebar')).not.toContainText('Remote Map evidence');
   expect((await boards(request)).activeBoardId).toBeNull();
   await page.getByRole('button', { name: 'Fit view', exact: true }).click();
@@ -2052,7 +2923,8 @@ test('Graph drills Library, Board and one-hop Card scenes without opening or pin
   const card = (name: string) => page.getByRole('button', { name: `card: ${name}`, exact: true });
   const world = page.locator('.home-memory-world');
   const details = page.getByRole('complementary', { name: 'Selection details' });
-  await expect(hub('Pricing')).toBeInViewport();
+  // Entry stays at 100%; generated IDs can place Pricing outside the initial viewport.
+  await expect(hub('Pricing')).toHaveCount(1);
   await expect(page.locator('.graph-accounting')).toHaveText(
     '48 links · 38 between boards · 10 inside boards · 0 missing',
   );
@@ -2083,6 +2955,7 @@ test('Graph drills Library, Board and one-hop Card scenes without opening or pin
   });
   await page.getByPlaceholder('Search this graph…').fill('Pricing');
   await page.getByRole('button', { name: 'Pricing', exact: true }).click();
+  await expect(hub('Pricing')).toBeInViewport({ ratio: 1 });
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
   const overviewCamera = await world.getAttribute('style');
   const pricingBox = (await hub('Pricing').boundingBox())!;
@@ -2462,6 +3335,12 @@ test('Graph keeps a dense 12-board, 96-card, 111-link library as boards until ex
   await expect(page.locator('.graph-link.is-exact')).toHaveCount(7);
   await expect(page.locator('.graph-node.is-board.is-external')).toHaveCount(11);
   await expect(page.getByRole('button', { name: 'board: Dense board 01', exact: true })).toHaveCount(0);
+  // Board entry restores readable scale; reveal a peripheral card before drilling into it.
+  await page.getByPlaceholder('Search this graph…').fill('Dense board 01 card 1');
+  await page.getByRole('button', { name: 'Dense board 01 card 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'card: Dense board 01 card 1', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
   await page.getByRole('button', { name: 'card: Dense board 01 card 1', exact: true }).click();
   await expect(page.locator('.graph-node.is-board')).toHaveCount(0);
   await expect(page.locator('.graph-node.is-card')).toHaveCount(13);
@@ -2904,6 +3783,7 @@ test.describe('save and board ownership boundaries', () => {
       await page.locator('.expanded-close').click();
       await page.getByRole('button', { name: /^Board: Switch owner B/ }).click();
       await page.getByRole('menuitem', { name: /^Switch owner A/ }).click();
+      await expect(card.locator('.node-title')).toHaveText('Switch owner A');
       await card.getByRole('button', { name: 'Edit', exact: true }).click();
       await page.getByRole('button', { name: '</> Source', exact: true }).click();
       await expect(page.locator('textarea')).toHaveValue(draft);

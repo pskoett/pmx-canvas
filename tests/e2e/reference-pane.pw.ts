@@ -12,7 +12,14 @@
  * the human sees: the node is in the pane and its content rendered — for
  * iframe-backed kinds, a sentinel inside the frame document is visible.
  */
-import { expect, test, setWorkspaceFeatures, type APIRequestContext, type Locator } from './workspace-fixture.js';
+import {
+  expect,
+  test,
+  setWorkspaceFeatures,
+  renderedCamera,
+  type APIRequestContext,
+  type Locator,
+} from './workspace-fixture.js';
 
 const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
 
@@ -54,6 +61,51 @@ interface ReferenceCase {
 const addNode = (data: Record<string, unknown>) => (request: APIRequestContext) =>
   postId(request, '/api/canvas/node', data);
 
+test('expanded Markdown keeps visible text clear of Source at every scroll position', async ({ page, request }) => {
+  await resetBoard(request);
+  const content = `${Array.from({ length: 45 }, (_, i) => `Paragraph ${i + 1}. The recorded capacity value is ${105 + i}.`).join('\n\n')}\n\nEND OF DOCUMENT`;
+  const id = await postId(request, '/api/canvas/node', {
+    type: 'markdown',
+    title: 'Long document',
+    content,
+    x: 80,
+    y: 80,
+    width: 440,
+    height: 320,
+  });
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const reader = page.locator('.md-reader');
+  await expect(reader).toContainText('END OF DOCUMENT');
+  const obscured = await reader.evaluate(async (element) => {
+    const failures: string[] = [];
+    for (let top = 0; ; top += element.clientHeight / 2) {
+      element.scrollTop = top;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const viewport = element.getBoundingClientRect();
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        for (const word of text.textContent!.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(text, word.index!);
+          range.setEnd(text, word.index! + word[0].length);
+          const rect = range.getBoundingClientRect();
+          if (rect.top < viewport.top || rect.bottom > viewport.bottom || !rect.width) continue;
+          const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+          if (!hit || !element.contains(hit)) failures.push(word[0]);
+        }
+      }
+      if (element.scrollTop + element.clientHeight >= element.scrollHeight - 1) break;
+    }
+    return failures;
+  });
+  expect(obscured).toEqual([]);
+  await expect(reader.getByText('END OF DOCUMENT', { exact: true })).toBeInViewport();
+  await page.getByRole('button', { name: '</> Source', exact: true }).click();
+  await expect(page.locator('.md-editor-expanded textarea')).toHaveValue(content);
+});
+
 /** Asserts a sentinel inside the node's iframe document, and that the iframe itself is in the pane. */
 async function framePainted(node: Locator, sentinel: (frame: ReturnType<Locator['frameLocator']>) => Locator) {
   await expect(node.locator('iframe').first()).toBeInViewport();
@@ -69,7 +121,7 @@ const CASES: ReferenceCase[] = [
   {
     type: 'board',
     create: addNode({ type: 'board', title: 'Ref Board', data: { boardId: 'missing-reference-board' } }),
-    painted: (node) => expect(node.getByText('Missing board')).toBeInViewport(),
+    painted: (node) => expect(node.getByText('Board not found')).toBeInViewport(),
   },
   {
     type: 'status',
@@ -135,7 +187,9 @@ const CASES: ReferenceCase[] = [
   {
     type: 'mermaid',
     create: addNode({ type: 'mermaid', title: 'Ref Mermaid', content: 'graph TD; A[Pane] --> B[Sentinel];' }),
-    painted: (node) => framePainted(node, (frame) => frame.locator('svg').getByText('Sentinel')),
+    painted: async (node) => {
+      await expect(node.locator('svg').getByText('Sentinel')).toBeVisible();
+    },
   },
   {
     type: 'image',
@@ -332,13 +386,7 @@ test('all relation kinds stay reachable without horizontal scrolling and Fit cle
       const response = await request.post('/api/canvas/fit', { data: {} });
       expect(response.ok()).toBe(true);
       const { viewport } = (await response.json()) as { viewport: { x: number; y: number; scale: number } };
-      await expect
-        .poll(() =>
-          page
-            .locator('.canvas-world')
-            .evaluate((element) => new DOMMatrix((element as HTMLElement).style.transform).f),
-        )
-        .toBeCloseTo(viewport.y, 2);
+      await expect.poll(async () => (await renderedCamera(page)).y).toBeCloseTo(viewport.y, 1);
     }
     for (const id of [a, b]) {
       const node = page.locator(`[data-node-id="${id}"]`);
@@ -375,11 +423,7 @@ test('all relation kinds stay reachable without horizontal scrolling and Fit cle
   const response = await request.post('/api/canvas/fit', { data: {} });
   expect(response.ok()).toBe(true);
   const { viewport } = (await response.json()) as { viewport: { x: number; y: number; scale: number } };
-  await expect
-    .poll(() =>
-      page.locator('.canvas-world').evaluate((element) => new DOMMatrix((element as HTMLElement).style.transform).f),
-    )
-    .toBeCloseTo(viewport.y, 2);
+  await expect.poll(async () => (await renderedCamera(page)).y).toBeCloseTo(viewport.y, 1);
   for (const id of [a, b]) {
     const node = page.locator(`[data-node-id="${id}"]`);
     await expect.poll(async () => (await node.boundingBox())!.y).toBeGreaterThan(shortLegend.y + shortLegend.height);
@@ -513,6 +557,197 @@ test('Home is navigation first even with a long agent README and repeated links'
   const checked = await (await request.get(`/api/canvas/node/${dueId}/lifecycle`)).json();
   expect(checked.lastValidation.evidence).toBe('Compared with the source: value 37 is correct.');
   expect(checked.qualification.due).toBe(false);
+});
+
+for (const type of ['html', 'mcp-app', 'json-render', 'graph']) {
+  test(`${type} keeps native content proportions through continuous fractional zoom`, async ({ page, request }) => {
+    await resetBoard(request);
+    const fixture = CASES.find((entry) => entry.type === type)!;
+    const id = await fixture.create(request);
+    await request.patch(`/api/canvas/node/${id}`, {
+      data: { position: { x: 80, y: 40 }, size: { width: 460, height: 360 }, data: { strictSize: true } },
+      headers: WORKBENCH,
+    });
+    await page.goto('/workbench');
+    const card = page.locator(`[data-node-id="${id}"]`);
+    const frame = card.locator('iframe:not([inert])');
+    const body = frame.contentFrame().locator('body');
+    let originalWidth = 0;
+    let originalClientWidth = 0;
+    let originalHeight = 0;
+    for (const scale of [1, 0.39, 0.28, 0.39, 0.2, 0.08, 1]) {
+      await request.post('/api/canvas/viewport', {
+        data: { x: 16, y: 60, scale },
+        headers: WORKBENCH,
+      });
+      await expect.poll(async () => (await card.boundingBox())!.width).toBeCloseTo(460 * scale, 1);
+      await fixture.painted(card);
+      const outer = await frame.evaluate((element) => ({
+        width: element.clientWidth,
+        height: element.clientHeight,
+        rect: element.getBoundingClientRect().width,
+      }));
+      const inner = await body.evaluate(() => ({
+        width: innerWidth,
+        clientWidth: document.documentElement.clientWidth,
+        height: innerHeight,
+        rootWidth: document.documentElement.getBoundingClientRect().width,
+      }));
+      if (!originalWidth) {
+        originalWidth = inner.width;
+        originalClientWidth = inner.clientWidth;
+        originalHeight = inner.height;
+      }
+      expect(inner.width).toBe(originalWidth);
+      expect(inner.height).toBe(originalHeight);
+      // A document scrollbar consumes layout width, independently of canvas zoom.
+      expect(inner.clientWidth).toBe(originalClientWidth);
+      expect(Math.abs(inner.width - outer.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(inner.rootWidth - inner.clientWidth)).toBeLessThan(1);
+      expect(Math.abs(inner.height - outer.height)).toBeLessThanOrEqual(1);
+      expect(outer.rect).toBeCloseTo(outer.width * scale, 1);
+      await expect(card.locator('.viewer-fallback')).toHaveCount(0);
+    }
+    const saved = await (await request.get(`/api/canvas/node/${id}`)).json();
+    expect(saved.position).toEqual({ x: 80, y: 40 });
+    expect(saved.size).toEqual({ width: 460, height: 360 });
+  });
+}
+
+test('panning automatically mounts later viewer regions and preserves earlier drafts', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const ids: string[] = [];
+  await resetBoard(request);
+  for (let index = 0; index < 16; index++) {
+    ids.push(
+      await postId(request, '/api/canvas/node', {
+        type: 'html',
+        title: `Viewer ${index}`,
+        html: `<p>Painted viewer ${index}</p><input aria-label="Draft" value="Original"><script>window.appState = { count: 37 };</script>`,
+        x: index * 1200,
+        y: 0,
+        width: 400,
+        height: 260,
+        strictSize: true,
+      }),
+    );
+  }
+  await request.post('/api/canvas/viewport', { data: { x: 16, y: 60, scale: 1 }, headers: WORKBENCH });
+  await page.goto('/workbench');
+  const firstFrame = page.locator(`[data-node-id="${ids[0]}"] iframe`);
+  const first = firstFrame.contentFrame();
+  await first.getByLabel('Draft').fill('Unsaved human input');
+  const original = await firstFrame.elementHandle();
+  for (let index = 0; index < ids.length; index++) {
+    await request.post('/api/canvas/viewport', {
+      data: { x: 16 - index * 1200, y: 60, scale: 1 },
+      headers: WORKBENCH,
+    });
+    await expect(
+      page
+        .locator(`[data-node-id="${ids[index]}"]`)
+        .frameLocator('iframe')
+        .getByText(`Painted viewer ${index}`, { exact: true }),
+    ).toBeVisible();
+  }
+  for (const scale of [0.39, 0.28, 0.2, 1]) {
+    await request.post('/api/canvas/viewport', { data: { x: 16, y: 60, scale }, headers: WORKBENCH });
+    await expect(first.getByLabel('Draft')).toBeVisible();
+    await expect(first.getByLabel('Draft')).toHaveValue('Unsaved human input');
+    expect(await firstFrame.evaluate((current, previous) => current === previous, original)).toBe(true);
+    expect(await first.locator('body').evaluate(() => Reflect.get(window, 'appState').count)).toBe(37);
+  }
+  await expect(page.locator('.viewer-host iframe')).toHaveCount(16);
+});
+
+test('section headings and full-width chart viewers follow all nine canvas themes', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  await resetBoard(request);
+  const heading = await postId(request, '/api/canvas/node', {
+    type: 'markdown',
+    title: 'Release evidence',
+    content: 'Charts and source material',
+    data: { display: 'heading' },
+    x: 0,
+    y: 0,
+    width: 440,
+    height: 120,
+  });
+  const chart = await postId(request, '/api/canvas/graph', {
+    title: 'Build durations',
+    graphType: 'bar',
+    data: [
+      { label: 'Baseline', value: 37 },
+      { label: 'Candidate', value: 19 },
+    ],
+    xKey: 'label',
+    yKey: 'value',
+    x: 0,
+    y: 170,
+    width: 440,
+    nodeHeight: 380,
+  });
+  for (const theme of [
+    'harbor',
+    'daylight',
+    'high-contrast',
+    'midnight',
+    'sepia',
+    'arctic',
+    'ember',
+    'forest',
+    'volt',
+  ]) {
+    await page.goto(`/workbench?theme=${theme}`);
+    await request.post('/api/canvas/focus', { data: { id: heading }, headers: WORKBENCH });
+    const label = page.locator(`[data-node-id="${heading}"]`);
+    await expect(label).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(label.locator('.node-title')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const top = (await label.boundingBox())!.y;
+        return top - (await page.locator('.canvas-region').boundingBox())!.y;
+      })
+      .toBeGreaterThanOrEqual(44);
+    await request.post('/api/canvas/focus', { data: { id: chart }, headers: WORKBENCH });
+    const card = page.locator(`[data-node-id="${chart}"]`);
+    const frame = card.frameLocator('iframe:not([inert])');
+    await expect(frame.locator('.recharts-bar-rectangle').first()).toBeVisible();
+    await expect(frame.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(frame.getByText('Build durations', { exact: true })).not.toBeVisible();
+    await expect(frame.getByText('Baseline', { exact: true })).toBeVisible();
+    const panel = await card.evaluate((element) => getComputedStyle(element).backgroundColor);
+    await expect(frame.locator('body')).toHaveCSS('background-color', panel);
+    const widths = await frame.locator('.pmx-viewer-root').evaluate((element) => ({
+      viewport: window.innerWidth,
+      root: element.getBoundingClientRect().width,
+      card: element.firstElementChild!.getBoundingClientRect().width,
+    }));
+    // innerWidth is integer-rounded; allow subpixel layout rounding.
+    expect(Math.abs(widths.root - widths.viewport)).toBeLessThan(1);
+    expect(widths.card).toBe(widths.root);
+  }
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  await page.locator(`[data-node-id="${chart}"]`).getByRole('button', { name: 'Expand (focus mode)' }).click();
+  const header = page.locator('.expanded-header');
+  await expect(header.getByRole('button', { name: 'Open in tab' })).toBeVisible();
+  expect(
+    await header.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return [...element.querySelectorAll('button')].every((button) => {
+        const rect = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+        return (
+          rect.top >= bounds.top &&
+          rect.bottom <= bounds.bottom &&
+          rect.left >= bounds.left &&
+          rect.right <= bounds.right &&
+          !!hit &&
+          button.contains(hit)
+        );
+      });
+    }),
+  ).toBe(true);
 });
 
 for (const referenceCase of CASES) {

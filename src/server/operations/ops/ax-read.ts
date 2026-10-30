@@ -335,6 +335,8 @@ const interactionOperation = defineOperation<z.infer<typeof interactionSchema>, 
   http: {
     method: 'POST',
     path: '/api/canvas/ax/interaction',
+    // MCP preserves the structured rejection code as well as its message.
+    errorBodyAsResult: true,
     // Legacy wire: 200 when accepted, the envelope's own status when refused.
     status: (result) =>
       isRecord(result) && result.ok !== true && typeof result.status === 'number' ? result.status : 200,

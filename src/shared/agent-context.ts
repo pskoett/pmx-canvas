@@ -374,8 +374,14 @@ export function summarizeNodeForAgentContext(node: CanvasNodeState, options: Age
       return truncateContextText(`${prefix}${fileContent}`, defaultTextLength);
     }
     case 'status':
+      if (typeof node.data.workItemId === 'string') {
+        return truncateContextText(
+          `Read-only live task: ${node.data.workItemId}\n${node.data.liveWorkAvailable === false ? 'Task unavailable' : textFields(node.data, ['title', 'workState', 'detail', 'liveWorkSource'])}`,
+          defaultTextLength,
+        );
+      }
       return truncateContextText(
-        `Status: ${textFields(node.data, ['phase']) || textFields(node.data, ['content']) || textFields(node.data, ['status']) || 'unknown'}\n${textFields(node.data, ['detail', 'message', 'activeTool'])}`,
+        `Status: ${textFields(node.data, ['workState']) || textFields(node.data, ['phase']) || textFields(node.data, ['content']) || textFields(node.data, ['status']) || 'unknown'}\n${textFields(node.data, ['detail', 'message', 'activeTool'])}${typeof node.data.progress === 'number' ? `\nProgress: ${node.data.progress}%` : ''}`,
         defaultTextLength,
       );
     case 'context':

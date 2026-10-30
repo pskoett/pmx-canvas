@@ -212,7 +212,7 @@ describe('Skills extension', () => {
           }
         }
       }
-      expect((await client.listTools()).tools).toHaveLength(24);
+      expect((await client.listTools()).tools).toHaveLength(25);
       // Discovery and file reads should not start a daemon or write a consumer board.
       expect(readdirSync(workspace)).toEqual([]);
     } finally {

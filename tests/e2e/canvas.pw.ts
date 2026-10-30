@@ -7,6 +7,7 @@ import {
   type Locator,
   type Page,
   setWorkspaceFeatures,
+  renderedCamera,
 } from './workspace-fixture.js';
 import { fileURLToPath } from 'node:url';
 import { RELATION_PRESETS } from '../../src/shared/relations.js';
@@ -451,7 +452,7 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
   const node = (title: string) => page.locator('.canvas-node').filter({ hasText: title });
 
   await expect(node('All Types Markdown')).toContainText('Markdown renderer body');
-  await expect(node('All Types Status')).toContainText('testing');
+  await expect(node('All Types Status')).toContainText('Testing');
   await expect(node('All Types Status')).toContainText('status renderer message');
   // Docking is explicit (0.4.6 orb feedback #1): a created context node renders
   // ON THE CANVAS, not as an invisible HUD pill. This is the regression guard —
@@ -519,15 +520,21 @@ test('right-drag pans over blank canvas and node content without moving or creat
   await expect(page.locator('.canvas-node').filter({ hasText: 'Pan target' })).toBeVisible();
 
   const dragRight = async (x: number, y: number, dx: number, dy: number) => {
+    const card = page.locator('.canvas-node').filter({ hasText: 'Pan target' });
+    const start = await card.boundingBox();
+    if (!start) throw new Error('Pan target is not visible');
     await page.mouse.move(x, y);
     await page.mouse.down({ button: 'right' });
     // The hand appears on hold, before the first movement, even over text.
     await expect(page.locator('.canvas-viewport')).toHaveCSS('cursor', 'grabbing');
     await expect(page.locator('.canvas-node .node-body')).toHaveCSS('cursor', 'grabbing');
     await page.mouse.move(x + dx, y + dy, { steps: 5 });
+    await expect(page.locator('.context-menu')).toHaveCount(0);
     await page.mouse.up({ button: 'right' });
     await expect(page.locator('html')).not.toHaveClass(/is-canvas-panning/);
     await expect(page.locator('.canvas-viewport')).not.toHaveCSS('cursor', 'grabbing');
+    await expect.poll(async () => Math.round((await card.boundingBox())!.x - start.x)).toBe(dx);
+    await expect.poll(async () => Math.round((await card.boundingBox())!.y - start.y)).toBe(dy);
   };
   const before = await currentCanvasState(request);
   const beforeViewport = (await (await request.get('/api/canvas/state')).json()) as {
@@ -549,16 +556,62 @@ test('right-drag pans over blank canvas and node content without moving or creat
   expect(after.nodes).toHaveLength(1);
   expect(after.nodes[0].position).toEqual(before.nodes[0].position);
   await expect(page.locator('.context-menu')).toHaveCount(0);
+  // A completed drag must not suppress the next stationary right-click.
+  await page.mouse.click(1000, 600, { button: 'right' });
+  await expect(page.locator('.context-menu-item').filter({ hasText: 'New note' })).toBeVisible();
+  await page.keyboard.press('Escape');
   const title = page.locator('.canvas-node .node-title');
   await title.click();
   await expect(page.locator('.canvas-node')).toHaveClass(/active/);
   await expect(page.locator('.context-menu')).toHaveCount(0);
   await title.dblclick();
-  await page.getByRole('button', { name: 'Rename…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Rename…', exact: true }).click();
   await page.getByPlaceholder('Node title').fill('Renamed from menu');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(title).toHaveText('Renamed from menu');
   await expect.poll(async () => (await currentCanvasState(request)).nodes[0].data.title).toBe('Renamed from menu');
+});
+
+test('cancelled right-clicks and return-to-start drags do not open creation menus', async ({ page, request }) => {
+  await page.goto('/workbench');
+  await expect(page.locator('.empty-state')).toBeVisible();
+  const canvas = page.locator('.canvas-viewport');
+  const menu = page.locator('.context-menu');
+  // Keep clear of the empty-board onboarding buttons, which own their input.
+  expect(await page.evaluate(() => document.elementFromPoint(100, 220)?.classList.contains('canvas-viewport'))).toBe(
+    true,
+  );
+  for (const cancel of ['pointercancel', 'lostpointercapture']) {
+    await page.mouse.move(100, 220);
+    await page.mouse.down({ button: 'right' });
+    await expect(page.locator('html')).toHaveClass(/is-canvas-panning/);
+    await canvas.dispatchEvent(cancel);
+    await page.mouse.up({ button: 'right' });
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/is-canvas-panning/);
+  }
+  await page.mouse.move(100, 220);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(180, 255, { steps: 5 });
+  await page.mouse.move(100, 220, { steps: 5 });
+  await page.mouse.up({ button: 'right' });
+  await expect(menu).toHaveCount(0);
+
+  // The next right-click still works; middle-button drag remains menu-free.
+  await canvas.click({ button: 'right', position: { x: 72, y: 120 } });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  const before = await page.locator('.canvas-world').evaluate((el) => el.getBoundingClientRect().x);
+  await page.mouse.move(100, 220);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(160, 250, { steps: 5 });
+  await page.mouse.up({ button: 'middle' });
+  await expect(menu).toHaveCount(0);
+  await expect
+    .poll(() => page.locator('.canvas-world').evaluate((el) => el.getBoundingClientRect().x))
+    .not.toBe(before);
+  expect((await currentCanvasState(request)).nodes).toHaveLength(0);
 });
 
 test('rail and keyboard creates land in the current viewport, not at the board origin', async ({ page, request }) => {
@@ -646,6 +699,66 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   // HTML remains available as an advanced shortcut without a dedicated rail button.
   await page.keyboard.press('h');
   await expect(page.locator('.canvas-node[data-node-type="html"]')).toHaveCount(1);
+});
+
+test('hidden connection handles do not intercept a neighboring relation label', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  const created = [];
+  for (const [title, x] of [
+    ['Source', 100],
+    ['Target', 1000],
+  ] as const) {
+    created.push(
+      (await (
+        await request.post('/api/canvas/node', {
+          data: { type: 'markdown', title, content: title, x, y: 200, width: 280, height: 140, strictSize: true },
+        })
+      ).json()) as { id: string },
+    );
+  }
+  expect(
+    (
+      await request.post('/api/canvas/edge', {
+        data: {
+          from: created[0].id,
+          to: created[1].id,
+          type: 'relation',
+          kind: 'supports',
+          reason: 'The label stays reachable.',
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 0.41 } });
+  await page.goto('/workbench');
+  const pill = page.locator('.edge-pill');
+  await expect(pill).toBeVisible();
+  const point = await pill.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const svg = element.closest('svg')!;
+    const world = new DOMPoint(rect.x + rect.width / 2, rect.y + rect.height / 2).matrixTransform(
+      svg.getScreenCTM()!.inverse(),
+    );
+    return { x: world.x, y: world.y };
+  });
+  // The invisible top handle's 32-screen-pixel grab area covers the label,
+  // but the unrelated card itself is below it.
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Nearby note',
+      content: 'Not connected',
+      x: point.x - 160,
+      y: point.y + 8 / 0.41,
+      width: 320,
+      height: 140,
+      strictSize: true,
+    },
+  });
+  await expect(page.locator('.canvas-node')).toHaveCount(3);
+  const box = (await pill.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText('The label stays reachable.');
 });
 
 test('rich relation kind and reason survive live edits and reload; a human can delete it', async ({
@@ -743,9 +856,36 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   await expect(page.locator('.relation-dimmed')).toHaveCount(0);
   await page.locator(`[data-node-id="${b.id}"] .node-body`).hover();
   const pill = page.locator('.edge-pill').filter({ hasText: 'supports' });
-  await pill.hover();
+  const pillBox = (await pill.boundingBox())!;
+  await page.mouse.move(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2);
   await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText('Measured throughput supports this choice.');
-  await pill.dblclick();
+  const linePoint = await path.evaluate((element) => {
+    const line = element as SVGPathElement;
+    const point = line.getPointAtLength(line.getTotalLength() / 4);
+    return new DOMPoint(point.x, point.y).matrixTransform(line.getScreenCTM()!).toJSON();
+  });
+  for (const point of [linePoint, { x: pillBox.x + pillBox.width / 2, y: pillBox.y + pillBox.height / 2 }]) {
+    await page.mouse.dblclick(point.x, point.y);
+    await expect(page.getByRole('form', { name: 'Edit relation' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
+    await page.mouse.down({ button: 'right' });
+    await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
+    await page.mouse.up({ button: 'right' });
+    await expect(page.getByLabel('Relation kind', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    const world = page.locator('.canvas-world');
+    const before = await world.evaluate((element) => element.getBoundingClientRect().x);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(point.x + 60, point.y + 30, { steps: 6 });
+    await expect.poll(() => world.evaluate((element) => element.getBoundingClientRect().x)).not.toBe(before);
+    await page.mouse.move(point.x, point.y, { steps: 6 });
+    await page.mouse.up({ button: 'right' });
+    await expect(page.getByLabel('Relation kind', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.context-menu')).toHaveCount(0);
+  }
+  await page.mouse.click(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2, { button: 'right' });
   await page.getByLabel('Relation kind', { exact: true }).selectOption('contradicts');
   await page.getByText('Edit why…', { exact: true }).click();
   await page.getByRole('textbox').fill('A second measurement contradicts the assumption.');
@@ -753,7 +893,8 @@ test('rich relation kind and reason survive live edits and reload; a human can d
   await expect(page.getByRole('button', { name: 'contradicts 1', exact: true })).toBeVisible();
   await page.reload();
   const revised = page.locator('.edge-pill').filter({ hasText: 'contradicts' });
-  await revised.hover();
+  const revisedBox = (await revised.boundingBox())!;
+  await page.mouse.move(revisedBox.x + revisedBox.width / 2, revisedBox.y + revisedBox.height / 2);
   await expect(page.locator('.edge-hint[role="tooltip"]')).toContainText(
     'A second measurement contradicts the assumption.',
   );
@@ -767,7 +908,9 @@ test('rich relation kind and reason survive live edits and reload; a human can d
     'Manage shared relation presets in Home.',
   );
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await revised.dblclick();
+  await page.mouse.click(revisedBox.x + revisedBox.width / 2, revisedBox.y + revisedBox.height / 2, {
+    button: 'right',
+  });
   await page.getByText('Delete edge').click();
   await expect(path).toHaveCount(0);
   const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ id: string }> };
@@ -809,6 +952,210 @@ test('Settings toggles Trace inline without losing focus and keeps Clear trace a
   await expect(trace).toHaveAttribute('aria-checked', 'false');
   await expect(trace).toBeFocused();
   await expect(menu.getByRole('menuitem', { name: 'Clear trace', exact: true })).toBeHidden();
+});
+
+test('group drill-in keeps original cards, outside links and nested camera returns', async ({ page, request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await setWorkspaceFeatures(request, { agentSessions: false, knowledgeLifecycle: false });
+  const before = await (await request.get('/api/canvas/boards')).json();
+  const create = async (title: string, x: number) =>
+    (await (
+      await request.post('/api/canvas/node', {
+        headers,
+        data: { type: 'markdown', title, content: title, x, y: 250, width: 280, height: 170 },
+      })
+    ).json()) as { id: string };
+  const child = await create('Schema draft', 160);
+  const sibling = await create('Implementation', 620);
+  const outside = await create('Release checklist', 1200);
+  const group = async (title: string, childIds: string[]) =>
+    (await (await request.post('/api/canvas/group', { headers, data: { title, childIds } })).json()) as { id: string };
+  const inner = await group('Design', [child.id]);
+  const outer = await group('Development', [inner.id, sibling.id]);
+  await request.post('/api/canvas/edge', {
+    headers,
+    data: { from: child.id, to: outside.id, type: 'relation', kind: 'depends-on' },
+  });
+  await page.goto('/workbench');
+  await fitCanvas(page);
+  const node = (id: string) => page.locator(`[data-node-id="${id}"]`);
+  await node(outer.id)
+    .locator('.node-titlebar')
+    .click({ position: { x: 90, y: 10 } });
+  const parentCamera = await renderedCamera(page);
+  // Keyboard and pointer use the same navigation, without replacing the board.
+  await node(outer.id).focus();
+  await page.keyboard.press('Enter');
+  const nav = page.getByRole('navigation', { name: 'Group navigation' });
+  await expect(nav).toContainText('Development');
+  await expect(node(outside.id)).toBeHidden();
+  await expect(page.getByRole('button', { name: /Release checklist.*Show on canvas/ })).toBeVisible();
+  await expect(node(child.id)).toBeVisible();
+  await page.waitForTimeout(400);
+  const innerCamera = await renderedCamera(page);
+  await node(inner.id).focus();
+  await page.keyboard.press('Enter');
+  await expect(nav).toContainText('Design');
+  await expect(node(sibling.id)).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(nav.getByRole('button', { name: 'Design', exact: true })).toHaveCount(0);
+  expect(await renderedCamera(page)).toEqual(innerCamera);
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await fitCanvas(page);
+    await page.waitForTimeout(400);
+    const bounds = (await node(child.id).boundingBox())!;
+    const crumb = (await nav.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    expect(bounds.y).toBeGreaterThan(crumb.y + crumb.height);
+  }
+  await nav
+    .getByRole('button', {
+      name: before.boards.find((board: { id: string }) => board.id === before.activeBoardId).name,
+      exact: true,
+    })
+    .click();
+  await expect(nav).toHaveCount(0);
+  expect(await renderedCamera(page)).toEqual(parentCamera);
+  await expect(node(outer.id)).toHaveClass(/selected/);
+  await node(outer.id).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /Release checklist.*Show on canvas/ }).click();
+  await expect(nav).toHaveCount(0);
+  await expect(node(outside.id)).toHaveClass(/active/);
+  await page.waitForTimeout(400);
+  const target = (await node(outside.id).boundingBox())!;
+  expect(target.x).toBeGreaterThanOrEqual(0);
+  expect(target.x + target.width).toBeLessThanOrEqual(1920);
+  const after = await (await request.get('/api/canvas/boards')).json();
+  expect(after.boards.length).toBe(before.boards.length);
+  expect(after.activeBoardId).toBe(before.activeBoardId);
+  await node(outer.id).focus();
+  await page.keyboard.press('Enter');
+  await request.delete(`/api/canvas/node/${outer.id}`, { headers });
+  await expect(nav).toHaveCount(0);
+  await page.reload();
+  await expect(node(child.id)).toBeVisible();
+});
+
+test('collapsed group drill-in preserves live iframe drafts and reveals outside targets', async ({ page, request }) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  const created = await request.post('/api/canvas/node', {
+    headers,
+    data: {
+      type: 'html',
+      title: 'Local draft',
+      html: '<label>Draft<input aria-label="Draft"></label>',
+      x: 200,
+      y: 250,
+      width: 320,
+      height: 200,
+    },
+  });
+  const child = await created.json();
+  const other = await (
+    await request.post('/api/canvas/node', {
+      headers,
+      data: {
+        type: 'markdown',
+        title: 'Outside source',
+        content: 'A real card',
+        x: 850,
+        y: 250,
+        height: 1100,
+      },
+    })
+  ).json();
+  const group = async (title: string, childIds: string[]) =>
+    (await (await request.post('/api/canvas/group', { headers, data: { title, childIds } })).json()) as { id: string };
+  const folded = await group('Draft group', [child.id]);
+  const outside = await group('Source group', [other.id]);
+  await request.patch(`/api/canvas/node/${folded.id}`, { headers, data: { collapsed: true } });
+  await request.patch(`/api/canvas/node/${outside.id}`, { headers, data: { collapsed: true } });
+  await request.post('/api/canvas/edge', {
+    headers,
+    data: { from: child.id, to: other.id, type: 'relation', kind: 'cites' },
+  });
+  await page.goto('/workbench');
+  await fitCanvas(page);
+  const node = (id: string) => page.locator(`[data-node-id="${id}"]`);
+  await expect(node(child.id)).toHaveCount(0);
+  await node(folded.id).focus();
+  await page.keyboard.press('Enter');
+  const field = node(child.id).frameLocator('iframe').getByLabel('Draft');
+  await field.fill('Keep this unsaved text');
+  await page.getByRole('button', { name: 'Leave group' }).click();
+  await expect(node(child.id)).toBeHidden();
+  await node(folded.id).focus();
+  await page.keyboard.press('Enter');
+  await expect(field).toHaveValue('Keep this unsaved text');
+  await page.getByRole('button', { name: /Outside source.*Show on canvas/ }).click();
+  await expect(page.getByRole('navigation', { name: 'Group navigation' })).toContainText('Source group');
+  await expect(node(other.id)).toBeVisible();
+  await page.waitForTimeout(400);
+  const box = (await node(other.id).boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(1440);
+  const chromeBottom = await page
+    .locator('.group-breadcrumbs, .relation-legend')
+    .evaluateAll((elements) => Math.max(...elements.map((element) => element.getBoundingClientRect().bottom)));
+  expect(box.y).toBeGreaterThanOrEqual(chromeBottom);
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  const layout = await (await request.get('/api/canvas/state')).json();
+  expect(layout.nodes.find((item: { id: string }) => item.id === outside.id).collapsed).toBe(true);
+  expect(layout.nodes.find((item: { id: string }) => item.id === folded.id).collapsed).toBe(true);
+});
+
+test('inline relations edit reasons, distinguish dependency cycles and keep flow loops inert', async ({
+  page,
+  request,
+}) => {
+  const headers = { 'x-pmx-workbench': '1' };
+  await setWorkspaceFeatures(request, { agentSessions: false, knowledgeLifecycle: true });
+  const create = async (title: string, x: number, y: number) =>
+    (await (
+      await request.post('/api/canvas/node', {
+        headers,
+        data: { type: 'markdown', title, content: title, x, y, width: 260, height: 160 },
+      })
+    ).json()) as { id: string };
+  const a = await create('Schema', 120, 200);
+  const b = await create('Service', 660, 200);
+  const c = await create('Review', 660, 650);
+  const connect = async (from: string, to: string, kind: string) =>
+    (await (
+      await request.post('/api/canvas/edge', { headers, data: { from, to, kind, type: 'relation' } })
+    ).json()) as { id: string };
+  const dependency = await connect(b.id, a.id, 'depends-on');
+  await connect(a.id, b.id, 'depends-on');
+  const loop = await connect(b.id, c.id, 'if-fails');
+  await connect(c.id, b.id, 'loop');
+  await page.goto('/workbench');
+  await fitCanvas(page);
+  await expect(page.getByText('⚠ 1 dependency cycles', { exact: true })).toBeVisible();
+  const pill = page.locator(`.edge-pill-hit[data-edge-id="${dependency.id}"]`);
+  await pill.click();
+  const editor = page.getByRole('form', { name: 'Edit relation' });
+  await expect(editor).toBeVisible();
+  await editor.getByRole('button', { name: 'Why', exact: true }).click();
+  await editor.getByLabel('Why this relation?').fill('Service waits for a reviewed schema.');
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(editor.locator('input')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await request.patch(`/api/canvas/node/${a.id}`, { headers, data: { data: { content: 'Schema changed' } } });
+  await expect(page.locator(`.edge-pill[data-edge-id="${dependency.id}"]`)).toContainText('Source needs review');
+  await expect(page.locator(`.edge-pill[data-edge-id="${loop.id}"]`)).not.toContainText('Cycle');
+  await expect(page.locator(`.edge-pill[data-edge-id="${loop.id}"]`)).not.toContainText('Source needs review');
+  await page.reload();
+  await fitCanvas(page);
+  await pill.click();
+  await editor.getByRole('button', { name: 'Why', exact: true }).click();
+  await expect(editor.getByLabel('Why this relation?')).toHaveValue('Service waits for a reviewed schema.');
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await editor.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(pill).toHaveCount(0);
+  await expect(page.getByText('0 dependency cycles', { exact: true })).toBeVisible();
 });
 
 test('selecting a group keeps its nested cards and their relations readable without hover focus', async ({
@@ -886,8 +1233,8 @@ test('double-click Delete: a node deletes; a frame deletes with its children sta
   const node = page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' }).first();
   await node.dblclick({ button: 'left', position: { x: 80, y: 60 } });
   const menu = page.locator('.context-menu');
-  await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
-  await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(menu.getByRole('menuitem', { name: 'Delete', exact: true })).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' })).toHaveCount(
     0,
   );
@@ -895,7 +1242,7 @@ test('double-click Delete: a node deletes; a frame deletes with its children sta
   // A member leaves its frame from the context menu (the drag-out gesture's discoverable twin).
   const member = page.locator('.canvas-node').filter({ hasText: 'Member' }).first();
   await member.dblclick({ button: 'left', position: { x: 80, y: 60 } });
-  await menu.getByRole('button', { name: 'Remove from “Doomed frame”' }).click();
+  await menu.getByRole('menuitem', { name: 'Remove from “Doomed frame”' }).click();
   await expect
     .poll(async () => {
       const state = (await (await request.get(`/api/canvas/node/${b.id}`)).json()) as { data: Record<string, unknown> };
@@ -910,7 +1257,7 @@ test('double-click Delete: a node deletes; a frame deletes with its children sta
     .filter({ hasText: 'Doomed frame' })
     .locator('.group-edge-row')
     .dblclick({ button: 'left', position: { x: 200, y: 6 } });
-  await menu.getByRole('button', { name: 'Delete frame (children stay)' }).click();
+  await menu.getByRole('menuitem', { name: 'Delete frame (children stay)' }).click();
   await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Member' })).toHaveCount(1);
   expect(
@@ -949,14 +1296,218 @@ test('#J: the empty state yields to a live ghost intent so the cursor is visible
   await expect(page.locator('.empty-state')).toBeVisible();
 });
 
+test('live work cards explicitly present tasks read-only and survive session end', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: true });
+  const ordinary = await request.post('/api/canvas/node', {
+    data: { type: 'status', title: 'Authored plan', data: { workState: 'todo' } },
+  });
+  const ordinaryId = (await ordinary.json()).id;
+  await request.post('/api/canvas/ax/presence', { data: { source: 'live-card-test', attached: true } });
+  const { workItem } = await (
+    await request.post('/api/canvas/ax/work', {
+      data: { title: 'Verify live work', detail: 'First evidence', agentId: 'reviewer' },
+    })
+  ).json();
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node')).toHaveCount(1);
+  await page.getByLabel('Expand session panel').click();
+  await page.getByTestId('work-items-toggle').click();
+  const row = page.locator(`[data-work-item-id="${workItem.id}"]`);
+  await row.getByRole('button', { name: 'Show on board' }).click();
+  const card = page.locator('.canvas-node').filter({ hasText: 'Live task' });
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('Read-only');
+  await expect(card.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+  await expect(card.getByRole('progressbar')).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Show card' })).toBeVisible();
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  // Finish the focus gesture before testing task Undo, or Undo legitimately targets the later camera commit.
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/canvas/viewport') &&
+        response.request().method() === 'POST' &&
+        typeof response.request().postDataJSON()?.x === 'number',
+    ),
+    row.getByRole('button', { name: 'Show card' }).click(),
+  ]);
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
+  await request.patch(`/api/canvas/ax/work/${workItem.id}`, {
+    data: { title: 'Updated task', detail: 'Title-only refresh' },
+  });
+  await expect(card).toContainText('Title-only refresh');
+  await expect(row).toContainText('Updated task');
+  await request.patch(`/api/canvas/ax/work/${workItem.id}`, { data: { status: 'blocked' } });
+  await expect(card.locator('.work-card-state')).toContainText('Blocked');
+  await expect(row).toContainText('awaiting');
+  await request.post('/api/canvas/undo');
+  await expect(card.locator('.work-card-state')).toContainText('To do');
+  await expect(row.locator('.session-item-status')).toHaveText('queued');
+  await request.post('/api/canvas/redo');
+  await expect(card.locator('.work-card-state')).toContainText('Blocked');
+  await expect(row.locator('.session-item-status')).toHaveText('awaiting');
+  await card.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await expect(page.locator('.expanded-overlay-panel')).toContainText('Read-only');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await request.post('/api/canvas/ax/presence', { data: { source: 'live-card-test', attached: false } });
+  await page.reload();
+  await expect(card).toContainText('Updated task');
+  await expect(card).toContainText('Blocked');
+  expect((await currentCanvasState(request)).nodes.find((node) => node.id === ordinaryId)!.data.workState).toBe('todo');
+  const live = (await currentCanvasState(request)).nodes.find((node) => node.data.workItemId === workItem.id)!;
+  await request.delete(`/api/canvas/node/${live.id}`);
+  await expect(card).toHaveCount(0);
+  const tasks = await (await request.get('/api/canvas/ax/work')).json();
+  expect(JSON.stringify(tasks)).toContain(workItem.id);
+  await request.post('/api/canvas/undo');
+  await expect(card).toContainText('Blocked');
+  await page.screenshot({ path: 'test-results/live-work-card.png' });
+});
+
+test('work cards author an inert plan in place, retain refused drafts, and undo saved changes', async ({
+  page,
+  request,
+}) => {
+  const beforeWork = await (await request.get('/api/canvas/ax/work')).json();
+  const beforeApprovals = await (await request.get('/api/canvas/ax/approval')).json();
+  await page.goto('/workbench');
+  await expect(page.locator('.empty-state')).toBeVisible();
+  await page.mouse.click(300, 180, { button: 'right' });
+  await page.locator('.context-menu-item').filter({ hasText: 'New work card' }).click();
+  const card = page.locator('.canvas-node').filter({ hasText: 'New work card' });
+  await expect(card.locator('.work-card-state')).toContainText('To do');
+  const id = (await currentCanvasState(request)).nodes[0]!.id;
+  const savedNode = async () => (await currentCanvasState(request)).nodes.find((node) => node.id === id)!;
+  // Wait for the normal one-shot auto-fit before checking temporary editor geometry.
+  await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(250);
+  const storedSize = (await savedNode()).size;
+  const normalHeight = (await card.boundingBox())!.height;
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(card.getByLabel('Title', { exact: true })).toBeVisible();
+  expect((await card.boundingBox())!.height).toBeGreaterThan(normalHeight + 100);
+  await card.getByLabel('Title', { exact: true }).fill('Verify the plan');
+  await card.getByLabel('Work state').selectOption('blocked');
+  await card.getByLabel('Detail', { exact: true }).fill('Need one more browser check.');
+  await card.getByLabel('Progress (%) · optional').fill('37.5');
+  await card.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await expect(page.getByLabel('Detail', { exact: true })).toHaveValue('Need one more browser check.');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(card.getByLabel('Progress (%) · optional')).toHaveValue('37.5');
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  const workCard = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(workCard.locator('.work-card-state')).toContainText('Blocked');
+  await expect(workCard.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37.5');
+  expect((await savedNode()).size).toEqual(storedSize);
+  await page.reload();
+  await expect(workCard.getByText('Need one more browser check.')).toBeVisible();
+  await workCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await workCard.getByLabel('Detail', { exact: true }).fill('Unsaved human draft');
+  const changed = await request.patch(`/api/canvas/node/${id}`, {
+    data: { data: { detail: 'Agent supplied evidence' } },
+  });
+  expect(changed.ok()).toBe(true);
+  await workCard.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(workCard.getByRole('alert')).toContainText('Your draft is still here');
+  await expect(workCard.getByLabel('Detail', { exact: true })).toHaveValue('Unsaved human draft');
+  expect((await savedNode()).data.detail).toBe('Agent supplied evidence');
+  await workCard.getByRole('button', { name: 'Expand (focus mode)' }).click();
+  await expect(page.getByRole('alert')).toContainText('Your draft is still here');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(workCard.getByLabel('Detail', { exact: true })).toHaveValue('Unsaved human draft');
+  expect((await savedNode()).size.height).toBeLessThan(300);
+  await workCard.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(workCard.getByText('Agent supplied evidence')).toBeVisible();
+  await workCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await workCard.getByLabel('Work state').selectOption('done');
+  await workCard.getByLabel('Progress (%) · optional').fill('');
+  let releaseSave = () => {};
+  const pendingSave = new Promise<void>((resolve) => {
+    releaseSave = resolve;
+  });
+  await page.route(`**/api/canvas/node/${id}`, async (route) => {
+    if (route.request().method() === 'PATCH') await pendingSave;
+    await route.continue();
+  });
+  await workCard.getByRole('button', { name: 'Save', exact: true }).click();
+  try {
+    await expect(workCard.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+    await workCard.getByRole('button', { name: 'Expand (focus mode)' }).click();
+    await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(workCard.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  } finally {
+    releaseSave();
+  }
+  await expect(workCard.locator('.work-card-state')).toContainText('Done');
+  await expect(workCard.getByRole('progressbar')).toHaveCount(0);
+  await request.post('/api/canvas/undo');
+  await expect(workCard.locator('.work-card-state')).toContainText('Blocked');
+  await expect(workCard.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37.5');
+  expect(await (await request.get('/api/canvas/ax/work')).json()).toEqual(beforeWork);
+  expect(await (await request.get('/api/canvas/ax/approval')).json()).toEqual(beforeApprovals);
+});
+
+test('work card editors fit reference widths and all nine themes', async ({ page, request }, testInfo) => {
+  test.setTimeout(90_000);
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'status',
+      title: '3. Verify',
+      x: 40,
+      y: 40,
+      width: 360,
+      height: 200,
+      data: { workState: 'in-progress', detail: 'Run the browser checks.', progress: 60 },
+    },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+  const card = page.locator('.canvas-node').filter({ hasText: '3. Verify' });
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of [
+      'harbor',
+      'daylight',
+      'high-contrast',
+      'midnight',
+      'sepia',
+      'arctic',
+      'ember',
+      'forest',
+      'volt',
+    ]) {
+      await request.post('/api/canvas/theme', { data: { theme } });
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      const save = card.getByRole('button', { name: 'Save', exact: true });
+      await expect(save).toBeInViewport();
+      expect(await card.locator('.node-body').evaluate((body) => body.scrollWidth <= body.clientWidth)).toBe(true);
+      await expect(card.getByLabel('Detail', { exact: true })).toHaveValue('Run the browser checks.');
+      await page.screenshot({ path: testInfo.outputPath(`work-card-${width}-${theme}.png`) });
+    }
+  }
+  await card.getByLabel('Title', { exact: true }).press('Escape');
+  await expect(card.locator('.work-card-state')).toContainText('In progress');
+});
+
 test('canvas background context menu exposes user-creatable nodes', async ({ page, request }) => {
   await page.goto('/workbench');
 
   const viewport = page.locator('.canvas-viewport');
-  await viewport.dblclick({
-    button: 'left',
-    position: { x: 72, y: 120 },
-  });
+  await expect(page.locator('.empty-state')).toBeVisible();
+  const box = await viewport.boundingBox();
+  if (!box) throw new Error('Canvas viewport is not visible');
+  await page.mouse.move(box.x + 72, box.y + 120);
+  await page.mouse.down({ button: 'right' });
+  await expect(page.locator('.context-menu')).toHaveCount(0);
+  // Small hand jitter is still a click, not a pan.
+  await page.mouse.move(box.x + 74, box.y + 121);
+  await page.mouse.up({ button: 'right' });
 
   const menu = page.locator('.context-menu');
   await expect(menu).toBeVisible();
@@ -1820,6 +2371,7 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'AX ack ext app' });
   await expect(node).toHaveCount(1);
+  await expect(node.locator('.viewer-fallback')).toHaveCount(0);
   await node.getByLabel('Open full view to edit').click();
   const expandedNode = page.locator('.expanded-overlay-panel').filter({ hasText: 'AX ack ext app' });
   await expect(expandedNode).toHaveCount(1);
@@ -1827,6 +2379,137 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
   // Same early iframe pointer-routing race as the HTML bridge tests above.
   await frame.getByRole('button', { name: 'emit' }).press('Enter');
   await expect(frame.locator('#st')).toHaveText('queued OK');
+});
+
+test('ext-app previews share card stacking, pan input and presentation visibility', async ({ page, request }) => {
+  const app = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'mcp-app',
+        title: 'Stacked app',
+        x: 100,
+        y: 100,
+        width: 440,
+        height: 320,
+        data: {
+          mode: 'ext-app',
+          html: '<p>Preview body</p><input value="Draft survives">',
+          sessionStatus: 'ready',
+          userResized: true,
+        },
+      },
+    })
+  ).json();
+  const note = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Stacked note',
+        content: 'Native card above app',
+        x: 350,
+        y: 190,
+        width: 360,
+        height: 230,
+      },
+    })
+  ).json();
+  await request.post('/api/canvas/update', {
+    data: {
+      updates: [
+        { id: app.id, zIndex: 100 },
+        { id: note.id, zIndex: 101 },
+      ],
+    },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench?transport=sse');
+  const appCard = page.locator(`[data-node-id="${app.id}"]`);
+  const noteCard = page.locator(`[data-node-id="${note.id}"]`);
+  await expect(page.frameLocator('iframe.ext-app-frame').getByText('Preview body')).toBeVisible();
+  const topCard = () =>
+    noteCard.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return document
+        .elementFromPoint(rect.x + 30, rect.y + 80)
+        ?.closest('[data-node-id]')
+        ?.getAttribute('data-node-id');
+    });
+  await expect.poll(topCard).toBe(note.id);
+  await appCard.locator('.node-title').click();
+  await expect.poll(topCard).toBe(app.id);
+  const noteBox = (await noteCard.boundingBox())!;
+  await page.mouse.click(noteBox.x + 240, noteBox.y + 14);
+  await expect.poll(topCard).toBe(note.id);
+  const box = (await appCard.boundingBox())!;
+  await page.mouse.move(box.x + 80, box.y + 120);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(async () => (await appCard.boundingBox())!.width).toBeGreaterThan(box.width);
+  const before = (await appCard.boundingBox())!;
+  await page.keyboard.down(' ');
+  await page.mouse.move(before.x + 80, before.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 140, before.y + 150, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up(' ');
+  await expect.poll(async () => Math.round((await appCard.boundingBox())!.x - before.x)).toBe(60);
+  await expect(page.locator('.expanded-overlay-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Present', exact: true }).click();
+  await expect(page.locator('.app-shell')).toHaveClass(/is-presenting/);
+  await expect(page.frameLocator('iframe.ext-app-frame').getByText('Preview body')).toBeVisible();
+});
+
+test('ext-app bootstrap delivers input without initialized and camera changes keep its document', async ({
+  page,
+  request,
+}) => {
+  const html = `<input value="initial"><p id="result">Waiting</p><script>
+    window.addEventListener('message', (event) => {
+      if(event.source !== parent) return;
+      if(event.data.method === 'ui/notifications/tool-input') document.querySelector('#result').textContent = event.data.params.arguments.message;
+    });
+    </script>`;
+  const { id } = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'mcp-app',
+        title: 'Bootstrap app',
+        x: -80,
+        y: 60,
+        width: 440,
+        height: 320,
+        data: {
+          mode: 'ext-app',
+          html,
+          toolInput: { message: 'Input delivered' },
+          sessionStatus: 'ready',
+          userResized: true,
+        },
+      },
+    })
+  ).json();
+  await request.post('/api/canvas/viewport', { data: { x: 160, y: 40, scale: 1 } });
+  await page.goto('/workbench?transport=sse');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  const frame = page.frameLocator('iframe.ext-app-frame');
+  await expect(frame.locator('#result')).toHaveText('Input delivered');
+  await expect(card.locator('.viewer-fallback')).toHaveCount(0);
+  await frame.locator('input').evaluate((input) => {
+    input.value = 'Draft retained';
+  });
+  const original = await page.locator('iframe.ext-app-frame').elementHandle();
+  for (const scale of [0.41, 1.5, 2, 1]) {
+    await request.post('/api/canvas/viewport', { data: { x: 220, y: 80, scale } });
+    await expect.poll(async () => (await card.boundingBox())!.width).toBeCloseTo(480 * scale, 1);
+    await expect(frame.locator('input')).toHaveValue('Draft retained');
+    expect(
+      await page.locator('iframe.ext-app-frame').evaluate((current, previous) => current === previous, original),
+    ).toBe(true);
+    const area = (await page.locator('.canvas-viewport').boundingBox())!;
+    expect((await card.boundingBox())!.x).toBeCloseTo(area.x + 220 - 80 * scale, 1);
+  }
+  const saved = await (await request.get(`/api/canvas/node/${id}`)).json();
+  expect(saved.position).toEqual({ x: -80, y: 60 });
+  expect(saved.size).toEqual({ width: 480, height: 320 });
 });
 
 test('#61: hosted ext-app nodes are not openable as a standalone site', async ({ page, request }) => {
@@ -1853,7 +2536,7 @@ test('#61: hosted ext-app nodes are not openable as a standalone site', async ({
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Ext app no open-as-site' });
   await expect(node).toHaveCount(1);
-  await node.hover();
+  await node.locator('.node-titlebar').hover();
   await node.getByRole('button', { name: 'More actions' }).click();
   await expect(page.locator('.context-menu-item').filter({ hasText: 'Collapse' })).toBeVisible();
   await expect(page.locator('.context-menu-item').filter({ hasText: 'Open in new tab' })).toHaveCount(0);
@@ -2019,7 +2702,7 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   const { id } = await response.json();
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Slotted task card' });
-  const frame = node.frameLocator('iframe');
+  const frame = node.frameLocator('iframe:not([inert])');
   await expect(frame.locator('[data-pmx-card-slot="header"]')).toHaveText('Release checklist');
   await expect(frame.getByText('Replaced heading')).toHaveCount(0);
   await expect(frame.locator('[data-pmx-card-slot="footer"] button')).toHaveText('Load checklist');
@@ -2027,6 +2710,10 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   // Wait for the initial measurement to settle before placing a neighbor below it.
   await page.waitForTimeout(600);
   const before = await readNode();
+  // A full-width viewer has no outer body padding. Counting the old padding
+  // makes each viewport-height report grow the card again, even without edits.
+  await page.waitForTimeout(1000);
+  expect((await readNode()).size).toEqual(before.size);
   const neighborY = before.position.y + before.size.height + 32;
   const neighborResponse = await request.post('/api/canvas/node', {
     data: {
@@ -2063,19 +2750,46 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
   await expect.poll(async () => (await readNode()).position).toEqual(before.position);
   await expect.poll(async () => (await readNode()).size).toEqual(before.size);
   await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
+  // Observe beyond the resize reporter and fit debounce: a transient restored
+  // size must not pass while a repeated measurement is about to regrow the card.
+  await page.waitForTimeout(1200);
+  expect((await readNode()).size).toEqual(before.size);
+  expect((await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
   await request.post('/api/canvas/redo');
   await expect.poll(async () => (await readNode()).position).toEqual(after.position);
+  await expect.poll(async () => (await readNode()).size).toEqual(after.size);
+  await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(after.size.height, 0);
+  // A replacement document with the same natural height must not inherit the
+  // old document's suppression after another Undo.
+  await request.post('/api/canvas/undo');
+  await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
+  await page.waitForTimeout(1200);
+  const replacementSpec = {
+    ...before.data.spec,
+    state: { tasks: Array.from({ length: 16 }, (_, i) => ({ title: `Replacement item ${i + 1}` })) },
+  };
+  expect((await request.patch(`/api/canvas/node/${id}`, { data: { spec: replacementSpec } })).ok()).toBe(true);
+  await expect(frame.getByText('Replacement item 16', { exact: true })).toHaveCount(1);
   await expect.poll(async () => (await readNode()).size).toEqual(after.size);
   await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(after.size.height, 0);
   // Center the moved card for rendered inspection without altering node geometry.
   await request.post('/api/canvas/viewport', {
     data: { x: 20 - after.position.x, y: 40 - after.position.y, scale: 1 },
   });
-  await expect(frame.getByText('Checklist item 16', { exact: true })).toBeVisible();
+  await expect(frame.getByText('Replacement item 16', { exact: true })).toBeVisible();
   const measured = await frame
     .locator('body')
     .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));
   expect(measured.content).toBeLessThanOrEqual(measured.viewport + 2);
+  await request.post('/api/canvas/viewport', { data: { x: 20, y: 40 - after.position.y * 0.5, scale: 0.5 } });
+  await page.waitForTimeout(1000);
+  const zoomed = await readNode();
+  await page.waitForTimeout(1000);
+  expect((await readNode()).size).toEqual(zoomed.size);
+  const zoomedBody = await frame
+    .locator('body')
+    .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));
+  expect(zoomedBody.content).toBeLessThanOrEqual(zoomedBody.viewport + 2);
   await node.screenshot({ path: testInfo.outputPath('slotted-card.png') });
   await page.reload();
   await expect.poll(async () => (await readNode()).position).toEqual(after.position);
@@ -2608,6 +3322,63 @@ test('native step controls on a materialized flow node drive the work item and t
   await expect(step1.locator('.ax-step-controls')).toHaveCount(1);
   await expect(step1).toContainText('Step 1/3');
 
+  await fitCanvas(page);
+  await step1.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const expanded = page.getByTestId('expanded-node');
+  const blocked = expanded.getByRole('button', { name: 'Blocked', exact: true });
+  let sourceIntersections = 0;
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const input of ['pointer', 'keyboard']) {
+      if (input === 'pointer') await blocked.hover();
+      else {
+        await page.mouse.move(0, 0);
+        await expanded.getByRole('button', { name: 'Start', exact: true }).focus();
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Tab');
+        await expect(blocked).toBeFocused();
+      }
+      const hint = toolbarTooltip(blocked);
+      await expect(hint).toHaveCSS('opacity', '1');
+      const panel = (await expanded.boundingBox())!;
+      const tip = (await hint.boundingBox())!;
+      expect(tip.x).toBeGreaterThanOrEqual(panel.x);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(panel.x + panel.width);
+      const source = (await expanded.locator('.md-edit-fab').boundingBox())!;
+      const left = Math.max(tip.x, source.x),
+        right = Math.min(tip.x + tip.width, source.x + source.width);
+      const top = Math.max(tip.y, source.y),
+        bottom = Math.min(tip.y + tip.height, source.y + source.height);
+      if (right > left && bottom > top) {
+        sourceIntersections++;
+      }
+    }
+  }
+  expect(sourceIntersections).toBe(0);
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.mouse.move(0, 0);
+  await expanded.getByRole('button', { name: 'Start', exact: true }).focus();
+  await page.keyboard.press('Tab');
+  const done = expanded.getByRole('button', { name: 'Done', exact: true });
+  await expect(done).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => workStatus(workIds[0])).toBe('done');
+  await blocked.hover();
+  await expect(toolbarTooltip(blocked)).toHaveCSS('opacity', '1');
+  // Hovering another action must not leave the keyboard-focused hint painted
+  // over it. Moving away restores that hint without stealing keyboard focus.
+  await expect(toolbarTooltip(done)).toHaveCSS('opacity', '0');
+  await expect(done).toBeFocused();
+  await page.mouse.move(0, 0);
+  await expect(toolbarTooltip(done)).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Tab');
+  await expect(blocked).toBeFocused();
+  await expect(toolbarTooltip(blocked)).toHaveCSS('opacity', '1');
+  await expect(toolbarTooltip(done)).toHaveCSS('opacity', '0');
+  await blocked.click();
+  await expect.poll(async () => workStatus(workIds[0])).toBe('blocked');
+  await expanded.getByRole('button', { name: 'Close', exact: true }).click();
+
   // Materialization deliberately lays the flow below its source, without focusing it.
   await fitCanvas(page);
   // Drive the REAL native control on the step NODE (not in the panel).
@@ -2647,13 +3418,111 @@ test('native step controls on a materialized flow node drive the work item and t
   for (const id of [panelId, ...stepIds]) await request.delete(`/api/canvas/node/${id}`);
 });
 
-test('file node evidence control records AX evidence', async ({ page, request }) => {
-  await request.post('/api/canvas/node', {
-    data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 640, y: 260 },
+test('step cards keep one compact footer and a complete status at common widths and zooms', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'html-primitive', kind: 'ax-flow', title: 'Step layout e2e', x: 0, y: 0 },
   });
+  const panelId = ((await created.json()) as { id: string }).id;
+  const materialized = await request.post('/api/canvas/ax/interaction', {
+    data: {
+      type: 'ax.flow.materialize',
+      sourceNodeId: panelId,
+      sourceSurface: 'html-node',
+      payload: { title: 'Layout flow', steps: [{ title: 'Reproduce' }, { title: 'Fix' }], loop: { enabled: true } },
+    },
+  });
+  const flow = (await materialized.json()) as { primitive: { steps: Array<{ nodeId: string }> } };
+  const [anchor, step] = flow.primitive.steps.map((s) => s.nodeId);
+  await page.goto('/workbench');
+  const card = page.locator(`.canvas-node[data-node-id="${step}"]`);
+  for (const width of [360, 440]) {
+    for (const id of [anchor, step]) {
+      await request.patch(`/api/canvas/node/${id}`, { data: { size: { width, height: 240 }, strictSize: true } });
+    }
+    await request.post('/api/canvas/focus', { data: { id: step } });
+    await page
+      .locator(`.canvas-node[data-node-id="${step}"]`)
+      .getByRole('button', { name: 'Start', exact: true })
+      .click();
+    await expect(card.locator('.node-ax-status')).toHaveText('in-progress');
+    for (const scale of [1, 0.73]) {
+      await request.post('/api/canvas/focus', { data: { id: step } });
+      await request.post('/api/canvas/viewport', { data: { x: 40, y: 40, scale } });
+      for (const id of [anchor, step]) {
+        const layout = await page.locator(`.canvas-node[data-node-id="${id}"]`).evaluate((node) => {
+          const body = node.querySelector('.node-body')!;
+          const chip = node.querySelector('.node-ax-status')!;
+          const dock = node.querySelector('.ax-step-dock')!.getBoundingClientRect();
+          const edit = node.querySelector('.md-card-edit')!.getBoundingClientRect();
+          return {
+            bodyOverflow: [body.scrollWidth - body.clientWidth, body.scrollHeight - body.clientHeight],
+            chipClipped: chip.scrollWidth > chip.clientWidth,
+            footerRow: Math.abs(dock.top - edit.top) < 12,
+            footerInside: dock.bottom <= body.getBoundingClientRect().bottom + 1,
+          };
+        });
+        // No sideways or vertical scrollbar on the card, and Edit shares the step footer row.
+        expect(layout).toEqual({ bodyOverflow: [0, 0], chipClipped: false, footerRow: true, footerInside: true });
+      }
+    }
+  }
+  for (const id of [panelId, anchor, step]) await request.delete(`/api/canvas/node/${id}`);
+});
+
+test('file node evidence control records AX evidence', async ({ page, request }) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 80, y: 160 },
+  });
+  const { id } = (await created.json()) as { id: string };
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.setViewportSize({ width: 600, height: 720 });
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'evidence-file.ts' });
   await expect(node).toHaveCount(1);
+  for (const width of [320, 440]) {
+    await request.patch(`/api/canvas/node/${id}`, { data: { size: { width, height: 240 } } });
+    await expect(node).toHaveCSS('width', `${width}px`);
+    for (const name of ['Mark this file as AX evidence', 'Reload file']) {
+      const action = node.getByRole('button', { name, exact: true });
+      const hint = toolbarTooltip(action);
+      for (const input of ['pointer', 'keyboard']) {
+        if (input === 'pointer') await action.hover();
+        else {
+          await page.mouse.move(40, 100);
+          // Global Tab cycles board cards. Check this control's keyboard-focus
+          // appearance without assuming native Tab traversal inside the card.
+          await page.keyboard.press('Shift');
+          await action.focus();
+          await expect(action).toBeFocused();
+        }
+        await expect(hint).toHaveCSS('opacity', '1');
+        // Opacity and DOM bounds alone pass even when an ancestor clips the hint.
+        // Enable hit testing briefly to check its painted extent on all four sides.
+        expect(
+          await hint.evaluate((element) => {
+            const box = element.getBoundingClientRect();
+            const previous = element.style.pointerEvents;
+            element.style.pointerEvents = 'auto';
+            const points = [
+              [box.left + 3, box.top + box.height / 2],
+              [box.right - 3, box.top + box.height / 2],
+              [box.left + box.width / 2, box.top + 3],
+              [box.left + box.width / 2, box.bottom - 3],
+            ];
+            const painted = points.every(([x, y]) => element.contains(document.elementFromPoint(x!, y!)));
+            element.style.pointerEvents = previous;
+            return painted;
+          }),
+        ).toBe(true);
+        await page.mouse.move(40, 100);
+        await page.getByRole('button', { name: 'Select (V)', exact: true }).focus();
+        await expect(hint).toHaveCSS('opacity', '0');
+      }
+    }
+  }
   await node.getByLabel('Mark this file as AX evidence').click();
 
   await expect
@@ -2851,7 +3720,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   // covered by an `ext-app-preview-catcher` overlay so a stray click on the
   // canvas doesn't trigger tool calls. The test opens the fullscreen view
   // before proxying calls, matching the intended human interaction path.
-  await appNode.locator('.ext-app-preview-catcher').click();
+  await appNode.getByRole('button', { name: 'Open full view to edit' }).click();
 
   // Once expanded, the iframe is re-parented into the ExpandedNodeOverlay
   // (`.expanded-overlay-panel`), so the test follows it there for the
@@ -2864,12 +3733,9 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
     .poll(async () => frame.locator('body').evaluate((body) => body.scrollHeight - body.clientHeight))
     .toBe(0);
 
-  // The widget's auto-resize notifications can make the iframe's reported
-  // bounds waver by a pixel across measurements while it settles, which the
-  // default click-stability check reads as motion. The button's *logical*
-  // position is fine; `force: true` bypasses the stability wait without
-  // changing click semantics.
-  await frame.getByRole('button', { name: 'Increment' }).click({ force: true });
+  // Content can exist before the host's loading overlay clears. An ordinary
+  // click must wait until the button actually receives pointer input.
+  await frame.getByRole('button', { name: 'Increment' }).click();
   await expect(frame.locator('#count')).toHaveText('3');
 
   await expect
@@ -2890,6 +3756,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   // exercises the inline iframe (count persisted via appModelContext).
   await expandedPanel.locator('.expanded-close').click();
   await expect(expandedPanel).toHaveCount(0);
+  await expect(appNode.frameLocator('iframe:not([inert])').locator('#count')).toHaveText('3');
   const inlineFill = await appNode.evaluate((node) => {
     const iframe = node.querySelector('iframe');
     const host = iframe?.parentElement;
@@ -2941,20 +3808,14 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
 
   const hitTarget = await handle.evaluate((element) => {
     const handleRect = element.getBoundingClientRect();
-    const nodeRect = element.closest('.canvas-node')?.getBoundingClientRect();
-    const iframe = element.closest('.canvas-node')?.querySelector('iframe');
-    const previewCatcher = element.closest('.canvas-node')?.querySelector('.ext-app-preview-catcher');
-    const previewRect = previewCatcher?.getBoundingClientRect();
+    const node = element.closest('.canvas-node');
+    const nodeRect = node?.getBoundingClientRect();
     if (!nodeRect) throw new Error('Resize handle is not inside a canvas node.');
     const hit = document.elementFromPoint(nodeRect.right - 4, nodeRect.bottom - 4);
     return {
       width: handleRect.width,
       height: handleRect.height,
       cursor: getComputedStyle(element).cursor,
-      iframePointerEvents: iframe ? getComputedStyle(iframe).pointerEvents : null,
-      previewCatcherLeavesResizeCorner: previewRect
-        ? previewRect.right <= nodeRect.right - 48 && previewRect.bottom <= nodeRect.bottom - 48
-        : null,
       hitIsHandle: hit === element || element.contains(hit),
     };
   });
@@ -2962,8 +3823,6 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
     width: 32,
     height: 32,
     cursor: 'nwse-resize',
-    iframePointerEvents: 'none',
-    previewCatcherLeavesResizeCorner: true,
     hitIsHandle: true,
   });
 
@@ -3027,6 +3886,40 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
       return resized.size.width > initialNode.size.width && resized.size.height > initialNode.size.height;
     })
     .toBe(true);
+
+  const manualSize = (await currentCanvasState(request)).nodes.find((node) => node.id === initialNode.id)?.size;
+  if (!manualSize) throw new Error('Manually resized app missing from canvas state.');
+  // An app can report its natural height after the user has sized its card.
+  // Use the real protocol, then a ping barrier and paint ticks so the host has
+  // processed the notification and any deferred geometry write before checking.
+  await appNode
+    .locator('iframe')
+    .contentFrame()
+    .locator('body')
+    .evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        const id = 'manual-resize-barrier';
+        const onMessage = (event: MessageEvent) => {
+          if (event.source !== window.parent || event.data?.id !== id) return;
+          window.removeEventListener('message', onMessage);
+          resolve();
+        };
+        window.addEventListener('message', onMessage);
+        window.parent.postMessage(
+          { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { height: 900 } },
+          '*',
+        );
+        window.parent.postMessage({ jsonrpc: '2.0', method: 'ping', id }, '*');
+      });
+    });
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  await expect(appNode).toHaveCSS('width', `${manualSize.width}px`);
+  await expect(appNode).toHaveCSS('height', `${manualSize.height}px`);
+  expect((await currentCanvasState(request)).nodes.find((node) => node.id === initialNode.id)?.size).toEqual(
+    manualSize,
+  );
 });
 
 test('MCP App fullscreen dimensions settle after layout and edits persist (#62)', async ({ page, request }) => {
@@ -3053,34 +3946,11 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
   await expect(appNode).toHaveCount(1);
 
   const panel = page.locator('.expanded-overlay-panel');
-  // Opening the fullscreen overlay races the ext-app bridge handshake: the
-  // iframe's content can begin parsing before the parent registers its
-  // postMessage listener, which loses the iframe's `ui/initialize` request
-  // and leaves `app.connect()` hanging. The fixture then receives the
-  // fallback `tool-input` notification with `hostContext === null` and
-  // renders the counter view permanently. Each remount is independent, so
-  // close-and-reopen retries kick a fresh iframe through the handshake. The
-  // helper polls the editor view for up to ~15s with that retry loop.
+  // The shared host must initialize on the first mount, without close/reopen
+  // recovery or bootstrap notifications sent before the SDK is ready.
   const openFullscreenEditor = async () => {
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      if (attempt > 1) {
-        await panel
-          .locator('.expanded-close')
-          .click({ timeout: 2_000 })
-          .catch(() => {});
-      }
-      await appNode.locator('.ext-app-preview-catcher').click();
-      try {
-        await expect(panel.frameLocator('iframe').getByText('Fixture Editor')).toBeVisible({
-          timeout: 5_000,
-        });
-        return;
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    throw lastError;
+    await appNode.getByRole('button', { name: 'Open full view to edit' }).click();
+    await expect(panel.frameLocator('iframe').getByText('Fixture Editor')).toBeVisible();
   };
 
   await openFullscreenEditor();
@@ -3125,11 +3995,108 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
     .toBe('Saved manual edit');
 
   await panel.locator('.expanded-close').click();
-  // The same handshake race can hit the reopened iframe, so use the retry
-  // helper here too.
   await openFullscreenEditor();
   const reopenedFrame = panel.frameLocator('iframe');
   await expect(reopenedFrame.getByText('Saved manual edit')).toBeVisible();
+});
+
+test('a Source-saved task persists when the card is immediately expanded and closed during its save', async ({
+  page,
+  request,
+}) => {
+  const original =
+    '# Scratch note\n\nOriginal human-test baseline.\n\n- [ ] First checkbox\n- [ ] Second checkbox\n\nUse this card for Source/Document, saves, receipts and conflict tests. You may edit it freely.\n';
+  const appended = `${original}\nBeta saved line.\n- [ ] Persistence checkbox\n`;
+  const expected = appended.replace('- [ ] Persistence checkbox', '- [x] Persistence checkbox');
+  const { id } = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Scratch note', content: original, x: 300, y: 180, width: 650, height: 180 },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  const overlay = page.locator('.expanded-overlay-panel');
+  await overlay.getByRole('button', { name: '</> Source', exact: true }).click();
+  await overlay.locator('textarea').fill(appended);
+  const saved = page.waitForResponse(
+    (response) => response.request().method() === 'PATCH' && response.url().endsWith(`/api/canvas/node/${id}`),
+  );
+  await overlay.getByRole('button', { name: 'Save', exact: true }).click();
+  expect((await saved).status()).toBe(200);
+  await overlay.getByRole('button', { name: 'Back to document', exact: true }).click();
+  await page.keyboard.press('Escape');
+
+  let releaseRender!: () => void;
+  const held = new Promise<void>((resolve) => {
+    releaseRender = resolve;
+  });
+  let renderStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    renderStarted = resolve;
+  });
+  await page.route('**/api/render', async (route) => {
+    if (route.request().postDataJSON().markdown === expected) {
+      renderStarted();
+      await held;
+    }
+    await route.continue();
+  });
+  await card.getByRole('checkbox').last().click({ delay: 120 });
+  await started;
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await page.keyboard.press('Escape');
+  releaseRender();
+  await page.unrouteAll({ behavior: 'wait' });
+  await expect.poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).content).toBe(expected);
+  await page.reload();
+  await expect(card.getByRole('checkbox').last()).toBeChecked();
+});
+
+test('expanded task ticking preserves a peer update accepted while the editor is open', async ({ page, request }) => {
+  const { id } = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Peer checklist', content: '- [ ] Original task', x: 300, y: 180 },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  await page
+    .locator(`.canvas-node[data-node-id="${id}"]`)
+    .getByRole('button', { name: 'Expand (focus mode)', exact: true })
+    .click();
+  const editor = page.locator('.expanded-overlay-panel .md-reader-content');
+  await expect(editor.getByRole('checkbox')).toHaveCount(1);
+  expect(
+    (await request.patch(`/api/canvas/node/${id}`, { data: { content: '- [ ] Original task\n- [ ] Peer task' } })).ok(),
+  ).toBe(true);
+  await expect(editor.getByRole('checkbox')).toHaveCount(2);
+  await editor.getByRole('checkbox').first().click();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).content)
+    .toMatch(/-\s+\[x\]\s+Original task/);
+  // Accepted updates must still refresh after a local edit has been saved.
+  expect(
+    (
+      await request.patch(`/api/canvas/node/${id}`, {
+        data: { content: '- [x] Original task\n- [ ] Peer task\n- [ ] Later peer task' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await expect(editor.getByRole('checkbox')).toHaveCount(3);
+  await editor.getByRole('checkbox').last().click();
+  await page.keyboard.press('Escape');
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).content)
+    .toMatch(/-\s+\[x\]\s+Later peer task/);
+  const canonical = (await (await request.get(`/api/canvas/node/${id}`)).json()).content as string;
+  expect(canonical).toMatch(/-\s+\[x\]\s+Original task/);
+  expect(canonical).toMatch(/-\s+\[ \]\s+Peer task/);
+  await page.reload();
+  const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(card.getByRole('checkbox')).toHaveCount(3);
+  await expect(card.getByRole('checkbox').first()).toBeChecked();
+  await expect(card.getByRole('checkbox').nth(1)).not.toBeChecked();
+  await expect(card.getByRole('checkbox').last()).toBeChecked();
 });
 
 test('task checkboxes tick on the CARD and persist to the node content', async ({ page, request }) => {
@@ -3218,6 +4185,53 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
     .content;
   expect(finalContent).toContain('[ ]  ungroup parity');
   expect(finalContent?.length ?? 0).toBeGreaterThan(60);
+});
+
+test('ordinary card checkbox changes only the rendered task, not examples or raw HTML', async ({ page, request }) => {
+  const markdown = [
+    '# Source mapping',
+    '',
+    '<template>',
+    '',
+    '> - [ ] hidden template task',
+    '',
+    '</template>',
+    '',
+    '```md',
+    '- [ ] fenced example',
+    '```',
+    '',
+    '<span><input data-pmx-task type="checkbox" disabled></span>',
+    '',
+    '> - [ ] quoted task',
+    '',
+    '    - [ ] indented example',
+    '',
+    '- [X] ordinary task',
+    '- [ ] loose task',
+    '',
+    '  another paragraph',
+  ].join('\n');
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Exact task source', content: markdown, x: 200, y: 160, width: 460, height: 560 },
+  });
+  const note = (await created.json()) as { id: string };
+  await page.goto('/workbench');
+  const card = page.locator(`.canvas-node[data-node-id="${note.id}"]`);
+  const quoted = card.locator('blockquote input[type="checkbox"]');
+  await expect(quoted).toBeEnabled();
+  await quoted.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  const canonical = async () =>
+    ((await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content: string }).content;
+  await expect.poll(canonical).toBe(markdown.replace('> - [ ] quoted task', '> - [x] quoted task'));
+  await page.reload();
+  await expect(quoted).toBeChecked();
+  await expect(card.locator('.node-body span input')).toBeDisabled();
+  await quoted.click();
+  await expect.poll(canonical).toBe(markdown);
 });
 
 test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {
@@ -3370,12 +4384,8 @@ test('zooming promotes the world layer, settling demotes it so text re-rasters c
   await page.goto('/workbench');
   const willChange = () =>
     page.evaluate(() => (document.querySelector('.canvas-world') as HTMLElement | null)?.style.willChange ?? '');
-  // A zoom promotes the layer for the duration of the gesture (the zoom
-  // button animates ~250ms, so the promoted window is comfortably observable)…
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect.poll(willChange, { timeout: 1000 }).toBe('transform');
-  // …and the settle debounce demotes it — a PERMANENT will-change pinned a
-  // cached raster the compositor stretched, blurring node headlines at high zoom.
   await expect.poll(willChange, { timeout: 3000 }).toBe('auto');
 });
 
@@ -3502,9 +4512,8 @@ test('iframe-backed graph and json-render nodes avoid the sandbox escape warning
 });
 
 test('graph nodes content-fit to a stable size across expand and close', async ({ page, request }) => {
-  // Created at nodeHeight 380, but the chart + title need more than that — content-fit
-  // grows the node (grow-only) so nothing clips ("nodes = size of content"). Width is
-  // the stable lever (stays 480); the explicit nodeHeight is a floor, not a cap.
+  // The chart alone exceeds the 380px card floor. A 240px chart now fits without
+  // growth because the duplicate title and extra panel padding are gone.
   const createResponse = await request.post('/api/canvas/graph', {
     data: {
       title: 'Stable graph frame',
@@ -3519,7 +4528,7 @@ test('graph nodes content-fit to a stable size across expand and close', async (
       y: 220,
       width: 480,
       nodeHeight: 380,
-      height: 240,
+      height: 500,
     },
   });
   const created = (await createResponse.json()) as { id: string };
@@ -3542,6 +4551,11 @@ test('graph nodes content-fit to a stable size across expand and close', async (
   // Persistence need not wait for the CSS resize transition to finish.
   await expect.poll(async () => (await graphNode.boundingBox())?.width).toBeCloseTo(480, 0);
   await expect.poll(async () => (await graphNode.boundingBox())?.height).toBeCloseTo(fit.height, 0);
+  const content = await graphNode
+    .frameLocator('iframe')
+    .locator('body')
+    .evaluate((body) => ({ height: body.scrollHeight, viewport: window.innerHeight }));
+  expect(content.height).toBeLessThanOrEqual(content.viewport + 2);
 
   await graphNode.getByLabel('Expand (focus mode)').click();
   await expect(page.locator('.expanded-overlay-panel')).toBeVisible();
@@ -3562,6 +4576,8 @@ test('graph nodes content-fit to a stable size across expand and close', async (
       return box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
     })
     .toBe(`480x${Math.round(fit.height)}`);
+  await page.waitForTimeout(1000);
+  expect(await fetchSize()).toEqual(fit);
 });
 
 test('expanded graph nodes stretch chart content to the overlay frame', async ({ page, request }) => {
@@ -3869,7 +4885,7 @@ test('header controls stay under the pointer when hover actions appear', async (
   }
 });
 
-test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }, info) => {
+test('zoomed-out headers keep body space stable and controls clickable', async ({ page, request }, info) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
@@ -3877,41 +4893,28 @@ test('zoomed-out node chrome keeps usable action hit targets', async ({ page, re
       content: 'Zoomed-out controls should stay hittable',
       x: 180,
       y: 180,
+      strictSize: true,
     },
   });
 
   await request.post('/api/canvas/viewport', {
-    data: { x: 0, y: 0, scale: 0.56 },
+    data: { x: 0, y: 0, scale: 1 },
   });
 
   await page.goto('/workbench');
 
   const note = page.locator('.canvas-node').filter({ hasText: 'Zoom chrome note' });
   await expect(note).toHaveCount(1);
+  const bodyHeight = await note.locator('.node-body').evaluate((body) => body.clientHeight);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 0.56 } });
+  await expect.poll(async () => (await renderedCamera(page)).scale).toBe(0.56);
+  expect(await note.locator('.node-body').evaluate((body) => body.clientHeight)).toBe(bodyHeight);
   await note.hover();
-
-  const controlSizes = await note.locator('.node-controls button').evaluateAll((buttons) => {
-    return buttons.map((button) => {
-      const rect = button.getBoundingClientRect();
-      return {
-        title: button.getAttribute('aria-label'),
-        width: rect.width,
-        height: rect.height,
-      };
-    });
-  });
-
-  for (const title of ['Add to context', 'Expand (focus mode)', 'Close']) {
-    const control = controlSizes.find((button) => button.title === title);
-    expect(control, `expected ${title} control to exist`).toBeDefined();
-    expect(control?.width ?? 0, `${title} width`).toBeGreaterThanOrEqual(20);
-    expect(control?.height ?? 0, `${title} height`).toBeGreaterThanOrEqual(20);
-  }
-  // SVG controls must retain the same zoom compensation as the button/text chrome.
-  for (const icon of await note.locator('.node-controls button svg').all()) {
-    expect((await icon.boundingBox())!.width).toBeGreaterThanOrEqual(12);
-  }
+  await note.getByLabel('Add to context', { exact: true }).click();
+  await expect(note.getByLabel('Remove from context', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('node-control-icons.png') });
+  await note.getByLabel('Expand (focus mode)', { exact: true }).click();
+  await expect(page.locator('.expanded-overlay-panel')).toContainText('Zoomed-out controls should stay hittable');
 });
 
 test('group context menu updates the group accent color', async ({ page, request }) => {
@@ -3931,7 +4934,8 @@ test('group context menu updates the group accent color', async ({ page, request
   const group = page.locator('.canvas-node.group-node').filter({ hasText: 'Color group' });
   await expect(group).toHaveCount(1);
 
-  await group.dblclick({ button: 'left' });
+  const bounds = (await group.boundingBox())!;
+  await page.mouse.dblclick(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await page.getByRole('button', { name: 'Set group color to Green' }).click();
 
   await expect
@@ -4002,16 +5006,22 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
 
   // Existing nodes are already mounted before the restore reaches the browser.
   // Wait for the restored geometry, not just their unchanged titles.
-  await expect
-    .poll(() =>
-      groupedGroup.evaluate((el) => ({ x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) })),
-    )
-    .toEqual(beforeGroup.position);
-  await expect
-    .poll(() =>
-      groupedFirst.evaluate((el) => ({ x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) })),
-    )
-    .toEqual(beforeChild.position);
+  const restoredView = (await currentCanvasState(request)).viewport;
+  const canvas = (await page.locator('.canvas-viewport').boundingBox())!;
+  for (const [card, expected] of [
+    [groupedGroup, beforeGroup],
+    [groupedFirst, beforeChild],
+  ] as const) {
+    await expect
+      .poll(async () => {
+        const box = (await card.boundingBox())!;
+        return {
+          x: Math.round((box.x - canvas.x - restoredView.x) / restoredView.scale),
+          y: Math.round((box.y - canvas.y - restoredView.y) / restoredView.scale),
+        };
+      })
+      .toEqual(expected.position);
+  }
   await dragNodeTitlebar(page, groupedGroup, 180, 120);
 
   await expect
@@ -4114,6 +5124,74 @@ test('light theme marks context-pinned nodes in its own pin blue', async ({ page
   // and the filled header badge.
   await expect(note).toHaveCSS('border-top-color', 'rgb(26, 122, 191)');
   await expect(note.locator('.ctx-pin-mark')).toHaveCSS('background-color', 'rgb(26, 122, 191)');
+});
+
+test('agent and human annotations share replies, erasing and reload without Sessions', async ({ page, request }) => {
+  await setWorkspaceFeatures(request, { agentSessions: false });
+  const node = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Option B',
+      content: 'Keep one shared annotation layer.',
+      x: 100,
+      y: 100,
+      width: 360,
+      height: 220,
+    },
+  });
+  expect(node.ok()).toBe(true);
+  await page.goto('/workbench');
+  const batch = await request.post('/api/canvas/batch', {
+    data: {
+      operations: [
+        {
+          op: 'annotation.add',
+          args: {
+            id: 'agent-ink',
+            points: [
+              { x: 100, y: 360 },
+              { x: 300, y: 360 },
+            ],
+          },
+        },
+        {
+          op: 'annotation.add',
+          args: { id: 'agent-question', type: 'text', points: [{ x: 100, y: 460 }], text: 'Use this option?' },
+        },
+      ],
+    },
+  });
+  expect((await batch.json()).ok).toBe(true);
+  await expect(page.locator('.annotation-layer path')).toHaveCount(1);
+  await expect(page.locator('.annotation-layer text')).toHaveText('Use this option?');
+  await page.reload();
+  await expect(page.locator('.annotation-layer text')).toHaveText('Use this option?');
+
+  await pickAnnotateTool(page, 'Text note');
+  await page.mouse.click(200, 600);
+  await page.locator('.annotation-text-input').fill('Yes, option B');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.annotation-layer text')).toHaveCount(2);
+  const state = await (await request.get('/api/canvas/state')).json();
+  const reply = state.annotations.find((mark: { text?: string }) => mark.text === 'Yes, option B');
+  expect(reply?.id).toBeTruthy();
+  const erased = await request.post('/api/canvas/batch', {
+    data: { operations: [{ op: 'annotation.remove', args: { id: reply.id } }] },
+  });
+  expect((await erased.json()).ok).toBe(true);
+  await expect(page.locator('.annotation-layer text')).toHaveText(['Use this option?']);
+
+  await pickAnnotateTool(page, 'Eraser');
+  // Target the rendered stroke, clear of the text note's larger eraser hit area.
+  const ink = page.locator('.annotation-layer path');
+  const box = await ink.boundingBox();
+  if (!box) throw new Error('Annotation is not rendered');
+  await page.mouse.click(box.x + box.width / 2, box.y);
+  await expect(ink).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Option B' })).toHaveCount(1);
+  await page.reload();
+  await expect(ink).toHaveCount(0);
+  await expect(page.locator('.annotation-layer text')).toHaveText('Use this option?');
 });
 
 test('annotations use theme contrast colors and can be erased', async ({ page, request }) => {
@@ -4252,6 +5330,48 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
   await fourthPage.close();
 });
 
+test('server focus raises locally in both tabs without human stacking writes', async ({ page, browser, request }) => {
+  const ids: string[] = [];
+  for (const [i, title] of ['Focus first', 'Focus second'].entries()) {
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title, content: title, x: 120 + i * 420, y: 120, width: 360, height: 180 },
+      })
+    ).json();
+    ids.push(id);
+  }
+  const peer = await (await trackedContext(browser)).newPage();
+  const stackingWriters: string[] = [];
+  for (const [tab, name] of [
+    [page, 'local'],
+    [peer, 'peer'],
+  ] as const) {
+    tab.on('request', (req) => {
+      if (!req.url().endsWith('/api/canvas/update') || req.method() !== 'POST') return;
+      const body = req.postDataJSON() as { updates?: Array<{ zIndex?: number }> };
+      if (body.updates?.some((update) => update.zIndex !== undefined)) stackingWriters.push(name);
+    });
+    await tab.goto(`http://127.0.0.1:${playwrightPort}/workbench?transport=sse`);
+    await expect(tab.locator('.canvas-node')).toHaveCount(2);
+  }
+  for (const [id, noPan] of [
+    [ids[0], true],
+    [ids[1], false],
+  ] as const) {
+    expect((await request.post('/api/canvas/focus', { data: { id, noPan } })).ok()).toBe(true);
+    for (const tab of [page, peer]) await expect(tab.locator(`[data-node-id="${id}"]`)).toHaveClass(/\bactive\b/);
+    // Include the completed camera animation and its layout echo, not only
+    // the first active-class frame before asynchronous writes can arrive.
+    await page.waitForTimeout(500);
+    expect(stackingWriters).toEqual([]);
+  }
+  // The same title-bar gesture is a human action in just the originating tab.
+  await page.locator(`[data-node-id="${ids[1]}"] .node-title`).click();
+  await expect.poll(() => stackingWriters).toEqual(['local']);
+  await page.waitForTimeout(300);
+  expect(stackingWriters).toEqual(['local']);
+});
+
 test('server-side focus updates the browser viewport', async ({ page, request }) => {
   await setWorkspaceFeatures(request, { agentSessions: true });
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -4322,16 +5442,7 @@ test('authoritative viewport updates from the server override browser startup st
 
   await page.goto('/workbench');
 
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const viewport = document.querySelector(
-          '.canvas-viewport > div[style*="position: absolute"]',
-        ) as HTMLElement | null;
-        return viewport?.style.transform ?? null;
-      });
-    })
-    .toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
+  await expect.poll(() => renderedCamera(page)).toEqual({ x: 120, y: -80, scale: 1.5 });
 });
 
 test('a delayed own camera echo cannot cancel a newer zoom; peers and agent cameras still apply', async ({
@@ -4574,15 +5685,94 @@ test('polling transport boots the board and receives live updates (proxy-safe fa
   // Bootstrap: the snapshot's canvas-layout-update renders the existing node.
   await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Boot Node' })).toBeVisible();
 
-  // Live path: a node added AFTER boot arrives through incremental polls.
-  await request.post('/api/canvas/node', {
-    data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
+  // Hold the next poll before reading it so create, focus and the final layout
+  // share one batch. Coalescing must not discard the layout needed by focus.
+  let captured = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
   });
-  // Generous ceiling: the poll cycle is 2s, but under full-suite CPU load the
-  // rounds stretch — the contract is "arrives via incremental polls", not
-  // "arrives in N seconds". A genuinely broken transport still fails here.
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 25000 });
+  await page.route('**/api/workbench/poll?*', async (route) => {
+    captured = true;
+    await held;
+    await route.fulfill({ response: await route.fetch() });
+  });
+  try {
+    await expect.poll(() => captured).toBe(true);
+    const { id } = await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
+      })
+    ).json();
+    expect((await request.post('/api/canvas/focus', { data: { id, noPan: true } })).ok()).toBe(true);
+    release();
+    const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    await expect(card).toBeVisible();
+    await expect(card).toHaveClass(/\bactive\b/);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });
+
+for (const stalled of ['headers', 'body'] as const) {
+  test(`polling recovers from a failed then stalled ${stalled} request without reloading a draft`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(45000);
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Recovery draft', content: 'Original source.', x: 80, y: 80 },
+    });
+    await page.addInitScript((stalled) => {
+      const original = window.fetch.bind(window);
+      let attempt = 0;
+      const state = { armed: false, pageIdentity: crypto.randomUUID() };
+      Object.assign(window, { pollRecoveryProbe: state });
+      window.fetch = async (input, init) => {
+        if (state.armed && String(input).includes('/api/workbench/poll')) {
+          attempt++;
+          if (attempt === 1) return new Response('', { status: 502 });
+          if (attempt === 2) {
+            if (stalled === 'headers') return new Promise<Response>(() => {});
+            return new Response(new ReadableStream({ start() {} }), {
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        return original(input, init);
+      };
+    }, stalled);
+    await page.goto('/workbench?transport=poll');
+    const card = page.locator('.canvas-node').filter({ hasText: 'Recovery draft' });
+    await card.getByRole('button', { name: 'Edit', exact: true }).click();
+    const expanded = page.getByTestId('expanded-node');
+    await expanded.getByRole('button', { name: '</> Source', exact: true }).click();
+    await expanded.locator('textarea').fill('Unsaved human draft.');
+    const identity = await page.evaluate(() => {
+      const probe = (window as Window & { pollRecoveryProbe: { armed: boolean; pageIdentity: string } })
+        .pollRecoveryProbe;
+      probe.armed = true;
+      return probe.pageIdentity;
+    });
+    await expect(page.getByText('Reconnecting…', { exact: false })).toBeVisible();
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Arrived after recovery', content: 'Real peer update.', x: 500, y: 80 },
+    });
+    await expect(page.locator('.canvas-node').filter({ hasText: 'Arrived after recovery' })).toBeAttached({
+      timeout: 30000,
+    });
+    await expect(page.getByText('Reconnecting…', { exact: false })).toHaveCount(0);
+    await expect(expanded.locator('textarea')).toHaveValue('Unsaved human draft.');
+    expect(
+      await page.evaluate(
+        () => (window as Window & { pollRecoveryProbe: { pageIdentity: string } }).pollRecoveryProbe.pageIdentity,
+      ),
+    ).toBe(identity);
+    const state = await currentCanvasState(request);
+    expect(state.nodes.find((node) => node.data.title === 'Recovery draft')?.data.content).toBe('Original source.');
+  });
+}
 
 test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallback)', async ({ page, request }) => {
   // Nested-iframe hosts (the Amp orb portal embeds the canvas page inside an
@@ -4735,7 +5925,11 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
   await page.goto('/workbench');
   for (const width of [1280, 1024, 600, 390, 1920]) {
     await page.setViewportSize({ width, height: 900 });
-    const more = page.getByRole('button', { name: 'More: export, present, zoom, fit', exact: true });
+    const more = page.getByRole('button', {
+      name: 'More: export, present, zoom, fit',
+      exact: true,
+      includeHidden: true,
+    });
     const fit = page.getByRole('button', { name: 'Fit canvas', exact: true });
     await expect
       .poll(() =>
@@ -4749,16 +5943,19 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
         ),
       )
       .toBe(true);
-    if (await more.isVisible()) {
-      await more.click();
-      await expect(page.getByRole('menuitem', { name: /Export/ })).toBeVisible();
+    // Resolve the visible action during click's actionability checks, not in
+    // an earlier visibility sample that can precede the resize observer.
+    await more.or(fit).filter({ visible: true }).click();
+    const menuExport = page.getByRole('menuitem', { name: /Export/ });
+    const exported = page.getByRole('button', { name: 'Export', exact: true });
+    await expect(menuExport.or(exported).filter({ visible: true })).toBeVisible();
+    if (await menuExport.isVisible()) {
+      await expect(menuExport).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(more).toHaveAttribute('aria-expanded', 'false');
     } else {
-      const exported = page.getByRole('button', { name: 'Export', exact: true });
       const bounds = (await exported.boundingBox())!;
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-      await fit.click();
     }
   }
   await page.setViewportSize({ width: 600, height: 900 });
@@ -4845,7 +6042,7 @@ test('plain title-bar click selects only that node; shift-click adds; drag moves
   for (const [i, title] of ['Sel A', 'Sel B', 'Sel C'].entries()) {
     const created = (await (
       await request.post('/api/canvas/node', {
-        data: { type: 'markdown', title, content: title, x: 120 + i * 260, y: 80, width: 220, height: 120 },
+        data: { type: 'markdown', title, content: title, x: 120 + i * 400, y: 80, width: 360, height: 180 },
       })
     ).json()) as { id: string };
     ids.push(created.id);
@@ -4903,6 +6100,58 @@ test('plain title-bar click selects only that node; shift-click adds; drag moves
   await expect(bar).toHaveCount(0);
 });
 
+test('a paused title drag survives delayed stacking echoes and persists its final position', async ({
+  page,
+  request,
+}) => {
+  const { id } = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Keep this move',
+        content: 'Held drag',
+        x: 120,
+        y: 120,
+        width: 400,
+        height: 240,
+      },
+    })
+  ).json();
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/canvas/update', async (route) => {
+    const body = route.request().postDataJSON() as {
+      updates?: Array<{ zIndex?: number; position?: { x: number; y: number } }>;
+    };
+    if (body.updates?.every((update) => update.zIndex !== undefined && !update.position)) await held;
+    await route.continue();
+  });
+  await page.goto('/workbench?transport=sse');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await expect(card.getByText('Held drag')).toBeVisible();
+  const before = (await card.boundingBox())!;
+  await page.mouse.move(before.x + 140, before.y + 14);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(before.x + 230, before.y + 74, { steps: 5 });
+    await expect.poll(async () => Math.round((await card.boundingBox())!.x - before.x)).toBe(90);
+  } finally {
+    release();
+  }
+  // Let any drag-start stacking response arrive while the pointer is held
+  // still. Releasing it must not commit the stale server position.
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).position)
+    .toEqual({ x: 210, y: 180 });
+  await expect.poll(async () => Math.round((await card.boundingBox())!.x - before.x)).toBe(90);
+  await expect.poll(async () => Math.round((await card.boundingBox())!.y - before.y)).toBe(60);
+});
+
 test('select tool lassos on background drag; pan tool and Space pan instead', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Lasso A', content: 'a', x: 120, y: 80, width: 200, height: 120 },
@@ -4927,18 +6176,14 @@ test('select tool lassos on background drag; pan tool and Space pan instead', as
   await expect(page.locator('.selection-bar')).toHaveCount(0);
 
   // Held Space: the same drag pans the viewport instead of selecting.
-  const worldBefore = await page.evaluate(
-    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
-  );
+  const worldBefore = await page.evaluate(() => document.querySelector('.canvas-world')!.getBoundingClientRect().x);
   await page.keyboard.down(' ');
   await page.mouse.move(400, 300);
   await page.mouse.down();
   await page.mouse.move(560, 380, { steps: 5 });
   await page.mouse.up();
   await page.keyboard.up(' ');
-  const worldAfterSpace = await page.evaluate(
-    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
-  );
+  const worldAfterSpace = await page.evaluate(() => document.querySelector('.canvas-world')!.getBoundingClientRect().x);
   expect(worldAfterSpace).not.toBe(worldBefore);
   await expect(page.locator('.selection-bar')).toHaveCount(0);
   // Panning must not zoom.
@@ -4956,7 +6201,7 @@ test('select tool lassos on background drag; pan tool and Space pan instead', as
   await page.mouse.move(nodeBox.x + 120, nodeBox.y + 90, { steps: 5 });
   await page.mouse.up();
   const worldAfterPanTool = await page.evaluate(
-    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
+    () => document.querySelector('.canvas-world')!.getBoundingClientRect().x,
   );
   expect(worldAfterPanTool).not.toBe(worldAfterSpace);
   const after = (await (await request.get('/api/canvas/state')).json()) as {
@@ -6023,18 +7268,27 @@ test('edge creation: Connect tool drags an edge from a node body, the target lig
   await page.keyboard.press('v');
 });
 
-for (const scale of [1, 0.5]) {
+for (const scale of [1, 0.5, 0.25]) {
   test(`connection handles stay usable at ${scale} zoom and render the HTTP result before polling`, async ({
     page,
     request,
   }, testInfo) => {
+    if (scale === 0.25) {
+      await request.post('/api/canvas/group', {
+        data: { title: 'Free space around grouped ports', x: 60, y: 60, width: 1100, height: 520 },
+      });
+    }
     for (const [title, x, y] of [
       ['Handle A', 120, 120],
       ['Handle B', 680, 220],
     ] as const) {
-      await request.post('/api/canvas/node', {
+      const created = await request.post('/api/canvas/node', {
         data: { type: 'markdown', title, content: 'Connect these notes', x, y, width: 360, height: 220 },
       });
+      if (scale === 0.25 && title === 'Handle A') {
+        const { id } = (await created.json()) as { id: string };
+        expect((await request.patch(`/api/canvas/node/${id}`, { data: { collapsed: true } })).ok()).toBe(true);
+      }
     }
     await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale } });
     await page.addInitScript(() => {
@@ -6044,6 +7298,23 @@ for (const scale of [1, 0.5]) {
     const a = page.locator('.canvas-node').filter({ hasText: 'Handle A' });
     const b = page.locator('.canvas-node').filter({ hasText: 'Handle B' });
     await expect(b).toBeVisible();
+    if (scale === 0.25) {
+      await a.locator('.node-title').click();
+      await expect(a).toHaveClass(/selected/);
+      const before = (await a.boundingBox())!;
+      expect(before.height).toBeLessThan(20);
+      const port = (await a.locator('..').locator('.node-port-right').boundingBox())!;
+      // Holding Space wins even over a selected port; releasing it restores
+      // the same native target for the connection gesture below.
+      await page.keyboard.down('Space');
+      await page.mouse.move(port.x + port.width - 4, port.y + port.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(port.x + port.width + 36, port.y + port.height / 2 + 20, { steps: 8 });
+      await page.mouse.up();
+      await page.keyboard.up('Space');
+      expect((await a.boundingBox())!.x - before.x).toBeGreaterThan(30);
+      expect((await currentCanvasState(request)).edges).toHaveLength(0);
+    }
     // Hold the next poll before dragging. No event can make this assertion pass.
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -6058,13 +7329,13 @@ for (const scale of [1, 0.5]) {
     try {
       await expect.poll(() => blocked).toBe(true);
       await a.hover();
-      const port = a.locator('.node-port-right');
+      const port = a.locator('..').locator('.node-port-right');
       await expect(port).toHaveCSS('opacity', '1');
       const portBox = (await port.boundingBox())!;
       expect(portBox.width).toBeCloseTo(32, 0);
       expect(portBox.height).toBeCloseTo(32, 0);
       const source = (await a.boundingBox())!;
-      expect(Math.abs(portBox.x + portBox.width / 2 - (source.x + source.width))).toBeLessThanOrEqual(1.1);
+      expect(portBox.x).toBeGreaterThanOrEqual(source.x + source.width - 1.1);
       const target = (await b.boundingBox())!;
       // Start outside both the card and visible circle: no clipping of the grab area.
       await page.mouse.move(portBox.x + portBox.width - 4, portBox.y + portBox.height / 2);
@@ -6076,6 +7347,8 @@ for (const scale of [1, 0.5]) {
       await expect(page.locator('[data-testid="edge-hint"]')).toHaveCount(0);
       expect((await (await request.get('/api/canvas/state')).json()).edges).toHaveLength(0);
 
+      // Reveal the handles again before grabbing their enlarged hit area.
+      await a.hover();
       await page.mouse.move(portBox.x + portBox.width - 4, portBox.y + portBox.height / 2);
       await page.mouse.down();
       await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 5 });
@@ -6094,8 +7367,133 @@ for (const scale of [1, 0.5]) {
     }
     await page.reload();
     await expect(page.locator('[id^="edge-path-"]')).toHaveCount(1);
+    if (scale === 1) {
+      expect(
+        (
+          await request.patch(`/api/canvas/node/${await b.getAttribute('data-node-id')}`, { data: { x: 540, y: 120 } })
+        ).ok(),
+      ).toBe(true);
+      await expect.poll(async () => (await b.boundingBox())!.y - (await a.boundingBox())!.y).toBe(0);
+      const existing = (await currentCanvasState(request)).edges[0];
+      expect((await request.patch(`/api/canvas/edge/${existing.id}`, { data: { label: 'supports' } })).ok()).toBe(true);
+      const pill = page.locator('.edge-pill');
+      await expect(pill).toContainText('supports');
+      const created = await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title: 'Handle C', content: 'Another destination', x: 680, y: 520 },
+      });
+      const { id } = (await created.json()) as { id: string };
+      const c = page.locator(`.canvas-node[data-node-id="${id}"]`);
+      await expect(c).toBeVisible();
+      await a.hover();
+      const port = (await a.locator('..').locator('.node-port-right').boundingBox())!;
+      const point = { x: port.x + 3, y: port.y + port.height / 2 };
+      // The line crosses the port, while collision placement keeps its label
+      // clear. Neither may take the next native drag.
+      const label = (await pill.boundingBox())!;
+      expect(
+        label.x + label.width <= port.x ||
+          label.x >= port.x + port.width ||
+          label.y + label.height <= port.y ||
+          label.y >= port.y + port.height,
+      ).toBe(true);
+      await page.mouse.move(point.x, point.y, { steps: 8 });
+      expect(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-port'), point)).toBe(
+        true,
+      );
+      const destination = (await c.boundingBox())!;
+      await page.mouse.down();
+      await page.mouse.move(destination.x + destination.width / 2, destination.y + destination.height / 2, {
+        steps: 10,
+      });
+      await page.mouse.up();
+      await expect(page.locator('[id^="edge-path-"]')).toHaveCount(2);
+      await page.locator(`.edge-pill-hit[data-edge-id="${existing.id}"]`).click();
+      await expect(page.locator(`[id="edge-path-${existing.id}"]`)).toHaveClass(/edge-selected/);
+    }
   });
 }
+
+for (const scale of [0.41, 0.25]) {
+  test(`visible low-zoom ports do not own header clicks at ${scale}`, async ({ page, request }) => {
+    const created = await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Header pointer target',
+        content: 'Pin and drag this card.',
+        x: 240,
+        y: 240,
+        width: 340,
+        height: 120,
+      },
+    });
+    const { id } = (await created.json()) as { id: string };
+    await request.post('/api/canvas/viewport', { data: { x: 200, y: 160, scale } });
+    await page.goto('/workbench');
+    const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    const title = card.locator('.node-title');
+    await title.hover();
+    await expect(card.locator('..').locator('.node-port-top')).toHaveCSS('opacity', '1');
+    for (const target of [title, card.locator('.ctx-pin-btn')]) {
+      const box = (await target.boundingBox())!;
+      const x = box.x + box.width / 2,
+        y = box.y + box.height / 2;
+      expect(
+        await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.node-port'), { x, y }),
+      ).toBe(false);
+    }
+    const pin = card.locator('.ctx-pin-btn');
+    const box = (await pin.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.down();
+    await page.waitForTimeout(100);
+    await page.mouse.up();
+    await expect(pin).toHaveClass(/ctx-pin-active/);
+    const before = (await title.boundingBox())!;
+    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(before.x + before.width / 2 + 35, before.y + before.height / 2 + 25, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(async () => (await title.boundingBox())!.x - before.x).toBeGreaterThan(30);
+    expect((await currentCanvasState(request)).edges).toHaveLength(0);
+    await page.reload();
+    await expect(card.locator('.ctx-pin-btn')).toHaveClass(/ctx-pin-active/);
+  });
+}
+
+test('a hovered neighboring port cannot intercept Close at the detail threshold', async ({ page, request }) => {
+  const create = async (title: string, x: number, y: number, width: number, height: number) => {
+    const response = await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title, content: '', x, y, width, height, data: { strictSize: true } },
+    });
+    return ((await response.json()) as { id: string }).id;
+  };
+  const targetId = await create('Neighbor Close target', 480, 484, 360, 120);
+  const sourceId = await create('Short section label', 200, 300, 1240, 144);
+  await request.post('/api/canvas/viewport', { data: { x: 200, y: 160, scale: 0.25 } });
+  await page.goto('/workbench');
+  const source = page.locator(`.canvas-node[data-node-id="${sourceId}"]`);
+  const target = page.locator(`.canvas-node[data-node-id="${targetId}"]`);
+  // Focus, select and raise the source above its neighbor before approaching
+  // through its bottom port. Neither z-order nor hover may steal Close.
+  await source.focus();
+  await source.locator('.node-title').click();
+  await expect(source).toHaveClass(/selected/);
+  const close = target.locator('button[aria-label="Close"]');
+  const box = (await close.boundingBox())!;
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const sourceBox = (await source.boundingBox())!;
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.move(point.x, point.y, { steps: 15 });
+  const ownsClose = () =>
+    page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'), point);
+  expect(await ownsClose()).toBe('Close');
+  await page.waitForTimeout(700);
+  expect(await ownsClose()).toBe('Close');
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(target).toHaveCount(0);
+  expect((await currentCanvasState(request)).edges).toHaveLength(0);
+});
 
 test('groups v2: membership only on release with the pill, esc keeps it out, collapse to a chip, header actions, G / Shift+G', async ({
   page,
@@ -6125,7 +7523,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
 
   const frame = page.locator('.canvas-node.group-node').filter({ hasText: 'State layer' });
   await expect(frame.locator('.group-name')).toHaveText('State layer');
-  await expect(frame.locator('.group-count')).toHaveText('0');
+  await expect(frame.locator('.group-count')).toHaveText('0 nodes');
   const looseNode = page.locator('.canvas-node').filter({ hasText: 'Loose note' });
 
   // Drag the loose node over the frame and press Esc: the pill disappears and
@@ -6163,7 +7561,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
           .children,
     )
     .toEqual([loose.id]);
-  await expect(frame.locator('.group-count')).toHaveText('1');
+  await expect(frame.locator('.group-count')).toHaveText('1 node');
 
   // Drag it fully out: the inverse pill, and it leaves on release.
   await grab();
@@ -6194,7 +7592,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
     .locator('.canvas-node.group-node')
     .filter({ has: page.locator('.group-name', { hasText: /^Group$/ }) })
     .first();
-  await expect(made.locator('.group-count')).toHaveText('2');
+  await expect(made.locator('.group-count')).toHaveText('2 nodes');
   expect(second.id).toBeTruthy();
 
   await fitCanvas(page);
@@ -6202,8 +7600,8 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   const chip = page.locator('[data-testid="group-chip"]');
   await expect(chip).toBeVisible();
   await expect(chip.locator('.group-chip-count')).toHaveText('2 nodes');
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(0);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toBeHidden();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toBeHidden();
   await chip.getByRole('button', { name: /Expand group/ }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
 
@@ -6240,7 +7638,7 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(1);
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(made.locator('.group-count')).toHaveText('2');
+  await expect(made.locator('.group-count')).toHaveText('2 nodes');
 
   // Delete removes the selection from the keyboard; Backspace does the same for the focused node.
   await page
@@ -6333,11 +7731,11 @@ test('ungroup is the same action for the human and the agent: dissolve, children
   await page.keyboard.press('ControlOrMeta+z');
   await expect(
     page.locator('.canvas-node.group-node').filter({ hasText: 'H group' }).locator('.group-count'),
-  ).toHaveText('2');
+  ).toHaveText('2 nodes');
   await page.keyboard.press('ControlOrMeta+z');
   await expect(chips).toHaveCount(2);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'G A' })).toHaveCount(0);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'G A' })).toBeHidden();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toBeHidden();
   const restored = (await (await request.get('/api/canvas/state')).json()) as {
     nodes: Array<{ id: string; data: Record<string, unknown> }>;
   };
@@ -6580,7 +7978,7 @@ test('human lifecycle review preserves evidence clocks, refuses stale drafts, re
   const card = page.locator(`[data-node-id="${id}"]`);
   await card.hover();
   await card.getByRole('button', { name: 'More actions' }).click();
-  await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+  await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Review card', exact: true });
   await dialog.getByText('Settings and history', { exact: true }).click();
   await expect(dialog.getByText('No evidence-backed validation')).toBeVisible();
@@ -6739,7 +8137,7 @@ test('a delayed review does not dismiss a reopened review or discard its new not
   const open = async () => {
     await card.hover();
     await card.getByRole('button', { name: 'More actions' }).click();
-    await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+    await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
   };
   await open();
   const dialog = page.getByRole('dialog', { name: 'Review card' });
@@ -6891,7 +8289,7 @@ test.describe('workspace beta settings', () => {
     const card = page.locator(`[data-node-id="${id}"]`);
     await card.hover();
     await card.getByRole('button', { name: 'More actions' }).click();
-    await expect(page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true })).toBeHidden();
+    await expect(page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true })).toBeHidden();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'PMX Canvas — Home' }).click();
     await expect(page.getByRole('button', { name: 'Categories', exact: true })).toBeHidden();
@@ -6912,7 +8310,7 @@ test.describe('workspace beta settings', () => {
       const peerCard = peer.locator(`[data-node-id="${id}"]`);
       await peerCard.hover();
       await peerCard.getByRole('button', { name: 'More actions' }).click();
-      const review = peer.locator('.context-menu').getByRole('button', { name: 'Review', exact: true });
+      const review = peer.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true });
       if (lifecycleOn) await expect(review).toBeVisible();
       else await expect(review).toBeHidden();
       await peer.keyboard.press('Escape');
@@ -7021,7 +8419,7 @@ test.describe('workspace beta settings', () => {
     const card = page.locator(`[data-node-id="${id}"]`);
     await card.hover();
     await card.getByRole('button', { name: 'More actions' }).click();
-    await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+    await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
     const review = page.getByRole('dialog', { name: 'Review card', exact: true });
     await review.getByLabel('What did you check?').fill('Keep this unsaved observation');
     // Review narrows the canvas independently of the window breakpoint.
@@ -7080,7 +8478,7 @@ test.describe('workspace beta settings', () => {
       const card = page.locator(`[data-node-id="${id}"]`);
       await card.hover();
       await card.getByRole('button', { name: 'More actions' }).click();
-      await page.locator('.context-menu').getByRole('button', { name: 'Review', exact: true }).click();
+      await page.locator('.context-menu').getByRole('menuitem', { name: 'Review', exact: true }).click();
       const review = page.getByRole('dialog', { name: 'Review card', exact: true });
       await review.getByLabel('What did you check?').fill('One deliberate human check');
       await review.getByText('Settings and history', { exact: true }).click();
@@ -7100,21 +8498,41 @@ test.describe('workspace beta settings', () => {
         await released;
         await route.fulfill({ response });
       });
+      let releaseRefresh!: () => void;
+      const refreshGate = new Promise<void>((resolve) => {
+        releaseRefresh = resolve;
+      });
+      let refreshHeld = false;
+      if (outcome === 'retire') {
+        await page.route('**/api/canvas/knowledge', async (route) => {
+          const response = await route.fetch();
+          refreshHeld = true;
+          await refreshGate;
+          await route.fulfill({ response });
+        });
+      }
       try {
         await review.getByRole('button', { name: 'Record review', exact: true }).click();
         await saved;
         await setWorkspaceFeatures(request, { knowledgeLifecycle: false });
         await expect(review).toBeHidden();
         if (outcome === 'retain') await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+        const acknowledged = page.waitForResponse(
+          (response) => response.url().endsWith(`/api/canvas/node/${id}/review`) && response.ok(),
+        );
         release();
-        await page.unrouteAll({ behavior: 'wait' });
+        await acknowledged;
         if (outcome === 'retire') await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
         if (outcome === 'retain') {
           await expect(review.getByLabel('What did you check?')).toHaveValue('');
           await expect(review.getByRole('button', { name: 'Checked, still correct', exact: true })).toBeDisabled();
           await expect(review).not.toContainText('Last checked: Unknown');
         } else {
+          await expect.poll(() => refreshHeld).toBe(true);
+          // Closing the dock while post-save reads are in flight must not lose the accepted write's Undo.
           await review.getByRole('button', { name: 'Close review', exact: true }).click();
+          releaseRefresh();
+          await page.unrouteAll({ behavior: 'wait' });
           await expect(page.getByRole('button', { name: 'Undo retirement', exact: true })).toBeVisible();
         }
         const detail = await (await request.get(`/api/canvas/node/${id}/lifecycle`)).json();
@@ -7129,6 +8547,8 @@ test.describe('workspace beta settings', () => {
         }
       } finally {
         release();
+        releaseRefresh();
+        await page.unrouteAll({ behavior: 'wait' });
       }
     });
   }

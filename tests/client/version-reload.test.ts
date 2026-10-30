@@ -1,5 +1,6 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
+import { connectSSE, EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
+import { stopHumanPresence } from '../../src/client/state/human-store.ts';
 
 // Stale-SPA guard (0.4.5 report Finding W): a long-lived panel keeps its
 // in-memory bundle across a daemon upgrade. The boot HTML stamps the server
@@ -8,6 +9,7 @@ import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
 
 const RELOAD_KEY = 'pmx-canvas-version-reload';
 let reload: ReturnType<typeof mock>;
+const originalEventSource = globalThis.EventSource;
 
 // `connected` kicks off the connect-time requests (viewport report, presence,
 // AX snapshot); stub fetch so happy-dom does not hit a real socket.
@@ -34,6 +36,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stopHumanPresence();
+  jest.useRealTimers();
+  globalThis.EventSource = originalEventSource;
+  (window as unknown as { happyDOM: { setURL(next: string): void } }).happyDOM.setURL(
+    'http://localhost:3000/workbench',
+  );
   delete (window as Window & { __PMX_BOOT_SERVER_VERSION?: string }).__PMX_BOOT_SERVER_VERSION;
   window.sessionStorage.removeItem(RELOAD_KEY);
 });
@@ -57,4 +65,34 @@ describe('stale-SPA reload guard', () => {
     connected('0.4.6'); // no boot stamp (pre-upgrade HTML) → never guess
     expect(reload).toHaveBeenCalledTimes(0);
   });
+});
+
+test.each(['sse', 'poll'])('disconnecting %s stops connected human-presence writes', (transport) => {
+  jest.useFakeTimers();
+  (window as unknown as { happyDOM: { setURL(next: string): void } }).happyDOM.setURL(
+    `http://localhost:3000/workbench?transport=${transport}`,
+  );
+  globalThis.EventSource = class extends EventTarget {
+    close() {}
+  } as unknown as typeof EventSource;
+  const writes: unknown[] = [];
+  globalThis.fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
+    if (String(url) === '/api/canvas/human-presence' && init?.method === 'POST') {
+      writes.push(JSON.parse(String(init.body)));
+      return Promise.resolve(Response.json({ ok: true }));
+    }
+    return new Promise<Response>(() => {});
+  }) as typeof fetch;
+  const disconnect = connectSSE();
+  try {
+    connected('test');
+    expect(writes).toHaveLength(1);
+    jest.advanceTimersByTime(3000);
+    expect(writes).toHaveLength(2);
+    disconnect();
+    jest.advanceTimersByTime(6000);
+    expect(writes).toHaveLength(2);
+  } finally {
+    disconnect();
+  }
 });

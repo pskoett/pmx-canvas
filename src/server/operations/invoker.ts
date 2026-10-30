@@ -5,10 +5,11 @@
  */
 import { SOURCE_LABEL_RE } from '../agent-presence.js';
 import { executeOperation, getOperation } from './registry.js';
-import { OperationError, type OperationErrorStatus } from './types.js';
+import { OperationError, type OperationErrorStatus, type OperationExecutionOptions } from './types.js';
+import type { OperationStreamFrame } from './http.js';
 
 export interface OperationInvoker {
-  invoke(name: string, input: Record<string, unknown>): Promise<unknown>;
+  invoke(name: string, input: Record<string, unknown>, options?: OperationExecutionOptions): Promise<unknown>;
 }
 
 /**
@@ -40,9 +41,14 @@ export class LocalOperationInvoker implements OperationInvoker {
     this.proxiedRead = source === 'mcp';
   }
 
-  async invoke(name: string, input: Record<string, unknown>): Promise<unknown> {
+  async invoke(
+    name: string,
+    input: Record<string, unknown>,
+    options: OperationExecutionOptions = {},
+  ): Promise<unknown> {
     const args = this.allowExternalMcp ? input : { ...input, allowExternalMcp: false };
     return await executeOperation(name, defaultPresenceSource(name, args, this.source), {
+      ...options,
       source: this.source,
       proxiedRead: this.proxiedRead,
     });
@@ -51,6 +57,37 @@ export class LocalOperationInvoker implements OperationInvoker {
 
 function toOperationErrorStatus(status: number): OperationErrorStatus {
   return status === 404 ? 404 : status === 409 ? 409 : status === 403 ? 403 : 400;
+}
+
+async function readProgressResponse(response: Response, options: OperationExecutionOptions): Promise<Response> {
+  if (!response.body) throw new OperationError('Missing operation progress stream.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let end = buffer.indexOf('\n');
+      while (end !== -1) {
+        const frame = JSON.parse(buffer.slice(0, end)) as OperationStreamFrame;
+        buffer = buffer.slice(end + 1);
+        if (frame.type === 'result') return Response.json(frame.body, { status: frame.status });
+        if (frame.type !== 'progress') throw new OperationError('Invalid operation progress frame.');
+        try {
+          await options.onProgress?.(frame.progress);
+        } catch (error) {
+          if (!options.signal?.aborted) console.error('[operation] progress callback failed:', error);
+        }
+        end = buffer.indexOf('\n');
+      }
+      if (done) throw new OperationError('Operation progress stream ended without a result.');
+    }
+  } finally {
+    // A fetch abort already errors the reader; preserve that original failure.
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
 /** Builds the HTTP request from the op's route template (`:id` from input, GET flags to query). */
@@ -70,7 +107,12 @@ export class HttpOperationInvoker implements OperationInvoker {
     this.proxiedRead = source === 'mcp';
   }
 
-  async invoke(name: string, rawInput: Record<string, unknown>): Promise<unknown> {
+  async invoke(
+    name: string,
+    rawInput: Record<string, unknown>,
+    options: OperationExecutionOptions = {},
+  ): Promise<unknown> {
+    options.signal?.throwIfAborted();
     const args = this.allowExternalMcp ? rawInput : { ...rawInput, allowExternalMcp: false };
     const input = defaultPresenceSource(name, args, this.source);
     const op = getOperation(name);
@@ -96,8 +138,10 @@ export class HttpOperationInvoker implements OperationInvoker {
 
     let url = `${this.baseUrl}${path}`;
     const proxyHeaders: Record<string, string> = this.proxiedRead ? { 'x-pmx-proxied-read': '1' } : {};
+    if (options.onProgress) proxyHeaders.accept = 'application/x-ndjson';
     const init: RequestInit = {
       method: route.method,
+      signal: options.signal,
       headers: { 'x-pmx-source': this.source, ...proxyHeaders },
     };
     if (route.method === 'GET' || route.method === 'DELETE') {
@@ -112,7 +156,10 @@ export class HttpOperationInvoker implements OperationInvoker {
       init.body = JSON.stringify(rest);
     }
 
-    const response = await fetch(url, init);
+    let response = await fetch(url, init);
+    if (response.headers.get('content-type')?.startsWith('application/x-ndjson')) {
+      response = await readProgressResponse(response, options);
+    }
     const text = await response.text();
     let parsed: unknown = null;
     let parsedAsJson = false;
@@ -125,6 +172,7 @@ export class HttpOperationInvoker implements OperationInvoker {
       }
     }
     if (!response.ok) {
+      if (response.status === 499) throw new DOMException('Operation cancelled.', 'AbortError');
       // errorBodyAsResult carries the route's STRUCTURED partial-failure
       // envelope (e.g. canvas_batch { ok:false, failedIndex, ... }) through as
       // a result. A non-JSON error body (an HTML 502 from a proxy, a foreign

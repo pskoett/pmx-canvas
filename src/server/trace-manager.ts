@@ -72,6 +72,10 @@ class TraceManager {
     return this._enabled;
   }
 
+  get ownedNodeIds(): readonly string[] {
+    return this.traceNodeIds;
+  }
+
   setEnabled(value: boolean): void {
     this._enabled = value;
     if (value) {

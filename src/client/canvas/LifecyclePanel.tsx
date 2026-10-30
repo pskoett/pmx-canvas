@@ -20,6 +20,7 @@ import {
 import { sendSteering } from '../state/session-store';
 import { hasUnsavedMarkdown } from '../nodes/MarkdownNode';
 import { cleanLifecycle, DEFAULT_LIFECYCLE, LifecycleFields } from './LifecycleFields';
+import { submitWithoutNavigation } from './submit-without-navigation';
 
 export function LifecyclePanel() {
   const target = lifecycleTarget.value;
@@ -105,7 +106,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
     void refreshKnowledge();
     if (!detail || needsReload) void load();
   }, [enabled]);
-  const mutate = async (suffix: string, body: Record<string, unknown>) => {
+  const mutate = async (suffix: string, body: Record<string, unknown>, acknowledge?: () => void) => {
     if (!ownsDialog() || busy || needsReload) return false;
     setBusy(true);
     setError('');
@@ -114,7 +115,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, expectedBoardId: target.boardId }),
     });
-    if (!sameBoard() || lifecycleTarget.value !== target) {
+    if (!sameBoard()) {
       setBusy(false);
       return false;
     }
@@ -123,6 +124,14 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
       setError(
         'Not saved. The card or its sources may have changed. Reload and check the current evidence before retrying.',
       );
+      return false;
+    }
+    // Acknowledgement belongs to the accepted write, not the later reads or
+    // the dock's lifetime. Closing/suspending the dock must not lose Undo.
+    acknowledge?.();
+    if (lifecycleTarget.value !== target) {
+      void refreshKnowledge();
+      setBusy(false);
       return false;
     }
     // Invalidate acknowledged preconditions without unmounting focused controls.
@@ -144,20 +153,22 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
         error)
     )
       return false;
-    const ok = await mutate('/review', {
-      outcome: reviewOutcome,
-      evidence,
-      applied: wasApplied,
-      expectedContentRevision: detail.contentRevision,
-      expectedSources: detail.qualification.observations,
-    });
-    if (ok) {
-      setRetiredHere(wasApplied && reviewOutcome === 'retire');
-      if (wasApplied && reviewOutcome === 'retire') retirementUndo.value = target;
-      setEvidence('');
-      setApplied(false);
-    }
-    return ok;
+    return mutate(
+      '/review',
+      {
+        outcome: reviewOutcome,
+        evidence,
+        applied: wasApplied,
+        expectedContentRevision: detail.contentRevision,
+        expectedSources: detail.qualification.observations,
+      },
+      () => {
+        setRetiredHere(wasApplied && reviewOutcome === 'retire');
+        if (wasApplied && reviewOutcome === 'retire') retirementUndo.value = target;
+        setEvidence('');
+        setApplied(false);
+      },
+    );
   };
   const recipe = node?.data.provenance as { recipe?: { tool: string; input?: unknown; prompt: string } } | undefined;
   const date = (value: string | null | undefined) => (value ? new Date(value).toLocaleString() : 'Unknown');
@@ -254,6 +265,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 <form
                   class="lifecycle-quick-review"
                   noValidate
+                  onClick={submitWithoutNavigation}
                   onSubmit={(event) => {
                     event.preventDefault();
                     void recordReview('retain', true).then((ok) => {
@@ -335,6 +347,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
                 · category belongs to the folder
               </p>
               <form
+                onClick={submitWithoutNavigation}
                 onSubmit={(event) => {
                   event.preventDefault();
                   void mutate('/lifecycle', { lifecycleOverride: override ? cleanLifecycle(policy) : null });
@@ -436,6 +449,7 @@ function LifecycleDialog({ target }: { target: NonNullable<typeof lifecycleTarge
               ) : (
                 <form
                   class="lifecycle-review"
+                  onClick={submitWithoutNavigation}
                   onSubmit={(event) => {
                     event.preventDefault();
                     void recordReview(outcome, applied);

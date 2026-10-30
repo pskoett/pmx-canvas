@@ -4,6 +4,7 @@ import { canvasArea } from './canvas-area';
 import { cancelViewportAnimation, hasInitialServerLayout, viewport } from '../state/canvas-store';
 import {
   endPresentation,
+  presentationCursor,
   presentationError,
   presenting,
   recordingCamera,
@@ -11,6 +12,7 @@ import {
   stepTour,
 } from '../state/presentation';
 import { usePanZoom } from './use-pan-zoom';
+import { BarHint } from './BarHint';
 
 declare global {
   interface Window {
@@ -25,6 +27,9 @@ declare global {
 
 export function Presentation() {
   const active = presenting.value;
+  const cursor = presentationCursor.value;
+  const canBack = cursor !== null && cursor.index > 0;
+  const canNext = cursor !== null && cursor.index < cursor.total - 1;
   const ready = hasInitialServerLayout.value;
   const moveCamera = (camera: Camera) => {
     cancelViewportAnimation();
@@ -89,9 +94,54 @@ export function Presentation() {
           }}
           onContextMenu={(event) => event.preventDefault()}
         >
-          <button type="button" class="presentation-exit" onClick={endPresentation}>
-            Exit presentation
-          </button>
+          <div class="presentation-controls" role="group" aria-label="Presentation controls">
+            <BarHint
+              id="presentation-back-hint"
+              label="Previous stop"
+              shortcut="← / ↑"
+              fitWithin=".presentation-navigation"
+            >
+              <button
+                type="button"
+                class="presentation-step"
+                aria-describedby="presentation-back-hint"
+                aria-disabled={!canBack}
+                onClick={() => {
+                  if (canBack) void stepTour({ step: 'previous' });
+                }}
+              >
+                Back
+              </button>
+            </BarHint>
+            <BarHint
+              id="presentation-next-hint"
+              label="Next stop"
+              shortcut="→ / ↓ / Space"
+              fitWithin=".presentation-navigation"
+            >
+              <button
+                type="button"
+                class="presentation-step"
+                aria-describedby="presentation-next-hint"
+                aria-disabled={!canNext}
+                onClick={() => {
+                  if (canNext) void stepTour({ step: 'next' });
+                }}
+              >
+                Next
+              </button>
+            </BarHint>
+            <BarHint id="presentation-exit-hint" label="Exit presentation" shortcut="Esc" align="end">
+              <button
+                type="button"
+                class="presentation-exit"
+                aria-describedby="presentation-exit-hint"
+                onClick={endPresentation}
+              >
+                Exit presentation
+              </button>
+            </BarHint>
+          </div>
         </div>
       )}
       {presentationError.value && (

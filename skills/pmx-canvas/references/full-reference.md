@@ -349,7 +349,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | Type | Purpose | When to use |
 |------|---------|-------------|
 | `markdown` | Rich formatted content | Explanations, documentation, notes, findings |
-| `status` | Compact color-coded indicator | Progress tracking, build/test results, task state |
+| `status` | Compact status or deliberately authored work card | Work plans with `data.workState`; phase/tool status without it |
 | `file` | Live file viewer (auto-watches) | Show source code with live updates on file change |
 | `image` | Image display | Screenshots, diagrams, charts |
 | `context` | Context card | Key context the human should see |
@@ -419,6 +419,9 @@ contract). Their meaning comes from the node **type** and value instead: a `stat
 `waiting` — e.g. `review` → green, `running` → accent; an unrecognized phase renders gray), and a
 `trace` node from its `status` field (`success` → green, `failed` → red, `running` → accent). To
 color an arbitrary region, group the nodes and set the group's `color`.
+Authored status cards with `data.workState` instead use the work-state glyph and label:
+blocked uses the warning token, done the success token, and cancelled the muted token.
+Do not set arbitrary colors to encode work state.
 
 When you do set a color (group/graph), use this palette consistently to convey meaning:
 - **Green** (`#22c55e`) — success, done, healthy
@@ -431,9 +434,14 @@ When you do set a color (group/graph), use this palette consistently to convey m
 ## MCP Tools Reference
 
 PMX Canvas exposes **18 action-discriminated composites** (the whole recommended surface) plus
-**6 first-class standalones** — 24 tools total. The composites fold the older
+**7 first-class standalones** — 25 tools total. The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
+
+`canvas_help {}` lists MCP registry operation names. `canvas_help { op: "node.add" }`
+returns that operation's public tool, description and JSON argument schema, including
+routing selectors and required fields. It does not start or read a canvas. Handlers still
+enforce conditional requirements. Non-registry tools use `tools/list` instead.
 
 > **Legacy single-purpose tools were removed in v0.3.0.** The old names (`canvas_add_node`,
 > `canvas_update_node`, `canvas_request_approval`, `canvas_add_work_item`, …) are no longer
@@ -450,9 +458,9 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
-| `canvas_board` | `list` · `get` · `create` · `create-from` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and workspace categories/folder properties/shared relation templates; knowledge writes never open a board. Template edits/deletion never rewrite boards or connections. `category-remove` takes `id` and refuses explicit folder assignments, including empty folders; reassign or clear them first. |
+| `canvas_board` | `list` · `get` · `create` · `create-from` · `move-selection` · `open` · `update` · `pin` · `unpin` · `knowledge-list` · `category-set` · `category-remove` · `folder-set` · `relation-preset-set` · `relation-preset-remove` | Boards and workspace categories/folder properties/shared relation templates; knowledge writes never open a board. Template edits/deletion never rewrite boards or connections. `category-remove` takes `id` and refuses explicit folder assignments, including empty folders; reassign or clear them first. |
 | `canvas_snapshot` | `save` · `list` · `restore` · `restore-node` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`); `restore-node` puts one card (`nodeId`) back to its content in snapshot `id` |
-| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `add-annotation` · `remove-annotation` · `get-tour` · `set-tour` · `tour-go` · `tour-exit` · `move` | Auto-arrange, pan-to-node, fit viewport, clear the board, draw/write/erase annotations, read/persist ordered presentation stops (`tour: null` derives group order), present a stop / exit, ease the camera to a node, rect or viewport (never an undo step) |
 | `canvas_query` | `context` · `graph` · `search` · `layout` · `validate` | Read the budgeted brief or summary-only connected memory graph, find nodes, read full layout, or **`validate`** collisions / containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | Headless Bun.WebView automation for the workbench (folds the `canvas_webview_*` / `canvas_resize` / `canvas_evaluate` tools) |
@@ -493,6 +501,18 @@ group structure are optional; fresh IDs are allocated; pins, AX state, and
 history are not copied; the source remains unchanged and the new board inactive.
 The new board records `previousBoardId` pointing to its source.
 
+For an identity-preserving move, use `canvas_board` action `move-selection`, not
+copy/delete. Read the active source board's `contentRevision` with `get`. Preview
+with `sourceBoardId`, `nodeIds`, `name`, `expectedRevision: contentRevision`,
+`requestId` and `preview: true`; inspect blockers and notices before committing
+with the same inputs without `preview`. Retry an uncertain response with the same
+request ID and inputs. Group descendants move together; unsafe bindings refuse
+the entire move. Cards retain identities, pins, relations and review history,
+without new validation or read evidence. The source stays open with a portal to
+the new board. Pre-move Undo/Redo is cleared on affected boards; older snapshots
+remain inspectable but cannot be restored across the move. Open the returned
+`destinationBoardId` only when navigation is wanted.
+
 ### Connected memory (wave 2)
 
 Home Folders, Map and Graph, wiki links/backlinks, and brief discovery share one
@@ -531,7 +551,7 @@ AX excerpts and annotation anchors, including `canvas://ax-context` and
 or brief relation entry instead.
 Single-card and layout reads record content delivery, not incident relations.
 Reads never switch boards or record full content reads. Pull cards in full
-when needed. Counts stay 24 tools, 15 static canvas resources; there are now two
+when needed. Counts are 25 tools, 15 static canvas resources; there are now two
 canvas templates, context and graph, besides the skill file template.
 
 Markdown save resolves `[[Board]]`, `[[Board#Card]]`, and `|alias` forms into
@@ -550,10 +570,15 @@ Once the board list has loaded, all workbench context-pin writes send the captur
 `expectedBoardId`; a server-side board switch returns 409 instead of changing
 another board's pins. Receipt pin actions require reopening the owning board.
 
-Embedded JSON/graph runtime readiness waits up to 10 seconds after document load
-and retries a failed handoff once while retaining the last painted document.
-After another failure, the error toast/history say **Reload to retry**; a later
-healthy authored update can recover. This is not an overall network-load timeout.
+Embedded previews mount automatically near the viewport at every zoom and remain
+mounted to preserve arbitrary app state. There is no lifetime preview cap. Mermaid renders
+inline, without an iframe. JSON/graph viewers inherit all nine named canvas themes
+and keep form drafts when the theme changes. During replacement, the pending
+document temporarily coexists with its painted predecessor.
+
+A network load or missing JSON runtime times out after 10 seconds and offers a
+visible **Retry**, retaining the last painted document during replacement.
+An already mounted offscreen runtime may wait for paint without being timed out.
 
 Native edge add accepts optional `toBoardId`: `from` is on the open source board,
 `to` is a card on the target board. CLI: `pmx-canvas edge add --from <source> --to <target>
@@ -692,8 +717,33 @@ delete+recreate; preserves edges, pins, position)
 
 **`canvas_node { action: "get", id }`** — Get a single node's full data by `id`.
 
-**`canvas_view { action: "remove-annotation", id }`** — Remove a human-drawn annotation by `id`. Use when
-context gives you the annotation ID; use WebView first if you need to identify a mark by shape or location.
+**`canvas_view { action: "add-annotation", points, … }`** — Draw freehand ink with at least two
+world-coordinate points, or set `type: "text"`, `text` and one point to write a note.
+`width` is stroke width (default 4, clamped to 1–24) or font size (default 24,
+clamped to 1–96). `color` defaults to `currentColor`, the theme's annotation ink;
+explicit colors must be `#rrggbb`. Text is trimmed to 240 characters, labels to 160.
+Bounds and creation time are server-derived.
+
+Freehand points render as straight segments with round caps/joins, without automatic
+smoothing. Sample curves densely for smooth-looking outlines and loops. Cursor updates
+through `canvas_ax_state { action: "set-presence", cursor: { x, y } }` are separate,
+ephemeral presence, not drawing gestures; reuse your writer identity without attaching
+a session. An annotation appears complete on creation, not as a streaming stroke.
+See [Shared ink and questions](workbench-workflows.md#shared-ink-and-questions).
+
+Use an explicit `id` for retries: equal normalized content returns the existing mark
+without another Undo entry, while different content conflicts. After erasing or Undo,
+adding the ID creates a mark again; this is not a durable creation receipt.
+
+**`canvas_view { action: "remove-annotation", id }`** — Erase a whole human or agent mark,
+not the underlying card. An absent mark returns not-found. Context gives you IDs;
+inspect the canvas first when identifying a mark by shape or location.
+CLI and MCP batches accept `annotation.add` / `annotation.remove` with the same arguments.
+
+Humans and agents share this layer. Use marks when helpful, not for every task.
+The human may answer in the external agent host's composer; no PMX session,
+PMX composer or reply card is required. Marks are not approval gates, and drawing
+or erasing does not answer a question or execute a loop. Existing scope fences apply.
 
 **`canvas_node { action: "update", id, refresh: true }`** — Re-fetch the URL stored on a `webpage` node
 - `id` (required): webpage node to refresh
@@ -952,17 +1002,17 @@ below operates on the live canvas state through the `canvas_webview` composite.
 Useful workbench selectors:
 - Nodes: `.canvas-node`, `.canvas-node.active`, `.canvas-node.context-pinned`, `.canvas-node.group-node`
 - Node internals: `.node-title`, `.node-titlebar`, `.node-body`, `.node-type-badge`, `.node-controls`
-- Annotations: `.annotation-layer path` renders human-drawn freehand ink. Use WebView
-  to inspect or screenshot annotation shapes; MCP/context resources only expose compact
-  annotation target summaries, not the raw visual shape. Humans can remove marks with
-  the eraser in the rail's Annotate popover; agents can remove a known annotation ID with
-  `canvas_view { action: "remove-annotation" }`.
+- Annotations: `.annotation-layer path` renders shared freehand ink; `.annotation-layer text`
+  renders text notes. Use WebView to inspect or screenshot shapes; MCP/context resources
+  expose IDs, text, labels, targets and bounds, not raw stroke geometry. Humans use the
+  rail's Draw / Text note / Eraser tools; agents use `canvas_view` actions
+  `add-annotation` / `remove-annotation` on the same layer.
 - Canvas chrome (rail-chrome-v2): `.tool-rail`, `.top-bar` (`.connection-dot`, `.agent-chip`,
   `.gate-badge`, `.context-chip`, `.external-indicator`, `.start-session-btn`),
   `.connection-banner`, `.canvas-region`, `.session-panel`, `.command-bar`, `.selection-bar`,
   `.activity-feed`, `.writers-sheet`, `.session-receipt`, `.snapshot-panel` (the History
   drawer), `.minimap`, `.empty-state`, `.command-palette`, `.expanded-overlay-panel`.
-- Presence: `.agent-cursor` (attached agent), `.human-cursor` (other tabs), `.scope-fence`,
+- Presence: `.agent-cursor` (attached or external agent), `.human-cursor` (other tabs), `.scope-fence`,
   `.canvas-node.agent-mutating` (shimmer), `.node-yield-pill`.
 - Groups: `.canvas-node.group-node` with `.group-name-pill`, `.group-actions`, `.group-chip`
   (collapsed); `.drop-pill` while a dragged node would join/leave a group; `.edge-hint-pill`
@@ -1124,10 +1174,38 @@ Use native `json-render` and `graph` nodes when the output should stay fully ins
 
 Spec elements support an `on` map (`on.press`, `on.change`, …) binding events to actions (`{ action, params }`) — built-in actions (`setState`, `pushState`, …) or, when named after an AX interaction type, a capability-gated AX emit. e.g. a Button with `on: { press: { action: 'ax.work.create', params: { title: '…' } } }` lets a human turn a panel control into a tracked work item; the viewer forwards it to the canvas, which validates and submits it server-side (clamped to the node's own id). See **Node AX Interactions** above.
 
+## MCP results and cancellation (0.10)
+
+The 25-tool catalog remains on MCP SDK v1. Each tool advertises `outputSchema`
+and effect annotations. Help returns `structuredContent.result` with operation
+metadata (or the name list); it records no content reads. Registry-dispatched tools expose
+`structuredContent.result = { operation, outcome, data }`, where `outcome` is
+`success`, `error` or `partial`; `data` matches the existing compact text JSON,
+or `{message}` for prose. Exceptions use `operation: null`; they do not prove no
+writes occurred. Interaction, activity-ingestion and screenshot tools instead
+use direct structured objects matching their schemas. Check `isError` and domain
+outcomes. A composite's annotations cover all its actions, not just reads.
+
+Cancellation releases supported AX waits, aborts webpage fetches before late
+content writes, and stops subsequent batch operations. Completed writes remain;
+batch partial results retain `results` and `refs`. A created webpage can remain
+with `fetch.cancelled: true`. External app builds/runtime calls and local WebView
+captures are not interruptible mid-call. After a disconnect, inspect state before
+retrying because the response may not arrive. `_meta.progressToken` enables batch
+and supported AX wait progress notifications, including through the daemon connection. Without
+a token, calls return their normal result without progress notifications.
+
 ## MCP Resources
 
 These resources give you read access to canvas intelligence. Read them to understand
 what the human has set up and what they're focusing on.
+
+As of 0.10, live resource updates require `resources/subscribe` on each connection.
+Subscribe to the exact URI you read, including context/graph query parameters;
+`resources/unsubscribe` stops it, and reconnecting requires a new subscription.
+Notifications invalidate cached data but do not deliver content, record a read, or
+advance a consumer cursor. Explicit `resources/read` remains available without
+subscriptions. Static schema and bundled skills do not support subscriptions.
 
 | Resource | What it provides |
 |----------|-----------------|
@@ -1411,7 +1489,7 @@ The `canvas://spatial-context` resource reveals how the human has organized info
   This implies sequence or priority.
 - **Pinned neighborhoods** — For each pinned node, nearby unpinned nodes are listed. These
   are the human's implicit context — things they consider related to what they pinned.
-- **Annotations** — Human-drawn markup is summarized by target/bounds only, e.g. an
+- **Annotations** — Shared markup is summarized by ID, label, text, target and bounds, e.g. an
   annotation over a node or empty canvas region. Use WebView (`canvas_webview { action: "start" }` +
   `canvas_webview { action: "evaluate" }`/`canvas_screenshot`) when you need to see whether the mark is an
   arrow, line, circle, or other drawn shape. Remove known annotations with
@@ -1537,15 +1615,35 @@ Show system components and how they interact:
 
 ### Task Plan with Dependencies
 
-Track work items and their relationships:
+Show useful work deliberately, not a card per task or event. Ordinary work cards are authored
+node data, not AX work items. They require no session and create no approval or execution.
 
-1. Create `status` nodes for each task
-2. Color-code: green=done, yellow=in-progress, red=blocked, gray=queued, blue=ready/available
-3. Connect with `depends-on` edges — use `dashed` style for blocked dependencies, `solid` for
-   satisfied ones
-4. Update status nodes as work progresses using `canvas_node { action: "update" }`
-5. Arrange with `flow` layout to show the dependency chain left-to-right
-6. Group related tasks if the plan has distinct phases
+1. Create a `status` node with `data.workState`: `todo`, `in-progress`, `blocked`, `done` or
+   `cancelled`. Use string `data.detail` for context and optional `data.progress` from 0 to 100.
+   Progress is independent of state: Done does not imply 100%; `null` clears progress.
+2. Update the same card through `canvas_node { action: "update", id, data: { ... } }`.
+   Include `expectedBoardId` and `expectedContentRevision` when an edit depends on a prior read.
+3. Connect steps, dependencies, alternatives and intentional loops with existing relations.
+   A drawn loop does not execute. Group distinct phases when useful, then inspect readability.
+4. Humans use **New work card** from the background menu and **Edit/Save/Cancel** inside the card.
+   Drafts and pending/refused saves survive focus-mode open/close, but not a page reload.
+   The editor's temporary growth does not resize the saved card.
+
+MCP creation:
+
+```json
+{"action":"add","type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}
+```
+
+CLI creation uses structured batch data, not `node add --data` (that flag is for graph series):
+
+```bash
+pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}}]'
+```
+
+Without `data.workState`, status cards retain their phase/tool display. Session-task linking
+is not provided by these authored cards. Questions can be drawn or written beside the plan;
+the human can answer in the external agent host's composer, without a PMX reply card.
 
 ### Code Exploration
 

@@ -646,23 +646,19 @@ describe('MCP composite tools (plan-006)', () => {
     // A tool call triggers ensureCanvas(), which starts the in-process canvas
     // HTTP server (lazily — not at connect time).
     await call(client, 'canvas_query', { action: 'layout' });
-    // Seed a freehand annotation through the now-running public HTTP API (no MCP
-    // tool draws annotations — humans do, in the browser).
     const baseUrl = await resolveBaseUrl(port);
     const annotationId = 'ann-composite-test';
-    const created = await fetch(`${baseUrl}/api/canvas/annotation`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        id: annotationId,
-        type: 'freehand',
-        points: [
-          { x: 0, y: 0 },
-          { x: 10, y: 10 },
-        ],
-      }),
+    const created = await call(client, 'canvas_view', {
+      action: 'add-annotation',
+      id: annotationId,
+      points: [
+        { x: -15, y: 30 },
+        { x: 60, y: 110 },
+      ],
     });
-    expect(((await created.json()) as { ok?: boolean }).ok).toBe(true);
+    expect(created.isError ?? false).toBe(false);
+    const layout = await (await fetch(`${baseUrl}/api/canvas/state`)).json();
+    expect(layout.annotations).toMatchObject([{ id: annotationId, bounds: { x: -15, y: 30, width: 75, height: 80 } }]);
 
     const removed = parseJsonText<{ ok?: boolean; removed?: string }>(
       await call(client, 'canvas_view', { action: 'remove-annotation', id: annotationId }),

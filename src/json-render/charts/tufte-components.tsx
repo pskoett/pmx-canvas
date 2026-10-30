@@ -336,6 +336,18 @@ interface SlopegraphProps {
   height?: number | null;
 }
 
+/** Separate close labels without moving the data points they describe. */
+function slopeLabelPositions(values: number[], top: number, bottom: number): number[] {
+  const order = values.map((y, index) => ({ y, index })).sort((a, b) => a.y - b.y);
+  const gap = Math.min(14, (bottom - top) / Math.max(1, order.length - 1));
+  for (let i = 1; i < order.length; i++) order[i].y = Math.max(order[i].y, order[i - 1].y + gap);
+  if (order.length) order[order.length - 1].y = Math.min(order[order.length - 1].y, bottom);
+  for (let i = order.length - 2; i >= 0; i--) order[i].y = Math.min(order[i].y, order[i + 1].y - gap);
+  const result = [...values];
+  for (const { y, index } of order) result[index] = y;
+  return result;
+}
+
 function ChartSlopegraph({ props }: BaseComponentProps<SlopegraphProps>) {
   const stroke = props.color ?? ACCENT;
   const rows = (props.data ?? []).map((row) => ({
@@ -359,6 +371,16 @@ function ChartSlopegraph({ props }: BaseComponentProps<SlopegraphProps>) {
   // fills without pushing a scrollbar onto the iframe document.
   const plotH = chartPlotHeight(height, Boolean(props.title));
   const scaleY = (v: number) => topPad + (1 - (v - min) / (max - min)) * (plotH - topPad - botPad);
+  const beforeLabels = slopeLabelPositions(
+    rows.map((row) => scaleY(row.before)),
+    topPad,
+    plotH - botPad,
+  );
+  const afterLabels = slopeLabelPositions(
+    rows.map((row) => scaleY(row.after)),
+    topPad,
+    plotH - botPad,
+  );
 
   return (
     <div ref={frameRef} className="pmx-chart pmx-chart--slopegraph" style={{ height }}>
@@ -390,10 +412,30 @@ function ChartSlopegraph({ props }: BaseComponentProps<SlopegraphProps>) {
               <line x1={leftX} y1={y1} x2={rightX} y2={y2} stroke={lineColor} strokeWidth={1.5} />
               <circle cx={leftX} cy={y1} r={2.5} fill={lineColor} />
               <circle cx={rightX} cy={y2} r={2.5} fill={lineColor} />
-              <text x={leftX - 8} y={y1} textAnchor="end" dominantBaseline="central" fontSize={11} fill={INK}>
+              {beforeLabels[i] !== y1 && (
+                <line x1={leftX} y1={y1} x2={leftX - 5} y2={beforeLabels[i]} stroke={lineColor} />
+              )}
+              {afterLabels[i] !== y2 && (
+                <line x1={rightX} y1={y2} x2={rightX + 5} y2={afterLabels[i]} stroke={lineColor} />
+              )}
+              <text
+                x={leftX - 8}
+                y={beforeLabels[i]}
+                textAnchor="end"
+                dominantBaseline="central"
+                fontSize={11}
+                fill={INK}
+              >
                 {`${row.label}  ${row.before}`}
               </text>
-              <text x={rightX + 8} y={y2} textAnchor="start" dominantBaseline="central" fontSize={11} fill={INK}>
+              <text
+                x={rightX + 8}
+                y={afterLabels[i]}
+                textAnchor="start"
+                dominantBaseline="central"
+                fontSize={11}
+                fill={INK}
+              >
                 {`${row.after}  ${row.label}`}
               </text>
             </g>

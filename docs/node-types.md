@@ -1,9 +1,9 @@
 # Node types
 
-`board` is a native text-only link. Set `data.boardId` to the durable target ID. Its header pin pins the
+`board` is a native link with a lightweight board thumbnail. Set `data.boardId` to the durable target ID. Its header pin pins the
 linked board into the agent's working set (`canvas_board { action: "pin" }`), not the portal card.
 Titles resolve from that ID, so renames and folder moves are safe; deleted
-targets render explicitly as missing. It is not an iframe or a cross-board card
+targets render explicitly as missing, with **Link to board…** to choose a replacement. It is not an iframe or a cross-board card
 edge. Static exports lock the card and intentionally do not embed the target
 title or summary, so exporting this board does not disclose another board.
 
@@ -17,7 +17,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | Type | Purpose |
 |------|---------|
 | `markdown` | Rich markdown with rendered preview |
-| `status` | Compact status indicator (phase, message, elapsed time) |
+| `status` | Authored work card, or a compact phase/message status indicator |
 | `context` | Context cards, token usage, workspace grounding |
 | `ledger` | Execution ledger summary |
 | `trace` | Agent trace pills (tool calls, subagent activity) |
@@ -32,7 +32,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `html` | Self-contained HTML/JS in a sandboxed iframe |
 | `web-artifact` | Bundled React/Tailwind artifact (full single-file app) |
 | `group` | Spatial container/frame around other nodes |
-| `board` | Text-only link to another board, with its README summary and navigation |
+| `board` | Lightweight thumbnail link to another board, with its README summary and navigation |
 
 Creation applies per-type frame defaults and readability minimums. When a
 dimension is defaulted or clamped, HTTP and MCP create responses include a
@@ -47,6 +47,53 @@ response warns about the distinction.
 
 Thread node types `prompt` and `response` exist internally for agent
 conversation rendering and are not created through public APIs.
+
+## Work cards
+
+Choose **New work card** in the canvas background menu, then **Edit** inside the card.
+Title, work state, detail and optional progress save together. Cancel (or Escape inside
+the form) discards the draft. Editing grows the card locally without resizing its saved
+frame. A refused or stale save keeps the draft; Cancel returns to the latest saved state.
+Drafts, refused saves and pending saves survive opening and closing focus mode in the
+same browser tab. Unsaved drafts are not persisted across a page reload.
+
+Agents use ordinary status-node creation/update with `data.workState`: `todo`,
+`in-progress`, `blocked`, `done` or `cancelled`. `data.detail` is a string;
+`data.progress` is an optional number from 0 to 100, or `null` to clear it.
+State and progress are independent: Done does not invent 100%.
+
+```json
+{"type":"status","title":"3. Verify","data":{"workState":"in-progress","detail":"Run the browser checks.","progress":60}}
+```
+
+These are deliberately authored plans, not a task feed. They create no session, task,
+approval or execution. Connect them with existing relations, including intentional loops.
+Status nodes without `workState` or `workItemId` keep their existing phase/tool display.
+
+### Read-only live task cards
+
+Choose **Show on board** on a session task row to present that existing task. **Show card**
+focuses its existing presentation. No task or session automatically creates a card.
+Agents use ordinary status creation with `data: { workItemId: "<existing-task-id>" }` on
+the active board. The immutable reference includes `workItemBoardId`, defaulting to the
+active board. Moving the presentation to another board preserves that original task owner;
+an ordinary planning card cannot be converted by patching it.
+
+Title, detail, work state and attribution are derived from the task record, not independently
+editable card fields. Do not supply those fields or progress when creating a live card.
+The persisted display cache is refreshed on task changes, Undo and reload. Update the task
+through the existing work-item API, not a card PATCH. Geometry, pins and relations remain editable.
+Ending a session preserves its task cards; removing a card does not cancel the task.
+A missing task displays **Task unavailable**, never an actionable control. Static exports
+label live cards as read-only snapshots. No progress percentage or approval controls are added.
+Selective board copies become independent authored work cards, without a task reference or task attribution.
+
+## Shared node behavior
+
+The spatial board and its content scale proportionally at every zoom, without
+switching layouts. Iframe previews mount automatically near the viewport and
+remain mounted to preserve arbitrary app state. There is no lifetime preview cap;
+memory use grows with the viewers visited. Board links and Mermaid render inline.
 
 Full node reads expose server-owned `createdBy`, `lastEditedBy`, and
 `contentRevision`. Authors distinguish human, agent, system, and unknown;
@@ -70,6 +117,24 @@ that fits the work — each step adds capability and bundle weight.
 | 1 | `json-render` | You can describe the UI as a spec (forms, tables, dashboards from a component catalog) | None — runtime already loaded |
 | 2 | `html` | You have/can write self-contained HTML+JS (Chart.js, D3, custom widgets, interactive demos) | None — sandboxed iframe |
 | 3 | `web-artifact` | You need a full React/Tailwind app with shadcn components, routing, or shared state | Build step |
+
+## Markdown tasks
+
+Use **Display as heading** in a Markdown card's context menu for a frameless section
+label. Its title becomes the heading and its content remains below it. **Display as card**
+restores the frame; this does not change the content or context pins. Agents can set
+`data.display` to `"heading"` or `"card"` through ordinary node creation or updates.
+**Set as README** in the card's ⋯ menu designates the board's existing README field;
+the current README instead offers **Remove as README** to clear it. A quiet **README**
+word stays visible in the designated card's header, including heading display.
+**Edit** stays visible below ordinary Markdown. Heading display has no footer.
+
+Tick a task directly on its card, including quoted and nested tasks. A card click changes
+only that task's `[ ]` or `[x]` marker, preserving the rest of the source exactly.
+Task-shaped text in code examples and raw HTML checkboxes are not Markdown task controls.
+
+Expand a Markdown card to read and edit the full document. Source stays outside the
+scrolling text, below ordinary documents and above documents with flow actions.
 
 ## File nodes
 
@@ -109,6 +174,9 @@ different type by extension:
   log can never exhaust memory.
 
 ## Mermaid nodes
+
+Diagrams render inline with the canvas palette, rather than in an iframe. Invalid
+source shows a visible error and **Retry**. Native WebKit hosts remain best-effort.
 
 Mermaid diagrams default to `data.fit: "contain"`: when the diagram overflows
 the available body, it shrinks uniformly until the entire diagram fits. Small
@@ -206,6 +274,12 @@ For any other MCP App, call `canvas_app { action: "open-mcp-app" }` directly
 with the server's transport, tool name, and arguments.
 
 ## json-render nodes
+
+Embedded dashboards and charts inherit all nine named canvas themes. Their root
+card fills the viewer without an extra panel or shadow. A root title identical to
+the canvas card title is hidden; distinct authored titles and descriptions remain.
+Theme changes preserve viewer-local inputs. A failed replacement keeps the last
+painted document and offers **Retry** instead of repeatedly reloading it.
 
 `json-render` nodes turn structured JSON specs into rendered UI panels
 (dashboards, tables, forms, cards) without writing HTML. PMX Canvas ships the
@@ -363,6 +437,10 @@ Fitting waits for local or remote human grabs to end. A growing ungrouped,
 screen-unpinned card moves downward if needed to leave a 24px gap from neighboring
 cards, without moving those neighbors. A relocation records one undo step for
 both size and position; height-only adjustments do not add undo entries.
+Repeated measurements from the same document do not reverse Undo or a smaller
+height set by another writer. Changed content dimensions, width or chrome can
+fit again. Replacing or reopening the viewer starts a fresh measurement, so this
+suppression does not survive reload, collapse/reopen or a board switch.
 Grouped or screen-pinned cards retain their positions. Collapsed cards and cards
 marked `strictSize` or `userResized` are not automatically resized. Hosted MCP
 apps and webpage viewers do not use this authored-content fitting behavior.
@@ -370,6 +448,22 @@ apps and webpage viewers do not use this authored-content fitting behavior.
 Read the settled node geometry after mounting rather than treating requested
 dimensions as final. Prefer targeted node reads or the CLI's projected layout
 fields over fetching full content merely to check spacing.
+
+### Move original cards between boards
+
+Use **Move to new board** from the selection bar or a group's **⋯** menu. Name the
+destination, preview the expanded selection and its pins/README/history effects, then
+choose **Move and open**. Groups include all descendants. The source receives a working
+portal; the destination contains the same card identities, not copies. A late reply never
+overrides a newer board choice. If the reply is interrupted, **Retry move** reuses the same
+request without creating a duplicate destination.
+
+Save or cancel local drafts first. Runtime sessions, streams, authority-bearing controls,
+partial imports and unsupported cross-board references can refuse the whole move with a
+reason. Read-only live task cards keep their original owner; moving never starts or cancels
+a task. Board-space annotations stay on the source. Pre-move Undo/Redo clears on affected
+boards; older snapshots remain inspectable, but cannot restore across that boundary.
+See the [move contract](http-api.md#move-original-cards-to-a-new-board) for agent access.
 
 ## HTML nodes
 
@@ -421,6 +515,14 @@ review sheet, PR writeup, code walkthrough, system map, design sheet,
 component gallery, interaction prototype, flowchart, SVG illustration set,
 presentation, explainer, status report, incident report, triage board, config
 editor, or prompt tuner.
+
+The card's ⋯ menu offers **Copy JSON** for primitives with JSON export (all except
+the custom `presentation` template). It copies the mounted document's current
+state, including interactive edits, rather than the original server data.
+Open the viewer first; unavailable/reloading content or denied clipboard access
+shows a failure message. Copy prompt and the shared inner-header copy buttons are
+removed. Primitive-specific actions such as Copy diff and Copy SVG remain.
+Ordinary HTML nodes do not receive this menu item.
 
 Omitted fields may use the template's examples. Explicit empty arrays, empty
 strings, or `null` mean “show nothing”: the field's section, heading, and
@@ -526,6 +628,10 @@ as dashed-border frames with a title bar and optional accent color.
   its children stay as independent nodes (one undo step); `canvas_group { action: "ungroup" }`
   does exactly the same
 - Collapsing a group hides children and shows a summary
+- **Open group** in the frame menu, or Enter on the focused frame, drills into its
+  original cards. Breadcrumbs and Escape restore the parent camera and selection.
+  Outside-link stubs navigate to the actual cards. This view creates no boards or
+  copies and does not change context pins or what agents can read.
 - By default, group creation preserves the children's current positions and
   expands the frame around them
 - Pass `childLayout` to auto-pack children (`grid`, `column`, `flow`)
@@ -539,6 +645,14 @@ canvas_group({ action: 'create', title: 'Auth Module', childIds: ['node-1', 'nod
 ## Edge types
 
 All edges support labels, styles (solid/dashed/dotted), and animation.
+
+Select an edge to edit its kind, label or reason inline, or delete it. Parallel
+links show their pair count. Dependency counts report cyclic clusters and cards
+affected downstream of the selected cards; `loop` and `if-fails` remain inert flow
+illustrations. Qualified dependency/source warnings carry a separate amber mark.
+In a card's Relations panel, **Show lineage** highlights its local dependency and
+derivation component; **Show on canvas** highlights its direct connections. Remote
+targets remain accessible through their named references.
 
 Native edges optionally carry `toBoardId`: `from` belongs to the open source
 board and `to` identifies a card on that target board. These connections appear

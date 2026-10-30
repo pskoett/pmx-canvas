@@ -1,0 +1,1 @@
+import{e}from"./index-nwsya6dj.js";import"./index-v119nznk.js";import"./index-y9ma6azy.js";import{Rr,Ri,et,Ir}from"./index-037z5dz2.js";import"./index-h9ycj8n2.js";import"./index-nz8qbd1p.js";var k={parser:Rr,get db(){return new et(2)},renderer:Ri,styles:Ir,init:e((t)=>{if(!t.state)t.state={};t.state.arrowMarkerAbsolute=t.arrowMarkerAbsolute},"init")};export{k as diagram};

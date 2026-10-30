@@ -1,7 +1,6 @@
 import { canvasArea, canvasFitInsets } from '../canvas/canvas-area';
 import { showToast } from './attention-bridge';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
-import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 import { addEdge, canvasInteractionEpoch, nodes } from './canvas-store';
 import { activeBoardId, boardsLoaded } from './boards-store';
@@ -251,6 +250,7 @@ export async function pushCanvasUpdate(
     position?: { x: number; y: number };
     size?: { width: number; height: number };
     collapsed?: boolean;
+    zIndex?: number;
   }>,
   options: { recordHistory?: boolean } = {},
 ): Promise<void> {
@@ -300,11 +300,13 @@ export async function createNodeFromClient(opts: {
   type?: string;
   title?: string;
   content?: string;
+  data?: Record<string, unknown>;
   x?: number;
   y?: number;
   width?: number;
   height?: number;
   boardId?: string;
+  expectedBoardId?: string;
 }): Promise<{ ok: boolean; id?: string }> {
   return requestJson(
     'createNodeFromClient',
@@ -399,11 +401,6 @@ export interface AxInteractionResponse {
 /** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
 export async function fetchAxSurfaceState(): Promise<unknown> {
   return requestJson<unknown>('fetchAxSurfaceState', '/api/canvas/ax/surface-snapshot', null);
-}
-
-/** Connect-time agent-presence read; live updates arrive as `agent-presence` SSE frames. */
-export async function fetchAgentPresence(): Promise<Partial<AgentPresenceSnapshot> | null> {
-  return requestJson<Partial<AgentPresenceSnapshot> | null>('fetchAgentPresence', '/api/canvas/ax/presence', null);
 }
 
 /** Ask the server to open a node's surface in the system browser. */
@@ -617,6 +614,7 @@ export async function updateEdgeFromClient(
     style?: string;
     animated?: boolean;
   },
+  expectedBoardId = activeBoardId.value,
 ): Promise<{ ok: boolean }> {
   return requestJson(
     'updateEdgeFromClient',
@@ -625,13 +623,16 @@ export async function updateEdgeFromClient(
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, expectedBoardId }),
     },
   );
 }
 
 /** Remove a canvas edge via the server. */
-export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
+export async function removeEdgeFromClient(
+  edgeId: string,
+  expectedBoardId = activeBoardId.value,
+): Promise<{ ok: boolean }> {
   return requestJson(
     'removeEdgeFromClient',
     '/api/canvas/edge',
@@ -639,7 +640,7 @@ export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolea
     {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ edge_id: edgeId }),
+      body: JSON.stringify({ edge_id: edgeId, expectedBoardId }),
     },
   );
 }

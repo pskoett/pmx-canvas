@@ -1,4 +1,3 @@
-import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import type { CanvasNodeState } from '../types';
 /**
  * Per-tab identity: an AGENT driving the workbench UI from its own pane opens
@@ -77,6 +76,7 @@ export declare function pushCanvasUpdate(updates: Array<{
         height: number;
     };
     collapsed?: boolean;
+    zIndex?: number;
 }>, options?: {
     recordHistory?: boolean;
 }): Promise<void>;
@@ -93,11 +93,13 @@ export declare function createNodeFromClient(opts: {
     type?: string;
     title?: string;
     content?: string;
+    data?: Record<string, unknown>;
     x?: number;
     y?: number;
     width?: number;
     height?: number;
     boardId?: string;
+    expectedBoardId?: string;
 }): Promise<{
     ok: boolean;
     id?: string;
@@ -156,8 +158,6 @@ export interface AxInteractionResponse {
 }
 /** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
 export declare function fetchAxSurfaceState(): Promise<unknown>;
-/** Connect-time agent-presence read; live updates arrive as `agent-presence` SSE frames. */
-export declare function fetchAgentPresence(): Promise<Partial<AgentPresenceSnapshot> | null>;
 /** Ask the server to open a node's surface in the system browser. */
 export declare function openNodeInSystemBrowserRequest(nodeId: string, url?: string): Promise<{
     ok: boolean;
@@ -239,10 +239,10 @@ export declare function updateEdgeFromClient(edgeId: string, patch: {
     type?: string;
     style?: string;
     animated?: boolean;
-}): Promise<{
+}, expectedBoardId?: string | null): Promise<{
     ok: boolean;
 }>;
 /** Remove a canvas edge via the server. */
-export declare function removeEdgeFromClient(edgeId: string): Promise<{
+export declare function removeEdgeFromClient(edgeId: string, expectedBoardId?: string | null): Promise<{
     ok: boolean;
 }>;

@@ -7,12 +7,6 @@ export const AUTO_FIT_MAX_HEIGHT = 600;
 // Iframe surfaces (charts/dashboards/rich html) can legitimately need more room
 // than a text node, so they grow to a higher ceiling before scrolling.
 export const AUTO_FIT_MAX_HEIGHT_IFRAME = 1400;
-// `.node-body` adds 12px padding top+bottom around an iframe surface (global.css).
-// The bridge reports the iframe's OWN document scrollHeight, so the grow target
-// must add titlebar + this body padding or the node settles ~24px short and the
-// surface shows a residual inner scrollbar. (The DOM auto-fit above doesn't need
-// this: body.scrollHeight already includes the body's padding.)
-export const AUTO_FIT_BODY_PADDING = 24;
 
 /** Node types the DOM auto-fit can't measure: iframe-backed surfaces (html/
  *  json-render/graph/mcp-app), where the body's scrollHeight equals the iframe
@@ -77,13 +71,17 @@ export function shouldContentFitIframeNode(node: CanvasNodeState): boolean {
 /**
  * Grow-only target height from a surface-reported content height. Returns null
  * when the node is exempt, the report is non-positive, or the node already fits
- * (so it never shrinks — monotonic growth can't oscillate). Adds the titlebar +
- * node-body padding so the content fully clears (no residual inner scrollbar),
- * capped at the iframe ceiling.
+ * (so it never shrinks). Callers measure the actual chrome in world pixels,
+ * including zoom-compensated headers and any captions. A fixed padding allowance
+ * makes a full-height viewer grow again on every content-height report.
  */
-export function computeContentGrowHeight(node: CanvasNodeState, contentHeight: number): number | null {
+export function computeContentGrowHeight(
+  node: CanvasNodeState,
+  contentHeight: number,
+  chromeHeight: number,
+): number | null {
   if (!shouldContentFitIframeNode(node) || !Number.isFinite(contentHeight) || contentHeight <= 0) return null;
-  const want = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT + AUTO_FIT_BODY_PADDING, AUTO_FIT_MAX_HEIGHT_IFRAME);
+  const want = Math.min(Math.ceil(contentHeight + chromeHeight), AUTO_FIT_MAX_HEIGHT_IFRAME);
   return want > node.size.height + 8 ? want : null;
 }
 

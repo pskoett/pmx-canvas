@@ -2,11 +2,11 @@
  *
  *  Two persistence signals:
  *  - `onChange(md)` — fires on every input. Caller typically debounces.
- *  - `onSave(md)`  — fires on ⌘S and blur. Caller should persist immediately
+ *  - `onSave(md)`  — fires on ⌘S and blur. Caller should persist dirty drafts immediately
  *    and cancel any pending debounced save, since `md` is the authoritative
- *    latest content. Both receive freshly-serialized markdown so the caller
- *    never reads a stale state snapshot. */
-export declare function InlineMarkdownEditor({ initialHtml, className, onChange, onSave, }: {
+ *    latest content: the exact caller draft until input, serialized DOM after it. */
+export declare function InlineMarkdownEditor({ markdown, initialHtml, className, onChange, onSave, }: {
+    markdown: string;
     initialHtml: string;
     className?: string;
     onChange: (markdown: string) => void;

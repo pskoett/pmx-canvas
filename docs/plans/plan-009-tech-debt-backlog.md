@@ -72,7 +72,7 @@ The remaining items were re-analyzed with pros/cons and tiered; the maintainer a
 |---|---|
 | Windows web-artifacts | The artifact build pipeline is bash-script-backed (POSIX-only); `tests/unit/web-artifacts.test.ts` self-skips on win32 and docs now state the boundary. Decide: port the build scripts to a cross-platform runner, or keep the documented "build on POSIX, render anywhere" stance. |
 | Composite parity no longer machine-checked | Since v0.3.0 removed the legacy standalones, the byte-identical composite-vs-legacy guarantee has no head-to-head test — regressions in `buildInput`/`formatResult` reuse surface only via output-shape assertions. Accepted at review; revisit if a composite drifts. |
-| Portal-layer ext-app mount (contingency) | If the maintainer sets the WebKit UX bar at "never any visible gap", inline ext-app iframes must render outside the world transform — an architectural change that reopens the parked M3. 0.4.1 shipped the cheaper mimic (post-settle WebKit repaint nudge, `repaint-nudge` trail event) and the 0.4.1 Copilot report confirms the nudge RUNS but residual black tiles still appear (Diamond on first-load settle, Ellipse after restart settle) — the contingency's trigger condition is now met. 0.4.3 Codex hardens the evidence: three ready tiles blank in WebKit with **byte-identical** early/late screenshots while the recovery trail reported initialized/settled — DOM-level recovery completion does not prove compositor paint, so no DOM-side nudge can close this. This portal-layer mount is the designated next Finding N step; scope it as its own project (drag/zoom sync, z-order, clipping, minimap interplay), not a patch-release bolt-on. |
+| Native ext-app paint (Finding N) | **Native acceptance open:** the maintainer rejected CSS zoom after it broke iframe layout and paint in WebKit. The original proportional world transform is restored. A separate portal also failed stacking, input and presentation. The shared loading owner replaces the old recovery ladder, but DOM readiness does not establish native WKWebView compositor health. See [the implementation decision](../design.md#011-implementation-notes). |
 
 ## Added post-0.4.0 (2026-08-04 report cycle)
 
@@ -123,8 +123,8 @@ Logs: `/tmp/pmx-w3-debt-baseline.zPoaEM/log` and `/tmp/pmx-w3-debt-after.iXN2fq/
 | Priority / boundary | Evidence and disposition |
 |---|---|
 | Before larger-library scaling | `lifecycle-status.ts` reads every board and each card's full review history even for one-card requests. `KnowledgeSync` reloads workspace qualifications after board changes. Bound narrow reads to the dependency closure, batch/index review summaries, and separate folder aggregates from card detail when scaling this path. Measure populated review histories and long dependency chains as well as empty history. Avoid a TTL cache: cadence, sessions, retirement and source changes have different invalidation clocks. |
-| Wave 4, frame host | `ExtAppFrame.tsx` still owns 1,597 lines of bridge/recovery behavior. Consolidate mount budget, theme delivery and visible fallback with the planned frame host, preserving working draft/refresh behavior. Do not start another recovery ladder or infer native WebKit paint from Chromium tests. |
-| Wave 5, groups and agent output | Keep board-qualified relation/provenance identities when moving cards into or out of a board. Review records currently outlive snapshots and are keyed by board + card; define their move semantics before adding make-board/inline-board. Do not clone validation as if a new claim had been checked. |
+| Wave 4, frame host | **Implemented locally in the 0.11 candidate:** `ViewerHost` owns preview admission and `RefreshingViewerFrame` owns loading, painted replacement and Retry. `ExtAppFrame` is the protocol adapter, without its former recovery ladder. Draft/refresh, stacking and gesture regressions are covered. Native WebKit acceptance and the self-contained MCP document's additional Mermaid bytes remain explicit limits, not a second deferred recovery implementation. |
+| Wave 5, groups and work planning | **Scope revised 2026-10-27:** only Move to new board, leaving a portal; no reverse move. Keep board-qualified relation/provenance identities and audit access across the move. Review records outlive snapshots and are keyed by board + card; [plan 020](plan-020-wave-5-work-planning.md) requires atomic persistence/retries, an explicit Undo/snapshot boundary and runtime-binding checks. A move never renews validation. Ordinary planning cards do not require session records. |
 | Journal and shared/hosted stages | The due evaluator still reads the local `canvasState` singleton. Separate runtime acquisition from qualification when a second runtime needs it, not by speculative package splitting now. Filter authorized sources before summaries, titles and lifecycle reasons are computed. Categories are not permissions. Keep validation audit distinct from an undoable content journal and finish the authoritative mutation-path decision before event sourcing. |
 | Test maintenance | Large integration files remain (`server-api.test.ts`, `canvas.pw.ts`). Split by owning domain when those domains next change, preserving isolation and race cases. Do not replace human browser or real transport checks with source-string assertions to make the suite cheaper. |
 
@@ -356,3 +356,118 @@ reuse conflicts. New ids preserve intentional identical creations. Regression te
 restart, removal, rollback at receipt failure, endpoint clocks and named batch references.
 Receipts survive individual node deletion but are deleted with the owning board. Existing
 named batch edge/group references already worked and remain a passing control.
+
+### WI-09, high: many cross-board reference footers obstruct Markdown body links
+
+**Status:** reproduced with disposable synthetic cards and fixed after the
+completed review of pushed
+[`706f989b`](https://github.com/pskoett/pmx-canvas/commit/706f989befcc2277bfbf607598040c59cb5a80c7).
+The unchanged implementation failed the body-link hit test. One bounded, focusable
+scroll region now retains all reference rows without covering the document or actions.
+This is separate from WI-03's fixed group lifecycle footer.
+
+A strict-size 640 × 480 Markdown index card with 103 outgoing cross-board references
+rendered reference rows over its body. A real pointer click on a rendered Markdown link
+was intercepted by `div.node-memory-link`. The source thread inspected its screenshot at
+`.amp/in/artifacts/knowledge-rerun/reference-footer-overflow.png`. That evidence remains in
+the [source thread's workspace](https://ampcode.com/threads/T-01a14f43-f513-7397-8ec4-f6a85551dff0),
+not this checkout; do not publish private import content.
+
+The synthetic reproduction confirmed that every outgoing remote edge became a
+nonshrinking `.node-memory-link` row inside `.node-body`. The wrapper now caps the
+list at 40% of the body and 132 world pixels. Wheel and navigation keys scroll that
+region rather than the canvas. The design source and contract are updated together.
+Browser checks cover body-link hit testing, actions, all 103 references and navigation;
+the nine-theme, 600/1024/1920 px matrix also passes. WI-11 separately fixes untouched
+expanded Markdown source preservation rather than treating focus mode as a workaround.
+
+Independent acceptance on the frozen 13-file candidate also passes actual source stdio
+MCP, headed browser and restart checks. All 103 rows remain reachable in the 132 px
+scroll region. The full local browser run remains 312/313; the unchanged failing
+external-steering case and three affected/control cases pass in isolation. This split
+evidence is not an entirely green full-suite run.
+
+After integrating the right-click/pan change and updated import skills, the combined
+build, typecheck, 1,484 unit tests, 318 client tests and 20 targeted headed checks pass.
+The browser run repeats ten affected/control scenarios twice, not the full suite.
+A fresh source stdio MCP/browser fixture retains all 103 references in a 132 px region
+with hit-testable body links at desktop and 600 px. Exact Markdown and revision 1 survive
+read-only expanded navigation and an actual disposable-daemon restart. The served bundle
+matches the rebuilt distribution; screenshots and a pointer recording were inspected.
+
+**Acceptance:** create a fictional 640 × 480 Markdown card with roughly 100 remote
+references, including a body link. Assert that the body link remains hit-testable and a
+real pointer click navigates correctly, without enlarging the card to hide the defect.
+Keep references accessible and verify the destination card is visible. Retain an expanded
+focus-mode control and test independently of lifecycle warnings.
+
+The source assessment also reports 508 background static card creations plus background
+groups/edges across 38 boards, 518 Markdown cards, seven byte-identical images and 783
+rendered internal anchors, with no validation collisions. These are corpus-specific
+observations from the source thread, not a local rerun or a claim that all UI/loading
+friction is cleared.
+
+### WI-10, documentation: import skill guidance lags delivered path and destination behavior
+
+**Status:** fixed in the bundled `skills/pmx-canvas/SKILL.md` and
+`skills/pmx-canvas/references/importing-context.md` after explicit owner approval.
+The two files were checked against the current HTTP/MCP contracts and image-path
+implementation. Bundled-skill checks pass. No installed copies or pipeline skills
+were changed.
+
+The source thread found launch-directory relative-image resolution and foreground-only
+creation guidance. The refresh documents workspace-root-relative image paths and
+background static card/group/edge creation using
+`destinationBoardId`, while retaining active-board stale guards, retry identities and the
+documented runtime/intents/background-update restrictions. This describes the bundled
+source, not every installed copy, and does not advertise general inactive-board CRUD.
+
+The update also documents intersecting `boardId`/`folder` search filters, opening a
+suitable board when Home is active, and placing task/item content before retained
+ancestor/source context. This layout advice applies to folders, repositories and
+documents generally, not only one source corpus. Library discovery and background static
+creation do not require leaving Home. The main skill's existing oversized-body issue is
+not resolved by this scoped contract refresh.
+
+### WI-11, high: expanded Markdown link navigation rewrites untouched source
+
+**Status:** independently reproduced here with fictional Markdown, then fixed.
+The original implementation failed exact-content/revision checks after read-only link
+navigation. Untouched rich editors now flush the exact caller draft, and unchanged
+clean drafts do not persist. Actual rich edits still serialize and finish before
+navigation, including pending drafts carried from Source mode.
+
+Expanding a Markdown card and following a wiki link without typing changed its persisted
+source from 32,873 to 33,160 characters. The reported differences include `- ` becoming
+`-   `, normalized table delimiter spacing and removal of the trailing newline. A full
+post-restart comparison detected the changes, but the browser had already saved the
+normalized source before restart. This is an unintended write during navigation, not
+restart-related persistence loss.
+
+The [source thread](https://ampcode.com/threads/T-01a14f43-f513-7397-8ec4-f6a85551dff0)
+reports `browser-mutated-state.json` in its sibling fresh workspace and an inspected
+`.amp/in/artifacts/knowledge-rerun/navigation.mp4`. Those files have not been transferred
+here; preserve private source content. Only the source thread's test-created index was
+restored from its import manifest; its subsequent exact restart comparison passed.
+No original wiki or owner service was changed.
+
+The local red test confirmed the reported path: blur serialized an untouched rich DOM,
+then `handleInlineSave` marked it dirty and persisted. The disconnected/empty DOM guard
+remains. The updated editor distinguishes input from reading; a save without input uses
+the exact caller draft so a genuine pending Source-mode edit can still flush. Synthetic
+source MCP checks confirm exact content/revision after reading and a real daemon restart,
+and a separate real edit persists before link navigation. Browser regression checks also
+cover close, Ctrl+S and navigation without input. Evidence is under
+`.amp/in/artifacts/review-fixes/`; native-host and published-package checks are not claimed.
+
+Independent acceptance on the exact candidate confirms byte-identical Markdown and
+revision 1 after no-input close, Ctrl+S, body/expanded wiki navigation and daemon restart.
+A genuine heading edit persists before navigation and advances the revision. Its
+318 client tests and four isolated headed browser cases pass; the full-run qualification
+recorded under WI-09 remains unchanged.
+
+**Acceptance:** use fictional Markdown containing list spacing, a table, a trailing newline
+and an internal link. Mount/expand and follow that link without input; assert exact source
+content and `contentRevision` remain unchanged before and after navigation/restart. In a
+separate control, make a real edit and immediately follow the link; the edit must persist
+before navigation. Do not fix the unintended write by dropping genuine pending saves.

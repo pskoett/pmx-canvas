@@ -21,12 +21,12 @@
   /* ── Core palette (dark · ink + cyan) ────────────────────── */
   --c-bg: #081524;
   --c-panel: #0f1d31;
-  --c-panel-soft: #0a1729;
+  --c-panel-soft: #13243b;
   --c-line: #1b2c44;
   --c-text: #e6eef7;
-  --c-text-soft: #c7d3ea;
+  --c-text-soft: #b9c6d6;
   --c-muted: #8ea3bd;
-  --c-dim: #5c6b80;
+  --c-dim: #6b7d94;
   --c-accent: #4BBCFF;
   --c-ok: #2fd07f;
   --c-warn: #f4c542;
@@ -46,13 +46,13 @@
   /* Common aliases authored HTML might use. */
   --color-bg: #081524;
   --color-panel: #0f1d31;
-  --color-surface: #0a1729;
+  --color-surface: #13243b;
   --color-border: #1b2c44;
   --color-text: #e6eef7;
   --color-text-primary: #e6eef7;
-  --color-text-secondary: #c7d3ea;
+  --color-text-secondary: #b9c6d6;
   --color-text-muted: #8ea3bd;
-  --color-text-dim: #5c6b80;
+  --color-text-dim: #6b7d94;
   --color-accent: #4BBCFF;
   --color-success: #2fd07f;
   --color-warning: #f4c542;

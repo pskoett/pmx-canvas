@@ -20,9 +20,11 @@ import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import type { BoardMovePreview } from '../../src/server/board-move.ts';
 import { createCanvas, type PmxCanvas } from '../../src/server/index.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import type { AgentPresenceSnapshot } from '../../src/shared/agent-presence.ts';
 import {
   createTestWorkspace,
   getAvailablePort,
@@ -168,7 +170,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
-    expect(response.ok).toBe(true);
+    expect(response.ok, response.ok ? undefined : await response.clone().text()).toBe(true);
     return (await response.json()) as T;
   }
 
@@ -264,7 +266,228 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     mutationHistory.reset();
   });
 
+  test('SDK annotations honor the shared scope fence and cannot overwrite another mark', async () => {
+    const node = await httpAddNode({ type: 'markdown', x: 100, y: 100, width: 300, height: 200 });
+    const outside = {
+      id: 'outside-ink',
+      points: [
+        { x: 900, y: 700 },
+        { x: 950, y: 720 },
+      ],
+    };
+    await sdk.addAnnotation(outside);
+    await expect(sdk.addAnnotation({ ...outside, label: 'overwrite' })).rejects.toThrow('different content');
+    await jsonRequest('/api/canvas/ax/policy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+      body: JSON.stringify({ scope: { nodeIds: [node.id], padding: 0 } }),
+    });
+    try {
+      await expect(sdk.addAnnotation({ ...outside, id: 'new-outside' })).rejects.toThrow('Outside the agent scope');
+      await expect(sdk.removeAnnotation(outside.id)).rejects.toThrow('Outside the agent scope');
+      await sdk.addAnnotation({
+        id: 'inside',
+        points: [
+          { x: 130, y: 140 },
+          { x: 190, y: 180 },
+        ],
+      });
+      expect(await sdk.removeAnnotation('inside')).toBe(true);
+      expect(canvasState.getAnnotations().map((mark) => mark.id)).toEqual(['outside-ink']);
+    } finally {
+      await jsonRequest('/api/canvas/ax/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+        body: JSON.stringify({ scope: null }),
+      });
+    }
+    expect(await sdk.removeAnnotation(outside.id)).toBe(true);
+    await expect(sdk.removeAnnotation(outside.id)).rejects.toThrow('not found');
+  });
+
+  test('annotation batches preserve the writer territory for creation and erasing', async () => {
+    const node = await httpAddNode({ type: 'markdown', x: 100, y: 100, width: 300, height: 200 });
+    const points = [
+      { x: 900, y: 700 },
+      { x: 950, y: 720 },
+    ];
+    await sdk.addAnnotation({ id: 'outside', points });
+    const policyHeaders = { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' };
+    const headers = { 'Content-Type': 'application/json', 'X-PMX-Source': 'cli' };
+    for (const writer of ['cli', 'named-worker']) {
+      const identity = writer === 'cli' ? {} : { agentId: writer };
+      await jsonRequest('/api/canvas/ax/policy', {
+        method: 'POST',
+        headers: policyHeaders,
+        body: JSON.stringify({ scope: null, agentScopes: { [writer]: { nodeIds: [node.id], padding: 0 } } }),
+      });
+      try {
+        const direct = await fetch(`${baseUrl}/api/canvas/annotation`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ id: 'refused', points, ...identity }),
+        });
+        expect(direct.status).toBe(403);
+        for (const entry of [
+          { op: 'annotation.add', args: { id: 'refused', points } },
+          { op: 'annotation.remove', args: { id: 'outside' } },
+        ]) {
+          const batch = await fetch(`${baseUrl}/api/canvas/batch`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ operations: [entry], ...identity }),
+          });
+          expect(batch.status).toBe(400);
+          expect(await batch.json()).toMatchObject({
+            ok: false,
+            failedIndex: 0,
+            error: expect.stringContaining('territory'),
+          });
+        }
+        const allowed = await jsonRequest<{ ok: boolean }>('/api/canvas/batch', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ...identity,
+            operations: [
+              {
+                op: 'annotation.add',
+                args: {
+                  id: 'inside',
+                  points: [
+                    { x: 130, y: 140 },
+                    { x: 190, y: 180 },
+                  ],
+                },
+              },
+              { op: 'annotation.remove', args: { id: 'inside' } },
+            ],
+          }),
+        });
+        expect(allowed.ok).toBe(true);
+        expect(canvasState.getAnnotations().map((mark) => mark.id)).toEqual(['outside']);
+      } finally {
+        await jsonRequest('/api/canvas/ax/policy', {
+          method: 'POST',
+          headers: policyHeaders,
+          body: JSON.stringify({ agentScopes: { [writer]: null } }),
+        });
+      }
+    }
+  });
+
   for (const surface of ['HTTP', 'MCP', 'CLI', 'SDK'] as const) {
+    test(`annotations: ${surface} shares ink, retries and Undo with human writes`, async () => {
+      const input = {
+        id: `ink-${surface}`,
+        points: [
+          { x: -20, y: 45 },
+          { x: 70, y: 130 },
+        ],
+        label: 'Check this path',
+      };
+      const add = async (payload: Parameters<PmxCanvas['addAnnotation']>[0] = input) => {
+        if (surface === 'SDK') return sdk.addAnnotation(payload);
+        if (surface === 'HTTP')
+          return jsonRequest('/api/canvas/annotation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        if (surface === 'CLI') {
+          const result = await runCliJson<{ ok: boolean }>([
+            'batch',
+            '--json',
+            JSON.stringify([{ op: 'annotation.add', args: payload }]),
+          ]);
+          expect(result.ok).toBe(true);
+          return;
+        }
+        expect((await callMcp('canvas_view', { action: 'add-annotation', ...payload })).isError ?? false).toBe(false);
+      };
+      await add();
+      const ink = canvasState.getAnnotations()[0];
+      expect(ink).toMatchObject({
+        ...input,
+        type: 'freehand',
+        color: 'currentColor',
+        width: 4,
+        bounds: { x: -20, y: 45, width: 90, height: 85 },
+      });
+      const history = mutationHistory.getSummaries();
+      await add({ ...input, label: '  Check this path  ', width: 4, color: 'currentColor' });
+      expect(mutationHistory.getSummaries()).toEqual(history);
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+      await sdk.undo();
+      expect(canvasState.getAnnotations()).toEqual([]);
+      await sdk.redo();
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+
+      const other = await httpAddNode({ type: 'markdown', title: 'Keep my redo' });
+      await sdk.undo();
+      await add();
+      await sdk.redo();
+      expect((await fetchNodeView(other.id)).title).toBe('Keep my redo');
+
+      // A retry ID is not permission to replace a human's existing mark.
+      const conflict = await fetch(`${baseUrl}/api/canvas/annotation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...input,
+          points: [
+            { x: 100, y: 200 },
+            { x: 400, y: 500 },
+          ],
+        }),
+      });
+      expect(conflict.status).toBe(409);
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+
+      await add({ id: 'agent-question', type: 'text', points: [{ x: 40, y: 75 }], text: 'Which option?', width: 20 });
+      expect(canvasState.getAnnotations()[1]).toMatchObject({
+        id: 'agent-question',
+        type: 'text',
+        text: 'Which option?',
+        width: 20,
+        bounds: { x: 40, y: 55, width: 161.2, height: 24 },
+      });
+      await jsonRequest('/api/canvas/annotation/agent-question', {
+        method: 'DELETE',
+        headers: { 'X-PMX-Workbench': '1' },
+      });
+
+      await jsonRequest('/api/canvas/annotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+        body: JSON.stringify({
+          id: 'human-reply',
+          type: 'text',
+          points: [{ x: 200, y: 90 }],
+          label: 'Reply',
+          text: 'Use option B',
+        }),
+      });
+      const read = parseJsonText<{ annotations: Array<{ id: string; text: string }> }>(
+        await callMcp('canvas_query', { action: 'layout' }),
+      );
+      expect(read.annotations).toContainEqual(expect.objectContaining({ id: 'human-reply', text: 'Use option B' }));
+      if (surface === 'SDK') await sdk.removeAnnotation('human-reply');
+      else if (surface === 'HTTP') await jsonRequest('/api/canvas/annotation/human-reply', { method: 'DELETE' });
+      else if (surface === 'CLI') {
+        const result = await runCliJson<{ ok: boolean }>([
+          'batch',
+          '--json',
+          JSON.stringify([{ op: 'annotation.remove', args: { id: 'human-reply' } }]),
+        ]);
+        expect(result.ok).toBe(true);
+      } else
+        expect(
+          (await callMcp('canvas_view', { action: 'remove-annotation', id: 'human-reply' })).isError ?? false,
+        ).toBe(false);
+      expect(canvasState.getAnnotations()).toEqual([ink]);
+    });
+
     test(`board open: ${surface} switches explicitly before writing and can return Home`, async () => {
       const original = await sdk.createBoard('Original');
       await sdk.openBoard(original.id);
@@ -371,6 +594,239 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     for (const id of ids) {
       expect(await fetchNodeView(id)).toEqual(expected);
     }
+  });
+
+  test('authored work cards share creation and validation across HTTP, MCP, CLI and SDK', async () => {
+    const data = { workState: 'blocked', detail: 'Waiting for a fixture', progress: 37.5 };
+    const http = await httpAddNode({ type: 'status', title: 'Verify', data });
+    const mcp = parseJsonText<{ id: string }>(
+      await callMcp('canvas_node', { action: 'add', type: 'status', title: 'Verify', data }),
+    );
+    const cli = await runCliJson<{ results: Array<{ id: string }> }>([
+      'batch',
+      '--json',
+      JSON.stringify([{ op: 'node.add', args: { type: 'status', title: 'Verify', data } }]),
+    ]);
+    const direct = sdk.addNode({ type: 'status', title: 'Verify', data });
+    for (const { id } of [http, mcp, cli.results[0]!, direct]) {
+      const read = await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${id}`);
+      expect(read.data).toMatchObject(data);
+    }
+    await jsonRequest(`/api/canvas/node/${http.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { workState: 'done', progress: null } }),
+    });
+    expect((await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${http.id}`)).data).toMatchObject({
+      workState: 'done',
+      detail: data.detail,
+      progress: null,
+    });
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    expect((await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${http.id}`)).data).toMatchObject(data);
+
+    for (const invalid of [
+      { workState: 'running' },
+      { workState: null },
+      { progress: -1 },
+      { progress: 101 },
+      { progress: '42' },
+      { detail: 10 },
+    ]) {
+      const response = await fetch(`${baseUrl}/api/canvas/node/${http.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: invalid }),
+      });
+      expect(response.status).toBe(400);
+      expect((await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${http.id}`)).data).toMatchObject(data);
+    }
+    expect(
+      (await callMcp('canvas_node', { action: 'add', type: 'status', data: { workState: 'running' } })).isError,
+    ).toBe(true);
+    expect(() => sdk.addNode({ type: 'status', data: { workState: 'todo', progress: Number.NaN } })).toThrow(
+      'progress',
+    );
+    expect(() => sdk.updateNode(direct.id, { data: { workState: 'invalid' } })).toThrow('workState');
+    // The existing generic status indicator does not acquire authored-work semantics.
+    expect((await httpAddNode({ type: 'status', data: { phase: 'running' } })).ok).toBe(true);
+  });
+
+  test('live work cards share a read-only task projection across transports and history', async () => {
+    const { workItem: task } = await jsonRequest<{ workItem: { id: string; title: string } }>('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Verify live work', detail: 'First evidence', agentId: 'reviewer' }),
+    });
+    expect(canvasState.getWorkItems().map((item) => item.id)).toContain(task.id);
+    const data = { workItemId: task.id };
+    const http = await httpAddNode({ type: 'status', data });
+    const mcp = parseJsonText<{ id: string }>(await callMcp('canvas_node', { action: 'add', type: 'status', data }));
+    const cli = await runCliJson<{ results: Array<{ id: string }> }>([
+      'batch',
+      '--json',
+      JSON.stringify([{ op: 'node.add', args: { type: 'status', data } }]),
+    ]);
+    const direct = sdk.addNode({ type: 'status', data });
+    const ids = [http.id, mcp.id, cli.results[0]!.id, direct.id];
+    const read = (id: string) => jsonRequest<SerializedNodeShape>(`/api/canvas/node/${id}`);
+    for (const id of ids) {
+      expect((await read(id)).data).toMatchObject({
+        ...data,
+        title: task.title,
+        workState: 'todo',
+        liveWorkSource: 'reviewer',
+      });
+      expect((await read(id)).data.progress).toBeUndefined();
+    }
+    const before = canvasState.getContentRevision().revision;
+    await jsonRequest(`/api/canvas/ax/work/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'New evidence', detail: 'Second evidence', status: 'blocked' }),
+    });
+    for (const id of ids)
+      expect((await read(id)).data).toMatchObject({
+        title: 'New evidence',
+        detail: 'Second evidence',
+        workState: 'blocked',
+      });
+    expect(
+      canvasState
+        .readContentDelta(before)
+        .nodes.map((node) => node.id)
+        .sort(),
+    ).toEqual([...ids].sort());
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    for (const id of ids) expect((await read(id)).data).toMatchObject({ title: task.title, workState: 'todo' });
+    for (const patch of [
+      { title: 'Fake' },
+      { data: { workState: 'done' } },
+      { data: { workItemId: null } },
+      { data: { progress: 50 } },
+      { data: { axWorkStatus: 'done' } },
+    ]) {
+      expect(
+        (
+          await fetch(`${baseUrl}/api/canvas/node/${http.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(() => sdk.addNode({ type: 'status', data: { workItemId: 'missing' } })).toThrow('work item');
+    expect(() => sdk.updateNode(direct.id, { data: { detail: 'Fake' } })).toThrow('read-only');
+    await jsonRequest(`/api/canvas/node/${http.id}`, { method: 'DELETE' });
+    expect(canvasState.getWorkItems()).toHaveLength(1);
+    expect(canvasState.getWorkItems()[0]!.status).toBe('todo');
+    await jsonRequest('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Unrelated task', status: 'done', nodeIds: [direct.id] }),
+    });
+    expect((await read(direct.id)).data.workState).toBe('todo');
+    expect((await read(direct.id)).data.axWorkStatus).toBeUndefined();
+    const originalBoardId = canvasState.activeBoardId;
+    const otherBoard = await sdk.createBoard('Unrelated task board');
+    await sdk.openBoard(otherBoard.id);
+    expect(canvasState.getWorkItems()).toHaveLength(0);
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+    await sdk.openBoard(originalBoardId);
+    expect((await read(direct.id)).data).toMatchObject({
+      title: task.title,
+      workState: 'todo',
+      liveWorkAvailable: true,
+      liveWorkSource: 'reviewer',
+    });
+    canvasState.applyPersistedAxState({ ...canvasState.getAxState(), workItems: [] });
+    expect((await read(direct.id)).data).toMatchObject({ title: 'Task unavailable', liveWorkAvailable: false });
+    expect((await read(direct.id)).data.workState).toBeUndefined();
+  });
+
+  test('move selection previews without side effects and replays one receipt across HTTP, SDK, MCP and CLI', async () => {
+    const card = await httpAddNode({ type: 'markdown', title: 'Relocate once', content: 'Original evidence' });
+    const sourceBoardId = canvasState.activeBoardId!;
+    const metadata = await jsonRequest<{ contentRevision: number }>(`/api/canvas/boards/${sourceBoardId}`);
+    const input = {
+      sourceBoardId,
+      nodeIds: [card.id],
+      name: 'Moved once',
+      expectedRevision: metadata.contentRevision,
+      requestId: 'parity-move',
+    };
+    const beforeCount = canvasState.listBoards().length;
+    const activity = async () => {
+      const presence = await jsonRequest<AgentPresenceSnapshot>('/api/canvas/ax/presence');
+      return {
+        writers: presence.presences.map(({ sessionId, opCount, lastSeenAt }) => ({ sessionId, opCount, lastSeenAt })),
+        activity: presence.activity,
+      };
+    };
+    const beforeActivity = await activity();
+    const http = <T>(body: unknown) =>
+      jsonRequest<T>('/api/canvas/boards/move-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const preview = await http<{ ok: true; preview: BoardMovePreview }>({
+      ...input,
+      preview: true,
+    });
+    expect(preview).toMatchObject({ ok: true, preview: { nodeIds: [card.id], blockers: [] } });
+    expect(await sdk.moveSelectionToNewBoard({ ...input, preview: true })).toEqual(preview);
+    expect(
+      parseJsonText<typeof preview>(
+        await callMcp('canvas_board', { action: 'move-selection', ...input, preview: true }),
+      ),
+    ).toEqual(preview);
+    expect(
+      await runCliJson<typeof preview>([
+        'board',
+        'move-selection',
+        sourceBoardId,
+        input.name,
+        '--nodes',
+        card.id,
+        '--revision',
+        String(input.expectedRevision),
+        '--request',
+        input.requestId,
+        '--preview',
+      ]),
+    ).toEqual(preview);
+    expect(await activity()).toEqual(beforeActivity);
+    expect(canvasState.listBoards()).toHaveLength(beforeCount);
+    const moved = await sdk.moveSelectionToNewBoard(input);
+    if (!('destinationBoardId' in moved)) throw new Error('Expected committed move');
+    expect(canvasState.activeBoardId).toBe(sourceBoardId);
+    const replay = { ...moved, replayed: true };
+    await sdk.openBoard(moved.destinationBoardId);
+    const committedActivity = await activity();
+    expect(await http<typeof replay>(input)).toEqual(replay);
+    expect(parseJsonText<typeof replay>(await callMcp('canvas_board', { action: 'move-selection', ...input }))).toEqual(
+      replay,
+    );
+    expect(
+      await runCliJson<typeof replay>([
+        'board',
+        'move-selection',
+        sourceBoardId,
+        input.name,
+        '--nodes',
+        card.id,
+        '--revision',
+        String(input.expectedRevision),
+        '--request',
+        input.requestId,
+      ]),
+    ).toEqual(replay);
+    expect(canvasState.listBoards()).toHaveLength(beforeCount + 1);
+    expect(await activity()).toEqual(committedActivity);
+    expect(canvasState.getNode(card.id)!.data.content).toBe('Original evidence');
+    expect(canvasState.activeBoardId).toBe(moved.destinationBoardId);
   });
 
   test('node get: all four surfaces return equivalent node state', async () => {

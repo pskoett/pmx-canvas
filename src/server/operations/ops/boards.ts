@@ -12,12 +12,12 @@
  *
  * This module must never import server.ts or index.ts.
  */
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { normalizeBoardFolder } from '../../../shared/boards.js';
 import { relationVocabularySchema } from '../../../shared/relations.js';
-import { canvasState, type CanvasLayout } from '../../canvas-state.js';
+import { boardCatalogEpoch, canvasState, type CanvasLayout } from '../../canvas-state.js';
 import { openCanvasBoard } from '../../canvas-operations.js';
+import { rewatchAllFileNodes } from '../../file-watcher.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { BRIEF_SUMMARY_LENGTH } from '../../context-brief.js';
 import { memoryGraph, boardConnections } from '../../memory-graph.js';
@@ -25,7 +25,6 @@ import { defineOperation, OperationError, type Operation, type OperationContext 
 
 /** The most cards a Home thumbnail draws (the largest first); the rest are noise at that size. */
 const PREVIEW_CARDS = 24;
-export const boardCatalogEpoch = randomUUID();
 let catalogRevision = 0;
 let reloadRevision = 0;
 
@@ -218,7 +217,8 @@ const boardGetOperation = defineOperation<z.infer<typeof getSchema>, Record<stri
     const id = typeof input.id === 'string' && input.id.trim() ? input.id.trim() : canvasState.activeBoardId;
     const board = id ? canvasState.listBoards().find((entry) => entry.id === id) : undefined;
     if (!board) throw new OperationError(id ? `Board "${id}" not found.` : 'No board is open.', 404);
-    return { ok: true, board, open: board.id === canvasState.activeBoardId };
+    const contentRevision = canvasState.readBoard(board.id, false)!.state.revisionState?.revision ?? 0;
+    return { ok: true, board, contentRevision, open: board.id === canvasState.activeBoardId };
   },
 });
 
@@ -406,6 +406,44 @@ const boardCreateFromOperation = defineOperation<z.infer<typeof fromSchema>, Rec
   },
 });
 
+const moveShape = {
+  sourceBoardId: z.string().min(1),
+  nodeIds: z.array(z.string().min(1)).min(1),
+  name: z.string().trim().min(1).max(120),
+  expectedRevision: z.number().int().nonnegative(),
+  requestId: z.string().trim().min(1).max(200),
+  preview: z.boolean().optional(),
+};
+const moveSchema = z.object(moveShape);
+const boardMoveOperation = defineOperation<z.infer<typeof moveSchema>, Record<string, unknown>>({
+  name: 'board.move-selection',
+  // Own validation precedes activation, and preview must never emit mutation/intent events.
+  mutates: false,
+  input: moveSchema,
+  inputShape: moveShape,
+  http: { method: 'POST', path: '/api/canvas/boards/move-selection' },
+  mcp: {
+    toolName: 'canvas_move_selection_to_board',
+    description:
+      'Preview or atomically move selected cards/group descendants to a new board, preserving identities and leaving a portal. Requires explicit sourceBoardId, expectedRevision and a durable requestId. Retry with identical input; never opens the destination. Preview lists unsafe bindings and the Undo/snapshot boundary.',
+    formatResult: jsonResult,
+  },
+  handler: (input, ctx) => {
+    const outcome = canvasState.moveSelectionToNewBoard(input);
+    if ('preview' in outcome) return { ok: true, ...outcome };
+    if (!outcome.replayed) {
+      rewatchAllFileNodes();
+      emitBoardsChanged(ctx);
+      ctx.emit('context-pins-changed', {
+        count: canvasState.contextPinnedNodeIds.size,
+        nodeIds: [...canvasState.contextPinnedNodeIds],
+      });
+      ctx.emit('ax-state-changed', {});
+    }
+    return { ok: true, ...outcome.result, replayed: outcome.replayed };
+  },
+});
+
 // ── board.pin / board.unpin ───────────────────────────────────
 // A pinned board joins the agent's working set: its README and pinned cards
 // travel in the brief whichever board is open. Pinning is context, never a
@@ -492,6 +530,7 @@ export const boardOperations: Operation[] = [
   boardGetOperation,
   boardCreateOperation,
   boardCreateFromOperation,
+  boardMoveOperation,
   boardUpdateOperation,
   boardPinOperation,
   boardUnpinOperation,

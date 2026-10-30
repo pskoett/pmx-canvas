@@ -8,7 +8,7 @@
  */
 import { executeOperation, listOperations } from './registry.js';
 import { SOURCE_LABEL_RE } from '../agent-presence.js';
-import { OperationError } from './types.js';
+import { OperationError, type OperationExecutionOptions, type OperationProgress } from './types.js';
 import { isWorkbenchToken, refuseStaleWorkbenchWrite } from '../workbench-auth.js';
 
 function responseJson(data: unknown, status = 200): Response {
@@ -17,6 +17,57 @@ function responseJson(data: unknown, status = 200): Response {
     headers: {
       'Cache-Control': 'no-store',
     },
+  });
+}
+
+/** Opt-in NDJSON; the terminal frame retains the ordinary HTTP status/body. */
+export type OperationStreamFrame =
+  | { type: 'progress'; progress: OperationProgress }
+  | { type: 'result'; status: number; body: unknown };
+
+function operationFailure(name: string, error: unknown, signal: AbortSignal): Response {
+  if (signal.aborted) return responseJson({ ok: false, cancelled: true, error: 'Operation cancelled.' }, 499);
+  if (error instanceof OperationError) {
+    return responseJson({ ok: false, error: error.message, ...(error.details ?? {}) }, error.status);
+  }
+  // Keep unexpected errors server-side, never leak a Bun development overlay.
+  console.error(`[operation] unhandled error dispatching ${name}:`, error);
+  return responseJson({ ok: false, error: 'Internal error processing the request.' }, 500);
+}
+
+function progressResponse(
+  req: Request,
+  name: string,
+  run: (options: OperationExecutionOptions) => Promise<Response>,
+): Response {
+  const cancelled = new AbortController();
+  const signal = AbortSignal.any([req.signal, cancelled.signal]);
+  const encoder = new TextEncoder();
+  let closed = false;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (frame: OperationStreamFrame): void => {
+        if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(frame)}\n`));
+      };
+      let response: Response;
+      try {
+        response = await run({ signal, onProgress: (progress) => send({ type: 'progress', progress }) });
+      } catch (error) {
+        response = operationFailure(name, error, signal);
+      }
+      if (!closed) {
+        send({ type: 'result', status: response.status, body: await response.json() });
+        closed = true;
+        controller.close();
+      }
+    },
+    cancel() {
+      closed = true;
+      cancelled.abort();
+    },
+  });
+  return new Response(stream, {
+    headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' },
   });
 }
 
@@ -83,6 +134,7 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
     const params = matchOperationPath(route.path, url.pathname);
     if (!params) continue;
     try {
+      req.signal.throwIfAborted();
       const input = route.readInput
         ? await route.readInput(req, params, url)
         : await readOperationInput(req, params, url);
@@ -100,27 +152,23 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       // HTTP callers read as 'api'.
       const sourceHeader = req.headers.get('x-pmx-source');
       const source = sourceHeader && SOURCE_LABEL_RE.test(sourceHeader) ? sourceHeader : 'api';
-      const result = await executeOperation(op.name, input, {
-        // The legacy marker remains a UI-policy signal (ghost suppression).
-        // Only the unguessable boot token classifies authorship as human.
-        suppressAutoGhost: workbenchMarked,
-        fromWorkbench: workbenchMarked,
-        humanAuthor,
-        source,
-        proxiedRead: req.headers.get('x-pmx-proxied-read') === '1',
-      });
-      return responseJson(result, route.status ? route.status(result) : 200);
+      const run = async (options: OperationExecutionOptions): Promise<Response> => {
+        const result = await executeOperation(op.name, input, {
+          ...options,
+          // The legacy marker remains a UI-policy signal (ghost suppression).
+          // Only the unguessable boot token classifies authorship as human.
+          suppressAutoGhost: workbenchMarked,
+          fromWorkbench: workbenchMarked,
+          humanAuthor,
+          source,
+          proxiedRead: req.headers.get('x-pmx-proxied-read') === '1',
+        });
+        return responseJson(result, route.status ? route.status(result) : 200);
+      };
+      if (req.headers.get('accept') === 'application/x-ndjson') return progressResponse(req, op.name, run);
+      return await run({ signal: req.signal });
     } catch (error) {
-      if (error instanceof OperationError) {
-        return responseJson({ ok: false, error: error.message, ...(error.details ?? {}) }, error.status);
-      }
-      // An unexpected (non-OperationError) throw from a handler MUST NOT escape the
-      // dispatcher: Bun.serve has no per-request boundary, so an escaped throw renders
-      // its dev error overlay (HTTP 500 text/html leaking the absolute server source
-      // path + stack). Return a clean JSON 500 with a generic message instead (the
-      // real error is logged server-side, never echoed to the client).
-      console.error(`[operation] unhandled error dispatching ${op.name}:`, error);
-      return responseJson({ ok: false, error: 'Internal error processing the request.' }, 500);
+      return operationFailure(op.name, error, req.signal);
     }
   }
   return null;

@@ -13,7 +13,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { tourSchema, derivedTour, rectSchema, cameraSchema, tourStopSchema } from '../../../shared/tour.js';
+import { tourSchema, rectSchema, cameraSchema, tourStopSchema, tourPresenterSchema } from '../../../shared/tour.js';
 import { canvasState } from '../../canvas-state.js';
 import {
   arrangeCanvasNodes,
@@ -23,7 +23,7 @@ import {
   setClientViewportSize,
 } from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
-import { exitTour, goToTourStop, moveCamera, tourPosition } from '../../tour-control.js';
+import { currentTour, exitTour, goToTourStop, moveCamera } from '../../tour-control.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { closeNodeAppSession, isRecord } from './nodes.js';
 
@@ -329,11 +329,7 @@ const tourGetOperation = defineOperation({
     toolName: 'canvas_get_tour',
     description: 'Read the board tour, deriving groups in reading order when absent.',
   },
-  handler: () => ({
-    tour: canvasState.getTour() ?? derivedTour(canvasState.getLayout().nodes),
-    derived: !canvasState.getTour(),
-    position: tourPosition(),
-  }),
+  handler: () => currentTour(),
 });
 
 // ── tour.go / tour.exit / camera.move ────────────────────────
@@ -343,6 +339,7 @@ const tourGetOperation = defineOperation({
 const tourGoShape = {
   stop: z.number().int().nonnegative().optional().describe('Zero-based stop index to go to'),
   step: z.enum(['next', 'previous']).optional().describe('Step relative to the current stop (clamped at the ends)'),
+  presenter: tourPresenterSchema.optional().describe('Document intent order and expected board activation'),
   present: z
     .boolean()
     .optional()
@@ -364,23 +361,24 @@ const tourGoOperation = defineOperation({
     if ((input.stop === undefined) === (input.step === undefined)) {
       throw new OperationError('Give exactly one of stop (index) or step ("next" | "previous").');
     }
-    const result = goToTourStop(input.stop ?? (input.step as 'next' | 'previous'));
-    ctx.emit('canvas-tour-step', { ...result, present: input.present !== false });
+    const result = goToTourStop(input.stop ?? (input.step as 'next' | 'previous'), input.presenter);
+    if (!('superseded' in result)) ctx.emit('canvas-tour-step', { ...result, present: input.present !== false });
     return { ok: true, ...result };
   },
 });
 
+const tourExitShape = { presenter: tourGoShape.presenter };
 const tourExitOperation = defineOperation({
   name: 'tour.exit',
   mutates: false,
-  input: z.object({}),
-  inputShape: {},
+  input: z.object(tourExitShape),
+  inputShape: tourExitShape,
   http: { method: 'POST', path: '/api/canvas/tour/exit' },
   mcp: { toolName: 'canvas_tour_exit', description: 'Leave presentation in every viewer.' },
-  handler: (_input, ctx) => {
-    exitTour();
-    ctx.emit('canvas-tour-exit', {});
-    return { ok: true };
+  handler: (input, ctx) => {
+    const result = exitTour(input.presenter);
+    if (!('superseded' in result)) ctx.emit('canvas-tour-exit', { ...result });
+    return { ok: true, ...result };
   },
 });
 

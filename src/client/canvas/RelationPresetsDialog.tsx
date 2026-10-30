@@ -4,6 +4,7 @@ import { boardList, updateBoard } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
 import { knowledge, refreshKnowledge } from '../state/knowledge-store';
 import { useFocusTrap } from './use-focus-trap';
+import { submitWithoutNavigation } from './submit-without-navigation';
 
 /** Shared templates live in Home; applying one never rewrites connection kinds. */
 export function RelationPresetsDialog({ onClose }: { onClose: () => void }) {
@@ -152,6 +153,7 @@ export function RelationPresetsDialog({ onClose }: { onClose: () => void }) {
                 {editing ? (
                   <form
                     class="relation-vocabulary"
+                    onClick={submitWithoutNavigation}
                     onSubmit={async (event) => {
                       event.preventDefault();
                       if (busy) return;

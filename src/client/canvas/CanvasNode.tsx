@@ -1,9 +1,11 @@
-import { activeBoardId, boardList, openMemoryTarget } from '../state/boards-store';
+import { activeBoard, boardList } from '../state/boards-store';
 import { cardQualification, effectiveLifecycleFilter as lifecycleFilter } from '../state/knowledge-store';
 import { knowledgeLifecycleEnabled } from '../state/workspace-settings';
 import { relationHighlight } from '../state/relation-store';
 import { LifecycleFooter } from './LifecycleChrome';
 import { BarHint } from './BarHint';
+import { openBoardMove } from './BoardMoveDialog';
+import { CrossBoardReferences } from './CrossBoardReferences';
 import { BoardPinButton } from './BoardPinButton';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { mutatingNodeIds, sessionChromeActive } from '../state/presence-store';
@@ -19,7 +21,6 @@ import {
   dragDropTarget,
   draggingEdge,
   endDropTracking,
-  edges,
   expandNode,
   nodes,
   persistLayout,
@@ -36,6 +37,8 @@ import {
   updateNodeData,
   viewport,
   canvasTool,
+  groupContents,
+  openGroup,
 } from '../state/canvas-store';
 import {
   addToGroupFromClient,
@@ -50,7 +53,7 @@ import { AxStepControls } from '../nodes/AxStepControls';
 import { getNodeIcon, IconChevronRight, IconClose, IconMore, IconExpand, IconPin } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
-import { AUTO_FIT_TITLEBAR_HEIGHT, computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
+import { computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
 import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
@@ -87,44 +90,6 @@ export function nearestNodeInDirection(
     }
   }
   return best;
-}
-
-/** Fraction of a node's height the title bar may occupy before it starts
- *  crowding out the content it is labelling. */
-const MAX_TITLEBAR_HEIGHT_RATIO = 0.4;
-/** Fraction of a node's width the fixed title-bar chrome may occupy before it
- *  starts eating the node's NAME. */
-const MAX_TITLEBAR_CHROME_WIDTH_RATIO = 0.55;
-/** Unscaled width of everything in the bar that is not the title: type icon,
- *  status/type pill, the control cluster, and the gaps between them. */
-const TITLEBAR_CHROME_BASE_WIDTH = 175;
-
-/**
- * How much to enlarge node chrome (title bar, badges, icons) when zoomed out so
- * it stays legible. Full inverse compensation is capped at 2.2x — but the cap
- * alone ignored the node it is drawn on, so on SHORT nodes the growing bar ate
- * the body: a 116px-tall section label at 46% zoom gave the title bar 72% of the
- * node and left 14px for text that needed 41, so the markdown was simply cut off.
- * The scale is therefore also bounded by the node's own height, keeping the bar
- * under MAX_TITLEBAR_HEIGHT_RATIO of it. Tall nodes are unaffected (their height
- * never binds); pass height 0 for collapsed/auto-height nodes to skip the bound.
- */
-export function nodeChromeScale(viewportScale: number, nodeHeight: number, nodeWidth = 0): number {
-  if (!Number.isFinite(viewportScale) || viewportScale >= 1) return 1;
-  const zoomScale = Math.min(2.2, 1 / Math.max(viewportScale, 0.01));
-  let bounded = zoomScale;
-  if (Number.isFinite(nodeHeight) && nodeHeight > 0) {
-    bounded = Math.min(bounded, (nodeHeight * MAX_TITLEBAR_HEIGHT_RATIO) / AUTO_FIT_TITLEBAR_HEIGHT);
-  }
-  // Width matters as much as height: the icon, pill and control cluster are all
-  // flex-shrink: 0, so the NAME is the only thing that gives way. Unbounded, a
-  // 360px step node at 52% zoom spent 100 of 187 bar pixels on controls alone and
-  // the title collapsed to nothing. Bound the scale so the fixed chrome can never
-  // take more than MAX_TITLEBAR_CHROME_WIDTH_RATIO of the node.
-  if (Number.isFinite(nodeWidth) && nodeWidth > 0) {
-    bounded = Math.min(bounded, (nodeWidth * MAX_TITLEBAR_CHROME_WIDTH_RATIO) / TITLEBAR_CHROME_BASE_WIDTH);
-  }
-  return Math.max(1, bounded);
 }
 
 /** A header title keeps at least this much room, or all of it when shorter (HeaderMarks.dc.html). */
@@ -175,12 +140,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
   const titleRef = useRef<HTMLSpanElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const portalTarget =
     node.type === 'board' && typeof node.data.boardId === 'string'
       ? (boardList.value.find((board) => board.id === node.data.boardId) ?? null)
       : null;
-  const remoteEdges = [...edges.value.values()].filter((edge) => edge.toBoardId && edge.from === node.id);
-  const sourceBoard = boardList.value.find((board) => board.id === activeBoardId.value);
   const isAttentionPulse = attentionPulseNodeIds.value.has(node.id);
   const isNeighbor = !isActive && activeNeighborNodeIds.value.has(node.id);
   const searchSet = searchHighlightIds.value;
@@ -218,7 +182,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       document.removeEventListener('keydown', escListener.current);
       escListener.current = null;
     }
-    persistLayout();
+    persistLayout({ raisedNodeId: node.id });
     // Membership changes ONLY here, and only while the pill was showing.
     const target = dragDropTarget.value;
     endDropTracking();
@@ -309,12 +273,15 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         toggleSelected(node.id);
         return;
       }
-      bringToFront(node.id);
+      bringToFront(node.id, false);
       // User wins (phase 8): hold the node for the drag; an agent mid-edit yields.
       reportHumanGrab(node.id);
       noteNearAtGrab(node.id);
       takeOverNode(node.id, typeof node.data.title === 'string' && node.data.title ? node.data.title : node.type);
-      buildSnapCache(node.id, nodes.value.values());
+      buildSnapCache(
+        node.id,
+        [...nodes.value.values()].filter((candidate) => !groupContents.value || groupContents.value.has(candidate.id)),
+      );
       if (node.type !== 'group') {
         const onKey = (ev: KeyboardEvent) => {
           if (ev.key === 'Escape') suppressDropForDrag();
@@ -360,15 +327,33 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && target !== e.currentTarget && target.closest('input, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        const more = shellRef.current?.querySelector<HTMLButtonElement>('.node-hover-control[aria-haspopup="menu"]');
+        if (more) {
+          e.preventDefault();
+          e.stopPropagation();
+          more.click();
+        }
+        return;
+      }
       const dir = ARROW_DIRS[e.key];
       if (dir) {
         e.preventDefault();
-        const next = nearestNodeInDirection(node, dir, nodes.value.values());
+        const next = nearestNodeInDirection(
+          node,
+          dir,
+          [...nodes.value.values()].filter(
+            (candidate) => !groupContents.value || groupContents.value.has(candidate.id),
+          ),
+        );
         if (!next) return;
         bringToFront(next.id);
         requestAnimationFrame(() => {
           document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(next.id)}"]`)?.focus();
         });
+      } else if (e.key === 'Enter' && e.target === e.currentTarget && node.type === 'group') {
+        e.preventDefault();
+        openGroup(node.id);
       } else if (e.key === 'Enter' && e.target === e.currentTarget && EXPANDABLE_TYPES.has(node.type)) {
         e.preventDefault();
         expandNode(node.id);
@@ -410,6 +395,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     if (!body) return;
 
     const observer = new ResizeObserver(() => {
+      // Focus-mode return can remount an open work draft. Never save its temporary form height.
+      if (body.querySelector('.work-card-editor')) hasAutoFit.current = true;
       if (hasAutoFit.current) {
         observer.disconnect();
         return;
@@ -446,10 +433,14 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isTrace = node.type === 'trace';
   const isTraceRunning = isTrace && node.data.status === 'running';
   const isGroup = node.type === 'group';
+  const isHeading = node.type === 'markdown' && node.data.display === 'heading';
+  const graphType = (node.data.graphConfig as { graphType?: string } | undefined)?.graphType;
   const isStrictSize = node.data.strictSize === true;
   const viewportScale = Math.max(viewport.value.scale, 0.01);
-  const chromeScale = nodeChromeScale(viewportScale, node.collapsed ? 0 : node.size.height, node.size.width);
-  const chipFold = useHeaderFold(titleRef, headerChip(node, isContextPinned), title, node.size.width, chromeScale);
+  // Text alone may grow within the fixed header line. Enlarging the whole bar
+  // resizes embedded viewports and reflows their content while zooming.
+  const titleScale = Math.min(1.2, Math.max(1, 1 / viewportScale));
+  const chipFold = useHeaderFold(titleRef, headerChip(node, isContextPinned), title, node.size.width, titleScale);
 
   const groupColor = isGroup && node.data.color ? (node.data.color as string) : undefined;
   const nodeStyle: Record<string, string | number> = {
@@ -458,7 +449,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     width: `${node.size.width}px`,
     height: node.collapsed ? 'auto' : `${node.size.height}px`,
     zIndex: node.zIndex,
-    '--node-chrome-scale': chromeScale.toFixed(3),
+    '--node-title-scale': titleScale.toFixed(3),
     '--node-port-scale': (1 / viewportScale).toFixed(3),
     ...(groupColor ? { '--group-color': groupColor } : {}),
   };
@@ -478,6 +469,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isTrace ? 'trace-node' : '',
     isTraceRunning ? 'trace-running' : '',
     isGroup ? 'group-node' : '',
+    isHeading ? 'heading-node' : '',
     isStrictSize ? 'strict-size' : '',
     isAgentMutating ? 'agent-mutating' : '',
     sessionChromeActive.value && sessionEditedIds.value.has(node.id) ? 'session-edited' : '',
@@ -517,8 +509,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     // Collapsed group: a compact chip. Children keep their positions for restore.
     return (
       <div
+        ref={shellRef}
         class={`${nodeClass} group-chip`}
         data-node-type={node.type}
+        data-node-id={node.id}
+        tabIndex={isActive ? 0 : -1}
+        onKeyDown={handleNodeKeyDown}
         style={{ ...nodeStyle, width: 'auto', height: 'auto' }}
         onPointerDown={handlePointerDown}
         onDblClick={handleDblClick}
@@ -554,20 +550,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   }
 
   return (
+    // Position/size without a stacking context: sibling ports participate in
+    // the world's lower hit plane, while the card keeps its own z-order.
     <div
-      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}${isGroup && groupMenuOpen ? ' group-menu-open' : ''}`}
-      data-node-type={node.type}
-      data-node-id={node.id}
-      style={nodeStyle}
-      tabIndex={isActive ? 0 : -1}
-      onKeyDown={handleNodeKeyDown}
-      onPointerDown={handlePointerDown}
-      // Shift+click toggles multi-selection; the browser would otherwise extend
-      // a text selection from the previous card across this one.
-      onMouseDown={(e) => {
-        if (e.shiftKey) e.preventDefault();
-      }}
-      onDblClick={handleDblClick}
+      class="canvas-node-owner"
+      style={{ ...nodeStyle, zIndex: 'auto' }}
       onPointerEnter={() => {
         hoveredNodeId.value = node.id;
       }}
@@ -575,14 +562,218 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         if (hoveredNodeId.value === node.id) hoveredNodeId.value = null;
       }}
     >
-      <div class="node-content">
-        {isGroup && (
-          <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
-            <span class="group-name-pill">
+      {isGroup && (
+        <div
+          class="group-frame-hit"
+          aria-hidden="true"
+          style={{ zIndex: `calc(${node.zIndex} - var(--node-hit-offset, 3))` }}
+          onPointerDown={(e) => {
+            handlePointerDown(e);
+            if (e.button === 0 && !e.shiftKey) shellRef.current?.focus({ preventScroll: true });
+          }}
+          onMouseDown={(e) => {
+            // Keep the shell's roving focus instead of the hit target's ancestor.
+            if (e.button === 0 || e.shiftKey) e.preventDefault();
+          }}
+          onDblClick={handleDblClick}
+        />
+      )}
+      <div
+        ref={shellRef}
+        class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}${isGroup && groupMenuOpen ? ' group-menu-open' : ''}`}
+        data-node-type={node.type}
+        data-node-id={node.id}
+        style={{
+          position: 'relative',
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: node.collapsed ? 'auto' : '100%',
+          zIndex: node.zIndex,
+        }}
+        tabIndex={isActive ? 0 : -1}
+        onKeyDown={handleNodeKeyDown}
+        onPointerDown={handlePointerDown}
+        // Shift+click toggles multi-selection; the browser would otherwise extend
+        // a text selection from the previous card across this one.
+        onMouseDown={(e) => {
+          if (e.shiftKey) e.preventDefault();
+        }}
+        onDblClick={handleDblClick}
+      >
+        <div class="node-content">
+          {isGroup && (
+            <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
+              <span class="group-name-pill">
+                {renaming ? (
+                  <input
+                    ref={renameRef}
+                    class="node-title-input group-title-input"
+                    value={title}
+                    onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
+                      if (e.key === 'Escape') setRenaming(false);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span class="group-name">{title}</span>
+                )}
+                <span class="group-count">
+                  {groupChildren.length} {groupChildren.length === 1 ? 'node' : 'nodes'}
+                </span>
+              </span>
+              <span class="group-edge-spacer" />
+              <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
+                <BarHint label="Auto-arrange children" align="end">
+                  <button
+                    type="button"
+                    class="group-action"
+                    aria-label="Auto-arrange children"
+                    disabled={groupChildren.length === 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void addToGroupFromClient(node.id, groupChildren, 'grid');
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      aria-hidden="true"
+                    >
+                      <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+                      <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+                      <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+                      <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+                    </svg>
+                  </button>
+                </BarHint>
+                <BarHint label="Collapse group" align="end">
+                  <button
+                    type="button"
+                    class="group-action"
+                    aria-label="Collapse group"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCollapsed(node.id);
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 10 L8 5 L13 10" />
+                    </svg>
+                  </button>
+                </BarHint>
+                <button
+                  type="button"
+                  class="group-action"
+                  aria-label="Group menu"
+                  aria-expanded={groupMenuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupMenuOpen((open) => !open);
+                  }}
+                >
+                  <IconMore size={14} />
+                </button>
+                {groupMenuOpen && (
+                  <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        openGroup(node.id);
+                      }}
+                    >
+                      Open group
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        openBoardMove([node.id]);
+                      }}
+                    >
+                      Move to new board
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        setRenaming(true);
+                        requestAnimationFrame(() => renameRef.current?.focus());
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        // Dissolve — the same op an agent's ungroup runs.
+                        removeNode(node.id);
+                        void ungroupFromClient(node.id);
+                      }}
+                    >
+                      Ungroup
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={groupChildren.length === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupMenuOpen(false);
+                        addContextPins(groupChildren);
+                      }}
+                    >
+                      Pin all to context
+                    </button>
+                  </div>
+                )}
+              </span>
+            </div>
+          )}
+          {!isGroup && (
+            <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
+              <NodeTypeIcon node={node} pinned={isContextPinned} title={title} fold={chipFold}>
+                {(() => {
+                  const NodeIcon = getNodeIcon(node.type);
+                  return <NodeIcon size={14} />;
+                })()}
+              </NodeTypeIcon>
+              {/* The kind-colored icon says what type this is (rail-chrome-v2 card
+            shell: icon · title · controls, no type badge). Only the AX status
+            chip joins it, and only when there is a status to show. */}
+              {typeof node.data.axWorkStatus === 'string' && (
+                <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
+              )}
               {renaming ? (
                 <input
                   ref={renameRef}
-                  class="node-title-input group-title-input"
+                  class="node-title-input"
                   value={title}
                   onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
                   onKeyDown={(e) => {
@@ -592,283 +783,134 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span class="group-name">{title}</span>
+                <span ref={titleRef} class="node-title">
+                  {title}
+                </span>
               )}
-              <span class="group-count">{groupChildren.length}</span>
-            </span>
-            <span class="group-edge-spacer" />
-            <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
-              <BarHint label="Auto-arrange children" align="end">
-                <button
-                  type="button"
-                  class="group-action"
-                  aria-label="Auto-arrange children"
-                  disabled={groupChildren.length === 0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void addToGroupFromClient(node.id, groupChildren, 'grid');
-                  }}
-                >
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    aria-hidden="true"
-                  >
-                    <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-                    <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-                    <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-                    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
-                  </svg>
-                </button>
-              </BarHint>
-              <BarHint label="Collapse group" align="end">
-                <button
-                  type="button"
-                  class="group-action"
-                  aria-label="Collapse group"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleCollapsed(node.id);
-                  }}
-                >
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M3 10 L8 5 L13 10" />
-                  </svg>
-                </button>
-              </BarHint>
-              <button
-                type="button"
-                class="group-action"
-                aria-label="Group menu"
-                aria-expanded={groupMenuOpen}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setGroupMenuOpen((open) => !open);
-                }}
-              >
-                <IconMore size={14} />
-              </button>
-              {groupMenuOpen && (
-                <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setGroupMenuOpen(false);
-                      setRenaming(true);
-                      requestAnimationFrame(() => renameRef.current?.focus());
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setGroupMenuOpen(false);
-                      // Dissolve — the same op an agent's ungroup runs.
-                      removeNode(node.id);
-                      void ungroupFromClient(node.id);
-                    }}
-                  >
-                    Ungroup
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={groupChildren.length === 0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setGroupMenuOpen(false);
-                      addContextPins(groupChildren);
-                    }}
-                  >
-                    Pin all to context
-                  </button>
-                </div>
+              {activeBoard()?.readmeNodeId === node.id && <span class="node-readme-mark">README</span>}
+              {node.type === 'graph' && graphType && <span class="node-header-meta">{graphType}</span>}
+              {node.type === 'file' && <div class="node-file-toolbar" data-file-toolbar={node.id} />}
+              {node.type === 'status' && typeof node.data.updatedAt === 'string' && (
+                <time class="node-header-meta" dateTime={node.data.updatedAt}>
+                  {new Date(node.data.updatedAt).toLocaleTimeString()}
+                </time>
               )}
-            </span>
-          </div>
-        )}
-        {!isGroup && (
-          <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
-            <NodeTypeIcon node={node} pinned={isContextPinned} title={title} fold={chipFold}>
-              {(() => {
-                const NodeIcon = getNodeIcon(node.type);
-                return <NodeIcon size={Math.round(14 * chromeScale)} />;
-              })()}
-            </NodeTypeIcon>
-            {/* The kind-colored icon says what type this is (rail-chrome-v2 card
-            shell: icon · title · controls, no type badge). Only the AX status
-            chip joins it, and only when there is a status to show. */}
-            {typeof node.data.axWorkStatus === 'string' && (
-              <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
-            )}
-            {renaming ? (
-              <input
-                ref={renameRef}
-                class="node-title-input"
-                value={title}
-                onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
-                  if (e.key === 'Escape') setRenaming(false);
-                }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <span ref={titleRef} class="node-title">
-                {title}
-              </span>
-            )}
-            <NearPinMark node={node} pinned={isContextPinned} fold={chipFold} />
-            <NodeContextMark node={node} pinned={isContextPinned} fold={chipFold} />
-            <div class="node-controls">
-              {isPinned && (
-                <BarHint label="Pinned in place" align="end" fitWithin=".node-content" tapToOpen>
-                  <span class="pin-indicator">⊙</span>
-                </BarHint>
-              )}
-              {/* Expand and the context pin always show; the rest sit behind ⋯ and ×
+              <NearPinMark node={node} pinned={isContextPinned} fold={chipFold} />
+              <NodeContextMark node={node} pinned={isContextPinned} fold={chipFold} />
+              <div class="node-controls">
+                {isPinned && (
+                  <BarHint label="Pinned in place" align="end" fitWithin=".node-content" tapToOpen>
+                    <span class="pin-indicator">⊙</span>
+                  </BarHint>
+                )}
+                {/* Expand and the context pin always show; the rest sit behind ⋯ and ×
               on hover (docs/design/Chrome.dc.html). */}
-              {EXPANDABLE_TYPES.has(node.type) && (
-                <BarHint label="Expand (focus mode)" align="end" fitWithin=".node-content">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      expandNode(node.id);
-                    }}
-                    aria-label="Expand (focus mode)"
+                {EXPANDABLE_TYPES.has(node.type) && (
+                  <BarHint label="Expand (focus mode)" align="end" fitWithin=".node-content">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        expandNode(node.id);
+                      }}
+                      aria-label="Expand (focus mode)"
+                    >
+                      <IconExpand size={14} />
+                    </button>
+                  </BarHint>
+                )}
+                {node.type === 'board' ? (
+                  // A portal's one pin is its board's pin: the linked board joins the
+                  // agent's working set (BoardPins.dc.html), not this card.
+                  portalTarget && <BoardPinButton board={portalTarget} inNodeHeader />
+                ) : (
+                  <BarHint
+                    label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                    align="end"
+                    fitWithin=".node-content"
                   >
-                    <IconExpand size={14} />
-                  </button>
-                </BarHint>
-              )}
-              {node.type === 'board' ? (
-                // A portal's one pin is its board's pin: the linked board joins the
-                // agent's working set (BoardPins.dc.html), not this card.
-                portalTarget && <BoardPinButton board={portalTarget} inNodeHeader />
-              ) : (
-                <BarHint
-                  label={isContextPinned ? 'Remove from context' : 'Add to context'}
-                  align="end"
-                  fitWithin=".node-content"
+                    <button
+                      type="button"
+                      class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleContextPin(node.id);
+                      }}
+                      aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
+                      aria-pressed={isContextPinned}
+                    >
+                      <span class="ctx-pin-mark">
+                        <IconPin />
+                        {isContextPinned && isAgentPin(node.id) && (
+                          <span class="ctx-pin-agent-dot" aria-hidden="true" />
+                        )}
+                      </span>
+                    </button>
+                  </BarHint>
+                )}
+                <button
+                  type="button"
+                  class="node-hover-control"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onContextMenu?.(e, node.id);
+                  }}
+                  aria-label="More actions"
+                  aria-haspopup="menu"
                 >
-                  <button
-                    type="button"
-                    class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleContextPin(node.id);
-                    }}
-                    aria-label={isContextPinned ? 'Remove from context' : 'Add to context'}
-                    aria-pressed={isContextPinned}
-                  >
-                    <span class="ctx-pin-mark">
-                      <IconPin />
-                      {isContextPinned && isAgentPin(node.id) && <span class="ctx-pin-agent-dot" aria-hidden="true" />}
-                    </span>
-                  </button>
-                </BarHint>
-              )}
-              <button
-                type="button"
-                class="node-hover-control"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onContextMenu?.(e, node.id);
-                }}
-                aria-label="More actions"
-              >
-                <IconMore size={14} />
-              </button>
-              {/* Report #64: status nodes get the same remove control as every other
+                  <IconMore size={14} />
+                </button>
+                {/* Report #64: status nodes get the same remove control as every other
               node type (backend removal + undo/history handle status uniformly). */}
-              <button
-                type="button"
-                class="node-hover-control"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void removeNodeFromClient(node.id);
-                }}
-                aria-label="Close"
-              >
-                <IconClose size={14} />
-              </button>
+                <button
+                  type="button"
+                  class="node-hover-control"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void removeNodeFromClient(node.id);
+                  }}
+                  aria-label="Close"
+                >
+                  <IconClose size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {!node.collapsed && (
-          <div ref={bodyRef} class={`node-body${remoteEdges.length ? ' has-memory-links' : ''}`}>
-            {children}
-            {/* AX flow step controls — rendered here rather than in a node renderer
+          )}
+          {!node.collapsed && (
+            <div ref={bodyRef} class="node-body">
+              {children}
+              {/* AX flow step controls — rendered here rather than in a node renderer
               because a materialized step can be ANY node type, and because the
               body is what auto-fit measures (a footer outside it would be clipped
               on a content-fitted node). Renders nothing unless the node carries a
               `data.axStep` stamp. */}
-            <AxStepControls node={node} />
-            {!isGroup && <LifecycleFooter nodeId={node.id} />}
-            {remoteEdges.map((edge) => {
-              const targetBoard = boardList.value.find((board) => board.id === edge.toBoardId);
-              const link = sourceBoard?.links?.find(
-                (link) =>
-                  link.kind === 'card' &&
-                  link.nodeId === node.id &&
-                  link.boardId === edge.toBoardId &&
-                  link.cardId === edge.to,
-              );
-              return (
-                <div class="node-memory-link" key={edge.id}>
-                  <button
-                    type="button"
-                    disabled={!targetBoard || link?.missing === true}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void openMemoryTarget({ boardId: edge.toBoardId!, cardId: edge.to });
-                    }}
-                  >
-                    ↗ {edge.label || edge.type}: {targetBoard?.name ?? 'Missing board'} /{' '}
-                    {link?.cardTitle ?? (link?.missing ? 'Missing card' : 'Loading card…')}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {/* Group children live in the world layer, not this body. Keep their
+              <AxStepControls node={node} />
+              {!isGroup && <LifecycleFooter nodeId={node.id} />}
+              <CrossBoardReferences node={node} />
+            </div>
+          )}
+          {/* Group children live in the world layer, not this body. Keep their
             warning in the frame's bottom chrome, out of the content flex rule. */}
-        {(node.collapsed || isGroup) && <LifecycleFooter nodeId={node.id} />}
+          {(node.collapsed || isGroup) && <LifecycleFooter nodeId={node.id} />}
+        </div>
+        {!node.collapsed && (
+          <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
+        )}
+        {isSelected &&
+          (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+            <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
+          ))}
+        {yieldedNodes.value.has(node.id) && (
+          <span class="node-yield-pill" data-testid="yield-pill">
+            <span class="node-yield-dot" aria-hidden="true" />
+            {yieldedNodes.value.get(node.id)} took over — agent yielded
+          </span>
+        )}
+        {!isGroup &&
+          (['top', 'right', 'bottom', 'left'] as const).map((side) => (
+            <span key={side} class={`node-port-dot node-port-dot-${side}`} aria-hidden="true" />
+          ))}
       </div>
-      {!node.collapsed && (
-        <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
-      )}
-      {isSelected &&
-        (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
-          <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
-        ))}
-      {yieldedNodes.value.has(node.id) && (
-        <span class="node-yield-pill" data-testid="yield-pill">
-          <span class="node-yield-dot" aria-hidden="true" />
-          {yieldedNodes.value.get(node.id)} took over — agent yielded
-        </span>
-      )}
       {/* Connection port handles — visible on hover, drag to connect. Groups
           are frames, not endpoints: no ports (and the edge row sits on the top
           edge where the port would be). */}

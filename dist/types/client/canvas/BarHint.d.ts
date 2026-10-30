@@ -7,11 +7,13 @@ export declare function BarPortal({ children }: {
  * Styled hover/focus tooltip for bar controls — the replacement for native
  * `title` hints, which are delay-gated and never render in embedded panes.
  */
-export declare function BarHint({ label, shortcut, body, align, side, tapToOpen, fitWithin, children, }: {
+export declare function BarHint({ id, label, shortcut, body, align, side, tapToOpen, fitWithin, children, }: {
+    /** Optional description target for the control's aria-describedby. */
+    id?: string;
     label: string;
     shortcut?: string;
-    /** One or two plain sentences under the label — the explanation a native `title` used to hide. */
-    body?: string;
+    /** Explanatory text, optionally split into readable paragraphs. */
+    body?: ComponentChildren;
     align?: 'start' | 'center' | 'end';
     /** Which way the tooltip opens. Bars at the bottom of the region open 'up'. */
     side?: 'down' | 'up';

@@ -1,8 +1,19 @@
 import { PHASE_COLORS } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
 import { getStatusDisplayPhase } from './StatusNode';
+import { isWorkCardState, WORK_CARD_STATES } from '../../shared/ax-kinds.js';
 
 export function StatusSummary({ node }: { node: CanvasNodeState }) {
+  if (typeof node.data.workItemId === 'string' && node.data.liveWorkAvailable === false)
+    return <span class="work-card-error">⚠ Task unavailable</span>;
+  if (isWorkCardState(node.data.workState)) {
+    const state = WORK_CARD_STATES[node.data.workState];
+    return (
+      <span class={`work-card-state work-card-${node.data.workState}`}>
+        <span aria-hidden="true">{state.glyph}</span> {state.label}
+      </span>
+    );
+  }
   const phase = getStatusDisplayPhase(node);
   const activeTool = node.data.activeTool as string | null;
   const subagent = node.data.subagent as { state: string; name: string } | undefined;
@@ -21,14 +32,16 @@ export function StatusSummary({ node }: { node: CanvasNodeState }) {
           flexShrink: 0,
         }}
       />
-      <span style={{ color: phaseColor, fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>{phase}</span>
+      <span style={{ color: phaseColor, fontSize: 'var(--fs-meta)', fontWeight: 600 }}>
+        {phase.charAt(0).toUpperCase() + phase.slice(1)}
+      </span>
       {activeTool && (
-        <span style={{ color: 'var(--c-agent)', fontSize: '10px', fontFamily: 'var(--font-code)' }}>
+        <span style={{ color: 'var(--c-agent)', fontSize: 'var(--fs-meta)', fontFamily: 'var(--font-code)' }}>
           ⚙ {activeTool}
         </span>
       )}
       {subagent && subagent.state !== 'completed' && (
-        <span style={{ color: 'var(--c-subagent)', fontSize: '10px' }}>⠉ {subagent.name}</span>
+        <span style={{ color: 'var(--c-subagent)', fontSize: 'var(--fs-meta)' }}>⠉ {subagent.name}</span>
       )}
     </span>
   );

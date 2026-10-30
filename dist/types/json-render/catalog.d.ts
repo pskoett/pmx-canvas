@@ -474,10 +474,10 @@ export declare const allComponentDefinitions: {
             text: z.ZodString;
             variant: z.ZodNullable<z.ZodEnum<{
                 error: "error";
-                success: "success";
-                default: "default";
                 info: "info";
                 warning: "warning";
+                success: "success";
+                default: "default";
                 secondary: "secondary";
                 destructive: "destructive";
                 outline: "outline";

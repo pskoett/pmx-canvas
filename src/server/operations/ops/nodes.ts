@@ -32,6 +32,7 @@ import {
 } from '../../canvas-operations.js';
 import { resolveCreateGeometry, resolvePatchGeometry, validateCanvasNodePatch } from '../../canvas-geometry.js';
 import { normalizeNodeAxCapabilities } from '../../ax-interaction.js';
+import { isWorkCardState } from '../../../shared/ax-kinds.js';
 import { applyFileContentToNodeData, readFileNodeContent } from '../../file-content.js';
 import { unwatchFileForNode, watchFileForNode } from '../../file-watcher.js';
 import {
@@ -55,8 +56,7 @@ import {
 import { WEBPAGE_NODE_DEFAULT_SIZE, normalizeWebpageUrl } from '../../webpage-node.js';
 import { defineOperation, OperationError, type Operation, type OperationContext } from '../types.js';
 import { readTargetBoard } from './boards.js';
-import { lifecycleQualifications } from '../../lifecycle-status.js';
-import { memoryKey } from '../../../shared/memory-graph.js';
+import { lifecycleQualification } from '../../lifecycle-status.js';
 
 // ── Node types ────────────────────────────────────────────────
 // Single definition site for the basic node-type list: drives the HTTP type
@@ -328,6 +328,21 @@ export function createdNodePayloadFromNode(
 
 // ── Operation cores (the SDK wraps these directly) ────────────
 
+function validateWorkCardData(data: Record<string, unknown> | undefined): void {
+  if (!data || data.workState === undefined) return;
+  if (!isWorkCardState(data.workState))
+    throw new OperationError('workState must be todo, in-progress, blocked, done or cancelled.');
+  if (data.detail !== undefined && typeof data.detail !== 'string')
+    throw new OperationError('Work card detail must be a string.');
+  if (
+    data.progress !== undefined &&
+    data.progress !== null &&
+    (typeof data.progress !== 'number' || !Number.isFinite(data.progress) || data.progress < 0 || data.progress > 100)
+  ) {
+    throw new OperationError('Work card progress must be a number from 0 to 100, or null to clear it.');
+  }
+}
+
 /**
  * Create a basic (non-webpage / non-group / non-primitive) node. Union of the
  * legacy handleCanvasAddNode generic branch; the SDK passes fileMode 'path',
@@ -339,6 +354,34 @@ export function createBasicCanvasNode(
 ): { node: CanvasNodeState; needsCodeGraphRecompute: boolean; sizeAdjustment?: CanvasSizeAdjustment } {
   const type = typeof body.type === 'string' ? body.type : '';
   const extraData = isRecord(body.data) ? body.data : undefined;
+  if (type === 'status' && extraData?.workItemId !== undefined) {
+    if (body.boardId !== undefined || options.prepareOnlyNodes)
+      throw new OperationError('Live work cards must be created on the active board.');
+    const owner = extraData.workItemBoardId ?? canvasState.activeBoardId;
+    if (
+      typeof extraData.workItemId !== 'string' ||
+      (owner !== null && typeof owner !== 'string') ||
+      !(owner === null ? canvasState.getWorkItems() : canvasState.getWorkItemsOnBoard(owner)).some(
+        (item) => item.id === extraData.workItemId,
+      )
+    )
+      throw new OperationError('Live work card requires an existing work item on its owning board.');
+    if (
+      ['title', 'content'].some((key) => body[key] !== undefined) ||
+      [
+        'title',
+        'content',
+        'workState',
+        'detail',
+        'progress',
+        'axWorkStatus',
+        'liveWorkAvailable',
+        'liveWorkSource',
+      ].some((key) => key in extraData)
+    )
+      throw new OperationError('Live work card fields are read-only; update the work item instead.');
+  }
+  if (type === 'status') validateWorkCardData(extraData);
   if (
     extraData &&
     ('attachmentId' in extraData || (isRecord(extraData.source) && 'attachmentId' in extraData.source))
@@ -416,6 +459,9 @@ export function createBasicCanvasNode(
           : {}),
       ...(typeof content === 'string' ? { content } : {}),
       ...(htmlMergedData && Object.keys(htmlMergedData).length > 0 ? { data: htmlMergedData } : {}),
+      ...(type === 'status' && typeof extraData?.workItemId === 'string'
+        ? { data: { ...extraData, workItemBoardId: extraData.workItemBoardId ?? canvasState.activeBoardId } }
+        : {}),
       ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),
       ...(type === 'trace' && typeof body.category === 'string' ? { category: body.category } : {}),
       ...(type === 'trace' && typeof body.status === 'string' ? { status: body.status } : {}),
@@ -447,6 +493,28 @@ export function buildNodePatch(
   body: Record<string, unknown>,
 ): { patch: Partial<CanvasNodeState>; groupChildIds?: string[] } {
   if (body.type !== undefined && body.type !== existing.type) throw new OperationError('Node type is immutable.');
+  if (existing.type === 'status') {
+    const data = isRecord(body.data) ? body.data : {};
+    if (
+      'workItemId' in data ||
+      'workItemBoardId' in data ||
+      (typeof existing.data.workItemId === 'string' &&
+        (body.title !== undefined ||
+          body.content !== undefined ||
+          [
+            'title',
+            'content',
+            'workState',
+            'detail',
+            'progress',
+            'axWorkStatus',
+            'liveWorkAvailable',
+            'liveWorkSource',
+          ].some((key) => key in data)))
+    ) {
+      throw new OperationError('Live work cards are read-only; create a presentation or update the work item instead.');
+    }
+  }
   if (
     existing.type === 'file' &&
     typeof existing.data.attachmentId === 'string' &&
@@ -562,6 +630,7 @@ export function buildNodePatch(
     }
     patch.data = existing.type === 'trace' ? mergeTraceNodeDataFields(data, body) : data;
   }
+  if (existing.type === 'status' && isRecord(patch.data)) validateWorkCardData(patch.data);
   const error = validateCanvasNodePatch({
     ...(patch.position ? { position: patch.position as { x: number; y: number } } : {}),
     ...(patch.size ? { size: patch.size as { width: number; height: number } } : {}),
@@ -634,6 +703,7 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
 
   const extraData = isRecord(body.data) ? body.data : undefined;
   const geometry = resolveCreateGeometry(body);
+  ctx.signal?.throwIfAborted();
   const { id, node, sizeAdjustment } = addCanvasNode({
     type: 'webpage',
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
@@ -649,7 +719,21 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
   // registry emits the final layout update after the handler returns.
   ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
   const boardGeneration = canvasState.boardGeneration;
-  const refreshed = await refreshCanvasWebpageNode(id);
+  let refreshed: Awaited<ReturnType<typeof refreshCanvasWebpageNode>>;
+  try {
+    refreshed = await refreshCanvasWebpageNode(id, { signal: ctx.signal });
+  } catch (error) {
+    if (!ctx.signal?.aborted) throw error;
+    // Creation already committed. Return its receipt without writing an error
+    // status; batches retain this node and stop before their next entry.
+    return {
+      node,
+      extras: {
+        fetch: { ok: false, cancelled: true, error: 'Webpage fetch cancelled.' },
+        ...(sizeAdjustment ? { sizeAdjustment } : {}),
+      },
+    };
+  }
   if (canvasState.boardGeneration !== boardGeneration) {
     throw new OperationError('The board changed while the webpage was loading.', 409);
   }
@@ -1005,9 +1089,7 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
     const full = includeBlobs === true || includeBlobs === 'true';
     const qualify = (node: CanvasNodeState, boardId: string | null) => ({
       ...(full ? serializeCanvasNode(node) : serializeCanvasNodeWithBlobSummaries(node)),
-      qualification: boardId
-        ? lifecycleQualifications(Date.now(), [{ boardId, cardId: id }])[memoryKey({ boardId, cardId: id })]
-        : undefined,
+      qualification: boardId ? lifecycleQualification({ boardId, cardId: id }) : undefined,
     });
     if (typeof board === 'string' && board.trim()) {
       const target = readTargetBoard(board, full);
@@ -1189,7 +1271,7 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
           throw new OperationError(error instanceof Error ? error.message : 'Invalid webpage URL.');
         }
       }
-      const result = await refreshCanvasWebpageNode(id, { ...(url ? { url } : {}) });
+      const result = await refreshCanvasWebpageNode(id, { ...(url ? { url } : {}), signal: ctx.signal });
       return result as unknown as Record<string, unknown>;
     }
 
@@ -1445,7 +1527,7 @@ const nodeRefreshOperation = defineOperation<z.infer<typeof nodeRefreshSchema>, 
     }
     // Legacy wire: the layout update fires after every completed refresh
     // attempt, success or failure (the node may have partial refresh state).
-    const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
+    const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}), signal: ctx.signal });
     ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
     return result as unknown as Record<string, unknown>;
   },

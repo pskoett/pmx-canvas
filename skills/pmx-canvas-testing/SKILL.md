@@ -15,8 +15,9 @@ has the published package and skills installed.
 
 For an isolated consumer workspace, do not expect the package to contain this checkout's
 `tests/`, source-only scripts, or Playwright configuration. Validate package transports and host
-integration through their public CLI, MCP, HTTP, and SDK surfaces; use the
-`published-consumer-e2e` skill when a packed-install outside-in check is required.
+integration through their public CLI, MCP, HTTP, and SDK surfaces. The `published-consumer-e2e`
+helper requires a source checkout, including its unshipped demo fixture; it is not runnable from
+an installed-only package. Use it from source to verify an actual packed install.
 
 ## When To Use
 
@@ -103,9 +104,10 @@ Prefer extending the existing suites before inventing a one-off script.
   `transport.close()` on the `StdioClientTransport`. Closing only the client leaves the spawned
   stdio server process alive after the test exits (0.4.0 cycle finding)
 - Before a version-test cycle, run `pmx-canvas skills sync --check` in the consumer workspace —
-  exit 1 means the installed skill copies are stale against the package; run
-  `pmx-canvas skills sync --yes` to refresh them (whole trees, whatever agent layout owns them) before
-  trusting skill-guided results
+  exit 1 means the installed copies differ from the package. Inspect whole-tree differences and
+  preserve local edits. Run `pmx-canvas skills sync --yes` only after the owner approves replacing
+  all affected installed copies. An upgrade or audit is not permission to overwrite owned guidance.
+  Without that approval, test released guidance in a disposable consumer and report mirror drift.
 
 ## Tests That Cannot Fail
 

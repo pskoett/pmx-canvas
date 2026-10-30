@@ -4,6 +4,7 @@ import { relationDefinition, relationSourceEnd } from '../../shared/relations.js
 import { activeBoardId, boardList, openMemoryTarget } from '../state/boards-store';
 import { edges, nodes } from '../state/canvas-store';
 import { requestJson } from '../state/intent-bridge';
+import { showRelationsOnCanvas } from '../state/relation-store';
 
 /** The expanded card's evidence and uses, from the same graph agents navigate. */
 export function RelationsPanel({ nodeId }: { nodeId: string }) {
@@ -50,6 +51,14 @@ export function RelationsPanel({ nodeId }: { nodeId: string }) {
   return (
     <aside class="relations-panel" aria-label="Relations">
       <h3>Relations</h3>
+      <div class="relation-navigation">
+        <button type="button" onClick={() => showRelationsOnCanvas(nodeId, 'lineage')}>
+          Show lineage
+        </button>
+        <button type="button" onClick={() => showRelationsOnCanvas(nodeId, 'connections')}>
+          Show on canvas
+        </button>
+      </div>
       {!graph && <p role="status">{unavailable ? 'Relations unavailable. Reopen to retry.' : 'Loading relations…'}</p>}
       {graph && relations.length === 0 && <p>No connections yet.</p>}
       {relations.map((edge, index) => {

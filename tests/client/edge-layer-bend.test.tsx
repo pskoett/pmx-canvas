@@ -43,13 +43,7 @@ describe('edge labels at overview zoom', () => {
 
     // Working zoom (50% → chrome scale 2): label present, capped var ≤ 2.2.
     viewport.value = { x: 0, y: 0, scale: 0.5 };
-    render(
-      <>
-        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
-      </>,
-      host,
-    );
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
     expect(host.querySelector('.edge-label')?.textContent).toBe('brief');
     const svg = host.querySelector('svg') as SVGElement;
     expect(Number(svg.style.getPropertyValue('--edge-label-scale'))).toBeLessThanOrEqual(2.2);
@@ -59,13 +53,7 @@ describe('edge labels at overview zoom', () => {
     // arrowhead caps at the node-chrome scale instead of riding the uncapped
     // stroke compensation.
     viewport.value = { x: 0, y: 0, scale: 0.2 };
-    render(
-      <>
-        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
-      </>,
-      host,
-    );
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
     expect(host.querySelector('.edge-label')).toBeNull();
     const marker = host.querySelector('marker#edge-arrow') as SVGElement;
     expect(marker.getAttribute('markerUnits')).toBe('userSpaceOnUse');
@@ -76,38 +64,6 @@ describe('edge labels at overview zoom', () => {
 });
 
 describe('edge interactivity', () => {
-  test('double-clicking, not right-clicking, opens the edge menu with the edge id', () => {
-    const a = node('a', 0, 0);
-    const b = node('b', 700, 60);
-    storeNodes.value = new Map([
-      ['a', a],
-      ['b', b],
-    ]);
-    viewport.value = { x: 0, y: 0, scale: 1 };
-    const nodes = signal(storeNodes.value);
-    const edges = signal(
-      new Map<string, CanvasEdge>([['e9', { id: 'e9', from: 'a', to: 'b', type: 'relation' } as CanvasEdge]]),
-    );
-    const seen: string[] = [];
-    const host = document.createElement('div');
-    document.body.appendChild(host);
-    render(
-      <>
-        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={(_e, id) => seen.push(id)} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={(_e, id) => seen.push(id)} part="pills" />
-      </>,
-      host,
-    );
-    const hitbox = host.querySelector('path[stroke="transparent"]') as SVGPathElement;
-    expect(hitbox).not.toBeNull();
-    hitbox.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-    expect(seen).toEqual([]);
-    hitbox.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    expect(seen).toEqual(['e9']);
-    render(null, host);
-    host.remove();
-  });
-
   test('clicking the hitbox selects the edge (keyboard-delete parity) and clearSelection releases it', () => {
     const a = node('a', 0, 0);
     const b = node('b', 700, 60);
@@ -122,24 +78,12 @@ describe('edge interactivity', () => {
     );
     const host = document.createElement('div');
     document.body.appendChild(host);
-    render(
-      <>
-        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
-      </>,
-      host,
-    );
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
     const hitbox = host.querySelector('path[stroke="transparent"]') as SVGPathElement;
     hitbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const afterClick: string | null = selectedEdgeId.value;
     expect(afterClick).toBe('e9');
-    render(
-      <>
-        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
-      </>,
-      host,
-    );
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
     // The visible path advertises the selection (bolder stroke, full opacity).
     expect(host.querySelector('path.edge-selected')?.id).toBe('edge-path-e9');
     clearSelection();
@@ -170,13 +114,7 @@ describe('EdgeLayer bezier routing', () => {
 
     const host = document.createElement('div');
     document.body.appendChild(host);
-    render(
-      <>
-        <EdgeLayer nodes={nodes} edges={edges} part="lines" />
-        <EdgeLayer nodes={nodes} edges={edges} part="pills" />
-      </>,
-      host,
-    );
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
 
     const d = host.querySelector('path[id^="edge-path-"]')?.getAttribute('d') ?? '';
     const numbers = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];

@@ -1,12 +1,21 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { writeFileSync } from 'node:fs';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
+import {
+  CallToolResultSchema,
+  ProgressNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  type ProgressNotification,
+} from '@modelcontextprotocol/sdk/types.js';
+import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace, waitForCondition } from './helpers.ts';
 import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { listOperations } from '../../src/server/operations/registry.ts';
+import { compositeToolDefinitions } from '../../src/server/operations/composites.ts';
 
 interface TextContentItem {
   type: string;
@@ -136,6 +145,288 @@ afterEach(async () => {
 });
 
 describe('MCP parity with CLI', () => {
+  test('operation help discovers callable arguments without starting or reading a canvas', async () => {
+    const { client, transport, workspaceRoot } = await createMcpSession();
+    cleanup.push(async () => {
+      await client.close();
+      await closeTransportAndReapChild(transport);
+      removeTestWorkspace(workspaceRoot);
+    });
+    const { tools } = await client.listTools();
+    const tool = tools.find((entry) => entry.name === 'canvas_help')!;
+    expect(tool.annotations).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    });
+    const validator = new AjvJsonSchemaValidator();
+    const help = async (op: string) => {
+      const reply = CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: { op } }));
+      expect(reply.isError).not.toBe(true);
+      expect(validator.getValidator(tool.outputSchema!)(reply.structuredContent).valid).toBe(true);
+      const result = parseJsonText<{
+        operation: string;
+        tool: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+      }>(reply);
+      expect(reply.structuredContent).toEqual({ result });
+      expect(result.operation).toBe(op);
+      expect(result.description.length).toBeGreaterThan(0);
+      expect(tools.some((entry) => entry.name === result.tool)).toBe(true);
+      return { ...result, validate: validator.getValidator(result.inputSchema) };
+    };
+    const listed = parseJsonText<{ operations: string[] }>(
+      CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: {} })),
+    ).operations;
+    expect(listed).toContain('node.add');
+    expect(listed).not.toContain('import.commit');
+    expect(listed).toEqual([...new Set(listed)].sort());
+    const publicOperations = new Set([
+      ...listOperations()
+        .filter((op) => op.mcp)
+        .map((op) => op.name),
+      ...compositeToolDefinitions.flatMap((tool) => tool.memberOps ?? Object.values(tool.actions)),
+    ]);
+    expect(listed).toEqual([...publicOperations].sort());
+    for (const op of listed) await help(op);
+    for (const op of ['import.commit', 'not.an.operation', 'canvas_screenshot']) {
+      const reply = CallToolResultSchema.parse(await client.callTool({ name: 'canvas_help', arguments: { op } }));
+      expect(reply.isError).toBe(true);
+      expect(textOf(reply)).toContain('Unknown MCP operation');
+    }
+    const remove = await help('node.remove');
+    expect(remove.tool).toBe('canvas_node');
+    expect(remove.validate({ action: 'remove', id: 'node-a' }).valid).toBe(true);
+    expect(remove.validate({ action: 'remove' }).valid).toBe(false);
+    expect(remove.validate({ action: 'get', id: 'node-a' }).valid).toBe(false);
+    const edge = await help('edge.remove');
+    expect(edge.validate({ action: 'remove', edge_id: 'edge-a' }).valid).toBe(true);
+    expect(edge.validate({ action: 'remove', id: 'edge-a' }).valid).toBe(true);
+    expect(edge.validate({ action: 'remove' }).valid).toBe(false);
+    const approval = await help('ax.approval.request');
+    expect(approval.tool).toBe('canvas_ax_gate');
+    const args = { kind: 'approval', action: 'request', approvalAction: 'test.delete', title: 'Delete test card' };
+    expect(approval.validate(args).valid).toBe(true);
+    expect(approval.validate({ ...args, kind: 'mode' }).valid).toBe(false);
+    expect(approval.validate({ ...args, title: undefined }).valid).toBe(false);
+    expect(approval.validate({ ...args, approvalAction: 7 }).valid).toBe(false);
+    const pin = await help('pin.set');
+    expect(pin.tool).toBe('canvas_pin_nodes');
+    expect(pin.validate({ nodeIds: ['node-a'], mode: 'set' }).valid).toBe(true);
+    expect(pin.validate({ mode: 'set' }).valid).toBe(false);
+    // Every metadata lookup, including errors, leaves no DB, daemon, or cursor files.
+    expect(readdirSync(workspaceRoot)).toEqual([]);
+    const add = await help('node.add');
+    const create = { action: 'add', type: 'markdown', content: '# Help-guided call', title: 'Help' };
+    expect(add.validate(create).valid).toBe(true);
+    const created = CallToolResultSchema.parse(await client.callTool({ name: add.tool, arguments: create }));
+    expect(created.isError).not.toBe(true);
+    const node = parseJsonText<{ id: string }>(created);
+    const removed = await client.callTool({ name: remove.tool, arguments: { action: 'remove', id: node.id } });
+    expect(removed.isError).not.toBe(true);
+  }, 30000);
+
+  test('stdio cancellation and progress cross both local and daemon-attached operation paths', async () => {
+    const local = await createMcpSession();
+    cleanup.push(async () => {
+      await local.client.close();
+      await closeTransportAndReapChild(local.transport);
+      removeTestWorkspace(local.workspaceRoot);
+    });
+    // Start the daemon before the second connection discovers it.
+    await local.client.callTool({ name: 'canvas_node', arguments: { action: 'add', type: 'markdown' } });
+    const remote = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await remote.client.close();
+      await closeTransportAndReapChild(remote.transport);
+    });
+    for (const client of [local.client, remote.client]) {
+      await client.listTools();
+      const requested = await client.callTool({
+        name: 'canvas_ax_gate',
+        arguments: { kind: 'approval', action: 'request', title: 'Cancellation control' },
+      });
+      expect(requested.isError).not.toBe(true);
+      const { approvalGate } = parseJsonText<{ approvalGate: { id: string } }>(requested as ToolResultShape);
+      const progress: Array<ProgressNotification['params']> = [];
+      client.setNotificationHandler(ProgressNotificationSchema, ({ params }) => {
+        progress.push(params);
+      });
+      const controller = new AbortController();
+      const waiting = client.callTool(
+        {
+          name: 'canvas_ax_gate',
+          arguments: { kind: 'approval', action: 'await', id: approvalGate.id, timeoutMs: 30000 },
+          _meta: { progressToken: 'wait-control' },
+        },
+        CallToolResultSchema,
+        { signal: controller.signal },
+      );
+      const rejected = waiting.catch((error: unknown) => error);
+      await waitForCondition(() =>
+        progress.some((item) => item.progressToken === 'wait-control' && item.progress === 0),
+      );
+      controller.abort();
+      expect(await rejected).toBeInstanceOf(Error);
+      // Cancellation must not resolve the gate or poison the next request.
+      const gate = await client.callTool({
+        name: 'canvas_ax_gate',
+        arguments: { kind: 'approval', action: 'await', id: approvalGate.id, timeoutMs: 0 },
+      });
+      expect(parseJsonText<{ pending: boolean }>(gate as ToolResultShape).pending).toBe(true);
+      progress.length = 0;
+      const batch = await client.callTool({
+        name: 'canvas_batch',
+        arguments: { operations: [{ op: 'node.add', args: { type: 'markdown', content: 'After cancellation' } }] },
+        _meta: { progressToken: 0 },
+      });
+      expect(batch.isError).not.toBe(true);
+      expect(parseJsonText<{ results: unknown[] }>(batch as ToolResultShape).results).toHaveLength(1);
+      expect(progress).toContainEqual({ progressToken: 0, progress: 1, total: 1, message: 'Batch complete' });
+    }
+  }, 30000);
+
+  test('subscriptions isolate local and remote connections, never count as reads, and stop on unsubscribe', async () => {
+    const local = await createMcpSession();
+    cleanup.push(async () => {
+      await local.client.close();
+      await closeTransportAndReapChild(local.transport);
+      removeTestWorkspace(local.workspaceRoot);
+    });
+    const base = `http://127.0.0.1:${local.port}`;
+    const localUpdates: string[] = [];
+    local.client.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
+      localUpdates.push(params.uri);
+    });
+    expect(local.client.getServerCapabilities()?.resources?.subscribe).toBe(true);
+    const added = await local.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', content: 'Subscription control' },
+    });
+    expect(added.isError).not.toBe(true);
+    await local.client.ping();
+    expect(localUpdates).toEqual([]);
+
+    const remote = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await remote.client.close();
+      await closeTransportAndReapChild(remote.transport);
+    });
+    const remoteUpdates: string[] = [];
+    remote.client.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
+      remoteUpdates.push(params.uri);
+    });
+    const contextUri = 'canvas://context?consumer=subscription-test&budget=3000';
+    const reads = async () => (await (await fetch(`${base}/api/canvas/ax/context-reads`)).json()).reads.length;
+    const before = await reads();
+    await local.client.subscribeResource({ uri: 'canvas://layout' });
+    await remote.client.subscribeResource({ uri: contextUri });
+    // Remote SSE connection produces a resynchronization invalidation on attach.
+    for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+    expect(remoteUpdates).toContain(contextUri);
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    const mutate = async () => {
+      const response = await fetch(`${base}/api/canvas/viewport`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 37, y: -91, scale: 0.7 }),
+      });
+      expect(response.ok).toBe(true);
+      await local.client.ping();
+      await Bun.sleep(100);
+    };
+    await mutate();
+    expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+    expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    expect(await reads()).toBe(before);
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    const board = await local.client.callTool({
+      name: 'canvas_board',
+      arguments: { action: 'create', name: 'Library-only change', folder: 'Policy' },
+    });
+    expect(board.isError).not.toBe(true);
+    for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+    // Creating an unopened board changes context without changing active nodes.
+    expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+    expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    const category = {
+      id: 'subscription-policy',
+      name: 'Policy',
+      glyph: 'P',
+      decayType: 'reality',
+      rate: 'fast',
+      triggers: ['source changed'],
+      revalidationMethod: 'check source',
+    };
+    for (const args of [
+      { action: 'category-set', category },
+      { action: 'folder-set', path: 'Policy', categoryId: category.id, lifecycleOverride: null },
+      { action: 'category-set', category: { ...category, rate: 'durable' } },
+    ]) {
+      // Drain the previous operation before checking each policy-only invalidation.
+      await Bun.sleep(100);
+      localUpdates.length = 0;
+      remoteUpdates.length = 0;
+      const changed = await local.client.callTool({ name: 'canvas_board', arguments: args });
+      expect(changed.isError).not.toBe(true);
+      for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+      expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+      expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+      expect(await reads()).toBe(before);
+    }
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    const moved = await fetch(`${base}/api/canvas/camera/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ viewport: { x: 81, y: -32, scale: 0.5 }, duration: 0 }),
+    });
+    expect(moved.ok).toBe(true);
+    for (let i = 0; i < 100 && remoteUpdates.length === 0; i++) await Bun.sleep(10);
+    expect(new Set(localUpdates)).toEqual(new Set(['canvas://layout']));
+    expect(new Set(remoteUpdates)).toEqual(new Set([contextUri]));
+    await remote.client.readResource({ uri: contextUri });
+    expect(await reads()).toBeGreaterThan(before);
+    // Reading a subscribed resource must not start a notification/read feedback loop.
+    await Bun.sleep(100);
+    const countAfterRead = remoteUpdates.length;
+    await Bun.sleep(100);
+    expect(remoteUpdates).toHaveLength(countAfterRead);
+    await local.client.unsubscribeResource({ uri: 'canvas://layout' });
+    localUpdates.length = 0;
+    remoteUpdates.length = 0;
+    await mutate();
+    expect(localUpdates).toEqual([]);
+    expect(remoteUpdates).toContain(contextUri);
+    await remote.client.unsubscribeResource({ uri: contextUri });
+    remoteUpdates.length = 0;
+    await mutate();
+    expect(remoteUpdates).toEqual([]);
+    await expect(local.client.subscribeResource({ uri: 'canvas://context?unknown=1' })).rejects.toThrow();
+    await expect(local.client.subscribeResource({ uri: 'canvas://missing' })).rejects.toThrow();
+    await remote.client.subscribeResource({ uri: contextUri });
+    await remote.client.close();
+    await closeTransportAndReapChild(remote.transport);
+    const reconnected = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await reconnected.client.close();
+      await closeTransportAndReapChild(reconnected.transport);
+    });
+    const reconnectUpdates: string[] = [];
+    reconnected.client.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
+      reconnectUpdates.push(params.uri);
+    });
+    await reconnected.client.readResource({ uri: contextUri });
+    await mutate();
+    expect(reconnectUpdates).toEqual([]);
+    // Explicit reads remain available without subscriptions.
+    expect((await local.client.readResource({ uri: 'canvas://layout' })).contents.length).toBe(1);
+  }, 30000);
+
   test('exposes the expected CLI parity surface via MCP tools and resources', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
@@ -153,8 +444,8 @@ describe('MCP parity with CLI', () => {
     // into the canvas_snapshot composite and removed the 6 deprecated snapshot
     // standalones. Registry ops folded into a composite are not registered as
     // standalone tools (see `compositeFoldedOpNames` in
-    // src/server/operations/composites.ts). This list is the 23-tool surface:
-    // 17 action-discriminated composites + 6 standalones.
+    // src/server/operations/composites.ts). This list is the 25-tool surface:
+    // 18 action-discriminated composites + 7 standalones.
     const expectedTools = [
       // Composites (plan-006/plan-007/plan-008).
       'canvas_node',
@@ -174,6 +465,7 @@ describe('MCP parity with CLI', () => {
       'canvas_intent',
       'canvas_board',
       // Standalones.
+      'canvas_help',
       'canvas_batch',
       'canvas_pin_nodes',
       'canvas_invoke_command',
@@ -189,6 +481,15 @@ describe('MCP parity with CLI', () => {
       expect(toolNames.has(tool)).toBe(true);
     }
     expect(toolNames.size).toBe(expectedTools.length);
+    for (const tool of tools.tools) {
+      expect(tool.outputSchema?.type, tool.name).toBe('object');
+      expect(typeof tool.annotations?.readOnlyHint, tool.name).toBe('boolean');
+      expect(typeof tool.annotations?.destructiveHint, tool.name).toBe('boolean');
+      expect(typeof tool.annotations?.idempotentHint, tool.name).toBe('boolean');
+      expect(typeof tool.annotations?.openWorldHint, tool.name).toBe('boolean');
+    }
+    expect(tools.tools.find((tool) => tool.name === 'canvas_screenshot')?.annotations?.readOnlyHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'canvas_ingest_activity')?.annotations?.readOnlyHint).toBe(false);
 
     // The tools folded by composites in v0.3.0 must NOT be registered standalone.
     const removedTools = [
@@ -356,17 +657,17 @@ describe('MCP parity with CLI', () => {
     });
 
     // Primitive A: a forwarded failure auto-reacts (work item + review + evidence).
+    const activity = await session.client.callTool({
+      name: 'canvas_ingest_activity',
+      arguments: { kind: 'failure', title: 'build failed', summary: 'tsc error', source: 'copilot' },
+    });
     const ingested = parseJsonText<{
       ok: boolean;
       workItem: { status: string } | null;
       review: { severity: string } | null;
       evidence: { kind: string } | null;
-    }>(
-      (await session.client.callTool({
-        name: 'canvas_ingest_activity',
-        arguments: { kind: 'failure', title: 'build failed', summary: 'tsc error', source: 'copilot' },
-      })) as ToolResultShape,
-    );
+    }>(activity as ToolResultShape);
+    expect(activity.structuredContent).toEqual(ingested);
     expect(ingested.workItem?.status).toBe('blocked');
     expect(ingested.review?.severity).toBe('error');
     expect(ingested.evidence?.kind).toBe('logs');
@@ -935,6 +1236,94 @@ describe('MCP parity with CLI', () => {
     }
     const resource = await session.client.readResource({ uri: 'canvas://context?consumer=reader&budget=50000' });
     expect(resource.contents).toHaveLength(1);
+  });
+
+  test('context resource refuses a board switch between capture and brief invocation without recording a read', async () => {
+    type ReadLog = { reads: Array<{ resource: string; boardId: string | null }> };
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-context-race-');
+    const daemonPort = await getAvailablePort();
+    const daemonUrl = startCanvasServer({ workspaceRoot, port: daemonPort, autoOpenBrowser: false });
+    if (!daemonUrl) throw new Error('Failed to start daemon for MCP context race test.');
+
+    let intercepted: (() => void) | undefined;
+    let release: (() => void) | undefined;
+    const proxy = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const url = new URL(request.url);
+        if (url.pathname === '/api/canvas/context' && intercepted) {
+          const reached = intercepted;
+          intercepted = undefined;
+          const gate = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          reached();
+          await gate;
+        }
+        return fetch(`${daemonUrl}${url.pathname}${url.search}`, request);
+      },
+    });
+    const attached = await createMcpSessionForWorkspace(workspaceRoot, proxy.port!);
+    cleanup.push(async () => {
+      release?.();
+      await attached.client.close();
+      await closeTransportAndReapChild(attached.transport);
+      proxy.stop(true);
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    });
+    const human = await trustedHumanHeaders(daemonUrl);
+    await attached.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', content: 'Board A context marker' },
+    });
+    const { activeBoardId: boardA } = (await (await fetch(`${daemonUrl}/api/canvas/boards`)).json()) as {
+      activeBoardId: string;
+    };
+    const { board: boardB } = parseJsonText<{ board: { id: string } }>(
+      (await attached.client.callTool({
+        name: 'canvas_board',
+        arguments: { action: 'create', name: 'Race board B' },
+      })) as ToolResultShape,
+    );
+    async function open(boardId: string): Promise<void> {
+      const response = await fetch(`${daemonUrl}/api/canvas/boards/open`, {
+        method: 'POST',
+        headers: human,
+        body: JSON.stringify({ id: boardId }),
+      });
+      expect(response.status).toBe(200);
+    }
+    async function contextReads(): Promise<ReadLog['reads']> {
+      const log = (await (await fetch(`${daemonUrl}/api/canvas/ax/context-reads`)).json()) as ReadLog;
+      return log.reads.filter((read) => read.resource === 'canvas://context');
+    }
+
+    const reachedBrief = new Promise<void>((resolve) => {
+      intercepted = resolve;
+    });
+    // The proxy gates the brief request only: prepareContextRead has already
+    // captured A, but the registry has not yet executed context.get.
+    const read = attached.client.readResource({ uri: 'canvas://context?budget=50000' }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    await reachedBrief;
+    await open(boardB.id);
+    release?.();
+    const error = await read;
+    expect(await contextReads()).toEqual([]);
+    await open(boardA);
+    expect(await contextReads()).toEqual([]);
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toContain('The active board changed');
+
+    const success = await attached.client.readResource({ uri: 'canvas://context?budget=50000' });
+    const text = success.contents.find((entry): entry is { uri: string; text: string } => 'text' in entry)?.text;
+    expect(text).toContain('Board A context marker');
+    expect(await contextReads()).toEqual([expect.objectContaining({ boardId: boardA })]);
+    await open(boardB.id);
+    expect((await contextReads()).filter((read) => read.boardId === boardB.id)).toEqual([]);
   });
 
   test('records each MCP context read once, with the client name and pinned delivery (local and daemon-attached)', async () => {

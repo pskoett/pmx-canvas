@@ -1,12 +1,105 @@
 import { describe, expect, test } from 'bun:test';
+import { dirname, join } from 'node:path';
+import { z } from 'zod';
 import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
 import { CANVAS_THEMES } from '../../src/shared/themes.ts';
 
 describe('bundled skills', () => {
+  test('shipped manifests follow the skill spec and resolve their license files', async () => {
+    const manifest = z.strictObject({
+      name: z
+        .string()
+        .max(64)
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+      description: z
+        .string()
+        .min(1)
+        .max(1024)
+        .regex(/^[^<>]*$/),
+      license: z.string().optional(),
+      compatibility: z.string().max(500).optional(),
+      'allowed-tools': z.string().optional(),
+      metadata: z.record(z.string(), z.string()).optional(),
+    });
+    for (const skill of listBundledSkills()) {
+      const parsed = manifest.parse(skill.frontmatter);
+      expect(parsed.name).toBe(skill.name);
+      const markdown = readBundledSkill(skill.name)!;
+      expect(markdown.split('\n').length, skill.name).toBeLessThanOrEqual(600);
+      for (const license of parsed.license?.match(/LICENSE\.\w+/g) ?? []) {
+        expect(await Bun.file(join(dirname(skill.filePath), license)).exists(), `${skill.name}/${license}`).toBe(true);
+      }
+    }
+  });
+
+  test('behavioral eval catalog has valid definitions, unique identities and shipped fixtures', async () => {
+    const nonempty = z.string().trim().min(1);
+    const definition = z.strictObject({
+      id: z.number().int().positive(),
+      name: nonempty,
+      prompt: nonempty,
+      expected_output: nonempty,
+      files: z.array(nonempty).optional(),
+      assertions: z
+        .array(z.strictObject({ name: nonempty, description: nonempty, type: z.literal('output_check') }))
+        .min(1),
+    });
+    const catalog = z
+      .strictObject({ skill_name: z.literal('pmx-canvas'), evals: z.array(definition).min(1) })
+      .parse(await Bun.file(new URL('../../skills/pmx-canvas/evals/evals.json', import.meta.url)).json());
+
+    expect(new Set(catalog.evals.map((entry) => entry.id)).size).toBe(catalog.evals.length);
+    expect(new Set(catalog.evals.map((entry) => entry.name)).size).toBe(catalog.evals.length);
+    for (const entry of catalog.evals) {
+      expect(new Set(entry.assertions.map((assertion) => assertion.name)).size).toBe(entry.assertions.length);
+      for (const file of entry.files ?? []) {
+        expect(file.startsWith('evals/fixtures/')).toBe(true);
+        expect(file.split('/')).not.toContain('..');
+        expect(await Bun.file(new URL(`../../skills/pmx-canvas/${file}`, import.meta.url)).exists()).toBe(true);
+      }
+    }
+
+    const connectedMemoryEvals = [
+      'folder-cli-without-removed-category',
+      'whole-library-map-versus-full-content-delivery',
+      'durable-background-create-replay',
+      'background-create-conflicts-and-stale-active-guard',
+      'board-qualified-native-relations',
+      'wiki-bindings-survive-renames-without-guessing',
+      'review-evidence-bound-to-checked-content-and-sources',
+      'retirement-excludes-context-until-audited-restore',
+    ];
+    for (const name of connectedMemoryEvals) {
+      const entry = catalog.evals.find((candidate) => candidate.name === name);
+      expect(entry, name).toBeDefined();
+      expect(entry!.assertions.length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
   test('browser workflow theme names match the shipped registry', () => {
     const skill = readBundledSkill('pmx-canvas')!;
     const themeList = skill.match(/nine themes: ([^)]+)\)/)?.[1];
     expect(themeList?.split(',').map((theme) => theme.trim())).toEqual([...CANVAS_THEMES]);
+  });
+
+  test('routine AX state recipe explicitly excludes context', () => {
+    const skill = readBundledSkill('pmx-canvas')!;
+    const recipe = skill.match(/\*\*Token hygiene\.\*\*[\s\S]*?`canvas_ax_state (\{[^}]+\})`/)?.[1];
+    expect(recipe).toBeDefined();
+    expect(recipe).toMatch(/action:\s*"get"/);
+    expect(recipe).toMatch(/includeContext:\s*false\b/);
+  });
+
+  test('Copilot adapter documentation links work outside the repository skill layout', async () => {
+    const guide = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/github-copilot-app-adapter.md', import.meta.url),
+    ).text();
+    for (const document of ['agent-plugin.md', 'ax-host-adapter-contract.md']) {
+      const target = [...guide.matchAll(/\]\(([^)]+)\)/g)].find((match) => match[1]!.endsWith(`/${document}`))?.[1];
+      expect(target).toBeDefined();
+      expect(target).toBe(`https://github.com/pskoett/pmx-canvas/blob/main/docs/${document}`);
+      expect(await Bun.file(new URL(`../../docs/${document}`, import.meta.url)).exists()).toBe(true);
+    }
   });
 
   test('installation pins and runtime prerequisite match the package version', async () => {

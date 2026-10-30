@@ -71,7 +71,7 @@ walks you through setup and any permissions it needs. No repository clone is nee
 
 ### Run it yourself
 
-Install [Bun](https://bun.sh) 1.4.2 or newer, then run this command from the
+Install [Bun](https://bun.sh) 1.4.4 or newer, then run this command from the
 folder where you want to keep your boards:
 
 ```bash

@@ -97,6 +97,30 @@ describe('agent CLI global target flags', () => {
     expect(JSON.parse(result.stdout.trim())).toEqual([]);
   });
 
+  test('board create refuses the removed category flag without creating an unfiled board', async () => {
+    const before = (await (await fetch(`${baseUrl}/api/canvas/boards`)).json()).boards;
+    for (const flags of [['--category', 'Old/Nested'], ['--category=Old/Nested'], ['--category=']]) {
+      const result = await runRealCli(['board', 'create', 'Rejected folder', '--server-url', baseUrl, ...flags]);
+      expect(result.code).toBe(1);
+      expect(JSON.parse(result.stderr)).toMatchObject({
+        error: 'The --category flag was removed.',
+        hint: 'Use --folder <folder> instead.',
+      });
+    }
+    expect((await (await fetch(`${baseUrl}/api/canvas/boards`)).json()).boards).toEqual(before);
+    const result = await runRealCli([
+      'board',
+      'create',
+      'Filed control',
+      '--server-url',
+      baseUrl,
+      '--folder',
+      'Old/Nested',
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout).board).toMatchObject({ name: 'Filed control', folder: 'Old/Nested' });
+  });
+
   test('memory-graph rejects bare and empty depth while retaining zero and default two', async () => {
     for (const args of [['--depth'], ['--depth='], ['--depth', ' ']]) {
       const result = await runRealCli(['memory-graph', '--server-url', baseUrl, ...args]);

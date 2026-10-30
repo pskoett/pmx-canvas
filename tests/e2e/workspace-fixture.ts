@@ -1,6 +1,19 @@
-import { test as base, expect, type APIRequestContext } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export * from '@playwright/test';
+
+/** Rendered camera, independent of the application state and CSS transform format. */
+export function renderedCamera(page: Page) {
+  return page.locator('.canvas-world').evaluate((world) => {
+    const rect = world.getBoundingClientRect();
+    const area = world.parentElement!.getBoundingClientRect();
+    return {
+      x: rect.x - area.x,
+      y: rect.y - area.y,
+      scale: new DOMMatrixReadOnly(getComputedStyle(world).transform).a,
+    };
+  });
+}
 
 /** Test setup uses the same authenticated human settings path as the UI. */
 export async function setWorkspaceFeatures(

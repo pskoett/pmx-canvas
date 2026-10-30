@@ -1,7 +1,12 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { render as renderDom } from 'preact';
-import { RefreshingViewerFrame } from '../../src/client/nodes/McpAppNode.tsx';
+import {
+  RefreshingViewerFrame,
+  VIEWER_LOAD_DEADLINE_MS,
+  waitForViewerPaint,
+} from '../../src/client/nodes/ViewerFrame.tsx';
+import { HTML_SURFACE_PUSH_SOURCE } from '../../src/shared/ax-surface-protocol.ts';
 import { resetAttentionBridge } from '../../src/client/state/attention-bridge.ts';
 import { iframeMode } from '../../src/client/state/iframe-mode.ts';
 
@@ -48,8 +53,8 @@ describe('iframe-backed viewer refresh', () => {
     const loadedRef: { current: HTMLIFrameElement | null } = { current: null };
     const initialized: HTMLIFrameElement[] = [];
     let committed!: () => void;
-    let ready = new Promise<void>((resolve) => {
-      committed = resolve;
+    let ready = new Promise<boolean>((resolve) => {
+      committed = () => resolve(true);
     });
     const viewer = (version: number) => (
       <RefreshingViewerFrame
@@ -89,8 +94,8 @@ describe('iframe-backed viewer refresh', () => {
     expect(pending.hasAttribute('inert')).toBe(false);
     expect(pending.hasAttribute('aria-hidden')).toBe(false);
 
-    ready = new Promise<void>((resolve) => {
-      committed = resolve;
+    ready = new Promise<boolean>((resolve) => {
+      committed = () => resolve(true);
     });
     view.rerender(viewer(3));
     fireEvent.load(view.container.querySelectorAll('iframe')[1]!);
@@ -149,7 +154,7 @@ describe('iframe-backed viewer refresh', () => {
     expect(frameRef.current).toBe(painted[0]);
   });
 
-  test('a failed readiness check retries once, retains painted content, and permits a later healthy update', async () => {
+  test('a failed readiness check retains painted content and offers explicit retry', async () => {
     let ready = false;
     const viewer = (version: number) => (
       <RefreshingViewerFrame
@@ -169,12 +174,13 @@ describe('iframe-backed viewer refresh', () => {
     });
     expect(frameRef.current).toBe(first);
     expect(view.container.querySelectorAll('iframe')).toHaveLength(2);
+    fireEvent.click(view.getByRole('button', { name: 'Retry' }));
     const retry = view.container.querySelectorAll('iframe')[1]!;
     expect(retry).not.toBe(failed);
     await act(async () => {
       fireEvent.load(retry);
     });
-    expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
+    expect(view.getByRole('button', { name: 'Retry' })).toBeTruthy();
     expect(frameRef.current).toBe(first);
     ready = true;
     view.rerender(viewer(3));
@@ -183,6 +189,101 @@ describe('iframe-backed viewer refresh', () => {
     });
     expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
     expect(frameRef.current?.getAttribute('src')).toBe('/viewer?v=3');
+  });
+
+  for (const loadFirst of [true, false]) {
+    test(`initial paint can finish after a failed replacement (load first: ${loadFirst})`, async () => {
+      let finishInitial!: (ready: boolean) => void;
+      const initialReady = new Promise<boolean>((resolve) => {
+        finishInitial = resolve;
+      });
+      const viewer = (version: number) => (
+        <RefreshingViewerFrame
+          source={{ src: `/viewer?v=${version}` }}
+          iframeRef={frameRef}
+          onDocumentLoad={() => (version === 1 ? initialReady : Promise.resolve(false))}
+          title="viewer"
+        />
+      );
+      const view = render(viewer(1));
+      const first = view.container.querySelector('iframe')!;
+      if (loadFirst) fireEvent.load(first);
+      view.rerender(viewer(2));
+      if (!loadFirst) fireEvent.load(first);
+      await act(async () => {
+        fireEvent.load(view.container.querySelectorAll('iframe')[1]!);
+      });
+      expect(view.getByRole('button', { name: 'Retry' })).toBeTruthy();
+      await act(async () => finishInitial(true));
+      expect(view.getByRole('status').textContent).toContain('Keeping the last view.');
+      expect(frameRef.current).toBe(first);
+      expect(view.container.querySelectorAll('iframe')).toHaveLength(2);
+    });
+  }
+
+  test('a retained document error cannot make Retry replace the newer source with the old one', () => {
+    const viewer = (version: number) => (
+      <RefreshingViewerFrame source={{ src: `/viewer?v=${version}` }} iframeRef={frameRef} title="viewer" />
+    );
+    const view = render(viewer(1));
+    const first = view.container.querySelector('iframe')!;
+    fireEvent.load(first);
+    view.rerender(viewer(2));
+    fireEvent.error(first);
+    expect(view.queryByRole('button', { name: 'Retry' })).toBeNull();
+    fireEvent.error(view.container.querySelectorAll('iframe')[1]!);
+    fireEvent.click(view.getByRole('button', { name: 'Retry' }));
+    const retry = view.container.querySelectorAll('iframe')[1]!;
+    expect(retry.getAttribute('src')).toBe('/viewer?v=2');
+    fireEvent.load(retry);
+    expect(frameRef.current?.getAttribute('src')).toBe('/viewer?v=2');
+    expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
+  });
+
+  test('Retry cancels a late-loaded document still awaiting its paint acknowledgement', async () => {
+    jest.useFakeTimers();
+    const signals: AbortSignal[] = [];
+    const reply = (frame: HTMLIFrameElement, type: string) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: frame.contentWindow,
+          data: { source: HTML_SURFACE_PUSH_SOURCE, token: 'paint', type },
+        }),
+      );
+    try {
+      const view = render(
+        <RefreshingViewerFrame
+          source={{ src: '/viewer' }}
+          iframeRef={frameRef}
+          onDocumentLoad={(frame, signal) => {
+            signals.push(signal);
+            return waitForViewerPaint(frame, 'paint', signal);
+          }}
+          title="viewer"
+        />,
+      );
+      const first = view.container.querySelector('iframe')!;
+      act(() => {
+        jest.advanceTimersByTime(VIEWER_LOAD_DEADLINE_MS);
+      });
+      fireEvent.load(first);
+      reply(first, 'mounted');
+      fireEvent.click(view.getByRole('button', { name: 'Retry' }));
+      expect(signals[0]!.aborted).toBe(true);
+      const retry = view.container.querySelector('iframe')!;
+      expect(retry).not.toBe(first);
+      fireEvent.load(retry);
+      expect(signals[1]!.aborted).toBe(false);
+      reply(retry, 'mounted');
+      await act(async () => {
+        reply(retry, 'ready');
+      });
+      expect(view.queryByRole('status')).toBeNull();
+      expect(frameRef.current).toBe(retry);
+    } finally {
+      cleanup();
+      jest.useRealTimers();
+    }
   });
 
   test('preserves the theme in repeated replacement URLs', () => {

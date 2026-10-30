@@ -1,17 +1,18 @@
 import type { JSX } from 'preact';
+import { Marked } from 'marked';
 import { signal, type Signal } from '@preact/signals';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconArrowLeft } from '../icons';
 import { expandNode, nodes, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
-import { activeBoard, setBoardReadme, openMemoryTarget, boardList } from '../state/boards-store';
+import { openMemoryTarget, boardList } from '../state/boards-store';
 import { showToast } from '../state/attention-bridge';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
 import { InlineMarkdownEditor } from './InlineMarkdownEditor';
 import { isHostedWorkbench } from '../state/workbench-transport';
-import { activeBoardId, boardIncarnation } from '../state/boards-store';
+import { activeBoardId, boardIncarnation, claimNavigation } from '../state/boards-store';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
 
 function handleWikiClick(e: MouseEvent, nodeId: string): boolean {
@@ -77,7 +78,7 @@ function RenderedMarkdown({
     template.innerHTML = sanitizeMarkdownHtml(html);
     container.append(template.content.cloneNode(true));
     if (onTaskToggleRef.current) {
-      for (const box of container.querySelectorAll('input[type="checkbox"][disabled]')) {
+      for (const box of container.querySelectorAll('input[type="checkbox"][data-pmx-task][disabled]')) {
         box.removeAttribute('disabled');
       }
     }
@@ -93,30 +94,67 @@ function RenderedMarkdown({
     // input alone is a miserable target at zoom and in embedded panes
     // that forward clicks imprecisely.
     let box: HTMLInputElement | null = null;
-    if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+    if (target instanceof HTMLInputElement && target.matches('input[type="checkbox"][data-pmx-task]')) {
       box = target;
     } else {
       const row = target.closest('li');
-      const rowBox = row?.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
+      const rowBox = row?.querySelector<HTMLInputElement>(
+        ':scope > input[data-pmx-task], :scope > p > input[data-pmx-task]',
+      );
       if (rowBox && e.clientX <= rowBox.getBoundingClientRect().right + 6) box = rowBox;
     }
     if (!box) return;
+    // The source/rendered acknowledgement owns the tick, not the native input's
+    // optimistic state, which would otherwise survive a refused or stale click.
+    e.preventDefault();
     e.stopPropagation();
-    const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(box);
-    if (index >= 0) onToggle(index);
+    // Inert template content and HTML tree repair can change the live DOM order.
+    onToggle(Number(box.dataset.pmxTask));
   };
 
   return <div ref={containerRef} class={className} style={style} onClick={handleClick} />;
 }
 
-/** Flip the index-th GFM task marker in the source (document order matches the rendered boxes). */
+const taskParser = new Marked({ gfm: true, breaks: true });
+
+/** Flip exactly one parsed GFM task without reformatting any other source bytes. */
 export function toggleTaskMarker(markdown: string, index: number): string {
-  let seen = -1;
-  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/gm, (match, pre, state, post) => {
-    seen += 1;
-    if (seen !== index) return match;
-    return `${pre}${state === ' ' ? 'x' : ' '}${post}`;
-  });
+  const states = (source: string): boolean[] => {
+    const result: boolean[] = [];
+    taskParser.walkTokens(taskParser.lexer(source), (token) => {
+      if (token.type === 'list_item' && token.task) result.push(!!token.checked);
+    });
+    return result;
+  };
+  const before = states(markdown);
+  if (!Number.isInteger(index) || index < 0 || index >= before.length) return markdown;
+  // Marked has no source offsets, and container tokens strip quote/indentation
+  // prefixes. Probe only list-shaped markers, never reference labels like [x]:
+  // whose mutation can change parsing. Marked decides which candidates are tasks.
+  const markers = [...markdown.matchAll(/(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX]\](?=[ \t]|$)/gm)].map(
+    (match) => match.index + match[0].lastIndexOf('[') + 1,
+  );
+  const flip = (first: number, last: number) => {
+    let source = markdown;
+    for (let i = last; i >= first; i--) {
+      const offset = markers[i];
+      source = source.slice(0, offset) + (source[offset] === ' ' ? 'x' : ' ') + source.slice(offset + 1);
+    }
+    return source;
+  };
+  let first = 0;
+  let last = markers.length - 1;
+  while (first < last) {
+    const middle = Math.floor((first + last) / 2);
+    if (states(flip(first, middle))[index] !== before[index]) last = middle;
+    else first = middle + 1;
+  }
+  const candidate = flip(first, first);
+  const after = states(candidate);
+  return after.length === before.length &&
+    after.every((checked, i) => checked === (i === index ? !before[i] : before[i]))
+    ? candidate
+    : markdown;
 }
 
 // A draft belongs to its qualified card, not the card/overlay component currently
@@ -139,8 +177,18 @@ export function hasUnsavedMarkdown(boardId: string, nodeId: string): boolean {
   return !!draft && (draft.dirty.value || draft.pending.value > 0);
 }
 
+/** After blur, navigate only when this board/card's save has actually succeeded. */
+export async function waitForMarkdownSave(boardId: string | null, nodeId: string): Promise<boolean> {
+  const isCurrentNavigation = claimNavigation();
+  const incarnation = boardIncarnation;
+  const draft = markdownDrafts.get(JSON.stringify([boardId, nodeId]));
+  await draft?.saveQueue.current;
+  return (
+    isCurrentNavigation() && incarnation === boardIncarnation && activeBoardId.value === boardId && !draft?.dirty.value
+  );
+}
+
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
-  const board = activeBoard();
   const boardId = activeBoardId.value;
   const draftKey = JSON.stringify([boardId, node.id]);
   const draft = useMemo(() => {
@@ -445,6 +493,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   // write twice with slightly different content.
   const handleInlineSave = useCallback(
     (md: string) => {
+      if (!draft.dirty.value && md === latestMdRef.current) return;
       draft.dirty.value = true;
       setContent(md);
       latestMdRef.current = md;
@@ -473,7 +522,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     <div
       style={{
         padding: '4px 8px',
-        fontSize: '10px',
+        fontSize: 'var(--fs-meta)',
         background: 'color-mix(in srgb, var(--c-ok) 10%, transparent)',
         color: 'var(--c-ok)',
         borderBottom: '1px solid color-mix(in srgb, var(--c-ok) 20%, transparent)',
@@ -576,18 +625,17 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   if (expanded) {
     return (
       <div
+        class="md-expanded-document"
         style={{ height: '100%', position: 'relative' }}
         onClick={async (event) => {
           if (!(event.target as HTMLElement).closest('a.wiki-link')) return;
           event.preventDefault();
           event.stopPropagation();
-          const incarnation = boardIncarnation;
           const focused = document.activeElement;
-          // Blur serializes the rich document. Finish that save before the
+          // Blur flushes actual rich edits. Finish that save before the
           // link dialog captures its source or navigation changes boards.
           if (focused instanceof HTMLElement && event.currentTarget.contains(focused)) focused.blur();
-          await saveQueue.current;
-          if (incarnation !== boardIncarnation || activeBoardId.value !== boardId || draft.dirty.value) return;
+          if (!(await waitForMarkdownSave(boardId, node.id))) return;
           handleWikiClick(event, node.id);
         }}
       >
@@ -596,6 +644,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           {loaded ? (
             <InlineMarkdownEditor
               key={node.id}
+              markdown={content}
               initialHtml={rendered || '<p><br></p>'}
               className="md-reader-content md-reader-editable"
               onChange={handleInlineChange}
@@ -624,7 +673,9 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
           // Task checkboxes are live on the card itself — no need to expand to tick one.
           onTaskToggle={(index) => {
-            const next = toggleTaskMarker(content, index);
+            const preview = renderedMdRef.current;
+            if (preview?.html !== rendered || preview.markdown !== latestMdRef.current) return;
+            const next = toggleTaskMarker(preview.markdown, index);
             if (next !== content) handleInlineSave(next);
           }}
         />
@@ -647,21 +698,13 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           {String((node.data.source as Record<string, unknown>).reference ?? 'Location not supplied')}
         </div>
       )}
-      <div class="md-card-actions">
-        {board && (
-          <button
-            type="button"
-            class="md-readme-btn"
-            aria-pressed={board.readmeNodeId === node.id}
-            onClick={() => void setBoardReadme(board.id, board.readmeNodeId === node.id ? null : node.id)}
-          >
-            {board.readmeNodeId === node.id ? 'README' : 'Set as README'}
+      {node.data.display !== 'heading' && (
+        <div class="md-card-actions">
+          <button type="button" class="md-card-edit" onClick={() => expandNode(node.id)}>
+            Edit
           </button>
-        )}
-        <button type="button" class="md-card-edit" onClick={() => expandNode(node.id)}>
-          Edit
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

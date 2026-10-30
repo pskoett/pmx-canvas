@@ -58,6 +58,7 @@ export function validCanvasNodeUpdates(input: unknown): CanvasNodeUpdate[] {
     return (
       typeof update.id === 'string' &&
       (update.collapsed === undefined || typeof update.collapsed === 'boolean') &&
+      (update.zIndex === undefined || finite(update.zIndex) !== undefined) &&
       validateCanvasNodePatch(update) === null
     );
   });

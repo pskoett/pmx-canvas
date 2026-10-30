@@ -14,10 +14,14 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function Harness({ node }: { node: CanvasNodeState }) {
+function Harness({ node, documentVersion = 0 }: { node: CanvasNodeState; documentVersion?: number }) {
   const ref = useRef<HTMLIFrameElement>(null);
   useIframeContentHeight(node, ref, 'test-token');
-  return <iframe ref={ref} title="measured" />;
+  return (
+    <div class="canvas-node">
+      <iframe key={documentVersion} ref={ref} title="measured" />
+    </div>
+  );
 }
 
 for (const remote of [false, true]) {
@@ -48,7 +52,7 @@ for (const remote of [false, true]) {
       [node.id, node],
       [neighbor.id, neighbor],
     ]);
-    const { container } = render(<Harness node={node} />);
+    const { container, rerender } = render(<Harness node={node} />);
     await new Promise((resolve) => setTimeout(resolve, 30));
     if (remote)
       humans.value = [
@@ -61,7 +65,9 @@ for (const remote of [false, true]) {
         },
       ];
     else grabbingNodeId.value = node.id;
-    const frame = container.querySelector('iframe')!;
+    let frame = container.querySelector('iframe')!;
+    Object.defineProperty(container.querySelector('.canvas-node')!, 'offsetHeight', { value: 280 });
+    Object.defineProperty(frame, 'clientHeight', { value: 241 });
     const report = (height: number) =>
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -77,7 +83,7 @@ for (const remote of [false, true]) {
     if (remote) humans.value = [];
     else grabbingNodeId.value = null;
     await waitFor(() => expect(writes).toHaveLength(1));
-    expect(nodes.value.get(node.id)?.size.height).toBe(661);
+    expect(nodes.value.get(node.id)?.size.height).toBe(639);
     expect(nodes.value.get(node.id)?.position).toEqual({ x: 100, y: 724 });
     expect(writes[0]?.updates).toHaveLength(1);
     expect(writes[0]?.updates[0]?.id).toBe(node.id);
@@ -87,5 +93,37 @@ for (const remote of [false, true]) {
     await waitFor(() => expect(writes).toHaveLength(2));
     expect(writes[1]?.recordHistory).toBe(false);
     expect(writes[1]?.updates[0]?.position).toBeUndefined();
+
+    // Undo restores geometry without resetting the viewer's interactive content.
+    // Its resize report must not immediately replay the growth we just undid.
+    nodes.value = new Map([
+      [node.id, node],
+      [neighbor.id, neighbor],
+    ]);
+    report(700);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(nodes.value.get(node.id)).toEqual(node);
+    expect(writes).toHaveLength(2);
+    // A subsequent content change still fits normally.
+    report(800);
+    await waitFor(() => expect(writes).toHaveLength(3));
+    expect(nodes.value.get(node.id)?.size.height).toBe(839);
+
+    // Authored replacement content owns a fresh fit even at the same height.
+    nodes.value = new Map([
+      [node.id, node],
+      [neighbor.id, neighbor],
+    ]);
+    // A report already queued by the old document cannot size its replacement.
+    report(800);
+    rerender(<Harness node={node} documentVersion={1} />);
+    frame = container.querySelector('iframe')!;
+    Object.defineProperty(frame, 'clientHeight', { value: 241 });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(nodes.value.get(node.id)).toEqual(node);
+    expect(writes).toHaveLength(3);
+    report(800);
+    await waitFor(() => expect(nodes.value.get(node.id)?.size.height).toBe(839));
+    expect(writes).toHaveLength(4);
   });
 }

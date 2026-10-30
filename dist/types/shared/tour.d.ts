@@ -81,6 +81,14 @@ export declare const tourSchema: z.ZodObject<{
         pullback: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/** Latest intent from one document, scoped to the server's board activation. */
+export declare const tourPresenterSchema: z.ZodObject<{
+    clientId: z.ZodString;
+    intent: z.ZodNumber;
+    catalogEpoch: z.ZodString;
+    boardGeneration: z.ZodNumber;
+}, z.core.$strip>;
+export type TourPresenter = z.infer<typeof tourPresenterSchema>;
 export type Tour = z.infer<typeof tourSchema>;
 export type TourStop = z.infer<typeof tourStopSchema>;
 export type Camera = z.infer<typeof cameraSchema>;

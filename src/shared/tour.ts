@@ -21,6 +21,14 @@ export const tourStopSchema = z.object({
   pullback: z.number().min(0).max(4).optional(),
 });
 export const tourSchema = z.object({ stops: z.array(tourStopSchema).max(1000) });
+/** Latest intent from one document, scoped to the server's board activation. */
+export const tourPresenterSchema = z.object({
+  clientId: z.string().min(1).max(128),
+  intent: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  catalogEpoch: z.string().min(1).max(128),
+  boardGeneration: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+});
+export type TourPresenter = z.infer<typeof tourPresenterSchema>;
 export type Tour = z.infer<typeof tourSchema>;
 export type TourStop = z.infer<typeof tourStopSchema>;
 export type Camera = z.infer<typeof cameraSchema>;

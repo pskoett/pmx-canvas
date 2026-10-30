@@ -2,7 +2,7 @@ import { findOpenCanvasPosition } from '../utils/placement.js';
 import { refreshKnowledge } from './knowledge-store';
 import { applyWorkspaceSettings } from './workspace-settings';
 import { cameraSchema, tourStopSchema } from '../../shared/tour.js';
-import { ownsCamera, playStop, presentationError, presenting, presentStop, recordingCamera } from './presentation';
+import { applyTourExit, applyTourStep, ownsCamera, playStop, presenting, recordingCamera } from './presentation';
 import { isHostedWorkbench, workbenchFetch } from './workbench-transport';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, NodeActor } from '../types';
@@ -14,7 +14,6 @@ import {
   axSurfaceState,
   bringToFront,
   cancelViewportAnimation,
-  commitViewport,
   canvasTheme,
   connectionStatus,
   contextPinsRevision,
@@ -50,15 +49,15 @@ import {
 import { applyContextStatus, refreshContextStatus } from './context-status-store';
 import { refreshContextChip } from './context-chip-store';
 import {
-  fetchAgentPresence,
   fetchAxSurfaceState,
   fetchCanvasState,
   reportClientViewportSize,
   requestJson,
   tabAgentKey,
+  updateViewportFromClient,
 } from './intent-bridge';
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
-import { applyHumanSnapshot, humanClientId, startHumanPresence } from './human-store';
+import { applyHumanSnapshot, humanClientId, startHumanPresence, stopHumanPresence } from './human-store';
 import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
 import { activityLens, applySessionReceipt, dismissSessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
@@ -89,6 +88,8 @@ const POLL_INTERVAL_MS = 2000;
 const POLL_WAIT_MS = 1000;
 const POLL_LIVE_INTERVAL_MS = 80;
 const POLL_ERROR_INTERVAL_MS = 5000;
+// Bound headers AND body, including host transports that ignore AbortSignal.
+const POLL_REQUEST_TIMEOUT_MS = 10000;
 let pollingMode = false;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let pollAbort: AbortController | null = null;
@@ -175,7 +176,7 @@ function ensureMarkdownNode(path: string, title: string): void {
     const node = makeNode(id, 'markdown', { path, title, content: '', rendered: '' });
     node.position = placement;
     addNode(node);
-    focusNode(id);
+    focusNode(id, { persistStacking: false });
   }
 }
 
@@ -198,7 +199,7 @@ function ensureMcpAppNode(data: Record<string, unknown>): void {
     updateNodeData(id, data);
   } else {
     addNode(makeNode(id, 'mcp-app', data));
-    focusNode(id);
+    focusNode(id, { persistStacking: false });
   }
 }
 
@@ -259,7 +260,7 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
     ),
   );
   addNode(node);
-  focusNode(id, { recordHistory: false });
+  focusNode(id, { recordHistory: false, persistStacking: false });
 }
 
 function findExtAppNodeId(toolCallId: string): string | null {
@@ -500,7 +501,6 @@ function handleAgentSessionEnded(data: Record<string, unknown>): void {
   applySessionReceipt(data);
 }
 
-let stopHumanPresence: (() => void) | null = null;
 let boardResyncGeneration = 0;
 let layoutRevision = 0;
 let pendingBoardLayout: Record<string, unknown> | null = null;
@@ -576,16 +576,15 @@ function handleConnected(data: Record<string, unknown>): void {
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
   reloadIfServerUpgraded(data.version, data.bundleStamp);
-  // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
-  // keep it live from here on.
-  void fetchAgentPresence().then(applyPresenceSnapshot);
+  // Both transports send an ordered `agent-presence` connect snapshot, then
+  // live frames. A separate HTTP read can arrive late and overwrite newer state.
   void refreshContextStatus();
   refreshContextChip();
   // Human collaborators (phase 8): announce this tab and read who else is here.
   // An `?agent=<key>` tab is an AGENT's view — it must not heartbeat a human
   // guest cursor (its writes already book as the agent).
-  stopHumanPresence?.();
-  if (!tabAgentKey && !isHostedWorkbench()) stopHumanPresence = startHumanPresence();
+  stopHumanPresence();
+  if (!tabAgentKey && !isHostedWorkbench()) startHumanPresence();
   void requestJson<Partial<HumanPresenceSnapshot> | null>(
     'fetchHumanPresence',
     '/api/canvas/human-presence',
@@ -850,7 +849,7 @@ function handleCanvasPromptCreated(data: Record<string, unknown>): void {
         ),
       ),
     );
-    focusNode(nodeId);
+    focusNode(nodeId, { persistStacking: false });
   }
 
   // Add flow edge from parent → prompt if parent exists
@@ -889,7 +888,7 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
       threadStatus: 'streaming',
       _activeResponseId: responseNodeId,
     });
-    focusNode(promptNodeId);
+    focusNode(promptNodeId, { persistStacking: false });
     return;
   }
 
@@ -922,7 +921,7 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
     });
   }
 
-  focusNode(responseNodeId);
+  focusNode(responseNodeId, { persistStacking: false });
 }
 
 function handleCanvasResponseDelta(data: Record<string, unknown>): void {
@@ -1079,10 +1078,10 @@ function handleCanvasFocusNode(data: Record<string, unknown>): void {
   const nodeId = data.nodeId as string;
   if (nodeId && nodes.value.has(nodeId)) {
     if (data.noPan === true) {
-      bringToFront(nodeId);
+      bringToFront(nodeId, false);
       return;
     }
-    focusNode(nodeId);
+    focusNode(nodeId, { persistStacking: false });
   }
 }
 
@@ -1094,6 +1093,12 @@ function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
   const x = typeof viewport.x === 'number' ? viewport.x : 0;
   const y = typeof viewport.y === 'number' ? viewport.y : 0;
   const scale = typeof viewport.scale === 'number' ? viewport.scale : 1;
+  // The catalog may still be holding the initial layout. Its older camera
+  // must not overwrite this later event when the board identity arrives.
+  const pendingLayout = pendingBoardLayout?.layout as Record<string, unknown> | undefined;
+  if (pendingLayout) {
+    pendingBoardLayout = { ...pendingBoardLayout, layout: { ...pendingLayout, viewport: { x, y, scale } } };
+  }
   cancelViewportAnimation();
   replaceViewport({ x, y, scale });
 }
@@ -1101,18 +1106,11 @@ function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
 // Tour steps and camera moves animate locally; a deterministic capture owns
 // its camera outright and ignores both.
 function handleCanvasTourStep(data: Record<string, unknown>): void {
-  if (recordingCamera.value) return;
-  // A human stepping in one tab moves tabs already presenting; only a
-  // `present` step (the agent's default) starts presenting elsewhere.
-  if (!presenting.value && data.present !== true) return;
-  const stop = tourStopSchema.safeParse(data.stop);
-  if (stop.success) presentStop(stop.data);
+  applyTourStep(data);
 }
 
-function handleCanvasTourExit(): void {
-  if (recordingCamera.value) return;
-  presenting.value = false;
-  presentationError.value = '';
+function handleCanvasTourExit(data: Record<string, unknown>): void {
+  applyTourExit(data);
 }
 
 function handleCanvasCameraMove(data: Record<string, unknown>): void {
@@ -1122,7 +1120,14 @@ function handleCanvasCameraMove(data: Record<string, unknown>): void {
   try {
     // The presentation camera is local; otherwise the end camera becomes the
     // board viewport — unrecorded, so a camera move is never an undo step.
-    playStop(stop.data, presenting.value ? undefined : (end) => commitViewport(end, { recordHistory: false }));
+    playStop(
+      stop.data,
+      presenting.value
+        ? undefined
+        : (end) => {
+            void updateViewportFromClient(end, { recordHistory: false });
+          },
+    );
   } catch {
     // Target not in this tab's layout yet: take the server's resolved camera.
     const fallback = cameraSchema.safeParse(data.viewport);
@@ -1315,6 +1320,8 @@ function startPollingTransport(): () => void {
 
   const pollOnce = async (): Promise<void> => {
     if (generation !== pollGeneration) return;
+    const requestController = new AbortController();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
       const params = new URLSearchParams();
       if (pollSeq !== null) {
@@ -1325,19 +1332,27 @@ function startPollingTransport(): () => void {
       if (sid) params.set('session', sid);
       const query = params.toString();
       const pinsAtRequest = contextPinsRevision;
-      const response = await workbenchFetch(
-        `/api/workbench/poll${query ? `?${query}` : ''}`,
-        longPolling ? { signal: controller.signal } : undefined,
-      );
-      if (generation !== pollGeneration) return;
-      if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
-      const body = (await response.json()) as {
-        ok: boolean;
-        seq: number;
-        snapshot: boolean;
-        sessionId?: string;
-        events: Array<{ event: string; payload: unknown }>;
-      };
+      const body = await Promise.race([
+        (async () => {
+          const response = await workbenchFetch(`/api/workbench/poll${query ? `?${query}` : ''}`, {
+            signal: AbortSignal.any([controller.signal, requestController.signal]),
+          });
+          if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
+          return (await response.json()) as {
+            ok: boolean;
+            seq: number;
+            snapshot: boolean;
+            sessionId?: string;
+            events: Array<{ event: string; payload: unknown }>;
+          };
+        })(),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => {
+            requestController.abort();
+            reject(new Error('poll request timed out'));
+          }, POLL_REQUEST_TIMEOUT_MS);
+        }),
+      ]);
       if (generation !== pollGeneration) return;
       if (!body.ok) throw new Error('poll returned ok: false');
       const priorSession = lastPollSessionId;
@@ -1366,7 +1381,32 @@ function startPollingTransport(): () => void {
       // normalization still arrive even though the event cursor advances past the old batch.
       const acceptPins = pinsAtRequest === contextPinsRevision && contextPinsPendingWrites === 0;
       let skippedPins = false;
+      // Full layouts in a buffered poll can predate an HTTP refresh. Replaying
+      // an obsolete empty layout would detach a live editor before its card
+      // reappears. Keep the last snapshot across bookkeeping frames only:
+      // commands (focus, tours, deltas, etc.) still need their preceding layout.
+      const supersededLayouts = new Set<(typeof body.events)[number]>();
+      if (!body.snapshot && hasInitialServerLayout.value) {
+        let previousLayout: (typeof body.events)[number] | undefined;
+        for (const entry of body.events) {
+          const data = entry.payload as Record<string, unknown>;
+          const sameActivation =
+            data.catalogEpoch === catalogEpoch &&
+            data.boardGeneration === boardGeneration &&
+            (entry.event === 'boards-changed' ? data.activeBoardId : data.boardId) === activeBoardId.value;
+          if (entry.event === 'canvas-layout-update' && sameActivation) {
+            if (previousLayout) supersededLayouts.add(previousLayout);
+            previousLayout = entry;
+          } else if (
+            !(entry.event === 'boards-changed' && sameActivation) &&
+            !['agent-presence', 'human-presence', 'ax-intent', 'ax-intent-clear'].includes(entry.event)
+          ) {
+            previousLayout = undefined;
+          }
+        }
+      }
       for (const entry of body.events) {
+        if (supersededLayouts.has(entry)) continue;
         if (entry.event === 'context-pins-changed' && !acceptPins) {
           skippedPins = true;
           continue;
@@ -1392,11 +1432,14 @@ function startPollingTransport(): () => void {
       reconnectAttempt.value += 1;
       reconnectDelay.value = POLL_ERROR_INTERVAL_MS;
       pollTimer = setTimeout(() => void pollOnce(), POLL_ERROR_INTERVAL_MS);
+    } finally {
+      clearTimeout(deadline);
     }
   };
   void pollOnce();
 
   return () => {
+    stopHumanPresence();
     pollGeneration += 1;
     pollingMode = false;
     pollSeq = null;
@@ -1497,6 +1540,7 @@ export function connectSSE(): () => void {
   };
 
   return () => {
+    stopHumanPresence();
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

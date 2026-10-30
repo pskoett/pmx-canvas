@@ -3,6 +3,37 @@
 REST endpoints for all canvas operations + an SSE event stream. Works from
 any language. Default base URL: `http://localhost:4313`.
 
+## Operation cancellation and progress (0.10)
+
+Registry-backed operation routes use the request's abort signal. Disconnecting
+stops supported AX waits, cancels webpage fetching and prevents later batch
+operations from starting. Completed writes remain. Cancellation is cooperative:
+external app builds/runtime calls and local WebView captures cannot be interrupted
+mid-call. A standalone cancelled operation returns HTTP 499 with
+`{ "ok": false, "cancelled": true, "error": "Operation cancelled." }` when the
+connection still permits a response. An interrupted batch retains completed
+`results` and `refs` in its partial-failure body and adds `cancelled: true`.
+Disconnected clients must inspect state before retrying; they may never receive
+that body. Cancellation is not rollback.
+
+Send `Accept: application/x-ndjson` to opt into batch and supported AX wait progress
+over the operation response stream. Each newline-delimited JSON frame is one of:
+
+```json
+{"type":"progress","progress":{"progress":1,"total":3,"message":"node.add"}}
+{"type":"result","status":200,"body":{"ok":true,"results":[],"refs":{}}}
+```
+
+The examples show frame shapes, not one complete batch. The terminal `result`
+frame carries the ordinary operation status and body; the stream's HTTP 200 does
+not establish operation success. Without this header, routes keep their ordinary
+JSON status/body. Early validation errors may still be ordinary JSON. The
+in-process and HTTP operation invokers accept optional `{ signal, onProgress }`;
+the HTTP invoker negotiates this stream only when given a progress callback.
+
+AX wait routes accept `timeoutMs` as well as the direct-HTTP `waitMs` parameter;
+`timeoutMs` takes precedence when both are supplied.
+
 ## Knowledge lifecycle data (plan 017 slice 1)
 
 The slice-1 data contract now also drives the workbench, due engine and qualified agent context.
@@ -85,6 +116,8 @@ refused under a scope fence. Moving or unfiling a board changes inherited lifecy
 cards, so agent folder changes are also refused under a fence; other board metadata is unaffected.
 This checks both the active board's applicable fence and the target board's stored global fence
 or the writer's assigned territory, even when another board or Home is open. It never opens the target.
+Category and folder-policy edits also check stored fences on every board whose effective
+inheritance would change. Unrelated folders and policies hidden by a child category remain editable.
 Card writes target the active board and use the existing expected
 board, scope and human edit-lock guards. Writes emit live knowledge/lifecycle notifications;
 metadata-only edits do not advance content revision or lastEditedBy. Read/delivery clocks,
@@ -140,6 +173,11 @@ are JSON `[boardId,cardId]`. If the snapshot exceeds a quarter of the budget, `c
 explicitly requires rechecking cached cards via lifecycle-get before reuse. Empty lists in an
 incomplete snapshot do not mean healthy or active. Delivered entries still carry qualification.
 
+`GET /health` includes `bundleStamp`, the `<mtimeMs>-<size>` of `dist/canvas/index.js` that
+tabs compare on (re)connect to decide whether to reload. It is read once per process: when it
+differs from the file on disk, new page loads get the rebuilt files but already-open tabs keep
+their old JavaScript until the server restarts.
+
 `GET /health` includes `contracts: ["pmx-embedded-workbench-v4"]` when the daemon
 enforces `expectedBoardId` and `expectedContentRevision` preconditions, bulk-write
 fences/locks using validated geometry and affected automatic parent frames only,
@@ -184,9 +222,15 @@ content auto-height or indirect parent-group reflow after editing a child.
   update and are included in snapshots/undo. They are board-wide writes under a scope fence.
 - `POST /api/canvas/tour/go` with `{ "stop": 2 }` or `{ "step": "next" | "previous" }`
   (plus optional `"present": false`) moves the shared tour cursor →
-  `{ ok, index, total, stop }`; 400 when the stop does not exist or the board has no stops.
+  `{ ok, index, total, stop, catalogEpoch, boardGeneration, sequence }`;
+  400 when the stop does not exist or the board has no stops.
   Broadcasts `canvas-tour-step`; idle workbenches start presenting unless `present` is false.
+  Response and event share the same monotonically increasing `sequence` within the
+  server's `catalogEpoch`. Viewers accept only newer steps for their current epoch
+  and board generation, so delayed echoes cannot rewind or replay the camera.
 - `POST /api/canvas/tour/exit` leaves presentation in every viewer (`canvas-tour-exit`).
+  Returns `{ ok, catalogEpoch, boardGeneration, sequence }`; the event shares that
+  identity and the step sequence, so an old exit cannot dismiss a newer presentation.
 - `POST /api/canvas/camera/move` with exactly one of `nodeId`, `rect: { x, y, width, height }`
   or `viewport: { x, y, scale }`, plus optional `duration`, `easing`, `padding`, `pullback`
   → `{ ok, stop, viewport }`. Broadcasts `canvas-camera-move`; browsers ease to the target in
@@ -195,6 +239,29 @@ content auto-height or indirect parent-group reflow after editing a child.
 
 Tour steps and camera moves are navigation: no undo entry, no agent-presence write, no
 scope-fence check.
+
+`tour/go` and `tour/exit` accept optional `presenter: { clientId, intent,
+catalogEpoch, boardGeneration }`. The workbench assigns each document a random ID
+and each gesture an increasing positive safe-integer intent. The server rejects
+an old activation or an intent no newer than that document's accepted watermark
+with `{ ok: true, superseded: true }`, without moving the cursor or emitting an event.
+A structurally valid newer command supersedes older ones even if its stop is missing.
+This lets Present proceed while an earlier Exit request is stalled, without that
+late Exit stopping the restart. Resume reads cannot outlive their originating intent.
+
+This is latest-intent-wins, not FIFO: reversed relative Next requests can coalesce.
+Different documents, including a reload, remain independent; unfenced agent calls
+and other documents still act in server arrival order. Reload is not cancellation
+of an old document's pending request. A board activation retains at most 4096
+document IDs, refusing new IDs with 409 rather than evicting an ordering record.
+Switching boards resets that limit; requests stamped with the old activation still
+cannot apply. The SDK exposes the same fence through `goToTourStop(step,
+{ presenter })` and `exitTour(presenter)`; fenced go may return `{ superseded: true }`.
+
+Presentation's Back/Next buttons share this cursor with keyboard and agent navigation.
+They sit beside Exit at the top; hover/focus tooltips show the shortcuts. Node and
+rectangle targets fit below those controls, while explicit viewport targets remain
+exact. Presentation does not change the saved board viewport.
 
 The [tour model and recording walkthrough](cli.md#tour-and-presentation) describes
 targets, duration, easing, padding, and pullback. Open `/workbench?present=1` to hide
@@ -237,6 +304,43 @@ Creating a copy records `previousBoardId` as its source board ID; it does not
 open either board.
 Board-list `links` expose qualified `boardId`/`cardId` targets; native card
 connections include `cardTitle` (null if missing), so footers need not display raw IDs.
+
+### Move original cards to a new board
+
+`GET /api/canvas/boards/:id` returns `contentRevision` alongside `board` and `open`.
+Use that revision for `POST /api/canvas/boards/move-selection`:
+
+```json
+{"sourceBoardId":"board-source","nodeIds":["card-a","group-b"],"name":"Follow-up","expectedRevision":42,"requestId":"unique-move-request","preview":true}
+```
+
+Preview is read-only and returns `{ok:true, preview}` with expanded `nodeIds`,
+`affectedBoardIds`, `readmeNodeId`, `pinnedNodeIds`, `liveTaskNodeIds`, `attachmentIds`,
+`blockers` and `notices`. Commit with the identical input and `preview:false` (or omitted).
+The source must still be open and at that revision. Commit rechecks permissions and bindings,
+then atomically returns `{ok:true, sourceBoardId, destinationBoardId, portalId, nodeIds,
+affectedBoardIds, replayed}`. It never opens the destination. The SDK exposes the same input
+through `moveSelectionToNewBoard(input)`.
+
+Keep the request ID and exact input until success is known. Retrying after an interrupted reply
+or restart returns the original result without another board or portal, even if the source is
+no longer open. Reusing that ID with different input returns 409. A stale revision or unsafe
+binding also returns 409; binding refusals include `blockers`. Resolve the cause and preview
+again before a new attempt.
+
+This moves identities, not copies. Groups include descendants; card/edge IDs, relative geometry,
+content revisions, pins, review/read evidence and supported attachments survive. Incoming and
+outgoing relations, wiki bindings and provenance retarget across the library. The destination
+inherits the source folder, theme and relation vocabulary. A selected README moves its designation.
+Live task cards keep their original `workItemBoardId` and `workItemId`; task authority stays put.
+Board-space annotations stay on the source, which receives a portal at the moved selection.
+
+The entire move is refused for unsafe runtime producers, external app sessions, task/flow action
+bindings, partial or unfinished imports, source tours targeting moved cards, unresolved local
+viewer references, edit locks or scope fences on affected boards. Nothing is silently dropped.
+Pre-move Undo/Redo is cleared on affected boards. Older snapshots remain readable but neither
+whole-board nor single-card restore may cross the move boundary. Use a post-move snapshot for
+restore; consult older snapshots to recover text manually without recreating the old identities.
 
 ### Markdown previews and saved links
 
@@ -355,6 +459,14 @@ stored once per file. Live MCP apps become placeholders; local file contents
 are left out unless `includeFiles` is true. Files are written to `exports/`
 beside the database. Built-app files are only embedded when they are regular,
 bounded-size files inside the board's owned `.pmx-canvas/artifacts/` directory.
+Exports retain saved card positions and sizes, heading display, and the board's
+named theme. Charts and dashboards use embedded card layout without repeating
+the shell title; explicit chart heights remain unchanged. Viewer bundles, palette
+CSS and shell fonts are embedded. Read-only exports omit live work controls.
+When running from source, run `bun run build` before exporting. Export requires
+the complete built viewer assets, `surface-theme.css`, and the font files referenced
+by `global.css`; the installed package includes them. A missing asset tree is not
+a supported text-only export mode.
 The preview manifest lists card links, remote images, and statically visible
 network destinations in embedded HTML. Imported source-linked Markdown is also
 excluded unless `includeDerivedText=true`, independently of `includeFiles`;
@@ -428,6 +540,13 @@ opening that board or changing where writes go. This is supported by
 `/api/canvas/spatial-context`, and `/api/canvas/pinned-context`. Unknown boards
 return 404. Omit `board` to read the active board. Live AX session/delivery reads
 and fixed MCP resources continue to describe the open board.
+
+The workbench's `POST /api/canvas/update` accepts `{updates: [{id, position?, size?,
+collapsed?, zIndex?}], expectedBoardId?, recordHistory?}`. `zIndex` is finite and
+persists stacking without changing geometry. The workbench raises a group and its
+children together, keeping the frame below its children. Title-bar gestures save
+stacking and geometry together on release. Layout notifications and reloads retain
+that order.
 
 ```bash
 # Get canvas state
@@ -517,6 +636,21 @@ edge receipt, preserving later edits and not resurrecting removals. A request ID
 cannot be reused for a different creation operation. Inactive group membership
 updates/removals and other background CRUD remain unsupported.
 
+For authored work cards, create `type: "status"` with
+`data: { workState: "todo", detail: "Plan the change", progress: 25 }`.
+`workState` accepts `todo`, `in-progress`, `blocked`, `done`, `cancelled`;
+`detail` must be a string and progress must be 0–100 or `null` to clear it.
+PATCH merges supplied data fields and validates the resulting work card. Use
+`expectedBoardId` and `expectedContentRevision` to refuse stale edits. These cards
+do not create session work or approvals. See [work cards](node-types.md#work-cards).
+
+For a read-only live task presentation, POST `{"type":"status","data":{"workItemId":"<task-id>"}}`
+on the task's active board. Unknown tasks, background creation, supplied display fields,
+reference changes and display-field PATCHes return 400. Title, detail, work state and attribution
+are derived from the existing task; progress is absent. Geometry and pins remain writable.
+Use the existing AX work update endpoint to change the task. Deleting a presentation never
+cancels work. See [live task cards](node-types.md#read-only-live-task-cards).
+
 ```bash
 # Add a node
 curl -X POST http://localhost:4313/api/canvas/node \
@@ -579,6 +713,10 @@ hosted MCP App still refuses file-linked edits. This is not a crash-recovery dis
 
 Replacing a JSON-render node's `spec` preserves its current title; include `title`
 to rename it explicitly. A new authored spec still resets the viewer's local drafts.
+
+Markdown nodes accept `data: { "display": "heading" | "card" }` on creation and
+update. Heading display removes the card frame and uses its title as a section
+label; it does not alter content, position, or pin membership.
 
 Mermaid nodes accept `data: { "fit": "contain" | "none" }` on both
 `POST /api/canvas/node` and `PATCH /api/canvas/node/:id`. The default, `contain`,
@@ -676,8 +814,23 @@ curl -X POST http://localhost:4313/api/canvas/annotation \
 curl -X DELETE http://localhost:4313/api/canvas/annotation/ann-123
 ```
 
-Agent-readable context reports annotation IDs, targets, and bounds. Use WebView
-inspection or screenshots when the drawn shape matters.
+Both agents and humans use this layer. Set `type: "text"`, `text` and a point to
+write a note; omit `type` for freehand ink with at least two points. Coordinates
+are canvas world coordinates, independent of pan and zoom. `width` is stroke
+width for ink (default 4, clamped to 1–24), or font size for text (default 24,
+clamped to 1–96). Text is trimmed to 240 characters and labels to 160.
+
+An explicit `id` makes creation retryable while that mark exists: the same
+normalized content returns the existing mark without another Undo entry;
+different content returns 409. After removal or Undo, adding that ID creates
+the mark again. This is not a durable creation receipt. Removal erases the whole
+mark, never the underlying cards; missing IDs return 404. Agent writes obey the
+existing scope fence, including annotation points and removal bounds.
+
+Agent-readable context reports annotation IDs, labels, text-note content,
+targets and bounds without raw stroke points. Use screenshots when the drawn
+shape matters. Questions can be answered in the external agent host's composer;
+no PMX session or canvas reply is required, and marks are not approval gates.
 
 ## Viewport
 
@@ -1261,6 +1414,8 @@ all consume this stream. Auto-reconnect with exponential backoff.
 
 The direct workbench's `connected` snapshot renews its per-process
 `workbenchToken` (also embedded in boot HTML) over both SSE and polling.
+It is followed by `boards-changed` before the layout, so later tour commands
+already have a board identity even when the separate catalog HTTP read is delayed.
 A same-bundle daemon restart does not reload the page or discard an open draft.
 Registered writes and file saves marked as workbench calls with a supplied stale capability
 return 409 until reconnect renews it; they are never silently recorded as agent
@@ -1438,6 +1593,10 @@ curl -X POST http://localhost:4313/api/workbench/webview/screenshot \
 Build a canvas in one shot. Earlier results can be referenced from later
 operations via `$assigned-name.field`.
 
+Entries retain the caller's transport source for per-agent scope checks. An
+optional top-level `agentId` supplies the default writer identity for entries
+without their own `args.agentId`. Batches never inherit a human scope bypass.
+
 ```bash
 curl -X POST http://localhost:4313/api/canvas/batch \
   -H "Content-Type: application/json" \
@@ -1450,6 +1609,7 @@ Supported operations:
 - `graph.add`
 - `edge.add`
 - `group.create`, `group.add`, `group.remove`
+- `annotation.add`, `annotation.remove`
 - `pin.set`, `pin.add`, `pin.remove`
 - `snapshot.save`
 - `arrange`

@@ -24,9 +24,11 @@
  * authentication boundary.
  */
 import { type FenceRect, fenceRectFromNodes } from '../shared/scope-fence.js';
+import { normalizeBoardFolder } from '../shared/boards.js';
 import { canvasState } from './canvas-state.js';
 import { resolvePatchGeometry, validCanvasNodeUpdates } from './canvas-geometry.js';
 import { normalizeAxPolicy, type PmxAxPolicy } from './ax-state.js';
+import { categorySchema, folderPropertiesSchema } from './knowledge-lifecycle.js';
 import type { Operation } from './operations/types.js';
 
 /** Bounding box of the fenced nodes plus padding; null when none of them exist. */
@@ -260,6 +262,43 @@ export function checkScopeFence(op: Operation, rawInput: unknown, writerKey?: st
   if (op.name === 'board.update' && typeof input.id === 'string' && input.id !== canvasState.activeBoardId) {
     const board = canvasState.readBoard(input.id, false);
     return checkFenceTarget(target, op.name, writerKey, normalizeAxPolicy(board?.state.ax?.policy));
+  }
+  if (op.name === 'knowledge.category-set' || op.name === 'knowledge.folder-set') {
+    const before = canvasState.knowledge.list();
+    const after = { ...before };
+    if (op.name === 'knowledge.category-set') {
+      const parsed = categorySchema.safeParse(input.category);
+      if (!parsed.success) return null; // The operation reports invalid input without writing.
+      const category = parsed.data;
+      after.categories = [...before.categories.filter((entry) => entry.id !== category.id), category];
+    } else {
+      const parsed = folderPropertiesSchema.safeParse(rawInput);
+      if (!parsed.success) return null;
+      const folder = parsed.data;
+      let path: string | null;
+      try {
+        path = normalizeBoardFolder(folder.path);
+      } catch {
+        return null; // Folder validation belongs to the operation handler.
+      }
+      if (!path) return null;
+      after.folders = [...before.folders.filter((entry) => entry.path !== path), { ...folder, path }];
+    }
+    for (const board of canvasState.listBoards()) {
+      if (
+        JSON.stringify(canvasState.knowledge.resolve(board.folder, null, before)) ===
+        JSON.stringify(canvasState.knowledge.resolve(board.folder, null, after))
+      )
+        continue;
+      const stored = canvasState.readBoard(board.id, false);
+      const refusal = checkFenceTarget(
+        { boardWide: true },
+        op.name,
+        writerKey,
+        normalizeAxPolicy(stored?.state.ax?.policy),
+      );
+      if (refusal) return refusal;
+    }
   }
   return null;
 }

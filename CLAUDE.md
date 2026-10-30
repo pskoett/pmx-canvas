@@ -91,26 +91,9 @@ Before reporting or acting on a performance or evaluation result:
 ## TypeScript Guardrails
 
 1. **Do not introduce dynamic imports by default**: Do not add `await import(...)` or similar dynamic-loading patterns unless the user explicitly asks for them or the existing architecture requires them.
+   The shared Mermaid renderer is an architecture exception: only diagram rendering loads Mermaid. The SPA splits its chunks; self-contained MCP documents defer initialization without external asset requests.
 2. **Do not use `any` casts or annotations**: Avoid `as any`, `: any`, `Promise<any>`, or equivalent escape hatches. Model the real type instead.
 3. **Do not add defensive noise by default**: Do not add extra defensive checks or broad `try/catch` blocks unless they are necessary for a specific runtime boundary, recovery path, or user-requested behavior.
-
-## Workflow Orchestration
-
-### 1. Plan Mode Default
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately — don't keep pushing
-- Write detailed specs upfront to reduce ambiguity
-
-### 2. Subagent Strategy
-- Use subagents liberally to keep main context window clean
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
-
-### 3. Autonomous Bug Fixing
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests — then resolve them
-- Zero context switching required from the user
 
 ## Canvas Architecture Rules
 
@@ -251,7 +234,7 @@ Nine themes: `harbor` (default), `daylight`, `high-contrast`, `midnight`, `sepia
 - Env: `PMX_CANVAS_THEME=daylight`
 - Browser: rail theme picker (sun/moon button in the left tool rail opens the theme menu)
 
-Embedded dark/light-only viewers (json-render, MCP apps) collapse named themes to their scheme via `canvasThemeScheme` (e.g. `sepia` → light, `ember` → dark).
+JSON viewers inherit the named canvas palette. External MCP apps receive its dark/light scheme via `canvasThemeScheme` (e.g. `sepia` → light, `ember` → dark) and the host's style variables.
 
 ## Releasing
 
@@ -259,6 +242,39 @@ The full release recipe (pre-flight gates, version bump, tag → publish, smoke,
 common gotchas) lives in [`docs/RELEASE.md`](docs/RELEASE.md). The README
 intentionally does not document the release flow — it's an end-user-facing file
 and the release process is maintainer-only.
+
+Use `pmx_release_status` (tag, npm, GitHub release and CI for a version) instead of polling npm
+or GitHub by hand. After publishing, set a thread schedule to report when the version is live on
+npm instead of waiting in the turn.
+
+## Handoffs Between Threads
+
+- **Work happens on `main`.** No feature or candidate branches.
+- **Delegated work goes to threads; subagents only explore.** Spawn a thread (`create_thread`) for
+  work someone else owns: testing, acceptance runs, fixes, parallel streams. Use subagents only
+  for read-only exploration, research and the oracle review.
+- **Threads get unpushed work with `download_thread_changes`** from the source thread, which
+  copies its changed files. Name the source thread and its base commit in the prompt, and ask the
+  thread to report back with `send_thread_message`. Never hand over patch files, hash manifests,
+  split archives or `/tmp` checkouts, and never push to `main` just to share work.
+- **New features get agent review: the oracle.** When a new feature is done, and before asking the
+  owner to push it, have the oracle (a reviewing subagent) review the feature's diff as a
+  skeptic: give it the intent, not your conclusion. Fix or answer every finding, and report what
+  it found alongside the acceptance results. Fixes, refactors and small changes do not need it.
+- **The owner reviews only the high-blast-radius files.** When a change touches one of these,
+  show the owner that diff and wait for their review before pushing; everything else ships on
+  evidence (plus the oracle review for new features):
+  - `src/server/canvas-db.ts`: the SQLite schema and migrations of every user's `canvas.db`
+  - `src/server/canvas-state.ts`: the single source of truth and its single-slot listeners
+  - `src/server/workbench-auth.ts`: what counts as a human write
+  - `.github/workflows/`: CI and npm publishing
+  - any breaking change to the public contract in `docs/api-stability.md` (additive changes do
+    not need it)
+- **Every push gets a CI subscription.** After pushing, subscribe the thread to workflow
+  completions for that exact commit (`amp.create_github_subscription`) and report the result
+  when it arrives, instead of polling or asking the owner to check.
+- **Settle design choices before testing.** Ask the owner for design and naming decisions in one
+  batch before an acceptance run, not during it.
 
 ## Changelog Style
 
@@ -298,13 +314,16 @@ package in a clean temp consumer instead of the repo dev path.
 
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.
 
-2. **Verify the full stack.** Don't just check that code compiles — start the server, hit the endpoints, confirm the SPA loads:
+2. **Verify the full stack.** Don't just check that code compiles — start the server, hit the endpoints, confirm the SPA loads.
+   In an orb the canvas is the `canvas` service in `.amp/services.yaml` (port 4313, with a portal);
+   never start it as a shell background job:
    ```bash
-   bun run src/cli/index.ts --no-open --demo &
-   curl http://localhost:4313/api/canvas/state        # Should return 3 nodes, 2 edges
+   amp orb services ensure                  # start it; after `bun run build`: amp orb service restart canvas
+   curl http://localhost:4313/health        # ok, workspace, version, bundleStamp
    curl http://localhost:4313/canvas/index.js -o /dev/null -w "%{http_code}"  # Should be 200
-   curl -N http://localhost:4313/api/workbench/events  # Should stream SSE events
    ```
+   The `pmx_canvas_health` tool (`.amp/plugins/pmx-sdlc.ts`) checks which checkout and bundle the
+   server actually serves. Run it before reporting UI results or asking the owner to test.
 
 3. **Test MCP server separately.** The MCP server can be tested with `bun run src/mcp/server.ts` and sending JSON-RPC over stdin.
 
@@ -318,115 +337,41 @@ package in a clean temp consumer instead of the repo dev path.
    added by the very commit that introduced the bug. See architecture rules 9 and 10 for the two
    traps this repo keeps hitting.
 
-## Canvas Types
+5. **Use the real canvas yourself during development.** Automated tests are necessary, not
+   acceptance. Before handing a UI feature to the user, rebuild, confirm the served bundle,
+   and exercise the complete affected workflow in a headed browser on a populated board
+   through the actual portal. Do not make the user the first person to discover rendering or
+   interaction failures. Use real pointer and keyboard input, inspect screenshots and recordings,
+   and fix what you observe rather than relying only on DOM assertions or passing test counts.
+   For shared canvas/viewer changes, cover every affected node type, pan across multiple populated
+   regions and back, repeatedly zoom out and in through fractional scales and fit-all, resize,
+   expand/close, reload, and verify content, connections and drafts remain correct. Check the
+   required widths and themes. Run relevant browser engines, including WebKit for iframe/scaling
+   changes; record engine versions and distinguish engine checks from native-host acceptance.
+   A fresh load at one zoom or a passing Chromium run does not establish correct zoom transitions
+   or WebKit behavior. Report unavailable host checks and unresolved failures explicitly; do not
+   call the feature accepted until the affected end-to-end flows have been exercised and inspected.
 
-**Node types (18):** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `diff`, `image`, `html`, `mermaid`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, `board`, plus internal thread node types `prompt` and `response`
+6. **Owner acceptance is a script, not a rehearsal.** The owner acceptance guide lives in
+   `tests/acceptance/guide.ts` (pass criteria, the tests that prove each row, the files that
+   invalidate it). `bun run acceptance` reruns only rows whose files changed since their last
+   pass and writes `test-results/acceptance/report.md` with a video per test. A design or naming
+   change reruns the rows it touches, never the whole guide. When a guide row gains a criterion,
+   add the test that proves it to the manifest; `ownerChecks` are for what an orb cannot see.
+   The guide follows development: a user-facing change is not done until its row exists or an
+   existing row gains its criterion and proving test, and every new `src/` file joins a row
+   (`tests/unit/acceptance-guide.test.ts` fails otherwise). At each release, retire rows the
+   release made obsolete.
 
-**Edge types:** `flow`, `depends-on`, `relation`, `references` — all support labels, styles (solid/dashed/dotted), and animation.
+7. **This is not evidence:** a passing unit test for a rendered result, a DOM assertion without a
+   screenshot you inspected, a run against a bundle you did not confirm with `pmx_canvas_health`,
+   an MCP handshake standing in for the host discovering tools, a clean rerun after an
+   unexplained failure, or a summary from another thread. Evidence is the command, its decisive
+   output, and the artifact, from the build you are reporting on.
 
-## MCP Server
+## API and Product Reference
 
-24 tools: 18 action-discriminated composites (`canvas_import`, `canvas_board`, `canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_snapshot`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`, `canvas_intent`) plus 6 standalone tools (`canvas_batch`, `canvas_pin_nodes`, `canvas_invoke_command`, `canvas_ax_interaction`, `canvas_ingest_activity`, `canvas_screenshot`). `canvas_import` is the agent half of the human-consented attachment workflow: agents list/read requested imports, submit reviewable Markdown, or report unavailable; they cannot request, cancel, or commit. The 57 legacy single-purpose tools the composites replaced were removed in v0.3.0; v0.4.0 shipped the `canvas_snapshot` composite and removed the 6 deprecated snapshot standalones. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and the legacy-to-composite migration reference.
-
-### Agent-assisted document imports
-
-PDF and Office drops retain the original (maximum 20 MiB) as a board-owned attachment. Nothing launches an agent automatically: a human explicitly consents and requests extraction, then reviews the returned sections, references, warnings, and `agentDescription` before committing source-linked Markdown. The agent reads controlled bytes through the returned HTTP download path, or inline base64 only at 2 MiB or below; a remote host may require manual byte transfer. Draft submission may happen while another board is active, but commit requires reopening the captured source board. PMX bundles no converter or OCR and makes no guarantee that a host can read every format, scan, chart, or diagram.
-
-Originals remain in SQLite until their board is deleted; snapshots/restores do not discard them, and database backups include them. Static export v1 never includes original bytes. Source-linked Markdown is excluded by default and is controlled by `includeDerivedText`, independently of `includeFiles`; editing the Markdown does not remove its source classification.
-
-The `diagram` action of `canvas_app` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_app` action `open-mcp-app`.
-
-15 static canvas resources: `canvas://boards`, `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-timeline`, `canvas://ax-work`, `canvas://ax-pending-steering`, `canvas://ax-delivery`, `canvas://skills`; two canvas resource templates: `canvas://context{?budget,consumer,since}` and `canvas://graph{?focus,depth}`. Bundled skills additionally register per-skill `canvas://skills/<name>` resources and the `skill://{name}/{+path}` file template.
-
-Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, and `canvas://graph`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
-
-### AX Primitives (host-agnostic)
-
-Neutral, agent-agnostic agent-experience primitives. The core never imports a host SDK (e.g. `@github/copilot-sdk`); host adapters map onto these HTTP/MCP surfaces. State lives in three partitions:
-
-- **Canvas-bound** (`focus`, `work-item`, `approval-gate`, `review-annotation`): live in `PmxAxState`, participate in snapshots + restore, cleared by `canvas_view { action: "clear" }`. Read via `canvas_ax_state { action: "get" }` / `canvas://ax-work`.
-- **Timeline** (`agent-event`, `evidence-item`, `steering-message`): persist in dedicated DB tables for diagnostics/continuity, bounded by retention (500 rows/table), NOT restored by snapshots, NOT cleared by `canvas_view { action: "clear" }`. Read via `canvas_ax_timeline { action: "read" }` / `canvas://ax-timeline`.
-- **Host/session** (`host-capability`): reported by adapters into its own table, exposed for diagnostics, survives `canvas_view { action: "clear" }`. Read via `canvas_ax_state { action: "get" }`.
-
-Approval gates implement PMX approvals first (`pending → approved/rejected/held`); host permission hooks are mapped only where low-risk. **Unattended-approval policy** (`src/server/ax-gate-ttl.ts`): every gate carries `expiresAt` (`ttlMs`, default `PMX_CANVAS_GATE_TTL_MS` = 5 min); a 1s sweeper started with the server resolves unanswered gates to `held` (non-approval), records a `policy` agent-event, and re-emits presence; `POST /api/canvas/ax/approval/:id/reopen` (HTTP/SDK only — a human action) restarts the clock. **Scope fence** (`src/server/scope-fence.ts`): `policy.scope = { nodeIds, padding }` makes `executeOperation` refuse agent-originated mutations outside the fence with 403 (`meta.fromWorkbench` exempts the human; batch inner ops are always agent writes, so the fence cannot be keyed on `suppressAutoGhost`); unknown mutating ops are refused under a fence by default — add new layout ops to `checkScopeFence`.
-
-- **Agent presence** (`src/server/agent-presence.ts`, shape in `src/shared/agent-presence.ts`): in-memory and TTL-swept like `IntentRegistry`, never persisted. Derived from feeds that already exist — every agent-originated mutation through `executeOperation` (no `x-pmx-workbench` marker) touches its caller as `tooling`; `ax.activity.ingest` kinds `session-start`/`session-end` attach/detach and `tool-start`/`tool-result` drive the phase; `POST /api/canvas/ax/presence` (`canvas_ax_state { action: "set-presence" }`) is the explicit path for `thinking`, cursor, focus. Transport-labelled writes (`api`/`mcp`/`sdk`/`cli`, no `agentId`) are **attributed to the single attached session** so one agent writing through MCP keeps one cursor; identified writers and multi-session boards stay separate; a human-started `browser` session absorbs agent-less writes under any label and takes the writer's name (`HUMAN_STARTED_SESSION_LABEL`); an attach whose label matches an already-attached session twin-merges (one agent, two channels — Copilot's extension + its MCP server) with the channel aliased onto the session. One `agent-presence` SSE frame carries the full snapshot on every change including expiry, and it also carries `activity` — the last 50 agent writes with a `describeWrite` summary (the External Steering feed and the session panel's Update rows). An explicit `attached: false` removes the presence outright (an ended session never lingers as an external writer). **`sessionActive` (any attached presence) gates all agent chrome except presence cursors** — `AgentPresenceLayer` paints every live writer (external ones `is-external`/dashed) so a human always sees where an agent is working; panels/chips/composer still mount on `sessionActive`, and a board with no writers at all stays byte-clean. Contract: `docs/ax-state-contract.md` (Agent presence); design and build plan: `docs/design.md`.
-- **Human presence + user wins** (`src/server/human-presence.ts`, shape in `src/shared/human-presence.ts`): every open workbench tab heartbeats `POST /api/canvas/human-presence` (cursor, name, `grabbingNodeId`); one `human-presence` SSE frame per change. A held node is an **edit lock**: `executeOperation` refuses an agent write to it with 409 until release or the 8 s grab TTL (membership ops — dissolving its group, `group.add` — count as writes to the member), and the client vetoes a pending explicit intent on a grabbed node and records a `yield` timeline event. Human heartbeats are in `PRESENCE_EXEMPT_OPS` — they must never count as agent activity.
-- **Shared undo stack with actors** (`mutation-history.ts`): `executeOperation` tags every recorded entry `human` (workbench marker) or `agent`; `GET /api/canvas/history` exposes `top`. The session panel offers undo only while an agent edit tops the stack and posts steering when the human takes it. SDK writes bypass the registry and default to `agent`.
-
-Additional canvas-bound primitives: `elicitation` (request structured human input → respond), `mode-request` (request a plan/execute/autonomous transition → resolve), and a single `policy` singleton (tool/prompt policy: `tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`). All snapshot/restore with the rest of `PmxAxState` and are read via `canvas_ax_state { action: "get" }` / `canvas://ax-work` / `canvas://ax-context`.
-
-#### Node interactions (capability-gated)
-
-Eligible nodes emit one normalized, zod-validated `PmxAxInteraction` envelope (`{ type, sourceNodeId, payload, sourceSurface }`) that maps onto an AX operation. `applyAxInteraction` (`src/server/ax-interaction.ts`) is the single trust boundary and re-validates every interaction regardless of transport.
-
-- **Capabilities:** `DEFAULT_NODE_AX_CAPABILITIES` is the per-node-type ceiling; a node may opt in / narrow via `data.axCapabilities` (`{ enabled, allowed }`), clamped to the ceiling (a node can never escalate). `html`/`html-primitive`, `mcp-app`, and internal `prompt`/`response` are disabled by default.
-- **`sourceSurface` scoping:** sandboxed/opaque-origin iframe surfaces (`html-node`, `mcp-app`, `json-render`) are clamped to their OWN node — caller-supplied `nodeIds` are forced to `[sourceNodeId]`. Trusted surfaces (`native-node`, `adapter`) may target explicit nodeIds. **When adding a new sandboxed surface, add it to the `scoped` predicate** or it silently takes the permissive default.
-- **Transports:** native node controls call `POST /api/canvas/ax/interaction` directly; sandboxed surfaces postMessage a nonce-tagged emit to the parent canvas, which validates source + per-surface nonce + node id before submitting. `html`/`mcp-app` use `window.PMX_AX.emit(type, payload)`; the json-render/graph viewer forwards a spec action named after an AX type (e.g. `on.press → { action: "ax.work.create", params }`).
-- **Commands:** `ax.command.invoke` runs a registry command (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`) via `canvas_invoke_command`; unknown names are rejected (400) and a successful call records a `command` agent-event.
-- **Delivery:** steering can be claimed by adapterless MCP clients (`canvas_ax_delivery { action: "claim" }` / `canvas://ax-pending-steering`) and acknowledged (`canvas_ax_delivery { action: "mark" }`); loop-safe (a consumer never receives steering it originated).
-
-Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP, or host execution.
-
-#### AX flows (panel and graph)
-
-A task flow exists in two interchangeable forms. The `ax-flow` HTML primitive draws it as a panel;
-`ax.flow.materialize` lays the same steps out as native nodes joined by `flow` edges with a
-loop-back rail, each step linked to a work item. It is the only interaction that creates canvas
-nodes, so it is granted to the `html` ceiling alone.
-
-- Materialized steps carry `data.axStep` and render native Start/Done/Blocked controls
-  (`src/client/nodes/AxStepControls.tsx`) in both the node body and the expanded overlay — the
-  flow is drivable without the panel.
-- Work-item status mirrors onto node status chips (`mirrorAxWorkStatusToNodes`), which is what
-  makes the in-progress node visible on the board while an agent works.
-- `src/server/ax-flow-loop.ts` advances the loop server-side via `setWorkItemsChangedListener`
-  (see architecture rule 8), so it survives a browser reload and keeps running with the tab closed.
-  A module-level `advancing` guard prevents re-entrancy.
-- Step geometry and the shared flow shape live in `src/shared/ax-flow.ts` so server and client
-  cannot drift.
-
-### Spatial Semantics Layer
-
-The canvas exposes spatial intelligence to agents via `canvas://spatial-context`:
-- **Proximity clusters**: Automatically detects nodes grouped together on the canvas
-- **Reading order**: Nodes sorted top-left to bottom-right (how humans read)
-- **Pinned neighborhoods**: For each pinned node, lists nearby unpinned nodes (the human's implicit context)
-- **`canvas://pinned-context`** now includes neighborhood data — nearby unpinned nodes for each pin
-
-Use `canvas_query { action: "search" }` to find nodes by title/content keywords instead of parsing the full layout.
-
-### Time Travel (Undo/Redo + History)
-
-Every canvas mutation is recorded in an in-memory ring buffer (last 200 operations). Each entry captures forward/inverse closures for clean undo/redo.
-
-- **`canvas_history`** (`action: "undo" | "redo"`) — step through history, reversing operations cleanly
-- **`canvas://history`** — human-readable mutation timeline with cursor position
-- **`canvas_snapshot`** (`action: "diff", snapshot`) — compare current canvas vs any saved snapshot (shows added/removed/modified nodes and edges)
-- HTTP: `POST /api/canvas/undo`, `POST /api/canvas/redo`, `GET /api/canvas/history`
-
-Design notes:
-- History is session-scoped (in-memory, not persisted to disk)
-- `arrange()` records as a single compound mutation (not N individual moves)
-- Undo/redo emit SSE events so the browser updates immediately
-- The `_suppressRecording` flag prevents undo/redo from creating new history entries
-
-### Code Graph (Auto-Dependency Detection)
-
-When file nodes are on the canvas, the system auto-detects import dependencies and creates `depends-on` edges between related files. The code graph updates live when files change.
-
-- **`canvas://code-graph`** MCP resource — dependency structure: central files, isolated files, import/imported-by lists
-- HTTP: `GET /api/canvas/code-graph`
-- Supported languages: JS/TS (`import`/`require`), Python (`import`/`from`), Go (`import`), Rust (`mod`/`use crate`)
-- Auto-edges use the `codegraph-` ID prefix and are suppressed from mutation history
-- Recomputation is debounced (300ms) and triggered on file node add/remove and file content change
-
-## Integration Paths
-
-1. **MCP Server** (recommended) — `pmx-canvas --mcp`, auto-starts on first tool call
-2. **HTTP API** — REST + SSE at `localhost:4313`
-3. **JavaScript/TypeScript SDK (Bun runtime)** — `import { createCanvas } from 'pmx-canvas'`
-4. **Agent Skills** — `skills/pmx-canvas/SKILL.md`, `skills/web-artifacts-builder/SKILL.md`, `skills/playwright-cli/SKILL.md`, `skills/pmx-canvas-testing/SKILL.md`, `skills/pmx-canvas-orchestration/SKILL.md` (multi-agent choreography ON the canvas: host executes, canvas is the graph/state/steering surface), plus repo-local agnostic PMX skills such as `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`
+See [API and product reference](docs/api-reference.md) for canvas types, MCP, AX primitives, spatial semantics, history, code graphs, and integration paths.
 
 ## Conventions
 
@@ -532,12 +477,12 @@ When maintaining `.learnings/`:
 
 ## Agent Skill Pipeline
 
-- Agent-facing pipeline skills are stored in `.agents/skills/` and mirrored in `.claude/skills/` and `.opencode/skills/`
-- Use `skill-pipeline` as the top-level router / entrypoint for non-trivial coding tasks
-- Claude Code hooks are configured in `.claude/settings.json` and point at the mirrored `.claude/skills/` scripts
-- Keep the three skill trees byte-for-byte identical; verify with `bun run validate:agent-skills`
-- The skill trees are local-only dev tooling and gitignored — a clean checkout does not contain them, and `validate:agent-skills` skips (exits 0) when they are absent
-- Use the skill definitions under `.agents/skills/` as the canonical instructions
+- The pipeline skills (`skill-pipeline`, `verify-gate`, `simplify-and-harden`, `intent-framed-agent`, …) are the
+  owner's global Amp user skills, so they are available in every orb and checkout; load them by name
+- Local mirrors in `.agents/skills/`, `.claude/skills/` and `.opencode/skills/` are optional, gitignored dev tooling
+  (Claude Code hooks in `.claude/settings.json` point at them). When present, keep them byte-identical; verify with
+  `bun run validate:agent-skills`, which skips when they are absent
+- Use `skill-pipeline` as the top-level router for non-trivial coding tasks
 
 ### How To Run It
 

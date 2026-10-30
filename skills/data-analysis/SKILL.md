@@ -1,41 +1,28 @@
 ---
 name: data-analysis
-description: Analytics synthesis with visualizations from engineering and product data sources
-version: 0.1.0
-author: pmx
-tags: [analytics, data, charts, visualization, metrics]
-tools: [dx-data-cloud, jira/linear, github, workiq]
-inputs:
-  - name: question
-    description: The analysis question to answer (e.g. "How has PR cycle time changed over the last quarter?")
-    required: true
-  - name: data_sources
-    description: Array of MCP server names to query for data
-    required: false
-    default: [dx-data-cloud]
-  - name: format
-    description: Output format for the analysis
-    required: false
-    default: markdown
-    enum: [markdown, html]
-  - name: include_charts
-    description: Whether to include visual charts in the output
-    required: false
-    default: true
-outputs:
-  - name: analysis
-    description: Data analysis with findings, tables, charts (if HTML), interpretation, and recommendations
+description: Synthesizes engineering and product data with visualizations. Use for quantitative questions, trends, comparisons, distributions, and data-backed planning.
+metadata:
+  version: "0.1.0"
+  author: pmx
+  tags: "analytics, data, charts, visualization, metrics"
+  tools: "dx-data-cloud, jira/linear, github, workiq"
 ---
 
 # Data Analysis
 
 Perform analytics synthesis across engineering and product data sources. Answer questions about trends, correlations, comparisons, and distributions by querying MCP servers, analyzing the data, and presenting findings with visualizations.
 
+Require an analysis question. Optional inputs are data sources (default DX Data Cloud when available),
+output format (`markdown` by default or `html`), and whether to include charts (default true).
+Return findings, tables, interpretation and recommendations, with visual charts for HTML output.
+Discover available MCP tools before choosing a source; metadata does not configure integrations.
+
 In `pmx-canvas`, prefer `canvas_render { action: "add-graph" }` for charts and trend lines and
 `canvas_render { action: "add-json-render" }` when the analysis should land as a richer dashboard
 or table inside the canvas.
 
-For chart design and color choices, apply the `tufte-viz` skill (`skills/tufte-viz/SKILL.md`): color
+For chart design and color choices, discover and load the `tufte-viz` skill. MCP-only consumers
+can read `skill://tufte-viz/SKILL.md` through `resources/read`. Color
 must encode data, not decorate. Single-series bar charts default to one accent with the key bar
 highlighted (`colorBy: series`); opt into `category`/`value` only when color carries a variable.
 Prefer `sparkline`/`dot-plot`/`bullet`/`slopegraph` and direct labels over legends; use small

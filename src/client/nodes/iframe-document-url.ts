@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { workbenchConnectionEpoch } from '../state/canvas-store';
 import { iframeMode } from '../state/iframe-mode';
-import { surfaceContentHash } from './surface-url';
 import { workbenchFetch } from '../state/workbench-transport';
+import { VIEWER_LOAD_DEADLINE_MS, type ViewerSource } from './ViewerFrame';
 
 interface FrameDocumentCreateResponse {
   ok: boolean;
@@ -21,11 +21,12 @@ function isFrameDocumentCreateResponse(value: unknown): value is FrameDocumentCr
   );
 }
 
-export async function createIframeDocumentUrl(html: string, sandbox: string): Promise<string> {
+export async function createIframeDocumentUrl(html: string, sandbox: string, signal?: AbortSignal): Promise<string> {
   const response = await workbenchFetch('/api/canvas/frame-documents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ html, sandbox }),
+    signal,
   });
   const json = (await response.json()) as unknown;
   if (!response.ok || !isFrameDocumentCreateResponse(json) || !json.ok || typeof json.url !== 'string') {
@@ -38,32 +39,37 @@ export async function createIframeDocumentUrl(html: string, sandbox: string): Pr
   return json.url;
 }
 
-export function useIframeDocument(
-  html: string,
-  sandbox: string,
-): { attributes: { src?: string; srcdoc?: string }; ready: boolean; key: string } {
+export function useIframeDocument(html: string, sandbox: string): ViewerSource {
   // Boot-wide embed probe (state/iframe-mode.ts): srcdoc mode means src-URL
   // iframes are blocked here (nested-iframe hosts like Amp orb portals), so the
   // frame-documents round-trip would produce a URL the browser refuses to load.
   const mode = iframeMode.value;
   const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [remintNonce, setRemintNonce] = useState(0);
   const mintEpochRef = useRef(0);
 
   useEffect(() => {
-    setSrc(null);
+    setError(false);
     if (!html || mode !== 'src') return;
     let cancelled = false;
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), VIEWER_LOAD_DEADLINE_MS);
     mintEpochRef.current = workbenchConnectionEpoch.value;
-    void createIframeDocumentUrl(html, sandbox)
+    void createIframeDocumentUrl(html, sandbox, controller.signal)
       .then((url) => {
         if (!cancelled) setSrc(url);
       })
       .catch((error) => {
+        if (cancelled) return;
         console.error('[iframe-document] failed to create frame document:', error);
-      });
+        setError(true);
+      })
+      .finally(() => clearTimeout(deadline));
     return () => {
       cancelled = true;
+      clearTimeout(deadline);
+      controller.abort();
     };
   }, [html, sandbox, mode, remintNonce]);
 
@@ -101,21 +107,8 @@ export function useIframeDocument(
     };
   }, [epoch, src, mode]);
 
-  return useMemo(() => {
-    if (mode === 'srcdoc' && html) {
-      // The document already lives client-side, so serve it inline. Consumers
-      // always render the iframe `sandbox` attribute, which supplies the
-      // sandboxing the frame-document CSP header would have.
-      return {
-        attributes: { srcdoc: html },
-        ready: true,
-        key: `srcdoc-${surfaceContentHash(html)}`,
-      };
-    }
-    return {
-      attributes: src ? { src } : {},
-      ready: Boolean(src),
-      key: src ?? '',
-    };
-  }, [src, mode, html]);
+  if (!html || mode === null) return {};
+  // The host always supplies the sandbox, including on inline documents.
+  if (mode === 'srcdoc') return { srcdoc: html };
+  return { src: src ?? undefined, error, retry: () => setRemintNonce((value) => value + 1) };
 }
