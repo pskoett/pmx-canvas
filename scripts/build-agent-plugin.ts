@@ -89,11 +89,11 @@ for (const name of ['runtime.mjs', 'runtime.json', 'start-mcp.mjs', 'tools.json'
 }
 copyFileSync(resolve(root, 'LICENSE'), resolve(pluginRoot, 'LICENSE'));
 mkdirSync(resolve(pluginRoot, 'assets'), { recursive: true });
-copyFileSync(resolve(root, 'docs/screenshot.png'), resolve(pluginRoot, 'assets/preview.png'));
+copyFileSync(resolve(root, 'docs/design/plugin-logo.png'), resolve(pluginRoot, 'assets/preview.png'));
 writeJson(resolve(pluginRoot, 'plugin.json'), {
   $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
   name: 'pmx-canvas',
-  description: 'PMX Canvas spatial workbench and MCP tools, with a native canvas panel in the GitHub Copilot app.',
+  description: 'PMX Canvas is a collaborative canvas where you and your AI agent collect evidence, analyze findings, and develop ideas together. Pin material as context for your agent, then ask it to add findings, comparisons, or diagrams to the board for you to review, present, and build on.',
   version: packageInfo.version,
   author: { name: 'pskoett', url: 'https://github.com/pskoett' },
   repository: 'https://github.com/pskoett/pmx-canvas',

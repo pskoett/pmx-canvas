@@ -1,5 +1,9 @@
 # PMX Canvas agent plugin
 
+PMX Canvas is a collaborative canvas where you and your AI agent collect evidence, analyze findings,
+and develop ideas together. Pin material as context for your agent, then ask it to add findings,
+comparisons, or diagrams to the board for you to review, present, and build on.
+
 `plugins/pmx-canvas/` is a self-contained [Agent Plugins 1.0](https://agent-plugins.org/)
 package. It contains only PMX Canvas: the portable MCP server configuration and a native
 canvas extension for the GitHub Copilot app. It does not include frame integrations,
@@ -116,8 +120,10 @@ The portable root contains `plugin.json`, `mcp.json`, `start-mcp.mjs`, `tools.js
 `runtime.json`, and license notices for the bundled dependencies. Copilot auto-discovers the native adapter at
 `com.github.copilot/extensions/pmx-canvas/extension.mjs`.
 
-The marketplace preview is copied from `docs/screenshot.png` to `assets/preview.png` on each
-plugin build. The manifest's `extensions.com.github.copilot.logo` points to that packaged PNG.
+The plugin logo is copied from `docs/design/plugin-logo.png` to `assets/preview.png` on each
+plugin build. It is a 512 × 512 export of the PMX Focus Field brand mark, not a canvas screenshot.
+The marketplace requires that image path; the manifest's `extensions.com.github.copilot.logo`
+points to it. The editable source and regeneration command are in [the design guide](design.md#plugin-logo).
 
 Publishing a repository package does not register it in a curated marketplace or make it
 Featured in the Copilot app. Those are separate submission and review steps.

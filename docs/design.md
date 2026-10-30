@@ -21,6 +21,33 @@ contract and the schedule.
 3. Apply the [Principles](#principles), above all the fixed meaning colours.
 4. Meet the [Definition of done](#definition-of-done-for-any-design-work) before calling it done.
 
+## Plugin logo
+
+The plugin uses the existing Focus Field brand mark, matching the canvas favicon:
+blue (`#4BBCFF`) concentric rounded squares on Harbor navy (`#081524`). The source is
+[`PluginLogo.svg`](design/PluginLogo.svg), exported at 512 × 512 to
+[`plugin-logo.png`](design/plugin-logo.png). The plugin build copies that PNG to the
+marketplace-required `assets/preview.png` path referenced by `extensions.com.github.copilot.logo`.
+README screenshots remain unchanged. This packages existing branding; it does not change canvas
+styling or establish which image the Copilot plugin-list row displays.
+
+To regenerate the PNG from the repository root with the existing Playwright installation:
+
+```bash
+bun -e '
+import { chromium } from "@playwright/test";
+const browser = await chromium.launch({ headless: false });
+try {
+  const page = await browser.newPage({ viewport: { width: 512, height: 512 }, deviceScaleFactor: 1 });
+  await page.setContent(`<body style="margin:0">${await Bun.file("docs/design/PluginLogo.svg").text()}</body>`);
+  await page.locator("svg").screenshot({ path: "docs/design/plugin-logo.png", omitBackground: true });
+} finally {
+  await browser.close();
+}
+'
+bun run build:plugin
+```
+
 ## Token system
 
 Drawn on [`TokenSystem.dc.html`](design/TokenSystem.dc.html); per-theme meaning colours on

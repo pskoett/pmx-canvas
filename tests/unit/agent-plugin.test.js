@@ -46,13 +46,14 @@ describe('portable PMX Canvas plugin', () => {
     }
   });
 
-  test('bundles the required Copilot marketplace preview and logo metadata', () => {
+  test('bundles the PMX brand logo at the required Copilot marketplace image path', () => {
     const plugin = readJson(resolve(pluginRoot, 'plugin.json'));
     expect(plugin.extensions?.['com.github.copilot']?.logo).toBe('assets/preview.png');
     const preview = readFileSync(resolve(pluginRoot, plugin.extensions['com.github.copilot'].logo));
     expect(preview.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-    expect(preview.readUInt32BE(16)).toBeGreaterThan(0);
-    expect(preview.readUInt32BE(20)).toBeGreaterThan(0);
-    expect(preview).toEqual(readFileSync(resolve('docs/screenshot.png')));
+    expect(preview.readUInt32BE(16)).toBe(512);
+    expect(preview.readUInt32BE(20)).toBe(512);
+    expect(preview).toEqual(readFileSync(resolve('docs/design/plugin-logo.png')));
+    expect(preview).not.toEqual(readFileSync(resolve('docs/screenshot.png')));
   });
 });
