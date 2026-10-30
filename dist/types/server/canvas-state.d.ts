@@ -412,9 +412,8 @@ declare class CanvasStateManager {
     /** Deletes a board and its snapshots; deleting the open board returns to Home first. */
     deleteBoard(id: string): boolean;
     /**
-     * Save the open board, then open `id` (or Home for null). The canvas state is
-     * replaced wholesale; callers own the runtime side (undo history, app
-     * sessions, watchers, SSE) — see `openCanvasBoard` in canvas-operations.
+     * Save pending boards, then select the visible owner. Existing partitions
+     * remain live; canvas-operations starts the selected board's runtime/SSE.
      */
     switchBoard(id: string | null): boolean;
     /**
