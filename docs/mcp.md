@@ -18,6 +18,13 @@ The [Amp plugin](amp-plugin.md) supplies the target and authenticated thread ide
 MCP tool calls. It does not intercept MCP resource reads or CLI commands. Use routed query tools
 instead of `canvas://` resources when reading a bound background board.
 
+The plugin's `pmx_canvas_delivery` tool is an Amp host tool, not part of this MCP catalog.
+It confirms automatic context reception separately from successful steering actions.
+Context preparation uses `contextDelivery: false`; adapters record receipts through the
+[HTTP context-reads endpoint](http-api.md#ax-context-and-focus), not a public MCP write action.
+`canvas_ax_delivery` with `action: "claim"` supports `addressedOnly` and `offset` so a host pump
+can scan beyond already-received instructions without marking them acted on.
+
 ## Operation help (0.10)
 
 Call `canvas_help {}` for the sorted registry names exposed through MCP, then

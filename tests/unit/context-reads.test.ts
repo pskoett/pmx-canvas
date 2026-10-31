@@ -114,6 +114,15 @@ describe('context read log', () => {
       agentId: null,
       bytes: 10,
     };
+    const receipt = {
+      ...base,
+      consumer: 'adapter',
+      pinnedNodeIds: ['n1'],
+      deliveredNodeIds: ['n1'],
+      deliveryId: 'stable',
+    };
+    const original = appendContextReadToDB(db, receipt, 'board-a');
+    expect(appendContextReadToDB(db, { ...receipt, bytes: 99 }, 'board-a')).toEqual(original);
     for (let i = 0; i < CONTEXT_READ_RETENTION + 3; i++) {
       appendContextReadToDB(db, { ...base, consumer: 'claude', pinnedNodeIds: ['n1'], deliveredNodeIds: ['n1'] }, null);
     }
@@ -129,6 +138,10 @@ describe('context read log', () => {
     const byConsumer = new Map(summary.map((entry) => [entry.consumer, entry]));
     expect(byConsumer.get('claude')?.reads).toBe(CONTEXT_READ_RETENTION - 2);
     expect(byConsumer.get('codex')).toMatchObject({ reads: 2, readsWithPins: 1, readsDeliveringAllPins: 0 });
+    expect(() => appendContextReadToDB(db, receipt, 'board-a')).toThrow('expired');
+    expect(loadContextReadsFromDB(db, 2).reads).toEqual(reads);
+    expect(appendContextReadToDB(db, receipt, 'board-b').id).not.toBe(original.id);
+    db.close();
   });
 
   test('all-pins summary requires the delivered ids to be the same unique subset', () => {

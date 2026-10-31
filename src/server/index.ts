@@ -764,7 +764,12 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Undelivered steering for a consumer (loop-safe; excludes consumer-originated). */
-  getPendingSteering(options?: { consumer?: string; limit?: number }): PmxAxSteeringMessage[] {
+  getPendingSteering(options?: {
+    consumer?: string;
+    limit?: number;
+    addressedOnly?: boolean;
+    offset?: number;
+  }): PmxAxSteeringMessage[] {
     return canvasState.getPendingSteering(options ?? {});
   }
 
@@ -979,7 +984,13 @@ export class PmxCanvas extends EventEmitter {
 
   /** Budgeted cross-board brief. Budget is measured in UTF-16 characters. */
   async getContextBrief(
-    options: { consumer?: string; since?: number; budget?: number } = {},
+    options: {
+      consumer?: string;
+      since?: number;
+      budget?: number;
+      contextDelivery?: boolean;
+      includeSteering?: boolean;
+    } = {},
   ): Promise<Record<string, unknown>> {
     return (await executeOperation('context.get', options, { source: 'sdk' })) as Record<string, unknown>;
   }

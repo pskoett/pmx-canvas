@@ -448,7 +448,8 @@ async function executeOnCurrentBoard(name: string, rawInput: unknown, meta: Exec
     async () => {
       const input = asRecord(rawInput);
       const deliversContext =
-        name !== 'node.get' || (input.contextDelivery !== false && input.contextDelivery !== 'false');
+        !['node.get', 'context.get'].includes(name) ||
+        (input.contextDelivery !== false && input.contextDelivery !== 'false');
       const recordRead = CONTEXT_READ_OPS.has(name) && deliversContext && !meta.fromWorkbench && !meta.proxiedRead;
       const requestedBoard =
         recordRead && 'board' in getOperation(name).inputShape && isString(input.board) && input.board.trim()

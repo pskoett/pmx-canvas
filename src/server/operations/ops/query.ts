@@ -284,6 +284,11 @@ const contextShape = {
   consumer: z.unknown().optional().describe('Stable consumer id used for the durable board-scoped cursor'),
   since: z.unknown().optional().describe('Explicit content revision; bypasses the durable consumer cursor'),
   budget: z.unknown().optional().describe('Maximum response size in UTF-16 code units'),
+  contextDelivery: z
+    .boolean()
+    .optional()
+    .describe('False prepares a brief without recording delivery or advancing a cursor.'),
+  includeSteering: z.boolean().optional().describe('False omits steering for hosts that deliver it separately.'),
 };
 const contextSchema = z.looseObject(contextShape);
 
@@ -292,7 +297,18 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
   mutates: false,
   input: contextSchema,
   inputShape: contextShape,
-  http: { method: 'GET', path: '/api/canvas/context' },
+  http: {
+    method: 'GET',
+    path: '/api/canvas/context',
+    readInput: (_req, params, url) => {
+      const input: Record<string, unknown> = { ...Object.fromEntries(url.searchParams), ...params };
+      for (const key of ['contextDelivery', 'includeSteering']) {
+        if (input[key] === 'false') input[key] = false;
+        else if (input[key] === 'true') input[key] = true;
+      }
+      return input;
+    },
+  },
   handler: (input) => {
     const active = canvasState.getActiveBoard();
     if (!active) throw new OperationError('Open a board before requesting its context.', 409);
@@ -507,7 +523,10 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
         })),
     );
     entries.push(
-      ...canvasState.getPendingSteering({ consumer: consumer ?? undefined, limit: 50 }).map((item) => ({
+      ...(input.includeSteering === false
+        ? []
+        : canvasState.getPendingSteering({ consumer: consumer ?? undefined, limit: 50 })
+      ).map((item) => ({
         sourceBoardId: active.id,
         nodeId: `steering:${item.id}`,
         reason: 'steer' as const,
@@ -553,7 +572,14 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
       entries,
       budget,
     });
-    if (consumer && !explicitSince && result.document && result.nextCursor !== null && !result.invalidCursor) {
+    if (
+      input.contextDelivery !== false &&
+      consumer &&
+      !explicitSince &&
+      result.document &&
+      result.nextCursor !== null &&
+      !result.invalidCursor
+    ) {
       canvasState.advanceContextBriefCursor(active.id, consumer, result.nextCursor);
     }
     return (result.document ?? {

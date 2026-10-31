@@ -922,8 +922,13 @@ a merged receipt has recorded more than 20 IDs across sessions; unrelated pins s
 
 `consumer` is optional. Supply a stable unique value only for a durable,
 board-scoped cursor; without `consumer` or `since`, each request starts from the
-beginning. An explicit `since` never advances a cursor. The brief is a map,
-not a dump: an `overview` entry for the open board first, then pins, then each
+beginning. An explicit `since` never advances a cursor. `contextDelivery=false`
+prepares the brief without recording a read or advancing the
+consumer cursor. Adapters must record reception separately; preparation is not
+delivery. `includeSteering=false` excludes steering when the host delivers addressed
+instructions separately. Both flags default to true.
+
+The brief is a map, not a dump: an `overview` entry for the open board first, then pins, then each
 pin's neighbours (reason `near`: up to five unpinned cards within a 600 canvas-pixel
 edge-to-edge gap, nearest first, with `near: { pinNodeId, pinTitle }`), then relevant
 current-board changes and asks, then pinned boards (reason `pinned-board`: the board and its pinned
@@ -1036,6 +1041,11 @@ curl "http://localhost:4313/api/canvas/ax/context-status?board=<board-id>"
 # For a captured graph/brief, also pass seenLinkRevisions: {"node-1": 12} from
 # the delivered linksRevision values, not revisions fetched after delivery.
 # Only seenNodeIds with captured entries are acknowledged when this map is supplied.
+# Optional deliveryId deduplicates receipt retries by source, consumer and board
+# while the original read is retained (the read log retains 5000 rows).
+# Repeating it returns the original read, never revisions fetched at retry time.
+# Receipt identities outlive diagnostic pruning. An expired retry returns HTTP 409
+# with code=context_receipt_expired; obtain fresh context instead of retrying that ID.
 curl -X POST http://localhost:4313/api/canvas/ax/context-reads \
   -H "Content-Type: application/json" \
   -d '{"channel":"adapter","resource":"copilot:prompt-context","consumer":"copilot","pinnedNodeIds":["node-1"],"deliveredNodeIds":["node-1"],"bytes":2048}'
@@ -1292,6 +1302,10 @@ curl -X POST http://localhost:4313/api/canvas/ax/interaction \
 # browser composer offers a target picker fed by live presence — always claim
 # with your own label or addressed steering never reaches you.
 curl "http://localhost:4313/api/canvas/ax/delivery/pending?consumer=copilot&limit=20"
+# addressedOnly=true requires consumer and excludes broadcasts BEFORE the limit.
+# offset skips matching pending messages; restart at zero after an empty page.
+# Used by hosts that can wake one explicitly addressed thread.
+curl "http://localhost:4313/api/canvas/ax/delivery/pending?consumer=amp:T-example&addressedOnly=true"
 
 # Long-poll: `waitMs` parks the request until steering for this consumer
 # arrives or the timeout elapses (capped at 120000ms) — the reactive loop for

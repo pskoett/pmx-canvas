@@ -1,9 +1,12 @@
-import type { PluginAPI, PluginCommandContext } from '@ampcode/plugin';
-import { bind, boards, readBinding, unbind } from './binding.js';
+import type { PluginAPI, PluginCommandContext, ThreadID } from '@ampcode/plugin';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { bind, boards, boundThreadIds, readBinding, unbind } from './binding.js';
+import { CanvasDelivery } from './delivery.js';
 import { canonicalWorkspace, inspectServer, portal } from './runtime.js';
 
 export const description =
-  'Open or resume PMX Canvas and explicitly bind each Amp thread to a board. Bundles PMX skills and MCP. Context injection and steering are not enabled.';
+  'Bind Amp threads to Canvas boards, deliver pinned context, and wake idle threads for addressed steering. Bundles PMX skills and MCP. Interrupted sends remain visible until reconciled.';
 
 export default async function (amp: PluginAPI) {
   if (!amp.system.workspaceRoot) return;
@@ -14,11 +17,135 @@ export default async function (amp: PluginAPI) {
     await amp.registerSkill({ path: `skills/${name}` });
   }
 
+  const deliveries = new Map<string, CanvasDelivery>();
+  const deliveryErrors = new Map<string, string>();
+  const delivery = (threadId: string) => {
+    let value = deliveries.get(threadId);
+    if (!value) {
+      value = new CanvasDelivery(root, threadId);
+      deliveries.set(threadId, value);
+    }
+    return value;
+  };
+  const existingDelivery = (threadId: string) =>
+    deliveries.get(threadId) ??
+    (existsSync(join(root, '.pmx-canvas/amp-bindings', `${threadId}.delivery.db`)) ? delivery(threadId) : undefined);
+  let disposed = false;
+  const timer = setInterval(() => {
+    for (const threadId of boundThreadIds(root)) {
+      void Promise.resolve()
+        .then(() => delivery(threadId).poll(amp.threads.get(threadId as ThreadID)))
+        .then(() => {
+          deliveryErrors.delete(threadId);
+        })
+        .catch((error: unknown) => {
+          if (disposed) return;
+          const message = error instanceof Error ? error.message : 'Canvas delivery failed.';
+          if (deliveryErrors.get(threadId) !== message) amp.logger.log(message);
+          deliveryErrors.set(threadId, message);
+        });
+    }
+  }, 5000);
+  timer.unref();
+  amp.onDispose(() => {
+    disposed = true;
+    clearInterval(timer);
+    for (const item of deliveries.values()) item.close();
+  });
+
+  amp.on('agent.start', async (event, ctx) => {
+    if (existingDelivery(event.thread.id)?.refuseStaleSteering(event.message)) {
+      await ctx.thread.cancel();
+      return {
+        message: {
+          content: 'Canvas steering was already completed or its binding changed. This turn was cancelled.',
+          display: true,
+        },
+      };
+    }
+    const binding = readBinding(root, event.thread.id);
+    delivery(event.thread.id).startTurn(event.id);
+    if (!binding) {
+      return {};
+    }
+    try {
+      return { message: { content: await delivery(event.thread.id).context(event.id) } };
+    } catch (error) {
+      return {
+        message: {
+          content: `Canvas context was not delivered: ${error instanceof Error ? error.message : 'unavailable'}. No read was recorded.`,
+          display: true,
+        },
+      };
+    }
+  });
+  amp.on('agent.end', async (event) => {
+    existingDelivery(event.thread.id)?.endTurn(event.id);
+  });
+
+  amp.registerTool({
+    name: 'pmx_canvas_delivery',
+    title: 'PMX Canvas delivery receipt',
+    description:
+      'Receive a Canvas delivery using its exact token. A receive records context delivery, not full-content reads or successful actions. Acknowledge steering only after acting and verifying the result. Identity comes from the invoking thread.',
+    inputSchema: {
+      type: 'object',
+      properties: { action: { type: 'string', enum: ['receive', 'acknowledge'] }, token: { type: 'string' } },
+      required: ['action', 'token'],
+      additionalProperties: false,
+    },
+    async execute(input, ctx) {
+      ctx.signal.throwIfAborted();
+      if (typeof input.token !== 'string') throw new Error('A delivery token is required.');
+      if (input.action === 'receive') await delivery(ctx.thread.id).receive(input.token, ctx.signal);
+      else if (input.action === 'acknowledge') await delivery(ctx.thread.id).acknowledge(input.token, ctx.signal);
+      else throw new Error('Unknown receipt action.');
+      return JSON.stringify({ ok: true, action: input.action });
+    },
+  });
+
+  amp.registerCommand(
+    'resolve-steering',
+    { title: 'Resolve pending steering', category: 'PMX Canvas' },
+    async (ctx) => {
+      if (!ctx.thread) return;
+      const store = delivery(ctx.thread.id);
+      await store.reconcile(ctx.thread);
+      const options = store.status().map((row) => `${row.state}: ${row.token}`);
+      const selected = await ctx.ui.select({ title: 'Pending Canvas steering', options, requireHuman: true });
+      if (!selected) return;
+      const token = selected.split(': ')[1];
+      const action = await ctx.ui.select({
+        title: 'Resolve steering',
+        options: ['Dismiss without acting', 'Retry uncertain send'],
+        requireHuman: true,
+      });
+      if (!action) return;
+      const confirmed = await ctx.ui.confirm({
+        title: 'Resolve Canvas steering',
+        message:
+          action === 'Retry uncertain send'
+            ? 'Amp may already have received this instruction. Retrying may duplicate it. Send it again?'
+            : 'Dismiss this steering without claiming the action succeeded?',
+        requireHuman: true,
+      });
+      if (!confirmed) return;
+      await store.reconcile(ctx.thread);
+      if (action === 'Retry uncertain send') store.retry(token);
+      else await store.dismiss(token);
+    },
+  );
+
   amp.on('tool.call', async (event) => {
     if (!event.tool.startsWith('mcp__pmx_canvas__canvas_')) return { action: 'allow' };
     if (['mcp__pmx_canvas__canvas_help', 'mcp__pmx_canvas__canvas_connect_workspace'].includes(event.tool))
       return { action: 'allow' };
     const binding = readBinding(root, event.thread.id);
+    try {
+      existingDelivery(event.thread.id)?.assertTurnBinding(binding);
+    } catch (error) {
+      return { action: 'reject-and-continue', message: String(error) };
+    }
     if (!binding) return { action: 'allow' };
     for (const key of ['targetBoardId', 'destinationBoardId', 'expectedBoardId', 'board']) {
       if (event.input[key] !== undefined && event.input[key] !== binding.boardId)
@@ -43,6 +170,8 @@ export default async function (amp: PluginAPI) {
     signal?.throwIfAborted();
     if (action === 'unbind') {
       unbind(root, threadId);
+      deliveries.get(threadId)?.close();
+      deliveries.delete(threadId);
       return { binding: null };
     }
     const target = await inspectServer(root, action !== 'status');
@@ -51,6 +180,12 @@ export default async function (amp: PluginAPI) {
     if (action === 'bind') {
       if (!boardId || !catalog.boards.some((board) => board.id === boardId))
         throw new Error('Choose an existing board ID. No board was activated or created.');
+      if (
+        existingDelivery(threadId)
+          ?.status()
+          .some((row) => row.board !== boardId)
+      )
+        throw new Error('Finish or dismiss pending steering on its original board before rebinding.');
       return { ...target, binding: bind(root, threadId, boardId), activeBoardId: catalog.activeBoardId };
     }
     const binding = readBinding(root, threadId);
@@ -60,8 +195,9 @@ export default async function (amp: PluginAPI) {
       activeBoardId: catalog.activeBoardId,
       boards: catalog.boards,
       boundBoardExists: binding ? catalog.boards.some((board) => board.id === binding.boardId) : null,
+      delivery: { pending: existingDelivery(threadId)?.status() ?? [], error: deliveryErrors.get(threadId) ?? null },
       routing:
-        'PMX MCP tool calls target this thread’s bound board without navigating the shared canvas. CLI calls and MCP resources are not intercepted. No automatic context or steering.',
+        'Bound MCP calls retain their board. Context arrives at turn start; addressed steering wakes idle threads while the plugin executor is awake. CLI and MCP resources are not intercepted.',
     };
     if (action === 'open') return { ...result, workbenchUrl: await portal(root, threadId, target.serverUrl) };
     return result;

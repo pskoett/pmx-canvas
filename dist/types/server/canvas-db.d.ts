@@ -167,6 +167,8 @@ export declare function loadAxSteeringFromDB(db: Database, q?: AxTimelineQuery &
 export declare function loadPendingAxSteeringFromDB(db: Database, options?: {
     consumer?: string;
     limit?: number;
+    addressedOnly?: boolean;
+    offset?: number;
 }): PmxAxSteeringMessage[];
 /**
  * NEWEST undelivered steering first (report #57) for the compact AX context lead
@@ -179,6 +181,8 @@ export declare function loadPendingAxSteeringFromDB(db: Database, options?: {
 export declare function loadNewestPendingAxSteeringFromDB(db: Database, options?: {
     consumer?: string;
     limit?: number;
+    addressedOnly?: boolean;
+    offset?: number;
 }): PmxAxSteeringMessage[];
 /** Total undelivered steering for a consumer (loop-safe — excludes the consumer's own; target-scoped). */
 export declare function countPendingAxSteeringFromDB(db: Database, consumer?: string): number;

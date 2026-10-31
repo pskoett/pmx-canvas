@@ -289,7 +289,17 @@ const axTimelineGetOperation = defineOperation<z.infer<typeof axTimelineGetSchem
 const axDeliveryPendingShape = {
   consumer: z.unknown().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
   limit: z.unknown().optional().describe('Max steering messages to return.'),
+  offset: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Skip this many matching pending messages. Restart at zero after an empty page.'),
   order: z.unknown().optional().describe('"oldest" (FIFO, default) or "newest" first.'),
+  addressedOnly: z
+    .boolean()
+    .optional()
+    .describe('Only messages addressed to consumer, excluding broadcasts before applying the limit.'),
   timeoutMs: z
     .unknown()
     .optional()
@@ -314,6 +324,9 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
       return {
         ...Object.fromEntries(url.searchParams),
         ...params,
+        ...(url.searchParams.has('addressedOnly')
+          ? { addressedOnly: url.searchParams.get('addressedOnly') === 'true' }
+          : {}),
         timeoutMs: Number.isFinite(raw) && raw > 0 ? raw : 0,
       };
     },
@@ -353,7 +366,13 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
     // can't bury the human's current action behind stale undelivered rows. Both
     // queries apply the same loop-safe consumer filter before the limit.
     const newest = input.order === 'newest';
-    const scope = { ...(consumer ? { consumer } : {}), ...(limit ? { limit } : {}) };
+    if (input.addressedOnly && !consumer) throw new OperationError('addressedOnly requires consumer.', 400);
+    const scope = {
+      ...(consumer ? { consumer } : {}),
+      ...(limit ? { limit } : {}),
+      addressedOnly: input.addressedOnly,
+      offset: input.offset,
+    };
     const readPending = () =>
       newest ? canvasState.getPendingSteeringForContext(scope) : canvasState.getPendingSteering(scope);
     let pending = readPending();
@@ -495,6 +514,12 @@ const axReadsListOperation = defineOperation<z.infer<typeof axReadsListSchema>, 
 });
 
 const axReadsRecordShape = {
+  deliveryId: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Idempotent adapter receipt ID, scoped to source, consumer and board.'),
   channel: z.enum(CONTEXT_READ_CHANNELS).describe('How the read reached the agent.'),
   resource: z.string().min(1).describe('Resource URI or operation name that was read.'),
   consumer: z.string().nullable().optional().describe('Reader identity (MCP client name, adapter host).'),
@@ -532,6 +557,7 @@ const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchem
   handler: (input) => {
     const read = canvasState.recordContextRead(
       {
+        deliveryId: input.deliveryId,
         channel: input.channel,
         resource: input.resource,
         source: input.source ?? 'api',

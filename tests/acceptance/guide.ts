@@ -978,12 +978,15 @@ export const GUIDE: GuideRow[] = [
   },
   {
     id: '32',
-    title: 'Amp plugin bindings and board routing',
+    title: 'Amp plugin bindings, context and steering',
     pass: [
       'Explicit per-thread board bindings survive plugin reload without activating or editing a board.',
       'Missing boards, foreign workspaces and mismatched runtime versions never redirect a binding.',
       'The directory package bundles canonical PMX skills and its MCP bootstrap.',
       'Bound MCP writes, nested batches and waits retain their target while the human navigates another board.',
+      'Context preparation records no read; receipt records only delivered map entries and safe cursor progress.',
+      'Uncertain steering is not automatically resent, and later instructions remain reachable behind pending ones.',
+      'Active turns refuse binding drift; cancelled receipt calls cannot begin writes after discovery.',
     ],
     touches: [
       'plugins/amp/**',
@@ -1005,11 +1008,19 @@ export const GUIDE: GuideRow[] = [
       'skills/pmx-canvas-orchestration/**',
     ],
     e2e: ['bound board writes stay off the human view and appear when that board is opened'],
-    unit: ['tests/unit/amp-plugin.test.ts', 'tests/unit/boards-api.test.ts', 'tests/unit/boards.test.ts'],
+    unit: [
+      'tests/unit/amp-plugin.test.ts',
+      'tests/unit/amp-delivery.test.ts',
+      'tests/unit/context-reads.test.ts',
+      'tests/unit/boards-api.test.ts',
+      'tests/unit/boards.test.ts',
+    ],
     ownerChecks: [
       'Native Amp discovers the plugin, qualified skills and approved MCP tools in a clean consumer.',
       'Open renders the correct Portal; bindings and boards survive real orb pause/resume.',
       'Two native Amp threads write to separate bound boards while the human navigates without being redirected.',
+      'Addressed steering wakes an actually idle native Amp thread; receive, rendered edit and action acknowledgment happen in order.',
+      'Busy-thread steering queues, obsolete queued turns cancel, and MCP calls through code_exec retain the binding.',
     ],
   },
 ];

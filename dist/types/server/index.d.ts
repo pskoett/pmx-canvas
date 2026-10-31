@@ -228,6 +228,8 @@ export declare class PmxCanvas extends EventEmitter {
     getPendingSteering(options?: {
         consumer?: string;
         limit?: number;
+        addressedOnly?: boolean;
+        offset?: number;
     }): PmxAxSteeringMessage[];
     /**
      * Submit a node-originated AX interaction (plan-004 Phase 1). Validates the
@@ -308,6 +310,8 @@ export declare class PmxCanvas extends EventEmitter {
         consumer?: string;
         since?: number;
         budget?: number;
+        contextDelivery?: boolean;
+        includeSteering?: boolean;
     }): Promise<Record<string, unknown>>;
     /** Open a board, or Home with null. */
     openBoard(id: string | null): Promise<void>;

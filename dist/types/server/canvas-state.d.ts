@@ -730,10 +730,14 @@ declare class CanvasStateManager {
     getPendingSteering(options?: {
         consumer?: string;
         limit?: number;
+        addressedOnly?: boolean;
+        offset?: number;
     }): PmxAxSteeringMessage[];
     getPendingSteeringForContext(options?: {
         consumer?: string;
         limit?: number;
+        addressedOnly?: boolean;
+        offset?: number;
     }): PmxAxSteeringMessage[];
     getPendingSteeringCount(consumer?: string): number;
     getAxTimelineSummary(): PmxAxTimelineSummary;

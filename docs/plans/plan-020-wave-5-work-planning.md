@@ -364,9 +364,10 @@ pre-move Undo/restore, and late SSE/save responses as negative cases.
 
 ## Slice 4: native PMX Canvas plugin for Amp
 
-**Status:** foundation in development after Move to board landed. This first increment covers
-project-local installation, open/resume, native discovery and explicit thread binding only.
-Context injection, write routing, steering, Jev and guest name entry remain subsequent work.
+**Status:** project-local foundation and board-targeted routing landed. Automatic context
+delivery and addressed steering, including idle-thread wakeup, are in implementation/acceptance.
+Receipt accounting, uncertain-send recovery and turn binding guards have local regression coverage;
+native host acceptance remains a separate gate. Jev and guest name entry remain subsequent work.
 The existing `.amp/plugins/pmx-sdlc.ts` is development tooling, not this consumer plugin.
 
 **Foundation decisions:** canonical source is `plugins/amp/`; the build emits a self-contained
@@ -380,9 +381,10 @@ One binding per canonical workspace and invoking thread is stored in a separate 
 under `.pmx-canvas/amp-bindings/`. Many threads may bind the same board. Binding/unbinding never
 activates a board, changes its contents, or rewrites another thread's binding. A deleted board
 is reported missing, not replaced with the active board. Opening shows the shared workbench,
-not a thread-private board view. Bindings are metadata until the routing increment: existing
-MCP/CLI calls still need explicit destinations and expected-board guards. This is not yet
-two-thread write isolation or automatic pin/context delivery.
+not a thread-private board view. Bound MCP tool calls retain their board while the human
+navigates; CLI calls and MCP resources still need explicit destinations and expected-board guards.
+The delivery increment uses native Amp turn hooks and append-with-steering, not a new scheduler
+or sleeping-orb keep-alive. See [the plugin contract](../amp-plugin.md) for receipt and retry semantics.
 
 **Owners and reuse:** use Amp's supported Plugin API and supervised orb services. Reuse PMX's
 MCP launcher, existing skills, context brief/read accounting, addressed steering, board export

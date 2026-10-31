@@ -1,8 +1,9 @@
-# Amp plugin and board routing
+# Amp plugin, context and steering
 
 The Wave 5 Amp plugin opens the workspace Canvas and binds each Amp thread to an existing board.
-Bound MCP calls read and edit that board while the human views another board or Home. It does
-**not** automatically inject context, poll steering, run Jev, or add guest name entry.
+Bound MCP calls read and edit that board while the human views another board or Home. Bound
+threads receive context at turn start and addressed steering can wake an idle thread. Jev and
+guest name entry are not included.
 
 ## Install locally
 
@@ -29,6 +30,7 @@ prove native MCP discovery. `canvas_connect_workspace` accepts only this executo
 | PMX Canvas: Bind | Choose an existing board for this thread, without opening or editing it. |
 | PMX Canvas: Status | Read service identity, binding, whether its board exists, and the shared active board. Does not start a service. |
 | PMX Canvas: Unbind | Remove only this thread's binding. Works while the server is down. |
+| PMX Canvas: Resolve pending steering | Inspect uncertain sends, then explicitly retry or dismiss with human confirmation. |
 
 Agents use `pmx_canvas_session` with `action: "open" | "bind" | "status" | "unbind"`.
 Bind requires an explicit `boardId`. Invocation thread identity comes from Amp, never model input.
@@ -38,11 +40,16 @@ Each binding stores workspace, thread, board and stable consumer ID `amp:<thread
 prevent one thread's update from overwriting another's. Bindings survive plugin reload and
 service restart. Missing boards are reported, never silently rebound. Board navigation and
 moving cards do not change a binding. Unbind is idempotent.
+Each binding also has an incarnation ID. Repeating Bind to the same board keeps it; unbinding
+and binding again invalidates old receipts, even for the same board. Installations created
+before this delivery increment must Unbind, then Bind again.
 
 **Bindings route PMX MCP tool calls.** The plugin supplies `targetBoardId` and the authenticated
 `amp:<thread-id>` identity before invocation. Conflicting destinations and nested overrides fail;
 missing/deleted boards never fall back to the visible board. Batches, delayed operations, approval
 waits, undo history and file watchers retain their board ownership across human navigation.
+An active turn retains the binding it started with or first used. If that binding changes or
+disappears, subsequent Canvas calls fail until a new turn starts, including after plugin reload.
 
 Open still displays the shared workbench. There is no private per-thread browser. Bound calls
 cannot navigate the shared workbench, restore the workspace backup, or control/capture its shared
@@ -56,7 +63,48 @@ must name the bound board. Catalog reads, board creation, board pins, workspace 
 knowledge categories keep their workspace scope and existing permission checks. AX timeline,
 evidence and addressed steering/delivery are workspace-wide; a steering wait can wake on a message
 sent from another board, while its `pendingActivity` contains only the bound board's work/gates.
-Cross-board relation targets remain explicit. No automatic steering pump is added.
+Cross-board relation targets remain explicit.
+
+## Automatic delivery
+
+At `agent.start`, the plugin prepares a context map with a 12,000-character JSON budget.
+Preparation records no reads and advances no cursor. The agent returns the supplied token to
+`pmx_canvas_delivery { action: "receive", token }` to confirm reception. This records the
+delivered map and complete links, never full card-content reads. Omitted or clipped changes
+remain beyond the saved cursor. Pull a card with the existing MCP tools to read its full content.
+The plugin keeps its own per-thread, per-board cursor, separate from other readers' cursors.
+
+While the plugin executor is awake, it checks persisted bindings every five seconds for steering
+addressed exactly to `amp:<thread-id>`. Broadcasts and messages for other consumers are excluded
+before the queue limit. It appends the instruction through Amp's native thread API: an idle
+thread starts a turn; a busy thread receives queued steering, which Amp can inject into the
+current turn after a tool returns without another `agent.start`. This does not wake a sleeping
+orb, hold a keep-alive lease, or create a scheduler. Scanning resumes when the plugin runs again.
+The pump scans successive pages of 50 messages so unacknowledged instructions cannot hide later
+ones. Instructions over 32,000 characters are not clipped or sent: they appear as `blocked-size`
+in Resolve pending steering, where a human can dismiss them and send a shorter instruction.
+
+The agent first receives the steering token, then acts and verifies the result, then calls
+`pmx_canvas_delivery { action: "acknowledge", token }`. Host acceptance, reception and action
+acknowledgment are separate states. An action that failed or was not verified must not be
+acknowledged as successful. The plugin cannot itself certify the agent's work.
+
+Each thread has a SQLite transport journal beside its binding. A send is reserved durably before
+calling Amp, preventing duplicate pumps from sending the same instruction. An interrupted or
+timed-out send remains **uncertain**, not automatically retried. Reconciliation checks the last
+200 transcript messages for the exact user-message payload; finding it confirms acceptance,
+not action completion. Absence does not prove non-delivery. Status exposes pending tokens and
+polling errors; Resolve pending steering requires human confirmation because retrying an
+uncertain send can duplicate an instruction. Dismiss closes delivery without claiming success.
+Journals retain packet identities across reloads; do not delete them to retry a message.
+Receipt identities also survive Canvas's 5,000-row diagnostic retention. A retry whose original
+read has expired is refused rather than counted again; start a new turn for fresh context.
+Stop cancels receipt and acknowledgment requests before a pending discovery can initiate a write.
+
+Queued steering with an obsolete binding or completed packet is cancelled at turn start.
+Finish or dismiss pending steering before binding to another board. Unbind stops delivery;
+the human can still dismiss a pending packet after unbinding or deleting its board.
+No exactly-once action-execution guarantee is made.
 
 ## Runtime boundaries
 
@@ -84,6 +132,8 @@ not a separate share server or board-only access policy.
 
 `bun test tests/unit/amp-plugin.test.ts` checks bindings and workspace safety through the
 registered session tool. `bun run typecheck` checks against the pinned published Amp types.
+`tests/unit/amp-delivery.test.ts` checks receipt accounting, clipped context, wrong recipients,
+competing pumps, interrupted sends/receipts and restart against real Canvas HTTP and SQLite.
 `tests/unit/boards-api.test.ts` checks concurrent HTTP routing, restart persistence, nested
 identity, waits and refusal paths. `tests/e2e/boards.pw.ts` checks visible-board isolation,
 reconnect and opening the populated target board. These do not substitute for native hooks.
@@ -96,3 +146,11 @@ two independent thread bindings, persisted boards after service restart, and a r
 Actual orb pause/resume and a second live Amp thread must be reported separately from simulated
 thread contexts or process restarts. Do not call the entire Wave 5 integration verified from
 these foundation checks.
+Delivery acceptance also requires an actually idle thread to wake from addressed Canvas steering,
+receive its context, edit the bound board, show the rendered result and acknowledge only afterward.
+
+Native acceptance on Amp `0.0.1793405518-gc59f01` verified idle wake, busy delivery into the
+current turn, bound MCP routing through `code_exec`, rendered edits before acknowledgment,
+receipt retries, reload and end-of-turn journal cleanup. Wrong-recipient steering stayed pending.
+Obsolete queued-packet cancellation and sleeping-orb resume were not exercised; startup
+cancellation guards have unit coverage, not native cancellation acceptance.

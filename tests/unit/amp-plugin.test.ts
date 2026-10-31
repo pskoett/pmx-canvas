@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type {
+  AgentStartEvent,
   PluginAPI,
+  PluginEventContext,
+  PluginHandlerResult,
   PluginCommandContext,
   PluginToolContext,
   PluginToolDefinition,
@@ -15,8 +18,10 @@ import { join } from 'node:path';
 import plugin from '../../plugins/amp/index.js';
 import { runtimeVersion } from '../../plugins/amp/runtime.js';
 import { ensurePmxServer } from '../../plugins/amp/mcp-runtime.js';
+import { removeTempDirWithRetry } from './helpers.js';
 
-const root = realpathSync(process.cwd());
+const sourceRoot = realpathSync(process.cwd());
+let root: string;
 const first = `T-test-${crypto.randomUUID()}` as const;
 const second = `T-test-${crypto.randomUUID()}` as const;
 const originalUrl = process.env.PMX_CANVAS_URL;
@@ -27,21 +32,29 @@ let activeBoardId: string | null;
 let catalog: Array<{ id: string; name: string }>;
 let methods: string[];
 let abortOnList: AbortController | undefined;
+const disposers: Array<() => void> = [];
 
 async function host() {
   let tool: PluginToolDefinition | undefined;
   let route: ((event: ToolCallEvent) => Promise<ToolCallResult>) | undefined;
+  let start:
+    | ((event: AgentStartEvent, ctx: PluginEventContext<'agent.start'>) => PluginHandlerResult<'agent.start'>)
+    | undefined;
   const commands = new Map<string, (ctx: PluginCommandContext) => Promise<void>>();
   // Only host registration surfaces are stubbed. The plugin performs real HTTP and disk I/O.
   const api = {
     system: { workspaceRoot: { toString: () => `file://${root}` } },
     helpers: { filePathFromURI: () => root },
-    on: (_event: string, handler: (event: ToolCallEvent) => Promise<ToolCallResult>) => {
-      route = handler;
+    on: (event: string, handler: unknown) => {
+      if (event === 'tool.call') route = handler as typeof route;
+      if (event === 'agent.start') start = handler as typeof start;
     },
+    onDispose: (dispose: () => void) => disposers.push(dispose),
+    threads: { get: () => ({ messages: async () => [], appendUserMessage: async () => {} }) },
+    logger: { log: () => {} },
     registerSkill: async () => ({ unsubscribe() {} }),
     registerTool: (definition: PluginToolDefinition) => {
-      tool = definition;
+      if (definition.name === 'pmx_canvas_session') tool = definition;
       return { unsubscribe() {} };
     },
     registerCommand: (name: string, _options: unknown, handler: (ctx: PluginCommandContext) => Promise<void>) => {
@@ -52,6 +65,10 @@ async function host() {
   await plugin(api);
   return {
     commands,
+    start: (id: string) =>
+      start!({ id, message: 'Continue', thread: { id: first } }, {
+        thread: { id: first, cancel: async () => {} },
+      } as PluginEventContext<'agent.start'>),
     route: (input: Record<string, unknown>, threadId = first, name = 'canvas_node') =>
       route!({
         toolUseID: crypto.randomUUID(),
@@ -71,6 +88,7 @@ async function host() {
 }
 
 beforeEach(() => {
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'amp-session-')));
   workspace = root;
   version = runtimeVersion;
   activeBoardId = 'visible-board';
@@ -95,14 +113,54 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const dispose of disposers.splice(0)) dispose();
   server.stop(true);
   if (originalUrl === undefined) delete process.env.PMX_CANVAS_URL;
   else process.env.PMX_CANVAS_URL = originalUrl;
   for (const thread of [first, second])
     rmSync(join(root, '.pmx-canvas/amp-bindings', `${thread}.json`), { force: true });
+  removeTempDirWithRetry(root);
 });
 
 describe('Amp Canvas session', () => {
+  test('an active turn cannot follow unbind or rebind, including after plugin reload', async () => {
+    const session = await host();
+    await session.call('bind', first, 'left');
+    await session.start('bound-turn');
+    await session.call('unbind', first);
+    expect(await session.route({ action: 'add' })).toMatchObject({ action: 'reject-and-continue' });
+    const reloaded = await host();
+    await reloaded.call('bind', first, 'right');
+    expect(await reloaded.route({ action: 'add' })).toMatchObject({ action: 'reject-and-continue' });
+    await reloaded.start('bound-turn');
+    expect(await reloaded.route({ action: 'add' })).toMatchObject({ action: 'reject-and-continue' });
+    await reloaded.start('new-turn');
+    expect(await reloaded.route({ action: 'add' })).toMatchObject({
+      action: 'modify',
+      input: { targetBoardId: 'right' },
+    });
+  });
+
+  test('a binding first used during an unbound turn remains fenced after unbind and reload', async () => {
+    const session = await host();
+    await session.start('initially-unbound');
+    await session.call('bind', first, 'left');
+    expect(await session.route({ action: 'get' })).toMatchObject({
+      action: 'modify',
+      input: { targetBoardId: 'left' },
+    });
+    await session.call('unbind', first);
+    expect(await session.route({ action: 'add' })).toMatchObject({ action: 'reject-and-continue' });
+    const reloaded = await host();
+    await reloaded.call('bind', first, 'right');
+    expect(await reloaded.route({ action: 'add' })).toMatchObject({ action: 'reject-and-continue' });
+    await reloaded.start('next-turn');
+    expect(await reloaded.route({ action: 'add' })).toMatchObject({
+      action: 'modify',
+      input: { targetBoardId: 'right' },
+    });
+  });
+
   test('native thread identity supplies routing and refuses conflicting destinations', async () => {
     const session = await host();
     await Promise.all([session.call('bind', first, 'left'), session.call('bind', second, 'right')]);
@@ -136,6 +194,7 @@ describe('Amp Canvas session', () => {
     activeBoardId = 'right';
     const reloaded = await host();
     expect((await reloaded.call('status', first)).binding).toEqual({
+      id: expect.any(String),
       workspace: root,
       threadId: first,
       boardId: 'left',
@@ -202,12 +261,12 @@ describe('Amp Canvas session', () => {
   });
 
   test('bundles canonical guidance and explicit MCP filters without source checkout dependencies', () => {
-    const build = Bun.spawnSync(['bun', 'run', 'scripts/build-amp-plugin.ts'], { cwd: root });
+    const build = Bun.spawnSync(['bun', 'run', 'scripts/build-amp-plugin.ts'], { cwd: sourceRoot });
     expect(build.exitCode).toBe(0);
-    const output = join(root, 'dist/amp-plugin/pmx-canvas');
+    const output = join(sourceRoot, 'dist/amp-plugin/pmx-canvas');
     for (const name of ['pmx-canvas', 'pmx-canvas-testing', 'pmx-canvas-orchestration']) {
       expect(readFileSync(join(output, 'skills', name, 'SKILL.md'), 'utf8')).toBe(
-        readFileSync(join(root, 'skills', name, 'SKILL.md'), 'utf8'),
+        readFileSync(join(sourceRoot, 'skills', name, 'SKILL.md'), 'utf8'),
       );
     }
     const mcp = JSON.parse(readFileSync(join(output, 'skills/pmx-canvas/mcp.json'), 'utf8'));
@@ -222,10 +281,10 @@ describe('Amp Canvas session', () => {
     const project = realpathSync.native(mkdtempSync(join(tmpdir(), 'amp-mcp-')));
     const installed = join(project, '.amp/plugins/pmx-canvas');
     mkdirSync(join(project, '.amp/plugins'), { recursive: true });
-    cpSync(join(root, 'dist/amp-plugin/pmx-canvas'), installed, { recursive: true });
+    cpSync(join(sourceRoot, 'dist/amp-plugin/pmx-canvas'), installed, { recursive: true });
     // Exercise installed-package resolution without selecting a cached registry build.
     mkdirSync(join(project, 'node_modules'));
-    symlinkSync(root, join(project, 'node_modules/pmx-canvas'), 'junction');
+    symlinkSync(sourceRoot, join(project, 'node_modules/pmx-canvas'), 'junction');
     workspace = project;
     version = '0.0.0';
     const client = new Client({ name: 'amp-plugin-test', version: '1' });

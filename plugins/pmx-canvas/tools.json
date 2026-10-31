@@ -6568,6 +6568,14 @@
           "budget": {
             "description": "Maximum response size in UTF-16 code units"
           },
+          "contextDelivery": {
+            "description": "False prepares a brief without recording delivery or advancing a cursor.",
+            "type": "boolean"
+          },
+          "includeSteering": {
+            "description": "False omits steering for hosts that deliver it separately.",
+            "type": "boolean"
+          },
           "projection": {
             "default": "full",
             "description": "Full board/card graph, or board-only Map summaries with qualified cross-board and missing relations",
@@ -9832,6 +9840,12 @@
             "description": "Max steering messages to return.",
             "type": "number"
           },
+          "offset": {
+            "description": "Skip this many matching pending messages. Restart at zero after an empty page.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "order": {
             "description": "Order of returned steering: \"oldest\" (FIFO, default) for ordered processing, or \"newest\" first to see the latest browser action when limited.",
             "type": "string",
@@ -9839,6 +9853,10 @@
               "newest",
               "oldest"
             ]
+          },
+          "addressedOnly": {
+            "description": "Only messages addressed to consumer, excluding broadcasts before applying the limit.",
+            "type": "boolean"
           },
           "timeoutMs": {
             "description": "Max ms to block until steering arrives (0/omitted = immediate read).",

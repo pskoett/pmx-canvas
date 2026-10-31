@@ -1389,6 +1389,11 @@ describe('MCP parity with CLI', () => {
       arguments: { action: 'layout' },
     })) as ToolResultShape;
     const localLayoutText = textOf(localLayoutResult);
+    const preparedLocal = (await local.client.callTool({
+      name: 'canvas_query',
+      arguments: { action: 'context', contextDelivery: false },
+    })) as ToolResultShape;
+    expect(preparedLocal.isError).not.toBe(true);
     const localLog = parseJsonText<ReadLog>(
       (await local.client.callTool({
         name: 'canvas_ax_timeline',
@@ -1396,6 +1401,7 @@ describe('MCP parity with CLI', () => {
       })) as ToolResultShape,
     );
     const localResourceReads = localLog.reads.filter((read) => read.channel === 'mcp-resource');
+    expect(localLog.reads.filter((read) => read.resource === 'context.get')).toEqual([]);
     expect(localResourceReads.map((read) => read.resource).sort()).toEqual([
       'canvas://context',
       'canvas://pinned-context',
@@ -1453,6 +1459,11 @@ describe('MCP parity with CLI', () => {
     })) as ToolResultShape;
     const daemonLayoutText = textOf(daemonLayoutResult);
 
+    const preparedAttached = (await attached.client.callTool({
+      name: 'canvas_query',
+      arguments: { action: 'context', contextDelivery: false },
+    })) as ToolResultShape;
+    expect(preparedAttached.isError).not.toBe(true);
     const daemonLog = (await (await fetch(`${baseUrl}/api/canvas/ax/context-reads`)).json()) as ReadLog;
     expect(daemonLog.reads).toHaveLength(2);
     expect(daemonLog.reads.find((read) => read.resource === 'canvas://ax-context')).toMatchObject({

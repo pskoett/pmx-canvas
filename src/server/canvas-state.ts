@@ -4190,11 +4190,15 @@ class CanvasStateManager {
     return this.ax.getAxSteering(q);
   }
 
-  getPendingSteering(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
+  getPendingSteering(
+    options: { consumer?: string; limit?: number; addressedOnly?: boolean; offset?: number } = {},
+  ): PmxAxSteeringMessage[] {
     return this.ax.getPendingSteering(options);
   }
 
-  getPendingSteeringForContext(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
+  getPendingSteeringForContext(
+    options: { consumer?: string; limit?: number; addressedOnly?: boolean; offset?: number } = {},
+  ): PmxAxSteeringMessage[] {
     return this.ax.getPendingSteeringForContext(options);
   }
 
@@ -4218,6 +4222,8 @@ class CanvasStateManager {
       this._contextReadListener?.(boardId);
       return read;
     } catch (error) {
+      // Explicit receipts need a distinguishable outcome, not best-effort diagnostics.
+      if (input.deliveryId) throw error;
       logCanvasStateWarning('record context read failed', error);
       return null;
     }

@@ -2092,28 +2092,37 @@ export function loadAxSteeringFromDB(
 
 export function loadPendingAxSteeringFromDB(
   db: Database,
-  options: { consumer?: string; limit?: number } = {},
+  options: { consumer?: string; limit?: number; addressedOnly?: boolean; offset?: number } = {},
 ): PmxAxSteeringMessage[] {
+  if (options.addressedOnly && !options.consumer) return [];
   // FIFO (oldest undelivered first); exclude the consumer's own steering (loop
   // prevention) and any steering addressed to a DIFFERENT consumer (target scoping)
   // in SQL so the LIMIT is applied AFTER both filters, not before.
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, string, string, string, number]>(
+        .query<AxSteeringRow, [string, string, string, string, string, number, number]>(
           // A broadcast stays pending PER CONSUMER: it leaves this consumer's
           // queue only once THIS consumer marked it (or an anonymous global ack
           // set delivered).
-          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq ASC LIMIT ?',
+          `SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) ${options.addressedOnly ? 'AND s.target IS NOT NULL' : ''} AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq ASC LIMIT ? OFFSET ?`,
         )
-        .all(options.consumer, options.consumer, options.consumer, broadcastCutoffIso(), options.consumer, limit)
+        .all(
+          options.consumer,
+          options.consumer,
+          options.consumer,
+          broadcastCutoffIso(),
+          options.consumer,
+          limit,
+          options.offset ?? 0,
+        )
     : db
-        .query<AxSteeringRow, [string, number]>(
+        .query<AxSteeringRow, [string, number, number]>(
           // No consumer given: only broadcasts — addressed steering is claimable
           // solely by the consumer it names.
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL AND created_at > ? ORDER BY seq ASC LIMIT ?',
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL AND created_at > ? ORDER BY seq ASC LIMIT ? OFFSET ?',
         )
-        .all(broadcastCutoffIso(), limit);
+        .all(broadcastCutoffIso(), limit, options.offset ?? 0);
   return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
@@ -2127,20 +2136,29 @@ export function loadPendingAxSteeringFromDB(
  */
 export function loadNewestPendingAxSteeringFromDB(
   db: Database,
-  options: { consumer?: string; limit?: number } = {},
+  options: { consumer?: string; limit?: number; addressedOnly?: boolean; offset?: number } = {},
 ): PmxAxSteeringMessage[] {
+  if (options.addressedOnly && !options.consumer) return [];
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, string, string, string, number]>(
-          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq DESC LIMIT ?',
+        .query<AxSteeringRow, [string, string, string, string, string, number, number]>(
+          `SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) ${options.addressedOnly ? 'AND s.target IS NOT NULL' : ''} AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq DESC LIMIT ? OFFSET ?`,
         )
-        .all(options.consumer, options.consumer, options.consumer, broadcastCutoffIso(), options.consumer, limit)
+        .all(
+          options.consumer,
+          options.consumer,
+          options.consumer,
+          broadcastCutoffIso(),
+          options.consumer,
+          limit,
+          options.offset ?? 0,
+        )
     : db
-        .query<AxSteeringRow, [number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq DESC LIMIT ?',
+        .query<AxSteeringRow, [number, number]>(
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq DESC LIMIT ? OFFSET ?',
         )
-        .all(limit);
+        .all(limit, options.offset ?? 0);
   return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 

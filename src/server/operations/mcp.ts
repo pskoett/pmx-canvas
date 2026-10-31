@@ -83,7 +83,8 @@ async function invokeMcpOperation(
       : typeof opInput.board === 'string' && opInput.board.trim()
         ? opInput.board.trim()
         : undefined;
-  const readTarget = CONTEXT_READ_OPS.has(op.name) ? await host.prepareContextRead(board) : null;
+  const preparesContext = op.name === 'context.get' && opInput.contextDelivery === false;
+  const readTarget = CONTEXT_READ_OPS.has(op.name) && !preparesContext ? await host.prepareContextRead(board) : null;
   if (readTarget?.boardId && 'board' in op.inputShape && opInput.board === undefined) {
     opInput = { ...opInput, board: readTarget.boardId };
     formatInput = { ...formatInput, board: readTarget.boardId };

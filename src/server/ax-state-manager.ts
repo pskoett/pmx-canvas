@@ -1097,7 +1097,9 @@ export class AxStateManager {
    * whose source equals the consumer to prevent delivery loops (e.g. Copilot
    * should not be handed back steering it originated).
    */
-  getPendingSteering(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
+  getPendingSteering(
+    options: { consumer?: string; limit?: number; addressedOnly?: boolean; offset?: number } = {},
+  ): PmxAxSteeringMessage[] {
     const db = this.deps.getDb();
     return db ? loadPendingAxSteeringFromDB(db, options) : [];
   }
@@ -1107,7 +1109,9 @@ export class AxStateManager {
    * #57) — so a fresh steer is visible even behind a long backlog. Loop-safe like
    * getPendingSteering, but ordered DESC instead of the FIFO ASC delivery queue.
    */
-  getPendingSteeringForContext(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
+  getPendingSteeringForContext(
+    options: { consumer?: string; limit?: number; addressedOnly?: boolean; offset?: number } = {},
+  ): PmxAxSteeringMessage[] {
     const db = this.deps.getDb();
     return db ? loadNewestPendingAxSteeringFromDB(db, options) : [];
   }

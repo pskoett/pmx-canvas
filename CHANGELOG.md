@@ -7,6 +7,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- Bound Amp threads receive context at turn start and can wake for addressed steering while their plugin executor is awake.
 - Bound Amp threads can read and edit separate boards while the human navigates the shared canvas.
 - Agents can draw and write on the board through MCP and CLI batches, and erase marks shared with humans without Sessions.
 - Humans and agents can author work cards with a state, detail and optional progress, with in-card editing and no session required.

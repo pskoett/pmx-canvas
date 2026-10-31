@@ -273,6 +273,8 @@ export declare class AxStateManager {
     getPendingSteering(options?: {
         consumer?: string;
         limit?: number;
+        addressedOnly?: boolean;
+        offset?: number;
     }): PmxAxSteeringMessage[];
     /**
      * NEWEST undelivered steering first, for the compact AX context lead block (report
@@ -282,6 +284,8 @@ export declare class AxStateManager {
     getPendingSteeringForContext(options?: {
         consumer?: string;
         limit?: number;
+        addressedOnly?: boolean;
+        offset?: number;
     }): PmxAxSteeringMessage[];
     /** Total undelivered steering for a consumer (loop-safe), for the context backlog counts. */
     getPendingSteeringCount(consumer?: string): number;

@@ -6,10 +6,11 @@
  * recording never notifies (a read must not trigger more reads).
  */
 import type { Database } from 'bun:sqlite';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { CARD_HISTORY_CTE } from './card-relocation.js';
 import type { MemoryGraph } from '../shared/memory-graph.js';
 import type { CompiledContextEntry } from './context-brief.js';
+import { OperationError } from './operations/types.js';
 
 export const CONTEXT_READ_RETENTION = 5000;
 const CONTEXT_READ_DEFAULT_LIMIT = 50;
@@ -52,6 +53,8 @@ export interface ContextRead {
 }
 
 export type ContextReadInput = Omit<ContextRead, 'seq' | 'id' | 'at' | 'boardId' | 'readNodes' | 'seenLinks'> & {
+  /** Stable adapter receipt identity. Retries record this delivery once per consumer and board. */
+  deliveryId?: string;
   /** Explicit read target, captured before asynchronous formatting/proxy work. */
   boardId?: string | null;
   /** Ids of every serialized node in what the reader received; the server keeps those on the board. */
@@ -265,6 +268,7 @@ export function graphReads(
 }
 
 export const CONTEXT_READS_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS context_read_receipts (id TEXT PRIMARY KEY);
   CREATE TABLE IF NOT EXISTS context_reads (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
     id TEXT NOT NULL UNIQUE,
@@ -290,30 +294,47 @@ export function appendContextReadToDB(
   readNodes: Record<string, number> = {},
   seenLinks: Record<string, number> = {},
 ): ContextRead {
-  const id = `read-${randomUUID()}`;
-  const at = new Date().toISOString();
-  db.run(
-    'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id, read_nodes, seen_links) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [
-      id,
-      at,
-      input.channel,
-      input.resource,
-      input.source,
-      input.consumer,
-      input.agentId,
-      JSON.stringify(input.pinnedNodeIds),
-      JSON.stringify(input.deliveredNodeIds),
-      input.bytes,
-      boardId,
-      JSON.stringify(readNodes),
-      JSON.stringify(seenLinks),
-    ],
-  );
-  const seq = Number(db.query<{ seq: number }, []>('SELECT last_insert_rowid() AS seq').get()?.seq ?? 0);
-  db.run('DELETE FROM context_reads WHERE seq <= ?', [seq - CONTEXT_READ_RETENTION]);
-  const { readNodeIds: _readNodeIds, seenNodeIds: _seenNodeIds, ...record } = input;
-  return { ...record, seq, id, at, boardId, readNodes, seenLinks };
+  return db.transaction(() => {
+    const id = input.deliveryId
+      ? `read-${createHash('sha256')
+          .update(JSON.stringify([input.source, input.consumer, boardId, input.deliveryId]))
+          .digest('hex')}`
+      : `read-${randomUUID()}`;
+    if (input.deliveryId) {
+      const existing = db.query<ContextReadRow, [string]>('SELECT * FROM context_reads WHERE id = ?').get(id);
+      if (existing) {
+        db.run('INSERT OR IGNORE INTO context_read_receipts VALUES (?)', [id]);
+        return rowToContextRead(existing);
+      }
+      if (db.query('SELECT id FROM context_read_receipts WHERE id = ?').get(id))
+        throw new OperationError('Context receipt expired. Obtain fresh context instead of retrying this token.', 409, {
+          code: 'context_receipt_expired',
+        });
+    }
+    const at = new Date().toISOString();
+    db.run(
+      'INSERT INTO context_reads (id, at, channel, resource, source, consumer, agent_id, pinned_node_ids, delivered_node_ids, bytes, board_id, read_nodes, seen_links) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
+      [
+        id,
+        at,
+        input.channel,
+        input.resource,
+        input.source,
+        input.consumer,
+        input.agentId,
+        JSON.stringify(input.pinnedNodeIds),
+        JSON.stringify(input.deliveredNodeIds),
+        input.bytes,
+        boardId,
+        JSON.stringify(readNodes),
+        JSON.stringify(seenLinks),
+      ],
+    );
+    const row = db.query<ContextReadRow, [string]>('SELECT * FROM context_reads WHERE id = ?').get(id)!;
+    if (input.deliveryId) db.run('INSERT INTO context_read_receipts VALUES (?)', [id]);
+    db.run('DELETE FROM context_reads WHERE seq <= ?', [row.seq - CONTEXT_READ_RETENTION]);
+    return rowToContextRead(row);
+  })();
 }
 
 interface ContextReadRow {
