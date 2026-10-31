@@ -1718,9 +1718,11 @@ class CanvasStateManager {
   }
 
   /** A stored multi-board write retains each live owner's runtime and camera. */
-  private reconcileStoredBoards(): void {
+  private reconcileStoredBoards(ids: Iterable<string> = this.liveBoards.keys()): void {
     if (!this._db) return;
-    for (const board of this.liveBoards.values()) {
+    for (const id of ids) {
+      const board = this.liveBoards.get(id);
+      if (!board) continue;
       if (board.storageVersion === boardStorageVersion(this._db, board.id!)) continue;
       const state = loadStateFromDB(this._db, board.id!)!;
       this.boardExecution.run(board, () => {
@@ -1939,10 +1941,10 @@ class CanvasStateManager {
         if (policy && (policy.scope || Object.keys(policy.agentScopes ?? {}).length))
           plan.preview.blockers.push(`${id}: clear the scope fence before relocating board-owned cards/references`);
       }
-      const locked = humanPresence.lockedNodes();
       for (const [id, state] of plan.states) {
         const original = library.get(id)?.state;
-        if (!original || id !== this._activeBoardId) continue;
+        if (!original) continue;
+        const locked = this.withBoard(id, () => humanPresence.lockedNodes());
         for (const node of original.nodes)
           if (
             locked.has(node.id) &&
@@ -2022,7 +2024,7 @@ class CanvasStateManager {
       this.notifyChange('nodes');
       this.notifyChange('pins');
       this.notifyChange('ax');
-      this.reconcileStoredBoards();
+      if (result.result) this.reconcileStoredBoards(result.result.affectedBoardIds);
     }
     return result;
   }

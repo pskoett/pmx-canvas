@@ -1,4 +1,4 @@
-import { afterAll, afterEach, expect, test, spyOn } from 'bun:test';
+import { afterAll, afterEach, beforeEach, expect, test, spyOn } from 'bun:test';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { GroupBreadcrumbs, GroupOutsideLinks } from '../../src/client/canvas/GroupNavigation.tsx';
 import { EdgeEditor } from '../../src/client/canvas/EdgeEditor.tsx';
@@ -38,6 +38,10 @@ const fetchMock = spyOn(globalThis, 'fetch').mockImplementation(
   ),
 );
 afterAll(() => fetchMock.mockRestore());
+beforeEach(() => {
+  activeBoardId.value = null;
+  boardList.value = [];
+});
 afterEach(() => {
   cleanup();
   resetCanvasInteractionState();

@@ -137,14 +137,17 @@ for (const [output, inputs] of BUNDLES) {
 // One Playwright run for every selected row; tests are attributed to rows by title afterwards.
 const patterns = [...new Set(toRun.flatMap((result) => result.row.e2e))];
 const executed: TestResult[] = [];
+const runnerProblems: string[] = [];
 if (patterns.length) {
   const grep = patterns.map((pattern) => pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   // A run that dies before its reporter starts must not leave the previous run's report behind.
   const reportFile = resolve(OUT, 'playwright.json');
   rmSync(reportFile, { force: true });
-  run(['bash', 'scripts/run-playwright.sh', '--config', 'playwright.acceptance.config.ts', '--grep', grep, ...(flag('--headed') ? ['--headed'] : [])]);
+  const runner = run(['bash', 'scripts/run-playwright.sh', '--config', 'playwright.acceptance.config.ts', '--grep', grep, ...(flag('--headed') ? ['--headed'] : [])]);
+  if (runner.exitCode !== 0) runnerProblems.push(`Playwright exited with status ${runner.exitCode}`);
   if (!existsSync(reportFile)) throw new Error('Playwright wrote no report: see its output above');
   const report = JSON.parse(readFileSync(reportFile, 'utf8'));
+  for (const error of report.errors ?? []) runnerProblems.push(`Playwright global error: ${error.message ?? JSON.stringify(error)}`);
   interface Suite {
     title: string;
     suites?: Suite[];
@@ -179,6 +182,7 @@ if (patterns.length) {
 }
 
 for (const result of toRun) {
+  result.problems.push(...runnerProblems);
   for (const pattern of result.row.e2e) {
     const matched = executed.filter((test) => test.title.includes(pattern));
     if (!matched.length) result.problems.push(`no e2e test matched "${pattern}"`);

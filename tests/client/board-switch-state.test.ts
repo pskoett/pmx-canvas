@@ -35,6 +35,8 @@ import { applySessionReceipt, dismissSessionReceipt, sessionReceipt } from '../.
 import type { CanvasNodeState } from '../../src/client/types.ts';
 import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
 import { effectiveLifecycleFilter, lifecycleFilter, openLifecycle } from '../../src/client/state/knowledge-store.ts';
+import { reportClientViewportSize, updateViewportFromClient } from '../../src/client/state/intent-bridge.ts';
+import { installWorkbenchTransport } from '../../src/client/state/workbench-transport.ts';
 
 const originalFetch = globalThis.fetch;
 let fixtureEpoch = 0;
@@ -117,6 +119,34 @@ afterEach(() => {
 });
 
 describe('board switch client state', () => {
+  test.each([
+    false,
+    true,
+  ])('obsolete size reports are quiet, but camera and permission refusals remain visible (hosted=%s)', async (hosted) => {
+    resetAttentionBridge();
+    let status = 409;
+    const transport = async () =>
+      new Response(JSON.stringify({ ok: false, error: status === 409 ? 'The active board changed.' : 'Forbidden' }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    globalThis.fetch = Object.assign(transport, { preconnect: originalFetch.preconnect });
+    if (hosted) installWorkbenchTransport(transport);
+    try {
+      await reportClientViewportSize();
+      expect(attentionHistory.value).toHaveLength(0);
+      await updateViewportFromClient({ x: 140, y: -50, scale: 0.7 });
+      expect(attentionHistory.value.at(-1)?.detail).toBe('The active board changed.');
+      resetAttentionBridge();
+      status = 403;
+      await reportClientViewportSize();
+      expect(attentionHistory.value.at(-1)?.detail).toBe('Forbidden');
+    } finally {
+      installWorkbenchTransport(undefined);
+      resetAttentionBridge();
+    }
+  });
+
   test.each(['B', null])('replacement state reads carry their captured board owner (%s)', (boardId) => {
     const urls: string[] = [];
     globalThis.fetch = ((input: RequestInfo | URL) => {

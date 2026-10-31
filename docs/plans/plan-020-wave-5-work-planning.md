@@ -16,11 +16,21 @@ live-card broad browser run had one intermittent hosted-tour failure that passed
 The move history and unsupported-binding boundaries below were approved before implementation.
 The owner added the native Amp Canvas plugin to this wave on 2026-10-27. Its project-local
 foundation, bound-board routing and automatic delivery are now pushed, with native acceptance
-for the exercised delivery paths below. Collaboration and Jev remain subsequent Wave 5 scope.
+for the exercised delivery paths below. Guest naming is delivered; Jev implementation and
+remaining native acceptance are tracked in the checkpoint below.
 This replaces step 4's automatic work-item-to-card conversion and make/inline-board
 pairing in [plan 019](plan-019-post-0.9-roadmap.md). 0.12 is a proposed release number,
 not authorization to publish. Annotation contract changes are recorded in the Unreleased
 changelog and transport docs; verification evidence will accompany the implementation.
+
+**2026-10-31 checkpoint:** guest-name entry is pushed and CI-green; external guest access and
+revocation remain unverified. All three Jev uses are implemented locally: opt-in relevance
+ordering of already-compiled optional summaries, plus separately consented on-demand output
+representation and review prioritization. They neither retrieve nor verify content and keep
+pins and receipt accounting unchanged. See [the plugin contract](../amp-plugin.md#optional-context-relevance).
+Native fictional evaluations pass; human-confirmed enablement, sleeping-orb resume and obsolete
+queued-turn cancellation remain unaccepted. Final release-candidate gates are in progress in
+independent orbs; implementation does not imply release approval.
 
 **Decision source:** [Wave 5 planning conversation](https://ampcode.com/threads/T-01a17bd4-a7c9-714d-93a1-434f88c3bed7).
 **Amp plugin direction:** [native Canvas plugin discussion](https://ampcode.com/threads/T-01a17d25-69d9-7693-986a-f3991de6a346).
@@ -59,7 +69,8 @@ Dependencies and Decision drawings; the existing group/relation drawings remain 
 - Opening a group is navigation within its existing board. Breadcrumbs and outside-link stubs
   show its context; opening/closing the group never creates a board or changes card ownership.
 - No reverse move, **Move into this board**, inline-board operation, arbitrary board merge,
-  execution scheduler, new journal, concurrent-board runtime or hosted-account work in Wave 5.
+  execution scheduler or hosted-account work in Wave 5. The later Amp-plugin increment adds
+  board-owned concurrent routing and a private delivery journal, not a second state manager.
   Existing selective-copy behavior is not a substitute for the move and remains separate.
 - The native Amp plugin runs Canvas in an orb through Amp's Portal, connects canvas context
   and steering to the right thread, and supports deliberate sharing and collaboration through
@@ -370,7 +381,8 @@ busy steering, receipt, bound-board edits through `code_exec`, rendered verifica
 acknowledgment, reload/retry and end cleanup. Busy steering joined the existing active turn,
 without another `agent.start`. Obsolete queued-packet cancellation and sleeping-orb resume
 remain untested. Receipt accounting, uncertain-send recovery and turn binding guards also have
-local regression coverage. Jev and guest name entry remain subsequent work.
+local regression coverage. Guest name entry is delivered; all three optional Jev uses are
+implemented locally with separate ranking/advice consent and pending native opt-in acceptance.
 The existing `.amp/plugins/pmx-sdlc.ts` is development tooling, not this consumer plugin.
 
 **Foundation decisions:** canonical source is `plugins/amp/`; the build emits a self-contained

@@ -492,7 +492,7 @@ export async function reportClientViewportSize(): Promise<void> {
   if (isHostedWorkbench() && !boardsLoaded.value) return;
   const size = clientWindowSize();
   if (!('clientWidth' in size)) return;
-  await requestBestEffort('reportClientViewportSize', '/api/canvas/viewport', {
+  const init: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -500,7 +500,15 @@ export async function reportClientViewportSize(): Promise<void> {
       ...(boardsLoaded.value ? { expectedBoardId: activeBoardId.value } : {}),
       recordHistory: false,
     }),
-  });
+  };
+  try {
+    const res = await workbenchFetch('/api/canvas/viewport', withWorkbenchMarker(init));
+    // Resize observations can cross a board switch. Discard that stale report,
+    // without telling the human an edit failed; actual camera writes still report refusals.
+    if (!res.ok && res.status !== 409) reportRefusedWrite(res, init, await readJsonBody(res));
+  } catch (error) {
+    logRequestError('reportClientViewportSize', error);
+  }
 }
 
 // ── Group API ─────────────────────────────────────────────────

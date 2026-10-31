@@ -3,10 +3,13 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.12.0] - Unreleased
 
 ### Added
 
+- Amp users can opt into Jev relevance ordering for optional Canvas context while keeping pins and delivery receipts unchanged.
+- Amp users can separately opt into on-demand Jev suggestions for output format and review order, with explicit format requests always preserved.
+- Move selected cards or a whole group to a new board while preserving their identity and leaving a portal behind.
 - People can set their cursor name from the Canvas top bar without changing sharing or access.
 - Bound Amp threads receive context at turn start and can wake for addressed steering while their plugin executor is awake.
 - Bound Amp threads can read and edit separate boards while the human navigates the shared canvas.
@@ -17,6 +20,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Resizing during a board switch no longer shows a misleading change-refused warning.
+- Moving cards respects edit locks on referenced boards and preserves unrelated unsaved edits and storage conflicts.
 - Restored snapshots no longer report webpage changes caused only by object-key order or fetch/sync times.
 - Embedded MCP apps receive valid JSON-RPC messages for theme, readiness and AX interactions.
 - Copilot context no longer repeats instructions and pickups already delivered to Copilot.

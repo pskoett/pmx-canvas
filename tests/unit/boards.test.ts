@@ -515,6 +515,105 @@ test('Move preview is read-only and commit rechecks revisions, edit locks and af
   expect(canvasState.getNode('card')!.data.title).toBe('Newer human edit');
 });
 
+test('Move refuses a background relocation that rewrites a human-locked card on another board', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Agent source')!;
+  const visible = canvasState.createBoard('Human view')!;
+  canvasState.switchBoard(source.id);
+  canvasState.addNode(note('card', 'Move me'));
+  const expectedRevision = canvasState.getContentRevision().revision;
+  canvasState.switchBoard(visible.id);
+  canvasState.addNode({
+    ...note('reference', 'Human draft'),
+    data: {
+      content: 'Human draft',
+      provenance: {
+        sourceKind: 'recipe',
+        sourceUri: 'recipe:evidence-summary',
+        refreshStrategy: 'agent-request',
+        sources: [{ boardId: source.id, cardId: 'card' }],
+      },
+    },
+  });
+  canvasState.flushToDisk();
+  const before = canvasState.getNode('reference');
+  const input = {
+    targetBoardId: source.id,
+    sourceBoardId: source.id,
+    nodeIds: ['card'],
+    name: 'Moved',
+    requestId: 'background-locked-reference',
+    expectedRevision,
+  };
+  humanPresence.set({ clientId: 'cross-board-editor', name: 'Editor', grabbingNodeId: 'reference' });
+  try {
+    await expect(executeOperation('board.move-selection', input)).rejects.toThrow('Move refused');
+    expect(canvasState.visibleBoardId).toBe(visible.id);
+    expect(canvasState.listBoards()).toHaveLength(2);
+    expect(canvasState.getNode('reference')).toEqual(before);
+    expect(canvasState.readBoard(source.id)!.layout.nodes.map((node) => node.id)).toEqual(['card']);
+  } finally {
+    humanPresence.set({ clientId: 'cross-board-editor', left: true });
+  }
+  const moved = (await executeOperation('board.move-selection', input)) as { destinationBoardId: string };
+  expect(canvasState.visibleBoardId).toBe(visible.id);
+  expect(canvasState.getNode('reference')!.data.provenance).toMatchObject({
+    sources: [{ boardId: moved.destinationBoardId, cardId: 'card' }],
+  });
+});
+
+test('Move preserves unrelated dirty-board edits and its existing storage conflict', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Move source')!;
+  const unrelated = canvasState.createBoard('Unrelated human board')!;
+  canvasState.switchBoard(source.id);
+  canvasState.addNode(note('moving', 'Move me'));
+  const expectedRevision = canvasState.getContentRevision().revision;
+  canvasState.switchBoard(unrelated.id);
+  canvasState.addNode(note('draft', 'Persisted baseline'));
+  canvasState.flushToDisk();
+  canvasState.updateNode('draft', { data: { content: 'Unsaved human edit' } });
+  const writer = new Database(canvasState.databasePath!);
+  try {
+    writer.run("UPDATE nodes SET data = json_set(data, '$.content', ?) WHERE board_id = ? AND id = ?", [
+      'Other writer edit',
+      unrelated.id,
+      'draft',
+    ]);
+    expect(() => canvasState.flushToDisk()).toThrow('changed in another writer');
+    expect(canvasState.getNode('draft')!.data.content).toBe('Unsaved human edit');
+    expect(canvasState.persistenceHealth.ok).toBe(false);
+
+    const moved = (await executeOperation('board.move-selection', {
+      targetBoardId: source.id,
+      sourceBoardId: source.id,
+      nodeIds: ['moving'],
+      name: 'Moved',
+      requestId: 'unrelated-dirty-board',
+      expectedRevision,
+    })) as { destinationBoardId: string; affectedBoardIds: string[] };
+    expect(moved.affectedBoardIds).not.toContain(unrelated.id);
+    expect(canvasState.readBoard(moved.destinationBoardId)!.layout.nodes.map((node) => node.id)).toEqual(['moving']);
+    expect(canvasState.visibleBoardId).toBe(unrelated.id);
+    expect(canvasState.getNode('draft')!.data.content).toBe('Unsaved human edit');
+    expect(canvasState.persistenceHealth.ok).toBe(false);
+    expect(() => canvasState.flushToDisk()).toThrow('changed in another writer');
+    expect(
+      writer
+        .query<{ content: string }, [string]>(
+          "SELECT json_extract(data, '$.content') AS content FROM nodes WHERE board_id = ? AND id = 'draft'",
+        )
+        .get(unrelated.id)?.content,
+    ).toBe('Other writer edit');
+  } finally {
+    // Discard this disposable fixture's conflict only after the preservation assertions.
+    canvasState.loadFromDisk();
+    writer.close();
+  }
+});
+
 test('Move refuses partial and pending imports, then preserves a completed attachment bundle and bytes', () => {
   resetCanvasForTests(root);
   canvasState.loadFromDisk({ clearExisting: true });

@@ -1,8 +1,10 @@
 import type { PluginAPI, PluginCommandContext, ThreadID } from '@ampcode/plugin';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { bind, boards, boundThreadIds, readBinding, unbind } from './binding.js';
 import { CanvasDelivery } from './delivery.js';
+import { adviceToolSchema } from './jev-advice.js';
 import { canonicalWorkspace, inspectServer, portal } from './runtime.js';
 
 export const description =
@@ -69,7 +71,15 @@ export default async function (amp: PluginAPI) {
       return {};
     }
     try {
-      return { message: { content: await delivery(event.thread.id).context(event.id) } };
+      return {
+        message: {
+          content: await delivery(event.thread.id).context(
+            event.id,
+            event.message,
+            typeof amp.ai?.decide === 'function' ? (request) => amp.ai.decide(request) : undefined,
+          ),
+        },
+      };
     } catch (error) {
       return {
         message: {
@@ -81,6 +91,70 @@ export default async function (amp: PluginAPI) {
   });
   amp.on('agent.end', async (event) => {
     existingDelivery(event.thread.id)?.endTurn(event.id);
+  });
+
+  amp.registerCommand('context-ranking', { title: 'Context ranking', category: 'PMX Canvas' }, async (ctx) => {
+    if (!ctx.thread) return;
+    const binding = readBinding(root, ctx.thread.id);
+    if (!binding) return ctx.ui.notify('Bind this thread to a Canvas board first.');
+    const store = delivery(ctx.thread.id);
+    const enable = !store.rankingEnabled();
+    if (
+      enable &&
+      !(await ctx.ui.confirm({
+        title: 'Enable Jev context ranking for this binding?',
+        message:
+          'At turn start, send up to 2,000 characters of your prompt and up to 20 optional titles/summaries to TypeSafe Jev through Amp. Requests use this thread’s inference billing. Only their order changes; pins, instructions and receipts stay unchanged. Rebinding disables ranking. Run this command again to turn it off.',
+        requireHuman: true,
+      }))
+    )
+      return;
+    store.setRanking(binding.id, enable);
+    await ctx.ui.notify(`Jev context ranking ${enable ? 'enabled' : 'disabled'} for this binding, from the next turn.`);
+  });
+
+  amp.registerCommand('jev-advice', { title: 'Jev advice', category: 'PMX Canvas' }, async (ctx) => {
+    if (!ctx.thread) return;
+    const binding = readBinding(root, ctx.thread.id);
+    if (!binding) return ctx.ui.notify('Bind this thread to a Canvas board first.');
+    const store = delivery(ctx.thread.id);
+    const enable = !store.adviceEnabled();
+    if (
+      enable &&
+      !(await ctx.ui.confirm({
+        title: 'Enable on-demand Jev advice for this binding?',
+        message:
+          'When the agent calls Canvas advice, send its supplied task (up to 2,000 characters) and output summary (up to 12,000) or up to 20 change summaries to TypeSafe Jev through Amp, billed to this thread. Jev suggests an existing output format or review order; it never creates output or verifies changes. This is separate from automatic context ranking. Rebinding disables advice. Run this command again to turn it off.',
+        requireHuman: true,
+      }))
+    )
+      return;
+    store.setAdvice(binding.id, enable);
+    await ctx.ui.notify(`On-demand Jev advice ${enable ? 'enabled' : 'disabled'} for this binding.`);
+  });
+
+  amp.registerTool({
+    name: 'pmx_canvas_advice',
+    title: 'PMX Canvas advice',
+    description:
+      'Suggest an existing Canvas output format or order supplied source changes for review. On demand only, never creates output, retrieves sources, records reads or verifies work. Supply only facts you already have access to. Always pass explicitFormat when the user specified one; it bypasses inference even with advice off. Jev requires separate human opt-in via PMX Canvas: Jev advice. Reuse requestId and identical input for retries, including after reload; a new logical request needs a new ID. Disabled/unavailable Jev returns Markdown or unchanged review order. Review accepts 1–20 unique change IDs; all are retained. The main agent must create and verify the actual result.',
+    inputSchema: {
+      ...z.toJSONSchema(adviceToolSchema),
+      type: 'object',
+      properties: Object.fromEntries(
+        Object.entries(adviceToolSchema.shape).map(([key, schema]) => [key, z.toJSONSchema(schema)]),
+      ),
+    },
+    async execute(input, ctx) {
+      ctx.signal.throwIfAborted();
+      return JSON.stringify(
+        await delivery(ctx.thread.id).advise(
+          input,
+          typeof amp.ai?.decide === 'function' ? (request) => amp.ai.decide(request) : undefined,
+          ctx.signal,
+        ),
+      );
+    },
   });
 
   amp.registerTool({
@@ -196,6 +270,8 @@ export default async function (amp: PluginAPI) {
       boards: catalog.boards,
       boundBoardExists: binding ? catalog.boards.some((board) => board.id === binding.boardId) : null,
       delivery: { pending: existingDelivery(threadId)?.status() ?? [], error: deliveryErrors.get(threadId) ?? null },
+      contextRanking: existingDelivery(threadId)?.rankingEnabled() ? 'jev' : 'off',
+      jevAdvice: existingDelivery(threadId)?.adviceEnabled() ? 'jev' : 'off',
       routing:
         'Bound MCP calls retain their board. Context arrives at turn start; addressed steering wakes idle threads while the plugin executor is awake. CLI and MCP resources are not intercepted.',
     };

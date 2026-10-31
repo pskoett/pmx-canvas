@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import type { PluginThread, ThreadMessage } from '@ampcode/plugin';
-import { bind, unbind } from '../../plugins/amp/binding.js';
+import { bind, readBinding, unbind } from '../../plugins/amp/binding.js';
 import { CanvasDelivery } from '../../plugins/amp/delivery.js';
+import type { ContextDecider } from '../../plugins/amp/context-relevance.js';
+import type { AdviceDecider } from '../../plugins/amp/jev-advice.js';
+import { reviewInput } from '../fixtures/jev-advice.js';
 import { canvasState } from '../../src/server/canvas-state.js';
 import type { ContextBriefDocument } from '../../src/server/context-brief.js';
 import { CONTEXT_READ_RETENTION } from '../../src/server/context-reads.js';
@@ -104,6 +107,242 @@ test('preparation does not consume context; receipt is thread-local, retryable a
   unbind(root, first);
   bind(root, first, board);
   await expect(resumed.receive(token(next))).rejects.toThrow('different binding');
+});
+
+async function seedNearbyContext() {
+  const ids: string[] = [];
+  for (const [index, title] of ['Explicit pin', 'Unrelated picnic', 'Checkout failure'].entries()) {
+    const node = (await api.invoke('node.add', {
+      targetBoardId: board,
+      type: 'markdown',
+      title,
+      content: title,
+      x: index * 200,
+      y: 0,
+    })) as { id: string };
+    ids.push(node.id);
+  }
+  canvasState.withBoard(board, () => canvasState.setContextPins([ids[0]]));
+  return ids;
+}
+
+test('opt-in ranking retains all context and receipt semantics across concurrent preparation, reload and rebind', async () => {
+  const ids = await seedNearbyContext();
+  const store = open();
+  let calls = 0;
+  const decide: ContextDecider = async () => {
+    calls++;
+    return {
+      model: 'fixture',
+      answers: {
+        candidate0: { type: 'score', score: 0, confidence: 1, legend: {}, probabilities: {} },
+        candidate1: { type: 'score', score: 2, confidence: 1, legend: {}, probabilities: {} },
+      },
+    };
+  };
+  expect(store.rankingEnabled()).toBe(false);
+  await store.receive(token(await store.context('first-map', 'checkout', decide)));
+  const baseline = briefIn(await store.context('baseline', 'checkout', decide));
+  expect(calls).toBe(0);
+  expect(baseline.entries.filter((entry) => entry.reason === 'near').map((entry) => entry.nodeId)).toEqual(
+    ids.slice(1),
+  );
+  store.setRanking(readBinding(root, first)!.id, true);
+  const [one, two] = await Promise.all([
+    store.context('ranked', 'checkout', decide),
+    store.context('ranked', 'checkout', decide),
+  ]);
+  expect(one).toBe(two);
+  expect(calls).toBe(1);
+  expect(one).toContain('"mode":"jev"');
+  const ranked = briefIn(one);
+  expect(ranked.entries.filter((entry) => entry.reason === 'near').map((entry) => entry.nodeId)).toEqual(
+    ids.slice(1).reverse(),
+  );
+  expect(ranked).toEqual({ ...baseline, entries: ranked.entries });
+  expect([...ranked.entries].sort((a, b) => a.nodeId.localeCompare(b.nodeId))).toEqual(
+    [...baseline.entries].sort((a, b) => a.nodeId.localeCompare(b.nodeId)),
+  );
+  expect(canvasState.getContextReads().reads).toHaveLength(1);
+  close(store);
+  const resumed = open();
+  expect(resumed.rankingEnabled()).toBe(true);
+  expect(await resumed.context('ranked', 'different task', decide)).toBe(one);
+  expect(calls).toBe(1);
+  await resumed.receive(token(one));
+  await resumed.receive(token(one));
+  expect(canvasState.getContextReads().reads).toHaveLength(2);
+  expect(canvasState.getContextReads().reads.every((read) => Object.keys(read.readNodes).length === 0)).toBe(true);
+  resumed.setRanking(readBinding(root, first)!.id, false);
+  expect(await resumed.context('disabled', 'checkout', decide)).not.toContain('Optional-context ranking:');
+  expect(calls).toBe(1);
+  resumed.setRanking(readBinding(root, first)!.id, true);
+  const entered = Promise.withResolvers<void>();
+  const decision = Promise.withResolvers<Awaited<ReturnType<ContextDecider>>>();
+  const pending = resumed
+    .context('rebound', 'checkout', () => {
+      entered.resolve();
+      return decision.promise;
+    })
+    .then(
+      () => 'delivered',
+      (error) => String(error),
+    );
+  await entered.promise;
+  bind(root, first, visible);
+  decision.resolve(await decide({ state: '', questions: {} }));
+  expect(await pending).toContain('binding changed during ranking');
+  expect(resumed.rankingEnabled()).toBe(false);
+  expect(canvasState.getContextReads().reads).toHaveLength(2);
+  expect(canvasState.visibleBoardId).toBe(visible);
+});
+
+test.each(['concurrent instance', 'reload'])('in-flight ranking is not resubmitted after %s', async (boundary) => {
+  await seedNearbyContext();
+  const store = open();
+  await store.receive(token(await store.context('first-map')));
+  const baseline = briefIn(await store.context('baseline'));
+  store.setRanking(readBinding(root, first)!.id, true);
+  const entered = Promise.withResolvers<void>();
+  const decision = Promise.withResolvers<Awaited<ReturnType<ContextDecider>>>();
+  let calls = 0;
+  const decide: ContextDecider = () => {
+    calls++;
+    entered.resolve();
+    return decision.promise;
+  };
+  const pending = store.context('interrupted', 'checkout', decide).catch(() => 'closed');
+  await entered.promise;
+  if (boundary === 'reload') close(store);
+  const resumed = open();
+  const replay = await resumed.context('interrupted', 'checkout', decide);
+  decision.resolve({
+    model: 'fixture',
+    answers: {
+      candidate0: { type: 'score', score: 0, confidence: 1, legend: {}, probabilities: {} },
+      candidate1: { type: 'score', score: 2, confidence: 1, legend: {}, probabilities: {} },
+    },
+  });
+  const original = await pending;
+  expect(calls).toBe(1);
+  expect(replay).toContain('"reason":"interrupted"');
+  expect(briefIn(replay)).toEqual(baseline);
+  expect(original).toBe(boundary === 'reload' ? 'closed' : replay);
+  expect(await resumed.context('interrupted', 'checkout', decide)).toBe(replay);
+  expect(canvasState.getContextReads().reads).toHaveLength(1);
+});
+
+test('enabling ranking during context preparation takes effect only on the next turn', async () => {
+  await seedNearbyContext();
+  const store = open();
+  await store.receive(token(await store.context('first-map')));
+  const baseline = briefIn(await store.context('baseline'));
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const real = process.env.PMX_CANVAS_URL!;
+  const proxy = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const url = new URL(request.url);
+      if (url.pathname === '/api/canvas/context') {
+        entered.resolve();
+        await release.promise;
+      }
+      return fetch(new URL(url.pathname + url.search, real), { headers: request.headers });
+    },
+  });
+  process.env.PMX_CANVAS_URL = `http://localhost:${proxy.port}`;
+  let calls = 0;
+  const decide: ContextDecider = async () => {
+    calls++;
+    return {
+      model: 'fixture',
+      answers: {
+        candidate0: { type: 'score', score: 0, confidence: 1, legend: {}, probabilities: {} },
+        candidate1: { type: 'score', score: 2, confidence: 1, legend: {}, probabilities: {} },
+      },
+    };
+  };
+  try {
+    const pending = store.context('already-started', 'checkout', decide);
+    await entered.promise;
+    store.setRanking(readBinding(root, first)!.id, true);
+    release.resolve();
+    const current = await pending;
+    expect(calls).toBe(0);
+    expect(current).not.toContain('Optional-context ranking:');
+    expect(briefIn(current)).toEqual(baseline);
+    expect(await store.context('next-turn', 'checkout', decide)).toContain('"mode":"jev"');
+    expect(calls).toBe(1);
+  } finally {
+    release.resolve();
+    proxy.stop(true);
+  }
+});
+
+test('advice consent is separate, retries are immutable and interrupted inference is never resubmitted', async () => {
+  const store = open();
+  const input = reviewInput();
+  let calls = 0;
+  const decide: AdviceDecider = async () => {
+    calls++;
+    return {
+      model: 'fixture',
+      answers: {
+        change0: { type: 'score', score: 0, confidence: 1, legend: {}, probabilities: {} },
+        change1: { type: 'score', score: 2, confidence: 1, legend: {}, probabilities: {} },
+      },
+    };
+  };
+  store.setRanking(readBinding(root, first)!.id, true);
+  expect(await store.advise(input, decide)).toMatchObject({ reason: 'disabled', orderedIds: ['copy', 'auth'] });
+  expect(calls).toBe(0);
+  store.setAdvice(readBinding(root, first)!.id, true);
+  const enabled = { ...input, requestId: 'enabled' };
+  const result = await store.advise(enabled, decide);
+  expect(result).toMatchObject({ mode: 'jev', orderedIds: ['auth', 'copy'] });
+  close(store);
+  const resumed = open();
+  expect(await resumed.advise(enabled, decide)).toEqual(result);
+  await expect(resumed.advise({ ...enabled, task: 'different' }, decide)).rejects.toThrow('different advice input');
+  expect(calls).toBe(1);
+  const decision = Promise.withResolvers<Awaited<ReturnType<AdviceDecider>>>();
+  const interrupted = { ...input, requestId: 'interrupted' };
+  const pending = resumed
+    .advise(interrupted, () => {
+      calls++;
+      return decision.promise;
+    })
+    .catch(() => 'closed');
+  close(resumed);
+  const reopened = open();
+  const fallback = await reopened.advise(interrupted, decide);
+  expect(fallback).toMatchObject({ reason: 'interrupted', orderedIds: ['copy', 'auth'] });
+  decision.resolve({ model: 'late', answers: {} });
+  expect(await pending).toBe('closed');
+  expect(await reopened.advise(interrupted, decide)).toEqual(fallback);
+  expect(calls).toBe(2);
+  expect(canvasState.getContextReads().reads).toHaveLength(0);
+  expect(canvasState.visibleBoardId).toBe(visible);
+  bind(root, first, visible);
+  expect(reopened.adviceEnabled()).toBe(false);
+});
+
+test('revocation and binding drift during advice cannot deliver a late model answer', async () => {
+  const store = open();
+  const binding = readBinding(root, first)!;
+  store.setAdvice(binding.id, true);
+  const decision = Promise.withResolvers<Awaited<ReturnType<AdviceDecider>>>();
+  const pending = store.advise(reviewInput(), () => decision.promise);
+  store.setAdvice(binding.id, false);
+  decision.resolve({ model: 'late', answers: {} });
+  expect(await pending).toMatchObject({ reason: 'disabled', orderedIds: ['copy', 'auth'] });
+  store.setAdvice(binding.id, true);
+  const second = Promise.withResolvers<Awaited<ReturnType<AdviceDecider>>>();
+  const rebound = store.advise({ ...reviewInput(), requestId: 'rebound' }, () => second.promise);
+  bind(root, first, visible);
+  second.resolve({ model: 'late', answers: {} });
+  await expect(rebound).rejects.toThrow('binding changed during advice');
 });
 
 test('lost receipt responses retry without duplicate reads and clipped preparation consumes no unseen updates', async () => {

@@ -15,7 +15,7 @@ Use this entry guide for every task, then load only the task-specific reference 
 
 ## Runtime and skill identity
 
-PMX Canvas 0.11.0 requires **Bun >=1.4.4**, including npm installations. Check `bun --version`
+PMX Canvas 0.12.0 requires **Bun >=1.4.4**, including npm installations. Check `bun --version`
 and the MCP host's PATH. Install or configure only when requested. Read
 [Installing PMX Canvas](references/installing-pmx-canvas.md) for pinned setup and managed services.
 In Amp, portal access and native MCP discovery are separate; workspace commands need human trust

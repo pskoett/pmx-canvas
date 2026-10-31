@@ -3,7 +3,8 @@
 The Wave 5 Amp plugin opens the workspace Canvas and binds each Amp thread to an existing board.
 Bound MCP calls read and edit that board while the human views another board or Home. Bound
 threads receive context at turn start and addressed steering can wake an idle thread.
-People can set a self-reported cursor name in Canvas. Jev is not included.
+People can set a self-reported cursor name in Canvas. Optional Jev context ranking and on-demand
+format/review advice are off by default, with separate human consent.
 
 ## Install locally
 
@@ -31,6 +32,8 @@ prove native MCP discovery. `canvas_connect_workspace` accepts only this executo
 | PMX Canvas: Status | Read service identity, binding, whether its board exists, and the shared active board. Does not start a service. |
 | PMX Canvas: Unbind | Remove only this thread's binding. Works while the server is down. |
 | PMX Canvas: Resolve pending steering | Inspect uncertain sends, then explicitly retry or dismiss with human confirmation. |
+| PMX Canvas: Context ranking | Enable Jev after human confirmation for this binding, or turn it off. |
+| PMX Canvas: Jev advice | Separately enable on-demand format/review advice after human confirmation, or turn it off. |
 
 Agents use `pmx_canvas_session` with `action: "open" | "bind" | "status" | "unbind"`.
 Bind requires an explicit `boardId`. Invocation thread identity comes from Amp, never model input.
@@ -126,6 +129,87 @@ increment.
 
 Amp supplies the Portal URL and access controls. Open does not change sharing or multiplayer.
 
+## Optional context relevance
+
+**Context ranking** is off by default. Its human-only confirmation explains that your current
+prompt and optional summaries go to TypeSafe Jev through Amp, using the invoking thread's
+inference billing. Consent applies to the current thread/board binding, survives reload,
+and does not carry to a new binding. Repeating the command disables it. Session Status reports
+`contextRanking: "off" | "jev"`. Enabling cannot opt an already-started preparation into inference.
+Existing prepared packets remain byte-identical on retries. An interrupted ranking attempt is
+durably claimed: another delivery instance or a reload falls back without submitting it again.
+
+Context ranking only reorders optional summaries already admitted by the context compiler:
+`near`, `linked` and `folder`. Explicit pins, pinned boards, human instructions, changes,
+title-only discovery entries and lifecycle-qualified pins are not candidates. No new sources
+are fetched. No content is removed, no omission is hidden, and no cursor or receipt is advanced
+by ranking. Existing workspace/binding boundaries still apply; relevance is not authorization.
+The compiler's omitted content cannot be recovered by this ranker. This changes order, not
+content membership or full-content read accounting. It does not reduce the compiled brief's
+size. The ranking report adds delivery metadata, and ranking makes a separate billed inference
+request; no recall, token-saving or cost-saving claim is made.
+
+Each fresh preparation uses at most one batch of 20 questions. Inputs are bounded to 2,000
+UTF-16 units of the current prompt, 160 per title and 600 per summary; serialized decision
+state cannot exceed 24,000 units. Later candidates keep their original positions. Scores use
+three levels: unrelated, background, directly useful. Sort descending with stable ties; no
+confidence threshold is treated as proof. The delivery includes the model version, ranked and
+eligible counts, clipping flag, or fallback reason. Missing API, unavailable provider, invalid
+answers, oversized input or a three-second timeout retain deterministic order, with no retry
+or substitute provider. The host API cannot cancel a timed-out inference call; late results
+are ignored and may still be billed. Production enablement is never changed by evaluations.
+
+## On-demand output and review advice
+
+`pmx_canvas_advice` operates only on facts the agent supplies. **Jev advice** requires its own
+human confirmation per binding; enabling Context ranking does not enable advice. Status reports
+`jevAdvice: "off" | "jev"`. Consent survives reload, but rebinding disables it. The confirmation
+discloses the supplied text, TypeSafe provider and invoking thread's inference billing.
+
+Every request requires `requestId` (1–100 characters), `task` (1–2,000), and `action`:
+
+- `representation`: requires `summary` (up to 12,000 characters); optional `explicitFormat`
+  (1–80) preserves the user's exact choice without inference, even when advice is off or the
+  format is unsupported. Otherwise Jev suggests Markdown, Mermaid, graph, json-render, HTML,
+  image or diff. The deterministic fallback is Markdown.
+- `review`: requires 1–20 `changes`, each with a unique `id` (1–160), `title` (up to 160)
+  and `summary` (up to 600). Scores order changes by review urgency with stable ties. Every ID
+  is retained; the fallback preserves input order. A single change needs no inference.
+
+Lengths are UTF-16 units. Serialized decision state is limited to 24,000 units, with one
+three-second inference attempt per logical request. Invalid results, missing providers and
+timeouts return an explicit fallback, never another provider or automatic retry. Reuse the
+same `requestId` and identical input to retry, including across plugin reloads. Reusing an ID
+with different input fails. An interrupted or concurrent retry freezes the durable fallback
+rather than risking another billed call. Completed responses are immutable. Turning advice
+off affects new requests; a retry can still return its previously completed result.
+
+Advice creates no output, fetches no source, records no read and verifies no work. The main
+agent must create and verify the actual result. A review priority is not a correctness or
+security verdict. Responses report `mode` (`explicit`, `jev`, or `fallback`), the selected
+format or ordered IDs, and the actual model or fallback reason.
+
+### Reproduce the native decision evaluation
+
+In a source checkout, temporarily register `scripts/eval-amp-context.ts` through a root plugin
+file in `.amp/plugins/` that re-exports its default export. Load that file with Amp's plugin
+loader and call its `evaluate_canvas_context` tool. Remove the temporary plugin and reload
+afterward. This development harness is not bundled into the production plugin.
+
+The harness sends four fixed fictional pairs in both candidate orders, never workspace data.
+Expected ordering is authored in `tests/fixtures/context-relevance.ts`, independently of model
+scores. It compares against the unchanged compiler order, checks unchanged contents and pins,
+and writes model version, input size and elapsed time to `.amp/in/artifacts/jev-context-*.json`.
+It includes semantic relevance and misleading source instructions. A passing small diagnostic
+set is not evidence of general task improvement or prompt-injection immunity. The decision
+API exposes no billed cost, so the report does not invent one.
+
+The same harness exposes `evaluate_canvas_advice`: four fictional representation cases and
+two review pairs in both orders, with expectations in `tests/fixtures/jev-advice.ts`. It compares
+against Markdown and unchanged review order, checks unchanged inputs, and saves
+`.amp/in/artifacts/jev-advice-*.json`. Neither evaluator changes production consent. These
+diagnostics do not establish rendered output quality or replace native human opt-in acceptance.
+
 ## Collaboration and names
 
 Use Amp's existing thread access, multiplayer and Portal controls to share. Canvas adds no
@@ -179,3 +263,9 @@ current turn, bound MCP routing through `code_exec`, rendered edits before ackno
 receipt retries, reload and end-of-turn journal cleanup. Wrong-recipient steering stayed pending.
 Obsolete queued-packet cancellation and sleeping-orb resume were not exercised; startup
 cancellation guards have unit coverage, not native cancellation acceptance.
+
+Independent-orb Jev diagnostics on `jev-1.14.0` passed 8/8 context cases against 4/8 unchanged
+order, and two advice runs each passed 8/8 against a 3/8 deterministic baseline. These are small
+fictional diagnostics, not general quality, latency or cost benchmarks. Native disabled advice,
+explicit format, receipt idempotency and reload were exercised. Human-confirmed enablement,
+enabled next-turn ranking and native advice revocation/rebinding remain acceptance checks.

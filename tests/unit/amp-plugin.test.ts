@@ -16,9 +16,11 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, sym
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import plugin from '../../plugins/amp/index.js';
+import type { AdviceDecider } from '../../plugins/amp/jev-advice.js';
 import { runtimeVersion } from '../../plugins/amp/runtime.js';
 import { ensurePmxServer } from '../../plugins/amp/mcp-runtime.js';
 import { removeTempDirWithRetry } from './helpers.js';
+import { relevanceCaseBrief, relevanceCases } from '../fixtures/context-relevance.js';
 
 const sourceRoot = realpathSync(process.cwd());
 let root: string;
@@ -32,10 +34,12 @@ let activeBoardId: string | null;
 let catalog: Array<{ id: string; name: string }>;
 let methods: string[];
 let abortOnList: AbortController | undefined;
+let contextFixture: ReturnType<typeof relevanceCaseBrief> | undefined;
 const disposers: Array<() => void> = [];
 
-async function host() {
+async function host(decide?: AdviceDecider) {
   let tool: PluginToolDefinition | undefined;
+  let adviceTool: PluginToolDefinition | undefined;
   let route: ((event: ToolCallEvent) => Promise<ToolCallResult>) | undefined;
   let start:
     | ((event: AgentStartEvent, ctx: PluginEventContext<'agent.start'>) => PluginHandlerResult<'agent.start'>)
@@ -51,10 +55,12 @@ async function host() {
     },
     onDispose: (dispose: () => void) => disposers.push(dispose),
     threads: { get: () => ({ messages: async () => [], appendUserMessage: async () => {} }) },
+    ai: { decide },
     logger: { log: () => {} },
     registerSkill: async () => ({ unsubscribe() {} }),
     registerTool: (definition: PluginToolDefinition) => {
       if (definition.name === 'pmx_canvas_session') tool = definition;
+      if (definition.name === 'pmx_canvas_advice') adviceTool = definition;
       return { unsubscribe() {} };
     },
     registerCommand: (name: string, _options: unknown, handler: (ctx: PluginCommandContext) => Promise<void>) => {
@@ -65,8 +71,16 @@ async function host() {
   await plugin(api);
   return {
     commands,
-    start: (id: string) =>
-      start!({ id, message: 'Continue', thread: { id: first } }, {
+    adviceInputSchema: adviceTool!.inputSchema,
+    async advise(input: Record<string, unknown>, threadId = first) {
+      const result = await adviceTool!.execute(input, {
+        thread: { id: threadId },
+        signal: new AbortController().signal,
+      } as PluginToolContext);
+      return JSON.parse(String(result));
+    },
+    start: (id: string, message = 'Continue') =>
+      start!({ id, message, thread: { id: first } }, {
         thread: { id: first, cancel: async () => {} },
       } as PluginEventContext<'agent.start'>),
     route: (input: Record<string, unknown>, threadId = first, name = 'canvas_node') =>
@@ -98,6 +112,7 @@ beforeEach(() => {
   ];
   methods = [];
   abortOnList = undefined;
+  contextFixture = undefined;
   server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
@@ -105,6 +120,10 @@ beforeEach(() => {
       methods.push(request.method);
       if (new URL(request.url).pathname === '/health')
         return Response.json({ ok: true, workspace, version, bundleStamp: 'test-bundle' });
+      if (new URL(request.url).pathname === '/api/canvas/pinned-context')
+        return Response.json({ nodeIds: ['explicit-pin'] });
+      if (new URL(request.url).pathname === '/api/canvas/context' && contextFixture)
+        return Response.json(contextFixture);
       abortOnList?.abort();
       return Response.json({ boards: catalog, activeBoardId });
     },
@@ -123,6 +142,130 @@ afterEach(() => {
 });
 
 describe('Amp Canvas session', () => {
+  test('on-demand advice requires separate human confirmation and honors explicit user format with inference off', async () => {
+    let calls = 0;
+    const session = await host(async () => {
+      calls++;
+      return {
+        model: 'fixture',
+        answers: { format: { type: 'choice', choice: 'mermaid', probabilities: {}, confidence: 1 } },
+      };
+    });
+    expect(Object.keys(session.adviceInputSchema.properties ?? {}).sort()).toEqual([
+      'action',
+      'changes',
+      'explicitFormat',
+      'requestId',
+      'summary',
+      'task',
+    ]);
+    expect(session.adviceInputSchema.required).toEqual(['requestId', 'task', 'action']);
+    await session.call('bind', first, 'left');
+    const input = {
+      action: 'representation',
+      requestId: 'format',
+      task: 'Explain the request flow',
+      summary: 'Browser calls service.',
+    };
+    expect(await session.advise({ ...input, explicitFormat: 'markdown' })).toMatchObject({
+      mode: 'explicit',
+      format: 'markdown',
+    });
+    expect(calls).toBe(0);
+    let consent = false;
+    let rebind = false;
+    const context = {
+      thread: { id: first },
+      ui: {
+        confirm: async (options: { requireHuman?: boolean; message: string }) => {
+          expect(options.requireHuman).toBe(true);
+          expect(options.message).toContain('TypeSafe Jev');
+          expect(options.message).toContain('billed');
+          if (rebind) await session.call('bind', first, 'right');
+          return consent;
+        },
+        notify: async () => {},
+      },
+    } as unknown as PluginCommandContext;
+    const command = session.commands.get('jev-advice')!;
+    await command(context);
+    expect((await session.call('status')).jevAdvice).toBe('off');
+    consent = true;
+    await command(context);
+    expect((await session.call('status')).contextRanking).toBe('off');
+    const result = await session.advise({ ...input, requestId: 'enabled' });
+    expect(result).toMatchObject({ mode: 'jev', format: 'mermaid' });
+    expect(calls).toBe(1);
+    expect(await session.advise({ ...input, requestId: 'enabled' })).toEqual(result);
+    expect(calls).toBe(1);
+    const reloaded = await host();
+    expect((await reloaded.call('status')).jevAdvice).toBe('jev');
+    await command(context);
+    expect((await session.call('status')).jevAdvice).toBe('off');
+    expect(await session.advise({ ...input, requestId: 'off' })).toMatchObject({
+      mode: 'fallback',
+      format: 'markdown',
+      reason: 'disabled',
+    });
+    rebind = true;
+    await expect(command(context)).rejects.toThrow('binding changed');
+    expect((await session.call('status')).jevAdvice).toBe('off');
+  });
+
+  test('context ranking requires human consent and is isolated to the confirmed binding', async () => {
+    let decisions = 0;
+    const session = await host(async (request) => {
+      decisions++;
+      expect(request.threadID).toBe(first);
+      expect(request.state).toMatchObject({ task: 'Diagnose the checkout failure' });
+      return {
+        model: 'fixture',
+        answers: {
+          candidate0: { type: 'score', score: 0, confidence: 1, legend: {}, probabilities: {} },
+          candidate1: { type: 'score', score: 2, confidence: 1, legend: {}, probabilities: {} },
+        },
+      };
+    });
+    contextFixture = relevanceCaseBrief(relevanceCases[0]);
+    contextFixture.board.boardId = 'left';
+    await session.call('bind', first, 'left');
+    await session.call('bind', second, 'right');
+    let consent = false;
+    let rebind = false;
+    const context = {
+      thread: { id: first },
+      ui: {
+        confirm: async (options: { requireHuman?: boolean; message: string }) => {
+          expect(options.requireHuman).toBe(true);
+          expect(options.message).toContain('TypeSafe Jev');
+          if (rebind) await session.call('bind', first, 'right');
+          return consent;
+        },
+        notify: async () => {},
+      },
+    } as unknown as PluginCommandContext;
+    const command = session.commands.get('context-ranking')!;
+    await command(context);
+    expect((await session.call('status')).contextRanking).toBe('off');
+    await session.start('disabled-hook', 'Diagnose the checkout failure');
+    expect(decisions).toBe(0);
+    consent = true;
+    await command(context);
+    expect((await session.call('status')).contextRanking).toBe('jev');
+    const packet = await session.start('ranked-hook', 'Diagnose the checkout failure');
+    expect(packet?.message?.content).toContain('"mode":"jev"');
+    expect(packet?.message?.content).toContain('"model":"fixture"');
+    expect(decisions).toBe(1);
+    expect((await session.call('status', second)).contextRanking).toBe('off');
+    const reloaded = await host();
+    expect((await reloaded.call('status')).contextRanking).toBe('jev');
+    await reloaded.commands.get('context-ranking')!(context);
+    expect((await session.call('status')).contextRanking).toBe('off');
+    rebind = true;
+    await expect(command(context)).rejects.toThrow('binding changed');
+    expect((await session.call('status')).contextRanking).toBe('off');
+  });
+
   test('an active turn cannot follow unbind or rebind, including after plugin reload', async () => {
     const session = await host();
     await session.call('bind', first, 'left');

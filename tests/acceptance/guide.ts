@@ -302,6 +302,7 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'The footer names the board and card and focuses the target.',
       'IDs are board-qualified, with no false local lines; missing-target and changed marks appear.',
+      'Resizing during a board switch does not report a failed edit for an obsolete size observation; real camera refusals remain visible.',
     ],
     touches: [
       'src/server/operations/ops/edges.ts',
@@ -314,7 +315,7 @@ export const GUIDE: GuideRow[] = [
       'group reference controls navigate',
       'Graph card ego preserves board-qualified duplicate IDs',
     ],
-    unit: ['tests/client/edge-link-mark.test.tsx'],
+    unit: ['tests/client/edge-link-mark.test.tsx', 'tests/client/board-switch-state.test.ts'],
   },
   {
     id: '10',
@@ -1018,6 +1019,10 @@ export const GUIDE: GuideRow[] = [
       'Context preparation records no read; receipt records only delivered map entries and safe cursor progress.',
       'Uncertain steering is not automatically resent, and later instructions remain reachable behind pending ones.',
       'Active turns refuse binding drift; cancelled receipt calls cannot begin writes after discovery.',
+      'Jev ranking requires human opt-in per binding, only reorders optional summaries, and preserves deterministic context on failure without changing receipts.',
+      'Enabling ranking cannot disclose an already-started preparation; interrupted inference is never resubmitted across concurrent instances or reloads.',
+      'On-demand Jev advice has separate human consent, preserves explicit format and every review ID, and never creates output or records reads.',
+      'Advice arguments are discoverable; request retries reuse immutable results without duplicate inference, and changed-input request IDs fail.',
     ],
     touches: [
       'plugins/amp/**',
@@ -1029,6 +1034,9 @@ export const GUIDE: GuideRow[] = [
       'src/server/operations/**',
       'src/server/ax-wait.ts',
       'scripts/build-amp-plugin.ts',
+      'scripts/eval-amp-context.ts',
+      'tests/fixtures/context-relevance.ts',
+      'tests/fixtures/jev-advice.ts',
       'docs/amp-plugin.md',
       'tsconfig.plugin.json',
       '.github/extensions/pmx-canvas/runtime.mjs',
@@ -1042,6 +1050,8 @@ export const GUIDE: GuideRow[] = [
     unit: [
       'tests/unit/amp-plugin.test.ts',
       'tests/unit/amp-delivery.test.ts',
+      'tests/unit/amp-context-relevance.test.ts',
+      'tests/unit/amp-advice.test.ts',
       'tests/unit/context-reads.test.ts',
       'tests/unit/boards-api.test.ts',
       'tests/unit/boards.test.ts',
@@ -1052,6 +1062,8 @@ export const GUIDE: GuideRow[] = [
       'Two native Amp threads write to separate bound boards while the human navigates without being redirected.',
       'Addressed steering wakes an actually idle native Amp thread; receive, rendered edit and action acknowledgment happen in order.',
       'Busy-thread steering queues, obsolete queued turns cancel, and MCP calls through code_exec retain the binding.',
+      'Native Context ranking confirmation discloses TypeSafe inference; an enabled turn reports ranked optional context and retains every pin. Run the fictional native Jev evaluation before enabling production ranking.',
+      'Native Jev advice confirmation separately discloses supplied facts and billing; enabled format/review calls, disabling and rebinding respect consent. Run the fictional advice evaluation first.',
     ],
   },
 ];
