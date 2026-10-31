@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [0.12.0] - Unreleased
+## [0.12.0] - 2026-10-31
 
 ### Added
 
