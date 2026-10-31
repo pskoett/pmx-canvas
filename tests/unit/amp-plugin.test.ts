@@ -88,7 +88,7 @@ async function host() {
 }
 
 beforeEach(() => {
-  root = realpathSync(mkdtempSync(join(tmpdir(), 'amp-session-')));
+  root = realpathSync.native(mkdtempSync(join(tmpdir(), 'amp-session-')));
   workspace = root;
   version = runtimeVersion;
   activeBoardId = 'visible-board';
