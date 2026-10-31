@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { Database } from 'bun:sqlite';
+import { join } from 'node:path';
 import type { PluginThread, ThreadMessage } from '@ampcode/plugin';
 import { bind, readBinding, unbind } from '../../plugins/amp/binding.js';
 import { CanvasDelivery } from '../../plugins/amp/delivery.js';
@@ -7,7 +9,6 @@ import type { AdviceDecider } from '../../plugins/amp/jev-advice.js';
 import { reviewInput } from '../fixtures/jev-advice.js';
 import { canvasState } from '../../src/server/canvas-state.js';
 import type { ContextBriefDocument } from '../../src/server/context-brief.js';
-import { CONTEXT_READ_RETENTION } from '../../src/server/context-reads.js';
 import { HttpOperationInvoker } from '../../src/server/operations/invoker.js';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.js';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.js';
@@ -418,7 +419,12 @@ test('a receipt pruned before retry requires fresh context rather than an endles
   };
   // The server accepted this receipt, but the client has not received its response.
   await api.invoke('ax.reads.record', { ...read, boardId: board, deliveryId: receipt });
-  for (let i = 0; i < CONTEXT_READ_RETENTION; i++) canvasState.recordContextRead(read, board);
+  // Seed the pruned log directly; context-reads.test.ts covers the retention boundary.
+  // Thousands of durable writes here exceed the Windows test deadline before the retry.
+  const db = new Database(join(root, '.pmx-canvas', 'canvas.db'));
+  db.run('DELETE FROM context_reads WHERE id = ?', [canvasState.getContextReads().reads[0].id]);
+  db.close();
+  canvasState.recordContextRead(read, board);
   const before = canvasState.getContextReads().reads;
   await expect(store.receive(receipt)).rejects.toThrow('fresh context');
   expect(canvasState.getContextReads().reads).toEqual(before);
