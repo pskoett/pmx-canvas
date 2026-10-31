@@ -77,6 +77,7 @@ interface McpAppSession {
   client: Client;
   transport: RuntimeTransport;
   tools: Tool[];
+  unregisterBoardDispose: () => void;
 }
 
 const uiCapabilities: McpUiClientCapabilities = {
@@ -225,20 +226,21 @@ async function createSession(
   }
   const transport = buildTransport(transportConfig);
   const client = new Client({ name: 'pmx-canvas-app-host', version: '0.1.0' }, { capabilities: clientCapabilities });
+  const id = randomId('mcp-app-session');
+  let disposed = false;
   const session: McpAppSession = {
-    id: randomId('mcp-app-session'),
+    id,
     board: canvasState.boardIdentity,
     serverName: normalizeServerName(serverName, transportConfig),
     client,
     transport,
     tools: [],
+    unregisterBoardDispose: canvasState.onBoardDispose(() => {
+      disposed = true;
+      closeMcpAppSession(id);
+    }),
   };
   sessions.set(session.id, session);
-  let disposed = false;
-  const unregister = canvasState.onBoardDispose(() => {
-    disposed = true;
-    closeMcpAppSession(session.id);
-  });
   try {
     await client.connect(transport, requestOptions(timeoutMs));
     const toolList = await client.listTools(undefined, requestOptions(timeoutMs));
@@ -246,13 +248,13 @@ async function createSession(
     session.tools = toolList.tools;
     return session;
   } catch (error) {
-    unregister();
     await closeSession(session);
     throw error;
   }
 }
 
 async function closeSession(session: McpAppSession): Promise<void> {
+  session.unregisterBoardDispose();
   sessions.delete(session.id);
   await session.transport.close();
 }

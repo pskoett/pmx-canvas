@@ -280,6 +280,11 @@ declare class CanvasStateManager {
     private getGroupSnapshot;
     private normalizeNode;
     private refreshLiveWorkCards;
+    private refreshCurrentLiveWorkCards;
+    /** Reconcile a stored display cache and its cursor clock in the same SQLite transaction. */
+    private readProjectedBoard;
+    /** Call before capturing a context snapshot, never from per-node getters used during writes. */
+    refreshContextWorkCards(): void;
     private nextContentRevision;
     private revisionState;
     /**

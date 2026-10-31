@@ -28,7 +28,7 @@ export declare class HumanPresenceRegistry {
     set(raw: unknown, now?: number): HumanPresence | null;
     snapshot(now?: number): HumanPresenceSnapshot;
     /** Nodes a human is holding right now → that human's name. The edit lock. */
-    lockedNodes(now?: number): Map<string, string>;
+    lockedNodes(now?: number, boardId?: string | null): Map<string, string>;
     reset(): void;
     private publicView;
     private sweep;

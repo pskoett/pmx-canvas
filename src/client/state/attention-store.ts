@@ -26,6 +26,7 @@ export function resetAttentionState(): void {
 }
 
 export function openAttentionHistory(): void {
+  attentionToast.value = null;
   attentionHistoryOpen.value = true;
   attentionHistoryUnread.value = 0;
 }

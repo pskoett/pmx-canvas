@@ -475,12 +475,12 @@ export function App() {
                 annotationTool={annotationTool}
               />
             )}
-            <AttentionToast />
+            {(onHome || !expandedNodeId.value) && <AttentionToast />}
             <KnowledgeSync />
             {!onHome && <LifecycleFilters />}
             {!onHome && <RelationLegend />}
             {!onHome && <GroupBreadcrumbs />}
-            <AttentionHistory />
+            {(onHome || !expandedNodeId.value) && <AttentionHistory />}
             <ActivityFeed />
             <WritersSheet />
             {onHome ? (

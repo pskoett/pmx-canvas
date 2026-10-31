@@ -566,7 +566,7 @@ class CanvasStateManager {
         `Board "${id}" changed in another writer. Reconcile unsaved edits before continuing.`,
         409,
       );
-    const state = this._db ? loadStateFromDB(this._db, id) : null;
+    const state = this._db ? this.readProjectedBoard(id) : null;
     if (!state) throw new OperationError(`Board "${id}" not found.`, 404);
     const board = cached ?? this.createBoardState();
     board.id = id;
@@ -859,12 +859,16 @@ class CanvasStateManager {
     return { group, childIds, children };
   }
 
-  private normalizeNode(node: CanvasNodeState, workItems?: PmxAxWorkItem[]): CanvasNodeState {
+  private normalizeNode(
+    node: CanvasNodeState,
+    workItems?: PmxAxWorkItem[],
+    options: { boardId?: string; projectWork?: boolean } = {},
+  ): CanvasNodeState {
     const data = { ...node.data };
     // These persisted fields are a derived display cache, never a second task record.
-    if (node.type === 'status' && typeof data.workItemId === 'string') {
+    if (options.projectWork !== false && node.type === 'status' && typeof data.workItemId === 'string') {
       const tasks =
-        typeof data.workItemBoardId === 'string'
+        typeof data.workItemBoardId === 'string' && data.workItemBoardId !== options.boardId
           ? this.getWorkItemsOnBoard(data.workItemBoardId)
           : (workItems ?? this.getWorkItems());
       const task = tasks.find((item) => item.id === data.workItemId);
@@ -902,14 +906,101 @@ class CanvasStateManager {
   }
 
   private refreshLiveWorkCards(): void {
+    const owner = this.boardState;
+    this.forEachLiveBoard(() => {
+      // Derived cache refreshes must not turn a clean stale board into an unsaved conflict.
+      if (
+        this.boardState !== owner &&
+        this._db &&
+        this._activeBoardId &&
+        !this._saveTimer &&
+        !this._lastPersistenceError &&
+        this._storageVersion !== boardStorageVersion(this._db, this._activeBoardId)
+      )
+        return;
+      this.refreshCurrentLiveWorkCards();
+    });
+  }
+
+  private refreshCurrentLiveWorkCards(preserveAttribution = false): void {
     this.withSuppressedRecording(() => {
       const tasks = this.getWorkItems();
       for (const node of this.nodes.values()) {
         if (node.type !== 'status' || typeof node.data.workItemId !== 'string') continue;
         const next = this.normalizeNode(node, tasks);
-        if (JSON.stringify(next.data) !== JSON.stringify(node.data)) this.updateNode(node.id, { data: next.data });
+        if (!this.nodeContentChanged(node, next)) continue;
+        if (preserveAttribution) {
+          delete next.data.agentSummary;
+          delete next.data.summary;
+          this.nodes.set(node.id, {
+            ...next,
+            contentRevision: this.nextContentRevision(),
+            contentChangedAt: new Date().toISOString(),
+          });
+          this.scheduleSave();
+        } else this.updateNode(node.id, { data: next.data });
       }
     });
+  }
+
+  /** Reconcile a stored display cache and its cursor clock in the same SQLite transaction. */
+  private readProjectedBoard(boardId: string): PersistedCanvasState | null {
+    const db = this._db!;
+    // Validation inside another write must not change its captured versions or
+    // publish resident clocks before that outer transaction commits.
+    if (db.inTransaction) return loadStateFromDB(db, boardId);
+    const projected: CanvasNodeState[] = [];
+    let previousVersion = 0;
+    const state = db
+      .transaction(() => {
+        const state = loadStateFromDB(db, boardId);
+        if (!state) return null;
+        previousVersion = state.storageVersion ?? 0;
+        state.revisionState ??= { revision: 0, floor: 0, tombstones: [] };
+        const revision = state.revisionState;
+        state.nodes = state.nodes.map((node) => {
+          if (node.type !== 'status' || typeof node.data.workItemId !== 'string') return node;
+          const next = this.normalizeNode(node, state.ax?.workItems ?? [], { boardId });
+          if (!this.nodeContentChanged(node, next)) return node;
+          delete next.data.agentSummary;
+          delete next.data.summary;
+          next.contentRevision = ++revision.revision;
+          next.contentChangedAt = new Date().toISOString();
+          projected.push(next);
+          return next;
+        });
+        if (projected.length) state.storageVersion = saveStateToDB(db, boardId, state);
+        return state;
+      })
+      .immediate();
+    const live = this.liveBoards.get(boardId);
+    if (
+      state &&
+      projected.length &&
+      live &&
+      !live.saveTimer &&
+      !live.persistenceError &&
+      live.storageVersion === previousVersion
+    ) {
+      // Only the derived cache changed. Do not reinstall AX or renew approval TTLs.
+      this.boardExecution.run(live, () => {
+        for (const node of projected) this.nodes.set(node.id, structuredClone(node));
+        this._contentRevision = state.revisionState!.revision;
+        this._storageVersion = state.storageVersion!;
+      });
+    }
+    return state;
+  }
+
+  /** Call before capturing a context snapshot, never from per-node getters used during writes. */
+  refreshContextWorkCards(): void {
+    if (!this._db || !this._activeBoardId) return;
+    if (this._saveTimer || this._lastPersistenceError) {
+      this.refreshCurrentLiveWorkCards(true);
+      return;
+    }
+    const state = this.readProjectedBoard(this._activeBoardId);
+    if (state && state.storageVersion !== this._storageVersion) this.applyPersistedState(state, false);
   }
 
   private nextContentRevision(): number {
@@ -1286,7 +1377,7 @@ class CanvasStateManager {
     if (this._db) {
       try {
         const boardId = getActiveBoardIdFromDB(this._db);
-        const state = boardId ? loadStateFromDB(this._db, boardId) : null;
+        const state = boardId ? this.readProjectedBoard(boardId) : null;
         if (boardId && state) {
           this.initializePersistedWikiLinks(state, boardId);
           this.applyPersistedState(state);
@@ -1774,13 +1865,13 @@ class CanvasStateManager {
         },
       };
     }
-    const state = loadStateFromDB(this._db, id);
+    const state = this.readProjectedBoard(id);
     if (!state) return null;
     this.initializePersistedWikiLinks(state, id);
     const pins = new Set(state.contextPins);
     state.nodes = state.nodes.map((node) => ({
       ...(node.type === 'status' && typeof node.data.workItemId === 'string'
-        ? this.normalizeNode(node, state.ax?.workItems ?? [])
+        ? this.normalizeNode(node, state.ax?.workItems ?? [], { boardId: id })
         : includeBlobs
           ? this.resolveNodeDataBlobs(node)
           : node),
@@ -1944,7 +2035,7 @@ class CanvasStateManager {
       for (const [id, state] of plan.states) {
         const original = library.get(id)?.state;
         if (!original) continue;
-        const locked = this.withBoard(id, () => humanPresence.lockedNodes());
+        const locked = humanPresence.lockedNodes(Date.now(), id);
         for (const node of original.nodes)
           if (
             locked.has(node.id) &&
@@ -2419,9 +2510,11 @@ class CanvasStateManager {
 
   private applyPersistedState(state: PersistedCanvasState, replaced = true): void {
     // Validate the complete replacement before discarding any live board state.
+    // Keep the cached task fields as the revision comparison baseline. Display
+    // reads project fresh fields; explicit reconciliation stamps and saves them.
     const nodes = (Array.isArray(state.nodes) ? state.nodes : [])
       .filter((node) => node?.id)
-      .map((node) => structuredClone(this.normalizeNode(node, state.ax?.workItems ?? [])));
+      .map((node) => structuredClone(this.normalizeNode(node, undefined, { projectWork: false })));
     if (replaced) {
       this._boardGeneration = ++this.nextGeneration;
       if (this.boardState === this.visibleBoard) this.navigationGeneration = ++this.nextGeneration;
@@ -3902,6 +3995,9 @@ class CanvasStateManager {
 
   getWorkItemsOnBoard(boardId: string): PmxAxWorkItem[] {
     if (boardId === this._activeBoardId) return this.getWorkItems();
+    const live = this.liveBoards.get(boardId);
+    if (live && (live.saveTimer || live.persistenceError))
+      return this.boardExecution.run(live, () => live.ax.getWorkItems());
     return this._db ? (loadStateFromDB(this._db, boardId)?.ax?.workItems ?? []) : [];
   }
 

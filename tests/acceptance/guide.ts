@@ -537,6 +537,8 @@ export const GUIDE: GuideRow[] = [
     title: 'Conflicting saves, ownership & human locks',
     pass: [
       'A stale draft refuses even when peer changes arrive before Save or the user retries; valid consecutive saves do not self-conflict or change ownership.',
+      'Refusal history stays readable and reachable by pointer and keyboard after toast expiry or collapse, without losing the expanded draft.',
+      'An already-open history does not steal focus when entering or leaving an expanded editor.',
       'A held card refuses agent edits; a refusal changes neither disk nor card.',
     ],
     touches: ['src/client/nodes/MarkdownNode.tsx', 'src/server/file-watcher.ts', 'src/server/file-content.ts'],
@@ -767,6 +769,8 @@ export const GUIDE: GuideRow[] = [
       'Every node type the schema can create renders and paints in the viewport at 600, 1024 and 1920 px.',
       'Deliberate work cards edit in place without Sessions; Save, Cancel, stale drafts and Undo preserve authored state and saved geometry. Editors fit all nine themes and reference widths.',
       'Show on board explicitly presents a task read-only; live fields agree with the panel, session end preserves the card, and removing its presentation does not cancel work.',
+      'A moved live-task card updates while its original board changes in the background, without navigating away from the destination.',
+      'Incremental context includes changed live-task cards after reload or external writes, without revision churn, false storage conflicts, renewed approval deadlines or reader attribution.',
       'Content keeps its proportions through fractional zoom; HTML, webpage, Mermaid and ledger content is correct.',
       'A clean packed consumer scaffolds and renders a web artifact using the shipped initializer.',
     ],
@@ -812,6 +816,7 @@ export const GUIDE: GuideRow[] = [
     e2e: [
       'renders every canvas node type in the browser',
       'live work cards explicitly present tasks read-only',
+      'moved live task cards refresh while their owner changes in the background',
       'work cards author an inert plan in place',
       'work card editors fit reference widths',
       'the reference cases cover every node type the schema can create',
@@ -828,6 +833,7 @@ export const GUIDE: GuideRow[] = [
     ],
     unit: [
       'tests/unit/demo.test.ts',
+      'tests/unit/boards.test.ts',
       'tests/unit/html-primitives-fallbacks.test.ts',
       'tests/unit/operation-parity.test.ts',
       'tests/unit/board-export.test.ts',

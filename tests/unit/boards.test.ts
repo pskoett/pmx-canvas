@@ -4,7 +4,9 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
+import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
+import type { ContextBriefDocument } from '../../src/server/context-brief.ts';
 import { humanPresence } from '../../src/server/human-presence.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
 import type { KnowledgeResults, LifecycleResults, ReviewRecord } from '../../src/server/knowledge-lifecycle.ts';
@@ -826,9 +828,9 @@ test('Move expands nested groups, preserves live task ownership and leaves unrel
   canvasState.loadFromDisk({ clearExisting: true });
   const source = canvasState.createBoard('Source')!;
   canvasState.switchBoard(source.id);
-  const task = canvasState.addWorkItem({ title: 'Original task' });
-  canvasState.addNode({ ...note('live', 'Presentation'), type: 'status', data: { workItemId: task.id } });
   canvasState.addNode(note('other', 'Other card'));
+  const task = canvasState.addWorkItem({ title: 'Original task', nodeIds: ['other'] });
+  canvasState.addNode({ ...note('live', 'Presentation'), type: 'status', data: { workItemId: task.id } });
   const nested: CanvasNodeState = { ...note('nested', 'Nested'), type: 'group' };
   const group: CanvasNodeState = { ...note('outer', 'Outer'), type: 'group' };
   canvasState.addNode(nested);
@@ -859,6 +861,243 @@ test('Move expands nested groups, preserves live task ownership and leaves unrel
   expect(canvasState.getNode('live')!.data).toMatchObject({ workItemBoardId: source.id, workState: 'blocked' });
   expect(canvasState.getNode('live')!.data.parentGroup).toBe(nested!.id);
   expect(canvasState.getNode(nested!.id)!.data.parentGroup).toBe(group!.id);
+  canvasState.withBoard(source.id, () => {
+    canvasState.updateWorkItem(task.id, { status: 'done', title: 'Finished in background' });
+  });
+  expect(canvasState.visibleBoardId).toBe(destination);
+  expect(canvasState.getNode('live')!.data).toMatchObject({ workState: 'done', title: 'Finished in background' });
+  expect(canvasState.getWorkItems()).toEqual([]);
+  expect(canvasState.getWorkItemsOnBoard(source.id)[0]?.nodeIds).toEqual(['other']);
+});
+
+test.each([
+  'nonresident',
+  'externally updated',
+  'externally updated task owner',
+  'linked read',
+  'dirty destination',
+] as const)('moved live task context retains durable revisions for a %s destination', async (destinationState) => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Task owner')!;
+  canvasState.switchBoard(source.id);
+  const task = canvasState.addWorkItem({ title: 'Tracked task', detail: 'Initial evidence' });
+  canvasState.addNode({ ...note('live', 'Presentation'), type: 'status', data: { workItemId: task.id } });
+  const moved = canvasState.moveSelectionToNewBoard({
+    sourceBoardId: source.id,
+    nodeIds: ['live'],
+    name: 'Task destination',
+    requestId: 'context-projection',
+    expectedRevision: canvasState.getContentRevision().revision,
+  });
+  if (!('result' in moved)) throw new Error('Expected move');
+  const destination = moved.result.destinationBoardId;
+  canvasState.switchBoard(destination);
+  canvasState.addNode(note('authored', 'Keep authored content'));
+  const gate = canvasState.requestApproval({ title: 'Keep deadline', ttlMs: 60_000 });
+  canvasState.flushToDisk();
+  const before = canvasState.getNode('live')!;
+  const context = (input: Record<string, unknown> = {}) =>
+    executeOperation('context.get', {
+      targetBoardId: destination,
+      consumer: 'live-reader',
+      agentId: 'context-reader',
+      ...input,
+    }) as Promise<ContextBriefDocument>;
+  const baseline = await context();
+  const cursor = baseline.cursor.current;
+  const sourceCursor = canvasState.getContextBriefCursor(source.id, 'live-reader');
+  const writer = new Database(canvasState.databasePath!);
+  try {
+    if (destinationState === 'nonresident') {
+      canvasState.switchBoard(source.id);
+      canvasState.close();
+      canvasState.setWorkspaceRoot(root);
+      canvasState.loadFromDisk({ clearExisting: true });
+    } else if (destinationState === 'externally updated') {
+      writer.run("UPDATE nodes SET data = json_set(data, '$.content', ?) WHERE board_id = ? AND id = ?", [
+        'External authored edit',
+        destination,
+        'authored',
+      ]);
+    }
+    if (['externally updated task owner', 'linked read', 'dirty destination'].includes(destinationState)) {
+      writer.run(
+        "UPDATE ax_state SET value = json_set(value, '$.workItems[0].detail', ?) WHERE board_id = ? AND key = 'state'",
+        ['New evidence only', source.id],
+      );
+      if (destinationState === 'linked read') {
+        canvasState.withBoard(source.id, () => canvasState.readBoard(destination));
+        expect(() => canvasState.flushToDisk()).not.toThrow();
+      }
+      if (destinationState === 'dirty destination') {
+        canvasState.updateNode('authored', { position: { x: 700, y: 400 } });
+      }
+    } else {
+      // Read before the owner's debounce save. The projection must use the live owner.
+      canvasState.withBoard(source.id, () => canvasState.updateWorkItem(task.id, { detail: 'New evidence only' }));
+    }
+    const clock =
+      destinationState === 'externally updated task owner'
+        ? spyOn(Date, 'now').mockReturnValue(Date.parse(gate.expiresAt!) + 1)
+        : null;
+    let explicit: ContextBriefDocument;
+    try {
+      explicit = await context({ since: cursor, contextDelivery: false });
+      if (clock)
+        expect(canvasState.getApprovalGates().find((item) => item.id === gate.id)?.expiresAt).toBe(gate.expiresAt);
+    } finally {
+      clock?.mockRestore();
+    }
+    expect(explicit.cursor.reset).toBeNull();
+    expect(explicit.entries.find((entry) => entry.nodeId === 'live')?.changes).toEqual(['text']);
+    expect(explicit.cursor.current).toBeGreaterThan(cursor);
+    const delivered = await context();
+    expect(delivered.entries.find((entry) => entry.nodeId === 'live')?.changes).toEqual(['text']);
+    expect((await context()).entries.some((entry) => entry.nodeId === 'live')).toBe(false);
+    const latest = canvasState.readBoard(destination)!.layout.nodes.find((node) => node.id === 'live')!;
+    expect(latest.data.detail).toBe('New evidence only');
+    expect(latest.lastEditedBy).toEqual(before.lastEditedBy);
+    expect(canvasState.getContextBriefCursor(source.id, 'live-reader')).toBe(sourceCursor);
+    expect(() => canvasState.flushToDisk()).not.toThrow();
+    expect(canvasState.persistenceHealth.ok).toBe(true);
+    expect(canvasState.switchBoard(destination)).toBe(true);
+    expect(canvasState.getNode('authored')!.data.content).toBe(
+      destinationState === 'externally updated' ? 'External authored edit' : 'Keep authored content',
+    );
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+    const unchanged = await context();
+    expect(unchanged.cursor.current).toBe(delivered.cursor.current);
+    expect(unchanged.cursor.reset).toBeNull();
+    expect(unchanged.entries.some((entry) => entry.nodeId === 'live')).toBe(false);
+  } finally {
+    // Reload only this disposable fixture before cleanup if the regression manufactured a conflict.
+    canvasState.withVisibleBoard(() => canvasState.loadFromDisk());
+    writer.close();
+  }
+});
+
+test.each(['startup', 'background'] as const)('own-task context does not churn after %s reload', async (load) => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const board = canvasState.createBoard('Own task')!;
+  canvasState.switchBoard(board.id);
+  const task = canvasState.addWorkItem({ title: 'Own task', detail: 'Stable detail' });
+  canvasState.addNode({
+    ...note('live', 'Presentation'),
+    type: 'status',
+    data: { workItemId: task.id, workItemBoardId: board.id },
+  });
+  const context = () =>
+    executeOperation('context.get', {
+      targetBoardId: board.id,
+      consumer: 'own-reader',
+    }) as Promise<ContextBriefDocument>;
+  const baseline = await context();
+  if (load === 'background') canvasState.switchBoard(canvasState.createBoard('Other')!.id);
+  canvasState.close();
+  canvasState.setWorkspaceRoot(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  for (let i = 0; i < 3; i++) {
+    const unchanged = await context();
+    expect(unchanged.cursor.current).toBe(baseline.cursor.current);
+    expect(unchanged.entries.some((entry) => entry.nodeId === 'live')).toBe(false);
+    expect(canvasState.readBoard(board.id)!.layout.nodes.find((node) => node.id === 'live')!.data.detail).toBe(
+      'Stable detail',
+    );
+    canvasState.flushToDisk();
+  }
+});
+
+test('stored edge rollback and move validation leave task projection commits outside their transactions', async () => {
+  resetCanvasForTests(root);
+  canvasState.loadFromDisk({ clearExisting: true });
+  const source = canvasState.createBoard('Tasks')!;
+  canvasState.switchBoard(source.id);
+  const task = canvasState.addWorkItem({ title: 'Task', detail: 'Original' });
+  canvasState.addNode(note('move-me', 'Move me'));
+  const destination = canvasState.createBoard('Projection')!;
+  canvasState.switchBoard(destination.id);
+  canvasState.addNode({
+    ...note('live', 'Presentation'),
+    type: 'status',
+    data: { workItemId: task.id, workItemBoardId: source.id },
+  });
+  canvasState.addNode({
+    ...note('reference', 'Reference'),
+    data: {
+      content: 'Reference',
+      provenance: {
+        sourceKind: 'recipe',
+        sourceUri: 'recipe:evidence-summary',
+        refreshStrategy: 'agent-request',
+        sources: [{ boardId: source.id, cardId: 'move-me' }],
+      },
+    },
+  });
+  const other = canvasState.createBoard('Edge owner')!;
+  canvasState.switchBoard(other.id);
+  canvasState.addNode(note('from', 'From'));
+  const edge = {
+    targetBoardId: other.id,
+    destinationBoardId: other.id,
+    from: 'from',
+    to: 'live',
+    toBoardId: destination.id,
+    type: 'references',
+  };
+  await executeOperation('edge.add', { ...edge, requestId: 'first-edge' });
+  canvasState.switchBoard(destination.id);
+  const context = () =>
+    executeOperation('context.get', {
+      targetBoardId: destination.id,
+      consumer: 'transaction-reader',
+    }) as Promise<ContextBriefDocument>;
+  await context();
+  canvasState.flushToDisk();
+  const writer = new Database(canvasState.databasePath!);
+  try {
+    writer.run(
+      "UPDATE ax_state SET value = json_set(value, '$.workItems[0].detail', ?) WHERE board_id = ? AND key = 'state'",
+      ['External task change', source.id],
+    );
+    const before = loadStateFromDB(writer, destination.id)!;
+    await expect(executeOperation('edge.add', { ...edge, requestId: 'duplicate-edge' })).rejects.toThrow('Duplicate');
+    expect(loadStateFromDB(writer, destination.id)).toEqual(before);
+    expect(() => canvasState.flushToDisk()).not.toThrow();
+    expect(loadStateFromDB(writer, destination.id)).toEqual(before);
+
+    canvasState.switchBoard(source.id);
+    canvasState.close();
+    canvasState.setWorkspaceRoot(root);
+    canvasState.loadFromDisk({ clearExisting: true });
+    const input = {
+      sourceBoardId: source.id,
+      nodeIds: ['move-me'],
+      name: 'Moved',
+      requestId: 'projection-move',
+      expectedRevision: canvasState.getContentRevision().revision,
+    };
+    const beforePreview = loadStateFromDB(writer, destination.id)!;
+    expect(canvasState.moveSelectionToNewBoard({ ...input, preview: true })).toHaveProperty('preview');
+    expect(loadStateFromDB(writer, destination.id)).toEqual(beforePreview);
+    const moved = canvasState.moveSelectionToNewBoard(input);
+    expect(moved).toHaveProperty('result');
+    expect(() => canvasState.flushToDisk()).not.toThrow();
+    const delivered = await context();
+    // Moving references intentionally advances the retention floor and resets context.
+    expect(delivered.cursor.reset).toBe('retention-expired');
+    expect(delivered.entries.find((entry) => entry.nodeId === 'live')?.text).toContain('External task change');
+    expect(canvasState.readBoard(destination.id)!.layout.nodes.find((node) => node.id === 'live')!.data.detail).toBe(
+      'External task change',
+    );
+    expect((await context()).entries.some((entry) => entry.nodeId === 'live')).toBe(false);
+  } finally {
+    canvasState.withVisibleBoard(() => canvasState.loadFromDisk());
+    writer.close();
+  }
 });
 
 test('knowledge inheritance resets at explicit child categories, clears overrides and survives reload without opening Home', async () => {

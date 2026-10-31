@@ -222,6 +222,58 @@ test('move selection to a new board preserves cards, pins and links and leaves a
   await expect(page.locator('.board-switcher-button')).toContainText('Evidence and decision');
 });
 
+test('moved live task cards refresh while their owner changes in the background', async ({ page, request }) => {
+  const { board: source } = await (
+    await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Task owner' } })
+  ).json();
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: source.id } });
+  const { workItem } = await (
+    await request.post('/api/canvas/ax/work', { data: { title: 'Original task', status: 'todo' } })
+  ).json();
+  const { id } = await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'status', data: { workItemId: workItem.id }, x: 120, y: 120 },
+    })
+  ).json();
+  await page.goto('/workbench');
+  const card = page.locator(`[data-node-id="${id}"]`);
+  await card.locator('.node-content').click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Move to new board', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Move to new board' });
+  await dialog.getByLabel('New board name').fill('Task presentation');
+  await dialog.getByRole('button', { name: 'Preview move' }).click();
+  await dialog.getByRole('button', { name: 'Move and open' }).click();
+  await expect(page.locator('.board-switcher-button')).toContainText('Task presentation');
+  await expect(card).toContainText('Original task');
+  expect(
+    (
+      await request.patch(`/api/canvas/ax/work/${workItem.id}`, {
+        data: { targetBoardId: source.id, title: 'Finished in background', status: 'done' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await expect(card).toContainText('Finished in background');
+  await expect(card.locator('.work-card-state')).toContainText('Done');
+  await expect(page.locator('.board-switcher-button')).toContainText('Task presentation');
+  expect(
+    (
+      await request.patch(`/api/canvas/ax/work/${workItem.id}`, {
+        data: { targetBoardId: source.id, detail: 'Background detail without a status change' },
+      })
+    ).ok(),
+  ).toBe(true);
+  await expect(card).toContainText('Background detail without a status change');
+  expect((await request.post('/api/canvas/undo', { data: { targetBoardId: source.id } })).ok()).toBe(true);
+  await expect(card).not.toContainText('Background detail without a status change');
+  expect((await request.post('/api/canvas/redo', { data: { targetBoardId: source.id } })).ok()).toBe(true);
+  await expect(card).toContainText('Background detail without a status change');
+  await expect(page.locator('.board-switcher-button')).toContainText('Task presentation');
+  await page.reload();
+  await expect(card).toContainText('Finished in background');
+  await expect(card).toContainText('Background detail without a status change');
+  await page.screenshot({ path: test.info().outputPath('moved-live-task.png') });
+});
+
 test('group move refuses an active binding and a late move reply never overrides newer navigation', async ({
   page,
   request,
@@ -3791,6 +3843,24 @@ test.describe('save and board ownership boundaries', () => {
         release();
         expect((await patch).status()).toBe(409);
         await expect(page.locator('.attention-toast')).toContainText('This node changed');
+        // DOM text is insufficient: both the toast and its history must be usable
+        // above the expanded editor without closing it or discarding the draft.
+        await page.locator('.attention-toast').click();
+        await expect(page.locator('.attention-toast')).toHaveCount(0);
+        await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText(
+          'This node changed',
+        );
+        await page.getByRole('button', { name: 'Collapse changes panel' }).click();
+        await expect(page.getByRole('button', { name: /^Recent updates/ })).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('.expanded-pin')).toBeFocused();
+        await page.keyboard.press('Shift+Tab');
+        await expect(page.getByRole('button', { name: /^Recent updates/ })).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText(
+          'This node changed',
+        );
+        await page.getByRole('button', { name: 'Collapse changes panel' }).click();
         await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
         expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
         if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
@@ -3806,6 +3876,13 @@ test.describe('save and board ownership boundaries', () => {
         expect(saved.data.content).toBe(newer);
         expect(saved.lastEditedBy.actor).toBe('human');
         if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
+        await expect(editor).toHaveValue(draft);
+        await expect(page.locator('.attention-toast')).toHaveCount(0);
+        await page.getByRole('button', { name: /^Recent updates/ }).click();
+        await expect(page.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText(
+          'This node changed',
+        );
+        await page.getByRole('button', { name: 'Collapse changes panel' }).click();
         await expect(editor).toHaveValue(draft);
       } finally {
         release();

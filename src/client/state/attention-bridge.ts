@@ -9,6 +9,7 @@ import {
   type SseMessage,
 } from '../../shared/semantic-attention.js';
 import {
+  attentionHistoryOpen,
   pushAttentionHistory,
   resetAttentionState,
   setAttentionPulse,
@@ -291,6 +292,10 @@ function entryFromEvent(event: SemanticWatchEvent): AttentionEntry | null {
 }
 
 function flushToastQueue(): void {
+  if (attentionHistoryOpen.value) {
+    toastQueue = [];
+    return;
+  }
   if (toastTimer !== null) return;
   const next = toastQueue.shift() ?? null;
   if (!next) {

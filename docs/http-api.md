@@ -620,7 +620,8 @@ term-OR discovery and whole-term ranking remain unchanged. Search never navigate
 `POST /api/canvas/node` accepts `destinationBoardId` to create on a stored board
 without opening it or changing the human's active board. `expectedBoardId` remains
 an **active-board** precondition, not a destination selector; stale values return 409.
-Unknown destinations return 404. This is creation-only, not background CRUD.
+Unknown destinations return 404. `destinationBoardId` is creation-only. Use
+`targetBoardId` for board-scoped reads and mutations without shared navigation.
 
 Optional `requestId` identifies a logical creation within the workspace database.
 Use the same id, destination and creation input when retrying; a new intentional
@@ -653,8 +654,9 @@ descendants and affected parent frames. Edges resolve `from`/`fromSearch` and
 target board, not the owner of the edge. Both endpoints' relation clocks update
 without changing their content/freshness. A retry returns its original group or
 edge receipt, preserving later edits and not resurrecting removals. A request ID
-cannot be reused for a different creation operation. Inactive group membership
-updates/removals and other background CRUD remain unsupported.
+cannot be reused for a different creation operation. `destinationBoardId` selects
+the destination for creation only. Use `targetBoardId` for background updates,
+removals and group membership changes (see [board-targeted operations](#board-targeted-operations)).
 
 For authored work cards, create `type: "status"` with
 `data: { workState: "todo", detail: "Plan the change", progress: 25 }`.
@@ -928,6 +930,10 @@ prepares the brief without recording a read or advancing the
 consumer cursor. Adapters must record reception separately; preparation is not
 delivery. `includeSteering=false` excludes steering when the host delivers addressed
 instructions separately. Both flags default to true.
+
+Before capturing context, live task cards reconcile their displayed content and
+content revisions with their task owner, including after restart or another writer's
+task update. This does not attribute an edit to the reader or reset consumer cursors.
 
 The brief is a map, not a dump: an `overview` entry for the open board first, then pins, then each
 pin's neighbours (reason `near`: up to five unpinned cards within a 600 canvas-pixel

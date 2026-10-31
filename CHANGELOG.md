@@ -20,6 +20,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Refused-save messages and their history remain usable above expanded editors without stealing focus when the editor opens or closes.
+- Moved live-task cards keep updating in the canvas and incremental context after background changes or restart, without causing false save conflicts.
+- Reduced repeated redraws when opening Markdown-heavy boards.
+- Closing embedded MCP apps releases their board cleanup listeners.
 - Arrange keeps movable cards clear of pinned cards without moving the pins.
 - Saving an older Markdown draft no longer silently overwrites another visitor's newer text.
 - Resizing during a board switch no longer shows a misleading change-refused warning.

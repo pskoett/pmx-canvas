@@ -310,6 +310,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
     },
   },
   handler: (input) => {
+    canvasState.refreshContextWorkCards();
     const active = canvasState.getActiveBoard();
     if (!active) throw new OperationError('Open a board before requesting its context.', 409);
     const consumer =

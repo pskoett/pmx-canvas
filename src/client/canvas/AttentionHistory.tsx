@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import {
   attentionHistory,
   attentionHistoryOpen,
@@ -20,13 +21,19 @@ function handleOpenUpdates(): void {
 
 export function AttentionHistory() {
   const entries = attentionHistory.value;
-  if (entries.length === 0) return null;
-
   const isOpen = attentionHistoryOpen.value;
   const unread = attentionHistoryUnread.value;
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(isOpen);
+  useLayoutEffect(() => {
+    if (isOpen !== wasOpen.current) toggleRef.current?.focus({ preventScroll: true });
+    wasOpen.current = isOpen;
+  }, [isOpen]);
+  if (entries.length === 0) return null;
   if (!isOpen) {
     return (
       <button
+        ref={toggleRef}
         type="button"
         class="attention-history-tab"
         onClick={handleOpenUpdates}
@@ -67,6 +74,7 @@ export function AttentionHistory() {
           <span class="attention-history-subtitle">Focus and meaning shifts</span>
         </div>
         <button
+          ref={toggleRef}
           type="button"
           class="attention-history-close"
           onClick={closeAttentionHistory}

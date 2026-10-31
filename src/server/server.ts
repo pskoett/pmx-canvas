@@ -946,7 +946,14 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
   if (canvasState.isBackgroundBoard) {
     if (event === 'canvas-layout-update' || event === 'boards-changed')
       canvasState.withVisibleBoard(() => broadcastWorkbenchEvent('boards-changed', boardsPayload()));
-    else if (event === 'agent-presence')
+    else if (event === 'ax-state-changed') {
+      const ownerBoardId = canvasState.activeBoardId;
+      canvasState.withVisibleBoard(() => {
+        const layout = canvasState.getLayout();
+        if (layout.nodes.some((node) => node.type === 'status' && node.data.workItemBoardId === ownerBoardId))
+          broadcastWorkbenchEvent('canvas-layout-update', { layout });
+      });
+    } else if (event === 'agent-presence')
       canvasState.withVisibleBoard(() => broadcastWorkbenchEvent(event, { ...payload, ...agentPresence.snapshot() }));
     return;
   }

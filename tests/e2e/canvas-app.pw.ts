@@ -375,6 +375,8 @@ test('real workbench creates boards, edits notes, drags and pins without a dupli
 });
 
 test('real source editor keeps a refused draft when another writer changes the note', async ({ page, request }) => {
+  // Covers refusal, history keyboard navigation, and a complete close/reopen focus round-trip.
+  test.setTimeout(60_000);
   await board(request, 'Concurrent editing');
   const id = await note(request, 'Shared note');
   const app = await mount(page);
@@ -383,11 +385,34 @@ test('real source editor keeps a refused draft when another writer changes the n
   const editor = app.locator('.md-editor-expanded textarea');
   await editor.fill('Keep my unsaved draft');
   await request.patch(`/api/canvas/node/${id}`, { data: { content: 'Another writer won' } });
-  await app.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(app.locator('.attention-toast')).toContainText('This node changed');
+  await expect(app.locator('.attention-toast')).toHaveCount(0);
+  // Start waiting for the transient action before Save, not after its trace snapshots.
+  await Promise.all([
+    app.locator('.attention-toast').click(),
+    app.getByRole('button', { name: 'Save', exact: true }).click(),
+  ]);
+  await expect(app.locator('.attention-toast')).toHaveCount(0);
+  await expect(app.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText('This node changed');
+  await app.getByRole('button', { name: 'Collapse changes panel' }).click();
+  await expect(app.getByRole('button', { name: /^Recent updates/ })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(app.locator('.expanded-pin')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(app.getByRole('button', { name: /^Recent updates/ })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(app.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText('This node changed');
+  await app.getByRole('button', { name: 'Collapse changes panel' }).click();
   await expect(editor).toHaveValue('Keep my unsaved draft');
   expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe('Another writer won');
   await capture(page, 'workbench-app-conflict.png');
+  // Remounting an already-open history must not take the dialog's entry or return focus.
+  await app.getByRole('button', { name: /^Recent updates/ }).click();
+  await page.keyboard.press('Escape');
+  const card = app.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(card).toBeFocused();
+  await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
+  await expect(app.locator('.expanded-pin')).toBeFocused();
+  await expect(app.getByRole('complementary', { name: 'Recent semantic changes' })).toBeVisible();
 });
 
 test('a hosted poll replays current layout without closing an open draft on superseded empty layouts', async ({

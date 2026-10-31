@@ -1,5 +1,7 @@
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { BarHint } from './BarHint';
+import { AttentionHistory } from './AttentionHistory';
+import { AttentionToast } from './AttentionToast';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { DiffNode } from '../nodes/DiffNode';
@@ -397,6 +399,8 @@ export function ExpandedNodeOverlay() {
             {pendingClose ? 'Saving edits…' : 'esc or click outside to close'}
           </span>
         </div>
+        <AttentionToast />
+        <AttentionHistory />
         {canPresent && presenting && (
           <div
             ref={presentationOverlayRef}

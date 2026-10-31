@@ -582,6 +582,13 @@ scroll references instead of moving the canvas. No graph data is collapsed or re
 Reading expanded Markdown, closing it or following a link without input preserves
 the exact source and revision. Pending real edits still finish before navigation.
 
+**Expanded-editor refusals (2026-10-31).** The existing attention toast, history
+panel and Updates tab render inside the expanded dialog so they remain in its
+keyboard focus loop, above its content and below blocking dialogs. Their placement,
+dimensions and palette stay unchanged. Opening history dismisses the toast, and
+queued notices stay in history without covering the open panel. Closing history
+returns focus to Updates; reopening it never closes the editor or discards its draft.
+
 **Owner-guide fixes (2026-10-20).** The same reference list follows cards into focus
 mode, above the provenance strip, capped at 132 screen pixels there. It retains every
 target without displacing the document. A refused Markdown save keeps the reader and

@@ -169,7 +169,7 @@ test.each([
       data: { ...source.data, content: savedContent, wikiLinks: [{ ref: 'B', target: { boardId: 'b' } }] },
     }),
   );
-  await waitFor(() => expect(nodes.value.get(source.id)?.data.rendered).toContain('data-wiki-board="b"'));
+  await waitFor(() => expect(view.container.querySelector('a')?.getAttribute('data-wiki-board')).toBe('b'));
   await act(async () => acknowledgements[0]!(Response.json({ ok: true, contentRevision: 41 })));
   await Bun.sleep(20);
   expect(nodes.value.get(source.id)?.data.rendered).toContain('data-wiki-board="b"');

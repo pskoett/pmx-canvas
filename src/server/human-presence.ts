@@ -100,10 +100,10 @@ export class HumanPresenceRegistry {
   }
 
   /** Nodes a human is holding right now → that human's name. The edit lock. */
-  lockedNodes(now = Date.now()): Map<string, string> {
+  lockedNodes(now = Date.now(), boardId = canvasState.activeBoardId): Map<string, string> {
     const locked = new Map<string, string>();
     for (const human of this.humans.values()) {
-      if (human.boardId !== canvasState.activeBoardId) continue;
+      if (human.boardId !== boardId) continue;
       if (human.grabbingNodeId && human.grabSinceMs !== null && now - human.grabSinceMs <= HUMAN_GRAB_TTL_MS) {
         locked.set(human.grabbingNodeId, human.name);
       }

@@ -1314,7 +1314,26 @@ test('live work cards explicitly present tasks read-only and survive session end
   await page.getByLabel('Expand session panel').click();
   await page.getByTestId('work-items-toggle').click();
   const row = page.locator(`[data-work-item-id="${workItem.id}"]`);
-  await row.getByRole('button', { name: 'Show on board' }).click();
+  // Each focus commits both geometry and camera. Settle the first gesture too,
+  // so its response cannot satisfy the second gesture's wait before task Undo.
+  const showCard = async (name: string) => {
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/canvas/viewport') &&
+          response.request().method() === 'POST' &&
+          typeof response.request().postDataJSON()?.x === 'number',
+      ),
+      page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/canvas/update') &&
+          response.request().method() === 'POST' &&
+          response.request().postDataJSON()?.recordHistory !== false,
+      ),
+      row.getByRole('button', { name, exact: true }).click(),
+    ]);
+  };
+  await showCard('Show on board');
   const card = page.locator('.canvas-node').filter({ hasText: 'Live task' });
   await expect(card).toHaveCount(1);
   await expect(card).toContainText('Read-only');
@@ -1327,15 +1346,7 @@ test('live work cards explicitly present tasks read-only and survive session end
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   // Finish the focus gesture before testing task Undo, or Undo legitimately targets the later camera commit.
-  await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.url().endsWith('/api/canvas/viewport') &&
-        response.request().method() === 'POST' &&
-        typeof response.request().postDataJSON()?.x === 'number',
-    ),
-    row.getByRole('button', { name: 'Show card' }).click(),
-  ]);
+  await showCard('Show card');
   await expect(page.locator('.canvas-node')).toHaveCount(2);
   await request.patch(`/api/canvas/ax/work/${workItem.id}`, {
     data: { title: 'Updated task', detail: 'Title-only refresh' },
@@ -2778,6 +2789,10 @@ test('json-render Card slots grow with repeated content and clear neighboring ca
     data: { x: 20 - after.position.x, y: 40 - after.position.y, scale: 1 },
   });
   await expect(frame.getByText('Replacement item 16', { exact: true })).toBeVisible();
+  // The sandboxed document receives its new viewport after the outer card's
+  // height transition. Wait for that resize, not merely the card's bounding box.
+  const frameHeight = await node.locator('iframe:not([inert])').evaluate((iframe) => iframe.clientHeight);
+  await expect.poll(() => frame.locator('body').evaluate(() => window.innerHeight)).toBe(frameHeight);
   const measured = await frame
     .locator('body')
     .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));
@@ -4883,9 +4898,23 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
     await expect
       .poll(async () => (await (await request.get(`/api/canvas/node/${importedId}`)).json()).position.y)
       .toBeGreaterThan(280);
-    await fitCanvas(page);
-    const fixed = (await note.boundingBox())!;
-    const moved = (await imported.boundingBox())!;
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/canvas/viewport') &&
+          response.request().method() === 'POST' &&
+          typeof response.request().postDataJSON()?.x === 'number',
+      ),
+      fitCanvas(page),
+    ]);
+    // Sample both cards in one frame, after Fit commits, not across animation ticks.
+    const { fixed, moved } = await page.evaluate(
+      ({ fixedId, movedId }) => ({
+        fixed: document.querySelector(`[data-node-id="${fixedId}"]`)!.getBoundingClientRect().toJSON(),
+        moved: document.querySelector(`[data-node-id="${movedId}"]`)!.getBoundingClientRect().toJSON(),
+      }),
+      { fixedId: created.id, movedId: importedId },
+    );
     expect(moved.y).toBeGreaterThanOrEqual(fixed.y + fixed.height);
     expect((await (await request.get(`/api/canvas/node/${created.id}`)).json()).position).toEqual({ x: 640, y: 260 });
   }
@@ -5974,8 +6003,17 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
     }
   }
   await page.goto('/workbench');
+  await expect(page.getByLabel('Canvas status: connected', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'End Toolbar Alpha session', includeHidden: true })).toBeAttached();
+  await expect(page.getByRole('button', { name: 'End Toolbar Beta session', includeHidden: true })).toBeAttached();
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   for (const width of [1280, 1024, 600, 390, 1920]) {
     await page.setViewportSize({ width, height: 900 });
+    // ResizeObserver folds controls after layout. Cross a rendered frame before
+    // resolving the click target; Playwright retains a hidden, attached target.
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
     const more = page.getByRole('button', {
       name: 'More: export, present, zoom, fit',
       exact: true,
@@ -5994,8 +6032,6 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
         ),
       )
       .toBe(true);
-    // Resolve the visible action during click's actionability checks, not in
-    // an earlier visibility sample that can precede the resize observer.
     await more.or(fit).filter({ visible: true }).click();
     const menuExport = page.getByRole('menuitem', { name: /Export/ });
     const exported = page.getByRole('button', { name: 'Export', exact: true });

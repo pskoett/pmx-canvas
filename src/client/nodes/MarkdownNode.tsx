@@ -276,10 +276,8 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       if (!renderingDraft && !draft.dirty.value) {
         latestMdRef.current = raw;
         setContent(raw);
-        updateNodeData(node.id, { content: raw, rendered: html });
-      } else if (nodes.value.get(node.id)?.data.content === raw) {
-        // A pending save may already contain this text; cache only its HTML.
-        updateNodeData(node.id, { rendered: html });
+        // The HTML cache is local. Publishing each preview redraws the whole board.
+        if (nodes.value.get(node.id)?.data.content !== raw) updateNodeData(node.id, { content: raw });
       }
     })();
     return () => {
