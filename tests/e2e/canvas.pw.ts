@@ -4861,6 +4861,35 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
       return node.pinned;
     })
     .toBe(true);
+
+  const { id: importedId } = await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Imported evidence',
+        content: 'Keep this evidence readable',
+        x: 660,
+        y: 280,
+        width: 500,
+        height: 400,
+        data: { contentOrigin: 'imported' },
+      },
+    })
+  ).json();
+  const imported = page.locator(`[data-node-id="${importedId}"]`);
+  await expect(imported).toContainText('Keep this evidence readable');
+  for (let repeat = 0; repeat < 2; repeat++) {
+    await page.getByRole('button', { name: 'Arrange (grid)', exact: true }).click();
+    await expect
+      .poll(async () => (await (await request.get(`/api/canvas/node/${importedId}`)).json()).position.y)
+      .toBeGreaterThan(280);
+    await fitCanvas(page);
+    const fixed = (await note.boundingBox())!;
+    const moved = (await imported.boundingBox())!;
+    expect(moved.y).toBeGreaterThanOrEqual(fixed.y + fixed.height);
+    expect((await (await request.get(`/api/canvas/node/${created.id}`)).json()).position).toEqual({ x: 640, y: 260 });
+  }
+  await page.screenshot({ path: test.info().outputPath('arrange-reserves-pinned-card.png') });
 });
 
 test('header controls stay under the pointer when hover actions appear', async ({ page, request }, info) => {

@@ -303,10 +303,10 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
 
   const persistContent = useCallback(
     async (newContent: string) => {
-      // Human wins over already-observed work, not work arriving while this
-      // particular attempt waits in the queue or for its rendered preview.
+      // A peer update cannot grant an older draft permission to overwrite it.
+      // Only our own successful saves advance the draft's revision.
       const incarnation = boardIncarnation;
-      const attempt = { revision: nodes.value.get(node.id)?.contentRevision ?? 0 };
+      const attempt = { revision: editBase.current.revision };
       draft.nativeSaveAttempts.add(attempt);
       draft.pending.value++;
       // Order the complete save, including disk writes and rendering. A later
@@ -376,6 +376,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         if (result.ok && result.contentRevision !== undefined) {
           // Advance only through a successful predecessor in this board/card's
           // queue. An external revision or a refused save grants no retry.
+          editBase.current.revision = result.contentRevision;
           for (const queued of draft.nativeSaveAttempts) {
             if (queued.revision === expectedContentRevision) queued.revision = result.contentRevision;
           }

@@ -3718,8 +3718,13 @@ for (const transport of ['sse', 'poll']) {
 
 test.describe('save and board ownership boundaries', () => {
   test.use({ deviceScaleFactor: 2 });
-  for (const fileBacked of [false, true]) {
-    test(`a suspended native Save refuses subsequent canonical content without changing its draft (file-backed=${fileBacked})`, async ({
+  for (const [fileBacked, suspended] of [
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ]) {
+    test(`a stale native Save refuses newer canonical content without changing its draft (file-backed=${fileBacked}, suspended=${suspended})`, async ({
       page,
       request,
       context,
@@ -3759,14 +3764,16 @@ test.describe('save and board ownership boundaries', () => {
         await expect(page.locator('.md-preview')).toContainText(draft);
         let captured = false;
         await page.route('**/api/render', async (route) => {
-          if (captured || route.request().postDataJSON().markdown !== draft) return route.continue();
+          if (!suspended || captured || route.request().postDataJSON().markdown !== draft) return route.continue();
           captured = true;
           const response = await route.fetch();
           await gate;
           await route.fulfill({ response });
         });
-        await page.getByRole('button', { name: 'Save', exact: true }).click();
-        await expect.poll(() => captured).toBe(true);
+        if (suspended) {
+          await page.getByRole('button', { name: 'Save', exact: true }).click();
+          await expect.poll(() => captured).toBe(true);
+        }
         await peer.locator('.md-editor-expanded textarea').fill(newer);
         // Arm before the write: the incremental poll may arrive before Saved paints.
         const newerPoll = page.waitForResponse(
@@ -3780,21 +3787,26 @@ test.describe('save and board ownership boundaries', () => {
         const patch = page.waitForResponse(
           (response) => response.url().endsWith(`/api/canvas/node/${id}`) && response.request().method() === 'PATCH',
         );
+        if (!suspended) await page.getByRole('button', { name: 'Save', exact: true }).click();
         release();
         expect((await patch).status()).toBe(409);
+        await expect(page.locator('.attention-toast')).toContainText('This node changed');
         await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
         expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
         if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
         await expect(editor).toHaveValue(draft);
         await page.screenshot({ path: test.info().outputPath(`native-conflict-${fileBacked}.png`) });
-        // A subsequent deliberate human save may override work already observed.
+        // Retrying the same stale draft must not silently acquire the peer's revision.
+        const retry = page.waitForResponse(
+          (response) => response.url().endsWith(`/api/canvas/node/${id}`) && response.request().method() === 'PATCH',
+        );
         await page.getByRole('button', { name: 'Save', exact: true }).click();
-        await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+        expect((await retry).status()).toBe(409);
         const saved = await (await request.get(`/api/canvas/node/${id}`)).json();
-        expect(saved.data.content).toBe(draft);
+        expect(saved.data.content).toBe(newer);
         expect(saved.lastEditedBy.actor).toBe('human');
-        if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(draft);
-        await page.screenshot({ path: test.info().outputPath(`native-saved-${fileBacked}.png`) });
+        if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
+        await expect(editor).toHaveValue(draft);
       } finally {
         release();
         await page.unrouteAll({ behavior: 'wait' });
@@ -3947,11 +3959,12 @@ for (const remount of [false, true]) {
         // the first still-correct sample immediately after the held render ends.
         await page.waitForTimeout(250);
         expect((await (await request.get(`/api/canvas/node/${id}`)).json()).data.content).toBe(newer);
-        // A new human attempt may override observed work, not a revision this
-        // browser has not received yet. Do not depend on SSE flushing in Chromium.
+        // Even an identical local draft cannot adopt an external writer's revision.
         await observed;
         await page.getByRole('button', { name: 'Save', exact: true }).click();
-        await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+        await expect(page.locator('.attention-toast')).toContainText('This node changed');
+        await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+        await expect(editor).toHaveValue(newer);
         if (fileBacked) expect(readFileSync(path, 'utf8')).toBe(newer);
         await page.locator('.expanded-close').click();
         await page.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();

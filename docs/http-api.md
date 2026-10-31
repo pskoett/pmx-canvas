@@ -711,9 +711,10 @@ against the node's top-level `contentRevision`; stale content returns `409`
 without changing the node. Conditional edits cannot request webpage refresh.
 The private MCP App uses these guards to reject stale board actions and note drafts.
 
-Native Markdown Save captures the currently observed revision for each attempt. Newer content
-arriving during rendering or network delivery refuses that attempt and keeps the draft; a later
-deliberate human Save may replace already-observed work. Queued saves advance their precondition
+Markdown Save uses the draft's original content revision in both standalone and hosted workbenches.
+Newer content refuses the save and keeps the draft, even if the peer update arrived before Save
+was clicked. Retrying a stale draft still refuses; copy it before reloading to reconcile with the
+latest saved text. Queued saves advance their precondition
 only through successful acknowledgements of their own preceding saves, never through an external
 revision or an automatic retry after conflict. Acknowledgements from before a restart, restore,
 or board replacement cannot update canonical content, clear an unsaved draft or advance queued

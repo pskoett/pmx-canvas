@@ -20,6 +20,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Arrange keeps movable cards clear of pinned cards without moving the pins.
+- Saving an older Markdown draft no longer silently overwrites another visitor's newer text.
 - Resizing during a board switch no longer shows a misleading change-refused warning.
 - Moving cards respects edit locks on referenced boards and preserves unrelated unsaved edits and storage conflicts.
 - Restored snapshots no longer report webpage changes caused only by object-key order or fetch/sync times.

@@ -463,10 +463,11 @@ export function computeAutoArrange(
   const { outgoing, undirected, indegree, outdegree } = buildUnitGraphs(units, nodeToUnit, allEdges);
   const clusters = collectSpatialClusters(units, undirected);
   const absoluteUnitPositions = new Map<string, ArrangePosition>();
-  // Already-packed cluster rects: a cluster that grew past its old bounds is
-  // shifted below earlier clusters instead of overlapping them. Clusters are
-  // processed top-left first, so the cascade is deterministic.
-  const packedRects: Array<ArrangePosition & ArrangeSize> = [];
+  // Reserve fixed cards as well as already-packed clusters. A growing cluster
+  // shifts below blockers without moving pinned cards or splitting its groups.
+  const packedRects: Array<ArrangePosition & ArrangeSize> = allNodes
+    .filter((node) => node.pinned)
+    .map((node) => ({ ...node.position, ...node.size }));
 
   for (const clusterUnits of clusters) {
     const components = collectComponents(clusterUnits, undirected).map((component) =>

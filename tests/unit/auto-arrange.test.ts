@@ -20,6 +20,29 @@ function overlap(
 }
 
 describe('computeAutoArrange', () => {
+  test.each(['grid', 'graph'] as const)('%s reserves pinned rectangles without moving them', (mode) => {
+    const nodes = [
+      makeNode({ id: 'fixed', type: 'markdown', pinned: true, position: { x: 100, y: 100 } }),
+      makeNode({ id: 'lower', type: 'image', pinned: true, position: { x: 100, y: 600 } }),
+      makeNode({ id: 'import', type: 'markdown', position: { x: 150, y: 150 }, size: { width: 500, height: 300 } }),
+      makeNode({ id: 'neighbor', type: 'image', position: { x: 400, y: 180 } }),
+      makeNode({ id: 'remote', type: 'markdown', position: { x: 10000, y: 50 } }),
+    ];
+    const edges = [{ id: 'link', from: 'import', to: 'neighbor' }];
+    const result = computeAutoArrange(nodes, edges, mode);
+    const arranged = nodes.map((node) => ({ ...node, position: result.nodePositions.get(node.id) ?? node.position }));
+    for (const node of nodes.filter((node) => node.pinned)) expect(result.nodePositions.has(node.id)).toBe(false);
+    for (let i = 0; i < arranged.length; i++) {
+      for (const other of arranged.slice(i + 1)) {
+        expect(overlap({ ...arranged[i].position, ...arranged[i].size }, { ...other.position, ...other.size })).toBe(
+          false,
+        );
+      }
+    }
+    expect(result.nodePositions.get('remote')).toEqual({ x: 10000, y: 50 });
+    expect(computeAutoArrange(arranged, edges, mode)).toEqual(result);
+  });
+
   test('remote edges do not join local cards with colliding target IDs', () => {
     const nodes = [
       makeNode({ id: 'source', type: 'markdown', position: { x: 0, y: 0 } }),

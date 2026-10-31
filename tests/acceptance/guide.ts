@@ -536,12 +536,12 @@ export const GUIDE: GuideRow[] = [
     id: '20',
     title: 'Conflicting saves, ownership & human locks',
     pass: [
-      'An old save refuses and keeps the draft; there is no self-conflict, wrong-board text or author downgrade.',
+      'A stale draft refuses even when peer changes arrive before Save or the user retries; valid consecutive saves do not self-conflict or change ownership.',
       'A held card refuses agent edits; a refusal changes neither disk nor card.',
     ],
     touches: ['src/client/nodes/MarkdownNode.tsx', 'src/server/file-watcher.ts', 'src/server/file-content.ts'],
     e2e: [
-      'a suspended native Save refuses subsequent canonical content',
+      'a stale native Save refuses newer canonical content',
       'a superseded native save cannot overwrite newer content',
       'close saves a trailing native draft',
       'a held B resync refuses A state',
@@ -845,6 +845,7 @@ export const GUIDE: GuideRow[] = [
       'Nested group drill-in retains original nodes, outside links and parent camera/selection, without creating boards.',
       'Double-click and the context menu offer creation actions without creating a card; the rail and keyboard create in the current viewport, with in-canvas prompts.',
       'Connect drags an edge; lasso, title-bar selection, grouping and group snapping work; ungroup is the same action for human and agent.',
+      'Arrange keeps pinned positions fixed and leaves movable cards clear of them.',
       'The minimap mirrors the store and selection; the shortcut reference closes on Escape.',
     ],
     touches: [
@@ -880,6 +881,7 @@ export const GUIDE: GuideRow[] = [
       'canvas background context menu exposes user-creatable nodes',
       'rail and keyboard creates land in the current viewport',
       'Shift+F / W / I open the in-canvas prompt',
+      'ordinary node pin updates the authoritative canvas state',
       'edge creation: Connect tool drags an edge',
       'groups v2',
       'group drill-in keeps original cards, outside links and nested camera returns',
