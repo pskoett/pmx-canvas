@@ -312,7 +312,7 @@ test('real workbench creates boards, edits notes, drags and pins without a dupli
   const app = await mount(page);
   await expect(app.getByTestId('home-view')).toBeVisible();
   await app.getByRole('button', { name: 'New board', exact: true }).click();
-  await app.getByRole('textbox', { name: 'Board name' }).fill('ChatGPT workbench');
+  await app.getByRole('textbox', { name: 'New board', exact: true }).fill('ChatGPT workbench');
   await app.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(app.getByRole('button', { name: /^Board: ChatGPT workbench/ })).toBeVisible();
   const id = await note(request, 'Launch checklist');
