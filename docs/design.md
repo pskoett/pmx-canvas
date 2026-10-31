@@ -148,6 +148,7 @@ the same change.
 | [`Themes.dc.html`](design/Themes.dc.html) | Meaning colours across all nine themes, proposed names | 0 |
 | [`Chrome.dc.html`](design/Chrome.dc.html) | Rail at 690 px, node header (expand and context pin always visible, the rest under ⋯), bounded reference footer, section headings, floating chrome | 0 |
 | [`EmptyState.dc.html`](design/EmptyState.dc.html) | Empty board: Drop files here, Paste a link, Start a note with collaboration guidance, then a separate agent-first path | 0 |
+| [`GuestName.dc.html`](design/GuestName.dc.html) | Optional Your name button, existing text dialog and named collaborator cursor. Self-reported names only; sharing stays in Amp. | 5, Amp collaboration |
 | [`Context.dc.html`](design/Context.dc.html) | Nodes in context: every state, the count chip, the command bar | 0–1 |
 | [`NearPin.dc.html`](design/NearPin.dc.html) | Near a pin: the dotted “near” chip on a pinned node's unpinned neighbours, tethers on hover, the moment of change, combinations, 600 px; ships with the brief carrying neighbours (title + summary, reason “near <pin>”) | 1 |
 | [`ContextChip.dc.html`](design/ContextChip.dc.html), [`ContextChip600.dc.html`](design/ContextChip600.dc.html) | The one context chip (decided with the maintainer 2026-10-07: placement, near muted, quiet empty state, agent-pin dots, “N in context” at 600 px): top bar, right, replacing the floating ContextPinBar and the ContextBudget meter; at rest for cards, near, boards, agent-only pins, nothing pinned; opened into Cards (full, × unpin, clear all), Near (derived, title + summary, no ×, Pin to promote) and Boards (read state, × unpin). **A pinned board travels as a map** (decided 2026-10-07): folder, README summary, each pinned card's title + summary, links and backlinks; the agent pulls a card or board in full itself, so the chip shows no full / summary / not-sent state. **A cost, not a budget** (decided with the maintainer 2026-10-08): the chip shows what the brief costs as ≈ tokens, with no meter, share or clipped state; when the host reports its agent's token usage the panel names that count too (“Copilot’s whole context holds 42.8k tokens”). The brief's size limit stays internal as a page size. At rest it is the summary, always visible and right-aligned in the top bar at every width; the details open only on click. At ≤ 760 px the summary is “N in context” with no token text, and the bar gives way in this order: session id and counts; Export, Present, zoom and fit fold into ⋯; agent chip to its avatar, Start agent session to its icon; the board name truncates — the dot, board pin, summary and ⋯ never collapse. Harbor and Daylight, 600 px. Supersedes the chip wording on Context, NearPin and BoardPins | 1 (slices 4b, 5b) |
@@ -180,6 +181,17 @@ guidance, not an agent-launch button, and remains visible with Agent sessions (B
 With the beta on, the existing Start agent session action sits below that guidance.
 The existing panel, type and colour tokens stay; actions form one readable column, and
 short windows scroll the guide rather than cutting off either starting path.
+
+**Guest name entry (2026-10-31).** A neutral 28px initial button at the end of the top bar
+opens the existing text prompt, with its existing 440px maximum width, padding and actions.
+The caption explains that a name is self-reported and grants no access. Entry is optional;
+Cancel and Escape keep the current name. Save trims the name to the existing 40-character
+presence limit and remembers it in this browser, without changing the tab's presence ID.
+The existing cursor tags identify collaborators. No people panel or sharing controls are
+added. The button remains visible when the bar folds at narrow widths, including Home;
+MCP-hosted workbenches and agent-view tabs do not report human presence or offer this control.
+The drawing refines the minimal dialog option, retaining actual text-prompt geometry rather
+than the generated concept's smaller panel. Amp controls access to the port, not one board.
 
 **Canvas mouse gestures (owner decision, 2026-10-19).** Right-click on empty canvas
 opens the existing creation menu on release. Holding the right button and moving more

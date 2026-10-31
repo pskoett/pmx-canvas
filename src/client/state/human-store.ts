@@ -1,6 +1,7 @@
 import { computed, signal } from '@preact/signals';
 import {
   HUMAN_CURSOR_THROTTLE_MS,
+  HUMAN_NAME_MAX_LENGTH,
   type HumanPresence,
   type HumanPresenceSnapshot,
 } from '../../shared/human-presence.js';
@@ -34,12 +35,12 @@ export const humanClientId = sessionScoped(
 
 function resolveName(): string {
   try {
-    const fromQuery = new URLSearchParams(window.location.search).get('name')?.trim();
+    const fromQuery = new URLSearchParams(window.location.search).get('name')?.trim().slice(0, HUMAN_NAME_MAX_LENGTH);
     if (fromQuery) {
       window.localStorage.setItem('pmx-canvas-human-name', fromQuery);
       return fromQuery;
     }
-    const stored = window.localStorage.getItem('pmx-canvas-human-name')?.trim();
+    const stored = window.localStorage.getItem('pmx-canvas-human-name')?.trim().slice(0, HUMAN_NAME_MAX_LENGTH);
     if (stored) return stored;
   } catch {
     // storage unavailable: fall through to a generated name
@@ -50,6 +51,25 @@ function resolveName(): string {
 export const humanName = signal<string>(resolveName());
 export const humans = signal<HumanPresence[]>([]);
 export const otherHumans = computed(() => humans.value.filter((human) => human.clientId !== humanClientId));
+
+/** Change the display label, never the per-tab identity or anyone's access. */
+export function setHumanName(name: string): void {
+  const value = name.trim().slice(0, HUMAN_NAME_MAX_LENGTH);
+  if (!value) return;
+  humanName.value = value;
+  try {
+    window.localStorage.setItem('pmx-canvas-human-name', value);
+  } catch {
+    // Storage can be blocked in embedded panes; the current tab still has its name.
+  }
+  // A link's initial name must not undo an explicit rename on reload.
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('name')) {
+    url.searchParams.delete('name');
+    window.history.replaceState(window.history.state, '', url);
+  }
+  post({ cursor: lastCursor, grabbingNodeId: grabbingNodeId.value });
+}
 
 /** Nodes a human took over mid-edit → that human's name, shown as the yield pill for a moment. */
 export const yieldedNodes = signal<Map<string, string>>(new Map());

@@ -38,6 +38,10 @@ import {
 } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 import { agentSessionsEnabled } from '../state/workspace-settings';
+import { humanName, setHumanName } from '../state/human-store';
+import { tabAgentKey } from '../state/intent-bridge';
+import { HUMAN_NAME_MAX_LENGTH } from '../../shared/human-presence.js';
+import { askText } from './TextPrompt';
 
 const PRESENT_DESCRIPTION = (
   <span style={{ whiteSpace: 'pre-line' }}>
@@ -535,6 +539,32 @@ export function TopBar() {
             </div>
             <TopBarMore boardOpen={!!activeBoardId.value} onFit={handleFit} />
           </>
+        )}
+        {!isHostedWorkbench() && !tabAgentKey && (
+          <span class="human-name-control">
+            <BarHint label="Your name" body={`Shown on your cursor: ${humanName.value}`} align="end">
+              <button
+                type="button"
+                class="top-bar-btn human-name-button"
+                aria-label={`Your name: ${humanName.value}`}
+                aria-haspopup="dialog"
+                onClick={async (event) => {
+                  const button = event.currentTarget;
+                  const name = await askText('Your name on this canvas', 'e.g. Alex', {
+                    initial: humanName.value,
+                    confirm: 'Save name',
+                    maxLength: HUMAN_NAME_MAX_LENGTH,
+                    description:
+                      'Shown on your cursor. Self-reported, not a verified identity or an access grant. Saved in this browser.',
+                  });
+                  if (name !== null) setHumanName(name);
+                  button.focus({ preventScroll: true });
+                }}
+              >
+                {writerInitial(humanName.value)}
+              </button>
+            </BarHint>
+          </span>
         )}
       </div>
     </div>

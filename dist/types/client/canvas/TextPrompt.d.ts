@@ -6,6 +6,8 @@
 interface TextPromptRequest {
     title: string;
     placeholder: string;
+    description?: string;
+    maxLength?: number;
     /** Prefilled (and pre-selected) value — edit flows start from the current text. */
     initial: string;
     /** Submitting an empty field resolves '' instead of null — "clear the value" flows. */
@@ -20,6 +22,8 @@ export declare function askText(title: string, placeholder: string, opts?: {
     initial?: string;
     allowEmpty?: boolean;
     confirm?: string;
+    description?: string;
+    maxLength?: number;
 }): Promise<string | null>;
 export declare function TextPrompt(): import("preact/src").JSX.Element | null;
 export {};

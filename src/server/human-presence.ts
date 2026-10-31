@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   HUMAN_GRAB_TTL_MS,
+  HUMAN_NAME_MAX_LENGTH,
   HUMAN_PRESENCE_TTL_MS,
   type HumanPresence,
   type HumanPresenceSnapshot,
@@ -18,7 +19,7 @@ import { canvasState } from './canvas-state.js';
  */
 export const HUMAN_PRESENCE_SHAPE = {
   clientId: z.string().min(1).max(64),
-  name: z.string().min(1).max(40).optional(),
+  name: z.string().min(1).max(HUMAN_NAME_MAX_LENGTH).optional(),
   cursor: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable().optional(),
   grabbingNodeId: z.string().max(200).nullable().optional(),
   /** Explicit leave (tab closing): drop the presence now. */

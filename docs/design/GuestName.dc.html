@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guest name: existing presence, self-reported names</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body { margin:0; background:#081524; }
+.states { display:flex; gap:24px; padding:24px; font:13px/1.4 'IBM Plex Sans',sans-serif; }
+.state { width:600px; height:600px; background:var(--bg); color:var(--text); }
+.dark { --bg:#081524; --panel:#0b192b; --soft:#0f1d31; --line:#1b2c44; --text:#e6eef7; --muted:#8ea3bd; --accent:#4BBCFF; }
+.light { --bg:#f7f8fa; --panel:#ffffff; --soft:#eff2f6; --line:#d5dce5; --text:#172b44; --muted:#536a83; --accent:#1A7ABF; }
+.bar { height:44px; display:flex; align-items:center; gap:8px; padding:0 14px; background:var(--soft); border-bottom:1px solid var(--line); }
+.board { flex:1; } .context { color:var(--muted); font-size:12px; }
+.initial { width:28px; height:28px; border:1px solid var(--line); border-radius:50%; background:var(--soft); color:var(--text); font:600 12px 'IBM Plex Sans',sans-serif; }
+.dialog { box-sizing:border-box; width:440px; margin:90px auto 0; padding:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; gap:10px; box-shadow:0 18px 60px #0003; }
+.title { font-weight:600; } .description { color:var(--muted); font-size:12px; }
+input { box-sizing:border-box; width:100%; padding:8px 10px; border:1px solid var(--accent); border-radius:8px; background:var(--bg); color:var(--text); font:13px/1.4 'IBM Plex Mono',monospace; }
+.actions { display:flex; justify-content:flex-end; gap:8px; }
+.actions button { min-height:36px; padding:8px 14px; border:1px solid var(--line); border-radius:7px; background:var(--soft); color:var(--text); font:600 12px 'IBM Plex Sans',sans-serif; }
+.actions .save { background:var(--accent); border-color:var(--accent); color:var(--bg); }
+.cursor { margin:55px 0 0 60px; color:var(--muted); } .cursor span { background:var(--soft); padding:3px 6px; border:1px solid var(--line); border-radius:4px; font-size:11px; }
+.note { padding:20px; color:var(--muted); font-size:12px; }
+</style></helmet>
+<div class="states">
+  <section class="state dark">
+    <div class="bar"><span class="board">Field notes ▾</span><span class="context">Nothing in context</span><span>⋯</span><button class="initial" aria-label="Your name: guest-4a8c">G</button></div>
+    <div class="dialog" role="dialog" aria-label="Your name on this canvas">
+      <div class="title">Your name on this canvas</div>
+      <div class="description">Shown on your cursor. Self-reported, not a verified identity or an access grant. Saved in this browser.</div>
+      <input aria-label="Your name on this canvas" placeholder="e.g. Alex" maxlength="40" value="Alex">
+      <div class="actions"><button>Cancel</button><button class="save">Save name</button></div>
+    </div>
+    <div class="note">Optional entry. Escape or Cancel keeps the current name. Up to 40 characters. No sharing or permission controls.</div>
+  </section>
+  <section class="state light">
+    <div class="bar"><span class="board">Field notes ▾</span><span class="context">Nothing in context</span><span>⋯</span><button class="initial" aria-label="Your name: Sam">S</button></div>
+    <div class="cursor">➤ <span>Alex</span></div>
+    <div class="note">The other browser sees Alex on the existing cursor tag. A rename keeps the same visitor ID; equal names never combine visitors. The 28px button stays at the end of the bar at 600, 1024 and 1920px.</div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1272,"height":648}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

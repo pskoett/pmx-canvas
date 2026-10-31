@@ -661,9 +661,14 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'An attached agent shows a cursor and chip, shimmers on mutation and leaves a byline.',
       'Two humans see each other’s cursors; a human grab locks the node against agent writes.',
+      'Your name saves a self-reported cursor label across reload and reconnect; Cancel, Escape and blank input keep the name, and equal names never merge visitors.',
       'A session-less writer still shows where it wrote.',
     ],
     touches: [
+      'src/client/canvas/TopBar.tsx',
+      'src/client/canvas/TextPrompt.tsx',
+      'src/client/canvas/use-focus-trap.ts',
+      'src/client/theme/global.css',
       'src/client/canvas/AgentPresenceLayer.tsx',
       'src/client/canvas/HumanPresenceLayer.tsx',
       'src/client/canvas/ExternalWriters.tsx',
@@ -681,6 +686,7 @@ export const GUIDE: GuideRow[] = [
       'agent presence reaches the browser',
       'agent presence surfaces',
       'human presence: two tabs see each other',
+      'guest names survive reload and reconnect without merging visitors or changing access markers',
       'an external (sessionless) writer paints a dashed cursor',
       'polling collaborators follow cursor motion promptly',
       'external steering',
@@ -691,6 +697,9 @@ export const GUIDE: GuideRow[] = [
       'tests/client/agent-presence-surfaces.test.tsx',
       'tests/client/presence-sync.test.tsx',
       'tests/client/node-context-mark.test.tsx',
+    ],
+    ownerChecks: [
+      'A second person opens a fictional canvas through Amp sharing, enters a name, and is visible to another participant. Verify external access before and after naming; orb-local Portal browsing bypasses Amp authentication.',
     ],
   },
   {

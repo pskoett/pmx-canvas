@@ -1,5 +1,6 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
+import { useFocusTrap } from './use-focus-trap';
 
 /**
  * In-canvas replacement for `window.prompt`, which embedded browser panes
@@ -9,6 +10,8 @@ import { useEffect, useRef } from 'preact/hooks';
 interface TextPromptRequest {
   title: string;
   placeholder: string;
+  description?: string;
+  maxLength?: number;
   /** Prefilled (and pre-selected) value — edit flows start from the current text. */
   initial: string;
   /** Submitting an empty field resolves '' instead of null — "clear the value" flows. */
@@ -25,7 +28,7 @@ let promptSeq = 0;
 export function askText(
   title: string,
   placeholder: string,
-  opts: { initial?: string; allowEmpty?: boolean; confirm?: string } = {},
+  opts: { initial?: string; allowEmpty?: boolean; confirm?: string; description?: string; maxLength?: number } = {},
 ): Promise<string | null> {
   return new Promise((resolve) => {
     textPromptRequest.value?.resolve(null);
@@ -34,6 +37,8 @@ export function askText(
       seq: promptSeq,
       title,
       placeholder,
+      description: opts.description,
+      maxLength: opts.maxLength,
       initial: opts.initial ?? '',
       allowEmpty: opts.allowEmpty ?? false,
       confirm: opts.confirm ?? 'Add',
@@ -51,6 +56,8 @@ function settle(value: string | null): void {
 export function TextPrompt() {
   const request = textPromptRequest.value;
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, request !== null, { initial: inputRef });
 
   useEffect(() => {
     if (!request) return;
@@ -78,13 +85,21 @@ export function TextPrompt() {
   return (
     <div class="text-prompt-backdrop" onPointerDown={() => settle(null)}>
       <div
+        ref={dialogRef}
         class="text-prompt"
         role="dialog"
+        aria-modal="true"
         aria-label={request.title}
+        aria-describedby={request.description ? 'text-prompt-description' : undefined}
         data-testid="text-prompt"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div class="text-prompt-title">{request.title}</div>
+        {request.description && (
+          <div id="text-prompt-description" class="text-prompt-description">
+            {request.description}
+          </div>
+        )}
         <input
           // A fresh element per ask (so defaultValue applies) focused in the
           // ref callback, which Preact runs synchronously during commit — the
@@ -101,6 +116,8 @@ export function TextPrompt() {
           type="text"
           defaultValue={request.initial}
           placeholder={request.placeholder}
+          aria-label={request.title}
+          maxLength={request.maxLength}
           onKeyDown={(e) => {
             // Contained: the global shortcut layer must not see these.
             if (e.key === 'Enter') {

@@ -22,6 +22,7 @@ export interface HumanPresence {
 export interface HumanPresenceSnapshot {
     humans: HumanPresence[];
 }
+export declare const HUMAN_NAME_MAX_LENGTH = 40;
 /** A tab that stops reporting is gone after this. */
 export declare const HUMAN_PRESENCE_TTL_MS = 30000;
 /** A grab the tab stops renewing (crash, tab closed mid-drag) releases after this. */

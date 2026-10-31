@@ -1322,6 +1322,18 @@ body,
   border-color: var(--c-line);
 }
 
+.human-name-control { order: 4; flex-shrink: 0; }
+.human-name-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-color: var(--c-line);
+  border-radius: var(--r-pill);
+  background: var(--c-panel-soft);
+  color: var(--c-text-soft);
+  font: 600 12px var(--font-ui);
+}
+
 .top-bar-zoom-label {
   min-width: 38px;
   text-align: center;
@@ -5356,6 +5368,11 @@ html.is-node-resizing .ext-app-preview-catcher {
   font-size: 13px;
   font-weight: 600;
   color: var(--c-text);
+}
+.text-prompt-description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--c-muted);
 }
 .text-prompt-input {
   width: 100%;

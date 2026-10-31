@@ -3,6 +3,8 @@ export declare const humanClientId: string;
 export declare const humanName: import("@preact/signals-core").Signal<string>;
 export declare const humans: import("@preact/signals-core").Signal<HumanPresence[]>;
 export declare const otherHumans: import("@preact/signals-core").ReadonlySignal<HumanPresence[]>;
+/** Change the display label, never the per-tab identity or anyone's access. */
+export declare function setHumanName(name: string): void;
 /** Nodes a human took over mid-edit → that human's name, shown as the yield pill for a moment. */
 export declare const yieldedNodes: import("@preact/signals-core").Signal<Map<string, string>>;
 export declare function applyHumanSnapshot(snapshot: Partial<HumanPresenceSnapshot> | null | undefined): void;

@@ -2,8 +2,8 @@
 
 The Wave 5 Amp plugin opens the workspace Canvas and binds each Amp thread to an existing board.
 Bound MCP calls read and edit that board while the human views another board or Home. Bound
-threads receive context at turn start and addressed steering can wake an idle thread. Jev and
-guest name entry are not included.
+threads receive context at turn start and addressed steering can wake an idle thread.
+People can set a self-reported cursor name in Canvas. Jev is not included.
 
 ## Install locally
 
@@ -125,8 +125,33 @@ release is required before recommending the registry fallback. No publication is
 increment.
 
 Amp supplies the Portal URL and access controls. Open does not change sharing or multiplayer.
-Sharing and self-reported guest names are a later increment using Amp's existing controls,
-not a separate share server or board-only access policy.
+
+## Collaboration and names
+
+Use Amp's existing thread access, multiplayer and Portal controls to share. Canvas adds no
+account, guest token or permission picker. Amp's [Portal access documentation](https://ampcode.com/docs/orbs/portals#access-and-lifecycle)
+describes the current controls and workspace restrictions. The installed CLI also exposes
+`amp orb portal access`; its presence is not evidence of an external guest completing the flow.
+Sharing a Portal exposes its port, including other boards and APIs available there, not just
+the current board URL. Only share a workspace whose contents are appropriate for the audience.
+Public Portal access does not grant access to the Amp thread or its review tools.
+
+Open **Your name** at the end of the Canvas top bar. Enter up to 40 characters and choose
+**Save name**. Other participants see the name on your cursor. Cancel, Escape or blank input
+keeps the existing name. The name is saved in this browser when storage is available and
+survives reload and reconnect. Renaming does not change the visitor's tab ID; two people may
+choose the same name without merging their presence. A name is self-reported, not verified
+identity, attribution to an Amp account, or an access grant. Naming makes no access-control
+request and does not change thread or Portal sharing.
+
+This control is available in the HTTP workbench, including an Amp Portal, not an MCP-hosted
+workbench or an agent-view tab. An initial `?name=` still works; saving a name removes that
+parameter so a reload cannot overwrite the saved choice.
+
+**Acceptance boundary:** two browsers inside the owning orb can verify Canvas collaboration,
+but Amp routes those Portal requests directly to the service without external authentication.
+That does not verify an outside guest's sign-in, public access, or revocation. Test those
+separately with fictional data and the owner's approved sharing scope.
 
 ## Verification
 

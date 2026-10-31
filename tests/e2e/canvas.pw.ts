@@ -7106,6 +7106,108 @@ test('polling collaborators follow cursor motion promptly in both directions wit
   await expect(senderCursor).toHaveCount(0, { timeout: 650 });
 });
 
+test('guest names survive reload and reconnect without merging visitors or changing access markers', async ({
+  browser,
+  request,
+}) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Field notes', content: 'Fictional collaboration fixture.', x: 120, y: 90 },
+  });
+  const first = await trackedContext(browser);
+  const second = await trackedContext(browser);
+  const alex = await first.newPage();
+  const sam = await second.newPage();
+  // Offline emulation does not close Chromium's existing SSE connection.
+  // Interrupt polling (the Amp Portal default), with an SSE peer as the observer.
+  await alex.goto('/workbench?transport=poll&name=initial-name');
+  await sam.goto('/workbench?transport=sse');
+  const names = async () =>
+    (
+      (await (await request.get('/api/canvas/human-presence')).json()) as {
+        humans: Array<{ clientId: string; name: string }>;
+      }
+    ).humans;
+  await expect.poll(async () => (await names()).length).toBe(2);
+  const original = await names();
+  const alexId = original.find((human) => human.name === 'initial-name')!.clientId;
+  const samId = original.find((human) => human.clientId !== alexId)!.clientId;
+  const nameButton = alex.getByRole('button', { name: /^Your name:/ });
+  const dialog = alex.getByRole('dialog', { name: 'Your name on this canvas' });
+  const field = dialog.getByRole('textbox');
+  await nameButton.click();
+  await expect(field).toBeFocused();
+  await expect(dialog).toContainText('Self-reported, not a verified identity or an access grant.');
+  await field.fill('  Alex  ');
+  const saved = alex.waitForRequest(
+    (req) =>
+      req.url().endsWith('/api/canvas/human-presence') && req.method() === 'POST' && req.postDataJSON().name === 'Alex',
+  );
+  await dialog.getByRole('button', { name: 'Save name' }).click();
+  expect((await saved).headers()['x-pmx-workbench']).toBe('1');
+  await expect(nameButton).toBeFocused();
+  await expect(nameButton).toHaveAttribute('aria-label', 'Your name: Alex');
+  expect(new URL(alex.url()).searchParams.has('name')).toBe(false);
+  expect(new URL(alex.url()).searchParams.get('transport')).toBe('poll');
+  await alex.mouse.move(620, 420);
+  await expect(sam.locator(`.human-cursor[data-client-id="${alexId}"]`)).toHaveText('Alex');
+
+  // Cancel, Escape and an empty submission leave the announced name untouched.
+  await nameButton.click();
+  await field.fill('Do not save');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await nameButton.click();
+  await field.fill('Do not save either');
+  await field.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Save name' })).toBeFocused();
+  await alex.keyboard.press('Tab');
+  await expect(field).toBeFocused();
+  await alex.keyboard.press('Escape');
+  await expect(nameButton).toBeFocused();
+  await nameButton.click();
+  await field.fill('   ');
+  await field.press('Enter');
+  await expect(nameButton).toHaveAttribute('aria-label', 'Your name: Alex');
+
+  // A second visitor can use the same name: IDs and remote cursor tags stay separate.
+  await sam.getByRole('button', { name: /^Your name:/ }).click();
+  await sam.getByRole('textbox', { name: 'Your name on this canvas' }).fill('Alex');
+  await sam.getByRole('button', { name: 'Save name' }).click();
+  await expect.poll(async () => (await names()).filter((human) => human.name === 'Alex').length).toBe(2);
+  expect((await names()).map((human) => human.clientId).sort()).toEqual([alexId, samId].sort());
+  await sam.mouse.move(730, 470);
+  await expect(alex.locator(`.human-cursor[data-client-id="${samId}"]`)).toHaveText('Alex');
+  await expect(alex.locator(`.human-cursor[data-client-id="${alexId}"]`)).toHaveCount(0);
+
+  await alex.reload();
+  await expect(nameButton).toHaveAttribute('aria-label', 'Your name: Alex');
+  await alex.mouse.move(640, 440);
+  await expect(sam.locator(`.human-cursor[data-client-id="${alexId}"]`)).toHaveText('Alex');
+  await first.setOffline(true);
+  await expect(alex.locator('.connection-dot')).toHaveAttribute('aria-label', 'Canvas status: reconnecting', {
+    timeout: 15_000,
+  });
+  await first.setOffline(false);
+  await expect(alex.locator('.connection-dot')).toHaveAttribute('aria-label', 'Canvas status: connected', {
+    timeout: 15_000,
+  });
+  await alex.mouse.move(650, 450);
+  await expect(sam.locator(`.human-cursor[data-client-id="${alexId}"]`)).toHaveText('Alex');
+
+  // The 40-character server limit is enforced by the input, not a failed heartbeat.
+  await nameButton.click();
+  await field.fill('A'.repeat(39));
+  await field.press('End');
+  await field.pressSequentially('BC');
+  await expect(field).toHaveValue(`${'A'.repeat(39)}B`);
+  await field.press('Enter');
+  await expect
+    .poll(async () => (await names()).find((human) => human.clientId === alexId)?.name)
+    .toBe(`${'A'.repeat(39)}B`);
+  await alex.mouse.move(660, 460);
+  await expect(sam.locator(`.human-cursor[data-client-id="${alexId}"]`)).toHaveText(`${'A'.repeat(39)}B`);
+  await expect(sam.locator('.canvas-node').filter({ hasText: 'Fictional collaboration fixture.' })).toHaveCount(1);
+});
+
 test('human presence: two tabs see each other’s cursors, a grab locks the node for agents and yields an agent intent', async ({
   browser,
   request,
