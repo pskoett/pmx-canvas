@@ -6500,6 +6500,67 @@ describe('canvas server HTTP API', () => {
     expect(missingGroup.status).toBe(400);
   });
 
+  test('snapshot diff ignores restored webpage key order and sync times but retains content changes', async () => {
+    const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'webpage',
+        url: `${webpageOrigin}/article-long`,
+        data: {
+          metadata: { first: 1, second: { a: 2, b: 3 }, sequence: [1, 2] },
+        },
+      }),
+    });
+    const saved = await jsonRequest<{ id: string }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'webpage' }),
+    });
+    const diff = () =>
+      jsonRequest<{ diff: { modifiedNodes: Array<{ changes: string[] }> } }>(`/api/canvas/snapshots/${saved.id}/diff`);
+    const update = (data: Record<string, unknown>) =>
+      jsonRequest(`/api/canvas/node/${node.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data }),
+      });
+    await jsonRequest(`/api/canvas/snapshots/${saved.id}`, { method: 'POST' });
+    expect((await diff()).diff.modifiedNodes).toEqual([]);
+    await update({
+      fetchedAt: '2026-10-02T00:00:00Z',
+      provenance: {
+        snapshotContent: true,
+        refreshStrategy: 'webpage-refresh',
+        sourceUri: `${webpageOrigin}/article-long`,
+        sourceKind: 'webpage-url',
+        syncedAt: '2026-10-02T00:00:00Z',
+      },
+      metadata: { sequence: [1, 2], second: { b: 3, a: 2 }, first: 1 },
+    });
+    expect((await diff()).diff.modifiedNodes).toEqual([]);
+    for (const data of [
+      { content: 'Revised' },
+      { url: 'https://example.com/changed' },
+      {
+        provenance: {
+          sourceKind: 'webpage-url',
+          sourceUri: `${webpageOrigin}/article-long`,
+          refreshStrategy: 'webpage-refresh',
+          snapshotContent: true,
+          details: { note: 'Changed source metadata' },
+        },
+      },
+      { metadata: { first: 1, second: { a: 2, b: 4 }, sequence: [1, 2] } },
+      { metadata: { first: 1, second: { a: 2, b: 3 }, sequence: [2, 1] } },
+      { metadata: { syncedAt: 'Authored content, not a provenance timestamp' } },
+    ]) {
+      await jsonRequest(`/api/canvas/snapshots/${saved.id}`, { method: 'POST' });
+      await update(data);
+      expect((await diff()).diff.modifiedNodes).toHaveLength(1);
+    }
+  });
+
   test('saving a snapshot of an unchanged board reuses the newest one instead of duplicating it', async () => {
     await jsonRequest('/api/canvas/node', {
       method: 'POST',

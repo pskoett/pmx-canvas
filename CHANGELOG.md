@@ -16,6 +16,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Restored snapshots no longer report webpage changes caused only by object-key order or fetch/sync times.
+- Embedded MCP apps receive valid JSON-RPC messages for theme, readiness and AX interactions.
+- Copilot context no longer repeats instructions and pickups already delivered to Copilot.
 - Agent reads include a text annotation's content even when it has a different label.
 - Retrying annotation creation with the same ID no longer adds duplicate Undo entries or overwrites a different mark.
 - Batched annotation writes respect the calling agent's assigned scope.

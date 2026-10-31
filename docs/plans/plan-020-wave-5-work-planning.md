@@ -14,9 +14,9 @@ the two hosted-test timeout causes remain unconfirmed.
 Unit/client and targeted Chromium/WebKit checks pass for the earlier increments. The earlier
 live-card broad browser run had one intermittent hosted-tour failure that passed in isolation.
 The move history and unsupported-binding boundaries below were approved before implementation.
-The owner added the native Amp Canvas plugin to this wave on 2026-10-27. Its researched
-direction is included below, after the board-move increment; no consumer plugin is implemented
-yet. This is additional Wave 5 scope, not a replacement for the outstanding move work.
+The owner added the native Amp Canvas plugin to this wave on 2026-10-27. Its project-local
+foundation, bound-board routing and automatic delivery are now pushed, with native acceptance
+for the exercised delivery paths below. Collaboration and Jev remain subsequent Wave 5 scope.
 This replaces step 4's automatic work-item-to-card conversion and make/inline-board
 pairing in [plan 019](plan-019-post-0.9-roadmap.md). 0.12 is a proposed release number,
 not authorization to publish. Annotation contract changes are recorded in the Unreleased
@@ -364,10 +364,13 @@ pre-move Undo/restore, and late SSE/save responses as negative cases.
 
 ## Slice 4: native PMX Canvas plugin for Amp
 
-**Status:** project-local foundation and board-targeted routing landed. Automatic context
-delivery and addressed steering, including idle-thread wakeup, are in implementation/acceptance.
-Receipt accounting, uncertain-send recovery and turn binding guards have local regression coverage;
-native host acceptance remains a separate gate. Jev and guest name entry remain subsequent work.
+**Status (2026-10-31):** project-local foundation, board-targeted routing, automatic context
+delivery and addressed steering are pushed. Final-source native Amp acceptance passed idle wake,
+busy steering, receipt, bound-board edits through `code_exec`, rendered verification before
+acknowledgment, reload/retry and end cleanup. Busy steering joined the existing active turn,
+without another `agent.start`. Obsolete queued-packet cancellation and sleeping-orb resume
+remain untested. Receipt accounting, uncertain-send recovery and turn binding guards also have
+local regression coverage. Jev and guest name entry remain subsequent work.
 The existing `.amp/plugins/pmx-sdlc.ts` is development tooling, not this consumer plugin.
 
 **Foundation decisions:** canonical source is `plugins/amp/`; the build emits a self-contained

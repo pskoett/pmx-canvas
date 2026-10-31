@@ -9,7 +9,7 @@ export type ViewerSource = {
 type LoadDocument = (frame: HTMLIFrameElement, signal: AbortSignal) => Promise<boolean | 'cancelled' | undefined> | undefined;
 type MountFrame = (frame: HTMLIFrameElement, fail: () => void) => () => void;
 /** The document acknowledges mounting before its frame-gated paint signal. */
-export declare function waitForViewerPaint(frame: HTMLIFrameElement, token: string, signal: AbortSignal): Promise<boolean>;
+export declare function waitForViewerPaint(frame: HTMLIFrameElement, token: string, signal: AbortSignal, jsonRpc?: boolean): Promise<boolean>;
 /** Preserve the painted document until its replacement restores and paints. */
 export declare function RefreshingViewerFrame({ source, identity, iframeRef, onLoad, onMount, onOpen, onDocumentLoad, title, className, sandbox, allow, tabIndex, referrerPolicy, }: {
     source: ViewerSource;

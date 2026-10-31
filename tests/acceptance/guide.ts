@@ -621,10 +621,12 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'Persistence stays healthy through a daemon restart; refused work stays retryable.',
       'Old acknowledgements never repaint, mark saved or authorize writes; restore and restart never validate.',
+      'Restored webpage snapshots ignore object-key order and fetch/sync times, while real content and metadata changes remain visible.',
     ],
     touches: [
       'src/server/backup.ts',
       'src/server/board-export.ts',
+      'src/server/mutation-history.ts',
       'src/cli/daemon.ts',
       'src/client/canvas/SnapshotPanel.tsx',
       'src/client/canvas/ExportDialog.tsx',
@@ -640,7 +642,15 @@ export const GUIDE: GuideRow[] = [
       'late board responses cannot repaint',
       'export a board from the top bar and open the file with no server',
     ],
-    unit: ['tests/unit/backup.test.ts', 'tests/unit/snapshot-restore-node.test.ts', 'tests/unit/cli-daemon.test.ts'],
+    unit: [
+      'tests/unit/backup.test.ts',
+      'tests/unit/snapshot-restore-node.test.ts',
+      'tests/unit/cli-daemon.test.ts',
+      {
+        file: 'tests/unit/server-api.test.ts',
+        name: 'snapshot diff ignores restored webpage key order and sync times but retains content changes',
+      },
+    ],
     ownerChecks: ['Native host reconnect after a real daemon restart.'],
   },
   // Rows 24–31 cover features the 0.8.2 guide predates; they were added when the guide started
@@ -942,12 +952,18 @@ export const GUIDE: GuideRow[] = [
     title: 'Embedded apps: MCP Apps, ext apps & the hosted workbench',
     pass: [
       'An MCP App node hosts the app, proxies its app-only tool calls and settles fullscreen and resize.',
+      'MCP App boot, theme, expand/reload and AX acknowledgments send valid JSON-RPC traffic without invalid-message errors.',
+      'Copilot context excludes instructions and pickups already delivered to Copilot without consuming another agent queue.',
       'Ext-app previews share stacking, pan input and presentation visibility.',
       'The hosted workbench edits, drags and pins in a narrow host without a duplicate composer.',
     ],
     touches: [
+      '.github/extensions/pmx-canvas/extension.mjs',
       'src/client/nodes/McpAppNode.tsx',
       'src/client/nodes/ExtAppFrame.tsx',
+      'src/client/nodes/ViewerFrame.tsx',
+      'src/client/nodes/use-ax-surface-bridge.ts',
+      'src/shared/ax-surface-protocol.ts',
       'src/client/ext-app/**',
       'src/client/mcp-app/**',
       'src/client/utils/ext-app-tool-result.ts',
@@ -965,6 +981,7 @@ export const GUIDE: GuideRow[] = [
     ],
     e2e: [
       'hosts a standard MCP App node and proxies app-only tool calls',
+      'Copilot context excludes its own instructions and pickups without consuming another agent queue',
       'MCP App node resize corner stays above iframe preview overlays',
       'MCP App fullscreen dimensions settle',
       'ext-app bridge',
@@ -973,7 +990,12 @@ export const GUIDE: GuideRow[] = [
       'real workbench creates boards, edits notes, drags and pins',
       'the real workbench fits a narrow host',
     ],
-    unit: ['tests/unit/mcp-app-host.test.ts', 'tests/unit/ext-app-frame.test.ts', 'tests/unit/canvas-app.test.ts'],
+    unit: [
+      'tests/unit/mcp-app-host.test.ts',
+      'tests/unit/ext-app-frame.test.ts',
+      'tests/unit/canvas-app.test.ts',
+      'tests/unit/copilot-adapter.test.ts',
+    ],
     ownerChecks: ['The workbench inside a real host (Claude, Copilot, ChatGPT) embeds and responds.'],
   },
   {

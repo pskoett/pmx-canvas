@@ -59,7 +59,7 @@ describe('GitHub Copilot canvas adapter targeting', () => {
     const extension = readFileSync(join(process.cwd(), '.github/extensions/pmx-canvas/extension.mjs'), 'utf8');
     expect(extension).toContain('id: "pmx-canvas"');
     expect(extension).toContain('url: `${pmx.baseUrl}/workbench?theme=daylight`');
-    expect(extension).toContain('"/api/canvas/ax/context"');
+    expect(extension).toContain('"/api/canvas/ax/context?consumer=copilot"');
     expect(extension).toContain('onUserPromptSubmitted');
     expect(extension).toContain('createSteeringDeliveryPump');
     expect(extension).toContain('name: "focus_nodes"');

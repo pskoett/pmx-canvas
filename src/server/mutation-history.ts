@@ -89,11 +89,25 @@ export interface SnapshotDiffResult {
   removedEdges: { id: string; from: string; to: string; toBoardId?: string; type: string }[];
 }
 
-function comparableNodeData(data: Record<string, unknown>): Record<string, unknown> {
+function comparableNodeData(data: Record<string, unknown>): string {
   const comparable = { ...data };
   delete comparable.title;
   delete comparable.content;
-  return comparable;
+  // Match content-revision semantics: fetching the same page again is not a
+  // content change. Keep authored timestamps elsewhere, including nested data.
+  delete comparable.fetchedAt;
+  if (comparable.provenance && typeof comparable.provenance === 'object') {
+    const provenance = { ...(comparable.provenance as Record<string, unknown>) };
+    delete provenance.syncedAt;
+    comparable.provenance = provenance;
+  }
+  // Canonical JSON preserves array order and the persisted JSON semantics for
+  // undefined properties, while ignoring object-key insertion order at any depth.
+  return JSON.stringify(comparable, (_key, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : value,
+  );
 }
 
 // ── Ring Buffer ──────────────────────────────────────────────────────
@@ -330,7 +344,7 @@ export function diffLayouts(
       changes.push(`content changed (${lenDiff >= 0 ? '+' : ''}${lenDiff} chars)`);
     }
 
-    if (JSON.stringify(comparableNodeData(snapNode.data)) !== JSON.stringify(comparableNodeData(curNode.data))) {
+    if (comparableNodeData(snapNode.data) !== comparableNodeData(curNode.data)) {
       changes.push('data changed');
     }
 

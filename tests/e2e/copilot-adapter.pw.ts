@@ -3,6 +3,43 @@ import { loadCopilotCanvas } from '../helpers/copilot-adapter.js';
 
 test.use({ viewport: { width: 600, height: 900 }, deviceScaleFactor: 2 });
 
+test('Copilot context excludes its own instructions and pickups without consuming another agent queue', async ({
+  request,
+  baseURL,
+}) => {
+  const health = await (await request.get('/health')).json();
+  const { board } = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Copilot delivery scope' } })
+  ).json();
+  await request.post('/api/canvas/boards/open', { data: { id: board.id } });
+  const canvas = loadCopilotCanvas(fetch, { send: async () => 'host-accepted' });
+  const ctx = { input: { serverUrl: baseURL, workspaceRoot: health.workspace, prompt: 'Use the pinned reference' } };
+  const action = (name: string) => canvas.actions.find((candidate) => candidate.name === name)!;
+  // Steering is workspace-wide, not board-local. Keep prior tests' deliveries.
+  const before = await (await request.get('/api/canvas/ax/context?consumer=copilot')).json();
+  expect(await action('send_instruction').handler(ctx)).toEqual({ ok: true });
+  // The timeline mirror is asynchronous, and is deliberately still available to other consumers.
+  await expect
+    .poll(async () => {
+      const context = await (await request.get('/api/canvas/ax/context?consumer=other-agent')).json();
+      return context.delivery.pendingSteering.some((s: { message: string }) => s.message === ctx.input.prompt);
+    })
+    .toBe(true);
+  const { steering } = await (
+    await request.post('/api/canvas/ax/steer', { data: { message: 'Picked up by Copilot', source: 'browser' } })
+  ).json();
+  await request.post(`/api/canvas/ax/delivery/${steering.id}/mark`, { data: { consumer: 'copilot' } });
+  const context = (await action('get_ax_context').handler(ctx)) as {
+    delivery: { pendingSteering: unknown[]; totalPending: number };
+  };
+  expect(context.delivery.pendingSteering).toEqual(before.delivery.pendingSteering);
+  expect(context.delivery.totalPending).toBe(before.delivery.totalPending);
+  const other = await (await request.get('/api/canvas/ax/context?consumer=other-agent')).json();
+  expect(other.delivery.pendingSteering.map((s: { message: string }) => s.message)).toEqual(
+    expect.arrayContaining(['Picked up by Copilot', ctx.input.prompt]),
+  );
+});
+
 for (const recovery of ['automatic', 'button']) {
   test(`Copilot fallback ${recovery} recovery opens real Home and boards`, async ({ page, request, baseURL }, info) => {
     const health = await (await request.get('/health')).json();

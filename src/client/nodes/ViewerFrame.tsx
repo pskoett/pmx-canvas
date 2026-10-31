@@ -1,6 +1,10 @@
 import type { JSX, RefObject } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
+import {
+  HTML_SURFACE_PUSH_SOURCE,
+  readSurfaceNotification,
+  surfaceNotification,
+} from '../../shared/ax-surface-protocol.js';
 
 export const VIEWER_LOAD_DEADLINE_MS = 10_000;
 export type ViewerSource = { src?: string; srcdoc?: string; error?: boolean; retry?: () => void };
@@ -12,7 +16,12 @@ type Entry = { key: string; source: ViewerSource; attempt: number; load?: LoadDo
 type MountFrame = (frame: HTMLIFrameElement, fail: () => void) => () => void;
 
 /** The document acknowledges mounting before its frame-gated paint signal. */
-export function waitForViewerPaint(frame: HTMLIFrameElement, token: string, signal: AbortSignal): Promise<boolean> {
+export function waitForViewerPaint(
+  frame: HTMLIFrameElement,
+  token: string,
+  signal: AbortSignal,
+  jsonRpc = false,
+): Promise<boolean> {
   if (signal.aborted) return Promise.resolve(false);
   return new Promise((resolve) => {
     const finish = (ready: boolean) => {
@@ -23,21 +32,23 @@ export function waitForViewerPaint(frame: HTMLIFrameElement, token: string, sign
     };
     const cancel = () => finish(false);
     const receive = (event: MessageEvent) => {
-      if (
-        event.source !== frame.contentWindow ||
-        event.data?.source !== HTML_SURFACE_PUSH_SOURCE ||
-        event.data?.token !== token
-      )
+      const data = (jsonRpc ? readSurfaceNotification(event.data) : event.data) as {
+        source?: string;
+        token?: string;
+        type?: string;
+      } | null;
+      if (event.source !== frame.contentWindow || data?.source !== HTML_SURFACE_PUSH_SOURCE || data?.token !== token)
         return;
-      if (event.data.type === 'mounted') {
+      if (data.type === 'mounted') {
         clearTimeout(timer);
       }
-      if (event.data.type === 'ready') finish(true);
+      if (data.type === 'ready') finish(true);
     };
     const timer = setTimeout(cancel, VIEWER_LOAD_DEADLINE_MS);
     window.addEventListener('message', receive);
     signal.addEventListener('abort', cancel, { once: true });
-    frame.contentWindow?.postMessage({ source: HTML_SURFACE_PUSH_SOURCE, type: 'check-ready', token }, '*');
+    const message = { source: HTML_SURFACE_PUSH_SOURCE, type: 'check-ready', token };
+    frame.contentWindow?.postMessage(jsonRpc ? surfaceNotification(message) : message, '*');
   });
 }
 

@@ -17,4 +17,5 @@ export declare function useAxSurfaceBridge(options: {
     nodeId: string;
     sourceSurface: AxSurfaceBridgeSurface;
     iframeRef: RefObject<HTMLIFrameElement>;
+    jsonRpc?: boolean;
 }): void;

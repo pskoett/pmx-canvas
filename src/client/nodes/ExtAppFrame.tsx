@@ -11,6 +11,8 @@ import {
   AX_SURFACE_ACK_SOURCE,
   AX_SURFACE_EMIT_SOURCE,
   HTML_SURFACE_PUSH_SOURCE,
+  MCP_SURFACE_METHOD,
+  surfaceNotification,
 } from '../../shared/ax-surface-protocol.js';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
@@ -57,17 +59,24 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
 (function () {
   const PMX_AX_TOKEN = ${JSON.stringify(axToken)};
   const PMX_AX_NODE_ID = ${JSON.stringify(nodeId)};
-  window.addEventListener('message', function (event) {
+  const notify = function (params) {
+    parent.postMessage({ jsonrpc: '2.0', method: '${MCP_SURFACE_METHOD}', params: params }, '*');
+  };
+  const read = function (event) {
     const m = event.data;
+    return event.source === parent && m && m.jsonrpc === '2.0' && m.method === '${MCP_SURFACE_METHOD}' && !('id' in m) ? m.params : null;
+  };
+  window.addEventListener('message', function (event) {
+    const m = read(event);
     if (event.source !== parent || !m || m.source !== 'pmx-viewer-theme' || m.token !== PMX_AX_TOKEN) return;
     for (const [name, value] of Object.entries(m.variables)) document.documentElement.style.setProperty(name, value);
   });
   window.addEventListener('message', function (event) {
-    const m = event.data;
+    const m = read(event);
     if (event.source !== parent || !m || m.source !== '${HTML_SURFACE_PUSH_SOURCE}' || m.token !== PMX_AX_TOKEN || m.type !== 'check-ready') return;
-    parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'mounted', token: PMX_AX_TOKEN }, '*');
+    notify({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'mounted', token: PMX_AX_TOKEN });
     requestAnimationFrame(function () { requestAnimationFrame(function () {
-      parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'ready', token: PMX_AX_TOKEN }, '*');
+      notify({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'ready', token: PMX_AX_TOKEN });
     }); });
   });
   window.PMX_AX = window.PMX_AX || {};
@@ -83,18 +92,18 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
         resolve({ ok: false, status: 504, code: 'ax-ack-timeout', error: 'ax-ack-timeout' });
       }, 10000);
       pending.set(correlationId, function (result) { clearTimeout(timer); resolve(result); });
-      window.parent.postMessage({
+      notify({
         source: '${AX_SURFACE_EMIT_SOURCE}', token: PMX_AX_TOKEN, nodeId: PMX_AX_NODE_ID,
         correlationId: correlationId,
         interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
-      }, '*');
+      });
     });
   };
   window.PMX_AX.on = function (eventType, cb) {
     if (eventType === 'ack' && typeof cb === 'function') ackListeners.push(cb);
   };
   window.addEventListener('message', function (event) {
-    const m = event.data;
+    const m = read(event);
     if (event.source !== window.parent || !m || m.source !== '${AX_SURFACE_ACK_SOURCE}' || m.token !== PMX_AX_TOKEN) return;
     const result = m.result || { ok: false };
     const resolver = m.correlationId ? pending.get(m.correlationId) : undefined;
@@ -194,7 +203,14 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     buildExtAppSurfaceBaseStyles() + buildExtAppAxBridgeScript(axToken, node.id),
   );
   const frameDocument = useIframeDocument(documentHtml, DEFAULT_EXT_APP_SANDBOX);
-  useAxSurfaceBridge({ enabled: axEnabled, token: axToken, nodeId: node.id, sourceSurface: 'mcp-app', iframeRef });
+  useAxSurfaceBridge({
+    enabled: axEnabled,
+    token: axToken,
+    nodeId: node.id,
+    sourceSurface: 'mcp-app',
+    iframeRef,
+    jsonRpc: true,
+  });
 
   const sessionMessage =
     node.data.sessionStatus === 'error'
@@ -265,7 +281,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     const sendContext = () => {
       if (disposed) return;
       iframe.contentWindow?.postMessage(
-        { source: 'pmx-viewer-theme', token: axToken, variables: canvasVariables() },
+        surfaceNotification({ source: 'pmx-viewer-theme', token: axToken, variables: canvasVariables() }),
         '*',
       );
       if (!initialized) return;
@@ -409,7 +425,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           const connection = connections.current.get(frame);
           if (!connection || !(await connection.loaded()) || signal.aborted) return false;
           connection.theme();
-          return waitForViewerPaint(frame, axToken, signal);
+          return waitForViewerPaint(frame, axToken, signal, true);
         }}
         onOpen={expanded ? undefined : () => expandNode(node.id)}
         sandbox={DEFAULT_EXT_APP_SANDBOX}

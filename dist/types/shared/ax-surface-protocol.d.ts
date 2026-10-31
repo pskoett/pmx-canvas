@@ -16,3 +16,11 @@ export declare const AX_SURFACE_ACK_SOURCE = "pmx-canvas-ax-ack";
 export declare const HTML_SURFACE_PUSH_SOURCE = "pmx-canvas-html-node";
 /** Tab-local JSON viewer state handoff, independent of AX capabilities. */
 export declare const JSON_VIEWER_STATE_SOURCE = "pmx-canvas-json-state";
+/** MCP apps share their window channel with an SDK JSON-RPC transport. */
+export declare const MCP_SURFACE_METHOD = "notifications/pmx/surface";
+export declare function surfaceNotification(params: Record<string, unknown>): {
+    jsonrpc: "2.0";
+    method: string;
+    params: Record<string, unknown>;
+};
+export declare function readSurfaceNotification(message: unknown): unknown;

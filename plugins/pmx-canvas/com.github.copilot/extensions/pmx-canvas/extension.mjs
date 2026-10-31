@@ -352,7 +352,9 @@ async function getAxContext(baseUrl, workspaceRoot, input = {}, options = {}) {
     // A proxied read is one this extension records itself with what it actually
     // injected (after truncation), so the server does not record it again.
     const headers = { "x-pmx-source": "copilot", ...(options.proxied ? { "x-pmx-proxied-read": "1" } : {}) };
-    return await fetchJson(resolved.baseUrl, "/api/canvas/ax/context", { headers, timeoutMs: 2_000 });
+    // Attribution headers do not select a delivery queue. Read the same consumer
+    // the pump marks, excluding its own mirrored instructions and prior pickups.
+    return await fetchJson(resolved.baseUrl, "/api/canvas/ax/context?consumer=copilot", { headers, timeoutMs: 2_000 });
 }
 
 function deliveredPinnedIds(pinnedNodeIds, payloadText) {

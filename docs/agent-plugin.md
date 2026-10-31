@@ -101,6 +101,14 @@ Use the exact version from `runtime.json` and the port from the panel's `status`
 `PMX_CANVAS_PORT` selects a preferred port; `PMX_CANVAS_URL` targets an existing server.
 An explicit URL that fails ownership checks is reported rather than silently replaced.
 
+## Context and steering delivery
+
+The Copilot adapter reads AX context and marks steering delivery with the same `copilot`
+consumer identity. Its next context excludes instructions and pickups already delivered to
+Copilot. A different consumer can still see them pending; that is not a failed Copilot receipt.
+The delivery mark records handoff to the host, not proof that the requested action succeeded.
+This is separate from the Amp plugin's explicit context receipt and action acknowledgment.
+
 ## Package maintenance
 
 The plugin's adapter copies are generated from `.github/extensions/pmx-canvas/`:

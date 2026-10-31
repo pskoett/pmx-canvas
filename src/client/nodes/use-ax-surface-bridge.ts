@@ -1,6 +1,11 @@
 import type { RefObject } from 'preact';
 import { useLayoutEffect } from 'preact/hooks';
-import { AX_SURFACE_ACK_SOURCE, AX_SURFACE_EMIT_SOURCE } from '../../shared/ax-surface-protocol.js';
+import {
+  AX_SURFACE_ACK_SOURCE,
+  AX_SURFACE_EMIT_SOURCE,
+  readSurfaceNotification,
+  surfaceNotification,
+} from '../../shared/ax-surface-protocol.js';
 import { showToast } from '../state/attention-bridge';
 import { submitAxInteractionFromClient } from '../state/intent-bridge';
 
@@ -23,8 +28,9 @@ export function useAxSurfaceBridge(options: {
   nodeId: string;
   sourceSurface: AxSurfaceBridgeSurface;
   iframeRef: RefObject<HTMLIFrameElement>;
+  jsonRpc?: boolean;
 }): void {
-  const { enabled, token, nodeId, sourceSurface, iframeRef } = options;
+  const { enabled, token, nodeId, sourceSurface, iframeRef, jsonRpc = false } = options;
   // Register before paint: a fast iframe can accept input before passive effects
   // run, and its first emit must not be lost in that gap.
   useLayoutEffect(() => {
@@ -33,7 +39,7 @@ export function useAxSurfaceBridge(options: {
       // Bind to THIS node's own iframe; the nonce + nodeId are a second gate,
       // not the only one.
       if (event.source !== iframeRef.current?.contentWindow) return;
-      const data = event.data as {
+      const data = (jsonRpc ? readSurfaceNotification(event.data) : event.data) as {
         source?: string;
         token?: string;
         nodeId?: string;
@@ -54,20 +60,18 @@ export function useAxSurfaceBridge(options: {
       }).then((res) => {
         // A refusal is toasted by the bridge with the server's reason.
         if (res.ok) showToast('context', 'AX interaction', interactionType, [nodeId]);
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            source: AX_SURFACE_ACK_SOURCE,
-            token,
-            ...(data.correlationId ? { correlationId: data.correlationId } : {}),
-            interaction: { type: interactionType },
-            result: res,
-          },
-          '*',
-        );
+        const message = {
+          source: AX_SURFACE_ACK_SOURCE,
+          token,
+          ...(data.correlationId ? { correlationId: data.correlationId } : {}),
+          interaction: { type: interactionType },
+          result: res,
+        };
+        iframeRef.current?.contentWindow?.postMessage(jsonRpc ? surfaceNotification(message) : message, '*');
       });
     }
     window.addEventListener('message', onAxMessage);
     return () => window.removeEventListener('message', onAxMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, token, nodeId, sourceSurface]);
+  }, [enabled, token, nodeId, sourceSurface, jsonRpc]);
 }

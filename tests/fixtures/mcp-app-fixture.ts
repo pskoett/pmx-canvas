@@ -163,6 +163,7 @@ const html = `<!doctype html>
       }
 
       const app = new App({ name: 'fixture-counter', version: '1.0.0' }, {});
+      app.onerror = (error) => console.error(error);
       app.onhostcontextchanged = (ctx) => {
         hostContext = { ...(hostContext ?? {}), ...ctx };
         if (hostContext.displayMode === 'fullscreen') {

@@ -10,6 +10,7 @@ import {
   renderedCamera,
 } from './workspace-fixture.js';
 import { fileURLToPath } from 'node:url';
+import { JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types.js';
 import { RELATION_PRESETS } from '../../src/shared/relations.js';
 
 const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
@@ -3696,6 +3697,22 @@ test('dropping a URL onto the canvas creates a webpage node', async ({ page, req
 
 test('hosts a standard MCP App node and proxies app-only tool calls', async ({ page, request }) => {
   const fixturePath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
+  const appMessages: unknown[] = [];
+  await page.exposeFunction('captureAppMessage', (message: unknown) => appMessages.push(message));
+  await page.addInitScript(() => {
+    if (window === window.parent) return;
+    window.addEventListener('message', (event) => {
+      if (event.source === window.parent) {
+        void (window as Window & { captureAppMessage: (message: unknown) => Promise<void> }).captureAppMessage(
+          event.data,
+        );
+      }
+    });
+  });
+  const protocolErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.text().includes('Invalid JSON-RPC message')) protocolErrors.push(message.text());
+  });
 
   await page.goto('/workbench');
 
@@ -3776,6 +3793,11 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   await expect(reloadedNode).toHaveCount(1);
   const reloadedFrame = reloadedNode.frameLocator('iframe');
   await expect(reloadedFrame.locator('#count')).toHaveText('3');
+  await selectTheme(page, 'Daylight');
+  await expect(reloadedFrame.locator('html')).toHaveCSS('--c-panel', '#FFFFFF');
+  expect(appMessages.length).toBeGreaterThan(0);
+  expect(appMessages.filter((message) => !JSONRPCMessageSchema.safeParse(message).success)).toEqual([]);
+  expect(protocolErrors).toEqual([]);
 });
 
 test('MCP App node resize corner stays above iframe preview overlays', async ({ page, request }) => {
