@@ -36,7 +36,10 @@ describe('StatusNode render', () => {
     const view = render(<StatusNode node={node} />);
     fireEvent.click(view.getByRole('button', { name: 'Edit' }));
     fireEvent.input(view.getByLabelText('Title'), { target: { value: 'Check the browser' } });
-    fireEvent.change(view.getByLabelText('Work state'), { target: { value: 'blocked' } });
+    const select = view.getByLabelText('Work state') as HTMLSelectElement;
+    select.value = 'blocked';
+    // Testing Library remaps fireEvent.change to input under compat, but select still listens for change.
+    fireEvent(select, new Event('change', { bubbles: true }));
     fireEvent.input(view.getByLabelText('Progress (%) · optional'), { target: { value: '' } });
     view.rerender(<StatusNode node={{ ...node, contentRevision: 5, data: { ...node.data, workState: 'done' } }} />);
     fireEvent.click(view.getByRole('button', { name: 'Save', exact: true }));

@@ -8503,12 +8503,17 @@ test.describe('workspace beta settings', () => {
         releaseRefresh = resolve;
       });
       let refreshHeld = false;
+      const refreshes: Promise<void>[] = [];
       if (outcome === 'retire') {
-        await page.route('**/api/canvas/knowledge', async (route) => {
-          const response = await route.fetch();
-          refreshHeld = true;
-          await refreshGate;
-          await route.fulfill({ response });
+        await page.route('**/api/canvas/knowledge', (route) => {
+          const refresh = (async () => {
+            const response = await route.fetch();
+            refreshHeld = true;
+            await refreshGate;
+            await route.fulfill({ response });
+          })();
+          refreshes.push(refresh);
+          return refresh;
         });
       }
       try {
@@ -8532,6 +8537,8 @@ test.describe('workspace beta settings', () => {
           // Closing the dock while post-save reads are in flight must not lose the accepted write's Undo.
           await review.getByRole('button', { name: 'Close review', exact: true }).click();
           releaseRefresh();
+          // Drain first: removing routes can auto-continue requests that a handler still owns.
+          while (refreshes.length) await Promise.all(refreshes.splice(0));
           await page.unrouteAll({ behavior: 'wait' });
           await expect(page.getByRole('button', { name: 'Undo retirement', exact: true })).toBeVisible();
         }
@@ -8548,6 +8555,7 @@ test.describe('workspace beta settings', () => {
       } finally {
         release();
         releaseRefresh();
+        while (refreshes.length) await Promise.all(refreshes.splice(0));
         await page.unrouteAll({ behavior: 'wait' });
       }
     });
