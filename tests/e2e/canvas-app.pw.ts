@@ -407,12 +407,14 @@ test('real source editor keeps a refused draft when another writer changes the n
   await capture(page, 'workbench-app-conflict.png');
   // Remounting an already-open history must not take the dialog's entry or return focus.
   await app.getByRole('button', { name: /^Recent updates/ }).click();
+  await expect(app.getByRole('complementary', { name: 'Recent semantic changes' })).toBeVisible();
   await page.keyboard.press('Escape');
   const card = app.locator(`.canvas-node[data-node-id="${id}"]`);
   await expect(card).toBeFocused();
   await card.getByRole('button', { name: 'Expand (focus mode)', exact: true }).click();
   await expect(app.locator('.expanded-pin')).toBeFocused();
   await expect(app.getByRole('complementary', { name: 'Recent semantic changes' })).toBeVisible();
+  await capture(page, 'workbench-app-conflict-reopened.png');
 });
 
 test('a hosted poll replays current layout without closing an open draft on superseded empty layouts', async ({
