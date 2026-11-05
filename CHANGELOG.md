@@ -3,6 +3,18 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-11-05
+
+### Fixed
+
+- Copilot adapter actions are attributed to Copilot instead of appearing as a separate API writer.
+- Bundled agent guidance now describes current delivery, consent, live-card, batch and tour behavior accurately.
+
+### Internal
+
+- Browser CI uses Ubuntu 24.04, which the installed Playwright version supports.
+- Editor-history checks now verify that the history panel opens before continuing.
+
 ## [0.12.0] - 2026-10-31
 
 ### Added

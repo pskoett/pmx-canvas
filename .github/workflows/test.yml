@@ -128,7 +128,8 @@ jobs:
   # Playwright suite via scripts/run-playwright.sh (Node runner — see
   # ERR-20260508-001 for why `bun x playwright test` is broken).
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.58.2 does not support Ubuntu 26.04 dependencies.
+    runs-on: ubuntu-24.04
     # Browser/system setup took 6 minutes before a passing 14-minute suite.
     # Budget for the bounded 15-minute install plus tests and cleanup.
     timeout-minutes: 35
@@ -190,7 +191,8 @@ jobs:
   # Fresh-workspace CLI eval (scripts/e2e-cli-coverage.sh). Previously a
   # manual-only gate — plan-009 M8 wired it into CI.
   e2e-cli:
-    runs-on: ubuntu-latest
+    # Keep browser dependencies on the same supported image as e2e.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:

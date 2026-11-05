@@ -58,7 +58,12 @@ export function ensurePmxServer(root, input) { return ensure(root, input, runtim
     command: process.execPath,
     args: [join(plugin, 'start-mcp.mjs')],
     cwd: plugin,
-    env: { ...env, PMX_CANVAS_PORT: String(occupied.port), PMX_CANVAS_DISABLE_BROWSER_OPEN: '1' },
+    env: {
+      ...env,
+      PMX_CANVAS_PORT: String(occupied.port),
+      PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+      PMX_CANVAS_AGENT_SOURCE: 'copilot',
+    },
     stderr: 'pipe',
   });
   await client.connect(transport);
@@ -139,6 +144,58 @@ describe('portable plugin MCP workspace connector', () => {
       'Shared MCP and native panel',
     );
     expect(existsSync(join(plugin, '.pmx-canvas'))).toBe(false);
+
+    const action = adapter.actions.find((candidate) => candidate.name === 'add_work_item')!;
+    const work = await action.handler({ instanceId: 'portable-proof', input: { title: 'Native adapter work' } });
+    expect(work).toMatchObject({ ok: true, workItem: { source: 'copilot' } });
+    const writers = async () => {
+      const response = await fetch(`${serverUrl}/api/canvas/ax/presence`);
+      expect(response.ok).toBe(true);
+      const snapshot = (await response.json()) as {
+        presences: Array<{ sessionId: string; source: string; label: string }>;
+      };
+      return snapshot.presences;
+    };
+    expect(await writers()).toMatchObject([{ sessionId: 'copilot', source: 'copilot', label: 'copilot' }]);
+
+    // An independent MCP writer names itself instead of borrowing the host identity.
+    const independent = new Client({ name: 'independent-reviewer', version: '1' }, { capabilities: {} });
+    const independentTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: [join(plugin, 'start-mcp.mjs')],
+      cwd: plugin,
+      env: {
+        ...process.env,
+        PMX_CANVAS_URL: serverUrl,
+        PMX_CANVAS_WORKSPACE_ROOT: workspace,
+        PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+        PMX_CANVAS_AGENT_SOURCE: 'independent-reviewer',
+      },
+      stderr: 'pipe',
+    });
+    try {
+      await independent.connect(independentTransport);
+      expect(
+        (
+          await independent.callTool({
+            name: 'canvas_connect_workspace',
+            arguments: { workspaceRoot: workspace },
+          })
+        ).isError,
+      ).not.toBe(true);
+      expect(
+        (
+          await independent.callTool({
+            name: 'canvas_node',
+            arguments: { action: 'add', type: 'markdown', title: 'Independent review' },
+          })
+        ).isError,
+      ).not.toBe(true);
+      expect((await writers()).map((writer) => writer.sessionId).sort()).toEqual(['copilot', 'independent-reviewer']);
+    } finally {
+      await independent.close();
+      await independentTransport.close();
+    }
     await adapter.onClose({ instanceId: 'portable-proof' });
   }, 30_000);
 

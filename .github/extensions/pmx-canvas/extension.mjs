@@ -50,6 +50,7 @@ function delay(ms) {
 async function fetchJson(baseUrl, path, options = {}) {
     const response = await fetch(`${baseUrl}${path}`, {
         ...options,
+        headers: { "x-pmx-source": "copilot", ...options.headers },
         signal: AbortSignal.timeout(options.timeoutMs ?? HEALTH_TIMEOUT_MS),
     });
     if (!response.ok) {

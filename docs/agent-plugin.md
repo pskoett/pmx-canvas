@@ -90,6 +90,12 @@ The adapter uses the session's **working directory**, not Copilot's session-stat
 `workspacePath` or the plugin installation directory. Boards remain in the project's
 `.pmx-canvas/canvas.db`.
 
+Copilot's native adapter labels its HTTP operations as `copilot`, including AX writes.
+To use that same writer identity over MCP, configure the host's MCP process with
+`PMX_CANVAS_AGENT_SOURCE=copilot`; the portable launcher forwards it to the runtime.
+It does not assume every plugin client is Copilot. Give independent clients their own
+source label, or use an explicit `agentId` on their operations, to keep them distinct.
+
 The daemon belongs to the workspace and stays running when one client closes, so closing
 the native panel cannot break another MCP client. Stop it explicitly from the project:
 
