@@ -3806,6 +3806,18 @@ test.describe('save and board ownership boundaries', () => {
             },
           })
         ).json();
+        let captureSaveRender = false;
+        let captured = false;
+        // Enable interception before polling starts: Playwright can lose request/
+        // response events for a poll born while Fetch.enable is still in flight.
+        await page.route('**/api/render', async (route) => {
+          if (!captureSaveRender || captured || route.request().postDataJSON().markdown !== draft)
+            return route.continue();
+          captured = true;
+          const response = await route.fetch();
+          await gate;
+          await route.fulfill({ response });
+        });
         for (const tab of [page, peer]) {
           await tab.goto('/workbench?transport=poll');
           await tab.locator(`[data-node-id="${id}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
@@ -3814,15 +3826,8 @@ test.describe('save and board ownership boundaries', () => {
         const editor = page.locator('.md-editor-expanded textarea');
         await editor.fill(draft);
         await expect(page.locator('.md-preview')).toContainText(draft);
-        let captured = false;
-        await page.route('**/api/render', async (route) => {
-          if (!suspended || captured || route.request().postDataJSON().markdown !== draft) return route.continue();
-          captured = true;
-          const response = await route.fetch();
-          await gate;
-          await route.fulfill({ response });
-        });
         if (suspended) {
+          captureSaveRender = true;
           await page.getByRole('button', { name: 'Save', exact: true }).click();
           await expect.poll(() => captured).toBe(true);
         }
