@@ -482,6 +482,19 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   // worth the fsync.
   db.exec('PRAGMA synchronous=FULL');
   if (needsBoardsMigration(db)) migrateToBoards(db, dbPath, options.migratedBoardName ?? 'Board');
+  const empty = !db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' LIMIT 1").get();
+  if (empty) {
+    // One durable commit for a fresh schema. Another initializer may win the
+    // lock first, so all schema checks still run inside the transaction.
+    db.transaction(() => initializeCanvasSchema(db)).immediate();
+  } else {
+    // Current databases must remain readable while another connection writes.
+    initializeCanvasSchema(db);
+  }
+  return db;
+}
+
+function initializeCanvasSchema(db: Database): void {
   db.exec(SCHEMA_SQL);
   db.exec(CONTEXT_READS_SCHEMA_SQL);
 
@@ -561,8 +574,6 @@ export function openCanvasDb(dbPath: string, options: OpenCanvasDbOptions = {}):
   if (!row) {
     db.run('INSERT INTO meta (key, value) VALUES (?, ?)', ['schema_version', String(SCHEMA_VERSION)]);
   }
-
-  return db;
 }
 
 // ── Many boards migration (schema 1 → 2) ────────────────────────

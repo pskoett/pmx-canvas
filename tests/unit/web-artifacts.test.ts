@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import {
@@ -77,6 +77,36 @@ describe.skipIf(process.platform === 'win32')('web artifact builders', () => {
     );
     expect(runtimeScript).toBe(skillScript);
   });
+
+  for (const scripts of ['src/server/web-artifacts/scripts', 'skills/web-artifacts-builder/scripts']) {
+    for (const operation of ['init', 'bundle']) {
+      test(`${scripts}/${operation} preserves package-manager failures and diagnostics`, () => {
+        const bin = join(workspaceRoot, 'bin');
+        mkdirSync(bin);
+        const pnpm = join(bin, 'pnpm');
+        writeFileSync(
+          pnpm,
+          `#!/bin/bash
+for arg in "$@"; do
+  if [ "$arg" = '--silent' ]; then exit 42; fi
+done
+echo 'ERR_PNPM_TEST: dependency installation failed' >&2
+exit 42
+`,
+        );
+        chmodSync(pnpm, 0o755);
+        writeFileSync(join(workspaceRoot, 'package.json'), '{}');
+        writeFileSync(join(workspaceRoot, 'index.html'), '<!doctype html><title>Artifact</title>');
+        const result = Bun.spawnSync(
+          ['bash', join(import.meta.dir, '../..', scripts, `${operation}-artifact.sh`), 'failed-artifact'],
+          { cwd: workspaceRoot, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } },
+        );
+        expect(result.exitCode).toBe(42);
+        expect(result.stderr.toString()).toContain('ERR_PNPM_TEST: dependency installation failed');
+        expect(existsSync(join(workspaceRoot, 'bundle.html'))).toBe(false);
+      });
+    }
+  }
 
   test('scaffolds project files and emits bundled html', async () => {
     const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);

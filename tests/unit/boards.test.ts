@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openCanvasBoard, refreshCanvasWebpageNode } from '../../src/server/canvas-operations.ts';
-import { loadStateFromDB } from '../../src/server/canvas-db.ts';
+import { listBoardsFromDB, loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import type { ContextBriefDocument } from '../../src/server/context-brief.ts';
 import { humanPresence } from '../../src/server/human-presence.ts';
@@ -1595,6 +1595,43 @@ afterEach(() => {
   canvasState.close();
   removeTestWorkspace(root);
 });
+
+test('concurrent fresh database initializers preserve every writer and the durable schema', async () => {
+  const dbPath = join(root, 'concurrent-fresh.db');
+  const dbModule = fileURLToPath(new URL('../../src/server/canvas-db.ts', import.meta.url));
+  const children = [0, 1, 2, 3].map((index) =>
+    Bun.spawn(
+      [
+        process.execPath,
+        '--eval',
+        `import { openCanvasDb, createBoardInDB } from ${JSON.stringify(dbModule)};
+        const db = openCanvasDb(${JSON.stringify(dbPath)});
+        console.log(JSON.stringify(db.query('PRAGMA synchronous').get()));
+        createBoardInDB(db, 'Writer ${index}');
+        db.close();`,
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    ),
+  );
+  for (const child of children) {
+    expect(await new Response(child.stderr).text()).toBe('');
+    expect(await child.exited).toBe(0);
+    expect(JSON.parse(await new Response(child.stdout).text())).toEqual({ synchronous: 2 });
+  }
+  // Inspect without rerunning initialization, which could repair an incomplete schema.
+  const db = new Database(dbPath);
+  try {
+    expect(
+      listBoardsFromDB(db)
+        .map((board) => board.name)
+        .sort(),
+    ).toEqual(['Writer 0', 'Writer 1', 'Writer 2', 'Writer 3']);
+    expect(db.query('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
+    expect(db.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
+  } finally {
+    db.close();
+  }
+}, 10_000);
 
 test('opening a pre-folder database preserves paths, content, pins and map positions through concurrent and contended opens', async () => {
   resetCanvasForTests(root);

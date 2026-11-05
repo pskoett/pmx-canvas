@@ -68,7 +68,7 @@ function run_with_filtered_stderr() {
 }
 
 function run_pnpm_quiet() {
-  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@"
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --reporter=append-only "$@"
 }
 
 function run_pnpm_allow_build() {
@@ -77,7 +77,7 @@ function run_pnpm_allow_build() {
   for package_name in "${ALLOWED_BUILD_PACKAGES[@]}"; do
     allow_build_args+=(--allow-build="$package_name")
   done
-  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@" "${allow_build_args[@]}"
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --reporter=append-only "$@" "${allow_build_args[@]}"
 }
 
 function package_has_dependency() {

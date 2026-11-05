@@ -9,6 +9,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - Copilot adapter actions are attributed to Copilot instead of appearing as a separate API writer.
 - Bundled agent guidance now describes current delivery, consent, live-card, batch and tour behavior accurately.
+- Web artifact setup stops on dependency-install failures and shows the package-manager error.
+- Reduced disk writes when creating a workspace database without weakening save durability.
 
 ### Internal
 

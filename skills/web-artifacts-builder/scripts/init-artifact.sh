@@ -69,21 +69,21 @@ function replay_filtered_stderr() {
 
 function run_with_filtered_stderr() {
   local stderr_file
+  local status
   stderr_file="$(mktemp)"
   if "$@" 2>"$stderr_file"; then
-    replay_filtered_stderr "$stderr_file"
-    rm -f "$stderr_file"
-    return 0
+    status=0
+  else
+    status=$?
   fi
 
-  local status=$?
   replay_filtered_stderr "$stderr_file"
   rm -f "$stderr_file"
   return "$status"
 }
 
 function run_pnpm_quiet() {
-  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@"
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --reporter=append-only "$@"
 }
 
 function run_pnpm_allow_build() {
@@ -92,7 +92,7 @@ function run_pnpm_allow_build() {
   for package_name in "${ALLOWED_BUILD_PACKAGES[@]}"; do
     allow_build_args+=(--allow-build="$package_name")
   done
-  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@" "${allow_build_args[@]}"
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --reporter=append-only "$@" "${allow_build_args[@]}"
 }
 
 RUNTIME_INFO="$(detect_runtime_major)"
