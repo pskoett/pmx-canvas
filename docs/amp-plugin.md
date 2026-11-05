@@ -122,10 +122,9 @@ launcher. `PMX_CANVAS_URL` is an explicit target, not a fallback. An unavailable
 fails rather than starting a second server. Version mismatch or a missing/unknown bundle stamp
 also fails, including at MCP connection and subsequent requests.
 
-**Release limitation:** the published `0.11.0` runtime lacks the required bundle stamp. This
-foundation is verified with the locally packed package, not registry-only startup. A compatible
-release is required before recommending the registry fallback. No publication is part of this
-increment.
+The `0.12.0` package includes the required bundle stamp and generated Amp plugin. The older
+`0.11.0` runtime lacks that stamp and cannot serve this integration. Verify the actual runtime
+version and stamp on each connection; a local build alone does not prove registry startup.
 
 Amp supplies the Portal URL and access controls. Open does not change sharing or multiplayer.
 

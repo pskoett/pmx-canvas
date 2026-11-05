@@ -104,7 +104,10 @@ For pinned installation, MCP configuration, managed services, and disposable ver
 read [Installing PMX Canvas](installing-pmx-canvas.md).
 In Amp, follow that reference's [Amp setup](installing-pmx-canvas.md#amp-connect-the-agent-separately-from-the-portal):
 portal access is separate from native MCP, workspace commands need human trust approval,
-and a connected MCP server does not install an idle-thread wake-up adapter.
+and raw MCP does not install an idle-thread wake-up adapter. The opt-in
+[Amp plugin](installing-pmx-canvas.md#amp-plugin-bound-threads) adds board binding and
+receipt-based steering while its executor is awake. Use routed query tools for bound
+context; CLI calls and resource reads are not intercepted.
 
 ## Reading bundled skills over MCP
 
@@ -130,8 +133,10 @@ the served catalog is a startup snapshot. Local mirrors still use `skills sync` 
    Use a disposable consumer when testing released guidance without permission to replace
    owned mirrors. After an authorized upgrade, restart the matching HTTP daemon and `--mcp`
    processes; Bun does not hot-reload a running process.
-1. **Open or focus the workbench before mutating.** Reuse one visible canvas surface for the
-   session.
+1. **Check the session's target before mutating.** With the Amp plugin, read
+   `pmx_canvas_session { action: "status" }` and keep using its bound board without opening
+   it or navigating the shared workbench. Without a binding, reuse one visible canvas surface
+   and open the intended board when active-board work requires it.
 2. **Verify workspace identity at the actual target.** Read `GET /health` at the URL your
    CLI/MCP/browser is using; its `workspace` must equal the intended canonical absolute root.
    `pmx-canvas serve status --port=<port>` checks the local listener on that port, not an
@@ -149,6 +154,9 @@ the served catalog is a startup snapshot. Local mirrors still use `skills sync` 
    human watches intent form and can veto mid-thought. Skip it only for trivial in-place tweaks or
    high-frequency batch churn. The default TTL (~8s) expires between agent turns: signal with
    `ttlMs: 30000` and settle by passing `intentId` on the mutation in the same or next call.
+   Link only supported node/edge/group mutations; in a batch put the ID on the leaf's
+   `args.intentId`, not the envelope. Quiet expiry proceeds unlinked; a human veto refuses
+   the linked write. An intent is not permission or a batch-wide gate.
    Since 0.4.5, an agent mutation WITHOUT a signal still shows a server-synthesized **auto-ghost**
    (rendered lighter — dimmer, dotted, no veto — and settled instantly). That is a visibility
    floor, not a replacement: only an explicit signal gives the human a real pre-mutation veto

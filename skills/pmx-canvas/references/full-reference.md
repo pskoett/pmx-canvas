@@ -624,8 +624,11 @@ persisted, auto-expiring (~8s), never in `canvas_query layout`.
 Narrate → linked mutation → automatic settle:
 1. `canvas_intent { action: "signal", kind: "create", nodeType: "markdown", label: "Add evidence", reason: "capturing the failing test", confidence: 0.8 }` → returns `intent.id` and the `position` the canvas chose.
 2. Make the real move and pass that id: `canvas_node { action: "add", intentId: <intent.id>, ... }`.
-3. PMX rejects the mutation if the intent was vetoed or expired; otherwise the
-   successful mutation settles the ghost into the resulting node automatically.
+3. A human-vetoed intent rejects its linked mutation. A quietly expired ghost does not:
+   the write proceeds unlinked, subject to the ordinary permissions and revision checks.
+   A successful write linked to a still-live intent settles the ghost automatically.
+   Expiry is neither approval nor a human veto. Never retry a vetoed plan under a new ID
+   just to bypass the human's decision.
 
 Use `canvas_intent { action: "clear", id }` only when abandoning a plan without
 performing the linked mutation.
@@ -650,9 +653,18 @@ edits; destructive actions (clear/restore/remove); and creating
 artifact/report/dashboard nodes. Skip for tiny metadata fixes, API-only pin/unpin
 verification, deterministic report-node refreshes the human just asked for,
 post-restore cleanup, and bulk fixture churn. **For batch work, signal one ghost
-per human-meaningful move, not one per low-level op** — e.g. one "lay out the
-investigation board" intent, then run the batch with that linked `intentId` (use
-`seq` to order staged previews) so the human watches the wireframe before it fills.
+per human-meaningful move, not one per low-level op.** Put its `intentId` inside the
+supported leaf operation's `args`, never on the `canvas_batch` envelope. Each live
+intent settles once; it is not a veto gate for every sibling in a batch. For example,
+after signalling a create intent, use its actual returned ID in this leaf:
+
+```json
+{"operations":[{"op":"node.add","args":{"type":"markdown","title":"Evidence","content":"Observed failure","intentId":"<returned-intent-id>"}}]}
+```
+
+Do not rely on a top-level batch `intentId`: standalone MCP can refuse it, while the
+attached HTTP batch reader does not forward it. Unsupported operations cannot be made
+veto-linked by wrapping them in a batch. Use `seq` to order separate staged previews.
 
 ### Standalones (first-class — not deprecated)
 
@@ -663,10 +675,12 @@ composite in v0.4.0 (actions `save | list | restore | delete | gc | diff`); the 
 standalones were removed after their deprecated 0.3.x window.
 
 `canvas_batch` supports exactly these ops: `node.add`, `node.update`, `node.remove`, `graph.add`,
-`edge.add`, `edge.update`, `edge.remove`, `group.create`, `group.add`, `group.remove`, `pin.set`/`pin.add`/
-`pin.remove`, `snapshot.save`, and `arrange`. Anything else fails with "Unsupported canvas_batch
+`edge.add`, `edge.remove`, `group.create`, `group.add`, `group.remove`, `annotation.add`,
+`annotation.remove`, `pin.set`, `pin.add`, `pin.remove`, `snapshot.save`, and `arrange`.
+`edge.update` is not supported. Anything else fails with "Unsupported canvas_batch
 operation" — batch is non-atomic, so earlier ops stay applied and the response carries
-`failedIndex`. `canvas_screenshot` requires an active automation WebView: call
+`failedIndex`, `results` and `refs`. Inspect that committed prefix before retrying; an
+error does not roll it back. `canvas_screenshot` requires an active automation WebView: call
 `canvas_webview { action: "start" }` first.
 
 > **Removed in v0.3.0 → use the composite instead**: `canvas_open_mcp_app` / `canvas_add_diagram` /
@@ -1186,6 +1200,22 @@ writes occurred. Interaction, activity-ingestion and screenshot tools instead
 use direct structured objects matching their schemas. Check `isError` and domain
 outcomes. A composite's annotations cover all its actions, not just reads.
 
+Paired example: `canvas_node { action: "add", type: "markdown", content: "Evidence" }`
+returns registry data under `structuredContent.result.data` (excerpt; the ID varies):
+
+```json
+{"result":{"operation":"node.add","outcome":"success","data":{"ok":true,"id":"example-node"}}}
+```
+
+By contrast, `canvas_help {}` returns `structuredContent.result.operations`, not
+`result.data`. `canvas_help { op: "node.add" }` returns metadata with `operation`,
+`tool`, `description` and `inputSchema` directly under `result`.
+For direct tools (`canvas_ax_interaction`, `canvas_ingest_activity`, `canvas_screenshot`),
+read fields directly from `structuredContent` according to their `outputSchema`.
+These are different contracts, not optional wrappers to strip recursively. Text blocks
+are a separate representation; an SDK/host may already return `structuredContent`.
+On a failed call, inspect its error response and partial results before retrying writes.
+
 Cancellation releases supported AX waits, aborts webpage fetches before late
 content writes, and stops subsequent batch operations. Completed writes remain;
 batch partial results retain `results` and `refs`. A created webpage can remain
@@ -1644,6 +1674,30 @@ pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","title":"Veri
 Without `data.workState`, status cards retain their phase/tool display. Session-task linking
 is not provided by these authored cards. Questions can be drawn or written beside the plan;
 the human can answer in the external agent host's composer, without a PMX reply card.
+
+### Live task cards
+
+A live card presents an existing AX work item; it is not another task or an authored
+work plan. Read the task first with `canvas_ax_work { action: "list" }` on its owning
+board, then create a `status` presentation using that task's actual ID:
+
+```json
+{"action":"add","type":"status","data":{"workItemId":"<existing-task-id>"}}
+```
+
+The owner defaults to the current board. To present a task from another board, supply
+its explicit `data.workItemBoardId` too. Both task ID and owner are fixed at creation;
+moving the card does not transfer the task. Create through the current board owner
+(or the Amp plugin's bound board), not `destinationBoardId` background creation.
+
+Omit `title`, `content`, `workState`, `detail`, `progress`, `axWorkStatus`,
+`liveWorkAvailable` and `liveWorkSource` from creation and updates, including nested
+data fields. The server derives title, detail, status and source from the task; these
+are read-only display fields. Update the underlying work item on its owning board with
+`canvas_ax_work { action: "update", id: "<existing-task-id>", status: "in-progress" }`.
+Position and size still belong to the card. Deleting the presentation does not cancel
+or delete the task. If the task is unavailable, the card displays that fact rather than
+becoming an editable authored card. To change the binding, create a new presentation.
 
 ### Code Exploration
 

@@ -130,9 +130,59 @@ fallback ports; do not assume the configured port is the one the MCP server boun
 
 ## Amp: connect the agent separately from the portal
 
-PMX does not ship a dedicated Amp lifecycle adapter. Amp can use the native MCP tools;
-the portal is only the human's browser UI. Configure MCP inside the orb or runner where
-Amp executes, not only on the user's laptop. Merge this into that workspace's
+PMX ships an opt-in directory plugin with board binding and receipt-based steering, or
+you can configure raw MCP for active polling. The portal is the human's browser UI;
+neither opening it nor configuring raw MCP installs the plugin. Choose one integration
+for the task rather than creating duplicate writers.
+
+### Amp plugin: bound threads
+
+When installation is requested, copy the complete installed package directory
+`node_modules/pmx-canvas/dist/amp-plugin/pmx-canvas` to the project's
+`.amp/plugins/pmx-canvas`. Inspect existing plugin files and preserve local changes;
+replacement needs owner approval. Reload Amp plugins and load the qualified
+`pmx-canvas:pmx-canvas` skill. Approve its workspace MCP command through the normal
+human trust flow, never by bypassing it. No global plugin installation is implied.
+
+Use `pmx_canvas_session { action: "open" }` to start/reconnect and verify the service,
+then `bind` with an existing explicit `boardId`. `status` reports the binding and
+shared active board; `unbind` removes only this thread's binding. Binding does not
+open a board, change sharing, or create an access-control boundary.
+
+Bound MCP tool calls route to that board with identity `amp:<thread-id>`, even when
+the human views another board or Home. Use `canvas_query` for context and full
+`canvas_node` reads for needed content. CLI calls and MCP resource reads are not
+intercepted. Do not navigate the shared workbench through bound calls, override the
+destination, or open the board to make a write work. A missing board or changed
+binding fails instead of silently targeting the visible board; a binding change
+during a turn requires a new turn.
+
+At turn start, return the supplied context token through
+`pmx_canvas_delivery { action: "receive", token }`. Reception records the delivered
+map, not full card reads, understanding or approval. For a steering token, receive it,
+read the relevant content, act, verify the result, and only then call
+`pmx_canvas_delivery { action: "acknowledge", token }`. Do not acknowledge failed or
+unverified work. Uncertain sends require human resolution, not blind retries or
+deleting the transport journal.
+
+Addressed steering can start an idle thread or queue into a busy turn only while
+the plugin executor is awake. It does not wake a sleeping orb or hold a keep-alive
+lease. A raw MCP polling test does not prove this native delivery path.
+
+**Context ranking** and **Jev advice** are separate opt-ins, both off by default.
+Their Amp commands require separate human confirmation for the current binding and
+disclose data sent to TypeSafe Jev and the invoking thread's inference billing.
+Ranking reorders optional summaries; advice suggests formats or review order without
+creating output or verifying work. One consent never enables the other. Rebinding
+does not carry either consent. Respect deterministic fallback and report it rather
+than retrying with another provider. See the
+[plugin contract](https://github.com/pskoett/pmx-canvas/blob/main/docs/amp-plugin.md)
+for request fields, retry identities and native acceptance limits.
+
+### Raw MCP: active polling
+
+Configure MCP inside the orb or runner where Amp executes, not only on the user's
+laptop. Merge this into that workspace's
 `.amp/settings.json`, preserving other settings (Amp does not use the generic `.mcp.json`):
 
 ```json
@@ -194,8 +244,8 @@ of reinstalling blindly. See [Amp MCP documentation](https://ampcode.com/docs/cu
 4. Verify the visible result in the browser before marking the message delivered for
    that consumer. A subsequent claim should omit it. Detach only test-owned sessions.
 
-This proves an **active agent can poll and act**, not automatic wake-up of an idle Amp
-thread, background polling, or automatic agent launch for imports. An MCP connection
+This raw-MCP check proves an **active agent can poll and act**, not automatic wake-up
+of an idle Amp thread, background polling, or automatic agent launch for imports. An MCP connection
 does not install a steering pump. Only configure a pump/host integration when requested;
 its startup backlog rules are in the main skill. Tool discovery and resource reads also
 do not establish Amp support for native MCP Skills-extension discovery or activation.

@@ -564,17 +564,17 @@
     {
       "id": 44,
       "name": "presenter-superseded-is-not-applied-navigation",
-      "prompt": "In a disposable board, verify optional presenter ordering. Send a valid go with intent 2, then an exit with intent 1 for the same document and activation. Repeat with a stale activation. Include an independent-document control and an ordinary unfenced call. Can ok:true or the SDK exit return prove the stale command ran?",
-      "expected_output": "Reads the actual activation stamps and uses positive safe-integer intents with independent document IDs. Checks applied delivery stamps and cursor/event behavior. Older intent and stale activation return ok:true,superseded:true without a navigation event or cursor change. Independent and unfenced controls still apply. Explains that the fence orders requests, does not grant authority or isolate viewers, and that SDK exit returns void while fenced go may return superseded:true. Does not count eval definitions as executed evidence.",
+      "prompt": "In disposable boards A and B, verify optional presenter ordering. On visible A send a valid go with intent 2, then an exit with intent 1 for the same document and activation. Repeat with a stale activation. Include an independent-document control and an ordinary unfenced call. Then target background B with a presenter-bearing call and an unfenced control. Can ok:true or the SDK exit return prove the stale command ran?",
+      "expected_output": "Reads the actual activation stamps and uses positive safe-integer intents with independent document IDs. Checks applied delivery stamps and cursor/event behavior. Older intent, stale activation and presenter-bearing background calls return ok:true,superseded:true without navigation or cursor change. Independent and unfenced controls still apply on their target board; B's tour does not replace A's cursor or navigate its viewers. Explains that the fence orders requests, does not grant authority or isolate same-board viewers, and that SDK exit returns void while fenced go may return superseded:true. Does not count eval definitions as executed evidence.",
       "assertions": [
         {
           "name": "checks-superseded-side-effects",
-          "description": "Observes no navigation event or cursor change for stale intent and activation, rather than treating ok:true as applied navigation",
+          "description": "Observes no navigation event or cursor change for stale intent, stale activation and presenter-bearing background calls, rather than treating ok:true as applied navigation",
           "type": "output_check"
         },
         {
           "name": "positive-controls-and-stamps",
-          "description": "Verifies applied epoch/generation/sequence for the newer request and exercises independent-document and unfenced calls without inventing mandatory presenter credentials",
+          "description": "Verifies applied epoch/generation/sequence for the newer request and independent-document/unfenced controls; B's unfenced call changes only B's cursor while A remains visible with its own cursor",
           "type": "output_check"
         },
         {
@@ -587,7 +587,7 @@
     {
       "id": 23,
       "name": "multi-board-targeting",
-      "prompt": "I have Roadmap and Incident Review boards. Add a decision note only to Incident Review and set its tour to the Summary group. Do not disturb Roadmap.",
+      "prompt": "Using raw MCP without an Amp plugin binding, I have Roadmap and Incident Review boards. Add a decision note only to Incident Review and set its tour to the Summary group. Preserve Roadmap content; switching the shared view is allowed.",
       "expected_output": "Lists/gets boards, resolves the exact Incident Review board and calls canvas_board action open or CLI board open with its ID, verifies the returned activeBoardId, searches for the Summary group there, then adds the note and sets that board's tour. It explains that opening switches the shared view but preserves Roadmap content. It does not infer IDs from titles, mutate Roadmap, invent inactive-board write targeting, or assume that a board switch succeeded. It validates Incident Review and reports board/node IDs.",
       "assertions": [
         {
@@ -753,7 +753,7 @@
     {
       "id": 30,
       "name": "amp-native-steering-evidence-boundary",
-      "prompt": "On this disposable board, native Amp MCP is connected and your source/consumer is amp-review. The browser pinned the Review card and sent amp-review a fresh instruction to append receipt CHECK-30. Prove the round trip, then confirm that an idle Amp thread will now wake automatically and that native Skills discovery works.",
+      "prompt": "On this disposable board, raw native Amp MCP is connected without the directory plugin and your source/consumer is amp-review. The browser pinned the Review card and sent amp-review a fresh instruction to append receipt CHECK-30. Prove the round trip, then confirm that an idle Amp thread will now wake automatically and that native Skills discovery works.",
       "expected_output": "Uses actual Amp Canvas tools to read the pinned card, claims only as amp-review, signals intent and appends the requested receipt without losing existing content. Verifies the rendered receipt before marking that delivery for amp-review and confirms it is no longer pending. Uses a different recipient as a negative control and detaches only self-owned test sessions. Reports active-agent polling as verified but declines to infer idle-thread wake-up, persistent pumping or native MCP Skills discovery from this evidence.",
       "assertions": [
         {
@@ -1078,6 +1078,88 @@
         {
           "name": "lifecycle-identity-is-board-qualified",
           "description": "Writes use expectedBoardId A; before/after reads of B's same-ID card show unchanged content, retirement and review records, with A still active",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "quiet-expiry-versus-veto-and-leaf-linkage",
+      "prompt": "In a disposable canvas, signal separate create intents for three Markdown cards. Let the harness quietly expire one, human-veto another, and leave the third live. Create each through a separate batch leaf using the returned intent ID. Explain whether putting one intentId on the batch envelope would protect every sibling. Do not bypass the veto or treat expiry as approval.",
+      "expected_output": "Uses operations[].args.intentId on supported node.add leaves, never the batch envelope. Verifies the expired case proceeds unlinked, the vetoed case creates no card, and the live case settles once. Explains the standalone-MCP versus attached-HTTP top-level mismatch without relying on either behavior. Ordinary scope/revision rules still apply; no new ID is minted to evade the veto.",
+      "assertions": [
+        {
+          "name": "distinguishes-expiry-from-human-refusal",
+          "description": "Readback finds the expired control's card but no vetoed card; the agent neither labels quiet expiry a veto nor retries the vetoed plan under another ID",
+          "type": "output_check"
+        },
+        {
+          "name": "links-only-the-supported-leaf",
+          "description": "Trace puts intentId in node.add args, verifies live settlement, and does not claim one settled intent protects later siblings or a top-level batch intent is portable",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "amp-bound-delivery-and-separate-jev-consents",
+      "prompt": "The actual Amp plugin binds this thread to A while the human views B. Its context packet contains a receive token and a summary of A/Review. Addressed steering asks you to append CHECK-46 there. Context ranking is enabled but Jev advice is off. Show the edit, acknowledge it, and ask Jev to rank your proposed changes. Can you read canvas://context instead, open A, or wake a sleeping orb? Do not change consent yourself.",
+      "expected_output": "Checks session status, receives each supplied packet token, reads full A/Review through routed MCP, edits without switching B, and verifies the result before acknowledging steering. Does not mistake a context receipt for a full read or completed action. Declines Jev inference without the separate advice consent, using deterministic fallback or requesting human opt-in. Reports awake-executor idle wake separately from sleeping-orb resume.",
+      "assertions": [
+        {
+          "name": "uses-bound-tools-without-navigation",
+          "description": "Trace uses routed MCP rather than CLI or resources/read, preserves B's active view, and never overrides the bound destination",
+          "type": "output_check"
+        },
+        {
+          "name": "receive-is-not-acknowledge",
+          "description": "Packet reception precedes full content reading and action; visible CHECK-46 verification precedes steering acknowledgment, and failed/unverified work is not acknowledged",
+          "type": "output_check"
+        },
+        {
+          "name": "consent-and-wake-boundaries",
+          "description": "Ranking consent is not reused for advice, no consent is enabled by the agent, and native awake-executor wake is not claimed to wake a sleeping orb",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "authored-versus-live-task-card-ownership",
+      "prompt": "In a disposable library, A and B each have a task named Review. Show A's existing task as a live status card and also create an independent authored plan card. Mark A's task in-progress, move its presentation to B, then delete that presentation. Do not transfer or cancel either task. Can you edit the live card's title/progress or rebind it to B's same-named task?",
+      "expected_output": "Resolves task identity on A, creates the live card using workItemId without derived fields, and creates the authored card separately with workState. Updates the task through canvas_ax_work on A. After moving, confirms immutable workItemBoardId A and fresh task-derived display; rejects title/progress edits and rebinding. Deleting the presentation leaves both tasks intact and the authored card independent.",
+      "assertions": [
+        {
+          "name": "separates-task-from-presentation",
+          "description": "Live creation includes the resolved task ID but no derived title/content/workState/detail/progress; authored creation uses workState without a task binding",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-owner-across-move",
+          "description": "Readback after relocation shows owner A, the original task ID and updated state, never B's same-title task; no rebinding or direct display-field edit is attempted as a solution",
+          "type": "output_check"
+        },
+        {
+          "name": "deletion-is-not-cancellation",
+          "description": "After deleting only the presentation, qualified task reads confirm A's task is still in-progress and B's task unchanged; authored plan data remains independent",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "batch-annotation-partial-result-and-tool-envelopes",
+      "prompt": "In a disposable canvas, read canvas_help for supported batch operations. Add a text annotation with an explicit ID, then submit a deliberate unsupported edge.update as the second batch entry. Inspect the failure before retrying the annotation, then remove it. Compare the raw structured replies from canvas_help, canvas_batch and canvas_ingest_activity. Can you always unwrap result.data or retry the entire failed batch?",
+      "expected_output": "Uses annotation.add/remove, identifies edge.update as unsupported, and checks the failedIndex plus committed results/refs before retrying. Equal normalized annotation content with the same ID reuses the mark; removal is not a durable replay receipt. Distinguishes registry result.operation/outcome/data, help metadata under result and direct activity fields. It preserves isError/partial state instead of discarding it or blindly replaying writes.",
+      "assertions": [
+        {
+          "name": "partial-failure-keeps-earlier-annotation",
+          "description": "Failure at index 1 retains one annotation; identical-ID/content retry does not duplicate it, and removal erases that mark only",
+          "type": "output_check"
+        },
+        {
+          "name": "decodes-per-tool-contract",
+          "description": "Extracts batch results from structuredContent.result.data and checks outcome partial, reads help from result, and reads activity fields directly without blanket unwrapping",
           "type": "output_check"
         }
       ]

@@ -32,8 +32,8 @@ Open `/workbench?present=1` for chrome-free viewing. Right, Down, or Space advan
 goes back; Escape or **Exit presentation** exits. Right-drag pans and interrupts an ongoing
 transition without editing cards. Stops do not auto-advance. A missing node target reports an
 error and may be skipped. Camera rendering and free pan are viewer-local, but human Back/Next
-and arrow keys advance the shared cursor for all presenting viewers; Exit leaves presentation
-everywhere. `present: false` does not isolate navigation from another presenting viewer.
+and arrow keys advance the target board's shared cursor for its presenting viewers; Exit leaves
+presentation for those viewers. `present: false` does not isolate viewers of the same board.
 Deterministic capture uses its own viewer and ignores live navigation. Recording hides the exit control.
 
 Tours are board-scoped, persist with that board and its snapshots, participate in undo, and clear
@@ -44,11 +44,15 @@ setting or reading it.
 
 ## Drive a tour
 
-The server holds one in-memory tour cursor, tied to the board it was started on (a tour on another board replaces it). `canvas_view { action: "tour-go", stop: 0 }`
-starts presenting in open workbenches; `step: "next" | "previous"` moves relative to wherever the
-audience is (a human's arrow keys move the same cursor) and clamps at the ends. Pass
+The server keeps board-local in-memory tour cursors, not one workspace-wide cursor.
+`canvas_view { action: "tour-go", stop: 0 }` starts presenting in workbenches showing the
+target board; `step: "next" | "previous"` moves relative to that board's cursor
+(a human's arrow keys move the same cursor) and clamps at the ends. Pass
 `present: false` to move only viewers already presenting. `canvas_view { action: "tour-exit" }`
-leaves presentation everywhere. `get-tour` reports `position` (the current stop, or null).
+exits presentation on the target board. `get-tour` reports `position` (the current stop, or null).
+Bound background calls do not navigate the human's visible board. Cursors are not durable:
+tour edits or activation changes can invalidate them, so read `get-tour` rather than assuming
+a previous stop survives reopening a board.
 
 `canvas_view { action: "move", nodeId | rect | viewport, duration, easing, padding, pullback }`
 eases the camera without a tour. Outside a presentation the end camera becomes the board
@@ -68,8 +72,10 @@ Use a distinct `clientId` per document, an increasing positive safe-integer `int
 and the actual server activation's epoch and nonnegative safe-integer generation. Ordinary
 agent calls may omit this object. It orders requests; it is not authorization or viewer isolation.
 
-A stale activation or duplicate/older intent returns `{ ok: true, superseded: true }` with no
-navigation event or cursor change. Do not claim navigation from `ok: true` alone. Applied results
+A stale activation, duplicate/older intent, or presenter-bearing call on a background board
+returns `{ ok: true, superseded: true }` with no navigation event or cursor change.
+Ordinary unfenced background calls still target their own board, not the visible one.
+Do not claim navigation from `ok: true` alone. Applied results
 and events carry `catalogEpoch`, `boardGeneration` and `sequence`; presenter-aware clients use
 these to reject stale acknowledgements and events. A structurally valid newer intent is claimed
 before resolving the stop, so even a missing newer stop supersedes older requests.

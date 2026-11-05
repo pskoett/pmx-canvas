@@ -19,7 +19,9 @@ PMX Canvas 0.12.0 requires **Bun >=1.4.4**, including npm installations. Check `
 and the MCP host's PATH. Install or configure only when requested. Read
 [Installing PMX Canvas](references/installing-pmx-canvas.md) for pinned setup and managed services.
 In Amp, portal access and native MCP discovery are separate; workspace commands need human trust
-approval. A connected MCP server does not install an idle-thread wake-up adapter.
+approval. Raw MCP does not install an idle-thread wake-up adapter. The opt-in
+[Amp plugin](references/installing-pmx-canvas.md#amp-plugin-bound-threads) adds board binding,
+receipt-based delivery and steering while its executor is awake.
 
 After upgrading, run `pmx-canvas skills sync --check` first (exit 1 means drift). Review whole-tree
 differences and preserve local edits. `skills sync --yes` replaces all drifted installed copies
@@ -60,12 +62,15 @@ See [workspace targeting](references/workbench-workflows.md#workspace-safety) fo
 
 ## Read, then act on the intended board
 
-1. Reuse one visible workbench. Call `canvas_board { action: "list" }` before board work.
-   Home (`activeBoardId: null`) is not an empty library. Open the intended board when active-board
-   work requires it and verify the returned `activeBoardId`. Opening changes the shared workbench.
+1. With the Amp plugin, inspect `pmx_canvas_session { action: "status" }` and use its bound
+   board without opening it. Use routed MCP query tools, not resource reads or CLI calls;
+   those bypass binding. Without a binding, reuse one visible workbench and call
+   `canvas_board { action: "list" }` before board work.
+   Home (`activeBoardId: null`) is not an empty library. For unbound active-board work, open
+   the intended board and verify `activeBoardId`. Opening changes the shared workbench.
    Library discovery and supported background creation need no switch.
-2. Read `canvas://context?consumer=<stable-unique-id>` or
-   `canvas_query { action: "context", consumer: "<stable-unique-id>" }`. Use a stable consumer
+2. Read `canvas_query { action: "context", consumer: "<stable-unique-id>" }`, or, without
+   a binding, `canvas://context?consumer=<stable-unique-id>`. Use a stable consumer
    only when durable deltas are wanted; omit it for a fresh read. Follow `cursor.next` as `since`
    to finish a budgeted brief. Budgets are UTF-16 code units, not tokens.
 3. The brief is a map of summaries, pins and relations, not a full-content read. Pull needed cards
@@ -77,7 +82,9 @@ See [workspace targeting](references/workbench-workflows.md#workspace-safety) fo
    marks prove delivery, not understanding or approval. Refresh stale context after interruptions.
 5. Snapshot before clear, restore or major rearrangement. Confirm destructive changes first.
 6. Signal meaningful mutations with `canvas_intent { action: "signal", ttlMs: 30000, ... }`,
-   then pass the returned `intent.id` as `intentId`. Only an explicit intent gives a pre-write
+   then pass the returned `intent.id` on a supported node/edge/group mutation. For batches,
+   link the supported leaf's `args.intentId`, never the batch envelope. Quiet expiry proceeds
+   unlinked; a human veto refuses the linked write. Only an explicit intent gives a pre-write
    veto window; automatic ghosts are not a substitute. Skip signals for trivial/high-frequency churn.
 7. Reuse an adapter-owned session. Inspect `canvas_ax_state { action: "presence" }` first.
    Copilot's `copilot` identity is not a new task-named agent. Put task descriptions in `detail`.
@@ -86,7 +93,9 @@ See [workspace targeting](references/workbench-workflows.md#workspace-safety) fo
    Inspect rendered content, sizes and relations before reporting success. A stored payload or
    `panned: true` is not evidence of what the human sees.
 9. Read steering as your own consumer, act, verify the visible result, then mark that message
-   delivered. Remove owned temporary nodes when the task calls for leaving the board unchanged.
+   delivered. With the Amp plugin, first `receive` the supplied token, then `acknowledge` only
+   after verified action; receiving a context map is not a full card read or completion.
+   Remove owned temporary nodes when the task calls for leaving the board unchanged.
 
 When authoring a board, inspect its `readmeNodeId`. If absent, choose/create a concise Markdown
 introduction and designate it through `canvas_board update`. Preserve an existing human choice.
@@ -121,6 +130,9 @@ Standalone tools: `canvas_batch`, `canvas_pin_nodes`, `canvas_screenshot`, `canv
 `canvas_ingest_activity`, `canvas_invoke_command`, `canvas_help`. Do not invent removed legacy tools.
 See [full API reference](references/full-reference.md) for payloads and
 [composite action lists](references/workbench-workflows.md#current-mcp-composites).
+Before interpreting a reply, read [MCP result shapes](references/full-reference.md#mcp-results-and-cancellation-010):
+registry results use `result.data`, help uses `result`, and direct tools use their own schema.
+Do not apply one unwrap rule to every tool; retain partial-write and error information.
 
 ## Choose the lightest useful surface
 
@@ -138,6 +150,9 @@ For ordinary work planning, deliberately create `status` cards with `data.workSt
 session, task or approval; do not generate a card for every work event. Connect useful steps,
 alternatives and loops with existing relations. Humans can Edit/Save/Cancel inside each card.
 See [work planning](references/full-reference.md#task-plan-with-dependencies) for examples.
+To display an existing task instead, create a [live task card](references/full-reference.md#live-task-cards)
+with `data.workItemId`. Its task-derived fields are read-only and its task owner is immutable;
+update the underlying task, not the presentation. Deleting the card does not cancel the task.
 
 Read [HTML primitives](references/html-primitives.md) before choosing their payloads or copy/export
 flows, [AX control surfaces](references/ax-html-control-surface.md) before authoring interactive
@@ -213,8 +228,9 @@ otherwise recheck before reuse.
 Read [Tours and recording](references/tours-and-recording.md) before authoring, navigating or
 capturing a tour. `set-tour` persists stops; deterministic capture uses the same model in its own
 viewer. Rendering and free pan are local, but human Next/Back and agent `tour-go` share a cursor
-and affect presenting viewers; `tour-exit` exits everywhere. Optional presenter fences reject stale
-commands, not other viewers. A superseded result is not applied navigation.
+for the target board and affect its presenting viewers; `tour-exit` exits those viewers.
+Optional presenter fences reject stale commands and presenter-bearing background calls,
+not other viewers. A superseded result is not applied navigation.
 
 Use the [browser workflow reference](references/workbench-workflows.md#browser-workflows) for
 keyboard, groups, menus, reconnect/draft behavior and host-local theme overrides. Use the picker
