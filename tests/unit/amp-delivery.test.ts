@@ -118,7 +118,8 @@ async function seedNearbyContext() {
       type: 'markdown',
       title,
       content: title,
-      x: index * 200,
+      // Distinct edge gaps from the 640px pin avoid ties broken by generated IDs.
+      x: index === 0 ? 0 : 640 + index * 200,
       y: 0,
     })) as { id: string };
     ids.push(node.id);
