@@ -318,10 +318,16 @@ test('receipt Undo protects an unseen human edit and repeated Unpin never adds p
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
+  let activePollHandlers = 0;
   await page.route('**/api/workbench/poll*', async (route) => {
-    const response = await route.fetch();
-    if (pause) await held;
-    await route.fulfill({ response });
+    activePollHandlers++;
+    try {
+      const response = await route.fetch();
+      if (pause) await held;
+      await route.fulfill({ response });
+    } finally {
+      activePollHandlers--;
+    }
   });
   await page.goto('/workbench?transport=poll');
   const presence = (attached: boolean) =>
@@ -408,7 +414,10 @@ test('receipt Undo protects an unseen human edit and repeated Unpin never adds p
       return (await response.json()).nodeIds;
     })
     .toEqual([c.id]);
-  // Let in-flight poll handlers finish before the page fixture closes their transport.
+  // Keep the route registered until every callback drains: unrouteAll can
+  // fallback-continue pending routes as soon as the first handler finishes.
+  await page.goto('about:blank');
+  await expect.poll(() => activePollHandlers).toBe(0);
   await page.unrouteAll({ behavior: 'wait' });
 });
 
