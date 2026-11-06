@@ -12,19 +12,22 @@ export interface InstalledSkillMirror {
     host: string;
     skill: string;
     dir: string;
+    /** Package tree the copy is compared against. */
+    source: string;
 }
 /**
  * Find the bundled skills' installed copies in this workspace: any immediate
  * child directory holding `skills/<skill>/SKILL.md`, regardless of which agent
  * that directory belongs to. The package's own skills source is excluded so
  * running inside the pmx-canvas checkout never compares a tree to itself.
+ * An installed Amp plugin is one entry whose source is the package's built plugin.
  */
 export declare function discoverInstalledSkillMirrors(workspaceRoot: string, packageSkillsRoot: string): InstalledSkillMirror[];
 export interface SkillMirrorResult {
     host: string;
     skill: string;
     dir: string;
-    status: 'in-sync' | 'synced' | 'drifted' | 'skipped-not-a-package-copy';
+    status: 'in-sync' | 'synced' | 'drifted' | 'skipped-not-a-package-copy' | 'package-plugin-missing';
     missingOrDifferent?: string[];
     extra?: string[];
 }
