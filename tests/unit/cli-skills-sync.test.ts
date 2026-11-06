@@ -114,6 +114,38 @@ describe('syncInstalledSkillMirrors', () => {
     expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).toContain('hands off');
   });
 
+  test('an installed Amp plugin is compared and replaced as its whole built tree', () => {
+    const pkgRoot = tempDir('pkg-root');
+    const pkg = join(pkgRoot, 'skills');
+    const ws = tempDir('ws');
+    const plugin = join(ws, '.amp', 'plugins', 'pmx-canvas');
+    // The 0.12.1 audit's orb: a 0.11.0 plugin whose runtime and bundled skill both lag.
+    mkdirSync(join(plugin, 'skills', 'pmx-canvas'), { recursive: true });
+    writeFileSync(join(plugin, 'runtime.json'), '{"version":"0.11.0"}');
+    writeFileSync(join(plugin, 'skills', 'pmx-canvas', 'SKILL.md'), skillMd('pmx-canvas', 'PMX Canvas 0.11.0'));
+
+    // Source checkout before `build:plugin`: the plugin cannot be verified, so it is not in sync.
+    mkdirSync(pkg);
+    expect(syncInstalledSkillMirrors(pkg, ws, { check: false }).map((r) => r.status)).toEqual([
+      'package-plugin-missing',
+    ]);
+    expect(readFileSync(join(plugin, 'runtime.json'), 'utf-8')).toContain('0.11.0');
+
+    const built = join(pkgRoot, 'dist', 'amp-plugin', 'pmx-canvas');
+    mkdirSync(join(built, 'skills', 'pmx-canvas'), { recursive: true });
+    writeFileSync(join(built, 'runtime.json'), '{"version":"0.12.1"}');
+    writeFileSync(join(built, 'index.js'), 'export default {}');
+    writeFileSync(join(built, 'skills', 'pmx-canvas', 'SKILL.md'), skillMd('pmx-canvas', 'PMX Canvas 0.12.1'));
+
+    const checked = syncInstalledSkillMirrors(pkg, ws, { check: true });
+    expect(checked).toHaveLength(1);
+    expect(checked[0]).toMatchObject({ host: join('.amp', 'plugins'), skill: 'pmx-canvas', status: 'drifted' });
+    expect(checked[0].missingOrDifferent).toEqual(['index.js', 'runtime.json', 'skills/pmx-canvas/SKILL.md']);
+
+    expect(syncInstalledSkillMirrors(pkg, ws, { check: false })[0].status).toBe('synced');
+    expect(compareSkillTrees(built, plugin).inSync).toBe(true);
+  });
+
   test('the package skills source itself is never treated as a mirror', () => {
     const pkg = makePackageSkills();
     // Workspace root IS the package root parent layout: <root>/skills/<name>.

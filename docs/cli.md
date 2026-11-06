@@ -638,7 +638,11 @@ The command discovers them (any `<agent-dir>/skills/pmx-canvas[-testing]`,
 whichever agent layout the workspace uses) and compares/replaces whole trees —
 references, evals, and fixtures included — so a copy can no longer drift while
 its `SKILL.md` hash matches. It never creates a copy where none is installed
-and makes no assumptions about which agents you use.
+and makes no assumptions about which agents you use. An installed Amp plugin
+(`.amp/plugins/pmx-canvas`) is compared as one tree, runtime included, against the
+package's `dist/amp-plugin/pmx-canvas`; reload Amp plugins after it is replaced. From a
+source checkout, run `bun run build:plugin` first or the plugin reports
+`package-plugin-missing` and the check fails.
 
 ```bash
 pmx-canvas skills sync --yes     # Refresh every installed copy from the package

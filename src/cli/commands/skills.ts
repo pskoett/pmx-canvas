@@ -6,7 +6,9 @@
 // the pmx-canvas skill copies already installed in the workspace (any
 // `<dir>/skills/<skill-name>/SKILL.md`, whatever agent owns `<dir>`) and
 // compares/replaces whole trees — references, evals, fixtures included. It
-// never creates a mirror where none is installed.
+// never creates a mirror where none is installed. The Amp directory plugin
+// (`.amp/plugins/pmx-canvas`) bundles these skills with its runtime, so it is
+// compared as one tree against the package's `dist/amp-plugin/pmx-canvas`.
 
 import { cpSync, existsSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -14,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { cmd, output, parseFlags, showCommandHelp } from '../shared.js';
 
 export const BUNDLED_SKILLS = ['pmx-canvas', 'pmx-canvas-testing', 'pmx-canvas-orchestration'] as const;
+const AMP_PLUGIN_DIR = join('.amp', 'plugins', 'pmx-canvas');
 
 function listFilesRecursive(root: string, prefix = ''): string[] {
   const out: string[] = [];
@@ -60,6 +63,8 @@ export interface InstalledSkillMirror {
   host: string;
   skill: string;
   dir: string;
+  /** Package tree the copy is compared against. */
+  source: string;
 }
 
 /**
@@ -67,6 +72,7 @@ export interface InstalledSkillMirror {
  * child directory holding `skills/<skill>/SKILL.md`, regardless of which agent
  * that directory belongs to. The package's own skills source is excluded so
  * running inside the pmx-canvas checkout never compares a tree to itself.
+ * An installed Amp plugin is one entry whose source is the package's built plugin.
  */
 export function discoverInstalledSkillMirrors(
   workspaceRoot: string,
@@ -81,8 +87,13 @@ export function discoverInstalledSkillMirrors(
       const dir = join(skillsDir, skill);
       if (!existsSync(join(dir, 'SKILL.md'))) continue;
       if (resolve(dir) === resolve(join(packageSkillsRoot, skill))) continue;
-      found.push({ host: entry.name, skill, dir });
+      found.push({ host: entry.name, skill, dir, source: join(packageSkillsRoot, skill) });
     }
+  }
+  const plugin = join(workspaceRoot, AMP_PLUGIN_DIR);
+  if (existsSync(join(plugin, 'skills', 'pmx-canvas', 'SKILL.md'))) {
+    const source = join(packageSkillsRoot, '..', 'dist', 'amp-plugin', 'pmx-canvas');
+    found.push({ host: join('.amp', 'plugins'), skill: 'pmx-canvas', dir: plugin, source });
   }
   return found;
 }
@@ -91,7 +102,7 @@ export interface SkillMirrorResult {
   host: string;
   skill: string;
   dir: string;
-  status: 'in-sync' | 'synced' | 'drifted' | 'skipped-not-a-package-copy';
+  status: 'in-sync' | 'synced' | 'drifted' | 'skipped-not-a-package-copy' | 'package-plugin-missing';
   missingOrDifferent?: string[];
   extra?: string[];
 }
@@ -119,10 +130,15 @@ export function syncInstalledSkillMirrors(
   opts: { check: boolean },
 ): SkillMirrorResult[] {
   const results: SkillMirrorResult[] = [];
-  for (const mirror of discoverInstalledSkillMirrors(workspaceRoot, packageSkillsRoot)) {
-    const source = join(packageSkillsRoot, mirror.skill);
-    if (!mirrorIdentityMatches(mirror.dir, mirror.skill)) {
+  for (const { source, ...mirror } of discoverInstalledSkillMirrors(workspaceRoot, packageSkillsRoot)) {
+    const isPlugin = mirror.dir === join(workspaceRoot, AMP_PLUGIN_DIR);
+    if (!mirrorIdentityMatches(isPlugin ? join(mirror.dir, 'skills', 'pmx-canvas') : mirror.dir, mirror.skill)) {
       results.push({ ...mirror, status: 'skipped-not-a-package-copy' });
+      continue;
+    }
+    // A source checkout has no built plugin until `bun run build:plugin`; never report it in sync.
+    if (!existsSync(source)) {
+      results.push({ ...mirror, status: 'package-plugin-missing' });
       continue;
     }
     const cmp = compareSkillTrees(source, mirror.dir);
@@ -166,7 +182,8 @@ cmd(
     const results = syncInstalledSkillMirrors(packageSkillsRoot, process.cwd(), { check });
 
     const drifted = results.filter((r) => r.status === 'drifted');
-    const ok = drifted.length === 0;
+    const unbuilt = results.some((r) => r.status === 'package-plugin-missing');
+    const ok = drifted.length === 0 && !unbuilt;
     output({
       ok,
       check,
@@ -175,6 +192,12 @@ cmd(
       ...(results.length === 0 ? { note: 'No installed pmx-canvas skill copies found in this workspace.' } : {}),
       ...(drifted.length > 0 && flags.yes !== true
         ? { note: 'Drift detected. Re-run with --yes to replace the drifted trees from the installed package.' }
+        : {}),
+      ...(unbuilt
+        ? { note: 'No built Amp plugin in this package; run `bun run build:plugin`, then check again.' }
+        : {}),
+      ...(results.some((r) => r.status === 'synced' && r.host === join('.amp', 'plugins'))
+        ? { reload: 'Reload Amp plugins, then load pmx-canvas:pmx-canvas again.' }
         : {}),
       results,
     });

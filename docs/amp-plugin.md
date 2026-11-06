@@ -16,6 +16,8 @@ Copy that complete directory to your project's `.amp/plugins/pmx-canvas`. For an
 package, copy from `node_modules/pmx-canvas/dist/amp-plugin/pmx-canvas`. Do not overwrite an
 existing plugin or locally edited skills: inspect the differences and approve replacement first.
 Reload Amp plugins. Nothing is installed in a personal or workspace-global plugin repository.
+After upgrading, `pmx-canvas skills sync --check` reports a stale installed plugin; with approval,
+`--yes` replaces the whole plugin directory. Reload Amp plugins afterwards.
 
 Amp registers `pmx-canvas:pmx-canvas`, `pmx-canvas:pmx-canvas-testing` and
 `pmx-canvas:pmx-canvas-orchestration`. They are generated copies of the existing PMX skills,

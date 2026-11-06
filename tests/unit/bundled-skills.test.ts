@@ -1,8 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { dirname, join } from 'node:path';
+import { defineCatalog } from '@json-render/core';
+import { schema } from '@json-render/react/schema';
 import { z } from 'zod';
+import { normalizeAndValidateJsonRenderSpec } from '../../src/json-render/server.ts';
+import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
 import { CANVAS_THEMES } from '../../src/shared/themes.ts';
+import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 describe('bundled skills', () => {
   test('shipped manifests follow the skill spec and resolve their license files', async () => {
@@ -213,5 +218,86 @@ describe('bundled skills', () => {
     // This shipped file defines scenarios and output checks; it does not claim a model run occurred.
     expect(evalDocument).not.toHaveProperty('benchmark_results');
     expect(evalDocument).not.toHaveProperty('scores');
+  });
+});
+
+// The 0.12.1 skill audit ran shipped examples literally: an object-valued json-render root and a
+// POST-grouped delivery poll both failed. These cases execute what the skills ship, not paraphrases.
+describe('shipped skill examples execute', () => {
+  test('json-render-react spec example validates against its catalog and PMX', async () => {
+    const markdown = readBundledSkill('json-render-react')!;
+    const block = markdown.match(/## Spec Structure[\s\S]*?```json\r?\n([\s\S]*?)\r?\n```/)?.[1];
+    expect(block).toBeDefined();
+    const spec = JSON.parse(block!);
+    // The catalog shown in the skill's "Creating a Catalog" section.
+    const skillCatalog = defineCatalog(schema, {
+      components: {
+        Button: {
+          props: z.object({ label: z.string(), variant: z.enum(['primary', 'secondary']).nullable() }),
+          description: 'Clickable button',
+        },
+        Card: { props: z.object({ title: z.string() }), description: 'Card container with title' },
+      },
+      actions: {},
+    });
+    expect(skillCatalog.validate(spec).success).toBe(true);
+    expect(normalizeAndValidateJsonRenderSpec(spec).root).toBe(spec.root);
+  });
+
+  test('orchestration worker HTTP path uses the methods the server routes', async () => {
+    const skill = readBundledSkill('pmx-canvas-orchestration')!;
+    const bullet = skill.match(/\*\*No MCP in the subagent\?\*\*([\s\S]*?)\n- \*\*/)?.[1];
+    expect(bullet).toBeDefined();
+    let method = '';
+    const calls: Array<[string, string]> = [];
+    for (const [token] of bullet!.matchAll(/\b(?:GET|POST)\b|\/api\/[^\s,]+/g)) {
+      if (token === 'GET' || token === 'POST') method = token;
+      else calls.push([method, token]);
+    }
+    expect(calls).toEqual([
+      ['POST', '/api/canvas/node'],
+      ['POST', '/api/canvas/ax/presence'],
+      ['GET', '/api/canvas/ax/delivery/pending?consumer=<agentId>'],
+      ['POST', '/api/canvas/ax/delivery/:id/mark'],
+    ]);
+
+    const workspaceRoot = createTestWorkspace('pmx-canvas-skill-http-');
+    resetCanvasForTests(workspaceRoot);
+    const baseUrl = startCanvasServer({ workspaceRoot, port: 0, autoOpenBrowser: false });
+    try {
+      expect(baseUrl).toBeTruthy();
+      const agentId = 'skill-worker';
+      const steer = await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'take the next lane', source: 'browser', target: agentId }),
+      });
+      const steeringId = ((await steer.json()) as { steering: { id: string } }).steering.id;
+      const bodies: Record<string, unknown> = {
+        '/api/canvas/node': { type: 'markdown', title: 'Worker note', content: 'done', agentId },
+        '/api/canvas/ax/presence': { source: 'api', agentId, phase: 'tooling' },
+        '/api/canvas/ax/delivery/:id/mark': { consumer: agentId },
+      };
+      const responses: Record<string, { status: number; body: Record<string, unknown> }> = {};
+      for (const [verb, path] of calls) {
+        const url = path.replace('<agentId>', agentId).replace(':id', steeringId);
+        const res = await fetch(`${baseUrl}${url}`, {
+          method: verb,
+          ...(verb === 'POST'
+            ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodies[path]) }
+            : {}),
+        });
+        responses[path] = { status: res.status, body: (await res.json()) as Record<string, unknown> };
+      }
+      for (const [path, response] of Object.entries(responses)) expect(response.status, path).toBeLessThan(300);
+      const pending = responses['/api/canvas/ax/delivery/pending?consumer=<agentId>']!.body.pending as Array<{
+        id: string;
+      }>;
+      expect(pending.map((message) => message.id)).toContain(steeringId);
+      expect(responses['/api/canvas/ax/delivery/:id/mark']!.body.delivered).toBe(true);
+    } finally {
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    }
   });
 });

@@ -224,7 +224,8 @@ alone (the 0.3.x–0.4.x cycles repeatedly hit drift where the hash matched but
 supporting files were stale). Review the differences and preserve local edits.
 Only run `pmx-canvas skills sync --yes` after the owner approves replacing the
 affected copies; it replaces all drifted installed copies of `pmx-canvas`,
-`pmx-canvas-testing` and `pmx-canvas-orchestration`. For a clean release-guidance
+`pmx-canvas-testing` and `pmx-canvas-orchestration`, and a drifted
+`.amp/plugins/pmx-canvas` Amp plugin as a whole tree (reload Amp plugins afterwards). For a clean release-guidance
 check without that approval, use a disposable consumer workspace.
 Updating the Copilot adapter with `pmx-canvas copilot install-extension --yes`
 likewise requires approval to replace its installed files.

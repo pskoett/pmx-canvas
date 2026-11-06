@@ -109,8 +109,9 @@ it, or the board silently diverges from reality.
   This does not steer an open Codex desktop task; desktop requires a host adapter using the app's
   native follow-up channel. `--parent` rolls the pumped agent under its orchestrator.
 - **No MCP in the subagent?** Workers spawned inside a host often lack the canvas MCP — the
-  plain HTTP API is the worker path: POST /api/canvas/node, /api/canvas/ax/presence,
-  /api/canvas/ax/delivery/pending?consumer=<agentId>, /:id/mark. Same identity rules apply.
+  plain HTTP API is the worker path: POST /api/canvas/node and /api/canvas/ax/presence to
+  write, GET /api/canvas/ax/delivery/pending?consumer=<agentId> to poll the inbox, and POST
+  /api/canvas/ax/delivery/:id/mark to mark a handled message. Same identity rules apply.
 - **Fleet chrome:** every worker should declare its orchestrator on set-presence
   (`parentAgentId: "<orchestrator key>"`): the top bar rolls workers up into the
   orchestrator's chip ("+N workers") and their cursors render smaller so a big fleet stays

@@ -67,16 +67,24 @@ const { registry } = defineRegistry(catalog, {
 
 ## Spec Structure (Element Tree)
 
-The React schema uses an element tree format:
+The React schema uses a flat element map: `root` is the key of the root element, and
+`children` lists element keys, never nested element objects. This spec validates against the
+catalog above:
 
 ```json
 {
-  "root": {
-    "type": "Card",
-    "props": { "title": "Hello" },
-    "children": [
-      { "type": "Button", "props": { "label": "Click me" } }
-    ]
+  "root": "card",
+  "elements": {
+    "card": {
+      "type": "Card",
+      "props": { "title": "Hello" },
+      "children": ["button"]
+    },
+    "button": {
+      "type": "Button",
+      "props": { "label": "Click me", "variant": "primary" },
+      "children": []
+    }
   }
 }
 ```

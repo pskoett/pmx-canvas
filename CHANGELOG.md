@@ -3,6 +3,14 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The json-render React skill's spec example now uses the flat `root` and `elements` format that validates.
+- The orchestration skill now says to poll pending delivery with GET and to mark messages with POST.
+- `pmx-canvas skills sync --check` now detects a stale installed Amp plugin, and `--yes` refreshes it.
+
 ## [0.12.1] - 2026-11-05
 
 ### Fixed

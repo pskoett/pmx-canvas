@@ -25,8 +25,8 @@ receipt-based delivery and steering while its executor is awake.
 
 After upgrading, run `pmx-canvas skills sync --check` first (exit 1 means drift). Review whole-tree
 differences and preserve local edits. `skills sync --yes` replaces all drifted installed copies
-of `pmx-canvas`, `pmx-canvas-testing` and `pmx-canvas-orchestration`; use it only after the owner
-approves those replacements. Sync from the installed package, not a newer source checkout.
+of `pmx-canvas`, `pmx-canvas-testing` and `pmx-canvas-orchestration`, and an installed Amp plugin
+directory (then reload Amp plugins); use it only after the owner approves those replacements. Sync from the installed package, not a newer source checkout.
 Use a disposable consumer when you cannot replace owned guidance. Restart the matching daemon
 and MCP processes after an authorized upgrade; they do not hot-reload.
 
