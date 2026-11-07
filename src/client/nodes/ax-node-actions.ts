@@ -12,7 +12,7 @@ export async function runNodeAxInteraction(
   type: string,
   payload: Record<string, unknown> | undefined,
   successTitle: string,
-): Promise<void> {
+): Promise<boolean> {
   const res = await submitAxInteractionFromClient({
     type,
     sourceNodeId: node.id,
@@ -21,6 +21,7 @@ export async function runNodeAxInteraction(
   });
   // A refusal is toasted by the bridge with the server's reason.
   if (res.ok) showToast('context', successTitle, '', [node.id]);
+  return res.ok;
 }
 
 /** Shared style for the small inline AX action button on native nodes. */

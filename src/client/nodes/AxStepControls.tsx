@@ -49,9 +49,17 @@ const STEP_ACTIONS = [
   { status: 'blocked', label: 'Blocked', toast: 'Step blocked' },
 ] as const;
 
-/** Persist a new loop state on the anchor node (optimistic locally, durable on the server). */
-async function persistLoop(node: CanvasNodeState, flow: AxFlowStamp, loop: AxFlowStamp['loop']): Promise<void> {
-  const axFlow: AxFlowStamp = { ...flow, loop };
+/**
+ * Persist a new loop state on the anchor node (optimistic locally, durable on the server).
+ * Built from the latest copy, not the render's: the server advances the run counter.
+ */
+async function persistLoop(
+  node: CanvasNodeState,
+  flow: AxFlowStamp,
+  next: (loop: AxFlowStamp['loop']) => AxFlowStamp['loop'],
+): Promise<void> {
+  const latest = readAxFlow(nodes.value.get(node.id)?.data ?? {}) ?? flow;
+  const axFlow: AxFlowStamp = { ...latest, loop: next(latest.loop) };
   updateNodeData(node.id, { axFlow });
   await updateNodeFromClient(node.id, { data: { axFlow } });
 }
@@ -67,19 +75,21 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
 
   const handleRun = async () => {
     // A finished loop restarts from zero rather than stopping on its first check.
-    await persistLoop(node, flow, { running: true, run: run >= maxRuns ? 0 : run, maxRuns });
+    await persistLoop(node, flow, (loop) => ({ ...loop, running: true, run: loop.run >= loop.maxRuns ? 0 : loop.run }));
     // The server loop only advances on a WORK-ITEM change, so starting it has to
     // produce one: open the first unfinished step, or re-assert the last step's
     // `done` when the flow is already complete (which closes the run and opens
     // the next one server-side).
     const next = flow.steps.find((step) => mirroredStatus(nodes.value.get(step.nodeId)?.data) !== 'done');
     const target = next ?? flow.steps[flow.steps.length - 1];
-    await runNodeAxInteraction(
+    const opened = await runNodeAxInteraction(
       node,
       'ax.work.update',
       { id: target.workItemId, status: next ? 'in-progress' : 'done' },
       'Loop running',
     );
+    // Without that work-item change the loop never advances: do not leave it shown as running.
+    if (!opened) await persistLoop(node, flow, (loop) => ({ ...loop, running: false }));
   };
 
   const handleSteer = async () => {
@@ -107,7 +117,7 @@ function FlowLoopControls({ node, flow }: { node: CanvasNodeState; flow: AxFlowS
             style={activeButtonStyle}
             onClick={(e) => {
               e.stopPropagation();
-              void persistLoop(node, flow, { ...flow.loop, running: false });
+              void persistLoop(node, flow, (loop) => ({ ...loop, running: false }));
             }}
           >
             Stop

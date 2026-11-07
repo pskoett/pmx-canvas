@@ -20,6 +20,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - `pmx-canvas serve stop` no longer deletes the lock of a daemon that is still starting.
 - A new answer on a prompt card no longer writes its text into the previous answer.
 - A reply that fails to send no longer removes or freezes answers that arrived while it was sending.
+- Stopping an AX flow loop keeps its run count, and a loop that cannot open its first step no longer shows as running.
 - A Markdown card whose preview fails to render shows "Preview unavailable." with a Retry button instead of loading forever.
 - Two apps opened at the same time each get their own card.
 - The MCP server reconnects when the canvas server it attached to stops, instead of failing every call.
