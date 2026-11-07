@@ -24,6 +24,8 @@ let reducer = new SemanticWatchReducer();
 let toastQueue: AttentionEntry[] = [];
 let toastTimer: number | null = null;
 let pulseTimer: number | null = null;
+/** Bumped per pulse and on reset: a frame queued for an older pulse (or board) must not apply. */
+let pulseGeneration = 0;
 let lastSignature = '';
 let lastSignatureAt = 0;
 
@@ -331,8 +333,10 @@ function pulseNodes(nodeIds: string[]): void {
   cancelTimer(pulseTimer);
   pulseTimer = null;
   setAttentionPulse([]);
+  const generation = ++pulseGeneration;
   if (nodeIds.length === 0) return;
   runOnNextFrame(() => {
+    if (generation !== pulseGeneration) return;
     setAttentionPulse(nodeIds);
     pulseTimer = scheduleTimer(() => {
       pulseTimer = null;
@@ -357,6 +361,7 @@ export function resetAttentionBridge(): void {
   cancelTimer(pulseTimer);
   toastTimer = null;
   pulseTimer = null;
+  pulseGeneration += 1;
   toastQueue = [];
   lastSignature = '';
   lastSignatureAt = 0;

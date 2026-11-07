@@ -31,6 +31,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Health checks report degraded persistence when the canvas database cannot be opened.
 - Stopping the server while the automation WebView is still starting now closes the WebView.
 - A cancelled minimap drag or image gesture no longer leaves the pointer stuck, and clicking a resize handle without dragging no longer marks the card as manually sized.
+- A card no longer pulses after you switch away from its board.
 
 ## [0.12.1] - 2026-11-05
 

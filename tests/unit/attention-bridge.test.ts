@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { resetAttentionBridge, syncAttentionFromSse } from '../../src/client/state/attention-bridge.ts';
 import {
+  attentionPulseNodeIds,
   attentionHistory,
   attentionHistoryOpen,
   attentionHistoryUnread,
@@ -59,6 +60,28 @@ describe('attention bridge', () => {
     expect(attentionHistory.value[0]?.title).toBe('Context updated');
     expect(attentionHistoryOpen.value).toBe(false);
     expect(attentionHistoryUnread.value).toBe(1);
+  });
+
+  test('a pulse frame still queued at a board switch does not light the old cards', () => {
+    const frames: Array<() => void> = [];
+    const originalRaf = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      frames.push(() => callback(0));
+      return frames.length;
+    }) as typeof requestAnimationFrame;
+    try {
+      syncAttentionFromSse({
+        event: 'canvas-layout-update',
+        data: { layout: makeLayout([{ id: 'a', type: 'markdown', data: { title: 'Bug report' } }]) },
+      });
+      syncAttentionFromSse({ event: 'context-pins-changed', data: { nodeIds: ['a'], count: 1 } });
+      expect(frames.length).toBeGreaterThan(0);
+      resetAttentionBridge();
+      for (const frame of frames.splice(0)) frame();
+      expect([...attentionPulseNodeIds.value]).toEqual([]);
+    } finally {
+      globalThis.requestAnimationFrame = originalRaf;
+    }
   });
 
   test('reports a neighborhood change when a node moves next to a pin', () => {
