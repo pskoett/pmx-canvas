@@ -110,7 +110,7 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
     fetchFile(filePath)
       .then(({ content: fileText }) => {
         if (cancelled) return;
-        if (!fileText && fileText !== '') {
+        if (fileText === undefined) {
           setError('File not found');
           setLoading(false);
           return;
@@ -154,6 +154,11 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
     void updateNodeFromClient(node.id, { data: { fileContent: undefined } });
     fetchFile(filePath)
       .then(({ content: fileText }) => {
+        if (fileText === undefined) {
+          setError('Failed to reload');
+          setLoading(false);
+          return;
+        }
         setContent(fileText);
         setLoading(false);
         const lines = fileText.split('\n').length;

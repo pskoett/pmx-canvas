@@ -212,6 +212,9 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
   const [content, setContent] = useState('');
   const [rendered, setRendered] = useState('');
   const [loaded, setLoaded] = useState(false);
+  // A failed preview render shows Retry; `renderAttempt` re-runs the render.
+  const [renderFailed, setRenderFailed] = useState(false);
+  const [renderAttempt, setRenderAttempt] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const dirty = draft.dirty.value;
@@ -253,7 +256,13 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       } else if (path) {
         const result = await fetchFile(path);
         if (cancelled) return;
-        raw = result.content;
+        // A failed read keeps the last known text; treating it as empty would publish a wiped document.
+        const known = result.content ?? (typeof node.data.content === 'string' ? node.data.content : undefined);
+        if (known === undefined) {
+          setLoaded(true);
+          return;
+        }
+        raw = known;
       } else if (typeof node.data.content === 'string') {
         raw = node.data.content;
       } else {
@@ -261,13 +270,16 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         return;
       }
       const html = await renderMarkdown(raw, node.id, boardId);
+      if (cancelled || activeBoardId.value !== boardId) return;
+      if (html === null) {
+        setRenderFailed(true);
+        return;
+      }
+      setRenderFailed(false);
       if (
-        html === null ||
-        cancelled ||
-        activeBoardId.value !== boardId ||
-        (renderingDraft || draft.dirty.value
+        renderingDraft || draft.dirty.value
           ? latestMdRef.current !== raw
-          : !path && nodes.value.get(node.id)?.data.content !== raw)
+          : !path && nodes.value.get(node.id)?.data.content !== raw
       )
         return;
       renderedMdRef.current = { markdown: raw, html };
@@ -283,7 +295,16 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     return () => {
       cancelled = true;
     };
-  }, [boardId, path, node.id, node.data.content, savedWikiBindings, node.linksRevision]);
+  }, [boardId, path, node.id, node.data.content, savedWikiBindings, node.linksRevision, renderAttempt]);
+
+  const renderFailure = !loaded && renderFailed && (
+    <div class="viewer-placeholder" role="status">
+      <span>Preview unavailable.</span>
+      <button type="button" onClick={() => setRenderAttempt((attempt) => attempt + 1)}>
+        Retry
+      </button>
+    </div>
+  );
 
   const handleInput = useCallback(
     async (e: Event) => {
@@ -650,7 +671,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
               onSave={handleInlineSave}
             />
           ) : (
-            <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>Loading…</div>
+            renderFailure || <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>Loading…</div>
           )}
         </div>
         <button type="button" class="md-edit-fab" onClick={() => setSourceMode(true)}>
@@ -678,7 +699,10 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
             if (next !== content) handleInlineSave(next);
           }}
         />
-        {!loaded && <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>}
+        {renderFailure}
+        {!loaded && !renderFailed && (
+          <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>
+        )}
         {loaded && !rendered && (
           <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Empty node</div>
         )}

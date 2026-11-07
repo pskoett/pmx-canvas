@@ -693,3 +693,33 @@ test.each([
   if (restored)
     expect((view.getByRole('button', { name: 'Save', exact: true }) as HTMLButtonElement).disabled).toBe(false);
 });
+
+test('a failed preview render offers Retry instead of loading forever', async () => {
+  const source: CanvasNodeState = {
+    id: 'render-fails',
+    type: 'markdown',
+    position: { x: 0, y: 0 },
+    size: { width: 360, height: 240 },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    data: { content: '# Plan' },
+  };
+  let renderUp = false;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    if (String(input) === '/api/render') {
+      if (!renderUp) throw new TypeError('network down');
+      return Response.json({ html: '<h1>Plan</h1>' });
+    }
+    return Response.json({});
+  }) as typeof fetch;
+  activeBoardId.value = null;
+  EVENT_HANDLERS['canvas-layout-update']({ layout: { nodes: [source], edges: [] } });
+  const view = render(<MarkdownNode node={nodes.value.get(source.id)!} expanded />);
+  const retry = await view.findByRole('button', { name: 'Retry' });
+  expect(view.queryByText('Loading…')).toBeNull();
+  renderUp = true;
+  fireEvent.click(retry);
+  await waitFor(() => expect(view.container.querySelector('[contenteditable]')?.textContent).toBe('Plan'));
+  expect(view.queryByRole('button', { name: 'Retry' })).toBeNull();
+});

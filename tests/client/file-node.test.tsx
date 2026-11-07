@@ -22,7 +22,10 @@ beforeEach(() => {
   iframeMode.value = 'src';
 });
 
+const originalFetch = globalThis.fetch;
+
 afterEach(() => {
+  globalThis.fetch = originalFetch;
   // @testing-library/preact's auto-cleanup registers under the first importing
   // test file only — unmount explicitly so nodes don't leak across files.
   cleanup();
@@ -124,5 +127,19 @@ describe('FileNode non-text files', () => {
     const link = getByText('Open PDF') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toContain('/api/canvas/file-bytes?nodeId=file-test');
     expect(link.getAttribute('target')).toBe('_blank');
+  });
+});
+
+describe('FileNode load failure', () => {
+  test('a failed read shows an error and never caches empty content on the server', async () => {
+    const writes: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith('/api/file')) throw new TypeError('network down');
+      if (init?.method && init.method !== 'GET') writes.push(String(init.body));
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+    const { findByText } = render(<FileNode node={makeFileNode({ path: '/ws/notes.txt' })} />);
+    await findByText('File not found');
+    expect(writes.some((body) => body.includes('fileContent'))).toBe(false);
   });
 });

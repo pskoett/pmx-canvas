@@ -159,12 +159,12 @@ export async function renderMarkdown(
   return data.html ?? null;
 }
 
-/** Fetch file content from the server. */
+/** Fetch file content from the server. `content` is undefined when the read failed — never `''`. */
 export async function fetchFile(path: string): Promise<{
-  content: string;
+  content?: string;
   provenance?: unknown;
 }> {
-  return requestJson('fetchFile', `/api/file?path=${encodeURIComponent(path)}`, { content: '' });
+  return requestJson('fetchFile', `/api/file?path=${encodeURIComponent(path)}`, {});
 }
 
 /** Fetch current workbench state. */

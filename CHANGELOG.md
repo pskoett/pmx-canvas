@@ -14,7 +14,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - A reply sent while an answer is still streaming is no longer overwritten by that answer.
 - Approved and rejected approval gates are final; only an auto-held gate can be reopened. Undoing a gate decision gives it a fresh answer window, and auto-holds no longer clear your redo history.
 - Undo now reverts only what that step changed, and one undo reverts a work item's status together with its chip on linked cards.
+- Failed file reads show an error instead of saving the card as empty.
 - A new answer on a prompt card no longer writes its text into the previous answer.
+- A Markdown card whose preview fails to render shows "Preview unavailable." with a Retry button instead of loading forever.
 
 ## [0.12.1] - 2026-11-05
 
