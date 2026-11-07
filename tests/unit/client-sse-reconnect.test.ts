@@ -143,4 +143,32 @@ describe('sse-bridge reconnect', () => {
     const promptNode = nodes.value.get('prompt-1');
     expect(promptNode?.data.threadStatus).toBe('answered');
   });
+
+  test('a reply sent mid-stream is not overwritten, and a superseded response stops routing', () => {
+    EVENT_HANDLERS['canvas-prompt-created']({ nodeId: 'prompt-2', text: 'first' });
+    EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'r1', promptNodeId: 'prompt-2' });
+    EVENT_HANDLERS['canvas-prompt-created']({ nodeId: 'prompt-2', threadNodeId: 'prompt-2', text: 'follow-up' });
+    EVENT_HANDLERS['canvas-response-delta']({ responseNodeId: 'r1', content: 'first answer' });
+    EVENT_HANDLERS['canvas-response-complete']({ responseNodeId: 'r1', content: 'first answer' });
+    expect(threadTurns('prompt-2').map((turn) => [turn.role, turn.text, turn.status])).toEqual([
+      ['user', 'first', 'pending'],
+      ['assistant', 'first answer', 'complete'],
+      ['user', 'follow-up', 'pending'],
+    ]);
+    expect(nodes.value.get('prompt-2')?.data.threadStatus).toBe('pending');
+
+    EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'r2', promptNodeId: 'prompt-2' });
+    EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'r3', promptNodeId: 'prompt-2' });
+    EVENT_HANDLERS['canvas-response-delta']({ responseNodeId: 'r2', content: 'stale' });
+    EVENT_HANDLERS['canvas-response-complete']({ responseNodeId: 'r3', content: 'second answer' });
+    expect(
+      threadTurns('prompt-2')
+        .slice(3)
+        .map((turn) => [turn.text, turn.status]),
+    ).toEqual([
+      ['', 'complete'],
+      ['second answer', 'complete'],
+    ]);
+    expect(nodes.value.get('prompt-2')?.data.threadStatus).toBe('answered');
+  });
 });

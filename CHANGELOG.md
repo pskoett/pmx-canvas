@@ -10,6 +10,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - The json-render React skill's spec example now uses the flat `root` and `elements` format that validates.
 - The orchestration skill now says to poll pending delivery with GET and to mark messages with POST.
 - `pmx-canvas skills sync --check` now detects a stale installed Amp plugin, and `--yes` refreshes it.
+- A prompt card no longer stays "Sending…" or "Streaming…" forever, and board moves no longer refuse it. This used to happen after the agent's handler failed, after a server restart, or when a queued prompt was dropped.
+- A reply sent while an answer is still streaming is no longer overwritten by that answer.
+- A new answer on a prompt card no longer writes its text into the previous answer.
 
 ## [0.12.1] - 2026-11-05
 

@@ -880,9 +880,14 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
   // Route response into thread node if prompt node has turns
   const promptNode = promptNodeId ? nodes.value.get(promptNodeId) : undefined;
   if (promptNode && Array.isArray(promptNode.data.turns)) {
+    // Same routing as the server: a new response supersedes the active one.
+    const superseded = promptNode.data._activeResponseId;
+    if (typeof superseded === 'string') responseToThreadMap.delete(superseded);
     responseToThreadMap.set(responseNodeId, promptNodeId);
-    const currentTurns = [...(promptNode.data.turns as Array<Record<string, unknown>>)];
-    currentTurns.push({ role: 'assistant', text: '', status: 'streaming' });
+    const currentTurns = (promptNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
+      turn.role === 'assistant' && turn.status === 'streaming' ? { ...turn, status: 'complete' } : turn,
+    );
+    currentTurns.push({ role: 'assistant', text: '', status: 'streaming', responseId: responseNodeId });
     updateNodeData(promptNodeId, {
       turns: currentTurns,
       threadStatus: 'streaming',
@@ -933,13 +938,12 @@ function handleCanvasResponseDelta(data: Record<string, unknown>): void {
   if (threadId) {
     const threadNode = nodes.value.get(threadId);
     if (threadNode && Array.isArray(threadNode.data.turns)) {
-      const currentTurns = [...(threadNode.data.turns as Array<Record<string, unknown>>)];
-      const lastTurn = currentTurns[currentTurns.length - 1];
-      if (lastTurn && lastTurn.role === 'assistant') {
-        lastTurn.text = data.content as string;
-        lastTurn.status = 'streaming';
-      }
-      updateNodeData(threadId, { turns: currentTurns, threadStatus: 'streaming' });
+      // Write to this response's own turn: a reply sent mid-stream is now the last turn.
+      const currentTurns = (threadNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
+        turn.responseId === responseNodeId ? { ...turn, text: data.content as string, status: 'streaming' } : turn,
+      );
+      const threadStatus = threadNode.data.threadStatus === 'pending' ? 'pending' : 'streaming';
+      updateNodeData(threadId, { turns: currentTurns, threadStatus });
     }
     return;
   }
@@ -961,15 +965,13 @@ function handleCanvasResponseComplete(data: Record<string, unknown>): void {
   if (threadId) {
     const threadNode = nodes.value.get(threadId);
     if (threadNode && Array.isArray(threadNode.data.turns)) {
-      const currentTurns = [...(threadNode.data.turns as Array<Record<string, unknown>>)];
-      const lastTurn = currentTurns[currentTurns.length - 1];
-      if (lastTurn && lastTurn.role === 'assistant') {
-        lastTurn.text = data.content as string;
-        lastTurn.status = 'complete';
-      }
+      const currentTurns = (threadNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
+        turn.responseId === responseNodeId ? { ...turn, text: data.content as string, status: 'complete' } : turn,
+      );
       updateNodeData(threadId, {
         turns: currentTurns,
-        threadStatus: 'answered',
+        // A reply sent while this response streamed keeps the thread pending.
+        threadStatus: threadNode.data.threadStatus === 'pending' ? 'pending' : 'answered',
         _activeResponseId: undefined,
       });
     }

@@ -79,6 +79,8 @@ import {
   addCanvasNode,
   cancelCodeGraphRecompute,
   setCanvasLayoutUpdateEmitter,
+  setPromptProducerLive,
+  settleAbandonedPromptNode,
   startBoardRuntime,
 } from './canvas-operations.js';
 import { createBoardLocal } from './board-local.js';
@@ -1046,7 +1048,14 @@ function enqueuePrimaryWorkbenchIntent(
   };
   pendingWorkbenchIntents.push(intent);
   if (pendingWorkbenchIntents.length > MAX_PENDING_WORKBENCH_INTENTS) {
-    pendingWorkbenchIntents.splice(0, pendingWorkbenchIntents.length - MAX_PENDING_WORKBENCH_INTENTS);
+    const dropped = pendingWorkbenchIntents.splice(0, pendingWorkbenchIntents.length - MAX_PENDING_WORKBENCH_INTENTS);
+    // No agent will ever answer a dropped prompt, so its card must not stay pending.
+    for (const stale of dropped) {
+      if (stale.type !== 'canvas-prompt' || typeof stale.payload.nodeId !== 'string') continue;
+      const nodeId = stale.payload.nodeId;
+      setPromptProducerLive(nodeId, false);
+      canvasState.withSuppressedRecording(() => settleAbandonedPromptNode(nodeId));
+    }
   }
   broadcastWorkbenchEvent('workbench-intent', { ...intent });
   return intent;
@@ -2585,9 +2594,11 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
       contextNodeIds = threadNode.data.contextNodeIds as string[];
     }
 
+    const dataBeforeTurn = threadNode.data;
     canvasState.updateNode(threadNodeId, {
       data: { ...threadNode.data, turns: currentTurns, threadStatus: 'pending' },
     });
+    setPromptProducerLive(threadNodeId, true);
 
     let enrichedText = text;
     if (contextNodeIds.length > 0) {
@@ -2623,6 +2634,11 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
         await primaryWorkbenchCanvasPromptHandler(promptRequest);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        // Roll back the turn, as the client does; a thread left `pending` blocks board moves forever.
+        if (canvasState.getNode(threadNodeId)?.data.threadStatus === 'pending') {
+          canvasState.updateNode(threadNodeId, { data: dataBeforeTurn });
+          setPromptProducerLive(threadNodeId, false);
+        }
         broadcastWorkbenchEvent('canvas-prompt-status', {
           nodeId: threadNodeId,
           status: 'error',
@@ -2674,6 +2690,7 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
       contextNodeIds: contextNodeIds.length > 0 ? contextNodeIds : undefined,
     },
   });
+  setPromptProducerLive(nodeId, true);
 
   if (parentNodeId && canvasState.getNode(parentNodeId)) {
     canvasState.addEdge({
@@ -2720,6 +2737,11 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
       await primaryWorkbenchCanvasPromptHandler(promptRequest);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      // The caller gets the error; a prompt card left `pending` would block board moves forever.
+      if (canvasState.getNode(nodeId)?.data.threadStatus === 'pending') {
+        canvasState.removeNode(nodeId);
+        setPromptProducerLive(nodeId, false);
+      }
       broadcastWorkbenchEvent('canvas-prompt-status', {
         nodeId,
         status: 'error',
@@ -3203,9 +3225,16 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
 
     const promptNode = promptNodeId ? canvasState.getNode(promptNodeId) : null;
     if (promptNode && Array.isArray(promptNode.data.turns)) {
+      // A new response supersedes the thread's active one: its stream ends here,
+      // and its late deltas no longer route to this thread.
+      const superseded = promptNode.data._activeResponseId;
+      if (typeof superseded === 'string') serverResponseToThreadMap.delete(superseded);
       serverResponseToThreadMap.set(responseNodeId, promptNodeId);
-      const currentTurns = [...(promptNode.data.turns as Array<Record<string, unknown>>)];
-      currentTurns.push({ role: 'assistant', text: '', status: 'streaming' });
+      setPromptProducerLive(promptNodeId, true);
+      const currentTurns = (promptNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
+        turn.role === 'assistant' && turn.status === 'streaming' ? { ...turn, status: 'complete' } : turn,
+      );
+      currentTurns.push({ role: 'assistant', text: '', status: 'streaming', responseId: responseNodeId });
       canvasState.updateNode(promptNodeId, {
         data: {
           ...promptNode.data,
@@ -3231,6 +3260,7 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       pinned: false,
       data: { content: '', status: 'streaming', promptNodeId },
     });
+    setPromptProducerLive(responseNodeId, true);
 
     if (promptNodeId) {
       canvasState.addEdge({
@@ -3249,15 +3279,12 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
     if (threadId) {
       const node = canvasState.getNode(threadId);
       if (node && Array.isArray(node.data.turns)) {
-        const currentTurns = [...(node.data.turns as Array<Record<string, unknown>>)];
-        const lastTurn = currentTurns[currentTurns.length - 1];
-        if (lastTurn && lastTurn.role === 'assistant') {
-          lastTurn.text = payload.content as string;
-          lastTurn.status = 'streaming';
-        }
-        canvasState.updateNode(threadId, {
-          data: { ...node.data, turns: currentTurns, threadStatus: 'streaming' },
-        });
+        // Write to this response's own turn: a reply sent mid-stream is now the last turn.
+        const currentTurns = (node.data.turns as Array<Record<string, unknown>>).map((turn) =>
+          turn.responseId === responseNodeId ? { ...turn, text: payload.content as string, status: 'streaming' } : turn,
+        );
+        const threadStatus = node.data.threadStatus === 'pending' ? 'pending' : 'streaming';
+        canvasState.updateNode(threadId, { data: { ...node.data, turns: currentTurns, threadStatus } });
         return;
       }
     }
@@ -3276,20 +3303,20 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
     if (threadId) {
       const node = canvasState.getNode(threadId);
       if (node && Array.isArray(node.data.turns)) {
-        const currentTurns = [...(node.data.turns as Array<Record<string, unknown>>)];
-        const lastTurn = currentTurns[currentTurns.length - 1];
-        if (lastTurn && lastTurn.role === 'assistant') {
-          lastTurn.text = payload.content as string;
-          lastTurn.status = 'complete';
-        }
+        const currentTurns = (node.data.turns as Array<Record<string, unknown>>).map((turn) =>
+          turn.responseId === responseNodeId ? { ...turn, text: payload.content as string, status: 'complete' } : turn,
+        );
+        // A reply sent while this response streamed keeps the thread pending for its own answer.
+        const awaitingReply = node.data.threadStatus === 'pending';
         canvasState.updateNode(threadId, {
           data: {
             ...node.data,
             turns: currentTurns,
-            threadStatus: 'answered',
+            threadStatus: awaitingReply ? 'pending' : 'answered',
             _activeResponseId: undefined,
           },
         });
+        if (!awaitingReply) setPromptProducerLive(threadId, false);
       }
       serverResponseToThreadMap.delete(responseNodeId);
       return;
@@ -3301,6 +3328,7 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
         data: { ...existing.data, content: payload.content, status: 'complete' },
       });
     }
+    setPromptProducerLive(responseNodeId, false);
     const promptNodeId = existing?.data.promptNodeId as string | undefined;
     if (promptNodeId) {
       const edgeId = `edge-${promptNodeId}-${responseNodeId}`;

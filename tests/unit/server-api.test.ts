@@ -6,8 +6,10 @@ import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-stat
 import { MARKDOWN_NODE_DEFAULT_SIZE, MCP_APP_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
+import { startBoardRuntime } from '../../src/server/canvas-operations.ts';
 import {
   emitPrimaryWorkbenchEvent,
+  setPrimaryWorkbenchCanvasPromptHandler,
   startCanvasServer,
   stopCanvasServer,
   wrapCanvasAutomationScript,
@@ -7600,5 +7602,133 @@ describe('canvas server HTTP API', () => {
     const missingNode = await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=missing-node`);
     expect(missingNode.status).toBe(404);
     expect(await missingNode.text()).toContain('json-render node not found');
+  });
+
+  test('a failed prompt handler rolls the thread back instead of leaving it pending', async () => {
+    const post = (body: Record<string, unknown>) =>
+      fetch(`${baseUrl}/api/canvas/prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+        body: JSON.stringify(body),
+      });
+    const promptCount = () => canvasState.getLayout().nodes.filter((node) => node.type === 'prompt').length;
+    setPrimaryWorkbenchCanvasPromptHandler(async () => {
+      throw new Error('agent offline');
+    });
+    try {
+      const answeredTurns = [
+        { role: 'user', text: 'Question', status: 'complete' },
+        { role: 'assistant', text: 'Answer', status: 'complete' },
+      ];
+      canvasState.addNode({
+        id: 'thread-handler-fails',
+        type: 'prompt',
+        position: { x: 0, y: 0 },
+        size: { width: 520, height: 400 },
+        zIndex: 1,
+        collapsed: false,
+        pinned: false,
+        data: { text: 'Question', turns: answeredTurns, threadStatus: 'answered' },
+      });
+      expect((await post({ text: 'Follow-up', threadNodeId: 'thread-handler-fails' })).status).toBe(409);
+      // The reply is withdrawn, so the card is answered (and movable) again.
+      expect(canvasState.getNode('thread-handler-fails')?.data).toMatchObject({
+        threadStatus: 'answered',
+        turns: answeredTurns,
+      });
+
+      const before = promptCount();
+      expect((await post({ text: 'Fresh question' })).status).toBe(409);
+      expect(promptCount()).toBe(before);
+    } finally {
+      setPrimaryWorkbenchCanvasPromptHandler(null);
+    }
+  });
+
+  test('prompt threads stay busy only while their producer is live in this process', async () => {
+    const post = async (body: Record<string, unknown>) =>
+      (await (
+        await fetch(`${baseUrl}/api/canvas/prompt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+          body: JSON.stringify(body),
+        })
+      ).json()) as { ok: boolean; nodeId: string };
+    const thread = (id: string) => canvasState.getNode(id)?.data as Record<string, unknown>;
+    const turns = (id: string) => thread(id).turns as Array<Record<string, unknown>>;
+    setPrimaryWorkbenchCanvasPromptHandler(async () => {});
+    try {
+      // A thread left streaming by a previous process settles when its board starts.
+      canvasState.addNode({
+        id: 'thread-from-last-run',
+        type: 'prompt',
+        position: { x: 0, y: 0 },
+        size: { width: 520, height: 400 },
+        zIndex: 1,
+        collapsed: false,
+        pinned: false,
+        data: {
+          text: 'Q',
+          turns: [
+            { role: 'user', text: 'Q', status: 'pending' },
+            { role: 'assistant', text: 'Partial answer', status: 'streaming' },
+          ],
+          threadStatus: 'streaming',
+          _activeResponseId: 'response-gone',
+        },
+      });
+      const live = (await post({ text: 'Live question' })).nodeId;
+      startBoardRuntime();
+      expect(thread('thread-from-last-run')).toMatchObject({ threadStatus: 'answered' });
+      expect(thread('thread-from-last-run')._activeResponseId).toBeUndefined();
+      expect(turns('thread-from-last-run')[1]).toMatchObject({ text: 'Partial answer', status: 'complete' });
+      // ...but a prompt this process is still answering is left alone.
+      expect(thread(live).threadStatus).toBe('pending');
+
+      // A reply sent mid-stream is not overwritten by the first response, and keeps the thread pending.
+      emitPrimaryWorkbenchEvent('canvas-response-start', { responseNodeId: 'r1', promptNodeId: live });
+      await post({ text: 'Follow-up', threadNodeId: live });
+      emitPrimaryWorkbenchEvent('canvas-response-delta', { responseNodeId: 'r1', content: 'First answer' });
+      emitPrimaryWorkbenchEvent('canvas-response-complete', { responseNodeId: 'r1', content: 'First answer' });
+      expect(turns(live).map((turn) => [turn.role, turn.text])).toEqual([
+        ['user', 'Live question'],
+        ['assistant', 'First answer'],
+        ['user', 'Follow-up'],
+      ]);
+      expect(thread(live).threadStatus).toBe('pending');
+      startBoardRuntime();
+      expect(thread(live).threadStatus).toBe('pending');
+
+      // A newer response supersedes the active one: late deltas of the old one go nowhere.
+      emitPrimaryWorkbenchEvent('canvas-response-start', { responseNodeId: 'r2', promptNodeId: live });
+      emitPrimaryWorkbenchEvent('canvas-response-start', { responseNodeId: 'r3', promptNodeId: live });
+      emitPrimaryWorkbenchEvent('canvas-response-delta', { responseNodeId: 'r2', content: 'Stale' });
+      emitPrimaryWorkbenchEvent('canvas-response-complete', { responseNodeId: 'r3', content: 'Second answer' });
+      expect(
+        turns(live)
+          .slice(3)
+          .map((turn) => [turn.text, turn.status]),
+      ).toEqual([
+        ['', 'complete'],
+        ['Second answer', 'complete'],
+      ]);
+      expect(thread(live).threadStatus).toBe('answered');
+    } finally {
+      setPrimaryWorkbenchCanvasPromptHandler(null);
+    }
+  });
+
+  test('a queued prompt dropped from the full intent queue does not stay pending', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 121; i += 1) {
+      const response = await fetch(`${baseUrl}/api/canvas/prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+        body: JSON.stringify({ text: `Queued ${i}` }),
+      });
+      ids.push(((await response.json()) as { nodeId: string }).nodeId);
+    }
+    expect(canvasState.getNode(ids[0]!)?.data).toMatchObject({ threadStatus: 'draft', status: 'draft', turns: [] });
+    expect(canvasState.getNode(ids.at(-1)!)?.data.threadStatus).toBe('pending');
   });
 });

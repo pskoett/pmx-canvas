@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, resolve } from 'node:path';
 import { agentPresence } from './agent-presence.js';
+import { withCurrentActor } from './attribution.js';
 import { createBoardLocal } from './board-local.js';
 import { recomputeCodeGraph } from './code-graph.js';
 import { diffLayouts } from './mutation-history.js';
@@ -1515,7 +1516,50 @@ export function openCanvasBoard(id: string | null): { ok: boolean } {
   return { ok: true };
 }
 
+// A prompt thread or response card is busy (pending/streaming) only while its
+// producer is live in this process. The busy status is persisted, the producer is
+// not: after a restart, or when a queued prompt is dropped, the card would stay
+// busy forever, and board moves refuse busy cards.
+const livePromptProducers = new Set<string>();
+
+export function setPromptProducerLive(nodeId: string, live: boolean): void {
+  if (live) livePromptProducers.add(nodeId);
+  else livePromptProducers.delete(nodeId);
+}
+
+/** Settle a busy prompt thread or response card whose producer is gone: withdraw the unsent turn, keep streamed text. */
+export function settleAbandonedPromptNode(nodeId: string): void {
+  const node = canvasState.getNode(nodeId);
+  if (!node || livePromptProducers.has(nodeId)) return;
+  const settle = (data: Record<string, unknown>) =>
+    withCurrentActor({ actor: 'system', source: 'system' }, () => canvasState.updateNode(nodeId, { data }));
+  if (node.type === 'response') {
+    if (node.data.status === 'streaming') settle({ ...node.data, status: 'complete' });
+    return;
+  }
+  if (node.type !== 'prompt' || !Array.isArray(node.data.turns)) return;
+  if (!['pending', 'sending', 'streaming'].includes(String(node.data.threadStatus))) return;
+  const turns = node.data.turns as Array<Record<string, unknown>>;
+  const last = turns.at(-1);
+  const kept = last?.role === 'user' && last.status === 'pending' ? turns.slice(0, -1) : turns;
+  const threadStatus = kept.length > 0 ? 'answered' : 'draft';
+  const data: Record<string, unknown> = {
+    ...node.data,
+    turns: kept.map((turn) => (turn.status === 'streaming' ? { ...turn, status: 'complete' } : turn)),
+    threadStatus,
+    // A thread with no turns renders from its flat `status`, as the client's own rollback does.
+    ...(node.data.status !== undefined ? { status: threadStatus } : {}),
+  };
+  delete data._activeResponseId;
+  settle(data);
+}
+
 export function startBoardRuntime(options: { forceRehydrateExtApps?: boolean } = {}): void {
+  canvasState.withSuppressedRecording(() => {
+    for (const node of canvasState.getLayout().nodes) {
+      if (node.type === 'prompt' || node.type === 'response') settleAbandonedPromptNode(node.id);
+    }
+  });
   canvasState.bindBoard(() => {
     let disposed = false;
     const unregister = canvasState.onBoardDispose(() => {
