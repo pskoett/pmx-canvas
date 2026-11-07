@@ -65,10 +65,14 @@ describe('attention bridge', () => {
   test('a pulse frame still queued at a board switch does not light the old cards', () => {
     const frames: Array<() => void> = [];
     const originalRaf = globalThis.requestAnimationFrame;
-    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-      frames.push(() => callback(0));
-      return frames.length;
-    }) as typeof requestAnimationFrame;
+    // Other suites redefine this global as non-writable, so define rather than assign.
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: ((callback: FrameRequestCallback) => {
+        frames.push(() => callback(0));
+        return frames.length;
+      }) as typeof requestAnimationFrame,
+    });
     try {
       syncAttentionFromSse({
         event: 'canvas-layout-update',
@@ -80,7 +84,7 @@ describe('attention bridge', () => {
       for (const frame of frames.splice(0)) frame();
       expect([...attentionPulseNodeIds.value]).toEqual([]);
     } finally {
-      globalThis.requestAnimationFrame = originalRaf;
+      Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: originalRaf });
     }
   });
 
