@@ -184,7 +184,10 @@ class RemoteCanvasAccess implements CanvasAccess {
   readonly port: number;
   private readonly operationInvoker: HttpOperationInvoker;
 
-  constructor(baseUrl: string, allowExternalMcp = true) {
+  constructor(
+    baseUrl: string,
+    readonly allowExternalMcp = true,
+  ) {
     this.remoteBaseUrl = baseUrl.replace(/\/$/, '');
     const parsed = new URL(this.remoteBaseUrl);
     this.port = Number(parsed.port || '80');
@@ -437,6 +440,11 @@ async function findExistingCanvasServer(
 }
 
 export async function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasAccess> {
+  if (access instanceof RemoteCanvasAccess) {
+    // The daemon this server attached to can exit: acquire again instead of calling a dead URL forever.
+    if ((await readHealth(access.remoteBaseUrl))?.ok === true) return access;
+    return createCanvasAccess(access.allowExternalMcp);
+  }
   if (!(access instanceof LocalCanvasAccess)) return access;
   const remoteBaseUrl = await findExistingCanvasServer(access.workspaceRoot, access.targetPort, {
     excludeBaseUrls: localBaseUrls(access.port),

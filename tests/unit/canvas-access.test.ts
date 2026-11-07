@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { looksLikeIncidentalCwd, shouldAttachToExistingDaemon } from '../../src/mcp/canvas-access.ts';
+import {
+  createCanvasAccess,
+  looksLikeIncidentalCwd,
+  refreshCanvasAccess,
+  shouldAttachToExistingDaemon,
+} from '../../src/mcp/canvas-access.ts';
 
 // Finding I (0.2.6): when the preferred port is held by a healthy daemon serving a
 // DIFFERENT workspace, the MCP server should ATTACH to it (so writes are visible in
@@ -55,5 +60,45 @@ describe('looksLikeIncidentalCwd (Finding I — first-binder guard)', () => {
   test('does NOT flag a non-dot direct child of home (a normal folder)', () => {
     expect(looksLikeIncidentalCwd(join(homedir(), 'Documents'))).toBe(false);
     expect(looksLikeIncidentalCwd(join(homedir(), 'dev', 'project'))).toBe(false);
+  });
+});
+
+describe('refreshCanvasAccess (attached daemon lifecycle)', () => {
+  test('re-acquires when the attached daemon exits instead of targeting its dead URL forever', async () => {
+    const workspace = process.cwd();
+    const health = () => Response.json({ ok: true, workspace });
+    const first = Bun.serve({ port: 0, fetch: health });
+    const second = Bun.serve({ port: 0, fetch: health });
+    const saved = {
+      url: process.env.PMX_CANVAS_URL,
+      port: process.env.PMX_CANVAS_PORT,
+      root: process.env.PMX_CANVAS_WORKSPACE_ROOT,
+    };
+    // A port nothing listens on, so only PMX_CANVAS_URL can match.
+    const idle = Bun.serve({ port: 0, fetch: () => new Response('') });
+    process.env.PMX_CANVAS_PORT = String(idle.port);
+    idle.stop(true);
+    delete process.env.PMX_CANVAS_WORKSPACE_ROOT;
+    try {
+      process.env.PMX_CANVAS_URL = `http://127.0.0.1:${first.port}`;
+      const attached = await createCanvasAccess();
+      expect(attached.remoteBaseUrl).toBe(`http://127.0.0.1:${first.port}`);
+      expect(await refreshCanvasAccess(attached)).toBe(attached);
+
+      first.stop(true);
+      process.env.PMX_CANVAS_URL = `http://127.0.0.1:${second.port}`;
+      expect((await refreshCanvasAccess(attached)).remoteBaseUrl).toBe(`http://127.0.0.1:${second.port}`);
+    } finally {
+      first.stop(true);
+      second.stop(true);
+      for (const [key, value] of [
+        ['PMX_CANVAS_URL', saved.url],
+        ['PMX_CANVAS_PORT', saved.port],
+        ['PMX_CANVAS_WORKSPACE_ROOT', saved.root],
+      ] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });
