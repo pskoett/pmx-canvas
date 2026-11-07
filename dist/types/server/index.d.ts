@@ -37,7 +37,6 @@ export type SdkCanvasNode = SerializedCanvasNode & {
 };
 export declare class PmxCanvas extends EventEmitter {
     private _port;
-    private _server;
     constructor(options?: {
         port?: number;
     });

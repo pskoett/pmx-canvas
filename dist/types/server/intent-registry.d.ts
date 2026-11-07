@@ -44,8 +44,11 @@ export declare class IntentRegistry {
     runCommit<T>(id: string, allowedKinds: readonly PmxAxIntentKind[], mutate: () => T | Promise<T>, settledNodeId: (result: T, intent: PmxAxIntent) => string | undefined): Promise<T>;
     /** Drop every live intent without per-id SSE (used on hard resets). */
     reset(): void;
+    /**
+     * A veto is a lasting "no": it does not expire with the ghost, because a linked
+     * commit can arrive any time later (a slow agent turn). Only the cap evicts it.
+     */
     private rememberVeto;
-    private pruneVetoTombstones;
     private evictOverflow;
     private sweep;
     private ensureSweeper;
