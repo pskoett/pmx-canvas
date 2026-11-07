@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'preact/hooks';
 import { isHostedWorkbench, workbenchFetch } from '../state/workbench-transport';
 
-/** Asset bytes travel through the host, not a localhost URL in the user's browser. */
-export function useWorkbenchAsset(path: string): string | undefined {
+/**
+ * Asset bytes travel through the host, not a localhost URL in the user's browser.
+ * `undefined` while a hosted read is in flight, `null` once it failed.
+ */
+export function useWorkbenchAsset(path: string): string | null | undefined {
   const hosted = isHostedWorkbench() && path.startsWith('/');
-  const [asset, setAsset] = useState<{ path: string; url: string } | null>(null);
+  const [asset, setAsset] = useState<{ path: string; url: string | null } | null>(null);
   useEffect(() => {
     if (!hosted) return;
     let cancelled = false;
@@ -17,7 +20,10 @@ export function useWorkbenchAsset(path: string): string | undefined {
         };
         reader.readAsDataURL(await response.blob());
       })
-      .catch((error: unknown) => console.error('[workbench-asset]', error));
+      .catch((error: unknown) => {
+        console.error('[workbench-asset]', error);
+        if (!cancelled) setAsset({ path, url: null });
+      });
     return () => {
       cancelled = true;
     };

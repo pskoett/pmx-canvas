@@ -24,6 +24,7 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
 
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const failed = error || imageSrc === null;
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
@@ -117,8 +118,8 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
         onLostPointerCapture={handlePointerUp}
         style={{ cursor: zoom > 1 ? 'grab' : 'default' }}
       >
-        {!loaded && !error && <div class="image-node-loading">Loading…</div>}
-        {error && (
+        {!loaded && !failed && <div class="image-node-loading">Loading…</div>}
+        {failed && (
           <div class="image-node-error">
             <div class="image-node-error-icon">⚠</div>
             <div>Failed to load image</div>
@@ -126,7 +127,7 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
           </div>
         )}
         <img
-          src={imageSrc}
+          src={imageSrc ?? undefined}
           alt={alt}
           onLoad={handleLoad}
           onError={handleError}
@@ -134,7 +135,7 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             opacity: loaded ? 1 : 0,
-            display: error ? 'none' : 'block',
+            display: failed ? 'none' : 'block',
           }}
         />
       </div>

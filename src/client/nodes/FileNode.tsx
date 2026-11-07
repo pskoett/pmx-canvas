@@ -333,13 +333,13 @@ function TextFileNode({ node, expanded = false }: { node: CanvasNodeState; expan
           (pdfFrameBlocked ? (
             <div class="file-node-placeholder">
               <div>PDF preview is unavailable in this embedded host.</div>
-              <a class="file-node-link" href={bytesUrl} target="_blank" rel="noreferrer">
+              <a class="file-node-link" href={bytesUrl ?? undefined} target="_blank" rel="noreferrer">
                 Open PDF
               </a>
             </div>
           ) : (
             <iframe
-              src={bytesUrl}
+              src={bytesUrl ?? undefined}
               title={title}
               // SECURITY: same-origin URL, so it must be sandboxed like every
               // other iframe in the client. Without allow-same-origin the frame

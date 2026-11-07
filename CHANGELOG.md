@@ -35,6 +35,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - The status card goes back to what the agent was doing when a tool finishes, instead of staying on "tooling".
 - A ghost the agent settled into a card no longer dissolves instead when it expires in the same moment.
 - A workbench tab opened with `?agent=` no longer shows up as a human cursor or locks the cards it drags.
+- An image that fails to load inside a host app shows its error instead of "Loading…" forever.
 
 ## [0.12.1] - 2026-11-05
 

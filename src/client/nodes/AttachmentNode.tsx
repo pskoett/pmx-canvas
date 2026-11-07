@@ -71,7 +71,7 @@ export function AttachmentNode({ node, expanded = false }: { node: CanvasNodeSta
               : 'Original attached'}
       </div>
       <a
-        href={downloadUrl}
+        href={downloadUrl ?? undefined}
         download={String(node.data.title ?? 'attachment')}
         target="_blank"
         rel="noopener noreferrer"
