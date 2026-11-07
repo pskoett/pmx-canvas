@@ -586,6 +586,18 @@ export class AgentPresenceRegistry {
       // is an OVERLAY: bump the window + detail, keep the explicit phase.
       stored.toolingUntilMs = now + PRESENCE_TOOLING_SETTLE_MS;
       if (input.detail !== undefined) stored.detail = input.detail;
+      // An agent that writes to the canvas is no longer blocked on an approval, so a stale
+      // explicit `waiting-approval` must not keep its amber chip. The approval and delivery
+      // ops are part of waiting. Pending canvas gates still read as waiting in publicView.
+      const detail = input.detail ?? '';
+      if (
+        stored.phase === 'waiting-approval' &&
+        !detail.startsWith('ax.approval.') &&
+        !detail.startsWith('ax.delivery.')
+      ) {
+        stored.phase = 'idle';
+        stored.phaseSetMs = now;
+      }
     } else if (input.phase !== undefined) {
       stored.phase = input.phase;
       stored.phaseSetMs = now;

@@ -68,6 +68,23 @@ describe('phase overlay + identity (joint-gaps presence fixes)', () => {
     expect(last.presences[0]?.phase).toBe('thinking');
   }, 10_000);
 
+  test('an explicit waiting-approval holds through approval plumbing and ends on the next real write', () => {
+    registry.touch({ source: 'codex', attached: true, phase: 'waiting-approval' }, T0);
+    const phase = (now: number) => registry.snapshot(now).presences[0]?.phase;
+    // A host-side approval can take a long time: silence never settles it.
+    expect(phase(T0 + 10 * 60_000)).toBe('waiting-approval');
+    // Requesting a gate or delivery bookkeeping is part of waiting, not proof it ended.
+    for (const detail of ['ax.approval.request', 'ax.delivery.claim'])
+      registry.touch({ source: 'codex', phase: 'tooling', derivedTooling: true, detail, op: true }, T0 + 10 * 60_000);
+    expect(phase(T0 + 10 * 60_000 + 5_000)).toBe('waiting-approval');
+    // A canvas write shows the agent is working again, so the amber chip must not linger.
+    registry.touch(
+      { source: 'codex', phase: 'tooling', derivedTooling: true, detail: 'node.add', op: true },
+      T0 + 11 * 60_000,
+    );
+    expect(phase(T0 + 11 * 60_000 + 5_000)).toBe('idle');
+  });
+
   test('explicit thinking that nothing refreshes settles to idle (three silent Thinking chips)', () => {
     registry.touch({ source: 'codex', attached: true, phase: 'thinking' }, T0);
     expect(registry.snapshot(T0 + 60_000).presences[0]?.phase).toBe('thinking');
