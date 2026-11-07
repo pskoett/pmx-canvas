@@ -3399,15 +3399,6 @@ export function isCanvasBrowserOpening(): boolean {
   return canvasBrowserOpening;
 }
 
-export function markCanvasBrowserOpened(): void {
-  canvasBrowserOpened = true;
-  canvasBrowserOpening = false;
-}
-
-export function markCanvasBrowserOpening(): void {
-  canvasBrowserOpening = true;
-}
-
 function ensureCanvasBrowserOpen(): void {
   if (!primaryWorkbenchAutoOpenEnabled) return;
   if (canvasBrowserOpened) return;

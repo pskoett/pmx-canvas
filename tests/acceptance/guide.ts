@@ -985,7 +985,6 @@ export const GUIDE: GuideRow[] = [
       'src/client/nodes/ViewerFrame.tsx',
       'src/client/nodes/use-ax-surface-bridge.ts',
       'src/shared/ax-surface-protocol.ts',
-      'src/client/ext-app/**',
       'src/client/mcp-app/**',
       'src/client/utils/ext-app-tool-result.ts',
       'src/server/mcp-app-*.ts',
