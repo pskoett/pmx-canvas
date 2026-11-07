@@ -1440,18 +1440,35 @@ function startPollingTransport(): () => void {
   };
   void pollOnce();
 
-  return () => {
-    stopHumanPresence();
-    pollGeneration += 1;
-    pollingMode = false;
-    pollSeq = null;
-    controller.abort();
-    if (pollAbort === controller) pollAbort = null;
-    if (pollTimer) {
-      clearTimeout(pollTimer);
-      pollTimer = null;
-    }
-  };
+  return disconnectTransport;
+}
+
+/**
+ * Tear down whichever transport is live NOW: the current EventSource (which a
+ * reconnect or the watchdog may have replaced since connectSSE returned), a
+ * pending reconnect, the watchdog, and polling.
+ */
+function disconnectTransport(): void {
+  stopHumanPresence();
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (sseFirstEventWatchdog) {
+    clearTimeout(sseFirstEventWatchdog);
+    sseFirstEventWatchdog = null;
+  }
+  pollGeneration += 1;
+  pollingMode = false;
+  pollSeq = null;
+  pollAbort?.abort();
+  pollAbort = null;
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+  eventSource?.close();
+  eventSource = null;
 }
 
 export function connectSSE(): () => void {
@@ -1529,6 +1546,8 @@ export function connectSSE(): () => void {
   source.onerror = () => {
     if (eventSource !== source) return;
     connectionStatus.value = 'disconnected';
+    // The `connected` frame of the next connection restarts presence.
+    stopHumanPresence();
     source.close();
     eventSource = null;
     reconnectAttempts += 1;
@@ -1541,28 +1560,5 @@ export function connectSSE(): () => void {
     }, delay);
   };
 
-  return () => {
-    stopHumanPresence();
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    if (sseFirstEventWatchdog) {
-      clearTimeout(sseFirstEventWatchdog);
-      sseFirstEventWatchdog = null;
-    }
-    if (pollingMode) {
-      pollGeneration += 1;
-      pollingMode = false;
-      pollSeq = null;
-      pollAbort?.abort();
-      pollAbort = null;
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-        pollTimer = null;
-      }
-    }
-    source.close();
-    eventSource = null;
-  };
+  return disconnectTransport;
 }

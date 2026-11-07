@@ -144,6 +144,27 @@ describe('sse-bridge reconnect', () => {
     expect(promptNode?.data.threadStatus).toBe('answered');
   });
 
+  test('disconnect closes the EventSource a reconnect opened, not only the first one', async () => {
+    const sources: FakeEventSource[] = [];
+    class TrackedEventSource extends FakeEventSource {
+      constructor(url: string) {
+        super(url);
+        sources.push(this);
+      }
+    }
+    Object.defineProperty(globalThis, 'EventSource', {
+      configurable: true,
+      value: TrackedEventSource as unknown as typeof EventSource,
+    });
+    const disconnect = connectSSE();
+    sources[0]?.onerror?.(new Event('error'));
+    // The first reconnect waits 500 ms.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(sources).toHaveLength(2);
+    disconnect();
+    expect(sources[1]?.closed).toBe(true);
+  });
+
   test('a reply sent mid-stream is not overwritten, and a superseded response stops routing', () => {
     EVENT_HANDLERS['canvas-prompt-created']({ nodeId: 'prompt-2', text: 'first' });
     EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'r1', promptNodeId: 'prompt-2' });
