@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createCanvas } from '../../src/server/index.ts';
 import {
   getCanvasAutomationWebViewStatus,
+  getCanvasServerPort,
   startCanvasAutomationWebView,
   startCanvasServer,
   stopCanvasAutomationWebView,
@@ -29,6 +30,25 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
       }
     }
   });
+
+  test('startAutomationWebView brings back a canvas server that was stopped outside the SDK', async () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-webview-restart-');
+    resetCanvasForTests(workspaceRoot);
+    const canvas = createCanvas({ port: 4541 });
+    try {
+      await canvas.start({ open: false });
+      stopCanvasServer();
+      expect(getCanvasServerPort()).toBeNull();
+      // The view itself may be unavailable on this host; the server must be back either way.
+      await canvas.startAutomationWebView().catch(() => undefined);
+      const port = getCanvasServerPort();
+      expect(port).not.toBeNull();
+      expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true);
+    } finally {
+      await stopCanvasAutomationWebView().catch(() => undefined);
+      canvas.stop();
+    }
+  }, 30_000);
 
   // Navigation has a 15s server timeout; allow its error response and cleanup
   // to finish before the test runner advances to the next shared-server test.

@@ -167,7 +167,6 @@ const SDK_PRESENCE_DETAIL: Record<PmxAxIntentKind, string> = {
 
 export class PmxCanvas extends EventEmitter {
   private _port: number;
-  private _server: string | null = null;
 
   constructor(options?: { port?: number }) {
     super();
@@ -233,7 +232,6 @@ export class PmxCanvas extends EventEmitter {
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
     }
-    this._server = base;
     this._port = getCanvasServerPort() ?? this._port;
 
     // The mutation-history recorder is wired by startCanvasServer above —
@@ -277,7 +275,6 @@ export class PmxCanvas extends EventEmitter {
 
   stop(): void {
     stopCanvasServer();
-    this._server = null;
   }
 
   /**
@@ -1816,11 +1813,12 @@ export class PmxCanvas extends EventEmitter {
   }
 
   async startAutomationWebView(options: CanvasAutomationWebViewOptions = {}): Promise<CanvasAutomationWebViewStatus> {
-    const base = this._server ?? startCanvasServer({ port: this._port, allowPortFallback: false });
+    // Ask the server singleton each time: it may have stopped or restarted outside
+    // this instance, and startCanvasServer returns the live URL when one runs.
+    const base = startCanvasServer({ port: this._port, allowPortFallback: false });
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
     }
-    this._server = base;
     this._port = getCanvasServerPort() ?? this._port;
     return startCanvasAutomationWebView(`${base}/workbench`, options);
   }
