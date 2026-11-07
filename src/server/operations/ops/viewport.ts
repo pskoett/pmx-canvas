@@ -291,7 +291,11 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
       const area = getClientViewportSize() ?? { width: 1440, height: 900 };
       next = { x: area.width / 2 - center.x * scale, y: area.height / 2 - center.y * scale, scale };
     }
-    if (body.recordHistory === false) {
+    const current = canvasState.viewport;
+    // Re-sending the current camera (every touch tap does) is not an edit: recording it
+    // would add a no-op undo step and discard the redo history.
+    const unchanged = next.x === current.x && next.y === current.y && next.scale === current.scale;
+    if (body.recordHistory === false || unchanged) {
       canvasState.withSuppressedRecording(() => {
         canvasState.setViewport(next);
       });

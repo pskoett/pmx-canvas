@@ -4918,6 +4918,25 @@ describe('canvas server HTTP API', () => {
     expect(state.viewport).toEqual({ x: 120, y: -80, scale: 1.5 });
   });
 
+  test('re-sending the current camera (a touch tap) adds no history and keeps redo', async () => {
+    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Redo survives a tap' }),
+    });
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    const { viewport } = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    await jsonRequest('/api/canvas/viewport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(viewport),
+    });
+    const redone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/redo', { method: 'POST' });
+    expect(redone).toMatchObject({ ok: true, description: expect.stringContaining('Redo survives a tap') });
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.nodes.some((node) => node.id === created.id)).toBe(true);
+  });
+
   test('fits the viewport to current canvas bounds over HTTP', async () => {
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
