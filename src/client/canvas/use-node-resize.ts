@@ -32,6 +32,8 @@ export function useNodeResize({ nodeId, viewport, onResize, onResizeEnd }: NodeR
       document.documentElement.classList.add('is-node-resizing');
       let pendingPointer: { x: number; y: number } | null = null;
       let frameId: number | null = null;
+      // A click on the handle is not a resize: only a real size change ends one.
+      let resized = false;
 
       const flushResize = () => {
         frameId = null;
@@ -41,6 +43,7 @@ export function useNodeResize({ nodeId, viewport, onResize, onResizeEnd }: NodeR
         const scale = viewport.value.scale;
         const dw = (pointer.x - startPointer.current.x) / scale;
         const dh = (pointer.y - startPointer.current.y) / scale;
+        if (dw !== 0 || dh !== 0) resized = true;
         onResize(nodeId, Math.max(MIN_WIDTH, startSize.current.w + dw), Math.max(MIN_HEIGHT, startSize.current.h + dh));
       };
 
@@ -61,7 +64,7 @@ export function useNodeResize({ nodeId, viewport, onResize, onResizeEnd }: NodeR
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', finishResize);
         document.removeEventListener('pointercancel', finishResize);
-        onResizeEnd();
+        if (resized) onResizeEnd();
       };
 
       document.addEventListener('pointermove', onPointerMove);

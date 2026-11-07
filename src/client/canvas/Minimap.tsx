@@ -133,13 +133,16 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
       const onPointerMove = (ev: PointerEvent) => {
         if (isDragging.current) handleNavigateFromEvent(ev);
       };
+      // Cancel ends the drag too; otherwise every later mouse move keeps navigating.
       const onPointerUp = () => {
         isDragging.current = false;
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerUp);
       };
       document.addEventListener('pointermove', onPointerMove);
       document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('pointercancel', onPointerUp);
     },
     [handleNavigateFromEvent],
   );

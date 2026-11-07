@@ -113,6 +113,8 @@ export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; e
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onLostPointerCapture={handlePointerUp}
         style={{ cursor: zoom > 1 ? 'grab' : 'default' }}
       >
         {!loaded && !error && <div class="image-node-loading">Loading…</div>}

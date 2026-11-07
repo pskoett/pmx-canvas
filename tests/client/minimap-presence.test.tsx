@@ -84,3 +84,33 @@ describe('minimap presence dots', () => {
     host.remove();
   });
 });
+
+test('a cancelled minimap drag stops navigating on later mouse moves', () => {
+  viewport.value = { x: 0, y: 0, scale: 1 };
+  nodes.value = new Map([['n1', node('n1', 100, 100)]]);
+  edges.value = new Map();
+  let navigations = 0;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  render(
+    <Minimap
+      viewport={viewport}
+      nodes={nodes}
+      edges={edges}
+      onNavigate={() => {
+        navigations += 1;
+      }}
+      containerWidth={1200}
+      containerHeight={800}
+    />,
+    host,
+  );
+  const map = host.querySelector('.minimap')!;
+  map.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));
+  document.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }));
+  const afterCancel = navigations;
+  document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 40, clientY: 40 }));
+  expect(navigations).toBe(afterCancel);
+  render(null, host);
+  host.remove();
+});

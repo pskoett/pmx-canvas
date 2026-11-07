@@ -602,6 +602,18 @@ export function CanvasViewport({
     setLasso(null);
   }, []);
 
+  // A cancelled pointer (OS gesture, lost capture) abandons the stroke or lasso
+  // without committing it; otherwise the flags stay set and block pan and wheel.
+  const handlePointerCancel = useCallback(() => {
+    if (!isAnnotating.current && !isLassoing.current) return;
+    isAnnotating.current = false;
+    annotationPoints.current = [];
+    setDraftAnnotation(null);
+    isLassoing.current = false;
+    lassoRef.current = null;
+    setLasso(null);
+  }, []);
+
   useEffect(() => {
     if (annotationMode) return;
     if (!isAnnotating.current && !draftAnnotation && !textDraft) return;
@@ -872,6 +884,8 @@ export function CanvasViewport({
         reportHumanCursor(null);
       }}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onLostPointerCapture={handlePointerCancel}
       onContextMenu={handleContextMenu}
       onDblClick={handleDblClick}
       onDragStart={handleDragStart}
