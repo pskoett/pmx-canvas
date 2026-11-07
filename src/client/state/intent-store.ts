@@ -78,7 +78,8 @@ export function removeIntent(id: string): void {
 
 function setPhase(id: string, phase: IntentPhase, ms: number, settledNodeId?: string): void {
   const current = intents.value.get(id);
-  if (!current || current.phase === phase) return;
+  // An exit is final: only a new `ax-intent` frame (upsert) brings a ghost back.
+  if (current?.phase !== 'forming') return;
   const next = new Map(intents.value);
   next.set(id, { ...current, phase, ...(settledNodeId ? { settledNodeId } : {}) });
   writeIntents(next);
@@ -146,7 +147,8 @@ function ensurePrune(): void {
   pruneTimer = setInterval(() => {
     const now = Date.now();
     for (const intent of intents.value.values()) {
-      if (intent.phase === 'forming' && intent.expiresAt <= now) {
+      // A ghost waiting out its dwell already has its exit queued.
+      if (intent.phase === 'forming' && !phaseDelayTimers.has(intent.id) && intent.expiresAt <= now) {
         dissolveIntent(intent.id);
       }
     }

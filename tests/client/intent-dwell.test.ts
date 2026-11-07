@@ -9,6 +9,7 @@ import {
   dissolveIntent,
   intents,
   removeIntent,
+  resetIntents,
   settleIntent,
   upsertIntent,
 } from '../../src/client/state/intent-store.ts';
@@ -87,5 +88,19 @@ describe('intent minimum dwell', () => {
     await new Promise((r) => setTimeout(r, MIN_FORMING_MS + 60));
     dissolveIntent('dwell-2');
     expect(intents.value.get('dwell-2')?.phase).toBe('dissolving');
+  });
+
+  test('a settle stays a settle: neither an expiry in the dwell nor a later dissolve replaces it', async () => {
+    resetIntents();
+    // The first ghost starts the 1s prune tick; the second expires and settles
+    // half a second in, so that tick lands inside its dwell.
+    upsertIntent(ghost('dwell-anchor'));
+    await new Promise((r) => setTimeout(r, 500));
+    upsertIntent({ ...ghost('dwell-3'), expiresAt: Date.now() + 100 });
+    settleIntent('dwell-3', 'node-real');
+    await new Promise((r) => setTimeout(r, MIN_FORMING_MS + 120));
+    expect(intents.value.get('dwell-3')?.phase).toBe('settling');
+    dissolveIntent('dwell-3');
+    expect(intents.value.get('dwell-3')?.phase).toBe('settling');
   });
 });
