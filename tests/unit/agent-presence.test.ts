@@ -551,6 +551,15 @@ describe('session lifecycle (pre-session snapshot + receipt)', () => {
     );
   });
 
+  test('an attached session evicted past the presence cap still ends exactly once', () => {
+    registry.touch({ source: 'oldest-agent', attached: true }, T0);
+    for (let i = 0; i < MAX_PRESENCES; i += 1) {
+      registry.touch({ source: `writer-${i}`, op: true }, T0 + 1 + i);
+    }
+    expect(registry.snapshot(T0 + MAX_PRESENCES + 1).presences.some((p) => p.sessionId === 'oldest-agent')).toBe(false);
+    expect(ends).toEqual([{ sessionId: 'oldest-agent', startSnapshotId: 'snap-1' }]);
+  });
+
   test('a real agent attach retires the unused human-started placeholder and inherits its baseline', () => {
     // Start agent session → placeholder chip. A real agent attaching makes the
     // placeholder pure noise: it TURNS INTO the agent's session — no third

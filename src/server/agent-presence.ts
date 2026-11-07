@@ -832,8 +832,11 @@ export class AgentPresenceRegistry {
         }
       }
       if (!oldestKey) break;
+      const evicted = this.presences.get(oldestKey);
       this.presences.delete(oldestKey);
       this.dropAliasesTo(oldestKey);
+      // Eviction ends the least recently seen session, so it gets the idle end hook.
+      if (evicted?.attached) this.endSession(evicted, 'idle-timeout', Date.now());
     }
   }
 
