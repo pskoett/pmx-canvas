@@ -2,6 +2,7 @@ import { effect } from '@preact/signals';
 import { Component } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { askText } from './TextPrompt';
+import { boardIncarnation } from '../state/boards-store';
 import { ContextNode } from '../nodes/ContextNode';
 import { DiffNode } from '../nodes/DiffNode';
 import { FileNode } from '../nodes/FileNode';
@@ -689,7 +690,10 @@ export function CanvasViewport({
         // In-canvas prompt — `window.prompt` is a silent no-op in embedded
         // panes (the L-labelled connect just dropped the label there).
         // Cancelling still creates the edge, unlabelled, like prompt-cancel did.
+        // Not after a board switch: cards created with explicit IDs can repeat on another board.
+        const incarnation = boardIncarnation;
         void askText('Edge label', 'label text').then((label) => {
+          if (incarnation !== boardIncarnation) return;
           createEdgeFromClient(drag.fromId, targetId, 'relation', label ?? undefined);
         });
         return;

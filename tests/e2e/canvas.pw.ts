@@ -7454,6 +7454,27 @@ test('edge creation: Connect tool drags an edge from a node body, the target lig
       return state.edges.map((edge) => edge.label ?? '').join(',');
     })
     .toBe('depends');
+
+  // A label prompt left open across a board switch must not write an edge to the new board.
+  await page.mouse.move(aBox!.x + 120, aBox!.y + 90);
+  await page.mouse.down();
+  await page.mouse.move(bBox!.x + 120, bBox!.y + 90, { steps: 6 });
+  await page.keyboard.press('l');
+  await page.mouse.up();
+  await expect(labelPrompt).toBeVisible();
+  const edgeWrites: string[] = [];
+  page.on('request', (req) => {
+    if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/canvas/edge') edgeWrites.push(req.url());
+  });
+  const other = (await (
+    await request.post('/api/canvas/boards', { data: { name: 'Label prompt elsewhere' } })
+  ).json()) as { board: { id: string } };
+  await request.post('/api/canvas/boards/open', { data: { id: other.board.id } });
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Edge A' })).toHaveCount(0);
+  await labelPrompt.locator('input').fill('stale');
+  await labelPrompt.locator('input').press('Enter');
+  await page.waitForTimeout(500);
+  expect(edgeWrites).toEqual([]);
   await page.keyboard.press('v');
 });
 
