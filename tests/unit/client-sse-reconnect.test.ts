@@ -165,6 +165,18 @@ describe('sse-bridge reconnect', () => {
     expect(sources[1]?.closed).toBe(true);
   });
 
+  test('a finished tool returns the status card to the phase it interrupted', () => {
+    EVENT_HANDLERS['execution-phase']?.({ phase: 'thinking', detail: 'planning' });
+    EVENT_HANDLERS['tool-start']?.({ name: 'bun test' });
+    expect(nodes.value.get('status-main')?.data).toMatchObject({ phase: 'tooling', activeTool: 'bun test' });
+    EVENT_HANDLERS['tool-complete']?.({ name: 'bun test' });
+    expect(nodes.value.get('status-main')?.data).toMatchObject({
+      phase: 'thinking',
+      detail: 'planning',
+      activeTool: null,
+    });
+  });
+
   test('a reply sent mid-stream is not overwritten, and a superseded response stops routing', () => {
     EVENT_HANDLERS['canvas-prompt-created']({ nodeId: 'prompt-2', text: 'first' });
     EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'r1', promptNodeId: 'prompt-2' });

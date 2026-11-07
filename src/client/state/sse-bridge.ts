@@ -714,17 +714,25 @@ function handleAssistantComplete(data: Record<string, unknown>): void {
 
 function handleToolStart(data: Record<string, unknown>): void {
   ensureStatusNode();
+  const current = nodes.value.get('status-main')?.data ?? {};
   updateNodeData('status-main', {
     phase: 'tooling',
     detail: `${data.name}`,
     activeTool: data.name,
+    // What the tool interrupted, restored when it completes (a nested start keeps the outer one).
+    beforeTool:
+      current.phase === 'tooling' ? current.beforeTool : { phase: current.phase ?? 'idle', detail: current.detail },
   });
 }
 
 function handleToolComplete(_data: Record<string, unknown>): void {
   ensureStatusNode();
+  const current = nodes.value.get('status-main')?.data ?? {};
+  const before = (current.beforeTool ?? { phase: 'idle', detail: null }) as { phase: unknown; detail: unknown };
   updateNodeData('status-main', {
     activeTool: null,
+    // A finished tool must not keep the card on "tooling" until some later phase frame.
+    ...(current.phase === 'tooling' ? { phase: before.phase, detail: before.detail, beforeTool: undefined } : {}),
   });
 }
 

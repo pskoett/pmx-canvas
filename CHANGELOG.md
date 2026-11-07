@@ -32,6 +32,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Stopping the server while the automation WebView is still starting now closes the WebView.
 - A cancelled minimap drag or image gesture no longer leaves the pointer stuck, and clicking a resize handle without dragging no longer marks the card as manually sized.
 - A card no longer pulses after you switch away from its board.
+- The status card goes back to what the agent was doing when a tool finishes, instead of staying on "tooling".
 
 ## [0.12.1] - 2026-11-05
 
