@@ -2596,7 +2596,8 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
       contextNodeIds = threadNode.data.contextNodeIds as string[];
     }
 
-    const dataBeforeTurn = threadNode.data;
+    // Turns are only appended or updated in place, so this index stays the reply's.
+    const replyIndex = currentTurns.length - 1;
     canvasState.updateNode(threadNodeId, {
       data: { ...threadNode.data, turns: currentTurns, threadStatus: 'pending' },
     });
@@ -2636,10 +2637,19 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
         await primaryWorkbenchCanvasPromptHandler(promptRequest);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        // Roll back the turn, as the client does; a thread left `pending` blocks board moves forever.
-        if (canvasState.getNode(threadNodeId)?.data.threadStatus === 'pending') {
-          canvasState.updateNode(threadNodeId, { data: dataBeforeTurn });
-          setPromptProducerLive(threadNodeId, false);
+        // Withdraw only this reply, as the client does; a thread left `pending` blocks board moves
+        // forever. Responses that streamed while the handler ran stay.
+        const current = canvasState.getNode(threadNodeId);
+        const latestTurns = (Array.isArray(current?.data.turns) ? current?.data.turns : []) as Array<
+          Record<string, unknown>
+        >;
+        const reply = latestTurns[replyIndex];
+        if (current && reply?.role === 'user' && reply.text === text) {
+          const turns = latestTurns.filter((_turn, index) => index !== replyIndex);
+          const streaming = turns.some((turn) => turn.role === 'assistant' && turn.status === 'streaming');
+          const threadStatus = streaming ? 'streaming' : turns.length > 0 ? 'answered' : 'draft';
+          canvasState.updateNode(threadNodeId, { data: { ...current.data, turns, threadStatus } });
+          if (!streaming) setPromptProducerLive(threadNodeId, false);
         }
         broadcastWorkbenchEvent('canvas-prompt-status', {
           nodeId: threadNodeId,

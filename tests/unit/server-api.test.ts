@@ -7690,6 +7690,53 @@ describe('canvas server HTTP API', () => {
       const before = promptCount();
       expect((await post({ text: 'Fresh question' })).status).toBe(409);
       expect(promptCount()).toBe(before);
+
+      // An answer that was streaming when the reply was sent finishes while the
+      // failing handler runs: the rollback withdraws only the reply.
+      emitPrimaryWorkbenchEvent('canvas-response-start', {
+        responseNodeId: 'resp-during-reply',
+        promptNodeId: 'thread-handler-fails',
+      });
+      setPrimaryWorkbenchCanvasPromptHandler(async () => {
+        emitPrimaryWorkbenchEvent('canvas-response-complete', {
+          responseNodeId: 'resp-during-reply',
+          content: 'Finished meanwhile',
+        });
+        throw new Error('agent offline');
+      });
+      expect((await post({ text: 'Second follow-up', threadNodeId: 'thread-handler-fails' })).status).toBe(409);
+      const data = canvasState.getNode('thread-handler-fails')?.data;
+      expect(data?.threadStatus).toBe('answered');
+      expect(
+        (data?.turns as Array<{ text: string; status: string }>).map(({ text, status }) => [text, status]),
+      ).toEqual([
+        ['Question', 'complete'],
+        ['Answer', 'complete'],
+        ['Finished meanwhile', 'complete'],
+      ]);
+
+      // A whole answer that starts and ends during the handler moves the thread off
+      // `pending`; the failed reply is still withdrawn.
+      setPrimaryWorkbenchCanvasPromptHandler(async () => {
+        emitPrimaryWorkbenchEvent('canvas-response-start', {
+          responseNodeId: 'resp-inside-handler',
+          promptNodeId: 'thread-handler-fails',
+        });
+        emitPrimaryWorkbenchEvent('canvas-response-complete', {
+          responseNodeId: 'resp-inside-handler',
+          content: 'Another agent answered',
+        });
+        throw new Error('agent offline');
+      });
+      expect((await post({ text: 'Third follow-up', threadNodeId: 'thread-handler-fails' })).status).toBe(409);
+      const after = canvasState.getNode('thread-handler-fails')?.data;
+      expect(after?.threadStatus).toBe('answered');
+      expect((after?.turns as Array<{ text: string }>).map(({ text }) => text)).toEqual([
+        'Question',
+        'Answer',
+        'Finished meanwhile',
+        'Another agent answered',
+      ]);
     } finally {
       setPrimaryWorkbenchCanvasPromptHandler(null);
     }

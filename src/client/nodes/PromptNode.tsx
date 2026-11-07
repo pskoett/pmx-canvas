@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { IconClose } from '../icons';
 import { activeBoardId } from '../state/boards-store';
-import { updateNodeData } from '../state/canvas-store';
+import { nodes, updateNodeData } from '../state/canvas-store';
 import { fetchSlashCommands, renderMarkdown, submitCanvasPrompt, submitThreadReply } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
@@ -266,15 +266,26 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
     const savedReply = replyDraft;
     setError(null);
     // Optimistically add user turn
-    const currentTurns = Array.isArray(node.data.turns) ? [...(node.data.turns as ThreadTurn[])] : [];
-    currentTurns.push({ role: 'user', text: trimmed, status: 'pending' });
-    updateNodeData(node.id, { turns: currentTurns, threadStatus: 'pending' });
+    const currentTurns = Array.isArray(node.data.turns) ? (node.data.turns as ThreadTurn[]) : [];
+    updateNodeData(node.id, {
+      turns: [...currentTurns, { role: 'user', text: trimmed, status: 'pending' }],
+      threadStatus: 'pending',
+    });
     setReplyDraft('');
     const result = await submitThreadReply(node.id, trimmed);
     if (!result.ok) {
-      // Remove the optimistic turn
-      currentTurns.pop();
-      updateNodeData(node.id, { turns: currentTurns, threadStatus: 'answered' });
+      // Remove only this reply's turn (the server's echo may have replaced the optimistic
+      // object); turns that arrived during the request stay.
+      const latest = nodes.value.get(node.id)?.data.turns;
+      const remaining = Array.isArray(latest) ? [...(latest as ThreadTurn[])] : [];
+      for (let index = remaining.length - 1; index >= 0; index--) {
+        const turn = remaining[index];
+        if (turn.role === 'user' && turn.text === trimmed && turn.status === 'pending') {
+          remaining.splice(index, 1);
+          break;
+        }
+      }
+      updateNodeData(node.id, { turns: remaining, threadStatus: 'answered' });
       setReplyDraft(savedReply);
       setError('Failed to send reply. Your draft has been restored.');
     }
