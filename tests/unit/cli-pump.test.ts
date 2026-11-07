@@ -113,6 +113,62 @@ describe('pmx-canvas pump', () => {
     expect(await pendingFor('pumpfail')).toBe(1);
   }, 20_000);
 
+  test('a mark that fails once is retried, so the steer runs exactly once and ends delivered', async () => {
+    await steer('run me once', 'pumpmark');
+    let failedMarks = 0;
+    // Forwards to the canvas server, but the first delivery mark fails as if the daemon were restarting.
+    const proxy = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      async fetch(request) {
+        const url = new URL(request.url);
+        if (request.method !== 'GET' && url.pathname.includes('delivery') && failedMarks === 0) {
+          failedMarks += 1;
+          return new Response('restarting', { status: 503 });
+        }
+        return fetch(`${baseUrl}${url.pathname}${url.search}`, {
+          method: request.method,
+          headers: request.headers,
+          body: request.method === 'GET' ? undefined : await request.arrayBuffer(),
+        });
+      },
+    });
+    const runs = join(scratch, 'runs.txt');
+    writeFileSync(runs, '');
+    const command = `bun -e "require('node:fs').appendFileSync(process.argv[1], 'x')" "${runs}"`;
+    try {
+      // A child process: before the fix, a failed mark exited the whole process.
+      const child = Bun.spawn(
+        [
+          'bun',
+          join(import.meta.dir, '../../src/cli/index.ts'),
+          'pump',
+          '--consumer',
+          'pumpmark',
+          '--exec',
+          command,
+          '--once',
+          '--backlog',
+          'deliver',
+          '--wait-ms',
+          '2000',
+          '--retry-delay-ms',
+          '50',
+        ],
+        { env: { ...process.env, PMX_CANVAS_URL: `http://127.0.0.1:${proxy.port}` }, stdout: 'pipe', stderr: 'pipe' },
+      );
+      const exitCode = await child.exited;
+      expect({ exitCode, failedMarks, runs: readFileSync(runs, 'utf-8') }).toEqual({
+        exitCode: 0,
+        failedMarks: 1,
+        runs: 'x',
+      });
+      expect(await pendingFor('pumpmark')).toBe(0);
+    } finally {
+      proxy.stop(true);
+    }
+  }, 30_000);
+
   test('the {message} placeholder is refused on Windows, where cmd.exe would re-parse it', () => {
     // POSIX: substituted as a variable reference, never spliced in.
     expect(renderExecTemplate('agent {message}', false)).toBe('agent "$PMX_STEER_MESSAGE"');

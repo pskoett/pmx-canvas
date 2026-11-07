@@ -16,6 +16,7 @@
  * takes the message from stdin instead. See `renderExecTemplate`.
  */
 import { spawn } from 'node:child_process';
+import { HttpOperationInvoker } from '../../server/operations/index.js';
 import {
   cmd,
   getBaseUrl,
@@ -43,9 +44,19 @@ async function claimPending(consumer: string, waitMs: number): Promise<{ pending
   return { pending: Array.isArray(body.pending) ? body.pending : [], tookMs: Date.now() - started };
 }
 
+/**
+ * True once the server has answered the mark: `delivered:false` means it was already marked or
+ * is unknown, so it will not be handed out again. False when the request failed; the steer is
+ * still pending. Not `invokeOperation`, which exits the process on a failed request.
+ */
 async function markDelivered(id: string, consumer: string): Promise<boolean> {
-  const result = (await invokeOperation('ax.delivery.mark', { id, consumer })) as { delivered?: boolean };
-  return result.delivered === true;
+  try {
+    await new HttpOperationInvoker(getBaseUrl(), 'cli').invoke('ax.delivery.mark', { id, consumer });
+    return true;
+  } catch (error) {
+    console.error(`[pump] mark failed for ${id}: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
 }
 
 /**
@@ -242,7 +253,16 @@ cmd(
         if (await markDelivered(steer.id, consumer)) awaitingMark.delete(steer.id);
         failures.delete(steer.id);
         await settlePresence(consumer, label, parent);
-        if (once) return;
+        if (once) {
+          // This process's memory of the run ends here: an unmarked steer would run again next time.
+          for (let attempt = 1; awaitingMark.has(steer.id) && attempt <= 3; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+            if (await markDelivered(steer.id, consumer)) awaitingMark.delete(steer.id);
+          }
+          if (awaitingMark.has(steer.id))
+            throw new Error(`Steer ${steer.id} ran but could not be marked delivered; it may run again.`);
+          return;
+        }
       } else {
         const count = (failures.get(steer.id) ?? 0) + 1;
         failures.set(steer.id, count);

@@ -22,6 +22,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - A reply that fails to send no longer removes or freezes answers that arrived while it was sending.
 - Stopping an AX flow loop keeps its run count, and a loop that cannot open its first step no longer shows as running.
 - An agent no longer shows "Waiting on approval" after it has started writing to the canvas again.
+- `pmx-canvas pump` retries a failed delivery mark instead of exiting, so a steer is not run twice.
 - A Markdown card whose preview fails to render shows "Preview unavailable." with a Retry button instead of loading forever.
 - Two apps opened at the same time each get their own card.
 - The MCP server reconnects when the canvas server it attached to stops, instead of failing every call.
