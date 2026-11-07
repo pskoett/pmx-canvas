@@ -70,6 +70,29 @@ test.each([false, true])('stop preserves a foreign live PID (command probe unava
   }
 });
 
+test("stop leaves a concurrent starter's fresh empty spawn lock in place", async () => {
+  const pidFile = tempPidFile();
+  writeFileSync(pidFile, '');
+  // A port nothing listens on: stop sees no pid and no responsive daemon.
+  const released = Bun.serve({ port: 0, fetch: () => new Response('') });
+  const port = released.port;
+  released.stop(true);
+  try {
+    const child = Bun.spawn([
+      process.execPath,
+      '-e',
+      `import { stopServeDaemon } from ${JSON.stringify(resolve('src/cli/daemon.ts'))};
+       await stopServeDaemon(${JSON.stringify({ port, pidFile, logFile: `${pidFile}.log`, waitMs: 100, entry: 'unused' })});`,
+    ]);
+    const output = await new Response(child.stdout).json();
+    expect(await child.exited).toBe(0);
+    expect(output.stopped).toBe(false);
+    expect(existsSync(pidFile)).toBe(true);
+  } finally {
+    rmSync(dirname(pidFile), { recursive: true, force: true });
+  }
+});
+
 describe('readPidFile', () => {
   test('returns null for a missing file', () => {
     expect(readPidFile(join(tmpdir(), 'pmx-daemon-test-does-not-exist.pid'))).toBeNull();

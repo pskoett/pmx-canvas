@@ -421,7 +421,8 @@ export async function stopServeDaemon(
 
   if (!pid) {
     if (!responsive) {
-      removePidFile(options.pidFile);
+      // Same rule as `serve status`: an empty file may be a concurrent starter's spawn lock.
+      if (!isFreshEmptyLock(options.pidFile)) removePidFile(options.pidFile);
       outputJson({
         ok: true,
         daemon: true,

@@ -17,6 +17,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Failed file reads show an error instead of saving the card as empty.
 - An interrupted lasso or pen stroke no longer blocks panning and zooming.
 - Opening the canvas from the SDK no longer starts a server that switches the workspace and drops unsaved cards.
+- `pmx-canvas serve stop` no longer deletes the lock of a daemon that is still starting.
 - A new answer on a prompt card no longer writes its text into the previous answer.
 - A Markdown card whose preview fails to render shows "Preview unavailable." with a Retry button instead of loading forever.
 - Two apps opened at the same time each get their own card.
