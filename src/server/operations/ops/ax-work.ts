@@ -444,7 +444,7 @@ const axApprovalReopenShape = {
 const axApprovalReopenSchema = z.looseObject(axApprovalReopenShape);
 
 /**
- * Reopen a resolved gate — the unattended-approval policy's "auto-held" exit.
+ * Reopen an auto-held gate — the unattended-approval policy's "held" exit.
  * HTTP + SDK only: reopening is the HUMAN answering late, not an agent op.
  */
 const axApprovalReopenOperation = defineOperation<z.infer<typeof axApprovalReopenSchema>, Record<string, unknown>>({
@@ -463,7 +463,7 @@ const axApprovalReopenOperation = defineOperation<z.infer<typeof axApprovalReope
       ...(Number.isFinite(ttlMs) && ttlMs > 0 ? { ttlMs } : {}),
       source: normalizeAxSource(input.source, 'browser'),
     });
-    if (!approvalGate) throw new OperationError(`Approval gate "${id}" is not resolved (or does not exist).`, 404);
+    if (!approvalGate) throw new OperationError(`Approval gate "${id}" is not held (or does not exist).`, 404);
     ctx.emit('ax-state-changed', { approvalGate });
     return { ok: true, approvalGate } as unknown as Record<string, unknown>;
   },

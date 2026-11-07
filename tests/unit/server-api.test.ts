@@ -5620,6 +5620,25 @@ describe('canvas server HTTP API', () => {
 
     const stateAfterUpdate = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(stateAfterUpdate.nodes.find((n) => n.id === node.id)?.data.axWorkStatus).toBe('done');
+
+    // One undo reverts the status and its chip together.
+    await jsonRequest('/api/canvas/undo', { method: 'POST', headers: { 'x-pmx-workbench': '1' } });
+    const stateAfterUndo = await jsonRequest<CanvasStateResponse & { ax?: unknown }>('/api/canvas/state');
+    expect(stateAfterUndo.nodes.find((n) => n.id === node.id)?.data.axWorkStatus).toBe('todo');
+    expect(canvasState.getWorkItems().find((w) => w.id === created.workItem.id)?.status).toBe('todo');
+
+    // An ingested failure's blocked work item lights its node's chip too.
+    const failing = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Failing step' }),
+    });
+    await jsonRequest('/api/canvas/ax/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'failure', title: 'Build failed', nodeIds: [failing.id] }),
+    });
+    expect(canvasState.getNode(failing.id)?.data.axWorkStatus).toBe('blocked');
   });
 
   test('workboard endpoint creates a live board node that auto-refreshes on work-item changes', async () => {

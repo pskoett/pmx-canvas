@@ -8,7 +8,7 @@
  * closure recording through the suppression wrapper, save/notify wiring, the
  * null-returning error paths, and the DB-less / DB-failure degrade paths.
  */
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, setSystemTime, test } from 'bun:test';
 import type { Database } from 'bun:sqlite';
 import { AxStateManager, type AxStateManagerDeps } from '../../src/server/ax-state-manager.ts';
 import { openCanvasDb } from '../../src/server/canvas-db.ts';
@@ -19,7 +19,7 @@ interface Harness {
   manager: AxStateManager;
   nodeIds: Set<string>;
   db: Database | null;
-  counters: { saves: number; suppressedRuns: number };
+  counters: { saves: number; suppressedRuns: number; workItemSyncs: number };
   changes: CanvasChangeType[];
   mutations: MutationRecordInfo[];
   closeDb: () => void;
@@ -31,7 +31,7 @@ function createHarness(options: { nodeIds?: string[]; withDb?: boolean; db?: Dat
   const nodeIds = new Set(options.nodeIds ?? []);
   const ownsDb = options.db === undefined && options.withDb !== false;
   const db = options.db ?? (ownsDb ? openCanvasDb(':memory:') : null);
-  const counters = { saves: 0, suppressedRuns: 0 };
+  const counters = { saves: 0, suppressedRuns: 0, workItemSyncs: 0 };
   const changes: CanvasChangeType[] = [];
   const mutations: MutationRecordInfo[] = [];
   let dbClosed = false;
@@ -52,6 +52,9 @@ function createHarness(options: { nodeIds?: string[]; withDb?: boolean; db?: Dat
     suppressed: (fn) => () => {
       counters.suppressedRuns += 1;
       fn();
+    },
+    workItemsChanged: () => {
+      counters.workItemSyncs += 1;
     },
   };
   const harness: Harness = {
@@ -164,6 +167,38 @@ describe('work items (canvas-bound)', () => {
     expect(h.counters.saves).toBe(0);
     expect(h.changes).toHaveLength(0);
     expect(h.mutations).toHaveLength(0);
+  });
+});
+
+describe('undo/redo scope', () => {
+  test('undoing one change restores only its own entities, never later writes to others', () => {
+    const { manager, mutations, counters } = createHarness();
+    const first = manager.addWorkItem({ title: 'First' });
+    const second = manager.addWorkItem({ title: 'Second' });
+    manager.updateWorkItem(second.id, { status: 'done' });
+    const syncsBefore = counters.workItemSyncs;
+
+    // Undo the FIRST add while later changes to Second are still applied.
+    mutations[0]!.inverse();
+    expect(manager.getWorkItems().map((w) => [w.title, w.status])).toEqual([['Second', 'done']]);
+    expect(counters.workItemSyncs).toBe(syncsBefore + 1);
+    mutations[0]!.forward();
+    expect(manager.getWorkItems().map((w) => w.id)).toEqual([first.id, second.id]);
+  });
+
+  test('undoing a gate decision back to pending restarts its answer clock', () => {
+    const { manager, mutations } = createHarness();
+    const gate = manager.requestApproval({ title: 'Ship?', ttlMs: 60_000 }, { source: 'mcp' });
+    manager.resolveApproval(gate.id, 'approved', { source: 'browser' });
+    setSystemTime(new Date(Date.now() + 10 * 60_000));
+    try {
+      mutations.at(-1)!.inverse();
+      const restored = manager.getApprovalGates().find((g) => g.id === gate.id)!;
+      expect(restored.status).toBe('pending');
+      expect(Date.parse(restored.expiresAt!)).toBeGreaterThan(Date.now());
+    } finally {
+      setSystemTime();
+    }
   });
 });
 

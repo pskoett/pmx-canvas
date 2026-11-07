@@ -12,6 +12,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - `pmx-canvas skills sync --check` now detects a stale installed Amp plugin, and `--yes` refreshes it.
 - A prompt card no longer stays "Sending…" or "Streaming…" forever, and board moves no longer refuse it. This used to happen after the agent's handler failed, after a server restart, or when a queued prompt was dropped.
 - A reply sent while an answer is still streaming is no longer overwritten by that answer.
+- Approved and rejected approval gates are final; only an auto-held gate can be reopened. Undoing a gate decision gives it a fresh answer window, and auto-holds no longer clear your redo history.
+- Undo now reverts only what that step changed, and one undo reverts a work item's status together with its chip on linked cards.
 - A new answer on a prompt card no longer writes its text into the previous answer.
 
 ## [0.12.1] - 2026-11-05

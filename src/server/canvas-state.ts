@@ -605,6 +605,7 @@ class CanvasStateManager {
           notifyChange: (type) => this.notifyChange(type),
           recordMutation: (info) => this.recordMutation(info),
           suppressed: (fn) => this.suppressed(fn),
+          workItemsChanged: () => this.syncWorkItemProjections(),
         },
         this.hostState,
       ),
@@ -4011,10 +4012,7 @@ class CanvasStateManager {
     },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem {
-    const item = this.ax.addWorkItem(input, options);
-    this.mirrorAxWorkStatusToNodes(item.nodeIds, [], item.status);
-    this.notifyWorkItemsChanged();
-    return item;
+    return this.ax.addWorkItem(input, options);
   }
 
   updateWorkItem(
@@ -4028,38 +4026,31 @@ class CanvasStateManager {
     },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem | null {
-    const previousNodeIds = this.ax.getWorkItems().find((w) => w.id === id)?.nodeIds ?? [];
-    const item = this.ax.updateWorkItem(id, patch, options);
-    if (!item) return null;
-    this.mirrorAxWorkStatusToNodes(item.nodeIds, previousNodeIds, item.status);
-    this.notifyWorkItemsChanged();
-    return item;
+    return this.ax.updateWorkItem(id, patch, options);
   }
 
   /**
-   * Mirror a work item's status onto every linked canvas node's `data.axWorkStatus`,
-   * through the standard node-update path (persistence + undo/redo, same as any other
-   * node data change). Nodes unlinked by an updateWorkItem nodeIds change have the
-   * mirrored status cleared.
+   * A linked node's `data.axWorkStatus` chip is a projection of the work items.
+   * Re-derive every chip after any work-item change (write, ingest, undo, redo),
+   * unrecorded, so one undo of a work item reverts its chips with it.
    */
-  private mirrorAxWorkStatusToNodes(nodeIds: string[], previousNodeIds: string[], status: PmxAxWorkItemStatus): void {
-    for (const nodeId of nodeIds) {
-      const node = this.nodes.get(nodeId);
-      if (!node) continue;
-      if (node.type === 'status' && typeof node.data.workItemId === 'string') continue;
-      // No-op guard: a title-/agentId-only work-item patch must not push
-      // history entries and SSE churn for chips that aren't changing.
-      if (node.data.axWorkStatus === status) continue;
-      this.updateNode(nodeId, { data: { ...node.data, axWorkStatus: status } });
+  private syncWorkItemProjections(): void {
+    const statusByNode = new Map<string, PmxAxWorkItemStatus>();
+    for (const item of this.ax.getWorkItems()) {
+      for (const nodeId of item.nodeIds) statusByNode.set(nodeId, item.status);
     }
-    for (const nodeId of previousNodeIds) {
-      if (nodeIds.includes(nodeId)) continue;
-      const node = this.nodes.get(nodeId);
-      if (!node || node.data.axWorkStatus === undefined) continue;
-      const data = { ...node.data };
-      delete data.axWorkStatus;
-      this.updateNode(nodeId, { data });
-    }
+    this.withSuppressedRecording(() => {
+      for (const node of [...this.nodes.values()]) {
+        if (node.type === 'status' && typeof node.data.workItemId === 'string') continue;
+        const status = statusByNode.get(node.id);
+        if (node.data.axWorkStatus === status) continue;
+        const data = { ...node.data };
+        if (status === undefined) delete data.axWorkStatus;
+        else data.axWorkStatus = status;
+        this.updateNode(node.id, { data });
+      }
+    });
+    this.notifyWorkItemsChanged();
   }
 
   // ── Approval gates (canvas-bound) ─────────────────────────────────
@@ -4082,7 +4073,7 @@ class CanvasStateManager {
     return this.ax.resolveApproval(id, decision, options);
   }
 
-  /** Reopen a resolved (typically auto-held) gate with a fresh TTL. */
+  /** Reopen an auto-held gate with a fresh TTL. */
   reopenApproval(id: string, options: { ttlMs?: number; source?: PmxAxSource } = {}): PmxAxApprovalGate | null {
     return this.ax.reopenApproval(id, options);
   }

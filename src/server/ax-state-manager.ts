@@ -102,6 +102,29 @@ export interface AxStateManagerDeps {
   recordMutation(info: MutationRecordInfo): void;
   /** Wrap a closure so it runs with mutation recording suppressed (for undo/redo replay). */
   suppressed(fn: () => void): () => void;
+  /** Work items changed (write, ingest, undo or redo): re-derive what projects them onto nodes. */
+  workItemsChanged(): void;
+}
+
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** Apply the entity-level change from `from` to `to` onto `current`, leaving everything else in `current` as it is. */
+function patchById<T extends { id: string }>(current: T[], from: T[], to: T[]): T[] {
+  const fromById = new Map(from.map((entity) => [entity.id, entity]));
+  const toById = new Map(to.map((entity) => [entity.id, entity]));
+  const result = current
+    .filter((entity) => !(fromById.has(entity.id) && !toById.has(entity.id)))
+    .map((entity) => {
+      const before = fromById.get(entity.id);
+      const after = toById.get(entity.id);
+      return before && after && !sameJson(before, after) ? after : entity;
+    });
+  to.forEach((entity, index) => {
+    if (!fromById.has(entity.id) && !result.some((existing) => existing.id === entity.id)) {
+      result.splice(Math.min(index, result.length), 0, entity);
+    }
+  });
+  return result;
 }
 
 function replaceById<T extends { id: string }>(list: T[], item: T): T[] {
@@ -153,6 +176,55 @@ export class AxStateManager {
   // ── Normalization (against the owner's current node set) ──────────
   private normalizeForCurrentNodes(state: unknown): PmxAxState {
     return normalizeAxState(state, this.deps.getNodeIds());
+  }
+
+  /**
+   * Record an AX mutation for undo/redo. Undo and redo re-apply only what this
+   * mutation changed, onto the AX state as it is at that moment, so they never
+   * revert other AX writes made since (such as unrecorded flow-loop steps).
+   */
+  private recordAxChange(
+    operationType: MutationRecordInfo['operationType'],
+    description: string,
+    before: PmxAxState,
+    after: PmxAxState,
+  ): void {
+    const workItemsChanged = !sameJson(before.workItems, after.workItems);
+    const apply = (from: PmxAxState, to: PmxAxState) =>
+      this.deps.suppressed(() => {
+        const current = this.getAxState();
+        const now = Date.now();
+        const next: PmxAxState = {
+          ...current,
+          focus: sameJson(from.focus, to.focus) ? current.focus : to.focus,
+          policy: sameJson(from.policy, to.policy) ? current.policy : to.policy,
+          workItems: patchById(current.workItems, from.workItems, to.workItems),
+          reviewAnnotations: patchById(current.reviewAnnotations, from.reviewAnnotations, to.reviewAnnotations),
+          elicitations: patchById(current.elicitations, from.elicitations, to.elicitations),
+          modeRequests: patchById(current.modeRequests, from.modeRequests, to.modeRequests),
+        };
+        // A gate undone back to pending gets a fresh answer window; its old TTL has usually elapsed.
+        next.approvalGates = patchById(current.approvalGates, from.approvalGates, to.approvalGates).map((gate) => {
+          const restored = to.approvalGates.find((g) => g.id === gate.id);
+          const changed = !sameJson(
+            restored,
+            from.approvalGates.find((g) => g.id === gate.id),
+          );
+          return changed && gate.status === 'pending' && (!gate.expiresAt || Date.parse(gate.expiresAt) <= now)
+            ? { ...gate, expiresAt: new Date(now + defaultGateTtlMs()).toISOString() }
+            : gate;
+        });
+        this.applyAxState(next);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+        if (workItemsChanged) this.deps.workItemsChanged();
+      });
+    this.deps.recordMutation({
+      operationType,
+      description,
+      forward: apply(before, after),
+      inverse: apply(after, before),
+    });
   }
 
   private applyAxState(state: PmxAxState): void {
@@ -252,20 +324,12 @@ export class AxStateManager {
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
     if (options.recordHistory === false) return appliedAxState.focus;
-    this.deps.recordMutation({
-      operationType: 'setAxFocus',
-      description: `Set AX focus (${appliedAxState.focus.nodeIds.length} nodes)`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(appliedAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange(
+      'setAxFocus',
+      `Set AX focus (${appliedAxState.focus.nodeIds.length} nodes)`,
+      oldAxState,
+      appliedAxState,
+    );
     return appliedAxState.focus;
   }
 
@@ -294,20 +358,8 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'addWorkItem',
-      description: `Added work item "${item.title}"`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.deps.workItemsChanged();
+    this.recordAxChange('addWorkItem', `Added work item "${item.title}"`, oldAxState, applied);
     return applied.workItems.find((w) => w.id === item.id) ?? item;
   }
 
@@ -340,20 +392,8 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'updateWorkItem',
-      description: `Updated work item ${id}`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.deps.workItemsChanged();
+    this.recordAxChange('updateWorkItem', `Updated work item ${id}`, oldAxState, applied);
     return applied.workItems.find((w) => w.id === id) ?? null;
   }
 
@@ -377,20 +417,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'requestApproval',
-      description: `Requested approval "${gate.title}"`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('requestApproval', `Requested approval "${gate.title}"`, oldAxState, applied);
     return applied.approvalGates.find((g) => g.id === gate.id) ?? gate;
   }
 
@@ -416,20 +443,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'resolveApproval',
-      description: `Resolved approval ${id} -> ${decision}`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('resolveApproval', `Resolved approval ${id} -> ${decision}`, oldAxState, applied);
     this.recordAxEvent(
       {
         kind: 'approval',
@@ -443,13 +457,14 @@ export class AxStateManager {
   }
 
   /**
-   * Reopen a resolved gate (typically one the unattended-approval policy
-   * auto-held): back to pending with a fresh TTL, so the human can answer it.
+   * Reopen a gate the unattended-approval policy auto-held: back to pending
+   * with a fresh TTL, so the human can answer it. Approved and rejected are
+   * final, because the awaiting agent has already acted on them.
    */
   reopenApproval(id: string, options: { ttlMs?: number; source?: PmxAxSource } = {}): PmxAxApprovalGate | null {
     const oldAxState = this.getAxState();
     const gate = oldAxState.approvalGates.find((g) => g.id === id);
-    if (!gate || gate.status === 'pending') return null;
+    if (gate?.status !== 'held') return null;
     const reopened: PmxAxApprovalGate = {
       ...gate,
       status: 'pending',
@@ -464,20 +479,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'resolveApproval',
-      description: `Reopened approval ${id}`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('resolveApproval', `Reopened approval ${id}`, oldAxState, applied);
     return applied.approvalGates.find((g) => g.id === id) ?? null;
   }
 
@@ -519,20 +521,12 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'addReviewAnnotation',
-      description: `Added review ${annotation.kind} (${annotation.severity})`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange(
+      'addReviewAnnotation',
+      `Added review ${annotation.kind} (${annotation.severity})`,
+      oldAxState,
+      applied,
+    );
     return applied.reviewAnnotations.find((r) => r.id === annotation.id) ?? annotation;
   }
 
@@ -557,20 +551,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'updateReviewAnnotation',
-      description: `Updated review ${id}`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('updateReviewAnnotation', `Updated review ${id}`, oldAxState, applied);
     return applied.reviewAnnotations.find((r) => r.id === id) ?? null;
   }
 
@@ -599,20 +580,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'requestElicitation',
-      description: `Requested elicitation "${elicitation.prompt}"`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('requestElicitation', `Requested elicitation "${elicitation.prompt}"`, oldAxState, applied);
     return applied.elicitations.find((e) => e.id === elicitation.id) ?? elicitation;
   }
 
@@ -638,20 +606,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'respondElicitation',
-      description: `Answered elicitation ${id}`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('respondElicitation', `Answered elicitation ${id}`, oldAxState, applied);
     this.recordAxEvent(
       {
         kind: 'approval',
@@ -684,20 +639,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'requestMode',
-      description: `Requested mode "${request.mode}"`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('requestMode', `Requested mode "${request.mode}"`, oldAxState, applied);
     return applied.modeRequests.find((m) => m.id === request.id) ?? request;
   }
 
@@ -723,20 +665,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'resolveModeRequest',
-      description: `Resolved mode request ${id} -> ${decision}`,
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('resolveModeRequest', `Resolved mode request ${id} -> ${decision}`, oldAxState, applied);
     this.recordAxEvent(
       {
         kind: 'approval',
@@ -822,20 +751,7 @@ export class AxStateManager {
     const applied = this.getAxState();
     this.deps.scheduleSave();
     this.deps.notifyChange('ax');
-    this.deps.recordMutation({
-      operationType: 'setPolicy',
-      description: 'Updated AX policy',
-      forward: this.deps.suppressed(() => {
-        this.applyAxState(applied);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-      inverse: this.deps.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.deps.scheduleSave();
-        this.deps.notifyChange('ax');
-      }),
-    });
+    this.recordAxChange('setPolicy', 'Updated AX policy', oldAxState, applied);
     return applied.policy;
   }
 

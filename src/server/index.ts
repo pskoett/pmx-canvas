@@ -1122,7 +1122,7 @@ export class PmxCanvas extends EventEmitter {
     return approvalGate;
   }
 
-  /** Reopen a resolved (typically auto-held) approval gate with a fresh TTL. */
+  /** Reopen an auto-held approval gate with a fresh TTL. */
   reopenApproval(id: string, options?: { ttlMs?: number; source?: PmxAxSource }): PmxAxApprovalGate | null {
     const approvalGate = canvasState.reopenApproval(id, {
       ...(options?.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),

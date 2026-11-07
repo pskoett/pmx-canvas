@@ -26,24 +26,28 @@ export function sweepExpiredGates(now = Date.now()): string[] {
     const expires = Date.parse(gate.expiresAt);
     if (!Number.isFinite(expires) || expires > now) continue;
     const ttl = Math.max(0, expires - Date.parse(gate.createdAt));
-    const resolved = canvasState.resolveApproval(gate.id, 'held', {
-      resolution: `auto-held: no answer within ${formatCountdown(ttl)}`,
-      source: 'system',
+    // Unrecorded: a policy hold is not the human's edit, so it must not join (or
+    // truncate) their undo history. Reopen is the way back.
+    canvasState.withSuppressedRecording(() => {
+      const resolved = canvasState.resolveApproval(gate.id, 'held', {
+        resolution: `auto-held: no answer within ${formatCountdown(ttl)}`,
+        source: 'system',
+      });
+      if (!resolved) return;
+      held.push(gate.id);
+      const event = canvasState.recordAxEvent(
+        {
+          kind: 'policy',
+          summary: `Auto-held "${gate.title}" — no answer within ${formatCountdown(ttl)}; the action did not proceed.`,
+          detail: 'Reopen it from the session panel to answer.',
+          nodeIds: gate.nodeIds,
+          data: { gateId: gate.id, policy: 'unattended-approval', outcome: 'held' },
+        },
+        { source: 'system' },
+      );
+      emit('ax-state-changed', { approvalGate: resolved });
+      emit('ax-event-created', { event });
     });
-    if (!resolved) continue;
-    held.push(gate.id);
-    const event = canvasState.recordAxEvent(
-      {
-        kind: 'policy',
-        summary: `Auto-held "${gate.title}" — no answer within ${formatCountdown(ttl)}; the action did not proceed.`,
-        detail: 'Reopen it from the session panel to answer.',
-        nodeIds: gate.nodeIds,
-        data: { gateId: gate.id, policy: 'unattended-approval', outcome: 'held' },
-      },
-      { source: 'system' },
-    );
-    emit('ax-state-changed', { approvalGate: resolved });
-    emit('ax-event-created', { event });
   }
   return held;
 }

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { sweepExpiredGates, startGateTtlSweeper, stopGateTtlSweeper } from '../../src/server/ax-gate-ttl.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { clampGateTtlMs, formatCountdown, gateRemainingMs, MAX_GATE_TTL_MS } from '../../src/shared/approval-gates.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -88,6 +89,23 @@ describe('approval gate TTL', () => {
     expect(reopened).toMatchObject({ status: 'pending', resolvedAt: null, resolution: null });
     expect(gateRemainingMs(reopened!)).toBeGreaterThan(25_000);
     expect(canvasState.reopenApproval(gate.id)).toBeNull(); // pending gates cannot be reopened
+  });
+
+  test("an auto-hold is not the human's edit: it adds no undo history", () => {
+    canvasState.onMutation((info) => mutationHistory.record(info));
+    canvasState.requestApproval({ title: 'Deploy?', ttlMs: 1_000 }, { source: 'mcp' });
+    const before = mutationHistory.getSummaries().length;
+    expect(sweepExpiredGates(Date.now() + 2_000)).toHaveLength(1);
+    expect(mutationHistory.getSummaries().length).toBe(before);
+  });
+
+  test('approved and rejected gates are final: only a held gate reopens', () => {
+    for (const status of ['approved', 'rejected'] as const) {
+      const gate = canvasState.requestApproval({ title: `Ship ${status}?`, ttlMs: 60_000 }, { source: 'mcp' });
+      canvasState.resolveApproval(gate.id, status, { source: 'browser' });
+      expect(canvasState.reopenApproval(gate.id, { source: 'browser' })).toBeNull();
+      expect(canvasState.getApprovalGates().find((g) => g.id === gate.id)?.status).toBe(status);
+    }
   });
 });
 
