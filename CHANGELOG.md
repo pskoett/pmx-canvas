@@ -16,8 +16,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Undo now reverts only what that step changed, and one undo reverts a work item's status together with its chip on linked cards.
 - Failed file reads show an error instead of saving the card as empty.
 - An interrupted lasso or pen stroke no longer blocks panning and zooming.
+- Opening the canvas from the SDK no longer starts a server that switches the workspace and drops unsaved cards.
 - A new answer on a prompt card no longer writes its text into the previous answer.
 - A Markdown card whose preview fails to render shows "Preview unavailable." with a Retry button instead of loading forever.
+- Stopping the server while the automation WebView is still starting now closes the WebView.
 - A cancelled minimap drag or image gesture no longer leaves the pointer stuck, and clicking a resize handle without dragging no longer marks the card as manually sized.
 
 ## [0.12.1] - 2026-11-05

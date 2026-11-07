@@ -3380,12 +3380,6 @@ export function consumePrimaryWorkbenchIntents(limit = 24): PrimaryWorkbenchInte
   return pendingWorkbenchIntents.splice(0, count);
 }
 
-export function getPrimaryWorkbenchUrl(workspaceRoot = process.cwd()): string | null {
-  const base = startCanvasServer({ workspaceRoot });
-  if (!base) return null;
-  return `${base}/workbench`;
-}
-
 // ── Shared "canvas browser opened" flag ─────────────────────────
 let canvasBrowserOpened = false;
 let canvasBrowserOpening = false;
@@ -3421,8 +3415,10 @@ function ensureCanvasBrowserOpen(): void {
     canvasBrowserOpening = false;
     return;
   }
-  const publicUrl = getPrimaryWorkbenchUrl();
-  if (!publicUrl || !server || typeof server.port !== 'number') return;
+  // Only a running server can be opened. Starting one here would rebind the
+  // canvas to process.cwd() and reload it, dropping in-process work.
+  if (!server || typeof server.port !== 'number') return;
+  const publicUrl = `${loopbackBaseUrl(server.port)}/workbench`;
 
   canvasBrowserOpening = true;
   if (openUrlInExternalBrowser(publicUrl)) {
@@ -3789,6 +3785,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
       server = null;
     }
   }
+  // No port bound: stop the timers started above, so a failed start leaves nothing running.
+  stopGateTtlSweeper();
+  stopBackupScheduler();
   return null;
 }
 
@@ -3803,8 +3802,9 @@ export function stopCanvasServer(): void {
   closeAllMcpAppSessions();
   cancelCodeGraphRecompute();
   setCanvasLayoutUpdateEmitter(null);
-  void closeCanvasAutomationWebViewInternal().catch((error) => {
-    logWorkbenchWarning('stopCanvasServer closeCanvasAutomationWebViewInternal', error);
+  // Queued behind any start still in flight, so the view that start creates is closed too.
+  void stopCanvasAutomationWebView().catch((error) => {
+    logWorkbenchWarning('stopCanvasServer stopCanvasAutomationWebView', error);
   });
   if (server) {
     server.stop(true);

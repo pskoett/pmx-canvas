@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { fileURLToPath } from 'node:url';
 import { createCanvas } from '../../src/server/index.ts';
+import {
+  getCanvasAutomationWebViewStatus,
+  startCanvasAutomationWebView,
+  startCanvasServer,
+  stopCanvasAutomationWebView,
+  stopCanvasServer,
+} from '../../src/server/server.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const supportsWebView = typeof (Bun as { WebView?: unknown }).WebView === 'function';
@@ -98,4 +105,34 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
     ]);
     expect({ exitCode, failure: exitCode === 0 ? '' : stdout + stderr }).toEqual({ exitCode: 0, failure: '' });
   });
+
+  test('stopping the server while a WebView is still starting closes that WebView', async () => {
+    if (!supportsWebView) return;
+    workspaceRoot = createTestWorkspace('pmx-canvas-webview-stop-race-');
+    resetCanvasForTests(workspaceRoot);
+    startCanvasServer({ workspaceRoot, port: 0 });
+    // A slow page keeps the start navigating until after the server has stopped.
+    const page = Bun.serve({
+      port: 0,
+      fetch: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return new Response('<title>slow</title>', { headers: { 'Content-Type': 'text/html' } });
+      },
+    });
+    try {
+      // Chrome may be unavailable on this host; then the start fails at once and there is no view to leak.
+      const started = startCanvasAutomationWebView(`http://127.0.0.1:${page.port}/`).then(
+        () => true,
+        () => false,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      stopCanvasServer();
+      if (!(await started)) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(getCanvasAutomationWebViewStatus().active).toBe(false);
+    } finally {
+      await stopCanvasAutomationWebView().catch(() => undefined);
+      page.stop(true);
+    }
+  }, 30_000);
 });
