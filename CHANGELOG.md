@@ -37,6 +37,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - A workbench tab opened with `?agent=` no longer shows up as a human cursor or locks the cards it drags.
 - An image that fails to load inside a host app shows its error instead of "Loading…" forever.
 - A prompt answer keeps streaming into its card after the browser reconnects.
+- A vetoed ghost intent stays vetoed: an agent can no longer commit it by waiting a minute.
 
 ## [0.12.1] - 2026-11-05
 

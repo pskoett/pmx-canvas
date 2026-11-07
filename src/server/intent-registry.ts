@@ -108,7 +108,7 @@ export class IntentRegistry {
   private readonly board = createBoardLocal(
     () => ({
       intents: new Map<string, PmxAxIntent>(),
-      vetoedIntentIds: new Map<string, number>(),
+      vetoedIntentIds: new Set<string>(),
       committingIntentIds: new Set<string>(),
       sweepTimer: null as ReturnType<typeof setInterval> | null,
     }),
@@ -147,7 +147,7 @@ export class IntentRegistry {
     const home = this.board.current;
     canvasState.withBoard(boardId, () => {
       for (const [id, intent] of home.intents) this.intents.set(id, intent);
-      for (const [id, expires] of home.vetoedIntentIds) this.vetoedIntentIds.set(id, expires);
+      for (const id of home.vetoedIntentIds) this.vetoedIntentIds.add(id);
       this.ensureSweeper();
     });
     this.reset();
@@ -161,7 +161,6 @@ export class IntentRegistry {
     const now = Date.now();
     const ttl = typeof input.ttlMs === 'number' ? input.ttlMs : DEFAULT_INTENT_TTL_MS;
     const id = input.id && this.intents.has(input.id) ? input.id : (input.id ?? nextIntentId());
-    this.pruneVetoTombstones();
     if (this.vetoedIntentIds.has(id)) {
       throw new OperationError(`Intent "${id}" was vetoed. Use a new id for a revised intent.`, 409);
     }
@@ -265,14 +264,12 @@ export class IntentRegistry {
    * the 409 poisoned every sibling op (orchestration review #5).
    */
   commitDisposition(id: string): 'live' | 'vetoed' | 'committing' | 'absent' {
-    this.pruneVetoTombstones();
     if (this.committingIntentIds.has(id)) return 'committing';
     if (this.vetoedIntentIds.has(id)) return 'vetoed';
     return this.intents.has(id) ? 'live' : 'absent';
   }
 
   beginCommit(id: string, allowedKinds: readonly PmxAxIntentKind[]): PmxAxIntent {
-    this.pruneVetoTombstones();
     if (this.committingIntentIds.has(id)) {
       throw new OperationError(`Intent "${id}" is already committing.`, 409);
     }
@@ -324,20 +321,17 @@ export class IntentRegistry {
     this.maybeStopSweeper();
   }
 
+  /**
+   * A veto is a lasting "no": it does not expire with the ghost, because a linked
+   * commit can arrive any time later (a slow agent turn). Only the cap evicts it.
+   */
   private rememberVeto(id: string): void {
     this.vetoedIntentIds.delete(id);
-    this.vetoedIntentIds.set(id, Date.now() + MAX_INTENT_TTL_MS);
+    this.vetoedIntentIds.add(id);
     while (this.vetoedIntentIds.size > MAX_VETO_TOMBSTONES) {
       const oldest = this.vetoedIntentIds.keys().next().value as string | undefined;
       if (!oldest) break;
       this.vetoedIntentIds.delete(oldest);
-    }
-  }
-
-  private pruneVetoTombstones(): void {
-    const now = Date.now();
-    for (const [id, expiresAt] of this.vetoedIntentIds) {
-      if (expiresAt <= now) this.vetoedIntentIds.delete(id);
     }
   }
 

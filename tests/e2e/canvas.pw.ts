@@ -7367,7 +7367,7 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
   await request.post('/api/canvas/ax/activity', {
     data: { kind: 'session-start', title: 'Claude', source: 'copilot' },
   });
-  // Unique per run: a vetoed intent id is tombstoned for 60 s (MAX_INTENT_TTL_MS),
+  // Unique per run: a vetoed intent id stays tombstoned while the server runs,
   // so reusing the literal id makes a retry's signal 409 and the ghost never appear.
   const intentId = `e2e-yield-${Date.now()}`;
   await request.post('/api/canvas/ax/intent', {

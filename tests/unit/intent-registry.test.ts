@@ -3,7 +3,7 @@
 // the emitted ax-intent / ax-intent-clear frames, settle vs veto vs eviction,
 // and the live-intent cap. The registry is a pure in-memory module (no server
 // needed); we inject a capturing emitter.
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 import { IntentRegistry } from '../../src/server/intent-registry.ts';
 import { MAX_LIVE_INTENTS } from '../../src/shared/ax-intent.ts';
 
@@ -153,6 +153,14 @@ registry.reset();`,
         (result) => result.nodeId,
       ),
     ).rejects.toThrow(/was vetoed/);
+
+    // A slow agent turn: the veto still holds long after any ghost could live.
+    setSystemTime(new Date(Date.now() + 10 * 60_000));
+    try {
+      expect(registry.commitDisposition('veto-me')).toBe('vetoed');
+    } finally {
+      setSystemTime();
+    }
   });
 
   test('a committing intent rejects a late veto and settles after mutation', async () => {
