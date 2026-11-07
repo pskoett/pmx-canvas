@@ -39,6 +39,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - A prompt answer keeps streaming into its card after the browser reconnects.
 - A vetoed ghost intent stays vetoed: an agent can no longer commit it by waiting a minute.
 - `startAutomationWebView()` in the SDK restarts the canvas server if it was stopped, instead of opening a dead page.
+- Undoing while an external app is opening no longer closes that app.
 
 ## [0.12.1] - 2026-11-05
 

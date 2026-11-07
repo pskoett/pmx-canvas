@@ -77,6 +77,8 @@ interface McpAppSession {
   client: Client;
   transport: RuntimeTransport;
   tools: Tool[];
+  /** Handed to its caller: until then no node can name it, so the orphan sweep skips it. */
+  opened: boolean;
   unregisterBoardDispose: () => void;
 }
 
@@ -235,6 +237,7 @@ async function createSession(
     client,
     transport,
     tools: [],
+    opened: false,
     unregisterBoardDispose: canvasState.onBoardDispose(() => {
       disposed = true;
       closeMcpAppSession(id);
@@ -398,6 +401,8 @@ export async function openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResu
     const resourceMeta = resourceMetaFromReadResult(readResult);
     const html = prepareResourceHtml(htmlContentFromReadResult(readResult, resourceUri), resourceMeta);
 
+    // Both callers name the session on its node synchronously after this returns.
+    session.opened = true;
     return {
       sessionId: session.id,
       serverName: session.serverName,
@@ -486,6 +491,6 @@ export function hasMcpAppSession(sessionId: string): boolean {
 
 export function listMcpAppSessionIds(): string[] {
   return [...sessions.values()]
-    .filter((session) => session.board === canvasState.boardIdentity)
+    .filter((session) => session.opened && session.board === canvasState.boardIdentity)
     .map((session) => session.id);
 }

@@ -724,6 +724,9 @@ async function syncBoardRuntimeBackends(options: {
           ? ensureExcalidrawCheckpointId(opened.toolResult, nodeId, storedCheckpointId)
           : opened.toolResult;
 
+        // An overlapping sync may have rehydrated this node first: keep one session.
+        const replaced = canvasState.getNode(nodeId)?.data.appSessionId;
+        if (typeof replaced === 'string' && replaced !== opened.sessionId) closeMcpAppSession(replaced);
         canvasState.withSuppressedRecording(() => {
           setExtAppRuntimeState(nodeId, {
             appSessionId: opened.sessionId,

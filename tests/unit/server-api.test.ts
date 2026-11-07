@@ -1450,6 +1450,42 @@ describe('canvas server HTTP API', () => {
     expect(elements.some((element) => element.id === 'before')).toBe(false);
   }, 30_000);
 
+  test('an undo while an MCP app is still opening does not close its session', async () => {
+    await jsonRequest('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Undo me', content: 'x' }),
+    });
+    // The app takes a moment to boot, so the undo lands while it is connecting.
+    const slowStart = join(workspaceRoot, 'slow-start.ts');
+    writeFileSync(slowStart, 'Bun.sleepSync(600);');
+    const opening = jsonRequest<{ ok: boolean; nodeId: string | null; sessionId: string }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Slow Counter',
+        toolName: 'show_counter',
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['--preload', slowStart, fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    await Bun.sleep(150);
+    const undone = await jsonRequest<{ ok: boolean }>('/api/canvas/undo', { method: 'POST' });
+    expect(undone.ok).toBe(true);
+    const opened = await opening;
+    expect(opened.ok).toBe(true);
+    const tools = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: opened.sessionId }),
+    });
+    expect(tools.status).toBe(200);
+  }, 30000);
+
   test('rehydrates ext-app snapshot sessions on restore', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
