@@ -5,7 +5,7 @@ import {
   type HumanPresence,
   type HumanPresenceSnapshot,
 } from '../../shared/human-presence.js';
-import { requestBestEffort, vetoGhostIntent } from './intent-bridge';
+import { requestBestEffort, tabAgentKey, vetoGhostIntent } from './intent-bridge';
 import { intents, removeIntent } from './intent-store';
 import { isHostedWorkbench } from './workbench-transport';
 
@@ -85,7 +85,9 @@ let lastSentAt = 0;
 let pending: ReturnType<typeof setTimeout> | null = null;
 
 function post(body: Record<string, unknown>): void {
-  if (isHostedWorkbench()) return;
+  // An `?agent=<key>` tab is the agent's view: its pointer is not a human cursor
+  // and its drags are not a human edit lock.
+  if (isHostedWorkbench() || tabAgentKey) return;
   void requestBestEffort('humanPresence', '/api/canvas/human-presence', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -137,6 +139,7 @@ export function markYielded(nodeId: string, name: string): void {
  * node wears a "took over — agent yielded" pill for a moment.
  */
 export function takeOverNode(nodeId: string, title: string): void {
+  if (tabAgentKey) return;
   const pendingOnNode = [...intents.value.values()].filter(
     (intent) => intent.nodeId === nodeId && !intent.auto && intent.phase === 'forming',
   );

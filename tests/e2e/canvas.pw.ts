@@ -7273,6 +7273,36 @@ test('guest names survive reload and reconnect without merging visitors or chang
   await expect(sam.locator('.canvas-node').filter({ hasText: 'Fictional collaboration fixture.' })).toHaveCount(1);
 });
 
+test('an ?agent= tab is not a human: its pointer and drags announce no presence and take no lock', async ({
+  browser,
+  request,
+}) => {
+  const node = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Agent view note', content: 'x', x: 200, y: 160, width: 300, height: 160 },
+    })
+  ).json()) as { id: string };
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  const page = await (await trackedContext(browser)).newPage();
+  const presencePosts: string[] = [];
+  page.on('request', (req) => {
+    if (req.method() === 'POST' && req.url().endsWith('/api/canvas/human-presence')) presencePosts.push(req.url());
+  });
+  await page.goto('/workbench?transport=sse&agent=ui-agent');
+  const card = page.locator(`[data-node-id="${node.id}"]`);
+  await expect(card).toHaveCount(1);
+  const region = await page.locator('.canvas-region').boundingBox();
+  await page.mouse.move(region!.x + 600, region!.y + 500);
+  await page.mouse.move(region!.x + 640, region!.y + 520);
+  await dragNodeTitlebar(page, card, 80, 40);
+  await expect
+    .poll(async () => (await (await request.get(`/api/canvas/node/${node.id}`)).json()).position.x)
+    .toBeGreaterThan(200);
+  expect(presencePosts).toEqual([]);
+  const humans = (await (await request.get('/api/canvas/human-presence')).json()) as { humans: unknown[] };
+  expect(humans.humans).toEqual([]);
+});
+
 test('human presence: two tabs see each other’s cursors, a grab locks the node for agents and yields an agent intent', async ({
   browser,
   request,
