@@ -1149,6 +1149,8 @@ class CanvasStateManager {
   // ── Persistence ────────────────────────────────────────────
   private _db: import('bun:sqlite').Database | null = null;
   private _dbPath: string | null = null;
+  /** Set when the workspace database could not be opened: the canvas then runs memory-only. */
+  private _dbOpenError: { message: string; at: string } | null = null;
   readonly knowledge = new KnowledgeLifecycle(
     () => this._db,
     () => this.notifyChange('nodes'),
@@ -1196,10 +1198,15 @@ class CanvasStateManager {
     // `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of
     // 0.4.0 — the one-shot boot migration that copied them into SQLite and
     // renamed the originals to `.bak` was retired.
+    this._dbOpenError = null;
     try {
       this._db = openCanvasDb(dbPath, { migratedBoardName: basename(workspaceRoot) || 'Board' });
       this._dbPath = dbPath;
     } catch (error) {
+      this._dbOpenError = {
+        message: `Canvas database could not be opened; changes are not being saved: ${error instanceof Error ? error.message : String(error)}`,
+        at: new Date().toISOString(),
+      };
       logCanvasStateWarning('open canvas database failed', error, { dbPath });
     }
   }
@@ -2465,9 +2472,10 @@ class CanvasStateManager {
     }
   }
 
-  /** Health view of state persistence: ok until a save fails, ok again after the next success. */
+  /** Health view of state persistence: not ok while the database is unopened or the last save failed. */
   get persistenceHealth(): { ok: boolean; lastError: { message: string; at: string } | null } {
     const lastError =
+      this._dbOpenError ??
       [this.visibleBoard, ...this.liveBoards.values()].find((board) => board.persistenceError)?.persistenceError ??
       null;
     return { ok: lastError === null, lastError };

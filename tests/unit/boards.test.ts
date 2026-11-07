@@ -2159,3 +2159,22 @@ describe('boards', () => {
     }
   });
 });
+
+test('a database that cannot be opened reports degraded persistence, not ok', () => {
+  const workspace = createTestWorkspace('pmx-unopenable-db-');
+  const unopenable = join(workspace, 'canvas.db');
+  mkdirSync(unopenable);
+  const saved = process.env.PMX_CANVAS_DB_PATH;
+  process.env.PMX_CANVAS_DB_PATH = unopenable;
+  try {
+    resetCanvasForTests(workspace);
+    expect(canvasState.persistenceHealth.ok).toBe(false);
+    expect(canvasState.persistenceHealth.lastError?.message).toContain('could not be opened');
+  } finally {
+    if (saved === undefined) delete process.env.PMX_CANVAS_DB_PATH;
+    else process.env.PMX_CANVAS_DB_PATH = saved;
+    resetCanvasForTests(workspace);
+    expect(canvasState.persistenceHealth.ok).toBe(true);
+    removeTestWorkspace(workspace);
+  }
+});
