@@ -212,6 +212,9 @@ export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
 export declare function openCanvasBoard(id: string | null): {
     ok: boolean;
 };
+export declare function setPromptProducerLive(nodeId: string, live: boolean): void;
+/** Settle a busy prompt thread or response card whose producer is gone: withdraw the unsent turn, keep streamed text. */
+export declare function settleAbandonedPromptNode(nodeId: string): void;
 export declare function startBoardRuntime(options?: {
     forceRehydrateExtApps?: boolean;
 }): void;

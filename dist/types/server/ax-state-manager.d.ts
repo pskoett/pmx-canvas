@@ -38,6 +38,8 @@ export interface AxStateManagerDeps {
     recordMutation(info: MutationRecordInfo): void;
     /** Wrap a closure so it runs with mutation recording suppressed (for undo/redo replay). */
     suppressed(fn: () => void): () => void;
+    /** Work items changed (write, ingest, undo or redo): re-derive what projects them onto nodes. */
+    workItemsChanged(): void;
 }
 export declare class AxStateManager {
     private readonly deps;
@@ -49,6 +51,12 @@ export declare class AxStateManager {
     private get _axHostCapability();
     private set _axHostCapability(value);
     private normalizeForCurrentNodes;
+    /**
+     * Record an AX mutation for undo/redo. Undo and redo re-apply only what this
+     * mutation changed, onto the AX state as it is at that moment, so they never
+     * revert other AX writes made since (such as unrecorded flow-loop steps).
+     */
+    private recordAxChange;
     private applyAxState;
     /** Reset the canvas-bound partition to empty (used by clear() and applyPersistedState()). */
     resetCanvasBound(): void;
@@ -109,8 +117,9 @@ export declare class AxStateManager {
         source?: PmxAxSource;
     }): PmxAxApprovalGate | null;
     /**
-     * Reopen a resolved gate (typically one the unattended-approval policy
-     * auto-held): back to pending with a fresh TTL, so the human can answer it.
+     * Reopen a gate the unattended-approval policy auto-held: back to pending
+     * with a fresh TTL, so the human can answer it. Approved and rejected are
+     * final, because the awaiting agent has already acted on them.
      */
     reopenApproval(id: string, options?: {
         ttlMs?: number;

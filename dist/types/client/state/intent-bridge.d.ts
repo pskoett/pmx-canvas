@@ -27,9 +27,9 @@ export declare function vetoGhostIntent(intent: {
 }): Promise<boolean>;
 /** Fetch rendered markdown HTML from the server. */
 export declare function renderMarkdown(markdown: string, nodeId?: string, expectedBoardId?: string | null): Promise<string | null>;
-/** Fetch file content from the server. */
+/** Fetch file content from the server. `content` is undefined when the read failed — never `''`. */
 export declare function fetchFile(path: string): Promise<{
-    content: string;
+    content?: string;
     provenance?: unknown;
 }>;
 /** Fetch current workbench state. */

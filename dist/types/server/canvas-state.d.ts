@@ -301,6 +301,8 @@ declare class CanvasStateManager {
     private compactGroupChildren;
     private _db;
     private _dbPath;
+    /** Set when the workspace database could not be opened: the canvas then runs memory-only. */
+    private _dbOpenError;
     readonly knowledge: KnowledgeLifecycle;
     /** Workspace root backing persistence and workspace-relative path resolution. */
     get workspaceRoot(): string;
@@ -433,7 +435,7 @@ declare class CanvasStateManager {
     private persistedState;
     /** Write current state to SQLite immediately. */
     private saveToDisk;
-    /** Health view of state persistence: ok until a save fails, ok again after the next success. */
+    /** Health view of state persistence: not ok while the database is unopened or the last save failed. */
     get persistenceHealth(): {
         ok: boolean;
         lastError: {
@@ -576,12 +578,11 @@ declare class CanvasStateManager {
         source?: PmxAxSource;
     }): PmxAxWorkItem | null;
     /**
-     * Mirror a work item's status onto every linked canvas node's `data.axWorkStatus`,
-     * through the standard node-update path (persistence + undo/redo, same as any other
-     * node data change). Nodes unlinked by an updateWorkItem nodeIds change have the
-     * mirrored status cleared.
+     * A linked node's `data.axWorkStatus` chip is a projection of the work items.
+     * Re-derive every chip after any work-item change (write, ingest, undo, redo),
+     * unrecorded, so one undo of a work item reverts its chips with it.
      */
-    private mirrorAxWorkStatusToNodes;
+    private syncWorkItemProjections;
     getApprovalGates(): PmxAxApprovalGate[];
     requestApproval(input: {
         title: string;
@@ -596,7 +597,7 @@ declare class CanvasStateManager {
         resolution?: string;
         source?: PmxAxSource;
     }): PmxAxApprovalGate | null;
-    /** Reopen a resolved (typically auto-held) gate with a fresh TTL. */
+    /** Reopen an auto-held gate with a fresh TTL. */
     reopenApproval(id: string, options?: {
         ttlMs?: number;
         source?: PmxAxSource;

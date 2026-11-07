@@ -98,12 +98,9 @@ export declare function buildMacBrowserOpenScript(appName: string, url: string):
 export declare function openUrlInExternalBrowser(url: string): boolean;
 export declare function emitPrimaryWorkbenchEvent(event: string, payload?: PrimaryWorkbenchEventPayload): void;
 export declare function consumePrimaryWorkbenchIntents(limit?: number): PrimaryWorkbenchIntent[];
-export declare function getPrimaryWorkbenchUrl(workspaceRoot?: string): string | null;
 export declare function syncCanvasBrowserOpenedFromSubscribers(): void;
 export declare function isCanvasBrowserOpened(): boolean;
 export declare function isCanvasBrowserOpening(): boolean;
-export declare function markCanvasBrowserOpened(): void;
-export declare function markCanvasBrowserOpening(): void;
 export declare function openPrimaryWorkbenchPath(pathLike: string, workspaceRoot?: string): string | null;
 export interface CanvasServerOptions {
     port?: number;
