@@ -111,13 +111,16 @@ export function forcedTransport(): 'poll' | 'sse' | null {
   return null;
 }
 
-// Maps responseNodeId → thread prompt node ID so response deltas/completions
-// are routed into the thread's turns array instead of creating separate nodes.
-// Entries are added on response-start and removed on response-complete. Streams
-// still in flight when the connection drops would otherwise leak entries, so
-// connectSSE() — the shared entry path for both transports — clears the map
-// alongside the rest of the per-connection state.
-const responseToThreadMap = new Map<string, string>();
+// A thread prompt node names its streaming response in `_activeResponseId`, so
+// deltas and completions route into its turns instead of a separate node. The
+// route lives in node data, not a client map: a reconnect snapshot carries it
+// for a stream still in flight, and a restarted server drops it from a dead one.
+function threadForResponse(responseNodeId: string): CanvasNodeState | undefined {
+  for (const node of nodes.value.values()) {
+    if (node.data._activeResponseId === responseNodeId && Array.isArray(node.data.turns)) return node;
+  }
+  return undefined;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -889,9 +892,6 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
   const promptNode = promptNodeId ? nodes.value.get(promptNodeId) : undefined;
   if (promptNode && Array.isArray(promptNode.data.turns)) {
     // Same routing as the server: a new response supersedes the active one.
-    const superseded = promptNode.data._activeResponseId;
-    if (typeof superseded === 'string') responseToThreadMap.delete(superseded);
-    responseToThreadMap.set(responseNodeId, promptNodeId);
     const currentTurns = (promptNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
       turn.role === 'assistant' && turn.status === 'streaming' ? { ...turn, status: 'complete' } : turn,
     );
@@ -941,18 +941,14 @@ function handleCanvasResponseDelta(data: Record<string, unknown>): void {
   const responseNodeId = data.responseNodeId as string;
   if (!responseNodeId) return;
 
-  // Route into thread if mapped
-  const threadId = responseToThreadMap.get(responseNodeId);
-  if (threadId) {
-    const threadNode = nodes.value.get(threadId);
-    if (threadNode && Array.isArray(threadNode.data.turns)) {
-      // Write to this response's own turn: a reply sent mid-stream is now the last turn.
-      const currentTurns = (threadNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
-        turn.responseId === responseNodeId ? { ...turn, text: data.content as string, status: 'streaming' } : turn,
-      );
-      const threadStatus = threadNode.data.threadStatus === 'pending' ? 'pending' : 'streaming';
-      updateNodeData(threadId, { turns: currentTurns, threadStatus });
-    }
+  const threadNode = threadForResponse(responseNodeId);
+  if (threadNode) {
+    // Write to this response's own turn: a reply sent mid-stream is now the last turn.
+    const currentTurns = (threadNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
+      turn.responseId === responseNodeId ? { ...turn, text: data.content as string, status: 'streaming' } : turn,
+    );
+    const threadStatus = threadNode.data.threadStatus === 'pending' ? 'pending' : 'streaming';
+    updateNodeData(threadNode.id, { turns: currentTurns, threadStatus });
     return;
   }
 
@@ -968,22 +964,17 @@ function handleCanvasResponseComplete(data: Record<string, unknown>): void {
   const responseNodeId = data.responseNodeId as string;
   if (!responseNodeId) return;
 
-  // Route into thread if mapped
-  const threadId = responseToThreadMap.get(responseNodeId);
-  if (threadId) {
-    const threadNode = nodes.value.get(threadId);
-    if (threadNode && Array.isArray(threadNode.data.turns)) {
-      const currentTurns = (threadNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
-        turn.responseId === responseNodeId ? { ...turn, text: data.content as string, status: 'complete' } : turn,
-      );
-      updateNodeData(threadId, {
-        turns: currentTurns,
-        // A reply sent while this response streamed keeps the thread pending.
-        threadStatus: threadNode.data.threadStatus === 'pending' ? 'pending' : 'answered',
-        _activeResponseId: undefined,
-      });
-    }
-    responseToThreadMap.delete(responseNodeId);
+  const threadNode = threadForResponse(responseNodeId);
+  if (threadNode) {
+    const currentTurns = (threadNode.data.turns as Array<Record<string, unknown>>).map((turn) =>
+      turn.responseId === responseNodeId ? { ...turn, text: data.content as string, status: 'complete' } : turn,
+    );
+    updateNodeData(threadNode.id, {
+      turns: currentTurns,
+      // A reply sent while this response streamed keeps the thread pending.
+      threadStatus: threadNode.data.threadStatus === 'pending' ? 'pending' : 'answered',
+      _activeResponseId: undefined,
+    });
     return;
   }
 
@@ -1384,7 +1375,6 @@ function startPollingTransport(): () => void {
         hasInitialServerLayout.value = false;
         resetAttentionBridge();
         resetIntents();
-        responseToThreadMap.clear();
       }
       // A poll may have captured pins before a newer human click or write acknowledgement.
       // Skip only those pin frames, then read the canonical set so peer changes and server
@@ -1489,9 +1479,6 @@ export function connectSSE(): () => void {
   hasInitialServerLayout.value = false;
   resetAttentionBridge();
   resetIntents();
-  // Response→thread routes belong to the dropped connection's in-flight
-  // streams; clear them so orphans can't accumulate across reconnect cycles.
-  responseToThreadMap.clear();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

@@ -113,7 +113,7 @@ describe('sse-bridge reconnect', () => {
     Object.defineProperty(globalThis, 'EventSource', { configurable: true, value: originalEventSource });
   });
 
-  test('connectSSE clears stale response→thread routes from the previous connection', () => {
+  test('a stream keeps routing across a reconnect while the server still shows it active', () => {
     // A thread prompt node with an in-flight streaming response.
     EVENT_HANDLERS['canvas-prompt-created']({ nodeId: 'prompt-1', text: 'hello' });
     EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'resp-1', promptNodeId: 'prompt-1' });
@@ -123,14 +123,19 @@ describe('sse-bridge reconnect', () => {
     expect(threadTurns('prompt-1')).toHaveLength(2);
     expect(threadTurns('prompt-1')[1]).toMatchObject({ role: 'assistant', text: 'partial' });
 
-    // The connection drops mid-stream; connectSSE is the shared re-entry path
-    // for both transports and must reset the per-connection routing map.
+    // The connection drops mid-stream and comes back to the same server, whose
+    // snapshot still carries the thread's `_activeResponseId`: the stream goes on.
     const disconnect = connectSSE();
     disconnect();
+    EVENT_HANDLERS['canvas-response-delta']({ responseNodeId: 'resp-1', content: 'partial and more' });
+    expect(threadTurns('prompt-1')[1]).toMatchObject({ text: 'partial and more', status: 'streaming' });
+    EVENT_HANDLERS['canvas-response-complete']({ responseNodeId: 'resp-1', content: 'whole answer' });
+    expect(threadTurns('prompt-1')[1]).toMatchObject({ text: 'whole answer', status: 'complete' });
+    expect(nodes.value.get('prompt-1')?.data.threadStatus).toBe('answered');
 
-    // A stale delta for the dead stream must NOT reach the thread anymore.
+    // A finished stream no longer routes.
     EVENT_HANDLERS['canvas-response-delta']({ responseNodeId: 'resp-1', content: 'stale delta' });
-    expect(threadTurns('prompt-1')[1]).toMatchObject({ text: 'partial' });
+    expect(threadTurns('prompt-1')[1]).toMatchObject({ text: 'whole answer' });
 
     // Fresh streams established after the reconnect still route normally.
     EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'resp-2', promptNodeId: 'prompt-1' });
@@ -142,6 +147,14 @@ describe('sse-bridge reconnect', () => {
     expect(threadTurns('prompt-1')[2]).toMatchObject({ text: 'final', status: 'complete' });
     const promptNode = nodes.value.get('prompt-1');
     expect(promptNode?.data.threadStatus).toBe('answered');
+
+    // A restarted server settles the abandoned stream and drops `_activeResponseId`
+    // from its snapshot: a late delta for it routes nowhere.
+    EVENT_HANDLERS['canvas-response-start']({ responseNodeId: 'resp-3', promptNodeId: 'prompt-1' });
+    const thread = nodes.value.get('prompt-1')!;
+    nodes.value = new Map([['prompt-1', { ...thread, data: { ...thread.data, _activeResponseId: undefined } }]]);
+    EVENT_HANDLERS['canvas-response-delta']({ responseNodeId: 'resp-3', content: 'from the old server' });
+    expect(threadTurns('prompt-1')[3]).toMatchObject({ text: '' });
   });
 
   test('disconnect closes the EventSource a reconnect opened, not only the first one', async () => {
