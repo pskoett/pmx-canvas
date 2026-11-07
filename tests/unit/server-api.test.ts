@@ -4725,6 +4725,37 @@ describe('canvas server HTTP API', () => {
     expect(replayed.position).toEqual({ x: 520, y: 420 });
   });
 
+  test('two concurrent opens of the same app tool keep their own nodes and results', () => {
+    const open = (call: string) =>
+      emitPrimaryWorkbenchEvent('ext-app-open', {
+        toolCallId: call,
+        nodeId: `ext-app-${call}`,
+        title: `Chart ${call}`,
+        html: '<main>app</main>',
+        serverName: 'Concurrent',
+        toolName: 'show_chart',
+        appSessionId: `session-${call}`,
+      });
+    const result = (call: string) =>
+      emitPrimaryWorkbenchEvent('ext-app-result', {
+        toolCallId: call,
+        nodeId: `ext-app-${call}`,
+        serverName: 'Concurrent',
+        toolName: 'show_chart',
+        success: true,
+        result: { content: [{ type: 'text', text: `result ${call}` }] },
+      });
+    open('first');
+    open('second');
+    result('first');
+    result('second');
+    for (const call of ['first', 'second']) {
+      const node = canvasState.getNode(`ext-app-${call}`);
+      expect(node?.data).toMatchObject({ toolCallId: call, title: `Chart ${call}` });
+      expect(JSON.stringify(node?.data.toolResult)).toContain(`result ${call}`);
+    }
+  });
+
   test('ext-app open remains user-visible history while runtime result sync is suppressed', async () => {
     emitPrimaryWorkbenchEvent('ext-app-open', {
       toolCallId: 'undoable-open',

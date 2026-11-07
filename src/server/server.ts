@@ -867,6 +867,7 @@ function findCanvasExtAppNodeId(toolCallId: string): string | null {
   });
 }
 
+/** A pending placeholder for this tool. A node another call already owns (has a toolCallId) is never taken over. */
 function findReusableCanvasExtAppNodeId(serverName: string, toolName: string): string | null {
   for (const node of canvasState.getLayout().nodes) {
     if (
@@ -874,7 +875,8 @@ function findReusableCanvasExtAppNodeId(serverName: string, toolName: string): s
       node.data.mode === 'ext-app' &&
       node.data.serverName === serverName &&
       node.data.toolName === toolName &&
-      !node.data.toolResult
+      !node.data.toolResult &&
+      !node.data.toolCallId
     ) {
       return node.id;
     }

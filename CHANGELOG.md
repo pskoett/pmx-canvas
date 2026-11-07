@@ -19,6 +19,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Opening the canvas from the SDK no longer starts a server that switches the workspace and drops unsaved cards.
 - A new answer on a prompt card no longer writes its text into the previous answer.
 - A Markdown card whose preview fails to render shows "Preview unavailable." with a Retry button instead of loading forever.
+- Two apps opened at the same time each get their own card.
 - Stopping the server while the automation WebView is still starting now closes the WebView.
 - A cancelled minimap drag or image gesture no longer leaves the pointer stuck, and clicking a resize handle without dragging no longer marks the card as manually sized.
 
