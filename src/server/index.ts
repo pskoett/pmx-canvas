@@ -83,7 +83,6 @@ import {
   restoreCanvasSnapshot,
   saveCanvasSnapshotWithReuse,
   scheduleCodeGraphRecompute,
-  syncCanvasRuntimeBackends,
   setCanvasContextPins,
   ungroupCanvasNodes,
 } from './canvas-operations.js';
@@ -1437,32 +1436,13 @@ export class PmxCanvas extends EventEmitter {
     return buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds, layout.annotations);
   }
 
+  // Same operation as HTTP and MCP, so the workbench gets every frame they send.
   async undo(): Promise<{ ok: boolean; description?: string }> {
-    const entry = mutationHistory.undo();
-    if (!entry) return { ok: false, description: 'Nothing to undo' };
-    await syncCanvasRuntimeBackends();
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    emitPrimaryWorkbenchEvent('context-pins-changed', {
-      count: canvasState.contextPinnedNodeIds.size,
-      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
-    });
-    // Undo can reverse an AX mutation (work item, focus, …); nudge AX surfaces to
-    // re-fetch so a live board reflects the reversal (debounced client-side).
-    emitPrimaryWorkbenchEvent('ax-state-changed', {});
-    return { ok: true, description: `Undid: ${entry.description}` };
+    return (await executeOperation('canvas.undo', {}, { source: 'sdk' })) as { ok: boolean; description?: string };
   }
 
   async redo(): Promise<{ ok: boolean; description?: string }> {
-    const entry = mutationHistory.redo();
-    if (!entry) return { ok: false, description: 'Nothing to redo' };
-    await syncCanvasRuntimeBackends();
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    emitPrimaryWorkbenchEvent('context-pins-changed', {
-      count: canvasState.contextPinnedNodeIds.size,
-      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
-    });
-    emitPrimaryWorkbenchEvent('ax-state-changed', {});
-    return { ok: true, description: `Redid: ${entry.description}` };
+    return (await executeOperation('canvas.redo', {}, { source: 'sdk' })) as { ok: boolean; description?: string };
   }
 
   getHistory() {

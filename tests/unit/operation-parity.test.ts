@@ -1031,6 +1031,27 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     }
   });
 
+  test('SSE: an SDK undo or redo of a camera move moves the open workbench, like the HTTP route', async () => {
+    const sse = await connectSse(baseUrl);
+    try {
+      expect(await sse.waitForCount('canvas-layout-update', 1)).toBe(true);
+      await fetch(`${baseUrl}/api/canvas/viewport`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 240, y: -120, scale: 0.75 }),
+      });
+      let baseline = sse.count('canvas-viewport-update');
+      expect((await sdk.undo()).ok).toBe(true);
+      expect(await sse.waitForCount('canvas-viewport-update', baseline + 1)).toBe(true);
+      baseline = sse.count('canvas-viewport-update');
+      expect((await sdk.redo()).ok).toBe(true);
+      expect(await sse.waitForCount('canvas-viewport-update', baseline + 1)).toBe(true);
+      expect(canvasState.viewport).toMatchObject({ x: 240, y: -120, scale: 0.75 });
+    } finally {
+      sse.close();
+    }
+  });
+
   test('SSE: pure reads (node get, layout get) emit zero canvas-layout-update events', async () => {
     const created = await httpAddNode({ type: 'markdown', title: 'SSE read target' });
 
