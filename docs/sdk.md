@@ -242,6 +242,8 @@ const work = canvas.addWorkItem({ title: 'Wire up auth', status: 'in-progress', 
 canvas.updateWorkItem(work.id, { status: 'done' });
 const gate = canvas.requestApproval({ title: 'Deploy to prod', action: 'deploy.prod' }, { source: 'sdk' });
 canvas.resolveApproval(gate.id, 'approved', { source: 'sdk' });
+// Only held gates can reopen. Approved/rejected gates are final and return null.
+canvas.reopenApproval(gate.id); // null; use requestApproval() for a new decision
 canvas.addReviewAnnotation({ body: 'off-by-one', kind: 'finding', severity: 'error', anchorType: 'file', file: 'src/x.ts' }, { source: 'sdk' });
 
 // Host/session capability (own table, survives clear)

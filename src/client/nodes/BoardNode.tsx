@@ -1,6 +1,7 @@
 import type { CanvasNodeState } from '../types';
 import { useState } from 'preact/hooks';
-import { activeBoardId, boardList, openBoard } from '../state/boards-store';
+import { activeBoardId, boardIncarnation, boardList, openBoard } from '../state/boards-store';
+import { nodes, updateNode } from '../state/canvas-store';
 import { updateNodeFromClient } from '../state/intent-bridge';
 import { IconExternalLink } from '../icons';
 
@@ -57,12 +58,27 @@ export function BoardNode({ node }: { node: CanvasNodeState }) {
               const id = event.currentTarget.value;
               if (!id) return;
               setError('');
+              const ownerBoardId = activeBoardId.value;
+              const incarnation = boardIncarnation;
               const result = await updateNodeFromClient(node.id, {
                 data: { boardId: id },
-                expectedBoardId: activeBoardId.value,
+                expectedBoardId: ownerBoardId,
               });
-              if (result.ok) setRelinking(false);
-              else setError('Could not relink this card. Try again.');
+              if (incarnation !== boardIncarnation || activeBoardId.value !== ownerBoardId) return;
+              if (result.ok) {
+                const current = nodes.value.get(node.id);
+                const acknowledged = result.node;
+                if (current && acknowledged && (current.contentRevision ?? 0) <= (acknowledged.contentRevision ?? 0)) {
+                  // Render the server's acknowledgement without waiting for a
+                  // poll, but retain newer peer content and in-flight geometry.
+                  updateNode(node.id, {
+                    data: acknowledged.data,
+                    contentRevision: acknowledged.contentRevision,
+                    lastEditedBy: acknowledged.lastEditedBy,
+                  });
+                }
+                setRelinking(false);
+              } else setError('Could not relink this card. Try again.');
             }}
           >
             <option value="" disabled>

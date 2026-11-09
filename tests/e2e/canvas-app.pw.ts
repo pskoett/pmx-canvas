@@ -386,11 +386,10 @@ test('real source editor keeps a refused draft when another writer changes the n
   await editor.fill('Keep my unsaved draft');
   await request.patch(`/api/canvas/node/${id}`, { data: { content: 'Another writer won' } });
   await expect(app.locator('.attention-toast')).toHaveCount(0);
-  // Start waiting for the transient action before Save, not after its trace snapshots.
-  await Promise.all([
-    app.locator('.attention-toast').click(),
-    app.getByRole('button', { name: 'Save', exact: true }).click(),
-  ]);
+  await app.getByRole('button', { name: 'Save', exact: true }).click();
+  // Trace snapshots can outlive the toast. History remains available in Updates;
+  // the toast's click action is covered separately by attention-toast.test.tsx.
+  await app.getByRole('button', { name: /^Recent updates/ }).click();
   await expect(app.locator('.attention-toast')).toHaveCount(0);
   await expect(app.getByRole('complementary', { name: 'Recent semantic changes' })).toContainText('This node changed');
   await app.getByRole('button', { name: 'Collapse changes panel' }).click();

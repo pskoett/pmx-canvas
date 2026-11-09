@@ -337,7 +337,13 @@ export async function updateNodeFromClient(
     expectedBoardId?: string | null;
     persistFile?: boolean;
   },
-): Promise<{ ok: boolean; id?: string; contentRevision?: number; lastEditedBy?: CanvasNodeState['lastEditedBy'] }> {
+): Promise<{
+  ok: boolean;
+  id?: string;
+  node?: CanvasNodeState;
+  contentRevision?: number;
+  lastEditedBy?: CanvasNodeState['lastEditedBy'];
+}> {
   return requestJson(
     'updateNodeFromClient',
     `/api/canvas/node/${encodeURIComponent(id)}`,

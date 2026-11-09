@@ -119,6 +119,7 @@ export const GUIDE: GuideRow[] = [
       'Saved text and checkboxes never roll back, including an immediate expand/close after a toggle.',
       'An unsaved draft stays with its board and card across close/reopen and a board switch.',
       'Returning to Document before a slow preview finishes shows no stale preview.',
+      'A delayed file-backed preview cannot replace saved text or its selection after a refused save is retried.',
     ],
     touches: [
       'src/client/nodes/MarkdownNode.tsx',
@@ -134,6 +135,7 @@ export const GUIDE: GuideRow[] = [
       'inline markdown save updates authoritative canvas node content',
       'switch acceptance detaches old same-ID cards',
       'relation refreshes preserve an unsaved Source draft',
+      'a delayed file-backed draft render cannot overwrite a subsequently saved document or selection',
     ],
     unit: ['tests/client/markdown-task-toggle.test.tsx'],
   },
@@ -283,9 +285,11 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'Bindings survive rename, delete/Undo and snapshot restore.',
       'Ambiguous titles never pick a random target; a deleted target shows as missing, not retargeted.',
+      'A failed board relink can be retried and opened without waiting for live updates.',
     ],
     touches: [
       'src/server/wiki-links.ts',
+      'src/client/nodes/BoardNode.tsx',
       'src/client/canvas/CrossBoardReferences.tsx',
       'src/client/canvas/SnapshotPanel.tsx',
       'src/server/operations/ops/snapshots.ts',
@@ -712,6 +716,7 @@ export const GUIDE: GuideRow[] = [
       'The attention layer shows focus and its interpretation history.',
       'Ghost intents are interactive, vetoable and settle into the linked mutation; unsignalled agent writes still ghost.',
       'Unattended approval counts down, auto-holds by policy and can be reopened.',
+      'Approved and rejected gates stay final; undo restores a pending gate with a fresh answer window, and auto-holds preserve history.',
     ],
     touches: [
       'src/client/canvas/AttentionHistory.tsx',
@@ -721,6 +726,8 @@ export const GUIDE: GuideRow[] = [
       'src/client/state/attention-bridge.ts',
       'src/client/state/intent-store.ts',
       'src/server/intent-registry.ts',
+      'src/server/ax-state-manager.ts',
+      'src/server/ax-gate-ttl.ts',
       'src/shared/semantic-attention.ts',
       'src/shared/ax-intent.ts',
       'src/shared/approval-gates.ts',
@@ -736,6 +743,8 @@ export const GUIDE: GuideRow[] = [
       'tests/unit/semantic-attention.test.ts',
       'tests/unit/intent-registry.test.ts',
       'tests/unit/attention-bridge.test.ts',
+      'tests/unit/ax-state-manager.test.ts',
+      'tests/unit/ax-gate-ttl.test.ts',
       'tests/client/attention-toast.test.tsx',
     ],
   },

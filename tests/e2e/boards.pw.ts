@@ -478,29 +478,49 @@ test('missing board cards can retry relinking and open the chosen board', async 
       headers: HUMAN,
     })
   ).json();
-  await page.goto('/workbench');
-  const card = page.locator(`[data-node-id="${created.id}"]`);
-  await expect(card.getByText('Board not found')).toBeVisible();
-  await card.getByRole('button', { name: 'Link to board…', exact: true }).click();
-  await page.route(
-    `**/api/canvas/node/${created.id}`,
-    async (route) => {
+  let refuse = true;
+  let holdUpdates = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  // Install interception before the initial long poll, and keep it installed
+  // across the retry so Fetch.enable/disable cannot strand an in-flight poll.
+  await page.route(`**/api/canvas/node/${created.id}`, async (route) => {
+    if (route.request().method() === 'PATCH' && refuse) {
+      refuse = false;
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
         body: JSON.stringify({ error: 'Test outage' }),
       });
-    },
-    { times: 1 },
-  );
-  await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
-  await expect(card.getByRole('status')).toHaveText('Could not relink this card. Try again.');
-  await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
-  await expect(card.getByRole('status')).toHaveCount(0);
-  await expect(card.getByText('Recovered destination', { exact: true })).toBeVisible();
-  await card.getByRole('button', { name: 'Open board', exact: true }).click();
-  await expect(page.locator('.board-switcher-button')).toContainText('Recovered destination');
-  expect((await boards(request)).activeBoardId).toBe(target.board.id);
+    } else await route.continue();
+  });
+  await page.route('**/api/workbench/poll?*', async (route) => {
+    const response = await route.fetch();
+    if (holdUpdates) await held;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.goto('/workbench?transport=poll');
+    const card = page.locator(`[data-node-id="${created.id}"]`);
+    await expect(card.getByText('Board not found')).toBeVisible();
+    await card.getByRole('button', { name: 'Link to board…', exact: true }).click();
+    await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
+    await expect(card.getByRole('status')).toHaveText('Could not relink this card. Try again.');
+    holdUpdates = true;
+    await card.getByLabel('Link to board', { exact: true }).selectOption(target.board.id);
+    await expect(card.getByRole('status')).toHaveCount(0);
+    // A successful write must recover the card even while live updates lag.
+    await expect(card.getByText('Recovered destination', { exact: true })).toBeVisible();
+    release();
+    await card.getByRole('button', { name: 'Open board', exact: true }).click();
+    await expect(page.locator('.board-switcher-button')).toContainText('Recovered destination');
+    expect((await boards(request)).activeBoardId).toBe(target.board.id);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });
 
 test('Home manages shared relation presets while board filters show only existing connections', async ({
@@ -2306,16 +2326,11 @@ test('a delayed file-backed draft render cannot overwrite a subsequently saved d
         })
       ).json()
     ).id;
-    await page.goto('/workbench');
-    await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.getByRole('button', { name: '</> Source', exact: true }).click();
-    const editor = page.locator('.md-editor-expanded textarea');
-    await expect(editor).toHaveValue(saved);
-    await editor.fill(discarded);
-    await expect(page.locator('.md-preview')).toContainText(discarded);
     let waiting = false;
+    let holdDiscarded = false;
+    let refuseSave = false;
     await page.route('**/api/render', async (route) => {
-      if ((route.request().postDataJSON() as { markdown: string }).markdown !== discarded) {
+      if (!holdDiscarded || (route.request().postDataJSON() as { markdown: string }).markdown !== discarded) {
         await route.continue();
         return;
       }
@@ -2324,6 +2339,19 @@ test('a delayed file-backed draft render cannot overwrite a subsequently saved d
       await held;
       await route.fulfill({ response });
     });
+    await page.route(`**/api/canvas/node/${claim}`, (route) =>
+      refuseSave && route.request().method() === 'PATCH'
+        ? route.fulfill({ status: 409, json: { ok: false, error: 'Card update refused after file save.' } })
+        : route.continue(),
+    );
+    await page.goto('/workbench');
+    await page.locator(`[data-node-id="${claim}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: '</> Source', exact: true }).click();
+    const editor = page.locator('.md-editor-expanded textarea');
+    await expect(editor).toHaveValue(saved);
+    await editor.fill(discarded);
+    await expect(page.locator('.md-preview')).toContainText(discarded);
+    holdDiscarded = true;
     const obsoleteRender = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === '/api/render' &&
@@ -2335,17 +2363,13 @@ test('a delayed file-backed draft render cannot overwrite a subsequently saved d
     await expect.poll(() => waiting).toBe(true);
     await editor.fill(saved);
     await editor.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(2, 8));
-    await page.route(`**/api/canvas/node/${claim}`, (route) =>
-      route.request().method() === 'PATCH'
-        ? route.fulfill({ status: 409, json: { ok: false, error: 'Card update refused after file save.' } })
-        : route.continue(),
-    );
+    refuseSave = true;
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('.attention-toast')).toContainText('Card update refused after file save.');
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
     await expect(editor).toHaveValue(saved);
     expect(readFileSync(path, 'utf8')).toBe(saved);
-    await page.unroute(`**/api/canvas/node/${claim}`);
+    refuseSave = false;
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
     expect(readFileSync(path, 'utf8')).toBe(saved);

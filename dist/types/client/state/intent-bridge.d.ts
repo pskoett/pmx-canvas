@@ -127,6 +127,7 @@ export declare function updateNodeFromClient(id: string, patch: {
 }): Promise<{
     ok: boolean;
     id?: string;
+    node?: CanvasNodeState;
     contentRevision?: number;
     lastEditedBy?: CanvasNodeState['lastEditedBy'];
 }>;

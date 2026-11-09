@@ -4584,15 +4584,20 @@ test('graph nodes content-fit to a stable size across expand and close', async (
   // Content-fit grows the height past the requested floor; width stays explicit.
   await expect.poll(fetchSize).toMatchObject({ width: 480 });
   await expect.poll(async () => (await fetchSize()).height).toBeGreaterThan(380);
+  // The iframe reporter and card chrome can settle after the first server write.
+  // Wait for the rendered fit before retaining the size used by expand/close.
+  await expect
+    .poll(() =>
+      graphNode
+        .frameLocator('iframe')
+        .locator('body')
+        .evaluate((body) => body.scrollHeight - window.innerHeight),
+    )
+    .toBeLessThanOrEqual(2);
   const fit = await fetchSize();
   // Persistence need not wait for the CSS resize transition to finish.
   await expect.poll(async () => (await graphNode.boundingBox())?.width).toBeCloseTo(480, 0);
   await expect.poll(async () => (await graphNode.boundingBox())?.height).toBeCloseTo(fit.height, 0);
-  const content = await graphNode
-    .frameLocator('iframe')
-    .locator('body')
-    .evaluate((body) => ({ height: body.scrollHeight, viewport: window.innerHeight }));
-  expect(content.height).toBeLessThanOrEqual(content.viewport + 2);
 
   await graphNode.getByLabel('Expand (focus mode)').click();
   await expect(page.locator('.expanded-overlay-panel')).toBeVisible();

@@ -5,14 +5,21 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-08
+
+### Breaking
+
+- SDK `reopenApproval()` now reopens only held gates; approved and rejected gates stay final and return `null`. Use `requestApproval()` for a new decision.
+
 ### Fixed
 
+- A retried board relink updates the card as soon as the server accepts it, even while live updates are delayed.
 - The json-render React skill's spec example now uses the flat `root` and `elements` format that validates.
 - The orchestration skill now says to poll pending delivery with GET and to mark messages with POST.
 - `pmx-canvas skills sync --check` now detects a stale installed Amp plugin, and `--yes` refreshes it.
 - A prompt card no longer stays "Sending…" or "Streaming…" forever, and board moves no longer refuse it. This used to happen after the agent's handler failed, after a server restart, or when a queued prompt was dropped.
 - A reply sent while an answer is still streaming is no longer overwritten by that answer.
-- Approved and rejected approval gates are final; only an auto-held gate can be reopened. Undoing a gate decision gives it a fresh answer window, and auto-holds no longer clear your redo history.
+- Approved and rejected approval gates are final; only a held gate can be reopened. Undoing a gate decision gives it a fresh answer window, and auto-holds no longer clear your redo history.
 - Undo now reverts only what that step changed, and one undo reverts a work item's status together with its chip on linked cards.
 - Failed file reads show an error instead of saving the card as empty.
 - An interrupted lasso or pen stroke no longer blocks panning and zooming.
