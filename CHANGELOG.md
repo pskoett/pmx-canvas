@@ -5,7 +5,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
-## [0.13.0] - 2026-11-08
+## [0.13.0] - 2026-11-09
 
 ### Breaking
 
