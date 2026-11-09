@@ -5,6 +5,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The SDLC example keeps its cards and charts clear of one another after their content loads.
+
 ## [0.13.0] - 2026-11-09
 
 ### Breaking

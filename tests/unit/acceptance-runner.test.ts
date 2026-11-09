@@ -12,7 +12,7 @@ test('acceptance rejects runner and global errors even when individual tests pas
     writeFileSync(
       join(root, 'tests/acceptance/guide.ts'),
       `export const CORE_TOUCHES = [];
-export const GUIDE = [{ id: '01', title: 'Fixture', touches: [], pass: ['Fixture passed'], e2e: ['fixture'] }];`,
+export const GUIDE = [{ id: '01', title: 'Fixture', touches: [], pass: ['Fixture passed'], e2e: ['fixture'], ownerChecks: ['Native fixture check'] }];`,
     );
     writeFileSync(
       join(root, 'scripts/run-playwright.sh'),
@@ -21,6 +21,7 @@ export const GUIDE = [{ id: '01', title: 'Fixture', touches: [], pass: ['Fixture
     expect(Bun.spawnSync(['git', 'init', '--quiet'], { cwd: root }).exitCode).toBe(0);
     for (const [exitCode, errors, expected] of [
       [0, [], 'pass'],
+      [0, [], 'carried'],
       [1, [], 'fail'],
       [0, [{ message: 'Global teardown failed' }], 'fail'],
     ] as const) {
@@ -33,16 +34,25 @@ export const GUIDE = [{ id: '01', title: 'Fixture', touches: [], pass: ['Fixture
           },
         ],
       };
-      const run = Bun.spawnSync([process.execPath, 'scripts/acceptance.ts', '--all', '--no-build'], {
-        cwd: root,
-        env: { ...process.env, FIXTURE_REPORT: JSON.stringify(report), FIXTURE_EXIT: String(exitCode) },
-      });
-      expect(run.exitCode).toBe(expected === 'pass' ? 0 : 1);
+      const run = Bun.spawnSync(
+        [process.execPath, 'scripts/acceptance.ts', ...(expected === 'carried' ? [] : ['--all']), '--no-build'],
+        {
+          cwd: root,
+          env: { ...process.env, FIXTURE_REPORT: JSON.stringify(report), FIXTURE_EXIT: String(exitCode) },
+        },
+      );
+      expect(run.exitCode).toBe(expected === 'fail' ? 1 : 0);
       const ledger = JSON.parse(readFileSync(join(root, 'test-results/acceptance/ledger.json'), 'utf8'));
       const results = JSON.parse(readFileSync(join(root, 'test-results/acceptance/results.json'), 'utf8'));
-      expect(ledger['01'].status).toBe(expected);
+      expect(ledger['01'].status).toBe(expected === 'carried' ? 'pass' : expected);
       expect(results.results[0].status).toBe(expected);
-      expect(results.results[0].problems.length).toBe(expected === 'pass' ? 0 : 1);
+      expect(results.results[0].problems.length).toBe(expected === 'fail' ? 1 : 0);
+      const markdown = readFileSync(join(root, 'test-results/acceptance/report.md'), 'utf8');
+      expect(markdown).toContain('Pass status covers automated checks only.');
+      expect(markdown).toContain('unverified by this runner');
+      expect(markdown).toContain(`- [ ] ${expected === 'carried' ? '01: ' : ''}Native fixture check`);
+      expect(markdown).not.toContain('- [x]');
+      expect(markdown).not.toContain('Owner checks:');
     }
   } finally {
     rmSync(root, { recursive: true, force: true });

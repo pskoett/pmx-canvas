@@ -166,9 +166,9 @@ const contextId = canvas.addNode({
   type: 'context',
   title: 'Pinned Briefing',
   x: 1220,
-  y: 40,
+  y: 30,
   width: 360,
-  height: 320,
+  height: 600,
 }).id;
 
 const contextNode = canvas.getNode(contextId);
@@ -194,8 +194,8 @@ canvas.updateNode(contextId, {
 const ledgerId = canvas.addNode({
   type: 'ledger',
   title: 'Synthetic Execution Ledger',
-  x: 1220,
-  y: 390,
+  x: 1620,
+  y: 40,
   width: 360,
   height: 240,
 }).id;
@@ -214,9 +214,9 @@ const traceIds = traceEvents.map((trace, index) => {
     type: 'trace',
     title: trace.title,
     x: 840,
-    y: 240 + index * 76,
+    y: 240 + index * 140,
     width: 340,
-    height: 60,
+    height: 110,
   }).id;
   const node = canvas.getNode(id);
   canvas.updateNode(id, {
@@ -252,27 +252,29 @@ if (!artifactBuild.nodeId || !artifactBuild.url) {
 const artifactNode = canvas.getNode(artifactBuild.nodeId);
 canvas.updateNode(artifactBuild.nodeId, {
   position: { x: 840, y: 780 },
-  size: { width: 980, height: 690 },
+  size: { width: 980, height: 1400 },
   data: {
     ...(artifactNode?.data ?? {}),
     title: 'SDLC Control Room Artifact',
   },
 });
 
+// Reserve the viewers' rendered heights before placing the rows below them.
+// Grouped cards grow in place, so undersized seeds can cover their neighbors.
 const dashboard = canvas.addJsonRenderNode({
   title: 'Control Tower Widgets',
   spec: buildControlTowerSpec(),
   x: 840,
-  y: 1500,
+  y: 2210,
   width: 520,
-  height: 640,
+  height: 840,
 });
 
 const intake = canvas.addJsonRenderNode({
   title: 'Release Gate Intake',
   spec: buildReleaseIntakeSpec(),
   x: 1390,
-  y: 1500,
+  y: 2210,
   width: 520,
   height: 720,
 });
@@ -281,7 +283,7 @@ const matrix = canvas.addJsonRenderNode({
   title: 'Service Readiness Matrix',
   spec: buildServiceMatrixSpec(),
   x: 840,
-  y: 2250,
+  y: 3080,
   width: 1070,
   height: 360,
 });
@@ -290,7 +292,7 @@ const profileCard = canvas.addJsonRenderNode({
   title: 'User Profile Card',
   spec: buildUserProfileCardSpec(),
   x: 840,
-  y: 2650,
+  y: 3480,
   width: 500,
   height: 420,
 });
@@ -299,7 +301,7 @@ const settingsForm = canvas.addJsonRenderNode({
   title: 'Account Settings',
   spec: buildSettingsFormSpec(),
   x: 1370,
-  y: 2650,
+  y: 3480,
   width: 540,
   height: 500,
 });
@@ -308,7 +310,7 @@ const pricingTable = canvas.addJsonRenderNode({
   title: 'Pricing Table',
   spec: buildPricingTableSpec(),
   x: 840,
-  y: 3180,
+  y: 4010,
   width: 1070,
   height: 560,
 });
@@ -317,9 +319,9 @@ const embeddedCharts = canvas.addJsonRenderNode({
   title: 'Embedded Charts Dashboard',
   spec: buildEmbeddedChartsSpec(),
   x: 840,
-  y: 3770,
+  y: 4600,
   width: 1070,
-  height: 980,
+  height: 1160,
 });
 
 const leadTimeGraph = canvas.addGraphNode({
@@ -332,7 +334,7 @@ const leadTimeGraph = canvas.addGraphNode({
   xKey: 'label',
   yKey: 'value',
   color: '#e9c46a',
-  x: 1830,
+  x: 1940,
   y: 780,
   width: 540,
   heightPx: 420,
@@ -348,7 +350,7 @@ const defectGraph = canvas.addGraphNode({
   xKey: 'label',
   yKey: 'value',
   color: '#e76f51',
-  x: 1830,
+  x: 1940,
   y: 1220,
   width: 540,
   heightPx: 420,
@@ -360,7 +362,7 @@ const ownershipGraph = canvas.addGraphNode({
   data: ownershipLoad,
   nameKey: 'name',
   valueKey: 'value',
-  x: 1830,
+  x: 1940,
   y: 1660,
   width: 540,
   heightPx: 420,

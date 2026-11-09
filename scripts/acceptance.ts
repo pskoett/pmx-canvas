@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Owner acceptance runner: reruns only the guide rows whose files changed since they last passed.
+ * Acceptance runner: reruns only the guide rows whose files changed since they last passed.
  *
  *   bun run acceptance                 # changed rows only; unchanged passes carry forward
  *   bun run acceptance --all           # every row, ignoring earlier passes
@@ -218,11 +218,13 @@ writeFileSync(LEDGER, `${JSON.stringify(ledger, null, 2)}\n`);
 
 const count = (status: RowStatus) => results.filter((result) => result.status === status).length;
 const lines = [
-  `# Owner acceptance at ${commit}`,
+  `# Acceptance evidence at ${commit}`,
   '',
   `${count('pass')} passed, ${count('carried')} carried forward, ${count('fail')} failed, ${count('not-run')} not run. Generated ${new Date().toISOString()}.`,
   '',
-  'Carried rows passed earlier and none of their files changed since. Owner checks are never automated.',
+  'Carried rows passed earlier and none of their files changed since. Pass status covers automated checks only.',
+  '',
+  'Additional visual/native-host checks remain unverified by this runner and need separate recorded evidence. Agents perform them wherever access permits; they are not a demand for Peter to review or approve again. See docs/RELEASE.md for authorization and required release gates.',
   '',
   '| Row | Title | Status | Evidence | Why |',
   '|---|---|---|---|---|',
@@ -248,13 +250,13 @@ for (const result of results.filter((r) => r.status === 'pass' || r.status === '
   }
   for (const unit of result.unit) lines.push(`- ${unit.exitCode === 0 ? 'pass' : 'fail'}: \`${unit.ref}\` ([log](${unit.log}))`);
   if (result.row.ownerChecks?.length) {
-    lines.push('', 'Owner checks:', ...result.row.ownerChecks.map((check) => `- [ ] ${check}`));
+    lines.push('', 'Additional checks (unverified by this runner):', ...result.row.ownerChecks.map((check) => `- [ ] ${check}`));
   }
   lines.push('');
 }
 const ownerOnly = results.filter((result) => result.status === 'carried' && result.row.ownerChecks?.length);
 if (ownerOnly.length) {
-  lines.push('## Owner checks on carried rows', '');
+  lines.push('## Additional checks on carried rows (unverified by this runner)', '');
   for (const result of ownerOnly) lines.push(...result.row.ownerChecks!.map((check) => `- [ ] ${result.row.id}: ${check}`));
   lines.push('');
 }

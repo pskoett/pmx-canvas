@@ -6,6 +6,14 @@ Before changing anything a person sees (styles, chrome, node renderers, Home, ed
 Design section of `AGENTS.md`: build to the drawings in `docs/design/` per the guide and build
 plan in `docs/design.md`.
 
+## Review and completion
+
+Follow `AGENTS.md` for agent-performed review, visual verification and reproducible evidence,
+including focused review of high-blast-radius changes. Do not assign Peter another personal
+review or request the same approval again. Report unverified coverage honestly and keep
+authorization for publishing, production and destructive actions separate, as described in
+`docs/RELEASE.md`.
+
 ## Agent Skill Pipeline
 
 This repo ships an agent-facing skill pipeline under `.agents/skills/`, `.claude/skills/`, and `.opencode/skills/`.

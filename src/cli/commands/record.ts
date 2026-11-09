@@ -144,12 +144,26 @@ interface ScreencastFrame {
 
 // A cold Chrome launch on macOS has been measured at 15–30 s.
 const CAPTURE_TIMEOUT_MS = 60_000;
-function timed<T>(task: Promise<T>, action: string): Promise<T> {
+// Once the workbench is loaded, a frame acknowledgement is a separate,
+// shorter boundary. A visible DOM is not proof that Chrome schedules frames.
+const PAINT_TIMEOUT_MS = 5_000;
+function timed<T>(task: Promise<T>, action: string, timeoutMs = CAPTURE_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     task,
     new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`Timed out after 60 s while ${action}`)), CAPTURE_TIMEOUT_MS);
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Timed out after ${timeoutMs / 1000} s while ${action}` +
+                (timeoutMs === PAINT_TIMEOUT_MS
+                  ? '. Recording aborted: Bun.WebView Chrome did not acknowledge animation frames. Check the Bun/Chrome runtime and --chrome-path; DOM readiness alone is not capture readiness.'
+                  : ''),
+            ),
+          ),
+        timeoutMs,
+      );
     }),
   ]).finally(() => clearTimeout(timer));
 }
@@ -214,7 +228,8 @@ cmd(
       await timed(view.resize(options.width, options.height), 'resizing the capture viewport');
       await timed(
         view.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))'),
-        'waiting for paint',
+        'waiting for Chrome animation frames after resize',
+        PAINT_TIMEOUT_MS,
       );
       await timed(view.evaluate('document.fonts.ready.then(() => true)'), 'waiting for fonts');
       mkdirSync(framesPath, { recursive: true });
@@ -237,6 +252,7 @@ cmd(
               return getComputedStyle(world).transform;
             })`),
             'applying a camera frame',
+            PAINT_TIMEOUT_MS,
           );
           if (JSON.stringify(applied) !== JSON.stringify(camera)) {
             throw new Error(

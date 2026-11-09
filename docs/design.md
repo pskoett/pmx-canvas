@@ -21,6 +21,13 @@ contract and the schedule.
 3. Apply the [Principles](#principles), above all the fixed meaning colours.
 4. Meet the [Definition of done](#definition-of-done-for-any-design-work) before calling it done.
 
+**Acceptance ownership, clarified 2026-11-09.** Agents review the implementation,
+exercise the affected workflows and inspect the visual evidence as part of completion,
+following [AGENTS.md](../AGENTS.md#testing-conventions). Older "owner acceptance pending"
+notes below record historical coverage, not a requirement for Peter to personally review
+or approve again. Keep unperformed checks unverified; an approval does not prove them.
+[Release authorization](RELEASE.md#review-evidence-and-authorization) remains separate.
+
 ## Plugin logo
 
 The plugin uses the existing Focus Field brand mark, matching the canvas favicon:
@@ -803,6 +810,14 @@ together. Expanded documents keep their sticky footer. The demo returns to a
 240 px height, with 360 and 440 px widths exercised in both Chromium and WebKit.
 Bodies still shrink proportionally.
 
+The published-consumer SDLC example reserves the artifact's 1400 px content-fit
+ceiling and the dashboard's rendered height before placing subsequent rows.
+Its graph column clears the widest structured cards by 30 px. Telemetry reserves
+the context and trace cards' rendered heights, with the ledger in its own column.
+These are example geometry choices, not changes to content fitting or card stacking.
+Every card is visited before the non-overlap and group-containment checks run,
+including ordinary DOM cards as well as lazy viewers.
+
 Static exports use the same embedded chart layout and named palettes, retain
 heading display, and match the live 37 px card header. Fonts and shared palette
 CSS are embedded for offline use. Saved positions, sizes and specs are unchanged;
@@ -908,6 +923,10 @@ after pointer movement; Tab away dismisses the hint after its fade transition.
    `tests/unit/demo.test.ts` passes.
 6. User-facing docs (`docs/node-types.md`, `docs/http-api.md`, `docs/mcp.md`) and the
    skills reflect it.
+7. The agent reviews the change and provides reproducible verification commands and
+   decisive results, with inspected screenshots or recordings of the affected states.
+   Unverified widths, themes, interactions or native hosts are named explicitly, not
+   reported as passes or assigned to Peter as another personal review gate.
 
 ## History
 

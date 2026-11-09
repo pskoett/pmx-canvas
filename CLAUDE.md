@@ -261,15 +261,25 @@ npm instead of waiting in the turn.
   owner to push it, have the oracle (a reviewing subagent) review the feature's diff as a
   skeptic: give it the intent, not your conclusion. Fix or answer every finding, and report what
   it found alongside the acceptance results. Fixes, refactors and small changes do not need it.
-- **The owner reviews only the high-blast-radius files.** When a change touches one of these,
-  show the owner that diff and wait for their review before pushing; everything else ships on
-  evidence (plus the oracle review for new features):
+- **Review is the agent's implementation work.** Before reporting completion, review the diff,
+  verify the affected workflows, and give concrete, reproducible evidence of correctness. For UI
+  changes, inspect the rendered result and include screenshots or recordings of the affected states.
+  State the commands, decisive outputs, build/commit and environment tested, findings addressed,
+  and any unverified coverage. Passing automated tests alone is not visual or native-host proof.
+- **High-blast-radius changes get focused agent review.** Explain the relevant decisions and
+  show the important diff with the verification evidence. Do not require Peter to personally
+  review these files as a separate gate:
   - `src/server/canvas-db.ts`: the SQLite schema and migrations of every user's `canvas.db`
   - `src/server/canvas-state.ts`: the single source of truth and its single-slot listeners
   - `src/server/workbench-auth.ts`: what counts as a human write
   - `.github/workflows/`: CI and npm publishing
-  - any breaking change to the public contract in `docs/api-stability.md` (additive changes do
-    not need it)
+  - any breaking change to the public contract in `docs/api-stability.md`
+- **Authorization is separate from review and evidence.** Reuse the owner's explicit approval
+  for the same action and scope; do not ask for the same go-ahead again or reinterpret it as a
+  demand that Peter perform the review. Pushes, publication, production/destructive actions and
+  other changes to shared state still need their applicable authorization. Ask only for a genuinely
+  new action, material scope change or unresolved decision, and name it precisely. Approval never
+  turns an unperformed check into a pass or clears a failing release gate.
 - **Every push gets a CI subscription.** After pushing, subscribe the thread to workflow
   completions for that exact commit (`amp.create_github_subscription`) and report the result
   when it arrives, instead of polling or asking the owner to check.
@@ -352,12 +362,17 @@ package in a clean temp consumer instead of the repo dev path.
    or WebKit behavior. Report unavailable host checks and unresolved failures explicitly; do not
    call the feature accepted until the affected end-to-end flows have been exercised and inspected.
 
-6. **Owner acceptance is a script, not a rehearsal.** The owner acceptance guide lives in
+6. **Acceptance is agent-run verification, not an owner review assignment.** The guide lives in
    `tests/acceptance/guide.ts` (pass criteria, the tests that prove each row, the files that
    invalidate it). `bun run acceptance` reruns only rows whose files changed since their last
    pass and writes `test-results/acceptance/report.md` with a video per test. A design or naming
    change reruns the rows it touches, never the whole guide. When a guide row gains a criterion,
-   add the test that proves it to the manifest; `ownerChecks` are for what an orb cannot see.
+   add the test that proves it to the manifest. `ownerChecks` name additional visual/native-host
+   coverage, not checks Peter must personally perform. Exercise them yourself wherever access
+   permits; otherwise report the exact gap as unverified, separately from release authorization.
+   Ask for human help only when a specific check genuinely needs unavailable access or a human
+   action, never as a blanket request to review again. Keep required gates blocking on missing
+   evidence and best-effort checks qualified; neither an automated pass nor approval fills a gap.
    The guide follows development: a user-facing change is not done until its row exists or an
    existing row gains its criterion and proving test, and every new `src/` file joins a row
    (`tests/unit/acceptance-guide.test.ts` fails otherwise). At each release, retire rows the

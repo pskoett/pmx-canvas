@@ -1,12 +1,15 @@
 /**
- * The owner acceptance guide as a versioned manifest. Rows 01–23 come from the 0.8.2 owner guide
+ * The acceptance guide as a versioned manifest. Rows 01–23 come from the 0.8.2 owner guide
  * ("Acceptance · since 0.8.2"); later rows cover features it predates, and the guide grows with the
  * project (see AGENTS.md testing rule 6).
  *
- * Each row names the owner-facing pass criteria, the automated tests that prove them, the
- * source files whose change invalidates the row, and the criteria only a person (or a native
- * host the orb cannot reach) can judge. `bun run acceptance` reruns only the rows whose files
- * changed since their last pass, so a naming fix no longer restarts the guide from 01.
+ * Each row names the pass criteria, the automated tests that prove them, the source files
+ * whose change invalidates the row, and additional visual/native-host checks (`ownerChecks`).
+ * Agents perform those additional checks wherever access permits and record separate evidence;
+ * unavailable checks remain unverified. The field does not require Peter's personal review or
+ * another approval for an already-authorized action (see docs/RELEASE.md).
+ * `bun run acceptance` reruns only the rows whose files changed since their last pass, so a
+ * naming fix no longer restarts the guide from 01. Its pass status covers automated checks only.
  *
  * `e2e` entries are substrings of Playwright test titles; `unit` entries are bun test files,
  * optionally narrowed by a test-name substring. A substring that matches no test fails the
@@ -561,6 +564,7 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'Tours frame readably with no blank jump; camera moves add no Undo; reduced motion jumps.',
       'Drags and right-drag pans create no accidental cards; the recording shows concurrent edits and finalizes.',
+      'Stalled animation frames abort recording within five seconds at startup or a camera step, without finalizing.',
     ],
     touches: [
       'src/client/canvas/Presentation.tsx',
@@ -577,6 +581,7 @@ export const GUIDE: GuideRow[] = [
       'tour framing, keyboard exit, painted frames and CLI recording',
       'an agent drives the tour and eases the camera without undo entries',
       'realtime recording sees concurrent edits and finalizes',
+      'recording refuses stalled animation frames',
       'presentation right-drag interrupts the tour',
       'right-drag pans over blank canvas and node content',
       'a paused title drag survives delayed stacking echoes',
@@ -782,8 +787,11 @@ export const GUIDE: GuideRow[] = [
       'Incremental context includes changed live-task cards after reload or external writes, without revision churn, false storage conflicts, renewed approval deadlines or reader attribution.',
       'Content keeps its proportions through fractional zoom; HTML, webpage, Mermaid and ledger content is correct.',
       'A clean packed consumer scaffolds and renders a web artifact using the shipped initializer.',
+      'The seeded SDLC workspace keeps cards clear of one another after every viewer loads, contains group children, and leaves chart titles and content unobscured.',
     ],
     touches: [
+      'examples/published-consumer-sdlc/**',
+      'tests/e2e/published-consumer.pw.ts',
       'src/client/nodes/*Node.tsx',
       'src/client/nodes/WorkCard.tsx',
       'src/client/nodes/StatusSummary.tsx',
@@ -839,6 +847,7 @@ export const GUIDE: GuideRow[] = [
       'srcdoc iframe mode renders same-origin surfaces inline',
       'Markdown is sanitized in card and rich editor boundaries',
       'renders the published-consumer SDLC workspace',
+      'seeded SDLC cards do not overlap or obscure neighboring charts',
     ],
     unit: [
       'tests/unit/demo.test.ts',

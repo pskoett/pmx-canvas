@@ -23,6 +23,30 @@ single source of truth for the release dance — see also
 6. `gh release create vX.Y.Z --notes-file <notes.md>`.
 7. Smoke-test the published tarball: `bunx pmx-canvas@X.Y.Z --no-open`.
 
+## Review, evidence and authorization
+
+The agent performs the implementation and release review, including focused review of
+high-blast-radius files and breaking contracts. Complete the required checks and inspect
+the affected UI workflows before presenting the result. Provide reproducible commands,
+decisive outputs, the tested build/commit and environment, and inspected screenshots or
+recordings for visual changes. Include review findings and their resolution.
+
+Owner approval to proceed is authorization, not an assignment for Peter to personally
+review the diff or repeat the acceptance run. Carry explicit approval forward for the same
+action and scope without requesting it again. Pushes, tagging/publication, production or
+destructive actions still require their applicable authorization; approval for implementation
+or a push alone does not authorize publication. Ask only for a new action, material scope
+change or unresolved decision outside the existing approval.
+
+Record unavailable visual/native-host checks as unverified coverage, with the exact missing
+evidence. `ownerChecks` in the acceptance guide do not assign those checks to Peter. Exercise
+them wherever access permits and ask for human help only for a specific inaccessible check
+or action. An automated pass, an owner's go-ahead or an unchecked checklist is not proof that
+such a check passed. Missing required evidence and failing pre-flight/CI gates still block
+release; best-effort checks remain explicitly qualified and do not create a second owner
+sign-off gate. Historical "owner acceptance pending" notes do not require fresh approval
+for an already-authorized release.
+
 ## Pre-flight gates
 
 Run these locally before tagging. `test.yml` runs the client and browser suites.

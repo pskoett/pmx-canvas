@@ -271,6 +271,98 @@ test('realtime recording sees concurrent edits and finalizes on SIGTERM', async 
   }
 });
 
+for (const phase of ['startup', 'camera'] as const) {
+  test(`recording refuses stalled animation frames during ${phase} without finalizing`, async ({
+    request,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const headers = { 'x-pmx-workbench': '1' };
+    expect((await request.post('/api/canvas/clear', { headers })).ok()).toBe(true);
+    expect(
+      (
+        await request.post('/api/canvas/tour', {
+          headers,
+          data: { tour: { stops: [{ target: { viewport: { x: 130, y: -70, scale: 0.4 } }, duration: 0 }] } },
+        })
+      ).ok(),
+    ).toBe(true);
+    // Exercise the actual CLI and Chrome, but suspend the page's animation
+    // scheduler at the relevant boundary. Visibility/DOM readiness still work.
+    const preload = testInfo.outputPath('stall-animation-frames.mjs');
+    await writeFile(
+      preload,
+      `const resize = Bun.WebView.prototype.resize;
+Bun.WebView.prototype.resize = async function(...args) {
+  await resize.apply(this, args);
+  await this.evaluate(${JSON.stringify(`(() => {
+    const stall = () => {
+      // Retain callbacks as a stalled native scheduler would.
+      window.stalledFrames = [];
+      window.requestAnimationFrame = (callback) => window.stalledFrames.push(callback);
+    };
+    ${
+      phase === 'startup'
+        ? 'stall();'
+        : `const frame = window.pmxCapture.frame;
+    window.pmxCapture.frame = (camera) => { stall(); return frame(camera); };`
+    }
+  })()`)});
+  console.log('CAPTURE_STALL_ARMED');
+};`,
+    );
+    const video = testInfo.outputPath('stalled.mp4');
+    const child = spawn(
+      'bun',
+      [
+        'run',
+        '--preload',
+        preload,
+        'src/cli/index.ts',
+        'record',
+        '--port',
+        process.env.PMX_PLAYWRIGHT_PORT ?? '4517',
+        ...(phase === 'startup' ? ['--duration', '1'] : ['--mode', 'deterministic']),
+        '--present',
+        '--resolution',
+        '640x360',
+        '--output',
+        video,
+        '--chrome-path',
+        await recordingChrome(testInfo),
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let log = '';
+    child.stdout.on('data', (chunk) => {
+      log += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      log += String(chunk);
+    });
+    try {
+      // Cold Chrome startup keeps its original allowance; only the post-load
+      // acknowledgement must fail quickly. Early launch errors still fail.
+      await expect
+        .poll(() => log.includes('CAPTURE_STALL_ARMED') || child.exitCode !== null, { timeout: 60_000 })
+        .toBe(true);
+      expect(log).toContain('CAPTURE_STALL_ARMED');
+      await expect.poll(() => child.exitCode, { timeout: 15_000 }).not.toBeNull();
+      expect(child.exitCode, log).not.toBe(0);
+      expect(log).toContain('Timed out after 5 s');
+      expect(log).toContain(phase === 'startup' ? 'waiting for Chrome animation frames' : 'applying a camera frame');
+      expect(log).toContain('Recording aborted');
+      expect(log).not.toContain('"ok": true');
+      await testInfo.attach('recorder-error', { body: log, contentType: 'text/plain' });
+      expect(await readdir(testInfo.outputPath())).not.toContain('stalled.mp4');
+      const files = await readdir(`${video}.frames`).catch(() => []);
+      expect(files).not.toContain('recording.json');
+      expect(files.filter((name) => name.endsWith('.png'))).toHaveLength(0);
+    } finally {
+      if (child.exitCode === null) child.kill('SIGKILL');
+    }
+  });
+}
+
 test('presentation right-drag interrupts the tour locally and exposes an exit button', async ({ page, request }) => {
   const headers = { 'x-pmx-workbench': '1' };
   await request.post('/api/canvas/clear', { headers });

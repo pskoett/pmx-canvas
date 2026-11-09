@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { CanvasNodeState } from '../../src/server/canvas-state.js';
 
 const baseUrl = process.env.PMX_CANVAS_URL ?? 'http://127.0.0.1:4513';
 const repoRoot = join(import.meta.dirname, '..', '..');
@@ -187,4 +188,92 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   const snapshotResponse = await request.get(`${baseUrl}/api/canvas/snapshots`);
   const snapshots = (await snapshotResponse.json()) as Array<{ name: string }>;
   expect(snapshots.some((snapshot) => snapshot.name === 'published-consumer-baseline')).toBe(true);
+});
+
+test('seeded SDLC cards do not overlap or obscure neighboring charts', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await page.goto(`${baseUrl}/workbench`);
+  const response = await request.get(`${baseUrl}/api/canvas/state`);
+  expect(response.ok()).toBe(true);
+  let state = (await response.json()) as {
+    nodes: CanvasNodeState[];
+    edges: Array<{ from: string; to: string }>;
+  };
+  // Visit every card: ordinary DOM auto-fit and lazy viewers both resize grouped cards in place.
+  for (const node of state.nodes.filter((node) => node.type !== 'group')) {
+    expect((await request.post(`${baseUrl}/api/canvas/focus`, { data: { id: node.id } })).ok()).toBe(true);
+    await expect(page.locator(`[data-node-id="${node.id}"]`)).toBeInViewport();
+    if (!['mcp-app', 'json-render', 'graph'].includes(node.type)) continue;
+    const iframe = page.locator(`[data-node-id="${node.id}"] iframe.mcp-app-frame`);
+    await expect(iframe).toHaveCount(1);
+    const viewer = await (await iframe.elementHandle())!.contentFrame();
+    const url = new URL((await iframe.getAttribute('src'))!, baseUrl);
+    await viewer!.waitForURL((loaded) => loaded.href === url.href, { waitUntil: 'load' });
+    await expect(iframe.contentFrame().locator('body')).toContainText(/\S/);
+  }
+  // The content-height bridge applies its last measurement after a 300ms debounce.
+  await page.waitForTimeout(400);
+  state = await (await request.get(`${baseUrl}/api/canvas/state`)).json();
+  expect(state.nodes).toHaveLength(25);
+  expect(state.edges).toHaveLength(15);
+  const byId = new Map(state.nodes.map((node) => [node.id, node]));
+  for (const edge of state.edges) {
+    expect(byId.has(edge.from)).toBe(true);
+    expect(byId.has(edge.to)).toBe(true);
+  }
+
+  // Group containment is intentional; intersections between cards are not.
+  const cards = state.nodes.filter((node) => node.type !== 'group');
+  const overlaps: string[] = [];
+  for (let i = 0; i < cards.length; i++) {
+    const a = cards[i];
+    for (const b of cards.slice(i + 1)) {
+      if (
+        a.position.x < b.position.x + b.size.width &&
+        b.position.x < a.position.x + a.size.width &&
+        a.position.y < b.position.y + b.size.height &&
+        b.position.y < a.position.y + a.size.height
+      ) {
+        overlaps.push(`${a.data.title} / ${b.data.title}`);
+      }
+    }
+  }
+  expect(overlaps).toEqual([]);
+  const groups = state.nodes.filter((node) => node.type === 'group');
+  expect(groups).toHaveLength(3);
+  for (const group of groups) {
+    for (const id of group.data.children as string[]) {
+      const child = byId.get(id)!;
+      expect(child.position.x).toBeGreaterThan(group.position.x);
+      expect(child.position.y).toBeGreaterThan(group.position.y + 32);
+      expect(child.position.x + child.size.width).toBeLessThan(group.position.x + group.size.width);
+      expect(child.position.y + child.size.height).toBeLessThan(group.position.y + group.size.height);
+    }
+  }
+
+  const titles = ['Release Gate Intake', 'Defects by Stage', 'Operational Load'];
+  const nodeIds = cards.filter((node) => titles.includes(String(node.data.title))).map((node) => node.id);
+  expect(nodeIds).toHaveLength(3);
+  const viewport = page.viewportSize()!;
+  expect(
+    (
+      await request.post(`${baseUrl}/api/canvas/fit`, {
+        data: { nodeIds, width: viewport.width - 80, height: viewport.height - 150 },
+      })
+    ).ok(),
+  ).toBe(true);
+  for (const title of titles) {
+    const node = page.locator('.canvas-node').filter({ has: page.getByText(title, { exact: true }) });
+    await expect(node).toBeInViewport({ ratio: 1 });
+    // Trial input checks actual hit testing, not just CSS visibility beneath another card.
+    await node.locator('.node-title').click({ trial: true });
+    const frame = node.locator('iframe.mcp-app-frame').contentFrame();
+    if (title === 'Release Gate Intake') {
+      await expect(frame.getByText('Change ticket', { exact: true })).toBeVisible();
+    } else {
+      const marks = frame.locator(title === 'Defects by Stage' ? '.recharts-rectangle' : '.recharts-sector');
+      await expect(marks).toHaveCount(5);
+      await expect(marks.first()).toBeVisible();
+    }
+  }
 });

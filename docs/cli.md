@@ -185,6 +185,11 @@ keeps wall-clock speed and a stop signal keeps every frame written so far; ticks
 with no new paint repeat the previous frame, counted as `duplicated` in
 `recording.json`. Capture has no audio. Chrome and a Bun runtime with WebView
 support are required; Chrome gets 60 seconds to cold-start.
+After loading, animation-frame acknowledgements after resize and for each
+deterministic camera frame must complete within five seconds. If Chrome stops
+scheduling them, recording aborts with a phase-specific error, without a success
+manifest or encoded video. DOM readiness or page visibility does not bypass this
+check; any frames already written remain available for diagnosis.
 Recording is a local CLI/file operation, not a remote HTTP/MCP file-writing API;
 HTTP/MCP manage tours and retain their existing screenshot/automation surfaces.
 
