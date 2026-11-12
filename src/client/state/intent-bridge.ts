@@ -146,17 +146,22 @@ export async function renderMarkdown(
   nodeId?: string,
   expectedBoardId: string | null = activeBoardId.value,
 ): Promise<string | null> {
-  const data = await requestJson<{ html?: string }>(
-    'renderMarkdown',
-    '/api/render',
-    {},
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown, ...(nodeId ? { nodeId, expectedBoardId } : {}) }),
-    },
-  );
-  return data.html ?? null;
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ markdown, ...(nodeId ? { nodeId, expectedBoardId } : {}) }),
+  };
+  try {
+    const res = await workbenchFetch('/api/render', withWorkbenchMarker(init));
+    const body = (await readJsonBody(res)) as { html?: string } | null;
+    // A render is a read. One that crosses a board switch is discarded by its
+    // caller, so do not tell the human an edit failed.
+    if (res.status !== 409) reportRefusedWrite(res, init, body);
+    return body?.html ?? null;
+  } catch (error) {
+    logRequestError('renderMarkdown', error);
+    return null;
+  }
 }
 
 /** Fetch file content from the server. `content` is undefined when the read failed — never `''`. */
