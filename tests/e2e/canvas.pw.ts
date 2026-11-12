@@ -6075,6 +6075,47 @@ test('populated multi-agent bars keep view controls reachable after resizing', a
   await request.delete(`/api/canvas/boards/${pinnedBoard.board.id}`);
 });
 
+test('startup screen uses the saved or session theme before the app loads', async ({ page, request }) => {
+  // Leave the app unmounted so a late SSE theme cannot hide a first-paint regression.
+  await page.route('**/canvas/index.js*', (route) =>
+    route.fulfill({ contentType: 'application/javascript', body: '' }),
+  );
+  const check = async (path: string, theme: string, background: string) => {
+    await page.goto(path);
+    await expect(page.locator('#app')).toBeEmpty();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('#canvasBootstrap')).toBeVisible();
+    await expect(page.locator('#canvasBootstrap')).toHaveCSS('background-color', background);
+    await expect(page.locator('#canvasBootstrap')).toHaveCSS('background-image', 'none');
+  };
+  for (const [theme, background] of [
+    ['harbor', 'rgb(8, 21, 36)'],
+    ['daylight', 'rgb(246, 247, 249)'],
+    ['high-contrast', 'rgb(0, 0, 0)'],
+    ['midnight', 'rgb(10, 13, 28)'],
+    ['sepia', 'rgb(242, 231, 213)'],
+    ['arctic', 'rgb(32, 36, 46)'],
+    ['forest', 'rgb(12, 23, 18)'],
+    ['volt', 'rgb(11, 13, 11)'],
+    ['ember', 'rgb(11, 11, 12)'],
+  ] as const) {
+    expect((await request.post('/api/canvas/theme', { data: { theme } })).ok()).toBe(true);
+    await check('/workbench', theme, background);
+  }
+  await check('/workbench?theme=sepia', 'sepia', 'rgb(242, 231, 213)');
+  await expect(page.locator('.canvas-bootstrap-card')).toHaveCSS('background-color', 'rgb(235, 220, 194)');
+  await check('/workbench?theme=invalid', 'ember', 'rgb(11, 11, 12)');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await check('/workbench?theme=auto', 'daylight', 'rgb(246, 247, 249)');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await check('/workbench?theme=auto', 'harbor', 'rgb(8, 21, 36)');
+  expect((await request.get('/api/canvas/theme').then((response) => response.json())).theme).toBe('ember');
+  await page.unroute('**/canvas/index.js*');
+  await page.goto('/workbench');
+  await expect(page.locator('#canvasBootstrap')).toBeHidden();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'ember');
+});
+
 test('desktop theme picker lists every registered theme and applies one', async ({ page }) => {
   await page.goto('/workbench');
   await openSettingsItem(page, 'Theme');

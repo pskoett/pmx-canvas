@@ -85,6 +85,7 @@ export const GUIDE: GuideRow[] = [
       'Hints are styled and legible; no hidden essential controls, horizontal overflow or title-chip collisions.',
       'The context summary stays visible and narrow chrome folds instead of disappearing.',
       'Blue pins, violet read marks and amber review warnings are visible in every theme.',
+      'The startup screen uses the saved or session theme before the app loads, including the host color scheme override.',
     ],
     touches: [
       'src/client/canvas/TopBar.tsx',
@@ -104,6 +105,7 @@ export const GUIDE: GuideRow[] = [
       'rail popovers anchor beside their trigger',
       'populated multi-agent bars keep view controls reachable',
       'desktop theme picker lists every registered theme',
+      'startup screen uses the saved or session theme before the app loads',
       'the Settings menu opens anchored to its button',
       'every main Settings item describes itself',
       'toolbar tooltips dismiss after pointer-triggered actions',

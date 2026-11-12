@@ -1183,13 +1183,16 @@ const SAFE_FRAME_DOCUMENT_SANDBOX_TOKENS = new Set([
 ]);
 const frameDocuments = new Map<string, { html: string; sandbox: string }>();
 
-function canvasSpaHtml(): string {
+function canvasSpaHtml(url: URL): string {
+  const requestedTheme = url.searchParams.get('theme');
+  const theme = isCanvasTheme(requestedTheme) ? requestedTheme : canvasState.theme;
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="${theme}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PMX Canvas</title>
+  ${requestedTheme === 'auto' ? `<script>document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'harbor';</script>` : ''}
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=focus-field" />
   <link rel="alternate icon" href="/favicon.ico?v=focus-field" sizes="any" />
   <style>
@@ -1197,8 +1200,8 @@ function canvasSpaHtml(): string {
       margin: 0;
       width: 100%;
       height: 100%;
-      background: #081524;
-      color: #d9e2f2;
+      background: var(--c-bg);
+      color: var(--c-text);
       font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     body { overflow: hidden; }
@@ -1209,10 +1212,7 @@ function canvasSpaHtml(): string {
       display: grid;
       place-items: center;
       padding: 24px;
-      background:
-        radial-gradient(circle at top left, rgba(62, 134, 255, 0.18), transparent 32%),
-        radial-gradient(circle at bottom right, rgba(0, 214, 201, 0.12), transparent 28%),
-        #081524;
+      background: var(--c-bg);
       z-index: 9999;
     }
     #canvasBootstrap.ready { display: none; }
@@ -1220,9 +1220,9 @@ function canvasSpaHtml(): string {
       width: min(480px, 100%);
       padding: 22px 24px;
       border-radius: 18px;
-      border: 1px solid rgba(132, 160, 214, 0.18);
-      background: rgba(11, 18, 29, 0.92);
-      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+      border: 1px solid var(--c-line);
+      background: var(--c-panel);
+      box-shadow: var(--e-2);
     }
     .canvas-bootstrap-card strong {
       display: block;
@@ -1232,7 +1232,7 @@ function canvasSpaHtml(): string {
     }
     .canvas-bootstrap-card p {
       margin: 0;
-      color: #aebbd3;
+      color: var(--c-text-soft);
       line-height: 1.5;
       font-size: 14px;
     }
@@ -1247,8 +1247,8 @@ function canvasSpaHtml(): string {
       padding: 10px 16px;
       font: inherit;
       cursor: pointer;
-      background: #233246;
-      color: #eef4ff;
+      background: var(--c-panel-soft);
+      color: var(--c-text);
     }
   </style>
   <link rel="stylesheet" href="/canvas/global.css?v=${CANVAS_ASSET_VERSION}" />
@@ -3624,7 +3624,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname === '/' || url.pathname === '/workbench' || url.pathname === '/artifact') {
-            return new Response(canvasSpaHtml(), {
+            return new Response(canvasSpaHtml(url), {
               headers: {
                 'Content-Type': 'text/html; charset=utf-8',
                 'Cache-Control': 'no-store',

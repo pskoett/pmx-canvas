@@ -28,6 +28,14 @@ notes below record historical coverage, not a requirement for Peter to personall
 or approve again. Keep unperformed checks unverified; an approval does not prove them.
 [Release authorization](RELEASE.md#review-evidence-and-authorization) remains separate.
 
+## Startup theme
+
+The startup screen keeps its existing layout and uses the canvas background, panel,
+text, border and shadow tokens from [Themes](design/Themes.dc.html). The server sets
+the saved theme before the first paint. A named `?theme=` override takes precedence;
+`?theme=auto` resolves the host color scheme before paint. Neither override changes
+the saved theme. Startup and recovery use the same palette, without a fixed blue gradient.
+
 ## Plugin logo
 
 The plugin uses the existing Focus Field brand mark, matching the canvas favicon:
