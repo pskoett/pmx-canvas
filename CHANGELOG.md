@@ -8,6 +8,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Fixed
 
 - The SDLC example keeps its cards and charts clear of one another after their content loads.
+- Search gives more weight to distinct topic words in English and Danish questions and shows matching passages instead of the first mention.
 
 ## [0.13.0] - 2026-11-09
 

@@ -490,6 +490,11 @@ navigates through links and backlinks on `canvas://boards`, and that Map and Gra
 replaces the review's portal-derived levels as the navigation tree. Where a board's folder and its
 links disagree, the Map shows it (folders as regions) rather than forcing them to match.
 
+**Search excerpts (2026-11-12).** Home keeps its existing search rows, typography and
+colours. Matching passages now wrap inside the row rather than widening the grid;
+they use the 1.5 line-height of Home's README excerpts. The API bounds the passage
+to 280 characters plus omission markers. No new surface or navigation is introduced.
+
 **Home Map/Graph acceptance revision (2026-10-18, owner-authorized Claude/Oracle agreement).**
 Graph is one zoomable, topology-driven **Library > Board > Card** explorer. The canonical
 `HomeGraph.dc.html` draws all three levels with actual relationships. This is the acceptance

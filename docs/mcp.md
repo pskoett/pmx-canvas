@@ -480,6 +480,12 @@ Library search is `canvas_query { action: "search", query: "auth", scope:
 "library" }`. It returns board/card IDs and never switches the active board.
 Exact and whole-term matches rank ahead of embedded substrings; substring discovery
 still works, so `V2 platform` precedes `TV2 pictures` for `V2` without dropping the latter.
+Within a match tier, distinct query-term coverage precedes field weights. Common
+English/Danish question words are ignored when topic terms remain; trailing question
+punctuation is removed from words. Snippets select a matching passage (up to 280
+characters plus omission markers), including in board READMEs. This is lexical
+search: it does not infer canonical sources, resolve "latest", translate questions,
+or choose folders. Read the returned source before treating a snippet as an answer.
 
 Search also accepts intersecting `boardId` and `folder` filters. Folder includes
 exact and descendant paths, with `""` for unfiled boards. Filters default omitted

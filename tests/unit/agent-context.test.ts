@@ -58,6 +58,57 @@ describe('meaningful card text', () => {
     expect(searchNodes([literal], '[absent]')).toEqual([]);
   });
 
+  test('search ranks distinct topic coverage above question words and repeated field matches', () => {
+    const nodes = [
+      {
+        ...makeTypedNode('markdown', {
+          title: 'Why was Atlas? Hvorfor blev Atlas?',
+          description: 'Atlas',
+          summary: 'Atlas',
+          content: 'Atlas '.repeat(50),
+        }),
+        id: 'generic',
+      },
+      {
+        ...makeTypedNode('markdown', {
+          title: 'Decision record',
+          content: 'Atlas Fabric was rejected. Atlas Fabric blev fravalgt. The reason is not recorded.',
+        }),
+        id: 'decision',
+      },
+      {
+        ...makeTypedNode('markdown', { title: 'Why was this changed?', content: 'Hvorfor blev det ændret?' }),
+        id: 'noise',
+      },
+    ];
+    for (const query of ['Why was Atlas Fabric rejected?', 'Hvorfor blev Atlas Fabric fravalgt?']) {
+      const ids = searchNodes(nodes, query).map((hit) => hit.id);
+      expect(ids).toEqual(['decision', 'generic']);
+    }
+    // All-stopword and punctuation-heavy titles must still be discoverable literally.
+    const title = makeTypedNode('markdown', { title: 'Who is the who', content: '' });
+    expect(searchNodes([title], 'Who is the who')).toHaveLength(1);
+  });
+
+  test('search prefers more distinct whole terms even when no card covers the entire query', () => {
+    const nodes = [
+      { ...makeTypedNode('markdown', { title: 'Atlas', description: 'Atlas', summary: 'Atlas' }), id: 'one' },
+      { ...makeTypedNode('markdown', { content: 'Atlas Fabric decision' }), id: 'three' },
+      { ...makeTypedNode('markdown', { title: 'Atlas Fabric' }), id: 'two' },
+    ];
+    expect(searchNodes(nodes, 'Atlas Fabric decision missing').map((hit) => hit.id)).toEqual(['three', 'two', 'one']);
+  });
+
+  test('search excerpts the passage covering the query and keeps its nearby qualification', () => {
+    const node = makeTypedNode('markdown', {
+      title: 'Architecture notes',
+      content: `# Fabric\n\n${'Unrelated workshop notes. '.repeat(30)}\n\n## Decision\nAtlas Fabric was rejected. The reason is not recorded.\n\n${'Other material. '.repeat(30)}`,
+    });
+    const snippet = searchNodes([node], 'Why was Atlas Fabric rejected?')[0]?.snippet;
+    expect(snippet).toContain('Atlas Fabric was rejected. The reason is not recorded.');
+    expect(snippet!.length).toBeLessThanOrEqual(286);
+  });
+
   const samples: Record<CanvasNodeState['type'], { data: Record<string, unknown>; meaning: string }> = {
     markdown: { data: { content: 'Keep the source', rendered: '<p>Keep the source</p>' }, meaning: 'Keep the source' },
     board: { data: { boardId: 'board-1', title: 'Roadmap' }, meaning: 'Roadmap' },

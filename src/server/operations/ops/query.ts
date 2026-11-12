@@ -21,7 +21,7 @@ import { canvasState, type CanvasNodeState } from '../../canvas-state.js';
 import { setCanvasContextPins, syncCanvasRuntimeBackends } from '../../canvas-operations.js';
 import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
-import { buildSpatialContext, searchNodes, searchRelevance } from '../../spatial-analysis.js';
+import { buildSpatialContext, searchNodes, searchRelevance, searchSnippet } from '../../spatial-analysis.js';
 import { boardConnections, memoryGraph } from '../../memory-graph.js';
 import { relationText } from '../../../shared/relations.js';
 import { normalizeBoardFolder } from '../../../shared/boards.js';
@@ -238,7 +238,7 @@ export function searchCanvasNodes(
             id: board.id,
             type: 'board',
             title: board.name,
-            snippet: readmeText.slice(0, 160) || board.folder || board.name,
+            snippet: searchSnippet(readmeText || board.folder || board.name, q),
             score,
             boardId: board.id,
             boardTitle: board.name,

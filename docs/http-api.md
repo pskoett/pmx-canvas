@@ -615,7 +615,20 @@ matches itself and slash-boundary descendants; `folder=` selects unfiled boards.
 Filters default an omitted scope to `library`. Explicit `scope=active` stays
 constrained to the active board, even when another board is selected. Unknown or
 nonmatching selections return no results. Filtering precedes ranking and limits;
-term-OR discovery and whole-term ranking remain unchanged. Search never navigates.
+search never navigates.
+
+Search is lexical, not semantic. Common English and Danish question words are
+ignored when topic words remain, and trailing question punctuation is removed
+from words. Exact titles and fields rank first, followed by whole-term matches
+and then substring matches. Within a tier, more distinct query terms beat repeated
+matches across fields. Partial matches remain discoverable. All-stopword queries
+fall back to literal terms; identifiers such as `C++` and `[draft]` stay literal.
+Card and board README snippets select a matching passage of up to 280 characters
+(plus omission markers), rather than the first mention or document opening.
+They are excerpts, not answers: read the source to verify qualifications. Search
+does not infer canonical authority, resolve dates such as "latest", translate
+queries, or choose a folder automatically. Use `folder` and `boardId` to narrow
+context explicitly.
 
 `POST /api/canvas/node` accepts `destinationBoardId` to create on a stored board
 without opening it or changing the human's active board. `expectedBoardId` remains

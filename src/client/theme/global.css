@@ -8399,7 +8399,7 @@ html.is-node-dragging .intent-line-layer {
   gap: 16px;
 }
 .home-hits {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 .home-folder {
@@ -8556,6 +8556,12 @@ html.is-node-dragging .intent-line-layer {
   color: var(--c-dim);
   overflow: hidden;
   white-space: nowrap;
+}
+.home-hit .home-card-meta {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 .home-card-when {
   margin-left: auto;

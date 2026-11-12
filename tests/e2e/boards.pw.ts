@@ -1440,6 +1440,51 @@ test('nested folders move boards, retain tree folding, and search the library at
   await expect(folderChip('Engineering/Canvas')).toHaveCount(0);
 });
 
+test('library search ranks question topics and wraps matching passages within the pane', async ({ page, request }) => {
+  const { board } = await (
+    await request.post('/api/canvas/boards', { data: { name: 'Architecture decisions' } })
+  ).json();
+  for (const [title, content] of [
+    ['Atlas workshop', 'Atlas team workshop material.'],
+    [
+      'Decision log',
+      `${'Workshop reference material. '.repeat(40)}\n\nAtlas Fabric was rejected. The reason is not recorded. ${'Supporting context. '.repeat(15)}`,
+    ],
+  ]) {
+    expect(
+      (
+        await request.post('/api/canvas/node', {
+          data: { type: 'markdown', title, content, destinationBoardId: board.id },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
+  await request.post('/api/canvas/boards/open', { headers: HUMAN, data: { id: null } });
+  await page.goto('/workbench');
+  const home = page.getByTestId('home-view');
+  await home.getByRole('searchbox', { name: 'Find boards, cards and folders' }).fill('Why was Atlas Fabric rejected?');
+  const hits = home.getByRole('list', { name: 'Library search results' }).getByRole('button');
+  await expect(hits).toHaveCount(2);
+  await expect(hits.first()).toContainText('Decision log');
+  await expect(hits.first()).toContainText('The reason is not recorded.');
+  for (const width of [600, 1024, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(hits.first()).toBeInViewport();
+    expect(
+      await hits.first().evaluate((hit) => {
+        const excerpt = hit.querySelector('.home-card-meta')!;
+        const main = hit.closest('.home-main')!;
+        return {
+          rowFits: hit.getBoundingClientRect().right <= main.getBoundingClientRect().right,
+          excerptFits: excerpt.scrollWidth <= excerpt.clientWidth && excerpt.scrollHeight <= excerpt.clientHeight,
+          mainFits: main.scrollWidth <= main.clientWidth,
+        };
+      }),
+    ).toEqual({ rowFits: true, excerptFits: true, mainFits: true });
+  }
+  expect((await boards(request)).activeBoardId).toBeNull();
+});
+
 test('creates a selective board copy, links boards, and jumps through library search at 600px', async ({
   page,
   request,

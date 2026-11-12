@@ -84,6 +84,8 @@ export declare function detectClusters(nodes: CanvasNodeState[], proximityThresh
 export declare function findNeighborhoods(nodes: CanvasNodeState[], pinnedIds: Set<string>, maxNeighbors?: number, maxDistance?: number): SpatialContext['pinnedNeighborhoods'];
 /** Shared lexical relevance for cards and library metadata. Scores are ranking details. */
 export declare function searchRelevance(title: string, fields: Array<[string, number]>, query: string): number;
+/** A bounded passage with the strongest query coverage, not just the first mention. */
+export declare function searchSnippet(text: string, query: string): string;
 /**
  * Full-text search across node titles and content.
  * Returns matching nodes with relevance score.

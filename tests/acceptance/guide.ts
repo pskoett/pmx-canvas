@@ -594,6 +594,7 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'CLI and stdio MCP give the same reads; fenced writes refuse.',
       'Clipped relations are not marked seen; incomplete snapshots require a recheck.',
+      'Search ranks distinct topic coverage above question-word noise and returns matching card/README passages without switching boards; Home excerpts fit at 600, 1024 and 1920 px.',
     ],
     touches: [
       'src/server/scope-fence.ts',
@@ -618,13 +619,17 @@ export const GUIDE: GuideRow[] = [
       'src/cli/commands/smoke.ts',
       'src/cli/commands/webview.ts',
       'src/server/context-brief.ts',
+      'src/server/spatial-analysis.ts',
     ],
-    e2e: ['scope fence'],
+    e2e: ['scope fence', 'library search ranks question topics and wraps matching passages within the pane'],
     unit: [
       'tests/unit/scope-fence.test.ts',
       'tests/unit/scope-fence-api.test.ts',
       'tests/unit/operation-parity.test.ts',
       'tests/unit/context-brief-cursor.test.ts',
+      { file: 'tests/unit/agent-context.test.ts', name: 'search' },
+      { file: 'tests/unit/server-api.test.ts', name: 'search' },
+      { file: 'tests/unit/mcp-composites.test.ts', name: 'canvas_query' },
     ],
   },
   {

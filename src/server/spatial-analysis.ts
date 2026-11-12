@@ -282,13 +282,35 @@ export function findNeighborhoods(
   });
 }
 
+// Keep topic and status words (including negation); remove only common question glue.
+const SEARCH_STOP_WORDS = new Set(
+  (
+    'a an the what which who why when where how is are was were do does did can could would should of for to in on with and or ' +
+    'en et den det de hvad hvilke hvilken hvilket hvem hvorfor hvornår hvor hvordan er var blev har havde kan kunne skal skulle om af til i på med og eller'
+  ).split(' '),
+);
+
+function normalizeSearchText(text: string): string {
+  return text.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function searchTerms(query: string): string[] {
+  const literal = [...new Set(normalizeSearchText(query).split(' ').filter(Boolean))];
+  // Strip sentence punctuation only after a word, preserving C++, [draft] and paths.
+  const terms = [...new Set(literal.map((term) => term.replace(/([\p{L}\p{N}])[?!,;:]+$/u, '$1')))];
+  const topics = terms.filter((term) => !SEARCH_STOP_WORDS.has(term));
+  return topics.length ? topics : literal;
+}
+
 /** Shared lexical relevance for cards and library metadata. Scores are ranking details. */
 export function searchRelevance(title: string, fields: Array<[string, number]>, query: string): number {
-  const normalize = (text: string) => text.toLowerCase().trim().replace(/\s+/g, ' ');
-  const q = normalize(query);
+  const q = normalizeSearchText(query);
   if (!q) return 0;
-  const terms = [...new Set(q.split(' '))];
-  const texts = [[normalize(title), 3] as const, ...fields.map(([text, weight]) => [normalize(text), weight] as const)];
+  const terms = searchTerms(q);
+  const texts = [
+    [normalizeSearchText(title), 3] as const,
+    ...fields.map(([text, weight]) => [normalizeSearchText(text), weight] as const),
+  ];
   const whole = terms.map((term) => {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // JS \b is ASCII-only; letters, marks and numbers in any script remain part of a word.
@@ -310,8 +332,34 @@ export function searchRelevance(title: string, fields: Array<[string, number]>, 
           : wholeTerms > 0
             ? 2
             : 1;
-  // Field evidence breaks ties but can never overwhelm a better match tier.
-  return tier + weight / (weight + 1);
+  // Distinct term coverage precedes field weight, even for partial matches.
+  // Neither can overwhelm an exact match or the whole-term/substring tiers.
+  const coverage = wholeTerms || terms.filter((term) => texts.some(([text]) => text.includes(term))).length;
+  return tier + (coverage + weight / (weight + 1)) / (terms.length + 1);
+}
+
+/** A bounded passage with the strongest query coverage, not just the first mention. */
+export function searchSnippet(text: string, query: string): string {
+  const terms = searchTerms(query);
+  const content = text.toLowerCase();
+  let bestStart = 0;
+  let bestScore = 0;
+  // Overlapping windows bound the work even when a document repeats a query term thousands of times.
+  for (let offset = 0; offset < text.length; offset += 140) {
+    const window = content.slice(offset, offset + 280);
+    const matches = terms.map((term) => window.indexOf(term)).filter((index) => index >= 0);
+    if (!matches.length) continue;
+    const start = Math.max(0, offset + Math.min(...matches) - 40);
+    const score = searchRelevance('', [[text.slice(start, start + 280), 1]], query);
+    if (score > bestScore || (score === bestScore && start < bestStart)) {
+      bestStart = start;
+      bestScore = score;
+    }
+  }
+  const end = Math.min(text.length, bestStart + 280);
+  return (
+    (bestStart > 0 ? '...' : '') + text.slice(bestStart, end).replace(/\s+/g, ' ') + (end < text.length ? '...' : '')
+  );
 }
 
 /**
@@ -325,26 +373,20 @@ export function searchNodes(
   const q = query.toLowerCase().trim();
   if (!q) return [];
 
-  const terms = q.split(/\s+/);
   const results: { id: string; type: string; title: string | null; snippet: string; score: number }[] = [];
 
   for (const node of nodes) {
-    const title = ((node.data.title as string) ?? '').toLowerCase();
+    const title = (node.data.title as string) ?? '';
     // Search the same meaning delivered to agents, without a brief's truncation.
     const fullContent = summarizeNodeForAgentContext(node, {
       defaultTextLength: Number.POSITIVE_INFINITY,
       webpageTextLength: Number.POSITIVE_INFINITY,
     });
-    const content = fullContent.toLowerCase();
-    const path = ((node.data.path as string) ?? '').toLowerCase();
-    const description = ((node.data.description as string) ?? '').toLowerCase();
-    const summary = (
-      (node.data.summary as string) ??
-      (node.data.agentSummary as string) ??
-      (node.data.contentSummary as string) ??
-      ''
-    ).toLowerCase();
-    const url = ((node.data.url as string) ?? '').toLowerCase();
+    const path = (node.data.path as string) ?? '';
+    const description = (node.data.description as string) ?? '';
+    const summary =
+      (node.data.summary as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? '';
+    const url = (node.data.url as string) ?? '';
 
     const score = searchRelevance(
       title,
@@ -353,27 +395,17 @@ export function searchNodes(
         [url, 2],
         [description, 1],
         [summary, 1],
-        [content, 1],
+        [fullContent, 1],
       ],
       q,
     );
 
     if (score === 0) continue;
 
-    // Any query term may have matched, not necessarily the first one.
-    let snippet = '';
-    const matches = terms.map((term) => content.indexOf(term)).filter((index) => index >= 0);
-    const matchIdx = matches.length ? Math.min(...matches) : -1;
-    if (matchIdx >= 0) {
-      const start = Math.max(0, matchIdx - 40);
-      const end = Math.min(fullContent.length, matchIdx + 80);
-      snippet =
-        (start > 0 ? '...' : '') +
-        fullContent.slice(start, end).replace(/\n/g, ' ') +
-        (end < fullContent.length ? '...' : '');
-    } else if (title) {
-      snippet = (node.data.title as string) ?? '';
-    }
+    const excerptSource = [fullContent, description, summary, path, url, title].find(
+      (text) => searchRelevance('', [[text, 1]], q) > 0,
+    );
+    const snippet = searchSnippet(excerptSource ?? title, q);
 
     results.push({
       id: node.id,

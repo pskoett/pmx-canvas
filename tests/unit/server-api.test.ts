@@ -552,6 +552,49 @@ describe('canvas server HTTP API', () => {
     }
   });
 
+  test('search returns topic-ranked cards and matching README passages through the HTTP API', async () => {
+    const original = canvasState.activeBoardId;
+    const board = canvasState.createBoard('Architecture', 'Search/Decisions')!;
+    try {
+      canvasState.switchBoard(board.id);
+      const add = (title: string, content: string) =>
+        jsonRequest<{ id: string }>('/api/canvas/node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'markdown', title, content }),
+        });
+      const readme = await add(
+        'Overview',
+        `# Fabric\n\n${'Workshop reference. '.repeat(40)}\n\nAtlas Fabric was rejected. The reason is not recorded.`,
+      );
+      canvasState.setBoardReadme(board.id, readme.id);
+      const generic = await add('Why was Atlas?', 'Atlas');
+      const current = await add('Platform overview', 'Current Platform OKRs. Scope is not verified.');
+      const historical = await add('Platform OKRs', 'Historical cycle.');
+      canvasState.switchBoard(original);
+      const search = (q: string, extra: Record<string, string> = {}) =>
+        jsonRequest<{ results: Array<{ id: string; snippet: string }> }>(
+          `/api/canvas/search?${new URLSearchParams({ q, folder: 'Search', ...extra })}`,
+        );
+      const decisions = await search('Why was Atlas Fabric rejected?');
+      for (const id of [board.id, readme.id]) {
+        const hit = decisions.results.find((result) => result.id === id);
+        expect(hit?.snippet).toContain('Atlas Fabric was rejected. The reason is not recorded.');
+        expect(decisions.results.findIndex((result) => result.id === id)).toBeLessThan(
+          decisions.results.findIndex((result) => result.id === generic.id),
+        );
+      }
+      const okrs = await search('What are the current Platform OKRs?');
+      expect(okrs.results.map((result) => result.id)).toEqual([current.id, historical.id]);
+      expect(okrs.results[0]?.snippet).toContain('Scope is not verified.');
+      expect((await search('What are the current Platform OKRs?', { limit: '1' })).results[0]?.id).toBe(current.id);
+      expect(canvasState.activeBoardId).toBe(original);
+    } finally {
+      canvasState.switchBoard(original);
+      canvasState.deleteBoard(board.id);
+    }
+  });
+
   test('supports node CRUD, markdown rendering, and search', async () => {
     const render = await jsonRequest<{ html: string }>('/api/render', {
       method: 'POST',
