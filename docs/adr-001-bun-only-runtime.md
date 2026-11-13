@@ -5,8 +5,8 @@
 **Context for:** v0.2 stability release (docs/tech-debt-assessment-2026-06.md, Phase 2)
 
 **Scope clarified, 2026-10-15:** this decision applies to the local distribution and its
-Bun SDK. [ADR-002](adr-002-shared-product-separate-runtimes.md) records this narrowing and the
-[vision's separate-runtime direction](product-vision-2026-09.md#likely-repository-structure-shared-product-separate-runtimes)
+Bun SDK. [ADR-002](https://github.com/pskoett/pmx-canvas/blob/main/docs/adr-002-shared-product-separate-runtimes.md) records this narrowing and the
+[vision's separate-runtime direction](https://github.com/pskoett/pmx-canvas/blob/main/docs/product-vision-2026-09.md#likely-repository-structure-shared-product-separate-runtimes)
 allows runtime-neutral shared product code and distinct Sites/Cloudflare adapters. It does
 not require a Node dual-build, compatibility shims or a cloud dependency for local use.
 

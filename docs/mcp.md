@@ -112,8 +112,9 @@ subscriptions, including on hosts that do not use this capability.
 > below) plus 6 standalone tools. The 57 legacy single-purpose tools the
 > composites replaced were removed in v0.3.0, and v0.4.0 finished the fold by
 > shipping the `canvas_snapshot` composite and removing the 6 deprecated
-> snapshot standalones — each step per [`api-stability.md`](api-stability.md)'s
-> deprecate-one-minor-before-removal rule. 0.7 adds the `canvas_board` composite
+> snapshot standalones — each step under the deprecate-one-minor-before-removal
+> rule in force at the time ([`api-stability.md`](api-stability.md) has since
+> retired it). 0.7 adds the `canvas_board` composite
 > (23 tools: 17 composites plus 6 standalones). The current import workflow
 > adds `canvas_import` (24 tools: 18 composites plus 6 standalones). **Prefer the composites.**
 

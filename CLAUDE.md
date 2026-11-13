@@ -105,7 +105,7 @@ Before reporting or acting on a performance or evaluation result:
 
 4. **Canvas edits happen in place.** The web canvas is a live multi-node workspace. Flows should update the current session without evicting prior nodes (including prior document nodes). Agents must not describe the canvas as requiring reopen/replace for additional documents.
 
-5. **MCP tools map 1:1 to PmxCanvas methods.** When adding a new canvas operation, add it to: (a) `CanvasStateManager`, (b) `PmxCanvas` class in `src/server/index.ts`, (c) HTTP endpoint in `src/server/server.ts`, (d) MCP tool in `src/mcp/server.ts`. All four layers must stay in sync.
+5. **Define canvas operations in the registry.** `src/server/operations/ops/` owns operation schemas, handlers and transport metadata; `operations/index.ts` registers them. HTTP dispatch and MCP registration use those definitions, with MCP actions grouped in `operations/composites.ts`. CLI commands invoke operations; `PmxCanvas` remains an explicit SDK facade, with synchronous methods sharing operation cores. Keep exposed surfaces aligned without duplicating handlers. Mutations still belong to `CanvasStateManager`; see “Adding New HTTP Endpoints” for the integration points.
 
 6. **Context pins are the bridge between human and agent.** The human pins nodes in the browser, the agent reads `canvas://pinned-context`. This is the primary communication channel from human spatial curation to agent context. Preserve this flow.
 
@@ -435,17 +435,11 @@ See [API and product reference](docs/api-reference.md) for canvas types, MCP, AX
 
 ## Adding New HTTP Endpoints
 
-1. Add the handler function in `src/server/server.ts`
-2. Add the route in the `Bun.serve` fetch handler
-3. Add the corresponding method to `PmxCanvas` class in `src/server/index.ts`
-4. Add the MCP tool in `src/mcp/server.ts`
-5. Update `SKILL.md`, `readme.md`, and CLI help text
-6. **Document it in the contract docs** — `docs/http-api.md` (and `docs/mcp.md` / `docs/cli.md`
-   for a tool/action/command). `docs/api-stability.md` defines the public surface as *what those
-   files document*, so an undocumented route is both invisible to agents and outside the
-   stability contract. The same applies to counts and tables agents read as authoritative: the
-   tool count, the composite `action` lists, the theme list, and the AX capability matrix in
-   `skills/pmx-canvas/references/full-reference.md` all went stale mid-cycle at least once.
+1. For a JSON canvas operation, use `defineOperation` in the owning `src/server/operations/ops/` module: input schema, handler, HTTP method/path and applicable MCP metadata. Register a new module in `operations/index.ts`; existing modules export their operation arrays. Reuse `canvas-operations.ts` and `CanvasStateManager` for mutations.
+2. `operations/http.ts` dispatches registered routes through the existing gate in `server.ts`; do not add a duplicate pathname branch. Keep SSE, binary/static responses and handlers tied to server-local state in `server.ts` when they do not fit the operation contract. Operation modules must not import `server.ts` or the SDK `index.ts`.
+3. For agent-facing actions, update the owning composite in `operations/composites.ts` or the operation's standalone MCP metadata. `operations/mcp.ts` handles registration; `src/mcp/server.ts` wires it to the host.
+4. Add the applicable SDK facade method in `src/server/index.ts` and CLI command/help in `src/cli/commands/`. Async SDK methods can call `executeOperation`; preserve synchronous contracts by sharing the operation core. CLI commands use the operation invoker.
+5. Document the public route in `docs/http-api.md` and its exposed MCP/CLI/SDK surfaces in their contract docs. Update the bundled `skills/pmx-canvas/` guidance and action lists as needed; README edits still require explicit approval. Verify transport behavior with `tests/unit/operation-parity.test.ts` and the affected domain tests; check `mcp-tool-freeze.test.ts` when tool names or resources change.
 
 **Routes that serve raw file bytes need four separate guards** (the 0.4.7 `file-bytes` route
 shipped without any of them):

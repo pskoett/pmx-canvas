@@ -25,15 +25,14 @@ We are in 0.x semver, and we use it honestly:
 - **MCP tool names are frozen by `tests/unit/mcp-tool-freeze.test.ts`.** The test pins the literal tool-name list and the fixed resource URIs. Renaming or removing a tool requires editing that test in the same commit, which makes the break deliberate and reviewable rather than accidental. If you find yourself updating the freeze test, you owe a `### Breaking` entry and a minor version.
 - **Additive changes are always allowed:** new tools, new routes, new optional input fields, new response fields. Consumers must tolerate unknown fields in responses.
 
-## Deprecation
+## No deprecation window
 
-A public surface is marked deprecated at least one minor version before removal. Concretely:
+PMX Canvas does not code for backwards compatibility. There are no legacy shims, deprecation aliases, dual code paths, or migration scaffolding for old clients or configs. When a public surface changes or is removed:
 
-1. Mark it in the docs (`docs/http-api.md`, `docs/mcp.md`, `docs/cli.md`, or `docs/sdk.md`) and in the MCP tool description where applicable.
-2. Record it in the CHANGELOG under `### Deprecated` in the minor that deprecates it.
-3. Remove it no earlier than the next minor, with a `### Breaking` entry naming the replacement.
+1. It changes cleanly at a minor boundary, and the docs (`docs/http-api.md`, `docs/mcp.md`, `docs/cli.md`, `docs/sdk.md`), bundled skills and plugins that depend on it are updated in the same release.
+2. The CHANGELOG records it under `### Breaking`, naming the replacement.
 
-So a tool deprecated in 0.2.x survives all of 0.2.x and may be removed in 0.3.0. Plan-006 (MCP tool consolidation) is the first consumer of this mechanism.
+Releases up to 0.4.0 kept a removed surface alive for one minor first (the MCP tool consolidation). That window is retired.
 
 ## Explicitly out of contract
 

@@ -57,7 +57,7 @@ pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
 
 ## Tour and presentation
 
-This is the small tour slice of the [vision's “board is the presentation”](product-vision-2026-09.md#12-tours-the-board-is-the-presentation-m):
+This is the small tour slice of the [vision's “board is the presentation”](https://github.com/pskoett/pmx-canvas/blob/main/docs/product-vision-2026-09.md#12-tours-the-board-is-the-presentation-m):
 the existing cards remain the content, rather than being rebuilt as a separate deck.
 The same stops and camera interpolation drive interactive presentation and optional capture.
 A visual stop editor and carrying tours into static exports/share links are not implemented here.

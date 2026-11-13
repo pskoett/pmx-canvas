@@ -122,8 +122,7 @@ We are pre-1.0, so minor versions — not just major — are the breaking-change
 boundary:
 
 - Patch (`0.x.y → 0.x.y+1`): bug fixes, hardening, internal cleanups,
-  additive CLI flags / MCP fields with backwards-compat fallbacks. Never
-  breaks a public surface.
+  additive CLI flags / MCP fields. Never breaks a public surface.
 - Minor (`0.x → 0.x+1`): documented breaking changes are allowed only here
   (e.g. the 0.2 → 0.3 removal of the 57 deprecated legacy single-purpose MCP
   tools in favor of their composite replacements). Every breaking change in
@@ -148,8 +147,6 @@ Each release section uses these subheadings:
 - **Breaking** — removed or incompatibly changed public surface (see
   `docs/api-stability.md`). Required at minor version boundaries whenever a
   public surface breaks; must name the replacement.
-- **Deprecated** — public surface marked for removal in a future minor,
-  per the `docs/api-stability.md` deprecation policy.
 - **Fixed** — bug fixes.
 - **Internal** — refactors, test additions, docs that don't affect
   the public surface.
