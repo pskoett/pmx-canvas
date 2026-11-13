@@ -13,23 +13,22 @@ it, or the board silently diverges from reality.
 
 ## Identity
 
-- Every participant picks a stable `agentId` (kebab-case role name: `orchestrator`,
+- **Bound Amp threads:** the plugin supplies `agentId: "amp:<thread-id>"` from the host thread. Keep that identity unchanged; role names and run prefixes belong in labels, not the bound identity. Bind each participating thread explicitly to the shared board. Read and write through its bound MCP tools: `canvas_query` for context, `canvas_node` for full card content, and `canvas_ax_state` for work items. CLI, raw HTTP and MCP resource reads bypass this routing. See [Amp setup](../pmx-canvas/references/installing-pmx-canvas.md#amp-plugin-bound-threads).
+- **Unbound/raw hosts:** every participant picks a stable `agentId` (kebab-case role name: `orchestrator`,
   `researcher`, `impl-auth`, …) and passes it on EVERY AX write that supports it (work items,
   timeline events, steering). `source` stays the host label (`mcp`, `cli`, `amp`, …);
   `agentId` is who within the host.
 - One canvas node + one work item per subagent, created BY THE ORCHESTRATOR at spawn time
   (title = the agentId). The subagent updates its own work item; it never creates its own
   identity row.
-- Tag every run: put the same `data.runId` on every NODE (work items carry no free-form data —
-  their run scoping comes from the run-prefixed `agentId`, e.g. `run7:impl-auth`), so
-  consecutive orchestrations don't interleave in the bounded timeline.
+- Tag every run: put the same `data.runId` on every NODE and retain the run's work-item IDs. Work items carry no free-form data. Unbound/raw hosts may also prefix their `agentId`, e.g. `run7:impl-auth`; bound Amp identities stay unchanged.
 
 ## Presence (rail-chrome-v2)
 
 - The ORCHESTRATOR attaches the session: `canvas_ax_state { action: "set-presence",
   attached: true, label: "<run label>" }` at run start and `{ attached: false }` at the end
   (the human gets a receipt: items done / vetoed, a diff against the pre-run snapshot, one-click
-  restore). Subagents never attach — writes they make through MCP/HTTP with no `agentId` are
+  restore). Subagents never attach. In bound Amp, each worker writes as its own thread. On unbound/raw hosts, writes through MCP/HTTP with no `agentId` are
   attributed to the orchestrator's session; a subagent that passes `agentId` shows as its own
   writer. Pick one: a single cursor for the run (no `agentId` on board writes) or one per
   subagent (`agentId` everywhere, also in the writers sheet).
@@ -74,18 +73,19 @@ it, or the board silently diverges from reality.
 
 ## Steering
 
-- Humans steer through the board; agents MUST poll for it — MCP notifications cannot wake a
+- **Bound Amp threads:** use the plugin's token delivery instead of a second polling loop or pump. At turn start, call `pmx_canvas_delivery { action: "receive", token }` with the supplied context token. For a steering token, receive it, read the relevant content through bound tools, act, verify the result, then call `pmx_canvas_delivery { action: "acknowledge", token }`. Receiving a map is not a full card read or approval. Do not acknowledge failed or unverified work. The plugin can start an idle thread only while its executor is awake; it does not wake a sleeping orb. Uncertain sends need human resolution, not blind retries.
+- **Unbound/raw hosts:** humans steer through the board; agents MUST poll for it — MCP notifications cannot wake a
   subagent, so everything is pull. Cadence: check `canvas://ax-pending-steering` (or
   `canvas_ax_delivery { action: "claim", consumer: "<agentId or host>" }`) between every major
   step.
-- **Reactive loop (0.4.9+):** pass `timeoutMs` (MCP) / `?waitMs` (HTTP) to the claim and the
+- **Unbound/raw reactive loop (0.4.9+):** pass `timeoutMs` (MCP) / `?waitMs` (HTTP) to the claim and the
   call BLOCKS until steering for your consumer arrives (capped at 120000ms per call). A host
   that cannot be woken from outside (Copilot, Codex — their model runs only while the host
   gives it a turn) reacts to canvas steering by looping on this inside one turn:
   claim(timeoutMs: 120000) → act on each message → mark → repeat until the human says stop or
   the turn budget runs out. One standing prompt in the host ("run the canvas steering loop")
   makes the composer's addressed steers land promptly instead of sitting queued.
-- Address a specific agent with the steering `target` field (0.4.5+). Untargeted steers are
+- On unbound/raw hosts, address a specific agent with the steering `target` field (0.4.5+). Untargeted steers are
   broadcast — and delivered PER CONSUMER (0.4.9+): every agent that claims with its own
   consumer key receives the broadcast, and marking it (`consumer: "<your key>"`) removes it
   from YOUR queue only. "All workers: stop" reaches the whole fleet; each worker marks its own
@@ -102,12 +102,12 @@ it, or the board silently diverges from reality.
   attribution follows `agentId`, so the activity feed would book your write as the worker's.
   Create shared scaffolding (lanes, work items) under your own identity, then let each worker
   write as itself. Workers should OMIT `attached` entirely (they are writers, not sessions).
-- **CLI hosts (Codex CLI, Amp) become reactive with the pump:** run
+- **Unbound CLI hosts (Codex CLI, raw Amp) become reactive with the pump:** run
   `pmx-canvas pump --consumer codex-cli --exec 'codex exec --full-auto {message}'` — it
   long-polls the inbox, hands each steer to a CLI task, and marks per-consumer only after success.
   This does not steer an open Codex desktop task; desktop requires a host adapter using the app's
   native follow-up channel. `--parent` rolls the pumped agent under its orchestrator.
-- **No MCP in the subagent?** Workers spawned inside a host often lack the canvas MCP — the
+- **No MCP in the subagent?** For unbound/raw workers without canvas MCP, the
   plain HTTP API is the worker path: POST /api/canvas/node and /api/canvas/ax/presence to
   write, GET /api/canvas/ax/delivery/pending?consumer=<agentId> to poll the inbox, and POST
   /api/canvas/ax/delivery/:id/mark to mark a handled message. Same identity rules apply.
@@ -115,7 +115,7 @@ it, or the board silently diverges from reality.
   (`parentAgentId: "<orchestrator key>"`): the top bar rolls workers up into the
   orchestrator's chip ("+N workers") and their cursors render smaller so a big fleet stays
   legible.
-- Mark delivery ONLY after acting on the message. The mark is compare-and-set: a
+- On unbound/raw hosts, mark delivery ONLY after acting on the message. The mark is compare-and-set: a
   `delivered:false` response means another consumer owned it — drop it, do not act twice.
 - Steering comes from more places than the command bar: a gate rejection, the human undoing
   one of your board edits ("Undid your edit: …"), a take-over of a node you were editing, and
@@ -129,9 +129,7 @@ it, or the board silently diverges from reality.
    work item per step/subagent, intent-signaled.
 3. Spawn subagents; each loads this skill, learns its `agentId`, node id, and work-item id
    from the spawn prompt.
-4. Subagents: flip work item to `in-progress`, do the work, attach evidence
-   (`canvas_ax_timeline { action: "add-evidence" }`), flip to `done`, poll steering between
-   steps.
+4. Subagents: flip work item to `in-progress`, do the work, attach evidence (`canvas_ax_timeline { action: "add-evidence" }`), then flip to `done`. Between steps, handle bound Amp steering tokens or poll on unbound/raw hosts as described above.
 5. Orchestrator: join on host-side completion (the host knows the real DAG), resolve gates,
    record a final timeline event, and validate the board (`canvas_query { action: "validate" }`).
 6. On abort/failure: leave work items in their true state (`blocked` + a timeline failure
