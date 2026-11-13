@@ -2,6 +2,8 @@
 
 **Status: completed in v0.3.0 (canvas_snapshot composite moved to v0.4).**
 
+The deprecate-only steps below record that completed migration. New changes follow the current [no-deprecation-window policy](../api-stability.md#no-deprecation-window), with no compatibility aliases.
+
 **Status:** Complete
 **Date:** 2026-06-15
 **Depends on:** plan-005 (registry — slices 1–7 merged), plan-006 (consolidation — waves 1–2 merged), plan-007 (AX domain — merged).

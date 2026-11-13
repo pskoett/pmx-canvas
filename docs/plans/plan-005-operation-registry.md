@@ -66,7 +66,7 @@ Theme/annotations/code-graph/schema/prompt/trace endpoints are single-transport,
 ## Verification (every slice)
 
 1. `bun run typecheck`
-2. Targeted: `PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit/operation-parity.test.ts tests/unit/mcp-tool-freeze.test.ts tests/unit/server-api.test.ts tests/unit/mcp-server.test.ts tests/unit/cli-node.test.ts tests/unit/canvas-operations.test.ts tests/unit/pmx-canvas-sdk.test.ts`
+2. Targeted: `PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit/operation-parity.test.ts tests/unit/mcp-tool-freeze.test.ts tests/unit/server-api*.test.ts tests/unit/mcp-server.test.ts tests/unit/cli-node.test.ts tests/unit/canvas-operations.test.ts tests/unit/pmx-canvas-sdk.test.ts` (HTTP suites split by domain on `server-api-harness.ts` in November 2026).
 3. Full unit: `bun run test`
 4. Milestones (after slices 1, 6, batch): `bun run test:web-canvas` + `bun run test:e2e-cli`
 

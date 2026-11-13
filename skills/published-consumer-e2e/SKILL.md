@@ -35,6 +35,8 @@ That script will:
    headed by default, asserting visible artifact/JSON/graph content, context pins, node types
    and the saved baseline snapshot.
 
+The `package.json` allowlist ships only 14 public docs and two README screenshots from `docs/`; maintainer docs stay on GitHub. Relative links in shipped docs must resolve within the package. `skills/` still ships in full, including this source-only helper.
+
 This proves a local packed install, not the identity or integrity of a registry release.
 
 ## Flags

@@ -261,7 +261,7 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_query',
     description:
-      'Read the board cheapest-first. Action "context" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); "graph" explores the library relation graph (focus: board ID, qualified node key, or pins; depth: 0–4), summaries only; "search" finds nodes by title/content keywords; "layout" returns the full layout; "validate" checks geometry and endpoints.',
+      'Read the board cheapest-first. Action "context" returns a budgeted cross-board brief with a durable consumer cursor (budget is UTF-16 characters); "graph" explores the library relation graph (focus: board ID, qualified node key, or pins; depth: 0–4), summaries only; "search" finds nodes by title/content keywords; "layout" returns a compact layout (full:true includes node data); "validate" checks geometry and endpoints. With no board open and no explicit board target, context returns only {boardContext}; layout adds boardContext. Its status is "no-board-open", message is "No board open.", and lastBoard is {id, name} or null, not that board\'s contents. Reads never open it.',
     actionSummary: 'context | graph | search | layout | validate',
     actions: {
       context: 'context.get',

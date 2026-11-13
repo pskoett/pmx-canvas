@@ -5,6 +5,8 @@
 **Source:** [Product vision, move 0](../product-vision-2026-09.md#0-many-boards-and-boards-are-the-wiki-m-then-m-then-l), stage 1, plus library backup. The last item of 0.7.
 **Done when:** the nine real boards open by name; a backup restores them on a clean machine; a new session never overwrites an existing board.
 
+**Home follow-up (2026-11-12):** unqualified layout, summary, spatial and pinned-context reads now include `boardContext` with status `no-board-open` and the last opened board's id/name or `null`. Context reads return only `{boardContext}`, not a 409 or empty brief; CLI `node list` also returns that object. No last-board contents are read implicitly. Automatic names are `Untitled board` and `Demo board`. See [the HTTP contract](../http-api.md#canvas-state) and [Home controls](../design.md#home-controls) for current behavior; the original stage-1 decisions below remain historical.
+
 ## Decisions (maintainer, 2026-09-27)
 
 - **Home is not a board.** Home is the view you see when no board is open: your boards, most recent first,

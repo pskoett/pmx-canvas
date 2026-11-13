@@ -75,7 +75,7 @@ cmd(
 
 cmd(
   'context',
-  'Read the budgeted cross-board context brief',
+  'Read the budgeted cross-board context brief; on Home returns only {boardContext} with status no-board-open',
   ['pmx-canvas context --consumer codex --budget 16000'],
   async (args) => {
     const { flags } = parseFlags(args);

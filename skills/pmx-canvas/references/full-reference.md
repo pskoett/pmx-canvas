@@ -484,6 +484,8 @@ to the active board; no consumer means a fresh read, while explicit `since`
 does not advance a cursor. Pins come first. Follow a clipped entry's source
 board/card IDs with `canvas_board get` and `canvas_node get`.
 
+On Home, context returns only `{boardContext: {status: "no-board-open", message: "No board open.", lastBoard}}`, where `lastBoard` is `{id, name}` or `null`. Layout, summary, spatial and pinned-context reads add the same `boardContext`; CLI `node list` returns only `{boardContext}`, including with `--ids`. Empty arrays/counts mean no open board, not an empty last board. Reads do not open or read that board implicitly. Explicit board reads and writes keep their existing behavior; pinned context still includes the explicitly pinned `pinnedBoards` working set. Automatic board names are `Untitled board` and `Demo board`, and names need not be unique.
+
 README designation is part of normal agent board authoring: read `canvas_board
 { action: "get" }`, and when `readmeNodeId` is null, choose or create a concise
 markdown introduction and call `canvas_board { action: "update", id:

@@ -19,7 +19,7 @@ import { axNodeActionButtonStyle, runNodeAxInteraction } from './ax-node-actions
 
 /**
  * The rows sit in `.ax-step-dock`, a footer that stays reachable at the bottom of
- * the node body (global.css). On a card it shares one footer row with the card's
+ * the node body (canvas-controls.css). On a card it shares one footer row with the card's
  * own actions; in the expanded overlay it is a sticky bar under the document.
  */
 const rowStyle = {

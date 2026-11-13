@@ -1,5 +1,7 @@
 # Plan 007 — AX domain: state split + orphan-bug fix + registry migration + tool consolidation
 
+The consolidation and deprecation steps below describe the historical v0.3 migration. New changes follow the current [no-deprecation-window policy](../api-stability.md#no-deprecation-window); they do not add legacy aliases.
+
 **Status:** Proposed
 **Date:** 2026-06-13
 **Depends on:** plan-005 (operation registry — slices 1–4 merged), plan-006 (MCP tool consolidation — wave 1 merged).
@@ -91,7 +93,7 @@ Each step is its own commit; B.1 is internally parallelizable per primitive (wor
 ## Verification (every slice)
 
 1. `bun run typecheck`
-2. Targeted: `PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit/operation-parity.test.ts tests/unit/mcp-tool-freeze.test.ts tests/unit/mcp-server.test.ts tests/unit/mcp-composites.test.ts tests/unit/server-api.test.ts tests/unit/canvas-state.test.ts` (+ AX-specific suites, + a new node-delete-orphan test)
+2. Targeted: `PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit/operation-parity.test.ts tests/unit/mcp-tool-freeze.test.ts tests/unit/mcp-server.test.ts tests/unit/mcp-composites.test.ts tests/unit/server-api-ax.test.ts tests/unit/canvas-state.test.ts` (+ AX-specific suites, + a new node-delete-orphan test)
 3. Full unit: `bun test tests/unit`
 4. e2e gate on the PR (`test` + `e2e` required checks).
 5. A parity case per migrated tool (composite action == legacy tool, both through the same op) and per new behavior (soft-orphan + audit note).

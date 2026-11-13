@@ -511,7 +511,7 @@ export function createMcpServer(): McpServer {
     new ResourceTemplate(new ContextUriTemplate(), { list: undefined }),
     {
       description:
-        'Budgeted cross-board context brief. budget is a maximum number of UTF-16 characters; consumer selects a durable board-scoped delivery cursor, while since requests an explicit revision.',
+        'Budgeted cross-board context brief. On Home returns only {boardContext}, with status "no-board-open", message "No board open." and lastBoard ({id, name} or null), without opening or reading that board. budget is a maximum number of UTF-16 characters; consumer selects a durable board-scoped delivery cursor, while since requests an explicit revision.',
       mimeType: 'application/json',
     },
     async (uri) => {

@@ -1455,7 +1455,7 @@ const layoutGetOperation = defineOperation<z.infer<typeof layoutGetSchema>, Reco
   mcp: {
     toolName: 'canvas_get_layout',
     description:
-      'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data.',
+      'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data. On Home, without an explicit board target, includes boardContext with status "no-board-open" and lastBoard ({id, name} or null), without reading that board.',
     extraShape: {
       board: z.string().optional().describe('Board id to read without opening it.'),
       full: z

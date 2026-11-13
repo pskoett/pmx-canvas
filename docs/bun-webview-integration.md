@@ -197,7 +197,7 @@ The repo now requires:
 That change is reflected in:
 
 - [`package.json`](../package.json)
-- [`.github/workflows/test.yml`](../.github/workflows/test.yml)
+- [`.github/workflows/test.yml`](https://github.com/pskoett/pmx-canvas/blob/main/.github/workflows/test.yml)
 
 PMX Canvas still keeps a runtime guard because older local Bun versions can exist in user environments. If `Bun.WebView` is missing, startup fails cleanly for the automation path instead of partially starting.
 
@@ -209,9 +209,9 @@ Validated on Bun `v1.3.12`.
 
 Verified by tests in:
 
-- [`tests/unit/server-api.test.ts`](../tests/unit/server-api.test.ts)
-- [`tests/unit/cli-webview.test.ts`](../tests/unit/cli-webview.test.ts)
-- [`tests/unit/webview-automation.test.ts`](../tests/unit/webview-automation.test.ts)
+- [`tests/unit/server-api.test.ts`](https://github.com/pskoett/pmx-canvas/blob/main/tests/unit/server-api.test.ts)
+- [`tests/unit/cli-webview.test.ts`](https://github.com/pskoett/pmx-canvas/blob/main/tests/unit/cli-webview.test.ts)
+- [`tests/unit/webview-automation.test.ts`](https://github.com/pskoett/pmx-canvas/blob/main/tests/unit/webview-automation.test.ts)
 
 Covered behavior:
 
@@ -259,7 +259,7 @@ This was fixed in [`src/server/server.ts`](../src/server/server.ts) by normalizi
 - `ArrayBuffer`
 - `Blob`
 
-The regression is now covered by [`tests/unit/webview-automation.test.ts`](../tests/unit/webview-automation.test.ts).
+The regression is now covered by [`tests/unit/webview-automation.test.ts`](https://github.com/pskoett/pmx-canvas/blob/main/tests/unit/webview-automation.test.ts).
 
 ### Why the interactive browser path still exists
 

@@ -61,6 +61,7 @@ and check `$?`, then read the file.
 - Before changing browser-visible behavior under `src/client/`: rebuild with `bun run build`
   Manual browser validation also requires a fresh client bundle. `bun run test:web-canvas`
   already does this for you.
+- Workbench CSS is assembled by `scripts/build-canvas-css.ts` for both app builds. Component styles are in sibling fragments under `src/client/theme/`; `global.css` retains fonts, tokens and the reset. A new fragment must join the script's ordered `sources` list before a build can include it.
 
 ## Coverage Notes
 
@@ -72,6 +73,7 @@ and check `$?`, then read the file.
 ## Current Project Test Surface
 
 - In the product source checkout, Bun tests live under `tests/unit/`.
+- HTTP coverage is split across `server-api.test.ts` (server lifecycle, workbench and WebView), `server-api-nodes.test.ts` (nodes, search, pins and groups), `server-api-surfaces.test.ts` (viewers and external apps), `server-api-ax.test.ts` (AX), and `server-api-history.test.ts` (history and snapshots). They share `server-api-harness.ts`; each suite owns a disposable workspace and port-0 server, and they must not run servers concurrently against the process-wide `canvasState`. Run all five with `bun test tests/unit/server-api*.test.ts` when changing shared HTTP behavior.
 - In the product source checkout, Playwright browser smoke lives under `tests/e2e/`.
 - Playwright runs `desktop` (1440×900, the whole suite except the reference cases) and three
   reference projects for `tests/e2e/reference-pane.pw.ts`: `narrow-600`, `middle-1024` and

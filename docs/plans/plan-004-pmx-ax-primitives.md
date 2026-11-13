@@ -565,7 +565,7 @@ state, or a clear unsupported capability status.
 - `tests/unit/canvas-state.test.ts`
   - canvas-bound PMX-AX state persists and snapshots
   - timeline state persists but is retention-bounded
-- `tests/unit/server-api.test.ts`
+- `tests/unit/server-api-ax.test.ts`
   - `/api/canvas/ax/interaction` accepts valid payloads
   - rejects disabled node, disallowed action, invalid payload, unknown node
   - maps valid interactions to work/evidence/review/steering/focus

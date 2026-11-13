@@ -69,6 +69,9 @@ See [workspace targeting](references/workbench-workflows.md#workspace-safety) fo
    Home (`activeBoardId: null`) is not an empty library. For unbound active-board work, open
    the intended board and verify `activeBoardId`. Opening changes the shared workbench.
    Library discovery and supported background creation need no switch.
+   Home reads identify it with `boardContext.status: "no-board-open"` and `lastBoard`
+   (`{id, name}` or `null`), without reading that board. Context reads and CLI `node list`
+   return only `{boardContext}` there, not a brief or array. Explicit board reads are unchanged.
 2. Read `canvas_query { action: "context", consumer: "<stable-unique-id>" }`, or, without
    a binding, `canvas://context?consumer=<stable-unique-id>`. Use a stable consumer
    only when durable deltas are wanted; omit it for a fresh read. Follow `cursor.next` as `since`

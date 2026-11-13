@@ -46,7 +46,7 @@ These can change in any release without notice:
 
 ## Enforcement: the operation registry
 
-The contract is only as real as its single source of truth. The operation registry (`src/server/operations/`, docs/plans/plan-005-operation-registry.md) gives each canvas operation exactly one zod input schema and one handler, from which the HTTP route, MCP tool, CLI command, and SDK method derive. One schema per operation means one place where the contract lives, one diff to review when it changes, and no cross-surface drift of the kind that produced the 0.1.x breakages (the same operation behaving differently over HTTP vs local MCP access).
+The operation registry (`src/server/operations/`) owns operation schemas, handlers and transport metadata. HTTP dispatch and MCP registration use those definitions; composites group MCP actions. CLI commands invoke the operations. `PmxCanvas` remains an explicit SDK facade, with synchronous methods sharing operation cores rather than generated async wrappers. Keep each exposed contract aligned with the registry when changing it.
 
 Two mechanical guards back the policy:
 

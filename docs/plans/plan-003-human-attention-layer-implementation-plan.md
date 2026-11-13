@@ -6,6 +6,8 @@ date: 2026-04-18
 
 # Human Attention Layer Implementation Plan
 
+**Source-path update (2026-11-12):** the original single-stylesheet plan below is historical. Workbench component styles now live in fragments under `src/client/theme/`, assembled in the order in `scripts/build-canvas-css.ts`. `global.css` keeps fonts, themes and the reset; use the owning fragment for new styles. See [the stylesheet source map](../design.md#token-system).
+
 ## Summary
 
 This plan turns the human attention layer design spec into a concrete build plan

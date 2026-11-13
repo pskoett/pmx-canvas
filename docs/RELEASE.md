@@ -67,6 +67,8 @@ bun run release:smoke       # packs + boots from a clean dir
 bun run pack:dry-run        # confirms the tarball shape
 ```
 
+The `package.json` `files` allowlist ships 14 public Markdown documents and two README screenshots from `docs/`. Design sources, plans, evaluations and release instructions stay in the repository. Check relative links in shipped docs against that allowlist; link to GitHub for unshipped files, including tests and workflows. `skills/` ships in full, but its source-checkout testing helpers still need the repository.
+
 `bun run test:web-canvas` invokes Playwright through
 `scripts/run-playwright.sh`, which runs the Playwright CLI under Node —
 do not call `bun x playwright test` directly; it fails before test
@@ -130,10 +132,9 @@ boundary:
   see the release-blocker gate below.
 - Major (`0.x → 1.0`): production-stability commitment.
 
-CLAUDE.md rule #5 (CanvasStateManager / PmxCanvas SDK / HTTP / MCP
-four-layer parity) is the strongest hard rule for what counts as
-non-breaking — a CLI/HTTP-only addition without MCP parity has
-historically required a follow-up patch release to restore parity.
+Breaking changes have no deprecation window or compatibility aliases. Update the affected docs, skills and plugin descriptions in the same minor release. The Home `{boardContext}` response replacing a context error or `node list` array is a breaking change, so it cannot ship as a 0.13.x patch.
+
+CLAUDE.md architecture rule #5 keeps public surfaces aligned through registry-owned operations, generated HTTP/MCP dispatch, CLI invocations and the explicit SDK facade. Check the affected transport contracts as well as shared handlers.
 
 ## CHANGELOG
 

@@ -4,6 +4,8 @@ Every drawing in `docs/design/` for waves 0 and 1 (plus the 600 px reference) wa
 the code, element by element. Waves 0 and 1 were thought done; these items were drawn and never
 built. Wave 2+ drawings are out of scope (not built by plan). Spot-checked items are marked ✓.
 
+**Source-path update (2026-11-12):** the `global.css` measurements and citations below describe the audit's monolithic stylesheet. Component rules now live in sibling fragments under `src/client/theme/`; `scripts/build-canvas-css.ts` defines their order. See [the stylesheet source map](../design.md#token-system) before following a CSS citation.
+
 ## Wave 0 — the foundation (shipped in 0.8.0, these were missed)
 
 | # | Drawing | Gap | Size |

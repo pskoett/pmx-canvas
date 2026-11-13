@@ -754,7 +754,7 @@ cmd(
 // ── node list ────────────────────────────────────────────────
 cmd(
   'node list',
-  'List all nodes on the canvas',
+  'List all nodes on the canvas; on Home returns {boardContext}, including with --ids',
   [
     'pmx-canvas node list',
     'pmx-canvas node list --type markdown',

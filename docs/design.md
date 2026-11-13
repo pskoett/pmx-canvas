@@ -83,6 +83,8 @@ bun run build:plugin
 Drawn on [`TokenSystem.dc.html`](design/TokenSystem.dc.html); per-theme meaning colours on
 [`Themes.dc.html`](design/Themes.dc.html).
 
+**Stylesheet source map (2026-11-12).** `src/client/theme/global.css` now contains only fonts, theme blocks and the reset. Node cards, shell/session chrome, canvas controls, intent ghosts, Home, context chips, Home Map/Graph and lifecycle styles live in the correspondingly named sibling fragments. `scripts/build-canvas-css.ts` lists their cascade order and assembles both the SPA stylesheet and the self-contained MCP app's CSS. Register new fragments there; file discovery is not automatic. The pre-foundation measurements below describe the original monolithic stylesheet, not the current `global.css`.
+
 ### Today
 
 About 55 custom properties in `src/client/theme/global.css`, almost all colour:

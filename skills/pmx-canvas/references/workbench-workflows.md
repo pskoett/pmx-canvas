@@ -47,8 +47,13 @@ holds policies, clocks and advanced outcomes. No review policy is informational,
 
 At the start of board work, call `canvas_board { action: "list" }`. If
 `activeBoardId` is null (Home), open the board intended for the task before reading
-its context; do not treat an empty Home brief as an empty library. Opening changes
+its context. Home context reads return only `{boardContext}`, with `status: "no-board-open"`,
+`message: "No board open."` and `lastBoard: {id, name} | null`; this is not an empty brief or library. Opening changes
 the shared workbench. Library-only discovery and background creation need no switch.
+Layout, summary, spatial and pinned-context reads also include `boardContext` on Home;
+CLI `node list`, even with `--ids`, returns `{boardContext}` instead of an array.
+These reads do not open or read the last board. Explicit board reads are unchanged, and
+`pinnedBoards` in pinned context still carries the explicitly pinned working set.
 Then read `canvas://context?consumer=<stable-unique-id>`
 (or `canvas_query { action: "context", consumer: "<stable-unique-id>" }`) before
 falling back to broader resources. The budget is UTF-16 code units, not tokens.
@@ -602,6 +607,7 @@ Use the visible workbench when the human is actively curating layout:
   menu and shortcuts; HTML surfaces remain available through H and agent tools.
   On viewports ≤1180px the top bar drops its meta text and the session panel becomes a drawer;
   every control stays in the rail at any width — there is no separate mobile menu.
+- On Home, the rail keeps Home, Markdown note, Search & commands and Settings. Markdown note asks for a board name, then creates and opens a new board with one note; Cancel changes nothing. Cmd/Ctrl+K opens library search. Board-editing tools, session id, node counts and canvas zoom are hidden; Map and Graph keep their own zoom controls. Automatically named boards use `Untitled board`, or `Demo board` when seeding a new demo board; names need not be unique.
 - Keyboard: nodes are focusable — arrow keys move to the nearest node, Enter opens it in focus
   mode (a scrim + inset view with Open in tab), Esc closes the top-most overlay.
 - Embedding hosts can open `/workbench?theme=<name>` (or `?theme=auto` to follow the host's

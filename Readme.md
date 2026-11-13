@@ -184,7 +184,7 @@ bun run build
 bun run dev
 ```
 
-See [AGENTS.md](AGENTS.md) for contributor guidance. Report bugs or suggest
+See [AGENTS.md](https://github.com/pskoett/pmx-canvas/blob/main/AGENTS.md) for contributor guidance. Report bugs or suggest
 features in [GitHub issues](https://github.com/pskoett/pmx-canvas/issues), or
 use **Bug and feedback** in the canvas toolbar.
 

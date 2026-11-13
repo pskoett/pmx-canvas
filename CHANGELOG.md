@@ -5,11 +5,25 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Breaking
+
+- Home context reads and `node list` now return `{boardContext}` with `status: "no-board-open"` instead of an error, brief or array; clients must check that status before reading board contents.
+
+### Changed
+
+- Home reads identify the last opened board without opening it or reading its contents.
+- Automatically named boards now use "Untitled board" or "Demo board" instead of a timestamp.
+- Home keeps only library controls, and creating a Markdown note asks for a board name first.
+- The npm package includes public documentation and README screenshots, with maintainer documents linked on GitHub.
+- Breaking changes now land at minor version boundaries without a deprecation window or compatibility aliases.
+
 ### Fixed
 
 - The SDLC example keeps its cards and charts clear of one another after their content loads.
 - Search gives more weight to distinct topic words in English and Danish questions and shows matching passages instead of the first mention.
 - The startup screen matches the selected theme before the canvas loads.
+- Switching boards while Markdown renders no longer shows a misleading change-refused warning.
+- Cmd/Ctrl+K opens library search on Home.
 
 ## [0.13.0] - 2026-11-09
 

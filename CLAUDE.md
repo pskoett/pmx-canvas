@@ -229,6 +229,8 @@ renderers, Home, edges.
 
 ## Themes
 
+The workbench stylesheet is assembled from nine ordered files under `src/client/theme/` by `scripts/build-canvas-css.ts`, shared by the SPA and self-contained MCP app builds. `global.css` holds fonts, theme tokens and the reset; component styles live in the other fragments. Edit the owning fragment, and add any new fragment to the script's `sources` list in cascade order or it will not ship. Do not sort that list or edit generated `dist/canvas/global.css`.
+
 Nine themes: `harbor` (default), `daylight`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
 - CLI: `--theme=daylight`
 - Env: `PMX_CANVAS_THEME=daylight`

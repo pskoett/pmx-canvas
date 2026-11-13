@@ -53,12 +53,12 @@ function isCheckpointToolName(toolName: string): boolean {
  * state with conversational noise on the next reload.
  *
  * This separation is exercised by:
- *   - tests/unit/server-api.test.ts "keeps ext-app model context
+ *   - tests/unit/server-api-surfaces.test.ts "keeps ext-app model context
  *     separate from the replayed tool result" (text-only result preserves
  *     bootstrap replay)
- *   - tests/unit/server-api.test.ts "app-only text tool results update
+ *   - tests/unit/server-api-surfaces.test.ts "app-only text tool results update
  *     model context without replacing bootstrap replay"
- *   - tests/unit/server-api.test.ts "rehydrates Excalidraw checkpoint
+ *   - tests/unit/server-api-surfaces.test.ts "rehydrates Excalidraw checkpoint
  *     replay after server restart" (structured-content result becomes
  *     the new bootstrap replay)
  */
