@@ -856,6 +856,8 @@ surface, not established by live canvas checks. Close slopegraph labels separate
 without moving data endpoints; short same-ink leaders retain their association
 (Types3). An explicitly overcrowded chart still requires adequate authored height.
 
+Chart tooltip items inherit the named palette's popover foreground, not a series ink or Recharts' black fallback. Values must reach 4.5:1 contrast against the tooltip background in all nine themes. Plot and legend series colors are unchanged (Types3).
+
 Relation labels keep their curve midpoint when clear. Otherwise the pill and its
 hit area move together to nearby open space, avoiding cards, group headers,
 connection handles and earlier labels. A dashed leader in the relation's ink

@@ -87,6 +87,7 @@ export const GUIDE: GuideRow[] = [
       'Hints are styled and legible; no hidden essential controls, horizontal overflow or title-chip collisions.',
       'The context summary stays visible and narrow chrome folds instead of disappearing.',
       'Blue pins, violet read marks and amber review warnings are visible in every theme.',
+      'Chart tooltip values remain readable at 4.5:1 contrast in all nine themes and reference widths.',
       'The startup screen uses the saved or session theme before the app loads, including the host color scheme override.',
     ],
     touches: [
@@ -101,6 +102,8 @@ export const GUIDE: GuideRow[] = [
       'src/client/state/workspace-settings.ts',
       'src/shared/workspace-settings.ts',
       'src/shared/themes.ts',
+      'src/json-render/charts/components.tsx',
+      'src/json-render/charts/extra-components.tsx',
     ],
     e2e: [
       'narrow screens keep the rail chrome fully usable',

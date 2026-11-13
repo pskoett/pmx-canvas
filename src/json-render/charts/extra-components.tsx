@@ -62,7 +62,7 @@ function ChartAreaChart({ props }: BaseComponentProps<AreaChartProps>) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
           <YAxis domain={[0, 'auto']} tick={axisStyle} tickMargin={axisTickMargin} />
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} />
           <Area
             type="monotone"
             dataKey={props.yKey}
@@ -102,7 +102,7 @@ function ChartScatterChart({ props }: BaseComponentProps<ScatterChartProps>) {
           <XAxis type="number" dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} name={props.xKey} />
           <YAxis type="number" dataKey={props.yKey} tick={axisStyle} tickMargin={axisTickMargin} name={props.yKey} />
           {props.zKey && <ZAxis type="number" dataKey={props.zKey} range={[40, 400]} name={props.zKey} />}
-          <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} cursor={{ strokeDasharray: '3 3' }} />
           <Scatter data={data} fill={fill} />
         </RechartsScatterChart>
       </ResponsiveContainer>
@@ -132,7 +132,7 @@ function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>) {
           <PolarGrid stroke="var(--border, #e5e5e5)" />
           <PolarAngleAxis dataKey={props.axisKey} tick={axisStyle} />
           <PolarRadiusAxis tick={axisStyle} />
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} />
           {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           {metrics.map((metric, i) => {
             const color = CHART_COLORS[i % CHART_COLORS.length];
@@ -169,7 +169,7 @@ function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
           <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
-          <Tooltip contentStyle={tooltipStyle} cursor={false} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} cursor={false} />
           {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           {series.map((key, i) => (
             <Bar
@@ -242,7 +242,7 @@ function ChartComposedChart({ props }: BaseComponentProps<ComposedChartProps>) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
           <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
-          <Tooltip contentStyle={tooltipStyle} cursor={false} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} cursor={false} />
           {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           <Bar dataKey={props.barKey} fill={barFill} radius={[4, 4, 0, 0]} />
           <Line

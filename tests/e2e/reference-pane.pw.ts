@@ -660,7 +660,7 @@ test('panning automatically mounts later viewer regions and preserves earlier dr
   await expect(page.locator('.viewer-host iframe')).toHaveCount(16);
 });
 
-test('section headings and full-width chart viewers follow all nine canvas themes', async ({ page, request }) => {
+test('section headings and full-width chart viewers follow all nine canvas themes', async ({ page, request }, info) => {
   test.setTimeout(90_000);
   await resetBoard(request);
   const heading = await postId(request, '/api/canvas/node', {
@@ -726,6 +726,35 @@ test('section headings and full-width chart viewers follow all nine canvas theme
     // innerWidth is integer-rounded; allow subpixel layout rounding.
     expect(Math.abs(widths.root - widths.viewport)).toBeLessThan(1);
     expect(widths.card).toBe(widths.root);
+    await frame.locator('.recharts-bar-rectangle').first().hover();
+    const tooltip = frame.locator('.recharts-default-tooltip');
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip.locator('.recharts-tooltip-item-value')).toHaveText('37');
+    const contrast = await tooltip.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const value = getComputedStyle(element.querySelector('.recharts-tooltip-item-value')!);
+      // Canvas resolves every CSS color syntax, including oklch theme tokens, to sRGB.
+      const context = document.createElement('canvas').getContext('2d')!;
+      const luminance = (color: string) => {
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const channels = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map((channel) => {
+          const c = channel / 255;
+          return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        });
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      };
+      const foreground = luminance(value.color);
+      const background = luminance(style.backgroundColor);
+      return {
+        foreground: value.color,
+        background: style.backgroundColor,
+        ratio: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      };
+    });
+    await info.attach(`tooltip-${theme}`, { body: JSON.stringify(contrast), contentType: 'application/json' });
+    await page.screenshot({ path: info.outputPath(`tooltip-${theme}.png`) });
+    expect(contrast.ratio, `${theme}: ${JSON.stringify(contrast)}`).toBeGreaterThanOrEqual(4.5);
   }
   await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
   await page.locator(`[data-node-id="${chart}"]`).getByRole('button', { name: 'Expand (focus mode)' }).click();

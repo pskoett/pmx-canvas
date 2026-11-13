@@ -237,7 +237,7 @@ function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
           <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} />
           <Line
             type="monotone"
             dataKey={props.yKey}
@@ -323,7 +323,7 @@ function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
             <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
             <YAxis domain={[0, 'auto']} tick={axisStyle} tickMargin={axisTickMargin} />
-            <Tooltip contentStyle={tooltipStyle} cursor={false} />
+            <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} cursor={false} />
             <Bar dataKey={props.yKey} radius={[4, 4, 0, 0]}>
               {data.map((_, i) => (
                 <Cell key={i} fill={barCellFill(mode, accent, i, values[i], range, highlightIndex)} />
@@ -345,7 +345,7 @@ function ChartPieChart({ props }: BaseComponentProps<PieChartProps>) {
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={height}>
         <RechartsPieChart margin={polarChartMargin}>
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: 'inherit' }} />
           {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           <Pie
             data={data}
