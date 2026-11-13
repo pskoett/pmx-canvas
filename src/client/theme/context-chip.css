@@ -1,0 +1,279 @@
+
+/* ── One context chip (docs/design/ContextChip.dc.html) ───────────────
+   Top bar, right side: what is in the agent's context in brief order, with
+   what it costs in tokens. Blue in context, violet the agent's, amber only
+   when a card changed since the agent read it. */
+.context-chip-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, var(--c-pin) 35%, transparent);
+  background: color-mix(in srgb, var(--c-pin) 8%, transparent);
+  color: var(--c-pin);
+  font: 500 12px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.context-chip.is-open {
+  border-color: var(--c-pin);
+  background: color-mix(in srgb, var(--c-pin) 16%, transparent);
+}
+.context-chip.is-empty {
+  border: 1px dashed var(--c-line-30);
+  background: transparent;
+  color: var(--c-muted);
+}
+.context-chip:focus-visible {
+  outline: 2px solid var(--c-pin);
+  outline-offset: 2px;
+}
+.context-chip-pin {
+  position: relative;
+  display: inline-flex;
+}
+.context-chip-agent-dot {
+  position: absolute;
+  right: -3px;
+  top: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-agent);
+  box-shadow: 0 0 0 1.5px var(--c-panel);
+}
+.context-chip-wide .is-near {
+  color: var(--c-muted);
+}
+.context-chip-wide .is-agent {
+  color: var(--c-agent);
+}
+.context-chip-narrow {
+  display: none;
+}
+.context-chip-cost {
+  font: 11px var(--font-code);
+  color: var(--c-muted);
+}
+
+.context-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: 440px;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--c-line-30);
+  background: var(--c-panel);
+  box-shadow: var(--e-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--c-text);
+  font: 12px var(--font-ui);
+  text-align: left;
+}
+.context-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.context-panel-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.context-panel-mono {
+  font: 11px var(--font-code);
+  color: var(--c-muted);
+}
+.context-panel-cap,
+.context-panel-cap-inline {
+  margin: 0;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+.context-panel-cap-inline {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.context-panel-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--c-line);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+.context-panel-section > span:first-child {
+  flex: 1;
+}
+.context-panel-link,
+.context-panel-promote {
+  border: 0;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--c-pin);
+  font: 500 11px var(--font-ui);
+  cursor: pointer;
+}
+.context-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.context-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+}
+/* Revealed on hover or focus; opacity (not visibility) keeps Pin focusable. */
+.context-panel-row.is-near .context-panel-promote {
+  opacity: 0;
+}
+.context-panel-row.is-near:hover,
+.context-panel-row.is-near:focus-within {
+  background: var(--c-panel-soft);
+}
+.context-panel-row.is-near:hover .context-panel-promote,
+.context-panel-row.is-near:focus-within .context-panel-promote {
+  opacity: 1;
+}
+.context-panel-pin {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--c-pin);
+  color: var(--c-on-pin);
+}
+.context-panel-near-ring {
+  width: 12px;
+  height: 12px;
+  margin: 0 2px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  border: 1.5px dotted var(--c-pin);
+  flex-shrink: 0;
+}
+.context-panel-board {
+  fill: none;
+  stroke: var(--c-pin);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.context-panel-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.context-panel-name.is-soft {
+  font-weight: 400;
+  color: var(--c-text-soft);
+}
+.context-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.context-tag.is-read {
+  color: var(--c-agent);
+  background: color-mix(in srgb, var(--c-agent) 14%, transparent);
+}
+.context-tag.is-not-read {
+  color: var(--c-muted);
+  background: var(--c-panel-soft);
+}
+.context-tag.is-changed {
+  color: var(--c-warn);
+  background: color-mix(in srgb, var(--c-warn) 14%, transparent);
+}
+.context-tag {
+  gap: 4px;
+}
+.context-tag svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+/* Links changed after the last read: information, never "needs a look" (option C). */
+.context-tag.is-links {
+  gap: 4px;
+  color: var(--c-muted);
+  background: var(--c-panel-soft);
+}
+.context-tag.is-links svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.context-panel-x {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--c-muted);
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: var(--r-pill);
+}
+.context-panel-x:hover {
+  color: var(--c-text);
+  background: var(--c-surface-hover);
+}
+
+/* 600 px (ContextChip600.dc.html): one count, and the panel becomes a sheet. */
+@media (max-width: 760px) {
+  .context-chip-wide {
+    display: none;
+  }
+  .context-chip-narrow {
+    display: inline;
+  }
+  .context-panel {
+    position: fixed;
+    top: var(--hud-bar-height, 44px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}

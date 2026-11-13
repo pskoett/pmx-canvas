@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { readCanvasCss } from './build-canvas-css.ts';
 
 const result = await Bun.build({
   entrypoints: ['src/client/mcp-app/index.tsx'],
@@ -10,7 +11,7 @@ const result = await Bun.build({
 if (!result.success) throw new AggregateError(result.logs, 'MCP App build failed');
 const js = (await result.outputs[0]!.text()).replace(/<\/script/gi, '<\\/script');
 // The app is one self-contained document, so the bundled fonts go in as data URIs.
-const globalCss = (await readFile('src/client/theme/global.css', 'utf8')).replace(
+const globalCss = readCanvasCss().replace(
   /url\("fonts\/([\w.-]+\.woff2)"\)/g,
   (_, file: string) => `url("data:font/woff2;base64,${readFileSync(`dist/canvas/fonts/${file}`).toString('base64')}")`,
 );

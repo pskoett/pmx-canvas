@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
+import { readCanvasCss } from '../../scripts/build-canvas-css.ts';
 
 // Raw colour values live only in the theme blocks of the two theme files
 // (docs/design.md, "Token system"); everything else references tokens. The
@@ -48,8 +49,8 @@ describe('raw hex colours stay in the theme files', () => {
     expect(offenders).toEqual([]);
   });
 
-  test('global.css has hex colours only inside theme blocks', () => {
-    const css = stripComments(readFileSync(join(clientDir, 'theme/global.css'), 'utf-8'));
+  test('assembled canvas CSS has hex colours only inside theme blocks', () => {
+    const css = stripComments(readCanvasCss());
     const outsideThemes = css.replace(/:root(\[data-theme="[a-z-]+"\])?\s*\{[^}]*\}/g, '');
     expect(outsideThemes.match(HEX) ?? []).toEqual([]);
   });

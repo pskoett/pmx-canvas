@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { cleanup, render } from '@testing-library/preact';
+import { readCanvasCss } from '../../scripts/build-canvas-css.ts';
 import { AgentPresenceLayer } from '../../src/client/canvas/AgentPresenceLayer.tsx';
 import { TopBar } from '../../src/client/canvas/TopBar.tsx';
 import { nodes, viewport } from '../../src/client/state/canvas-store.ts';
@@ -144,8 +145,8 @@ describe('idle cursors leave the board', () => {
     expect(cursors.filter((el) => el.className.includes('phase-idle'))).toHaveLength(1);
   });
 
-  test('the stylesheet hides only parked phase-idle cursors, not explicit moving cursors', async () => {
-    const css = await Bun.file(new URL('../../src/client/theme/global.css', import.meta.url)).text();
+  test('the stylesheet hides only parked phase-idle cursors, not explicit moving cursors', () => {
+    const css = readCanvasCss();
     const rule = css.match(/\.agent-cursor\.phase-idle:not\(\.has-explicit-cursor\)\s*\{[^}]*\}/);
     expect(rule?.[0]).toContain('opacity: 0');
     expect(rule?.[0]).toContain('visibility: hidden');
