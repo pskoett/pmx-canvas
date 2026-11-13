@@ -845,7 +845,9 @@ const nodeAddShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   type: z.string().optional().catch(undefined).describe('Node type (prefer canvas_group {action:"create"} for groups)'),
   title: z.string().optional().catch(undefined).describe('Node title'),
   content: z
@@ -1119,7 +1121,9 @@ const nodeUpdateShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   title: z.unknown().optional().describe('New title'),
   content: z.unknown().optional().describe('New content'),
   x: z.number().optional().catch(undefined).describe('New X position'),
@@ -1402,7 +1406,9 @@ const nodeRemoveShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
 };
 
 const nodeRemoveSchema = z.looseObject(nodeRemoveShape);

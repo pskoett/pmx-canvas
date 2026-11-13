@@ -36,8 +36,7 @@ it, or the board silently diverges from reality.
 - The board may be fenced (`policy.scope`). A 403 from any participant means "outside the
   fence": report it to the orchestrator, who asks the human — never widen it yourself (the
   fence is the human's; `set-policy` cannot set it).
-- A 409 means a human is holding that node right now: requeue that step's write and retry
-  after the next steering poll. A `yield` timeline event names who took over.
+- Inspect a 409's reason before retrying. Wait and poll only for a human hold (`yield` names who took over). For a stale revision or board target, reread the owning board and reconcile the intended edit. For a restarted workbench capability, reconnect before retrying the preserved draft. A veto means stop that action, not retry it after a delay.
 - Unanswered gates auto-hold (`held`) after their TTL: treat `held` as "do not proceed" and
   keep the subagent's step `blocked` until the human reopens and answers.
 

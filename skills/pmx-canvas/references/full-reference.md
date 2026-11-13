@@ -1224,20 +1224,21 @@ batch partial results retain `results` and `refs`. A created webpage can remain
 with `fetch.cancelled: true`. External app builds/runtime calls and local WebView
 captures are not interruptible mid-call. After a disconnect, inspect state before
 retrying because the response may not arrive. `_meta.progressToken` enables batch
-and supported AX wait progress notifications, including through the daemon connection. Without
-a token, calls return their normal result without progress notifications.
+and supported AX wait progress notifications on direct `pmx-canvas --mcp` connections, including through the daemon connection. Without a token, calls return their normal result without progress notifications. The portable Agent Plugins wrapper (`start-mcp.mjs`) does not forward progress. Missing SDK callbacks alone do not establish missing wire delivery or justify retrying a mutation; inspect its result and state first.
 
 ## MCP Resources
 
 These resources give you read access to canvas intelligence. Read them to understand
 what the human has set up and what they're focusing on.
 
-As of 0.10, live resource updates require `resources/subscribe` on each connection.
+On direct `pmx-canvas --mcp` connections, live resource updates require `resources/subscribe` on each connection.
 Subscribe to the exact URI you read, including context/graph query parameters;
 `resources/unsubscribe` stops it, and reconnecting requires a new subscription.
 Notifications invalidate cached data but do not deliver content, record a read, or
 advance a consumer cursor. Explicit `resources/read` remains available without
 subscriptions. Static schema and bundled skills do not support subscriptions.
+
+The portable Agent Plugins wrapper does not advertise subscription support and returns `-32601` for subscription requests. Use its resource list/read calls to refresh state explicitly, or connect directly when subscriptions are required.
 
 | Resource | What it provides |
 |----------|-----------------|
@@ -1680,8 +1681,7 @@ the human can answer in the external agent host's composer, without a PMX reply 
 ### Live task cards
 
 A live card presents an existing AX work item; it is not another task or an authored
-work plan. Read the task first with `canvas_ax_work { action: "list" }` on its owning
-board, then create a `status` presentation using that task's actual ID:
+work plan. Read `canvas_ax_state { action: "get", includeContext: false }` on the task's owning board (through the bound MCP tool in Amp), resolve the task in `state.workItems`, then create a `status` presentation using its actual ID:
 
 ```json
 {"action":"add","type":"status","data":{"workItemId":"<existing-task-id>"}}

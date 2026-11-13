@@ -27,7 +27,9 @@ const groupCreateShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   title: z.string().optional().catch(undefined).describe('Group title (default: "Group")'),
   childIds: z.unknown().optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
   color: z.string().optional().catch(undefined).describe('Group accent color (CSS color string, e.g. "#4a9eff")'),
@@ -127,7 +129,9 @@ const groupAddShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   groupId: z.string().optional().catch(undefined).describe('The group node ID'),
   childIds: z.unknown().optional().describe('Node IDs to add to the group'),
   childLayout: z
@@ -182,7 +186,9 @@ const groupRemoveShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   groupId: z.string().optional().catch(undefined).describe('The group node ID to ungroup'),
 };
 

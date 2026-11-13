@@ -103,7 +103,9 @@ const jsonRenderAddShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   title: z
     .string()
     .optional()
@@ -248,7 +250,9 @@ const jsonRenderStreamShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   nodeId: z
     .string()
     .optional()
@@ -353,7 +357,9 @@ const workboardRenderShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   x: z.number().optional().catch(undefined).describe('Optional X position (only used when creating the board)'),
   y: z.number().optional().catch(undefined).describe('Optional Y position (only used when creating the board)'),
 };
@@ -395,7 +401,9 @@ const graphAddShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   title: z.string().optional().catch(undefined).describe('Optional node title'),
   graphType: z
     .string()

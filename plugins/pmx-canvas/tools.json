@@ -2889,7 +2889,7 @@
             "minLength": 1
           },
           "intentId": {
-            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "description": "Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.",
             "type": "string"
           },
           "type": {
@@ -3877,7 +3877,7 @@
             "type": "number"
           },
           "intentId": {
-            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "description": "Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.",
             "type": "string"
           },
           "x": {
@@ -4373,7 +4373,7 @@
             "minLength": 1
           },
           "intentId": {
-            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "description": "Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.",
             "type": "string"
           },
           "from": {
@@ -4699,7 +4699,7 @@
             "minLength": 1
           },
           "intentId": {
-            "description": "Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.",
+            "description": "Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.",
             "type": "string"
           },
           "title": {
@@ -10135,7 +10135,7 @@
     },
     {
       "name": "canvas_intent",
-      "description": "Ghost Cursor of Intent — announce the spatial move you are ABOUT to make so the canvas paints a faint pre-commit placeholder (legibility: the human sees the next move forming, and can veto it). Action \"signal\" registers an intent (kind create|move|connect|remove|edit; pass position for move — omit it for create to ghost where the canvas will place the node, and the linked create lands there — nodeId for move/edit/remove, edge for connect; optional label, reason, confidence 0..1, seq, ttlMs, and a stable id); \"update\" patches a live intent by id; \"clear\" abandons/dissolves it. To make veto authoritative, pass the returned id as intentId on the real canvas_node/canvas_edge/canvas_group/canvas_render mutation: vetoed or expired intents are rejected, and a successful linked mutation settles the ghost automatically. Intents are ephemeral presence: never persisted, never snapshotted, auto-expire (~8s).",
+      "description": "Ghost Cursor of Intent: announce the spatial move you are ABOUT to make so the canvas paints a faint pre-commit placeholder (legibility: the human sees the next move forming, and can veto it). Action \"signal\" registers an intent (kind create|move|connect|remove|edit; pass position for move; omit it for create to ghost where the canvas will place the node, and the linked create lands there; nodeId for move/edit/remove, edge for connect; optional label, reason, confidence 0..1, seq, ttlMs, and a stable id); \"update\" patches a live intent by id; \"clear\" abandons/dissolves it. To make veto authoritative, pass the returned id as intentId on the real canvas_node/canvas_edge/canvas_group/canvas_render mutation: a human veto rejects the mutation; quiet expiry lets it proceed unlinked. A successful linked mutation settles the ghost automatically. Intents are ephemeral presence: never persisted, never snapshotted, auto-expire (~8s).",
       "inputSchema": {
         "type": "object",
         "properties": {

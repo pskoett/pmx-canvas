@@ -95,11 +95,17 @@ no progress notifications. A host that aborts its connection may not receive a
 partial result; inspect canvas state before retrying. See the
 [HTTP streaming contract](http-api.md#operation-cancellation-and-progress-010).
 
+This contract applies to direct `pmx-canvas --mcp` connections. The portable Agent Plugins wrapper (`start-mcp.mjs`) does not forward progress notifications; use the final tool result and read state after an uncertain outcome.
+
+The TypeScript MCP SDK's `onprogress` callback is not a wire-delivery counter. With SDK 1.28.0, notifications and the final response processed together can lose callbacks when response cleanup removes the progress handler before queued notification handlers run. PMX can deliver both frames while the SDK reports an unknown token. Use raw transport traces to diagnose delivery; missing callbacks alone do not justify repeating a mutation.
+
 ## Resource subscriptions (0.10)
 
 The server advertises `resources.subscribe`. Send `resources/subscribe` with an
 exact live URI, then `resources/unsubscribe` to stop. Subscriptions belong to the
 connection and disappear on close; reconnecting clients must subscribe again.
+
+The portable Agent Plugins wrapper does not advertise `resources.subscribe` and returns `-32601` for subscription requests. Resource list/read still works. Check the connected server's capabilities; use explicit reads or a direct MCP connection when subscriptions are required.
 
 Live resources are `canvas://layout`, `boards`, `summary`, `context`, `graph`,
 `spatial-context`, `history`, `code-graph`, `pinned-context`, `ax`, `ax-context`,
@@ -183,7 +189,7 @@ tool is added.
 
 ## Connect
 
-Add to your agent's MCP config:
+For hosts using JSON `mcpServers` configuration, add:
 
 ```json
 {
@@ -195,6 +201,8 @@ Add to your agent's MCP config:
   }
 }
 ```
+
+Codex uses TOML in `~/.codex/config.toml` or a trusted project's `.codex/config.toml`, not this JSON. Use the [Codex setup examples](../skills/pmx-canvas/references/codex-app-adapter.md#setup) for the pinned package, workspace, port and source identity.
 
 The canvas auto-starts on first canvas operation, not on `canvas_help`.
 
@@ -595,8 +603,7 @@ Intents are **ephemeral presence**: never persisted, never snapshotted, never in
 `canvas_query { action: "layout" }`, and auto-expiring. They ride their own SSE channel
 (`ax-intent` / `ax-intent-clear`) and replay to reconnecting browsers while still
 live. Best practice — narrate your next move: `signal` → mutate with the returned
-`intent.id` as `intentId`. A vetoed or expired linked mutation is rejected, and a
-successful mutation settles the ghost automatically. Also reachable over HTTP:
+`intent.id` as `intentId`. A human veto rejects the linked mutation; quiet expiry lets it proceed unlinked. A successful linked mutation settles the ghost automatically. Also reachable over HTTP:
 `POST/PATCH/DELETE /api/canvas/ax/intent[/:id]`.
 
 Field names match the underlying operation (e.g. `canvas_view { action: "focus", id }`,

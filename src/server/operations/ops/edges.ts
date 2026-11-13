@@ -23,7 +23,9 @@ const edgeAddShape = {
     .string()
     .optional()
     .catch(undefined)
-    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+    .describe(
+      'Ghost intent id returned by canvas_intent signal. A human veto blocks this mutation; quiet expiry lets it proceed unlinked.',
+    ),
   from: z.string().optional().catch(undefined).describe('Source node ID'),
   to: z.string().optional().catch(undefined).describe('Target node ID'),
   toBoardId: z

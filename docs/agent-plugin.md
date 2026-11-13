@@ -115,6 +115,12 @@ Copilot. A different consumer can still see them pending; that is not a failed C
 The delivery mark records handoff to the host, not proof that the requested action succeeded.
 This is separate from the Amp plugin's explicit context receipt and action acknowledgment.
 
+## MCP transport limits
+
+The portable `start-mcp.mjs` wrapper forwards tool results and resource list/read calls, but not progress notifications or resource subscriptions. It does not advertise `resources.subscribe`; subscription requests return `-32601`. Use explicit reads to refresh state, and use a direct `pmx-canvas --mcp` connection if these streaming features are required. Neither successful initialization nor successful mutations establish host progress/subscription support.
+
+Direct connections can also expose an upstream TypeScript MCP SDK callback limitation even when every progress frame arrives. See [progress and subscriptions](mcp.md#cancellation-and-progress-010) for the distinction between wire delivery and SDK callbacks.
+
 ## Package maintenance
 
 The plugin's adapter copies are generated from `.github/extensions/pmx-canvas/`:

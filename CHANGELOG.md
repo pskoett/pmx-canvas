@@ -20,6 +20,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Fixed
 
 - Chart tooltip values stay readable in dark themes.
+- Codex setup examples use native TOML configuration, and live-task card guidance uses the supported state read.
+- Agent guidance distinguishes human holds from other conflicts and quiet intent expiry from vetoes.
+- MCP documentation distinguishes direct progress and subscriptions from the portable plugin wrapper's limitations.
 - The SDLC example keeps its cards and charts clear of one another after their content loads.
 - Search gives more weight to distinct topic words in English and Danish questions and shows matching passages instead of the first mention.
 - The startup screen matches the selected theme before the canvas loads.

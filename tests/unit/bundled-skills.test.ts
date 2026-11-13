@@ -119,6 +119,34 @@ describe('bundled skills', () => {
     expect(readBundledSkill('pmx-canvas')).toContain(`PMX Canvas ${version} requires`);
   });
 
+  test('Codex setup examples parse as native MCP TOML with an explicit target and identity', async () => {
+    const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
+    const markdown = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/codex-app-adapter.md', import.meta.url),
+    ).text();
+    const config = z.object({
+      mcp_servers: z.object({
+        canvas: z.object({ command: z.string(), args: z.array(z.string()), env: z.record(z.string(), z.string()) }),
+      }),
+    });
+    const examples = [...markdown.matchAll(/```toml\r?\n([\s\S]*?)\r?\n```/g)].map(
+      (match) => config.parse(Bun.TOML.parse(match[1]!)).mcp_servers.canvas,
+    );
+    expect(examples).toHaveLength(2);
+    expect(examples.map(({ command, args }) => ({ command, args }))).toEqual([
+      { command: 'bunx', args: [`pmx-canvas@${version}`, '--mcp'] },
+      { command: 'bun', args: ['run', '/absolute/path/to/pmx-canvas/src/cli/index.ts', '--mcp'] },
+    ]);
+    for (const example of examples) {
+      expect(example.env).toEqual({
+        PMX_CANVAS_WORKSPACE_ROOT: '/absolute/path/to/project',
+        PMX_CANVAS_PORT: '14313',
+        PMX_CANVAS_URL: '',
+        PMX_CANVAS_AGENT_SOURCE: 'codex',
+      });
+    }
+  });
+
   test('the linked Amp setup guide pins the workspace, target and steering identity', async () => {
     const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
     const readme = await Bun.file(new URL('../../Readme.md', import.meta.url)).text();

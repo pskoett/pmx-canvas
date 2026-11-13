@@ -30,51 +30,41 @@ tools, resources, and `canvas://ax-context`; use the CLI only as a fallback or f
 
 Use MCP as the primary Codex adapter path.
 
-Add the PMX MCP server to the Codex workspace config:
+Add the PMX MCP server to `~/.codex/config.toml`, or `.codex/config.toml` in a trusted project. Direct Codex configuration uses TOML `[mcp_servers.<name>]`, not the JSON `mcpServers` format used by plugin manifests and some other hosts. See the [Codex MCP documentation](https://developers.openai.com/codex/mcp).
 
-```json
-{
-  "mcpServers": {
-    "canvas": {
-      "command": "bunx",
-      "args": ["pmx-canvas", "--mcp"]
-    }
-  }
-}
+Replace the absolute project path and choose a dedicated port. Keep the installed package pinned; remove a stale inherited `PMX_CANVAS_URL` if the host discards empty environment values.
+
+```toml
+[mcp_servers.canvas]
+command = "bunx"
+args = ["pmx-canvas@0.13.0", "--mcp"]
+
+[mcp_servers.canvas.env]
+PMX_CANVAS_WORKSPACE_ROOT = "/absolute/path/to/project"
+PMX_CANVAS_PORT = "14313"
+PMX_CANVAS_URL = ""
+PMX_CANVAS_AGENT_SOURCE = "codex"
 ```
 
-For local repo development, use the source entrypoint instead:
+For local repo development, replace that configuration with the absolute source entrypoint, keeping the target workspace separate from the source checkout:
 
-```json
-{
-  "mcpServers": {
-    "canvas": {
-      "command": "bun",
-      "args": ["run", "src/mcp/server.ts"]
-    }
-  }
-}
+```toml
+[mcp_servers.canvas]
+command = "bun"
+args = ["run", "/absolute/path/to/pmx-canvas/src/cli/index.ts", "--mcp"]
+
+[mcp_servers.canvas.env]
+PMX_CANVAS_WORKSPACE_ROOT = "/absolute/path/to/project"
+PMX_CANVAS_PORT = "14313"
+PMX_CANVAS_URL = ""
+PMX_CANVAS_AGENT_SOURCE = "codex"
 ```
 
-The MCP server auto-starts the HTTP workbench on first tool call. Open the returned workbench URL
-in the Codex in-app Browser, usually `http://127.0.0.1:4313/workbench` or
-`http://localhost:4313/workbench`.
+Restart the host's MCP process after changing configuration. The MCP server auto-starts the HTTP workbench on first canvas operation. Open the returned workbench URL in the Codex in-app Browser; inspect the actual port rather than assuming the preferred port was available.
 
 ### Agent presence (cursor + phase chip)
 
-Name the agent on the MCP server so its writes, its session, and its cursor share one identity:
-
-```json
-{
-  "mcpServers": {
-    "canvas": {
-      "command": "bunx",
-      "args": ["pmx-canvas", "--mcp"],
-      "env": { "PMX_CANVAS_AGENT_SOURCE": "codex" }
-    }
-  }
-}
-```
+The `PMX_CANVAS_AGENT_SOURCE = "codex"` setting above gives writes, session and cursor one identity.
 
 Then attach at the start of a task and detach at the end:
 
@@ -133,8 +123,7 @@ loop-closing surfaces work over MCP today even without a dedicated extension:
 
 ## Live-Test Checklist
 
-1. Open `http://127.0.0.1:4313/workbench` in the Codex in-app Browser first so the user can see
-   all later canvas mutations.
+1. Open the returned workbench URL in the Codex in-app Browser first so the user can see all later canvas mutations.
 2. Confirm the PMX MCP server is configured for the workspace.
 3. Call `canvas_ax_state { action: "get" }` and confirm it returns `ok: true`.
 4. Add or reuse a node, then pin it from the browser or with `canvas_pin_nodes`.

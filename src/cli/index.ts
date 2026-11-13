@@ -346,7 +346,7 @@ Run any command with --help for details and examples:
   pmx-canvas edge --help
 
 MCP Integration:
-  Add to your agent's MCP config:
+  For hosts using JSON mcpServers configuration:
   {
     "mcpServers": {
       "canvas": {
@@ -355,6 +355,10 @@ MCP Integration:
       }
     }
   }
+
+  Codex uses [mcp_servers.canvas] in ~/.codex/config.toml or a trusted
+  project's .codex/config.toml, not JSON. See the bundled
+  skills/pmx-canvas/references/codex-app-adapter.md for pinned examples.
 
 Examples:
   pmx-canvas                                                  Start server + browser

@@ -86,7 +86,7 @@ different from the source checkout. Build the client before browser verification
 
 ## MCP Config
 
-For agents that support MCP, configure the pinned package as a stdio server. Replace
+For hosts using JSON `mcpServers` configuration, configure the pinned package as a stdio server. Codex uses TOML instead; follow [Codex setup](codex-app-adapter.md#setup). Replace
 the root and port with your selections; ensure the port is dedicated to this workspace.
 The empty URL overrides a stale inherited value (empty is treated as unset). If the host
 discards empty env values, remove `PMX_CANVAS_URL` from its launch environment instead.
