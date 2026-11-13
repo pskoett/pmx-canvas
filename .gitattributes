@@ -1,0 +1,2 @@
+# Generated bundles carry vendor whitespace inside string literals; do not flag it.
+dist/** -whitespace
