@@ -45,9 +45,11 @@ function isAutoSizeExempt(node: CanvasNodeState): boolean {
 }
 
 /** DOM-content nodes (markdown/status/file/…) whose body scrollHeight is directly
- *  measurable — the one-shot ResizeObserver auto-fit in CanvasNode handles these. */
+ *  measurable — the one-shot ResizeObserver auto-fit in CanvasNode handles these.
+ *  A trace fills its authored height and has no titlebar; measuring that body
+ *  then adding titlebar space grows it on every mount. */
 export function shouldAutoFitNode(node: CanvasNodeState): boolean {
-  return !isAutoSizeExempt(node) && !isIframeNode(node);
+  return !isAutoSizeExempt(node) && !isIframeNode(node) && node.type !== 'trace';
 }
 
 export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: number): number | null {

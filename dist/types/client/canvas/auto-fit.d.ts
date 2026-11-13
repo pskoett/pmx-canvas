@@ -3,7 +3,9 @@ export declare const AUTO_FIT_TITLEBAR_HEIGHT = 37;
 export declare const AUTO_FIT_MAX_HEIGHT = 600;
 export declare const AUTO_FIT_MAX_HEIGHT_IFRAME = 1400;
 /** DOM-content nodes (markdown/status/file/…) whose body scrollHeight is directly
- *  measurable — the one-shot ResizeObserver auto-fit in CanvasNode handles these. */
+ *  measurable — the one-shot ResizeObserver auto-fit in CanvasNode handles these.
+ *  A trace fills its authored height and has no titlebar; measuring that body
+ *  then adding titlebar space grows it on every mount. */
 export declare function shouldAutoFitNode(node: CanvasNodeState): boolean;
 export declare function computeAutoFitHeight(node: CanvasNodeState, contentHeight: number): number | null;
 /** Iframe surfaces that should GROW to fit their reported content height. */

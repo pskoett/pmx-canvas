@@ -50,9 +50,11 @@ describe('client auto-fit helpers', () => {
     // Content taller than the floor still fits to the content, not the floor.
     expect(computeAutoFitHeight(markdown, 300)).toBe(300 + AUTO_FIT_TITLEBAR_HEIGHT);
 
-    // A type without a floor is unaffected (trace is small by design).
+    // Trace bodies fill their authored height and have no titlebar to add.
+    // They must not feed their own height back into auto-fit on each mount.
     const trace = makeNode({ type: 'trace', size: { width: 220, height: 64 } });
-    expect(computeAutoFitHeight(trace, 40)).toBe(40 + AUTO_FIT_TITLEBAR_HEIGHT);
+    expect(shouldAutoFitNode(trace)).toBe(false);
+    expect(computeAutoFitHeight(trace, 40)).toBeNull();
   });
 
   test('does not auto-fit strict-size content nodes', () => {

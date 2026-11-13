@@ -8195,6 +8195,44 @@ test('an Amp orb page boots straight on the polling transport (no SSE attempt)',
   expect(sseRequested).toBe(false);
 });
 
+test('trace cards keep their authored height and separation across reloads', async ({ page, request }) => {
+  const ids: string[] = [];
+  for (const [index, name] of ['pack', 'seed', 'verify'].entries()) {
+    const response = await request.post('/api/canvas/node', {
+      headers: { 'x-pmx-workbench': '1' },
+      data: {
+        type: 'trace',
+        title: `Trace: ${name}`,
+        x: 80,
+        y: 80 + index * 140,
+        width: 340,
+        height: 110,
+        data: { toolName: name, resultSummary: 'A completed operation', status: index === 2 ? 'running' : 'success' },
+      },
+    });
+    expect(response.ok()).toBe(true);
+    ids.push((await response.json()).id);
+  }
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 }, headers: { 'x-pmx-workbench': '1' } });
+  for (let visit = 0; visit < 3; visit++) {
+    await page.goto('/workbench');
+    await expect(page.locator('.trace-node')).toHaveCount(3);
+    // Observe after the one-shot ResizeObserver, its layout write and server reconciliation.
+    // Polling for the initial height would pass before the erroneous growth.
+    await page.waitForTimeout(1000);
+    let previousBottom = 0;
+    for (const id of ids) {
+      const card = page.locator(`[data-node-id="${id}"]`);
+      const box = (await card.boundingBox())!;
+      expect(box.height).toBe(110);
+      expect(box.y).toBeGreaterThan(previousBottom);
+      previousBottom = box.y + box.height;
+      const saved = await (await request.get(`/api/canvas/node/${id}`)).json();
+      expect(saved.size.height).toBe(110);
+    }
+  }
+});
+
 test('the size floor survives the browser: a clamped node is not shrunk by auto-fit', async ({ page, request }) => {
   // Finding AA (0.4.6 report): the server clamped a 200x100 markdown create up
   // to 360x180, then the connected workbench's DOM auto-fit persisted 360x132.

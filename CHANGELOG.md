@@ -19,6 +19,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Trace cards no longer grow into neighboring cards when the board loads or reloads.
 - Chart tooltip values stay readable in dark themes.
 - Codex setup examples use native TOML configuration, and live-task card guidance uses the supported state read.
 - Agent guidance distinguishes human holds from other conflicts and quiet intent expiry from vetoes.

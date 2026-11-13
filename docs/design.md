@@ -848,6 +848,9 @@ These are example geometry choices, not changes to content fitting or card stack
 Every card is visited before the non-overlap and group-containment checks run,
 including ordinary DOM cards as well as lazy viewers.
 
+Trace cards retain their authored height across reloads. Their bounded body has no
+titlebar (Types1.dc.html), so ordinary DOM auto-fit must not add titlebar space to it.
+
 Static exports use the same embedded chart layout and named palettes, retain
 heading display, and match the live 37 px card header. Fonts and shared palette
 CSS are embedded for offline use. Saved positions, sizes and specs are unchanged;

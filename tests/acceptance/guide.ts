@@ -826,6 +826,7 @@ export const GUIDE: GuideRow[] = [
       'Content keeps its proportions through fractional zoom; HTML, webpage, Mermaid and ledger content is correct.',
       'A clean packed consumer scaffolds and renders a web artifact using the shipped initializer.',
       'The seeded SDLC workspace keeps cards clear of one another after every viewer loads, contains group children, and leaves chart titles and content unobscured.',
+      'Trace cards retain their authored height and separation after rendering and repeated reloads.',
     ],
     touches: [
       'examples/published-consumer-sdlc/**',
@@ -886,6 +887,7 @@ export const GUIDE: GuideRow[] = [
       'Markdown is sanitized in card and rich editor boundaries',
       'renders the published-consumer SDLC workspace',
       'seeded SDLC cards do not overlap or obscure neighboring charts',
+      'trace cards keep their authored height and separation across reloads',
     ],
     unit: [
       'tests/unit/demo.test.ts',
