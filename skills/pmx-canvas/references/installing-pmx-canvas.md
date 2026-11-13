@@ -173,8 +173,7 @@ lease. A raw MCP polling test does not prove this native delivery path.
 Their Amp commands require separate human confirmation for the current binding and
 disclose data sent to TypeSafe Jev and the invoking thread's inference billing.
 Ranking reorders optional summaries; advice suggests formats or review order without
-creating output or verifying work. One consent never enables the other. Rebinding
-does not carry either consent. Respect deterministic fallback and report it rather
+creating output or verifying work. One consent never enables the other. A new binding incarnation (changing boards or unbinding and binding again) inherits neither consent. Repeating bind to the same board is idempotent and preserves both consent settings. Respect deterministic fallback and report it rather
 than retrying with another provider. See the
 [plugin contract](https://github.com/pskoett/pmx-canvas/blob/main/docs/amp-plugin.md)
 for request fields, retry identities and native acceptance limits.
