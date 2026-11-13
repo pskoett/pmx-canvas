@@ -190,6 +190,8 @@ export async function waitForMarkdownSave(boardId: string | null, nodeId: string
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const boardId = activeBoardId.value;
+  // A buffered A → B → A switch can reuse this component without changing its ID or text.
+  const incarnation = boardIncarnation;
   const draftKey = JSON.stringify([boardId, node.id]);
   const draft = useMemo(() => {
     const existing = markdownDrafts.get(draftKey);
@@ -269,8 +271,8 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
         setLoaded(true);
         return;
       }
-      const html = await renderMarkdown(raw, node.id, boardId);
-      if (cancelled || activeBoardId.value !== boardId) return;
+      const { html, obsolete } = await renderMarkdown(raw, node.id, boardId);
+      if (cancelled || obsolete || incarnation !== boardIncarnation || activeBoardId.value !== boardId) return;
       if (html === null) {
         setRenderFailed(true);
         return;
@@ -295,7 +297,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
     return () => {
       cancelled = true;
     };
-  }, [boardId, path, node.id, node.data.content, savedWikiBindings, node.linksRevision, renderAttempt]);
+  }, [boardId, incarnation, path, node.id, node.data.content, savedWikiBindings, node.linksRevision, renderAttempt]);
 
   const renderFailure = !loaded && renderFailed && (
     <div class="viewer-placeholder" role="status">
@@ -312,7 +314,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       draft.dirty.value = true;
       latestMdRef.current = value;
       setContent(value);
-      const html = await renderMarkdown(value, node.id, boardId);
+      const { html } = await renderMarkdown(value, node.id, boardId);
       if (html === null || activeBoardId.value !== boardId || latestMdRef.current !== value) return;
       renderedMdRef.current = { markdown: value, html };
       setRendered(html);
@@ -345,7 +347,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           setSaving(false);
           if (!result.ok || incarnation !== boardIncarnation) return; // Keep refused or obsolete drafts.
           editBase.current.revision = result.contentRevision ?? editBase.current.revision;
-          const html = await renderMarkdown(newContent, node.id, boardId);
+          const { html } = await renderMarkdown(newContent, node.id, boardId);
           if (incarnation !== boardIncarnation || activeBoardId.value !== boardId || latestMdRef.current !== newContent)
             return;
           const current = nodes.value.get(node.id);
@@ -363,7 +365,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
           }
           return;
         }
-        const html = await renderMarkdown(newContent, node.id, boardId);
+        const { html } = await renderMarkdown(newContent, node.id, boardId);
         if (
           html === null ||
           incarnation !== boardIncarnation ||
@@ -453,7 +455,7 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
 
   const handleDocumentMode = useCallback(async () => {
     if (renderedMdRef.current?.markdown !== content) {
-      const html = await renderMarkdown(content, node.id, boardId);
+      const { html } = await renderMarkdown(content, node.id, boardId);
       // Do not mount the rich editor from another source's HTML, including
       // while a draft render is pending or unavailable. Keep Source retryable.
       if (html === null || activeBoardId.value !== boardId || latestMdRef.current !== content) return;

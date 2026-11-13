@@ -140,12 +140,12 @@ export async function vetoGhostIntent(intent: {
   return true;
 }
 
-/** Fetch rendered markdown HTML from the server. */
+/** A refused obsolete read is distinct from a failed preview the human can retry. */
 export async function renderMarkdown(
   markdown: string,
   nodeId?: string,
   expectedBoardId: string | null = activeBoardId.value,
-): Promise<string | null> {
+): Promise<{ html: string | null; obsolete: boolean }> {
   const init: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -154,13 +154,14 @@ export async function renderMarkdown(
   try {
     const res = await workbenchFetch('/api/render', withWorkbenchMarker(init));
     const body = (await readJsonBody(res)) as { html?: string } | null;
-    // A render is a read. One that crosses a board switch is discarded by its
-    // caller, so do not tell the human an edit failed.
-    if (res.status !== 409) reportRefusedWrite(res, init, body);
-    return body?.html ?? null;
+    // The browser may not have received the board-switch event yet. Carry the
+    // server's refusal to the caller instead of relying on its local board ID.
+    if (res.status === 409) return { html: null, obsolete: true };
+    reportRefusedWrite(res, init, body);
+    return { html: res.ok ? (body?.html ?? null) : null, obsolete: false };
   } catch (error) {
     logRequestError('renderMarkdown', error);
-    return null;
+    return { html: null, obsolete: false };
   }
 }
 

@@ -25,8 +25,11 @@ export declare function vetoGhostIntent(intent: {
     label?: string;
     reason?: string;
 }): Promise<boolean>;
-/** Fetch rendered markdown HTML from the server. */
-export declare function renderMarkdown(markdown: string, nodeId?: string, expectedBoardId?: string | null): Promise<string | null>;
+/** A refused obsolete read is distinct from a failed preview the human can retry. */
+export declare function renderMarkdown(markdown: string, nodeId?: string, expectedBoardId?: string | null): Promise<{
+    html: string | null;
+    obsolete: boolean;
+}>;
 /** Fetch file content from the server. `content` is undefined when the read failed — never `''`. */
 export declare function fetchFile(path: string): Promise<{
     content?: string;

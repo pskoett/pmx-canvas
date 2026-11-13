@@ -139,7 +139,7 @@ describe('board switch client state', () => {
     try {
       await reportClientViewportSize();
       expect(attentionHistory.value).toHaveLength(0);
-      expect(await renderMarkdown('# Note', 'node-1', 'A')).toBeNull();
+      expect(await renderMarkdown('# Note', 'node-1', 'A')).toEqual({ html: null, obsolete: true });
       expect(attentionHistory.value).toHaveLength(0);
       await updateViewportFromClient({ x: 140, y: -50, scale: 0.7 });
       expect(attentionHistory.value.at(-1)?.detail).toBe('The active board changed.');

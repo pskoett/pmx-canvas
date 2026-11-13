@@ -197,7 +197,7 @@ export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; 
 
       Promise.all(
         assistantTurns.map(async ({ turn, index }) => {
-          const html = await renderMarkdown(turn.text);
+          const { html } = await renderMarkdown(turn.text);
           return { index, html: sanitizeMarkdownHtml(html ?? '') };
         }),
       ).then((results) => {

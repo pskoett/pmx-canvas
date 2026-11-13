@@ -35,7 +35,7 @@ export function ResponseNode({ node, expanded = false }: { node: CanvasNodeState
       return;
     }
     let cancelled = false;
-    renderMarkdown(content).then((html) => {
+    renderMarkdown(content).then(({ html }) => {
       if (!cancelled) setRendered(sanitizeMarkdownHtml(html ?? ''));
     });
     return () => {

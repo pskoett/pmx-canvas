@@ -55,6 +55,106 @@ async function note(
   return ((await response.json()) as { id: string }).id;
 }
 
+for (const returnBeforePoll of [false, true]) {
+  test(`obsolete Markdown renders never flash a failed preview while switching boards (round trip=${returnBeforePoll})`, async ({
+    page,
+    request,
+  }) => {
+    const createBoard = async (name: string) =>
+      (await (await request.post('/api/canvas/boards', { data: { name } })).json()).board.id as string;
+    const first = await createBoard('Preview first');
+    const second = await createBoard('Preview second');
+    await request.post('/api/canvas/boards/open', { data: { id: first } });
+    for (let i = 0; i < 6; i++) await note(request, `Seed ${i}`, 80 + (i % 3) * 360, 90 + Math.floor(i / 3) * 230);
+    await page.goto('/workbench?transport=poll');
+    await expect(page.getByText('Seed 0 body')).toBeVisible();
+    let releaseRender!: () => void;
+    let releasePoll!: () => void;
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRender = resolve;
+    });
+    const pollGate = new Promise<void>((resolve) => {
+      releasePoll = resolve;
+    });
+    let renderSeen = false;
+    let pollHeld = false;
+    let refused: { status: number; expectedBoardId: string; activeBoardId: string | null } | undefined;
+    await page.route('**/api/workbench/poll?**', async (route) => {
+      const response = await route.fetch();
+      if (renderSeen) {
+        pollHeld = true;
+        await pollGate;
+      }
+      await route.fulfill({ response });
+    });
+    await page.route('**/api/render', async (route) => {
+      const body = route.request().postDataJSON() as { markdown: string; expectedBoardId: string };
+      if (body.markdown !== 'Switching preview body') return route.continue();
+      renderSeen = true;
+      await renderGate;
+      const response = await route.fetch();
+      refused = {
+        status: response.status(),
+        expectedBoardId: body.expectedBoardId,
+        activeBoardId: (await boards(request)).activeBoardId,
+      };
+      await route.fulfill({ response });
+    });
+    const id = await note(request, 'Switching preview', 80, 90);
+    const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+    try {
+      await expect.poll(() => renderSeen && pollHeld).toBe(true);
+      await expect(card).toBeVisible();
+      await request.post('/api/canvas/boards/open', { data: { id: second } });
+      releaseRender();
+      await expect.poll(() => refused).toEqual({ status: 409, expectedBoardId: first, activeBoardId: second });
+      // The browser still shows the old board until its held poll arrives. Observe
+      // painted frames in that gap, not just the healthy card after switching back.
+      const failedFrames = await card.evaluate(async (element) => {
+        let failures = 0;
+        for (let frame = 0; frame < 12; frame++) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          if (
+            [...element.querySelectorAll<HTMLElement>('[role="status"]')].some(
+              (status) => status.checkVisibility() && status.textContent?.includes('Preview unavailable.'),
+            )
+          )
+            failures++;
+        }
+        return failures;
+      });
+      expect.soft(failedFrames).toBe(0);
+      await page.unroute('**/api/render');
+      if (returnBeforePoll) await request.post('/api/canvas/boards/open', { data: { id: first } });
+      releasePoll();
+      if (!returnBeforePoll) {
+        await expect(page.getByRole('button', { name: /^Board: Preview second/ })).toBeVisible();
+        await request.post('/api/canvas/boards/open', { data: { id: first } });
+      }
+      await expect(card.getByText('Switching preview body')).toBeVisible();
+      await expect(page.getByText('Preview unavailable.', { exact: true })).toHaveCount(0);
+    } finally {
+      releaseRender();
+      releasePoll();
+      await page.unrouteAll({ behavior: 'wait' });
+    }
+  });
+}
+
+test('a current-board Markdown render failure shows Retry and recovers', async ({ page, request }) => {
+  const { board } = await (await request.post('/api/canvas/boards', { data: { name: 'Preview retry' } })).json();
+  await request.post('/api/canvas/boards/open', { data: { id: board.id } });
+  const id = await note(request, 'Retry this preview');
+  await page.route('**/api/render', (route) => route.fulfill({ status: 500, json: { error: 'Renderer unavailable' } }));
+  await page.goto('/workbench?transport=poll');
+  const card = page.locator(`.canvas-node[data-node-id="${id}"]`);
+  await expect(card.getByText('Preview unavailable.', { exact: true })).toBeVisible();
+  await page.unroute('**/api/render');
+  await card.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(card.getByText('Retry this preview body')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+});
+
 async function expectReadableGraphLabels(page: Page, count: number) {
   await expect(page.locator('.graph-link text')).toHaveCount(count);
   expect(

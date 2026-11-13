@@ -130,6 +130,7 @@ export const GUIDE: GuideRow[] = [
       'An unsaved draft stays with its board and card across close/reopen and a board switch.',
       'Returning to Document before a slow preview finishes shows no stale preview.',
       'A delayed file-backed preview cannot replace saved text or its selection after a refused save is retried.',
+      'Obsolete Markdown renders stay quiet and recover after buffered board round trips; current-board failures still offer Retry.',
     ],
     touches: [
       'src/client/nodes/MarkdownNode.tsx',
@@ -146,6 +147,8 @@ export const GUIDE: GuideRow[] = [
       'switch acceptance detaches old same-ID cards',
       'relation refreshes preserve an unsaved Source draft',
       'a delayed file-backed draft render cannot overwrite a subsequently saved document or selection',
+      'obsolete Markdown renders never flash a failed preview',
+      'a current-board Markdown render failure shows Retry and recovers',
     ],
     unit: ['tests/client/markdown-task-toggle.test.tsx'],
   },
