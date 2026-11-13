@@ -8,6 +8,7 @@ export declare function createNodeInView(opts: {
     type: string;
     title?: string;
     content?: string;
+    expectedBoardId?: string;
     x?: number;
     y?: number;
     width?: number;

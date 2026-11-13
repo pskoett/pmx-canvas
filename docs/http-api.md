@@ -561,6 +561,19 @@ opening that board or changing where writes go. This is supported by
 return 404. Omit `board` to read the active board. Live AX session/delivery reads
 and fixed MCP resources continue to describe the open board.
 
+On Home, layout, summary, spatial context and pinned context responses add
+`boardContext: {status: "no-board-open", message: "No board open.", lastBoard}`.
+`lastBoard` is `{id, name}` for the most recently opened surviving board, or `null`
+when none has been opened. Existing empty arrays/counts describe no open board,
+not that board's contents. Reads never open it. Explicit `board` reads are unchanged.
+Pinned context still includes the existing `pinnedBoards` working set: explicitly
+pinned boards remain available on Home, independently of the last opened board.
+`GET /api/canvas/context` now returns HTTP 200 with only `{boardContext}` on Home,
+instead of HTTP 409. An open board still returns the normal context brief.
+Agent writes from Home still open the most recent board, or create one if none exists.
+New automatically named boards use `Untitled board`; a newly seeded demo uses
+`Demo board`. Existing board names are unchanged, and names need not be unique.
+
 The workbench's `POST /api/canvas/update` accepts `{updates: [{id, position?, size?,
 collapsed?, zIndex?}], expectedBoardId?, recordHistory?}`. `zIndex` is finite and
 persists stacking without changing geometry. The workbench raises a group and its

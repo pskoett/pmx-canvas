@@ -264,6 +264,7 @@ export function buildSummaryFromLayout(layout: CanvasLayout, pinnedIds: string[]
     if (pinned.has(node.id)) pinnedTitles.push(getCanvasNodeTitle(node) ?? node.id);
   }
   return {
+    ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
     totalAnnotations: (layout.annotations ?? []).length,
@@ -279,6 +280,7 @@ export function buildSummaryFromLayout(layout: CanvasLayout, pinnedIds: string[]
 
 export function compactLayoutPayload(layout: CanvasLayout, pinnedIds: string[]): Record<string, unknown> {
   return {
+    ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
     summary: buildSummaryFromLayout(layout, pinnedIds),
     viewport: layout.viewport,
     annotations: (layout.annotations ?? []).map((annotation) =>
@@ -1485,7 +1487,10 @@ const layoutGetOperation = defineOperation<z.infer<typeof layoutGetSchema>, Reco
     return (full
       ? serializeCanvasLayout(canvasState.getLayout())
       : serializeCanvasLayoutWithBlobSummaries(
-          withContextPinLayoutReadState(canvasState.getLayoutForPersistence()),
+          withContextPinLayoutReadState({
+            ...canvasState.getLayoutForPersistence(),
+            ...(canvasState.activeBoardId ? {} : { boardContext: canvasState.getHomeBoardContext() }),
+          }),
         )) as unknown as Record<string, unknown>;
   },
 });

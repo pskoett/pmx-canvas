@@ -223,7 +223,7 @@ export async function openMemoryTarget(target: MemoryTarget, options: { review?:
 }
 
 /** Create a board (filed in `folder` when given) and open it. */
-export async function createAndOpenBoard(name: string, folder?: string | null): Promise<void> {
+export async function createAndOpenBoard(name: string, folder?: string | null): Promise<string | null> {
   const sequence = ++openRequestSequence;
   navigationSequence++;
   lifecycleTarget.value = null;
@@ -233,7 +233,19 @@ export async function createAndOpenBoard(name: string, folder?: string | null): 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, ...(folder ? { folder } : {}) }),
   });
-  if (created?.board && sequence === openRequestSequence && epoch === catalogEpoch) await openBoard(created.board.id);
+  if (created?.board && sequence === openRequestSequence && epoch === catalogEpoch) {
+    const opening = openBoard(created.board.id);
+    const navigation = navigationSequence;
+    await opening;
+    if (
+      navigation === navigationSequence &&
+      epoch === catalogEpoch &&
+      activeBoardId.value === created.board.id &&
+      !browsingMemory.value
+    )
+      return created.board.id;
+  }
+  return null;
 }
 
 export interface BoardCopyCard {

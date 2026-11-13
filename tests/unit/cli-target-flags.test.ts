@@ -54,19 +54,19 @@ describe('agent CLI global target flags', () => {
 
   test('--port overrides PMX_CANVAS_URL for the invocation (space and = forms)', async () => {
     canvasState.withSuppressedRecording(() => canvasState.clear());
-    const spaced = JSON.parse(await runCli(['node', 'list', '--port', String(serverPort)])) as unknown[];
-    expect(spaced).toEqual([]);
-    const inline = JSON.parse(await runCli(['node', 'list', `--port=${serverPort}`])) as unknown[];
-    expect(inline).toEqual([]);
+    const spaced = JSON.parse(await runCli(['node', 'list', '--port', String(serverPort)]));
+    expect(spaced).toEqual({ boardContext: { status: 'no-board-open', message: 'No board open.', lastBoard: null } });
+    const inline = JSON.parse(await runCli(['node', 'list', `--port=${serverPort}`]));
+    expect(inline).toEqual(spaced);
   });
 
   test('--server-url overrides PMX_CANVAS_URL and wins over --port', async () => {
     canvasState.withSuppressedRecording(() => canvasState.clear());
-    const viaUrl = JSON.parse(await runCli(['node', 'list', '--server-url', baseUrl])) as unknown[];
-    expect(viaUrl).toEqual([]);
+    const viaUrl = JSON.parse(await runCli(['node', 'list', '--server-url', baseUrl]));
+    expect(viaUrl).toEqual({ boardContext: { status: 'no-board-open', message: 'No board open.', lastBoard: null } });
     // --server-url (live) must win over --port (dead): the call still succeeds.
-    const both = JSON.parse(await runCli(['node', 'list', '--server-url', baseUrl, '--port', '9'])) as unknown[];
-    expect(both).toEqual([]);
+    const both = JSON.parse(await runCli(['node', 'list', '--server-url', baseUrl, '--port', '9']));
+    expect(both).toEqual(viaUrl);
   });
 
   // These two drive the REAL CLI entry (src/cli/index.ts), which routes on the
@@ -94,7 +94,9 @@ describe('agent CLI global target flags', () => {
     canvasState.withSuppressedRecording(() => canvasState.clear());
     const result = await runRealCli(['--port', String(serverPort), 'node', 'list']);
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout.trim())).toEqual([]);
+    expect(JSON.parse(result.stdout.trim())).toEqual({
+      boardContext: { status: 'no-board-open', message: 'No board open.', lastBoard: null },
+    });
   });
 
   test('board create refuses the removed category flag without creating an unfiled board', async () => {

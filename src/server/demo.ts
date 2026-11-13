@@ -31,6 +31,10 @@ export function seedDemoCanvas(): { nodes: number; edges: number; groups: number
   const annotations = (demoState.annotations ?? []).map((annotation) => structuredClone(annotation));
   const pins = demoState.contextPins ?? [];
 
+  if (!canvasState.activeBoardId) {
+    const board = canvasState.createBoard('Demo board');
+    if (board) canvasState.switchBoard(board.id);
+  }
   canvasState.withSuppressedRecording(() => {
     for (const node of nodes) canvasState.addNode(node);
     for (const edge of edges) canvasState.addEdge(edge);

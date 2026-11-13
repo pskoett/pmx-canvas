@@ -48,6 +48,7 @@ export declare function serializeCanvasLayoutWithBlobSummaries(layout: CanvasLay
 export declare function summarizeCanvasAnnotation(annotation: CanvasAnnotation): CanvasAnnotationSummary;
 export declare function summarizeCanvasAnnotationForContext(annotation: CanvasAnnotation, nodes: CanvasNodeState[]): CanvasAnnotationContextSummary;
 export interface CanvasSummary {
+    boardContext?: CanvasLayout['boardContext'];
     totalNodes: number;
     totalEdges: number;
     totalAnnotations: number;

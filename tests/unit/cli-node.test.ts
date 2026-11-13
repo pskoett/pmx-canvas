@@ -3083,7 +3083,9 @@ exit 2
 
   test('package file allowlist includes docs for npm consumers', () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as { files?: string[] };
-    expect(pkg.files).toContain('docs/');
+    for (const doc of ['cli', 'http-api', 'mcp', 'node-types', 'sdk']) {
+      expect(pkg.files).toContain(`docs/${doc}.md`);
+    }
     expect(pkg.files).toContain('.github/extensions/pmx-canvas/');
   });
 

@@ -398,6 +398,7 @@ export function TopBar() {
   }, []);
   const status = connectionStatus.value;
   const hasSynced = hasInitialServerLayout.value;
+  const onHome = activeBoardId.value === null || browsingMemory.value;
   const v = viewport.value;
   const nodeCount = nodes.value.size;
   const edgeCount = edges.value.size;
@@ -457,8 +458,12 @@ export function TopBar() {
       </BarHint>
       <BoardSwitcher fallbackName={workspaceName || 'PMX Canvas'} />
       {pinTarget && !browsingMemory.value && <BoardPinButton board={pinTarget} />}
-      <span class="top-bar-meta hud-collapsible-text">{sessionId.value ? sessionId.value.slice(0, 12) : '…'}</span>
-      {!browsingMemory.value && <span class="top-bar-meta hud-collapsible-text">{countsLabel}</span>}
+      {!onHome && (
+        <>
+          <span class="top-bar-meta hud-collapsible-text">{sessionId.value ? sessionId.value.slice(0, 12) : '…'}</span>
+          <span class="top-bar-meta hud-collapsible-text">{countsLabel}</span>
+        </>
+      )}
 
       <span class="top-bar-spacer" />
 
@@ -471,7 +476,7 @@ export function TopBar() {
         <ExternalWriterIndicator />
         {!isHostedWorkbench() && <StartSessionButton />}
 
-        {!browsingMemory.value && (
+        {!onHome && (
           <>
             <div class="top-bar-sep" />
             <div class="top-bar-actions">

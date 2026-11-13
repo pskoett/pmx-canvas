@@ -7,6 +7,11 @@ The published SDK entrypoint is Bun-first. Node.js consumers should use the
 bun add pmx-canvas
 ```
 
+On Home, `canvas.getLayout()` adds the [no-board-open `boardContext`](http-api.md#canvas-state),
+including the last opened board's id and name, or `null`. `getContextBrief()` returns
+`{boardContext}` on Home instead of rejecting. `getLayout({board: id})` still reads
+that board without opening it. Existing write behavior is unchanged.
+
 ## Knowledge lifecycle data
 
 `await canvas.knowledge({action: "list"})` reads the workspace category list and folder

@@ -318,7 +318,7 @@ describe('library backup', () => {
     expect(laterCatalog.catalogEpoch).toBe(restored.body.catalogEpoch);
     expect(laterCatalog.reloadRevision).toBe(restored.body.reloadRevision);
     expect(Number(laterCatalog.catalogRevision)).toBeGreaterThan(Number(restored.body.catalogRevision));
-    expect(await boardNames()).toEqual([expect.stringMatching(/^Board /), 'Discovery']);
+    expect(await boardNames()).toEqual(['Discovery', 'Untitled board']);
     const state = (await call('GET', '/api/canvas/state')).body as { nodes: Array<{ data: { title?: string } }> };
     expect(state.nodes.map((node) => node.data.title)).toEqual(['Objective one']);
     const previous = restored.body.previous as string;

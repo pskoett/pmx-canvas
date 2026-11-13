@@ -161,7 +161,16 @@ const payloads: Record<string, ZodType> = {
   'canvas.clear': z.looseObject({ ok: z.boolean(), cleared: z.literal(true) }),
   'annotation.add': entity('annotation'),
   'annotation.remove': ok,
-  'context.get': z.looseObject({ version: z.literal(1), budgetUnit: z.literal('utf16-code-units') }),
+  'context.get': z.union([
+    z.looseObject({ version: z.literal(1), budgetUnit: z.literal('utf16-code-units') }),
+    z.object({
+      boardContext: z.object({
+        status: z.literal('no-board-open'),
+        message: z.literal('No board open.'),
+        lastBoard: z.object({ id, name: z.string() }).nullable(),
+      }),
+    }),
+  ]),
   'memory-graph.get': z.looseObject({
     nodes: z.array(z.looseObject({ key: id, boardId: id, kind: z.enum(['board', 'card']) })),
     edges: z.array(z.looseObject({ id, from: id, to: id })),

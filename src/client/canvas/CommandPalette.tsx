@@ -19,7 +19,7 @@ import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
 import { canvasThemeScheme } from '../../shared/themes.js';
 import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
-import { openMemoryTarget } from '../state/boards-store';
+import { activeBoardId, browsingMemory, openMemoryTarget } from '../state/boards-store';
 import { requestJson } from '../state/intent-bridge';
 
 import { modChord } from '../utils/platform';
@@ -166,9 +166,11 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
   // ── Build items ─────────────────────────────────────────
   const buildItems = useCallback((): PaletteItem[] => {
     const items: PaletteItem[] = [];
+    const onHome = activeBoardId.value === null || browsingMemory.value;
 
     // Node items
     for (const node of nodes.value.values()) {
+      if (onHome) break;
       const title = (node.data.title as string) || TYPE_LABELS[node.type];
       const content = (node.data.content as string) || (node.data.path as string) || '';
       const childCount = node.type === 'group' && Array.isArray(node.data.children) ? node.data.children.length : 0;
@@ -196,6 +198,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
     // Action items
     const actions: Array<{
       label: string;
+      availableOnHome?: boolean;
       shortcut?: string;
       icon: PaletteItem['icon'];
       iconTone?: PaletteItem['iconTone'];
@@ -272,6 +275,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
       },
       {
         label: 'Toggle theme (Harbor/Daylight)',
+        availableOnHome: true,
         icon: IconMoon,
         iconTone: 'muted',
         action: () => {
@@ -289,6 +293,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
     ];
 
     for (const a of actions) {
+      if (onHome && !a.availableOnHome) continue;
       items.push({
         id: `action:${a.label}`,
         kind: 'action',

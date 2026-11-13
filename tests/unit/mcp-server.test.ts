@@ -145,6 +145,69 @@ afterEach(async () => {
 });
 
 describe('MCP parity with CLI', () => {
+  test('Home reads name the last board through local and proxied MCP without opening it', async () => {
+    const local = await createMcpSession();
+    cleanup.push(async () => {
+      await local.client.close();
+      await closeTransportAndReapChild(local.transport);
+      removeTestWorkspace(local.workspaceRoot);
+    });
+    const created = await local.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'markdown', title: 'Kept note' },
+    });
+    expect(created.isError).not.toBe(true);
+    const base = `http://localhost:${local.port}`;
+    const library = (await (await fetch(`${base}/api/canvas/boards`)).json()) as {
+      activeBoardId: string;
+      boards: Array<{ id: string; name: string }>;
+    };
+    const lastBoard = { id: library.activeBoardId, name: 'Untitled board' };
+    await fetch(`${base}/api/canvas/boards/open`, {
+      method: 'POST',
+      headers: await trustedHumanHeaders(base),
+      body: JSON.stringify({ id: null }),
+    });
+    const remote = await createMcpSessionForWorkspace(local.workspaceRoot, local.port);
+    cleanup.push(async () => {
+      await remote.client.close();
+      await closeTransportAndReapChild(remote.transport);
+    });
+    for (const client of [local.client, remote.client]) {
+      for (const name of ['layout', 'summary', 'pinned-context', 'spatial-context', 'context']) {
+        const resource = await client.readResource({ uri: `canvas://${name}` });
+        const item = resource.contents[0];
+        expect('text' in item && JSON.parse(item.text).boardContext).toEqual({
+          status: 'no-board-open',
+          message: 'No board open.',
+          lastBoard,
+        });
+      }
+      for (const full of [false, true]) {
+        const result = await client.callTool({ name: 'canvas_query', arguments: { action: 'layout', full } });
+        expect(result.isError).not.toBe(true);
+        expect(parseJsonText<{ boardContext: unknown }>(result as ToolResultShape).boardContext).toEqual({
+          status: 'no-board-open',
+          message: 'No board open.',
+          lastBoard,
+        });
+      }
+      const context = await client.callTool({ name: 'canvas_query', arguments: { action: 'context' } });
+      expect(context.isError).not.toBe(true);
+      expect(parseJsonText<{ boardContext: unknown }>(context as ToolResultShape)).toEqual({
+        boardContext: { status: 'no-board-open', message: 'No board open.', lastBoard },
+      });
+      const explicit = await client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout', board: lastBoard.id },
+      });
+      expect(parseJsonText<{ nodes: Array<{ title: string }> }>(explicit as ToolResultShape).nodes[0].title).toBe(
+        'Kept note',
+      );
+      expect((await (await fetch(`${base}/api/canvas/boards`)).json()).activeBoardId).toBeNull();
+    }
+  }, 30000);
+
   test('operation help discovers callable arguments without starting or reading a canvas', async () => {
     const { client, transport, workspaceRoot } = await createMcpSession();
     cleanup.push(async () => {

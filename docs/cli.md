@@ -42,6 +42,13 @@ Read commands accept `--board <board-id>` without switching the active board:
 `node get`. Writes and presence still target the board open in the workbench;
 unknown board IDs fail rather than falling back to it.
 
+On Home, `status`, `layout`, `layout --summary`, `spatial` and `pin --list`
+include the [no-board-open `boardContext`](http-api.md#canvas-state). `context`
+and `node list` (including `--ids`) return `{boardContext}` rather than a brief
+or array. No last-board contents are read implicitly. Agent writes retain their
+existing Home behavior. Automatic names are `Untitled board`, or `Demo board`
+for a newly created `--demo` board; existing names are not changed.
+
 An in-flight asynchronous write stops if the board changes; subsequent calls use
 the newly open board. Batches stop rather than continuing on another board, and
 already-completed entries remain applied.

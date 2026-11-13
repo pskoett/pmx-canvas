@@ -6,6 +6,13 @@ resources**, and two canvas resource templates, plus per-skill resources at
 `notifications/resources/updated` to subscribed connections when canvas state changes.
 This uses MCP SDK v1, not SDK v2.
 
+On Home, `canvas_query` layout results (compact and full) and the `canvas://layout`,
+`canvas://summary`, `canvas://spatial-context` and `canvas://pinned-context` resources
+include the [no-board-open `boardContext`](http-api.md#canvas-state).
+The context query and `canvas://context` return `{boardContext}` instead of a brief.
+The last board is named, not opened or silently read. Explicit board reads and
+agent writes retain their existing behavior.
+
 ## Board-targeted tools
 
 Registry-backed tools and AX interaction/activity tools accept `targetBoardId` and `agentId`.

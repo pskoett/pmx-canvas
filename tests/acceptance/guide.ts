@@ -233,6 +233,10 @@ export const GUIDE: GuideRow[] = [
     id: '06',
     title: 'Folders, Home, selective copies & card moves',
     pass: [
+      'Home keeps navigation, settings and a Markdown create that asks for a new board name; cancellation creates nothing, including with existing boards.',
+      'Home hides canvas-only top-bar metadata and zoom; board keyboard shortcuts stay inactive except Cmd/Ctrl+K search, while Home navigation and Map/Graph zoom remain available.',
+      'Home reads say no board open and name the last board without opening it; agent writes and explicit board reads remain available.',
+      'Unnamed boards use Untitled board, demo uses Demo board, and duplicate names keep separate identities.',
       'Moves keep board ID, cards and links.',
       'A selective copy keeps a previous-board link and does not replace the write target.',
       'Move to new board previews pins and the history boundary, preserves original cards and links, and leaves a working portal.',
@@ -242,6 +246,13 @@ export const GUIDE: GuideRow[] = [
     ],
     touches: [
       'src/client/canvas/HomeView.tsx',
+      'src/client/canvas/ToolRail.tsx',
+      'src/client/canvas/TopBar.tsx',
+      'src/client/canvas/CommandPalette.tsx',
+      'src/server/canvas-state.ts',
+      'src/server/demo.ts',
+      'src/server/operations/ops/query.ts',
+      'src/server/operations/ops/ax-read.ts',
       'src/client/canvas/BoardFolderDialog.tsx',
       'src/client/canvas/BoardCopyDialog.tsx',
       'src/client/canvas/BoardMoveDialog.tsx',
@@ -255,6 +266,8 @@ export const GUIDE: GuideRow[] = [
       'src/cli/commands/boards.ts',
     ],
     e2e: [
+      'Home rail asks for a new board before adding Markdown and cancellation changes nothing',
+      'Home Markdown create never adds its note after newer navigation',
       'nested folders move boards, retain tree folding',
       'creates a selective board copy, links boards',
       'switch boards from the top bar, go Home, delete with a confirm',

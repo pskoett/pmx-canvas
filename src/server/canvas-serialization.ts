@@ -262,6 +262,7 @@ export function summarizeCanvasAnnotationForContext(
 }
 
 export interface CanvasSummary {
+  boardContext?: CanvasLayout['boardContext'];
   totalNodes: number;
   totalEdges: number;
   totalAnnotations: number;
@@ -285,6 +286,7 @@ export function buildCanvasSummary(): CanvasSummary {
   const pinnedTitles = layout.nodes.filter((n) => pinnedIds.has(n.id)).map((n) => getCanvasNodeTitle(n) ?? n.id);
 
   return {
+    ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
     totalAnnotations: layout.annotations.length,

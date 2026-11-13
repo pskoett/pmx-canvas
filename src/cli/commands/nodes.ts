@@ -1,6 +1,7 @@
 // Node/content commands: node add|schema|list|get|update|remove, json-render,
 // html primitive add|schema, and graph add.
 
+import type { CanvasLayout } from '../../server/canvas-state.js';
 import {
   applyCommonGeometryFlags,
   applyStrictSizeFlags,
@@ -764,7 +765,14 @@ cmd(
     const { flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('node list');
 
-    const layout = (await invokeOperation('layout.get', {})) as { nodes: Array<Record<string, unknown>> };
+    const layout = (await invokeOperation('layout.get', {})) as {
+      boardContext?: CanvasLayout['boardContext'];
+      nodes: Array<Record<string, unknown>>;
+    };
+    if (layout.boardContext) {
+      output({ boardContext: layout.boardContext });
+      return;
+    }
     let nodes = layout.nodes;
 
     if (flags.type && flags.type !== true) {

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/preact';
 import { TopBar } from '../../src/client/canvas/TopBar.tsx';
+import { activeBoardId, browsingMemory } from '../../src/client/state/boards-store.ts';
 
 // Narrow bars fold Export/Present/zoom/fit into ⋯ More (Pane600.dc.html); the
 // menu must work from the keyboard: focus moves in, arrows move, Esc returns.
@@ -12,10 +13,15 @@ beforeAll(() => {
 afterAll(() => {
   globalThis.fetch = realFetch;
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  activeBoardId.value = null;
+});
 
 describe('top bar ⋯ More menu', () => {
   test('opening moves focus to the first item; arrows move; Escape returns to the trigger', () => {
+    activeBoardId.value = 'top-bar-test-board';
+    browsingMemory.value = false;
     const { getByRole } = render(<TopBar />);
     const trigger = getByRole('button', { name: 'More: export, present, zoom, fit' });
     fireEvent.click(trigger);

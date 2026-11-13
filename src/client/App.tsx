@@ -202,16 +202,16 @@ export function App() {
         return;
       }
 
-      // The library owns its keyboard. Never edit the agent's hidden active board.
-      if (browsingMemory.value || activeBoardId.value === null) return;
-      if (e.defaultPrevented) return;
-
-      // Cmd/Ctrl+K toggles command palette (works from anywhere, including inputs)
-      if (mod && e.key === 'k') {
+      // Cmd/Ctrl+K toggles command palette (works from anywhere, including inputs and Home)
+      if (mod && e.key === 'k' && !e.defaultPrevented) {
         e.preventDefault();
         setPaletteOpen((v) => !v);
         return;
       }
+
+      // The library owns its keyboard. Never edit the agent's hidden active board.
+      if (browsingMemory.value || activeBoardId.value === null) return;
+      if (e.defaultPrevented) return;
 
       // Esc exits annotation tools before handling overlays or selection.
       if (e.key === 'Escape' && annotationTool) {
@@ -520,9 +520,7 @@ export function App() {
       {sessionIsActive && <SessionPanel />}
       {!sessionIsActive && hasAgentControls && <AgentControls />}
       {!browsingMemory.value && menu && <ContextMenu menu={menu} onClose={closeMenu} />}
-      {!browsingMemory.value && paletteOpen && (
-        <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />
-      )}
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
       {!browsingMemory.value && boardLinkOpen && (
         <BoardLinkDialog {...boardLinkSource} onClose={() => setBoardLinkOpen(false)} />
       )}

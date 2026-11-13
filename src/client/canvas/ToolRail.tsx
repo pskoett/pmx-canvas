@@ -32,7 +32,7 @@ import {
 import { importFiles } from './import-files';
 import { canvasArea } from './canvas-area';
 import { requestJson, saveCanvasTheme } from '../state/intent-bridge';
-import { browsingMemory, openBoard } from '../state/boards-store';
+import { activeBoardId, browsingMemory, createAndOpenBoard, openBoard } from '../state/boards-store';
 import { createNodeInView } from './create-in-view';
 import { askText } from './TextPrompt';
 import { FeedbackDialog } from './FeedbackDialog';
@@ -280,6 +280,19 @@ export function ToolRail({
   const [menuAnchor, setMenuAnchor] = useState<{ bottom: number; right: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const onHome = activeBoardId.value === null || browsingMemory.value;
+
+  const createMarkdown = async () => {
+    let expectedBoardId: string | undefined;
+    if (onHome) {
+      const name = await askText('New board', 'Board name', { confirm: 'Create' });
+      if (!name) return;
+      const created = await createAndOpenBoard(name);
+      if (!created) return;
+      expectedBoardId = created;
+    }
+    await createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360, expectedBoardId });
+  };
 
   const toggleSettings = (e: MouseEvent) => {
     if (openMenu) {
@@ -366,7 +379,7 @@ export function ToolRail({
           </span>
         </RailButton>
 
-        {!browsingMemory.value && (
+        {!onHome && (
           <>
             <div class="rail-divider" />
 
@@ -404,18 +417,17 @@ export function ToolRail({
             </RailButton>
 
             <div class="rail-divider" />
-
-            <RailButton
-              label="Markdown note"
-              shortcut="M"
-              onClick={() =>
-                void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
-                  logRailError('create markdown', error),
-                )
-              }
-            >
-              <IconNodeMarkdown size={15} />
-            </RailButton>
+          </>
+        )}
+        <RailButton
+          label="Markdown note"
+          shortcut={onHome ? undefined : 'M'}
+          onClick={() => void createMarkdown().catch((error) => logRailError('create markdown', error))}
+        >
+          <IconNodeMarkdown size={15} />
+        </RailButton>
+        {!onHome && (
+          <>
             <RailButton
               label="Attach files"
               ariaLabel="Attach files"
@@ -482,12 +494,10 @@ export function ToolRail({
           </>
         )}
 
-        {!browsingMemory.value && (
-          <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
-            <IconSearch />
-          </RailButton>
-        )}
-        {!browsingMemory.value && (
+        <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
+          <IconSearch />
+        </RailButton>
+        {!onHome && (
           <RailButton
             label="Arrange"
             detail={edgeCount > 0 ? 'graph-aware' : 'grid'}

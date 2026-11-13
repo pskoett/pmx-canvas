@@ -363,6 +363,12 @@ export interface CanvasAnnotation {
 }
 
 export interface CanvasLayout {
+  /** Present on Home only. Empty arrays describe no open board, not the last board's contents. */
+  boardContext?: {
+    status: 'no-board-open';
+    message: 'No board open.';
+    lastBoard: { id: string; name: string } | null;
+  };
   tour?: Tour;
   viewport: ViewportState;
   theme: CanvasTheme;
@@ -381,9 +387,9 @@ export interface CanvasNodeUpdate {
 
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 
-/** Name for a board nobody named yet: when it was made, to the minute. */
+/** Name for a board nobody named yet. Identity remains its board id. */
 export function defaultBoardName(): string {
-  return `Board ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+  return 'Untitled board';
 }
 
 export interface MutationRecordInfo {
@@ -1502,6 +1508,16 @@ class CanvasStateManager {
     if (!this._db || !this._activeBoardId) return null;
     const board = getBoardFromDB(this._db, this._activeBoardId);
     return board ? { ...board, nodeCount: this.nodes.size } : null;
+  }
+
+  getHomeBoardContext(): CanvasLayout['boardContext'] {
+    if (this._activeBoardId) return undefined;
+    const last = this.listBoards().find((board) => board.lastOpenedAt !== null);
+    return {
+      status: 'no-board-open',
+      message: 'No board open.',
+      lastBoard: last ? { id: last.id, name: last.name } : null,
+    };
   }
 
   /** Synchronous, owner-controlled static creation. No board activation or runtime hydration. */
@@ -3783,6 +3799,7 @@ class CanvasStateManager {
 
   getLayout(): CanvasLayout {
     return {
+      ...(this._activeBoardId ? {} : { boardContext: this.getHomeBoardContext() }),
       tour: this.getTour(),
       viewport: structuredClone(this._viewport),
       theme: this._theme,

@@ -2,6 +2,7 @@
 // and the serve usage stub.
 
 import { openUrlInExternalBrowser } from '../../server/server.js';
+import type { CanvasLayout } from '../../server/canvas-state.js';
 import {
   cmd,
   die,
@@ -64,6 +65,7 @@ cmd('status', 'Quick canvas summary', ['pmx-canvas status'], async (args) => {
 
   const board = typeof flags.board === 'string' ? flags.board : undefined;
   const layout = (await invokeOperation('layout.get', { board })) as {
+    boardContext?: CanvasLayout['boardContext'];
     nodes: Array<Record<string, unknown>>;
     edges: unknown[];
     viewport: unknown;
@@ -83,6 +85,7 @@ cmd('status', 'Quick canvas summary', ['pmx-canvas status'], async (args) => {
   }
 
   output({
+    ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
     nodes: layout.nodes.length,
     edges: layout.edges.length,
     pinned: pinned.count,

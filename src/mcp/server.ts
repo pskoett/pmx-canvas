@@ -97,6 +97,7 @@ function buildSummaryFromLayout(
     if (pinned.has(node.id)) pinnedTitles.push(getCanvasNodeTitle(node) ?? node.id);
   }
   return {
+    ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
     totalAnnotations: (layout.annotations ?? []).length,
@@ -847,12 +848,10 @@ export function createMcpServer(): McpServer {
       const c = await ensureCanvas();
       const readTarget = await c.prepareContextRead();
       const layout = await c.getLayout(readTarget.boardId ?? undefined);
-      const spatial = buildSpatialContext(
-        layout.nodes,
-        layout.edges,
-        new Set(readTarget.pinnedNodeIds),
-        layout.annotations ?? [],
-      );
+      const spatial = {
+        ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
+        ...buildSpatialContext(layout.nodes, layout.edges, new Set(readTarget.pinnedNodeIds), layout.annotations ?? []),
+      };
       const text = JSON.stringify(spatial, null, 2);
       await recordContextRead(c, 'mcp-resource', 'canvas://spatial-context', text, readTarget);
       return {

@@ -6678,22 +6678,78 @@
                     "const": "success"
                   },
                   "data": {
-                    "type": "object",
-                    "properties": {
-                      "version": {
-                        "type": "number",
-                        "const": 1
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "number",
+                            "const": 1
+                          },
+                          "budgetUnit": {
+                            "type": "string",
+                            "const": "utf16-code-units"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "budgetUnit"
+                        ],
+                        "additionalProperties": {}
                       },
-                      "budgetUnit": {
-                        "type": "string",
-                        "const": "utf16-code-units"
+                      {
+                        "type": "object",
+                        "properties": {
+                          "boardContext": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "const": "no-board-open"
+                              },
+                              "message": {
+                                "type": "string",
+                                "const": "No board open."
+                              },
+                              "lastBoard": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "status",
+                              "message",
+                              "lastBoard"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "boardContext"
+                        ],
+                        "additionalProperties": false
                       }
-                    },
-                    "required": [
-                      "version",
-                      "budgetUnit"
-                    ],
-                    "additionalProperties": {}
+                    ]
                   }
                 },
                 "required": [

@@ -1785,7 +1785,9 @@ describe('boards', () => {
     await executeOperation('board.create-from', { sourceBoardId: id, name: 'Copy', nodeIds: ['readme'] });
     expect(canvasState.activeBoardId).toBeNull();
     expect(canvasState.listBoards()).toHaveLength(2);
-    await expect(executeOperation('context.get', {})).rejects.toThrow('Open a board');
+    expect(await executeOperation('context.get', {})).toEqual({
+      boardContext: { status: 'no-board-open', message: 'No board open.', lastBoard: { id, name: before.name } },
+    });
   });
 
   test('context only advances an explicit consumer after complete delivery', async () => {

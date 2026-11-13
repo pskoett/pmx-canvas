@@ -4,6 +4,7 @@ import { ToolRail } from '../../src/client/canvas/ToolRail.tsx';
 import { axSurfaceState } from '../../src/client/state/canvas-store.ts';
 import { resetPresence } from '../../src/client/state/presence-store.ts';
 import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
+import { activeBoardId, browsingMemory } from '../../src/client/state/boards-store.ts';
 
 function renderRail(annotationTool: 'pen' | 'text' | 'eraser' | null = null, onSetAnnotationTool = mock(() => {})) {
   return render(
@@ -23,11 +24,16 @@ function renderRail(annotationTool: 'pen' | 'text' | 'eraser' | null = null, onS
 
 beforeEach(() => {
   resetPresence();
+  activeBoardId.value = 'rail-test-board';
+  browsingMemory.value = false;
   axSurfaceState.value = null;
   workspaceSettings.value = null;
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  activeBoardId.value = null;
+});
 
 // The rail is the shortcut discovery surface. A native `title` shows only
 // after a hover delay and not at all in some embedded browser panes, and the

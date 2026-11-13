@@ -193,6 +193,7 @@ const pinnedContextOperation = defineOperation<z.infer<typeof pinnedContextSchem
     }));
     const activeNodes = target.layout.nodes.filter((node) => !qualification(node.id)?.retired);
     return {
+      ...(target.layout.boardContext ? { boardContext: target.layout.boardContext } : {}),
       preamble,
       nodeIds: pinnedIds,
       count: pinnedIds.length,

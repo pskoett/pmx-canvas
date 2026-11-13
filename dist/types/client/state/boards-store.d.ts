@@ -107,7 +107,7 @@ export declare function openMemoryTarget(target: MemoryTarget, options?: {
     review?: boolean;
 }): Promise<boolean>;
 /** Create a board (filed in `folder` when given) and open it. */
-export declare function createAndOpenBoard(name: string, folder?: string | null): Promise<void>;
+export declare function createAndOpenBoard(name: string, folder?: string | null): Promise<string | null>;
 export interface BoardCopyCard {
     id: string;
     type: string;

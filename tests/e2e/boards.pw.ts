@@ -1269,6 +1269,129 @@ test('the logo opens Home by click and keyboard without losing board content', a
   await expect(page.getByTestId('home-view')).toBeVisible();
 });
 
+test('Home rail asks for a new board before adding Markdown and cancellation changes nothing', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/workbench');
+  const rail = page.getByRole('toolbar', { name: 'Canvas tools' });
+  const markdown = rail.getByRole('button', { name: 'Markdown note', exact: true });
+  const prompt = page.getByRole('dialog', { name: 'New board', exact: true });
+  for (const existing of [false, true]) {
+    if (existing) {
+      for (let i = 0; i < 2; i++) {
+        expect(
+          (await request.post('/api/canvas/boards', { headers: HUMAN, data: { name: 'Untitled board' } })).ok(),
+        ).toBe(true);
+      }
+    }
+    const before = await boards(request);
+    await expect(rail.getByRole('button')).toHaveCount(4);
+    for (const name of ['PMX Canvas — Home', 'Search & commands', 'Settings']) {
+      await expect(rail.getByRole('button', { name })).toBeVisible();
+    }
+    await expect(page.locator('.top-bar-meta, .top-bar-actions, .top-bar-more')).toHaveCount(0);
+    await page.locator('body').click({ position: { x: 400, y: 600 } });
+    for (const key of ['v', 'c', 'm', 'a', 'g', 'Shift+g', 'i', 'w', 'h', 'Shift+f', 'f', 'Control+0'])
+      await page.keyboard.press(key);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(prompt).toBeHidden();
+    expect(await boards(request)).toMatchObject({ boards: before.boards, activeBoardId: before.activeBoardId });
+    await rail.getByRole('button', { name: /^Search & commands/ }).click();
+    await expect(page.getByPlaceholder('Search nodes, run actions, jump to…')).toBeVisible();
+    await expect(page.getByText('New markdown note', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Auto-arrange', { exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.getByPlaceholder('Search nodes, run actions, jump to…')).toBeHidden();
+    await page.keyboard.press('Control+k');
+    await expect(page.getByPlaceholder('Search nodes, run actions, jump to…')).toBeVisible();
+    await expect(page.getByText('New markdown note', { exact: true })).toHaveCount(0);
+    await page.keyboard.press('Control+k');
+    await expect(page.getByPlaceholder('Search nodes, run actions, jump to…')).toBeHidden();
+    await markdown.click();
+    await expect(prompt).toBeVisible();
+    expect(await boards(request)).toMatchObject({ boards: before.boards, activeBoardId: before.activeBoardId });
+    await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(prompt).toBeHidden();
+    expect(await boards(request)).toMatchObject({ boards: before.boards, activeBoardId: before.activeBoardId });
+    await markdown.click();
+    await prompt.getByRole('textbox').fill(existing ? 'New research' : 'First research');
+    await prompt.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: `Board: ${existing ? 'New research' : 'First research'}. Switch board` }),
+    ).toBeVisible();
+    await expect(page.locator('.canvas-node')).toHaveCount(1);
+    await expect(page.locator('.canvas-node')).toBeInViewport();
+    await expect(rail.getByRole('button', { name: 'Webpage (W)', exact: true })).toBeVisible();
+    const after = await boards(request);
+    expect(after.boards).toHaveLength(before.boards.length + 1);
+    expect(before.boards.some((board) => board.id === after.activeBoardId)).toBe(false);
+    await rail.getByRole('button', { name: 'PMX Canvas — Home', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Board: Home. Switch board', exact: true })).toBeVisible();
+  }
+  // Default names may repeat; ids and independent board contents do not.
+  expect((await boards(request)).boards.filter((board) => board.name === 'Untitled board')).toHaveLength(2);
+  await setWorkspaceFeatures(request, { knowledgeLifecycle: true });
+  for (const tab of ['Folders', 'Map', 'Graph', 'Review']) {
+    await page.getByRole('button', { name: tab, exact: true }).click();
+    await expect(page.locator('.top-bar-meta, .top-bar-actions, .top-bar-more')).toHaveCount(0);
+    if (tab === 'Map' || tab === 'Graph') {
+      const zoom = page.locator('.home-memory-zoom');
+      const before = await zoom.locator('span').innerText();
+      await zoom.getByRole('button', { name: 'Zoom in', exact: true }).click();
+      await expect(zoom.locator('span')).not.toHaveText(before);
+    }
+  }
+});
+
+test('Home Markdown create never adds its note after newer navigation', async ({ page, request }) => {
+  for (const boundary of ['open', 'node']) {
+    await page.goto('/workbench');
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reached!: () => void;
+    const intercepted = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const path = boundary === 'open' ? '**/api/canvas/boards/open' : '**/api/canvas/node';
+    await page.route(path, async (route) => {
+      const body = route.request().postDataJSON();
+      if (boundary === 'open' && body.id === null) return route.continue();
+      if (boundary === 'open') {
+        const response = await route.fetch();
+        reached();
+        await held;
+        await route.fulfill({ response });
+      } else {
+        reached();
+        await held;
+        await route.continue();
+      }
+    });
+    await page.getByRole('button', { name: 'Markdown note', exact: true }).click();
+    const prompt = page.getByRole('dialog', { name: 'New board', exact: true });
+    await prompt.getByRole('textbox').fill(`Interrupted ${boundary}`);
+    await prompt.getByRole('button', { name: 'Create', exact: true }).click();
+    await intercepted;
+    const settled = page.waitForResponse((response) =>
+      boundary === 'node'
+        ? response.url().endsWith('/api/canvas/node') && response.request().method() === 'POST'
+        : response.url().endsWith('/api/canvas/boards/open') && response.request().postDataJSON().id === null,
+    );
+    await page.getByRole('button', { name: 'PMX Canvas — Home', exact: true }).click();
+    if (boundary === 'node') await expect.poll(async () => (await boards(request)).activeBoardId).toBeNull();
+    release();
+    expect((await settled).status()).toBe(boundary === 'node' ? 409 : 200);
+    await expect.poll(async () => (await boards(request)).activeBoardId).toBeNull();
+    await expect(page.getByRole('button', { name: 'Board: Home. Switch board', exact: true })).toBeVisible();
+    const created = (await boards(request)).boards.find((board) => board.name === `Interrupted ${boundary}`)!;
+    expect((await (await request.get(`/api/canvas/state?board=${created.id}`)).json()).nodes).toEqual([]);
+    await page.unroute(path);
+  }
+});
+
 test('switch boards from the top bar, go Home, delete with a confirm, and reopen', async ({ page, request }) => {
   // A board with a note on it is open; name it so the switcher shows something stable.
   await request.post('/api/canvas/clear', { headers: HUMAN });

@@ -153,6 +153,15 @@ export interface CanvasAnnotation {
     createdAt: string;
 }
 export interface CanvasLayout {
+    /** Present on Home only. Empty arrays describe no open board, not the last board's contents. */
+    boardContext?: {
+        status: 'no-board-open';
+        message: 'No board open.';
+        lastBoard: {
+            id: string;
+            name: string;
+        } | null;
+    };
     tour?: Tour;
     viewport: ViewportState;
     theme: CanvasTheme;
@@ -174,7 +183,7 @@ export interface CanvasNodeUpdate {
     zIndex?: number;
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
-/** Name for a board nobody named yet: when it was made, to the minute. */
+/** Name for a board nobody named yet. Identity remains its board id. */
 export declare function defaultBoardName(): string;
 export interface MutationRecordInfo {
     operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'updateEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'releaseGroupChildren' | 'viewport';
@@ -345,6 +354,7 @@ declare class CanvasStateManager {
     /** The execution board, or the open board outside a scoped operation. */
     get activeBoardId(): string | null;
     getActiveBoard(): CanvasBoard | null;
+    getHomeBoardContext(): CanvasLayout['boardContext'];
     /** Synchronous, owner-controlled static creation. No board activation or runtime hydration. */
     createStoredNode(boardId: string, requestId: string | undefined, fingerprint: string, build: (nodes: CanvasNodeState[]) => CanvasNodeState): CanvasNodeState;
     private stampStoredNode;

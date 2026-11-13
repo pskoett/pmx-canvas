@@ -35,7 +35,7 @@ import {
 } from '../../context-brief.js';
 import { summarizeNodeForAgentContext } from '../../../shared/agent-context.js';
 import { memoryKey, type MemoryTarget } from '../../../shared/memory-graph.js';
-import { defineOperation, OperationError, type Operation, type OperationMcpToolHost } from '../types.js';
+import { defineOperation, type Operation, type OperationMcpToolHost } from '../types.js';
 import { buildSummaryFromLayout, isRecord } from './nodes.js';
 import { readTargetBoard } from './boards.js';
 
@@ -312,7 +312,7 @@ const contextOperation = defineOperation<z.infer<typeof contextSchema>, Record<s
   handler: (input) => {
     canvasState.refreshContextWorkCards();
     const active = canvasState.getActiveBoard();
-    if (!active) throw new OperationError('Open a board before requesting its context.', 409);
+    if (!active) return { boardContext: canvasState.getHomeBoardContext() };
     const consumer =
       typeof input.consumer === 'string' && input.consumer.trim() ? input.consumer.trim().slice(0, 200) : null;
     const explicitSince = input.since !== undefined;
@@ -713,12 +713,10 @@ const spatialGetOperation = defineOperation<z.infer<typeof spatialGetSchema>, Re
   handler: ({ board }) => {
     const target = readTargetBoard(board);
     const layout = target.layout;
-    return buildSpatialContext(
-      layout.nodes,
-      layout.edges,
-      target.pinnedNodeIds,
-      layout.annotations,
-    ) as unknown as Record<string, unknown>;
+    return {
+      ...(layout.boardContext ? { boardContext: layout.boardContext } : {}),
+      ...buildSpatialContext(layout.nodes, layout.edges, target.pinnedNodeIds, layout.annotations),
+    };
   },
 });
 

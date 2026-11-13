@@ -249,11 +249,22 @@ test('board-scoped HTTP batches and approval waits retain their board and actor'
 describe('boards over HTTP', () => {
   test('agents write to the open board; Home opens the most recent board, or a new one when there are none', async () => {
     expect(await boards()).toMatchObject({ activeBoardId: null, boards: [] });
+    const homeReads = ['/state', '/summary', '/pinned-context', '/spatial-context', '/context'];
+    const checkHome = async (lastBoard: { id: string; name: string } | null) => {
+      for (const path of homeReads) {
+        const result = await call('GET', `/api/canvas${path}`, AGENT);
+        expect(result.status).toBe(200);
+        expect(result.body.boardContext).toEqual({ status: 'no-board-open', message: 'No board open.', lastBoard });
+      }
+      expect((await boards()).activeBoardId).toBeNull();
+    };
+    await checkHome(null);
 
     // No boards yet: the agent's first write creates and opens one.
     await addNote('First note');
     const first = await boards();
     expect(first.boards).toHaveLength(1);
+    expect(first.boards[0].name).toBe('Untitled board');
     expect(first.activeBoardId).toBe(first.boards[0].id);
 
     // An agent may create a board, but it does not open.
@@ -294,6 +305,11 @@ describe('boards over HTTP', () => {
     // Back on Home, a clear opens nothing (it would wipe the board it opened)...
     await call('POST', '/api/canvas/boards/open', HUMAN, { id: null });
     await call('POST', '/api/canvas/clear', AGENT);
+    expect((await boards()).activeBoardId).toBeNull();
+    await checkHome({ id: planning, name: 'Planning' });
+    const explicit = await call('GET', `/api/canvas/state?board=${planning}`, AGENT);
+    expect(explicit.body.boardContext).toBeUndefined();
+    expect((explicit.body.nodes as Array<{ title: string }>).map((node) => node.title)).toEqual(['Planning note']);
     expect((await boards()).activeBoardId).toBeNull();
 
     // ...and the next write opens the most recently opened board, Planning.

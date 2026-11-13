@@ -28,6 +28,21 @@ notes below record historical coverage, not a requirement for Peter to personall
 or approve again. Keep unperformed checks unverified; an approval does not prove them.
 [Release authorization](RELEASE.md#review-evidence-and-authorization) remains separate.
 
+## Home controls
+
+**Home follow-up (2026-11-12).** The Home rail keeps Home, Markdown note,
+Search & commands and Settings. Board editing tools reappear on an open board.
+Markdown note uses the existing New board text prompt (Board name, Cancel, Create)
+and creates a new board with one note only after submission, even with existing
+boards. Cancel leaves Home and the library unchanged. This is the approved
+exception to the navigation-only rail in Home.dc.html. No new styling is introduced.
+Automatic names are Untitled board and Demo board. Duplicate names remain distinct
+boards; this change does not add disambiguation labels. Home hides the top bar's
+session id, board counts and canvas zoom controls. Map and Graph retain their own
+independent zoom controls. Existing board keyboard shortcuts remain inactive on Home,
+except Cmd/Ctrl+K, which opens the same library search as the rail's Search button;
+Escape still clears a Home selection or returns through Graph drill-down.
+
 ## Startup theme
 
 The startup screen keeps its existing layout and uses the canvas background, panel,

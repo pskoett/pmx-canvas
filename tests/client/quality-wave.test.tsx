@@ -20,6 +20,7 @@ import {
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 import { workspaceSettings } from '../../src/client/state/workspace-settings.ts';
+import { activeBoardId, browsingMemory } from '../../src/client/state/boards-store.ts';
 
 // rail-chrome-v2 phase 7a: empty state (11), palette (7), selection bar (13),
 // degraded connection (14).
@@ -61,6 +62,8 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  activeBoardId.value = 'quality-test-board';
+  browsingMemory.value = false;
   workspaceSettings.value = null;
   calls = [];
   resetPresence();
@@ -78,6 +81,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  activeBoardId.value = null;
+  browsingMemory.value = false;
   workspaceSettings.value = null;
 });
 
@@ -237,6 +242,14 @@ describe('command palette', () => {
     rerender(<CommandPalette onClose={() => {}} onToggleMinimap={() => {}} />);
     const after = [...container.querySelectorAll('.command-palette-item')].map((el) => el.textContent);
     expect(after.some((label) => label?.includes('Start agent session'))).toBe(false);
+    // Home remains visible if an agent opens a board behind its library view.
+    act(() => {
+      browsingMemory.value = true;
+    });
+    rerender(<CommandPalette onClose={() => {}} onToggleMinimap={() => {}} />);
+    const onHome = [...container.querySelectorAll('.command-palette-item')].map((el) => el.textContent);
+    expect(onHome).toHaveLength(1);
+    expect(onHome[0]).toContain('Toggle theme');
   });
 });
 
