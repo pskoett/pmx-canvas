@@ -584,6 +584,7 @@ export const GUIDE: GuideRow[] = [
     pass: [
       'Tours frame readably with no blank jump; camera moves add no Undo; reduced motion jumps.',
       'Drags and right-drag pans create no accidental cards; the recording shows concurrent edits and finalizes.',
+      'A layout delivered during a held drag preserves the rendered drop and its saved position in hosted polling and SSE.',
       'Stalled animation frames abort recording within five seconds at startup or a camera step, without finalizing.',
     ],
     touches: [
@@ -605,6 +606,7 @@ export const GUIDE: GuideRow[] = [
       'presentation right-drag interrupts the tour',
       'right-drag pans over blank canvas and node content',
       'a paused title drag survives delayed stacking echoes',
+      'layout delivered',
     ],
     unit: ['tests/unit/tour.test.ts', 'tests/client/presentation.test.ts'],
   },

@@ -14,6 +14,7 @@ import { activeBoardId, boardsLoaded } from './boards-store';
 import { pushCanvasUpdate, requestBestEffort, requestJson, requestOk, updateViewportFromClient } from './intent-bridge';
 import { isHostedWorkbench } from './workbench-transport';
 import { syncAttentionFromSse } from './attention-bridge';
+import { grabbingNodeId } from './human-store';
 
 function logCanvasStoreError(action: string, error: unknown): void {
   console.error(`[canvas-store] ${action} failed`, error);
@@ -159,6 +160,7 @@ export function resetCanvasInteractionState(): void {
   }
   batch(() => {
     canvasInteractionEpoch.value += 1;
+    grabbingNodeId.value = null;
     groupPath.value = [];
     contextPinsRevision++;
     contextPinsPendingWrites = 0;
@@ -813,6 +815,13 @@ export function applyServerCanvasLayout(
   options: { applyViewport?: boolean } = {},
 ): void {
   const nextNodes = new Map<string, CanvasNodeState>();
+  const grabbed = grabbingNodeId.value ? nodes.value.get(grabbingNodeId.value) : undefined;
+  const heldIds = new Set(grabbed ? [grabbed.id] : []);
+  if (grabbed?.type === 'group' && Array.isArray(grabbed.data.children)) {
+    for (const id of grabbed.data.children) heldIds.add(id);
+  }
+  const parent = typeof grabbed?.data.parentGroup === 'string' ? nodes.value.get(grabbed.data.parentGroup) : undefined;
+  if (parent && parent.data.frameMode !== 'manual') heldIds.add(parent.id);
   let nextMaxZ = 1;
   for (const node of layout.nodes) {
     const current = nodes.value.get(node.id);
@@ -825,7 +834,18 @@ export function applyServerCanvasLayout(
         ? { ...node, data: current.data, contentRevision: current.contentRevision, lastEditedBy: current.lastEditedBy }
         : node,
     );
-    if (node.zIndex >= nextMaxZ) nextMaxZ = node.zIndex + 1;
+    // Polls and SSE can carry the pre-drag geometry while the pointer is held.
+    // Keep the grabbed card, translated children and growing fit frame in place,
+    // but still accept content, other cards and removals from the server.
+    if (options.applyViewport !== true && current && heldIds.has(node.id)) {
+      nextNodes.set(node.id, {
+        ...nextNodes.get(node.id)!,
+        position: current.position,
+        size: current.size,
+        zIndex: current.zIndex,
+      });
+    }
+    nextMaxZ = Math.max(nextMaxZ, nextNodes.get(node.id)!.zIndex + 1);
   }
 
   const edgeSource = layout.edges.filter(

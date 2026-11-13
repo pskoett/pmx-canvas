@@ -89,6 +89,83 @@ async function capture(page: Page, name: string) {
   await page.screenshot({ path: join(process.env.PMX_APP_SCREENSHOTS, name) });
 }
 
+for (const transport of ['hosted', 'sse']) {
+  for (const delivery of ['before drag', 'during held drag']) {
+    test(`${transport} layout delivered ${delivery} preserves the rendered and saved drop`, async ({
+      page,
+      request,
+    }) => {
+      await board(request, `${transport} drag ordering`);
+      const id = await note(request, 'Keep this move');
+      const neighborId = await note(request, 'Neighbor', 700);
+      const app = transport === 'hosted' ? await mount(page) : page;
+      if (transport === 'sse') await page.goto('/workbench?transport=sse');
+      const card = app.locator(`.canvas-node[data-node-id="${id}"]`);
+      const neighbor = app.locator(`.canvas-node[data-node-id="${neighborId}"]`);
+      await expect(card.getByText('Full PMX workbench, shared with ChatGPT.')).toBeVisible();
+      await expect(neighbor.getByText('Full PMX workbench, shared with ChatGPT.')).toBeVisible();
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let captured = false;
+      let interceptedPoll = false;
+      if (transport === 'hosted') {
+        await page.route('**/test-tool', async (route) => {
+          const input = route.request().postDataJSON() as { name: string; arguments?: Record<string, unknown> };
+          if (!String(input.arguments?.path).startsWith('/api/workbench/poll?')) return route.fallback();
+          interceptedPoll = true;
+          const result = await client.callTool(input);
+          const response = result._meta?.response as { body?: string } | undefined;
+          const body = JSON.parse(response?.body ?? '{}') as { events?: Array<{ event: string }> };
+          if (!captured && body.events?.some((event) => event.event === 'canvas-layout-update')) {
+            captured = true;
+            await held;
+          }
+          await route.fulfill({ json: result });
+        });
+        // A poll already in flight still belongs to mount's route. Let it finish
+        // before producing the layout this interceptor must hold.
+        await expect.poll(() => interceptedPoll).toBe(true);
+        await request.patch(`/api/canvas/node/${neighborId}`, { data: { content: 'Layout delivered' } });
+        await expect.poll(() => captured).toBe(true);
+      }
+      const deliver = async () => {
+        if (transport === 'hosted') release();
+        else await request.patch(`/api/canvas/node/${neighborId}`, { data: { content: 'Layout delivered' } });
+        await expect(neighbor.getByText('Layout delivered')).toBeVisible();
+        await card.evaluate(
+          () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+        );
+      };
+      try {
+        if (delivery === 'before drag') await deliver();
+        const initial = (await card.boundingBox())!;
+        const title = (await card.locator('.node-title').boundingBox())!;
+        await page.mouse.move(title.x + 30, title.y + 8);
+        await page.mouse.down();
+        await page.mouse.move(title.x + 180, title.y + 68, { steps: 8 });
+        await expect.poll(async () => Math.round((await card.boundingBox())!.x - initial.x)).toBe(150);
+        if (delivery === 'during held drag') await deliver();
+        await page.mouse.up();
+        const final = (await card.boundingBox())!;
+        expect.soft(Math.round(final.x - initial.x)).toBe(150);
+        expect.soft(Math.round(final.y - initial.y)).toBe(60);
+        await expect
+          .poll(async () => (await (await request.get(`/api/canvas/node/${id}`)).json()).position)
+          .toEqual({ x: 230, y: 150 });
+        await page.reload();
+        await expect(card.getByText('Full PMX workbench, shared with ChatGPT.')).toBeVisible();
+        await expect.poll(async () => Math.round((await card.boundingBox())!.x - initial.x)).toBe(150);
+        await expect.poll(async () => Math.round((await card.boundingBox())!.y - initial.y)).toBe(60);
+      } finally {
+        release();
+        await page.mouse.up();
+      }
+    });
+  }
+}
+
 test('hosted Present supersedes an exit still held before its RPC executes', async ({ page, request }) => {
   await board(request, 'Hosted tour ordering');
   const id = await note(request, 'Restarted tour');
