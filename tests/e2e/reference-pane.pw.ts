@@ -715,7 +715,8 @@ test('section headings and full-width chart viewers follow all nine canvas theme
     await expect(frame.locator('.recharts-bar-rectangle').first()).toBeVisible();
     await expect(frame.locator('html')).toHaveAttribute('data-theme', theme);
     await expect(frame.getByText('Build durations', { exact: true })).not.toBeVisible();
-    await expect(frame.getByText('Baseline', { exact: true })).toBeVisible();
+    // The previous theme's hover can leave a tooltip that repeats this label.
+    await expect(frame.getByRole('application').getByText('Baseline', { exact: true })).toBeVisible();
     const panel = await card.evaluate((element) => getComputedStyle(element).backgroundColor);
     await expect(frame.locator('body')).toHaveCSS('background-color', panel);
     const widths = await frame.locator('.pmx-viewer-root').evaluate((element) => ({
