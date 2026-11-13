@@ -1674,7 +1674,7 @@ CLI creation uses structured batch data, not `node add --data` (that flag is for
 pmx-canvas batch --json '[{"op":"node.add","args":{"type":"status","title":"Verify","data":{"workState":"todo","detail":"Run browser checks"}}}]'
 ```
 
-Without `data.workState`, status cards retain their phase/tool display. Session-task linking
+Without `data.workState` or a live `data.workItemId` reference, status cards retain their phase/tool display. A live card whose linked task is unavailable shows "Task unavailable" instead. Session-task linking
 is not provided by these authored cards. Questions can be drawn or written beside the plan;
 the human can answer in the external agent host's composer, without a PMX reply card.
 
