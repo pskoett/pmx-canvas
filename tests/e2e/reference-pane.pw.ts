@@ -308,7 +308,9 @@ test('every control renders in the bundled Plex faces', async ({ page, request }
   const dot = (await page.locator('.connection-dot').boundingBox())!;
   const board = page.locator('.board-switcher-button');
   await board.focus();
-  expect((await board.boundingBox())!.x - dot.x - dot.width).toBeGreaterThanOrEqual(10);
+  // Compact bars tighten gaps to 4 px (ContextChip600.dc.html).
+  const compact = await page.locator('.top-bar').evaluate((bar) => bar.classList.contains('is-compact'));
+  expect((await board.boundingBox())!.x - dot.x - dot.width).toBeGreaterThanOrEqual(compact ? 4 : 10);
 });
 
 test('all relation kinds stay reachable without horizontal scrolling and Fit clears the legend', async ({
