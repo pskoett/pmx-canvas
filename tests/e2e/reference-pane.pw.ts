@@ -317,9 +317,14 @@ test('a top bar compacted by agent writers keeps the 4 px artboard gap', async (
   test.skip(page.viewportSize()!.width > 600, 'only the 600 px pane runs out of room for the writers');
   await resetBoard(request);
   await setWorkspaceFeatures(request, { agentSessions: true });
-  const writers = ['gap-alpha', 'gap-beta', 'gap-gamma'];
-  const presence = (agentId: string, attached: boolean) =>
-    request.post('/api/canvas/ax/presence', { data: { source: 'api', agentId, label: agentId, attached } });
+  // Four sessions overflow the bar by about 90 px; three clear it by only a few, which varies by machine.
+  const writers = ['gap-alpha', 'gap-beta', 'gap-gamma', 'gap-delta'];
+  const presence = async (agentId: string, attached: boolean) => {
+    const response = await request.post('/api/canvas/ax/presence', {
+      data: { source: 'api', agentId, label: agentId, attached },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+  };
   for (const agentId of writers) await presence(agentId, true);
   try {
     await page.goto('/workbench');
