@@ -313,6 +313,27 @@ test('every control renders in the bundled Plex faces', async ({ page, request }
   expect((await board.boundingBox())!.x - dot.x - dot.width).toBeGreaterThanOrEqual(compact ? 4 : 10);
 });
 
+test('a top bar compacted by agent writers keeps the 4 px artboard gap', async ({ page, request }) => {
+  test.skip(page.viewportSize()!.width > 600, 'only the 600 px pane runs out of room for the writers');
+  await resetBoard(request);
+  await setWorkspaceFeatures(request, { agentSessions: true });
+  const writers = ['gap-alpha', 'gap-beta', 'gap-gamma'];
+  const presence = (agentId: string, attached: boolean) =>
+    request.post('/api/canvas/ax/presence', { data: { source: 'api', agentId, label: agentId, attached } });
+  for (const agentId of writers) await presence(agentId, true);
+  try {
+    await page.goto('/workbench');
+    await expect(page.locator('.top-bar')).toHaveClass(/is-compact/);
+    const dot = (await page.locator('.connection-dot').boundingBox())!;
+    const board = (await page.locator('.board-switcher-button').boundingBox())!;
+    // Compact bars tighten gaps to 4 px (ContextChip600.dc.html); the dot and board name never touch.
+    expect(board.x - dot.x - dot.width).toBeGreaterThanOrEqual(4);
+    expect(board.x - dot.x - dot.width).toBeLessThan(10);
+  } finally {
+    for (const agentId of writers) await presence(agentId, false);
+  }
+});
+
 test('all relation kinds stay reachable without horizontal scrolling and Fit clears the legend', async ({
   page,
   request,
